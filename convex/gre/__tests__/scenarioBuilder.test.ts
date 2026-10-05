@@ -100,8 +100,8 @@ import { removedKeywordRows } from "../../cards/__tests__/setup.helper";
 function declaredCombatState(): GameState {
     const state = buildStateFromScenario(makeState(), {
         cards: [
-            { name: grizzlyBears.name, owner: "me", tapped: true },
-            { name: shivanDragon.name, owner: "opp" },
+            { name: grizzlyBears().name, owner: "me", tapped: true },
+            { name: shivanDragon().name, owner: "opp" },
         ],
         phase: "DECLARE_BLOCKERS",
     });
@@ -201,8 +201,8 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const base = makeState();
         const spec: ScenarioSpec = {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
-                { name: grizzlyBears.name, owner: "opp", zone: "hand" },
+                { name: grizzlyBears().name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "opp", zone: "hand" },
             ],
         };
 
@@ -211,13 +211,13 @@ describe("buildStateFromScenario (issue #1424)", () => {
         expect(state.players[0].battlefield).toHaveLength(1);
         expect(
             (state.players[0].battlefield[0].card as { id: string }).id
-        ).toBe(grizzlyBears.id);
+        ).toBe(grizzlyBears().id);
         expect(state.players[0].battlefield[0].controllerId).toBe(
             state.players[0].id
         );
         expect(state.players[1].hand).toHaveLength(1);
         expect((state.players[1].hand[0].card as { id: string }).id).toBe(
-            grizzlyBears.id
+            grizzlyBears().id
         );
     });
 
@@ -230,7 +230,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
                     battlefield: [
                         {
                             id: "stale",
-                            card: { id: grizzlyBears.id },
+                            card: { id: grizzlyBears().id },
                             types: ["Creature"],
                             subtypes: [],
                             staticAbilities: [],
@@ -247,7 +247,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "me",
                     zone: "battlefield",
                     tapped: true,
@@ -271,7 +271,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
     it("seeds `landCount` basic lands per player, colour-matched to the placed cards", () => {
         const base = makeState();
         const spec: ScenarioSpec = {
-            cards: [{ name: shivanDragon.name, owner: "me" }],
+            cards: [{ name: shivanDragon().name, owner: "me" }],
             landCount: 4,
         };
 
@@ -281,7 +281,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         expect(state.players[0].battlefield).toHaveLength(5);
         expect(state.players[1].battlefield).toHaveLength(4);
         const lands = state.players[0].battlefield.filter(
-            (c) => (c.card as { id: string }).id !== shivanDragon.id
+            (c) => (c.card as { id: string }).id !== shivanDragon().id
         );
         expect(lands).toHaveLength(4);
         // Shivan Dragon is mono-red — the seeded basics must be Mountains.
@@ -321,7 +321,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
             },
         });
         const spec: ScenarioSpec = {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             phase: "PRECOMBAT_MAIN",
         };
 
@@ -372,7 +372,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const base = makeState();
         const baseSnapshot = structuredClone(base);
         const spec: ScenarioSpec = {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             landCount: 2,
             phase: "DECLARE_ATTACKERS",
             rngSeed: 9,
@@ -394,7 +394,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: forest.name,
+                    name: forest().name,
                     owner: "me",
                     zone: "exile",
                     castableFromExile: true,
@@ -421,7 +421,7 @@ describe("buildStateFromScenario (issue #1424)", () => {
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: forest.name,
+                    name: forest().name,
                     owner: "me",
                     zone: "exile",
                     castableFromExile: true,
@@ -515,13 +515,13 @@ describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)"
         const landInHand = (state: GameState) => {
             const me = state.players[0];
             const card = me.hand.find(
-                (c) => (c.card as { id?: string }).id === forest.id
+                (c) => (c.card as { id?: string }).id === forest().id
             );
             if (!card) throw new Error("fixture: no land in hand");
             return getLegalActions(state, me, card);
         };
         const board: ScenarioSpec = {
-            cards: [{ name: forest.name, owner: "me", zone: "hand" }],
+            cards: [{ name: forest().name, owner: "me", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
         };
 
@@ -545,14 +545,14 @@ describe("buildStateFromScenario — per-turn player tallies (CR 121.1 / 400.7)"
         // is what makes the question meaningful at all: a land is unplayable
         // on someone else's turn for a different reason entirely (CR 305.3).
         const oppBoard: ScenarioSpec = {
-            cards: [{ name: forest.name, owner: "opp", zone: "hand" }],
+            cards: [{ name: forest().name, owner: "opp", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
             activePlayer: "opp",
         };
         const oppLandInHand = (state: GameState) => {
             const opp = state.players[1];
             const card = opp.hand.find(
-                (c) => (c.card as { id?: string }).id === forest.id
+                (c) => (c.card as { id?: string }).id === forest().id
             );
             if (!card) throw new Error("fixture: no land in opp's hand");
             return getLegalActions(state, opp, card);
@@ -594,7 +594,7 @@ describe("buildStateFromScenario — library placement + libraryCount", () => {
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: shivanDragon.name,
+                    name: shivanDragon().name,
                     owner: "me",
                     zone: "library",
                     position: 1,
@@ -609,10 +609,10 @@ describe("buildStateFromScenario — library placement + libraryCount", () => {
         // 10 filler basics + the placed card, which sits on TOP (position 1 =
         // index 0, where `drawCard` reads).
         expect(library).toHaveLength(11);
-        expect((library[0].card as { id: string }).id).toBe(shivanDragon.id);
+        expect((library[0].card as { id: string }).id).toBe(shivanDragon().id);
         expect(
             library.filter(
-                (c) => (c.card as { id: string }).id === shivanDragon.id
+                (c) => (c.card as { id: string }).id === shivanDragon().id
             )
         ).toHaveLength(1);
     });
@@ -620,7 +620,9 @@ describe("buildStateFromScenario — library placement + libraryCount", () => {
     it("appends a library card to the BOTTOM of the filler pile when no position is given", () => {
         const base = makeState();
         const spec: ScenarioSpec = {
-            cards: [{ name: shivanDragon.name, owner: "opp", zone: "library" }],
+            cards: [
+                { name: shivanDragon().name, owner: "opp", zone: "library" },
+            ],
             libraryCount: 3,
         };
 
@@ -628,7 +630,7 @@ describe("buildStateFromScenario — library placement + libraryCount", () => {
 
         const library = state.players[1].library;
         expect(library).toHaveLength(4);
-        expect((library[3].card as { id: string }).id).toBe(shivanDragon.id);
+        expect((library[3].card as { id: string }).id).toBe(shivanDragon().id);
     });
 
     it("still seeds the requested filler count when no card is placed in the library", () => {
@@ -665,7 +667,7 @@ describe("buildStateFromScenario — a scenario starts a LIVE game (CR 104, issu
 
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "battlefield" },
             ],
             libraryCount: 10,
         });
@@ -687,7 +689,7 @@ describe("buildStateFromScenario — a scenario starts a LIVE game (CR 104, issu
         expect(base.gameOver).toBeUndefined();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "battlefield" },
             ],
         });
         expect(state.gameOver).toBeUndefined();
@@ -701,7 +703,9 @@ describe("buildStateFromScenario — a scenario starts a LIVE game (CR 104, issu
         const finished = makeState({
             players: [
                 makePlayer("p1", {
-                    battlefield: [makeInstance(grizzlyBears.id, { id: "b1" })],
+                    battlefield: [
+                        makeInstance(grizzlyBears().id, { id: "b1" }),
+                    ],
                 }),
                 makePlayer("p2"),
             ],
@@ -897,7 +901,7 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
             cards: [
                 { name: "Wasp", owner: "me", token: true },
                 {
-                    name: fear.name,
+                    name: fear().name,
                     owner: "me",
                     attachedTo: "Wasp",
                 },
@@ -909,7 +913,7 @@ describe("buildStateFromScenario — tokens (CR 111 / 707.2)", () => {
         const battlefield = state.players[0].battlefield;
         const host = battlefield.find((c) => c.isToken)!;
         const aura = battlefield.find(
-            (c) => (c.card as { id: string }).id === fear.id
+            (c) => (c.card as { id: string }).id === fear().id
         )!;
         expect(aura.attachedTo).toBe(host.id);
     });
@@ -1026,16 +1030,24 @@ describe("specFromState (issue #2148)", () => {
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "me",
                     tapped: true,
                     counters: { "+1/+1": 2 },
                     damageMarked: 1,
                     attackedLastTurn: true,
                 },
-                { name: fear.name, owner: "me", attachedTo: grizzlyBears.name },
-                { name: shivanDragon.name, owner: "me", faceDown: true },
-                { name: forest.name, owner: "me", copyOf: shivanDragon.name },
+                {
+                    name: fear().name,
+                    owner: "me",
+                    attachedTo: grizzlyBears().name,
+                },
+                { name: shivanDragon().name, owner: "me", faceDown: true },
+                {
+                    name: forest().name,
+                    owner: "me",
+                    copyOf: shivanDragon().name,
+                },
                 {
                     name: "Wasp",
                     owner: "me",
@@ -1044,23 +1056,27 @@ describe("specFromState (issue #2148)", () => {
                     counters: { "+1/+1": 1 },
                     summoningSick: true,
                 },
-                { name: fear.name, owner: "me", attachedTo: "Wasp" },
-                { name: grizzlyBears.name, owner: "opp", tapped: true },
-                { name: shivanDragon.name, owner: "opp", summoningSick: true },
-                { name: forest.name, owner: "me", zone: "hand" },
-                { name: fear.name, owner: "me", zone: "hand" },
-                { name: shivanDragon.name, owner: "me", zone: "graveyard" },
+                { name: fear().name, owner: "me", attachedTo: "Wasp" },
+                { name: grizzlyBears().name, owner: "opp", tapped: true },
                 {
-                    name: grizzlyBears.name,
+                    name: shivanDragon().name,
+                    owner: "opp",
+                    summoningSick: true,
+                },
+                { name: forest().name, owner: "me", zone: "hand" },
+                { name: fear().name, owner: "me", zone: "hand" },
+                { name: shivanDragon().name, owner: "me", zone: "graveyard" },
+                {
+                    name: grizzlyBears().name,
                     owner: "me",
                     zone: "exile",
                     castableFromExile: true,
                     castableFromExileIncludesLand: true,
                 },
-                { name: fear.name, owner: "opp", zone: "hand" },
-                { name: forest.name, owner: "opp", zone: "graveyard" },
+                { name: fear().name, owner: "opp", zone: "hand" },
+                { name: forest().name, owner: "opp", zone: "graveyard" },
                 {
-                    name: shivanDragon.name,
+                    name: shivanDragon().name,
                     owner: "opp",
                     zone: "exile",
                     castableFromExile: true,
@@ -1074,7 +1090,7 @@ describe("specFromState (issue #2148)", () => {
             experience: { me: 2, opp: 1 },
             landsPlayed: { me: 1, opp: 2 },
             markLastDrawn: true,
-            companion: { name: shivanDragon.name, owner: "me", used: false },
+            companion: { name: shivanDragon().name, owner: "me", used: false },
         };
         const state = buildStateFromScenario(base, spec);
         return { base, state };
@@ -1152,7 +1168,7 @@ describe("specFromState (issue #2148)", () => {
             const card = p.hand.find((c) => c.id === p.lastDrawnCardId);
             return card ? ((card.card as { id?: string }).id ?? "") : undefined;
         };
-        expect(lastDrawnDefId(state)).toBe(fear.id);
+        expect(lastDrawnDefId(state)).toBe(fear().id);
         expect(lastDrawnDefId(rebuilt)).toBe(lastDrawnDefId(state));
     });
 
@@ -1160,8 +1176,8 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me", tapped: true },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: grizzlyBears().name, owner: "me", tapped: true },
+                { name: shivanDragon().name, owner: "opp" },
             ],
         });
 
@@ -1172,10 +1188,10 @@ describe("specFromState (issue #2148)", () => {
         // What was "opp" (Shivan Dragon) in the live state is "me" now.
         expect(
             spec.cards.filter((c) => c.owner === "me").map((c) => c.name)
-        ).toEqual([shivanDragon.name]);
+        ).toEqual([shivanDragon().name]);
         expect(
             spec.cards.filter((c) => c.owner === "opp").map((c) => c.name)
-        ).toEqual([grizzlyBears.name]);
+        ).toEqual([grizzlyBears().name]);
         // CR 102.1 (issue #3454) — the active player (players[0], "p1") is no
         // longer "me", and the spec now CARRIES that instead of reporting it
         // as a loss: it is lowered in the same mirrored frame as the cards.
@@ -1193,10 +1209,10 @@ describe("specFromState (issue #2148)", () => {
     it("LOWERS the stack and the floating mana beside it", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         state.stack.push({
-            ...makeInstance(grizzlyBears.id, {
+            ...makeInstance(grizzlyBears().id, {
                 controllerId: state.players[0].id,
                 ownerId: state.players[0].id,
                 zone: "hand",
@@ -1216,7 +1232,7 @@ describe("specFromState (issue #2148)", () => {
         expect(spec.stack).toEqual([
             {
                 kind: "spell",
-                name: grizzlyBears.name,
+                name: grizzlyBears().name,
                 controller: "me",
             },
         ]);
@@ -1242,7 +1258,7 @@ describe("specFromState (issue #2148)", () => {
     it("reports an OWED extra combat phase as dropped rather than silently losing it", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         state.extraPhases = [{ kind: "combat" }];
 
@@ -1259,7 +1275,7 @@ describe("specFromState (issue #2148)", () => {
     it("does NOT name extra phases when only a Pass-Turn intent is standing", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         state.queuedEndTurn = [state.players[0].id];
 
@@ -1274,7 +1290,7 @@ describe("specFromState (issue #2148)", () => {
     it("reports a turn ALREADY in an extra combat as dropped", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         state.extraCombatsThisTurn = 1;
 
@@ -1301,17 +1317,17 @@ describe("specFromState (issue #2148)", () => {
         });
 
         expect(spec.combat).toEqual({
-            attackers: [grizzlyBears.name],
+            attackers: [grizzlyBears().name],
             confirmed: true,
-            blockers: [{ blocker: shivanDragon.name, blocking: [0] }],
+            blockers: [{ blocker: shivanDragon().name, blocking: [0] }],
             blockersConfirmed: true,
             // CR 506.4 / 508.4 — the per-turn record names the current
             // attacker and blocker too: being IN the declaration does not
             // imply the flag (a creature put onto the battlefield attacking is
             // "attacking" but per CR 508.4 never "attacked"), so it is lowered
             // as the complete list rather than the declaration's complement.
-            attackedThisTurn: { me: [grizzlyBears.name] },
-            blockedThisTurn: { opp: [shivanDragon.name] },
+            attackedThisTurn: { me: [grizzlyBears().name] },
+            blockedThisTurn: { opp: [shivanDragon().name] },
         });
         // The loss it replaces is gone, and no other combat note took its
         // place.
@@ -1349,8 +1365,8 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me", count: 2 },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: grizzlyBears().name, owner: "me", count: 2 },
+                { name: shivanDragon().name, owner: "opp" },
             ],
             phase: "DECLARE_BLOCKERS",
         });
@@ -1371,11 +1387,11 @@ describe("specFromState (issue #2148)", () => {
         // into the attacker list — the one reference in the spec that isn't a
         // name.
         expect(spec.combat?.attackers).toEqual([
-            grizzlyBears.name,
-            grizzlyBears.name,
+            grizzlyBears().name,
+            grizzlyBears().name,
         ]);
         expect(spec.combat?.blockers).toEqual([
-            { blocker: shivanDragon.name, blocking: [1] },
+            { blocker: shivanDragon().name, blocking: [1] },
         ]);
 
         const rebuilt = buildStateFromScenario(makeState(), spec);
@@ -1397,14 +1413,14 @@ describe("specFromState (issue #2148)", () => {
                 // renders both as the same sentence, so the verdict path's
                 // candidate-list comparison could never see it: the loss is
                 // REPORTED instead, and `lowerDecision` refuses on it.
-                { name: grizzlyBears.name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me" },
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "me",
                     counters: { "+1/+1": 1 },
                     tapped: true,
                 },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: shivanDragon().name, owner: "opp" },
             ],
             phase: "DECLARE_BLOCKERS",
         });
@@ -1430,8 +1446,8 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: grizzlyBears().name, owner: "me" },
+                { name: shivanDragon().name, owner: "opp" },
             ],
             phase: "POSTCOMBAT_MAIN",
         });
@@ -1446,8 +1462,8 @@ describe("specFromState (issue #2148)", () => {
         });
 
         expect(spec.combat).toEqual({
-            attackedThisTurn: { me: [grizzlyBears.name] },
-            blockedThisTurn: { opp: [shivanDragon.name] },
+            attackedThisTurn: { me: [grizzlyBears().name] },
+            blockedThisTurn: { opp: [shivanDragon().name] },
         });
         expect(
             dropped.filter((d) => d.includes("hasAttackedThisTurn"))
@@ -1467,7 +1483,7 @@ describe("specFromState (issue #2148)", () => {
     it("rebuilds an OPEN declare-attackers step as itself, not as no combat at all", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             phase: "DECLARE_ATTACKERS",
         });
 
@@ -1492,13 +1508,13 @@ describe("specFromState (issue #2148)", () => {
     it("throws rather than rebuilding a combat one attacker short", () => {
         expect(() =>
             buildStateFromScenario(makeState(), {
-                cards: [{ name: grizzlyBears.name, owner: "me" }],
+                cards: [{ name: grizzlyBears().name, owner: "me" }],
                 phase: "DECLARE_ATTACKERS",
                 // Two Bears named, one on the battlefield: a silently shorter
                 // attack is a different position under the same label, and the
                 // verdict quiz would report it far from the cause.
                 combat: {
-                    attackers: [grizzlyBears.name, grizzlyBears.name],
+                    attackers: [grizzlyBears().name, grizzlyBears().name],
                     confirmed: true,
                 },
             })
@@ -1509,14 +1525,14 @@ describe("specFromState (issue #2148)", () => {
         expect(() =>
             buildStateFromScenario(makeState(), {
                 cards: [
-                    { name: grizzlyBears.name, owner: "me" },
-                    { name: shivanDragon.name, owner: "opp" },
+                    { name: grizzlyBears().name, owner: "me" },
+                    { name: shivanDragon().name, owner: "opp" },
                 ],
                 phase: "DECLARE_BLOCKERS",
                 combat: {
-                    attackers: [grizzlyBears.name],
+                    attackers: [grizzlyBears().name],
                     confirmed: true,
-                    blockers: [{ blocker: shivanDragon.name, blocking: [1] }],
+                    blockers: [{ blocker: shivanDragon().name, blocking: [1] }],
                 },
             })
         ).toThrow(/attacker #1/);
@@ -1560,7 +1576,7 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, { cards: [] });
         state.players[0].library.push(
-            makeInstance(forest.id, {
+            makeInstance(forest().id, {
                 controllerId: state.players[0].id,
                 ownerId: state.players[0].id,
                 zone: "library",
@@ -1577,7 +1593,7 @@ describe("specFromState (issue #2148)", () => {
     it("LOWERS a continuous effect (e.g. a temporary P/T buff) rather than reporting the whole registry (issue #3488)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         // CR 613.4c (ADR 0082, PRD #2064 S6) — an until-end-of-turn pump is a
         // Continuous Effects Registry entry, so what it leaves is on the GAME
@@ -1622,7 +1638,7 @@ describe("specFromState (issue #2148)", () => {
             {
                 layer: 7,
                 sublayer: "7c",
-                affected: { me: [grizzlyBears.name] },
+                affected: { me: [grizzlyBears().name] },
                 controller: "me",
                 duration: { phase: "end-of-turn" },
                 payload: { kind: "pt-modify", power: 3, toughness: 3 },
@@ -1645,7 +1661,7 @@ describe("specFromState (issue #2148)", () => {
     it("reports player- and game-level turn-scoped bookkeeping the spec has no field for, rather than a silent faithful-capture claim (review finding on #2866)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             phase: "PRECOMBAT_MAIN",
         });
         const me = state.players[0];
@@ -1700,7 +1716,7 @@ describe("specFromState (issue #2148)", () => {
         // be lowered, but not faithfully. The generic top-level residue scan is
         // what says so; this pins that it keeps saying so rather than the entry
         // going quietly missing from a saved scenario.
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const bear = makeInstance(grizzlyBears().id, { id: "bear" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [bear] }),
@@ -1736,7 +1752,7 @@ describe("specFromState (issue #2148)", () => {
         // no source produced it. The dangling test asks "is this sourceId still
         // on a battlefield?", which no sentinel can answer — without the skip
         // every such strip reported as unrecoverable on every save.
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             staticAbilities: ["flying"],
         });
@@ -1748,7 +1764,7 @@ describe("specFromState (issue #2148)", () => {
         });
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, grizzlyBears.id, "p1")
+            pushSpell(state, grizzlyBears().id, "p1")
         );
         ctx.removeStaticAbilities(
             { type: "permanent", id: "bear" },
@@ -1768,7 +1784,7 @@ describe("specFromState (issue #2148)", () => {
     it("reports abilitiesSuppressedBy sourced from a permanent that has already left the battlefield (dangling sourceId), unlike a still-present source which is rebuild behaviour and stays silent", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         const bear = state.players[0].battlefield[0];
         // No permanent on either battlefield has this id — simulates a
@@ -1789,8 +1805,8 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
-                { name: shivanDragon.name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me" },
+                { name: shivanDragon().name, owner: "me" },
             ],
         });
         const [bear, dragon] = state.players[0].battlefield;
@@ -1817,7 +1833,7 @@ describe("specFromState (issue #2148)", () => {
     it("reports grantedActivatedAbilities/grantedTriggeredAbilities sourced from an aura that has already left the battlefield (dangling auraId)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         const bear = state.players[0].battlefield[0];
         // No permanent on either battlefield has this id — simulates an aura
@@ -1825,14 +1841,14 @@ describe("specFromState (issue #2148)", () => {
         // cannot replay on reload.
         bear.grantedActivatedAbilities = [
             {
-                sourceCardId: fear.id,
+                sourceCardId: fear().id,
                 abilityId: "a1",
                 auraId: "gone-forever",
             },
         ];
         bear.grantedTriggeredAbilities = [
             {
-                sourceCardId: fear.id,
+                sourceCardId: fear().id,
                 abilityId: "t1",
                 auraId: "gone-forever",
             },
@@ -1860,16 +1876,16 @@ describe("specFromState (issue #2148)", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
-                { name: shivanDragon.name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me" },
+                { name: shivanDragon().name, owner: "me" },
             ],
         });
         const [bear, dragon] = state.players[0].battlefield;
         bear.grantedActivatedAbilities = [
-            { sourceCardId: fear.id, abilityId: "a1", auraId: dragon.id },
+            { sourceCardId: fear().id, abilityId: "a1", auraId: dragon.id },
         ];
         bear.grantedTriggeredAbilities = [
-            { sourceCardId: fear.id, abilityId: "t1", auraId: dragon.id },
+            { sourceCardId: fear().id, abilityId: "t1", auraId: dragon.id },
         ];
 
         const { dropped } = specFromState(state, {
@@ -1916,7 +1932,7 @@ describe("specFromState (issue #2148)", () => {
     it("does not report the live-choice wire-projection fields (librarySearch/libraryPeek/revealedHand) as dropped while a search-library choice is on the stack", () => {
         const base = makeState();
         const state = buildStateFromScenario(base, {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         const me = state.players[0];
         state.pendingChoices = [
@@ -1998,7 +2014,7 @@ describe("scenario-placed off-battlefield characteristics (CR 113.6c)", () => {
 
         const offered = getLegalTargets(
             state,
-            animateDead.targetRequirement!,
+            animateDead().targetRequirement!,
             NO_TARGETING_SOURCE,
             state.players[0].id
         );
@@ -2040,9 +2056,9 @@ describe("buildStateFromScenario — turn holder, priority and passCount (issue 
      *  `enumerateMoves`, which is a bot-only module (`bot-suite-boundary`). */
     const TIMING_BOARD: ScenarioSpec = {
         cards: [
-            { name: forest.name, owner: "me", zone: "hand" },
-            { name: grizzlyBears.name, owner: "me", zone: "hand" },
-            { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+            { name: forest().name, owner: "me", zone: "hand" },
+            { name: grizzlyBears().name, owner: "me", zone: "hand" },
+            { name: grizzlyBears().name, owner: "opp", zone: "battlefield" },
         ],
         landCount: 4,
     };
@@ -2151,7 +2167,7 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
 
     function permanent(state: GameState, seat: 0 | 1) {
         return state.players[seat].battlefield.find(
-            (c) => (c.card as { id?: string }).id === gaeasTouch.id
+            (c) => (c.card as { id?: string }).id === gaeasTouch().id
         );
     }
 
@@ -2159,11 +2175,11 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         const state = buildStateFromScenario(makeState(), {
             cards: [
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     activations: { [ABILITY]: 1 },
                 },
-                { name: gaeasTouch.name, owner: "opp" },
+                { name: gaeasTouch().name, owner: "opp" },
             ],
         });
 
@@ -2180,7 +2196,7 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     activations: { [ABILITY]: 1 },
                 },
@@ -2196,7 +2212,7 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
                     activations: { [ABILITY]: 3 },
                 },
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "opp",
                     zone: "graveyard",
                     activations: { [ABILITY]: 2 },
@@ -2206,13 +2222,13 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
                 // with the safety net gone, a zone `lowerCard` forgot would be
                 // a silent drop rather than a `dropped[]` line.
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     zone: "hand",
                     activations: { [ABILITY]: 4 },
                 },
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     zone: "exile",
                     activations: { [ABILITY]: 5 },
@@ -2268,7 +2284,7 @@ describe("buildStateFromScenario — per-turn activation tallies (issue #3448)",
         const state = buildStateFromScenario(makeState(), {
             cards: [
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     activations: { [ABILITY]: 0 },
                 },
@@ -2348,7 +2364,7 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
     // only the free alternative cost can make "cast" legal at all.
     it("denies Once Upon a Time's free cast to a seat that has already cast this game (CR 118.9)", () => {
         const board: ScenarioSpec = {
-            cards: [{ name: onceUponATime.name, owner: "me", zone: "hand" }],
+            cards: [{ name: onceUponATime().name, owner: "me", zone: "hand" }],
         };
 
         const fresh = buildStateFromScenario(makeState(), board);
@@ -2376,7 +2392,7 @@ describe("buildStateFromScenario — what has already been cast (issue #3449)", 
             stormCount: 3,
         });
 
-        const gs = pushSpell(state, grapeshot.id, state.players[0].id, [
+        const gs = pushSpell(state, grapeshot().id, state.players[0].id, [
             { type: "player", id: state.players[1].id },
         ]);
         emitSpellCastEvent(state, gs);
@@ -2480,7 +2496,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
         base.creatureAttackedThisTurn = true;
         base.abilityResolutionCounts = { "stale:ability": 4 };
         base.lastKnownCopiable = {
-            stale: { defId: grizzlyBears.id, turn: 1 },
+            stale: { defId: grizzlyBears().id, turn: 1 },
         };
         base.cleanupBookkeepingTurn = 1;
         const built = buildStateFromScenario(base, { cards: [] });
@@ -2509,7 +2525,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
         // The two allowlisted ledgers are present on the live state too — the
         // point of this case is that neither reads as residue any more.
         live.lastKnownCopiable = {
-            gone: { defId: grizzlyBears.id, turn: live.turn },
+            gone: { defId: grizzlyBears().id, turn: live.turn },
         };
         live.cleanupBookkeepingTurn = live.turn - 1;
 
@@ -2533,7 +2549,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
             damageDealtToPlayerThisTurn: { me: 4 },
         });
         const bear = built.players[0].battlefield[0];
-        pushSpell(built, simulacrum.id, "p1", [
+        pushSpell(built, simulacrum().id, "p1", [
             { type: "permanent", id: bear.id },
         ]);
         resolveTopOfStack(built);
@@ -2576,7 +2592,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
             type: "PERMANENT_ENTERED" as const,
             instanceId: "land1",
             controllerId: "p1",
-            cardId: forest.id,
+            cardId: forest().id,
             types: ["Land"],
         } as GameEvent;
         // The Cub alone on the battlefield is the sole legal "creature you
@@ -2660,7 +2676,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
         const built = buildStateFromScenario(makeState(), {
             cards: [
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     abilityResolutions: { [ability]: 1 },
                 },
@@ -2671,19 +2687,19 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
                     abilityResolutions: { [ability]: 3 },
                 },
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "opp",
                     zone: "graveyard",
                     abilityResolutions: { [ability]: 2 },
                 },
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     zone: "hand",
                     abilityResolutions: { [ability]: 4 },
                 },
                 {
-                    name: gaeasTouch.name,
+                    name: gaeasTouch().name,
                     owner: "me",
                     zone: "exile",
                     abilityResolutions: { [ability]: 5 },
@@ -2691,7 +2707,7 @@ describe("buildStateFromScenario — retrospective per-turn tallies (issue #3453
                 // A zero says exactly what an absent key says, so it is not
                 // written — otherwise the round trip stops being a fixed point.
                 {
-                    name: shivanDragon.name,
+                    name: shivanDragon().name,
                     owner: "me",
                     abilityResolutions: { [ability]: 0 },
                 },
@@ -2845,14 +2861,14 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
     it("makes no attacker eligible against a defender who took no qualifying action last turn (CR 508.1c)", () => {
         const board: ScenarioSpec = {
             cards: [
-                { name: arboria.name, owner: "me", zone: "battlefield" },
-                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+                { name: arboria().name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "battlefield" },
             ],
         };
         const bearEligible = (spec: ScenarioSpec): boolean => {
             const state = buildStateFromScenario(makeState(), spec);
             const bear = state.players[0].battlefield.find(
-                (c) => (c.card as { id: string }).id === grizzlyBears.id
+                (c) => (c.card as { id: string }).id === grizzlyBears().id
             );
             expect(bear).toBeDefined();
             return validateAttackerEligibility(
@@ -2886,15 +2902,15 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
     it("lets Fatal Push kill a mana-value-4 creature only with revolt seeded", () => {
         const board: ScenarioSpec = {
             cards: [
-                { name: fatalPush.name, owner: "me", zone: "hand" },
-                { name: hillGiant.name, owner: "opp", zone: "battlefield" },
+                { name: fatalPush().name, owner: "me", zone: "hand" },
+                { name: hillGiant().name, owner: "opp", zone: "battlefield" },
             ],
         };
 
         const kill = (spec: ScenarioSpec): boolean => {
             const state = buildStateFromScenario(makeState(), spec);
             const giant = state.players[1].battlefield[0];
-            pushSpell(state, fatalPush.id, state.players[0].id, [
+            pushSpell(state, fatalPush().id, state.players[0].id, [
                 { type: "permanent", id: giant.id },
             ]);
             while (state.stack.length > 0) resolveTopOfStack(state);
@@ -2920,7 +2936,7 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
                 cards: [],
                 turnsTaken: { me: turnsTaken },
             });
-            const town = makeInstance(startingTown.id, {
+            const town = makeInstance(startingTown().id, {
                 controllerId: state.players[0].id,
                 ownerId: state.players[0].id,
                 zone: "battlefield",
@@ -3007,7 +3023,7 @@ describe("buildStateFromScenario — per-seat turn history (issue #3450)", () =>
 // take back; lowering them would let a rebuilt untap MINT life, counters and
 // cost mana this position never paid.
 describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
-    const RASPUTIN = rasputinDreamweaver.name;
+    const RASPUTIN = rasputinDreamweaver().name;
 
     function find(state: GameState, seat: 0 | 1, defId: string) {
         return state.players[seat].battlefield.find(
@@ -3019,13 +3035,13 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         const state = buildStateFromScenario(makeState(), {
             cards: [
                 {
-                    name: forest.name,
+                    name: forest().name,
                     owner: "me",
                     tapped: true,
                     manaCommitted: true,
                 },
                 {
-                    name: cityOfBrass.name,
+                    name: cityOfBrass().name,
                     owner: "me",
                     tapped: true,
                     tapTriggerCommitted: true,
@@ -3045,21 +3061,23 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
                 },
                 // The seat that declared nothing keeps the engine defaults:
                 // every one of these is per-INSTANCE, never a board-wide stamp.
-                { name: forest.name, owner: "opp", tapped: true },
+                { name: forest().name, owner: "opp", tapped: true },
             ],
         });
 
-        expect(find(state, 0, forest.id)?.manaCommitted).toBe(true);
-        expect(find(state, 0, cityOfBrass.id)?.tapTriggerCommitted).toBe(true);
+        expect(find(state, 0, forest().id)?.manaCommitted).toBe(true);
+        expect(find(state, 0, cityOfBrass().id)?.tapTriggerCommitted).toBe(
+            true
+        );
         expect(
-            find(state, 0, rasputinDreamweaver.id)?.startedTurnUntapped
+            find(state, 0, rasputinDreamweaver().id)?.startedTurnUntapped
         ).toBe(true);
         const token = state.players[0].battlefield.find((c) => c.isToken);
         expect(token?.manaCommitted).toBe(true);
         expect(token?.startedTurnUntapped).toBe(true);
         expect(token?.isTapped).toBe(true);
 
-        const oppForest = find(state, 1, forest.id);
+        const oppForest = find(state, 1, forest().id);
         expect(oppForest?.isTapped).toBe(true);
         expect(oppForest?.manaCommitted).toBeUndefined();
         expect(oppForest?.tapTriggerCommitted).toBeUndefined();
@@ -3071,13 +3089,13 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         const live = buildStateFromScenario(base, {
             cards: [
                 {
-                    name: forest.name,
+                    name: forest().name,
                     owner: "me",
                     tapped: true,
                     manaCommitted: true,
                 },
                 {
-                    name: cityOfBrass.name,
+                    name: cityOfBrass().name,
                     owner: "opp",
                     tapped: true,
                     tapTriggerCommitted: true,
@@ -3089,7 +3107,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
                 // Tapped NOW but it started the turn untapped (something tapped
                 // it since): a shape no derivation from `tapped` can produce.
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "me",
                     tapped: true,
                     startedTurnUntapped: true,
@@ -3102,29 +3120,29 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         });
         expect(dropped).toEqual([]);
 
-        const myForest = lowered.cards.find((c) => c.name === forest.name);
+        const myForest = lowered.cards.find((c) => c.name === forest().name);
         expect(myForest?.manaCommitted).toBe(true);
         expect(myForest?.tapTriggerCommitted).toBeUndefined();
         expect(
-            lowered.cards.find((c) => c.name === cityOfBrass.name)
+            lowered.cards.find((c) => c.name === cityOfBrass().name)
                 ?.tapTriggerCommitted
         ).toBe(true);
         expect(
             lowered.cards.find((c) => c.name === RASPUTIN)?.startedTurnUntapped
         ).toBe(true);
-        const bears = lowered.cards.find((c) => c.name === grizzlyBears.name);
+        const bears = lowered.cards.find((c) => c.name === grizzlyBears().name);
         expect(bears?.tapped).toBe(true);
         expect(bears?.startedTurnUntapped).toBe(true);
 
         const rebuilt = buildStateFromScenario(base, lowered);
-        expect(find(rebuilt, 0, forest.id)?.manaCommitted).toBe(true);
-        expect(find(rebuilt, 1, cityOfBrass.id)?.tapTriggerCommitted).toBe(
+        expect(find(rebuilt, 0, forest().id)?.manaCommitted).toBe(true);
+        expect(find(rebuilt, 1, cityOfBrass().id)?.tapTriggerCommitted).toBe(
             true
         );
         expect(
-            find(rebuilt, 0, rasputinDreamweaver.id)?.startedTurnUntapped
+            find(rebuilt, 0, rasputinDreamweaver().id)?.startedTurnUntapped
         ).toBe(true);
-        const rebuiltBears = find(rebuilt, 0, grizzlyBears.id);
+        const rebuiltBears = find(rebuilt, 0, grizzlyBears().id);
         expect(rebuiltBears?.isTapped).toBe(true);
         expect(rebuiltBears?.startedTurnUntapped).toBe(true);
     });
@@ -3132,7 +3150,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
     it("lowers the MANA POOL, never the six undo records that exist to refill it", () => {
         const base = makeState();
         const live = buildStateFromScenario(base, {
-            cards: [{ name: forest.name, owner: "me", tapped: true }],
+            cards: [{ name: forest().name, owner: "me", tapped: true }],
         });
         const tapped = live.players[0].battlefield[0];
         // The complete undo-bookkeeping family, as a live tap-for-mana leaves
@@ -3164,7 +3182,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
         // nothing — and the pool it would have minted INTO is the captured one,
         // neither topped up nor emptied.
         const rebuilt = buildStateFromScenario(base, lowered);
-        const rebuiltForest = find(rebuilt, 0, forest.id);
+        const rebuiltForest = find(rebuilt, 0, forest().id);
         expect(rebuiltForest?.isTapped).toBe(true);
         expect(rebuiltForest?.chosenMana).toBeUndefined();
         expect(rebuiltForest?.tapBonusMana).toBeUndefined();
@@ -3222,7 +3240,7 @@ describe("buildStateFromScenario — per-card tap state (issue #3451)", () => {
 // through `candidateMoves`, a bot-only module (`bot-suite-boundary.test.ts`).
 describe("scenario spec — floating mana (issue #3460)", () => {
     const BOARD: ScenarioSpec = {
-        cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+        cards: [{ name: grizzlyBears().name, owner: "me", zone: "hand" }],
     };
 
     it("lowers a floating pool on either seat, reporting neither as dropped (CR 106.4)", () => {
@@ -3294,9 +3312,13 @@ describe("scenario spec — floating mana (issue #3460)", () => {
         // needing only {G}) is not.
         const state = buildStateFromScenario(makeState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "hand" },
-                { name: giantGrowth.name, owner: "me", zone: "hand" },
-                { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "hand" },
+                { name: giantGrowth().name, owner: "me", zone: "hand" },
+                {
+                    name: grizzlyBears().name,
+                    owner: "opp",
+                    zone: "battlefield",
+                },
             ],
             landCount: 0,
             restrictedMana: {
@@ -3304,8 +3326,8 @@ describe("scenario spec — floating mana (issue #3460)", () => {
             },
         });
         const me = state.players[0];
-        const bears = me.hand.find((c) => c.card.id === grizzlyBears.id)!;
-        const growth = me.hand.find((c) => c.card.id === giantGrowth.id)!;
+        const bears = me.hand.find((c) => c.card.id === grizzlyBears().id)!;
+        const growth = me.hand.find((c) => c.card.id === giantGrowth().id)!;
 
         expect(getLegalActions(state, me, bears)).toContain("cast");
         expect(getLegalActions(state, me, growth)).not.toContain("cast");
@@ -3315,9 +3337,13 @@ describe("scenario spec — floating mana (issue #3460)", () => {
         // restriction, not about the board being short of mana.
         const fungible = buildStateFromScenario(makeState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "hand" },
-                { name: giantGrowth.name, owner: "me", zone: "hand" },
-                { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "hand" },
+                { name: giantGrowth().name, owner: "me", zone: "hand" },
+                {
+                    name: grizzlyBears().name,
+                    owner: "opp",
+                    zone: "battlefield",
+                },
             ],
             landCount: 0,
             manaPool: { me: { G: 2 } },
@@ -3327,7 +3353,7 @@ describe("scenario spec — floating mana (issue #3460)", () => {
             getLegalActions(
                 fungible,
                 loose,
-                loose.hand.find((c) => c.card.id === giantGrowth.id)!
+                loose.hand.find((c) => c.card.id === giantGrowth().id)!
             )
         ).toContain("cast");
     });
@@ -3493,8 +3519,8 @@ describe("scenario spec — a hand of cards the Bot could not see (issue #3452)"
         // (CR 121.1) reads the last entry.
         const state = buildStateFromScenario(makeState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "hand" },
-                { name: giantGrowth.name, owner: "me", zone: "hand" },
+                { name: grizzlyBears().name, owner: "me", zone: "hand" },
+                { name: giantGrowth().name, owner: "me", zone: "hand" },
             ],
             hiddenHand: { me: 3 },
             markLastDrawn: true,
@@ -3538,7 +3564,7 @@ describe("scenario spec — a hand of cards the Bot could not see (issue #3452)"
 
     it("round-trips: N hidden cards lower to N and rebuild as N", () => {
         const first = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "opp", zone: "hand" }],
+            cards: [{ name: grizzlyBears().name, owner: "opp", zone: "hand" }],
             hiddenHand: { me: 4, opp: 2 },
         });
         const { spec, dropped } = specFromState(first, {
@@ -3597,14 +3623,14 @@ describe("scenario spec — a hand of cards the Bot could not see (issue #3452)"
         expect(onlyHidden.players[0].drawnThisTurn ?? []).toEqual([]);
 
         const mixed = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+            cards: [{ name: grizzlyBears().name, owner: "me", zone: "hand" }],
             hiddenHand: { me: 3 },
             markLastDrawn: true,
         });
         const marked = mixed.players[0].hand.find(
             (c) => c.id === mixed.players[0].lastDrawnCardId
         );
-        expect((marked?.card as { id: string }).id).toBe(grizzlyBears.id);
+        expect((marked?.card as { id: string }).id).toBe(grizzlyBears().id);
     });
 
     it("omits the field when no hand holds an unknown card", () => {
@@ -3613,7 +3639,7 @@ describe("scenario spec — a hand of cards the Bot could not see (issue #3452)"
         // position and a spec captured from a perfect-information state (every
         // headless self-play one) stays exactly what it was.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me", zone: "hand" }],
+            cards: [{ name: grizzlyBears().name, owner: "me", zone: "hand" }],
         });
         const { spec } = specFromState(state, {
             mySeatId: state.players[0].id,
@@ -3692,7 +3718,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // had no attack and every verdict about the decision was refused.
     it("round-trips an animated Mishra's Factory as an attacking creature (CR 208.2/611.1)", () => {
         const { state: live, card } = animatedBoard(
-            mishrasFactory,
+            mishrasFactory(),
             FACTORY_ANIMATION,
             { phase: "DECLARE_ATTACKERS" }
         );
@@ -3701,7 +3727,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         const { spec, rebuilt } = roundTrip(live);
         expect(spec.cards[0].animated).toEqual(FACTORY_ANIMATION);
 
-        const factory = findByDefId(rebuilt, 0, mishrasFactory.id);
+        const factory = findByDefId(rebuilt, 0, mishrasFactory().id);
         expect(factory).toBeDefined();
         const rebuiltFactory = factory as CardInstanceState;
         expect(rebuiltFactory.types).toContain("Creature");
@@ -3730,20 +3756,20 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // still teach the fit that a manland is permanently a creature.
     it("ends the rebuilt animation at its stated boundary (CR 611.2 / 514.2)", () => {
         const { state: live } = animatedBoard(
-            mishrasFactory,
+            mishrasFactory(),
             FACTORY_ANIMATION,
             {
                 phase: "END_STEP",
             }
         );
         const { rebuilt } = roundTrip(live);
-        const factory = findByDefId(rebuilt, 0, mishrasFactory.id);
+        const factory = findByDefId(rebuilt, 0, mishrasFactory().id);
         expect(factory?.types).toContain("Creature");
 
         rebuilt.phase = "END_STEP";
         advancePhase(rebuilt);
 
-        const after = findByDefId(rebuilt, 0, mishrasFactory.id);
+        const after = findByDefId(rebuilt, 0, mishrasFactory().id);
         expect(after).toBeDefined();
         expect(after?.types).not.toContain("Creature");
         expect(after?.types).not.toContain("Artifact");
@@ -3756,7 +3782,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // "until end of turn" would be indistinguishable from the case above.
     it("keeps an INDEFINITE animation through cleanup (CR 611.2a)", () => {
         const { state: live } = animatedBoard(
-            forest,
+            forest(),
             { power: 0, toughness: 0, grantedAbilities: ["haste"] },
             { phase: "END_STEP" }
         );
@@ -3766,7 +3792,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         rebuilt.phase = "END_STEP";
         advancePhase(rebuilt);
 
-        const after = findByDefId(rebuilt, 0, forest.id);
+        const after = findByDefId(rebuilt, 0, forest().id);
         expect(after?.types).toContain("Creature");
         expect(after?.power).toBe(0);
         expect(
@@ -3787,7 +3813,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
             grantedAbilities: ["flying", "vigilance"],
             duration: { phase: "end-of-turn" },
         };
-        const { state: live } = animatedBoard(creepingTarPit, animation);
+        const { state: live } = animatedBoard(creepingTarPit(), animation);
         expect(getEffectiveColors(live.players[0].battlefield[0])).toEqual([
             "U",
             "B",
@@ -3796,7 +3822,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         const { spec, rebuilt } = roundTrip(live);
         expect(spec.cards[0].animated).toEqual(animation);
 
-        const tarPit = findByDefId(rebuilt, 0, creepingTarPit.id);
+        const tarPit = findByDefId(rebuilt, 0, creepingTarPit().id);
         expect(tarPit).toBeDefined();
         const rebuiltTarPit = tarPit as CardInstanceState;
         expect(getEffectiveColors(rebuiltTarPit)).toEqual(["U", "B"]);
@@ -3807,7 +3833,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
         // the override carries the animation's own duration).
         rebuilt.phase = "END_STEP";
         advancePhase(rebuilt);
-        const after = findByDefId(rebuilt, 0, creepingTarPit.id);
+        const after = findByDefId(rebuilt, 0, creepingTarPit().id);
         expect(getEffectiveColors(after as CardInstanceState)).not.toEqual([
             "U",
             "B",
@@ -3818,7 +3844,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // two colour-override fields it writes, is reported as not captured on a
     // board whose only continuous effect IS the animation.
     it("reports no animation or colour-override residue for an animated board", () => {
-        const { state: live } = animatedBoard(creepingTarPit, {
+        const { state: live } = animatedBoard(creepingTarPit(), {
             power: 3,
             toughness: 2,
             subtype: "Elemental",
@@ -3843,7 +3869,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     it("still reports a setColor-sourced override on a non-animated permanent (CR 105.3)", () => {
         const live = buildStateFromScenario(makeState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "battlefield" },
+                { name: grizzlyBears().name, owner: "me", zone: "battlefield" },
             ],
         });
         const bear = live.players[0].battlefield[0];
@@ -3859,7 +3885,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // silently reordered.
     it("declares the CR 613.7 order loss when another layer 2-5 / 7b entry names the permanent", () => {
         const { state: live, card } = animatedBoard(
-            mishrasFactory,
+            mishrasFactory(),
             FACTORY_ANIMATION
         );
         const competing: ContinuousEffect = {
@@ -3884,7 +3910,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // exists at all on the rebuilt board.
     it("declares the order loss for a competing layer-6 entry too (CR 613.1f / 613.7)", () => {
         const { state: live, card } = animatedBoard(
-            mishrasFactory,
+            mishrasFactory(),
             FACTORY_ANIMATION
         );
         const stripper: ContinuousEffect = {
@@ -3906,7 +3932,7 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
     // layer-7 effect on an animated permanent is still not spec-expressible.
     it("keeps reporting a characteristic the animation does NOT account for", () => {
         const { state: live, card } = animatedBoard(
-            mishrasFactory,
+            mishrasFactory(),
             FACTORY_ANIMATION
         );
         // A materialised pump on top of the animation (CR 613.4c) — the
@@ -3927,14 +3953,14 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
             normalizeScenarioSpec({
                 cards: [
                     {
-                        name: mishrasFactory.name,
+                        name: mishrasFactory().name,
                         owner: "me",
                         zone: "battlefield",
                         // No toughness: not an animation (CR 208.2).
                         animated: { power: 2, subtype: "Assembly-Worker" },
                     },
                     {
-                        name: forest.name,
+                        name: forest().name,
                         owner: "me",
                         zone: "battlefield",
                         animated: {
@@ -3949,10 +3975,10 @@ describe("scenario spec — an animated permanent (issue #3459)", () => {
                 ],
             })
         );
-        expect(findByDefId(rebuilt, 0, mishrasFactory.id)?.types).not.toContain(
-            "Creature"
-        );
-        const animatedForest = findByDefId(rebuilt, 0, forest.id);
+        expect(
+            findByDefId(rebuilt, 0, mishrasFactory().id)?.types
+        ).not.toContain("Creature");
+        const animatedForest = findByDefId(rebuilt, 0, forest().id);
         expect(animatedForest?.types).toEqual(["Land", "Creature"]);
         expect(animatedForest?.colorOverride).toBeUndefined();
     });
@@ -3967,13 +3993,13 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
      *  its effect cannot be walked back to. */
     function boardWithResolvingSpell() {
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             phase: "PRECOMBAT_MAIN",
         });
         const bear = state.players[0].battlefield[0];
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, giantGrowth.id, state.players[0].id)
+            pushSpell(state, giantGrowth().id, state.players[0].id)
         );
         const target = { type: "permanent", id: bear.id } as const;
         return { state, bear, ctx, target };
@@ -4011,7 +4037,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
             {
                 layer: 7,
                 sublayer: "7c",
-                affected: { me: [grizzlyBears.name] },
+                affected: { me: [grizzlyBears().name] },
                 controller: "me",
                 duration: { phase: "end-of-turn" },
                 payload: { kind: "pt-modify", power: 3, toughness: 3 },
@@ -4045,7 +4071,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         expect(spec.continuousEffects).toEqual([
             {
                 layer: 6,
-                affected: { me: [grizzlyBears.name] },
+                affected: { me: [grizzlyBears().name] },
                 controller: "me",
                 duration: { phase: "end-of-turn" },
                 payload: { kind: "keyword-grant", keyword: "flying" },
@@ -4080,7 +4106,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
             {
                 layer: 7,
                 sublayer: "7b",
-                affected: { me: [grizzlyBears.name] },
+                affected: { me: [grizzlyBears().name] },
                 controller: "me",
                 payload: { kind: "pt-set", power: 5, toughness: 5 },
             },
@@ -4095,7 +4121,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
 
     it("does NOT lower a counter-borne grant — the rebuild re-derives it from the counters the spec already carries (CR 122.1b)", () => {
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         addCounterToCard(state, state.players[0].battlefield[0], "flying", 1);
 
@@ -4137,7 +4163,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // known gap and a silent one.
         const state = buildStateFromScenario(makeState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me", zone: "graveyard" },
+                { name: grizzlyBears().name, owner: "me", zone: "graveyard" },
             ],
         });
         addCounterToCard(state, state.players[0].graveyard[0], "flying", 1);
@@ -4153,7 +4179,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // The battlefield twin of the same board says nothing, so the report
         // is about the ZONE and not about counters in general.
         const onBoard = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
         });
         addCounterToCard(
             onBoard,
@@ -4169,12 +4195,12 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
     it("does NOT lower a source-expiry grant — beginApplyingStaticEffects re-derives it (CR 604.1)", () => {
         const state = buildStateFromScenario(makeState(), {
             cards: [
-                { name: zombieMaster.name, owner: "me" },
-                { name: scatheZombies.name, owner: "me" },
+                { name: zombieMaster().name, owner: "me" },
+                { name: scatheZombies().name, owner: "me" },
             ],
         });
         const zombie = state.players[0].battlefield.find(
-            (c) => (c.card as { id: string }).id === scatheZombies.id
+            (c) => (c.card as { id: string }).id === scatheZombies().id
         )!;
         expect(zombie.staticAbilities).toContain("swampwalk");
 
@@ -4188,7 +4214,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
 
         const rebuilt = buildStateFromScenario(makeState(), spec);
         const rebuiltZombie = rebuilt.players[0].battlefield.find(
-            (c) => (c.card as { id: string }).id === scatheZombies.id
+            (c) => (c.card as { id: string }).id === scatheZombies().id
         )!;
         expect(rebuiltZombie.staticAbilities).toContain("swampwalk");
     });
@@ -4200,7 +4226,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // inverse of each — and a swapped ternary in any of them would stay
         // green on a one-sided board.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "opp" }],
+            cards: [{ name: grizzlyBears().name, owner: "opp" }],
             phase: "PRECOMBAT_MAIN",
         });
         const [me, opp] = state.players;
@@ -4209,7 +4235,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // made it, NOT the affected permanent's controller.
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, giantGrowth.id, me.id)
+            pushSpell(state, giantGrowth().id, me.id)
         );
         ctx.addTemporaryPTBuff(
             { type: "permanent", id: bear.id } as const,
@@ -4227,7 +4253,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
             {
                 layer: 7,
                 sublayer: "7c",
-                affected: { opp: [grizzlyBears.name] },
+                affected: { opp: [grizzlyBears().name] },
                 controller: "me",
                 duration: { phase: "end-of-turn", player: "opp" },
                 payload: { kind: "pt-modify", power: 3, toughness: 3 },
@@ -4259,14 +4285,14 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // bear and the pump would rebuild on the wrong body — with nothing
         // downstream able to see it.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me", count: 2 }],
+            cards: [{ name: grizzlyBears().name, owner: "me", count: 2 }],
             phase: "PRECOMBAT_MAIN",
         });
         const [me] = state.players;
         const second = me.battlefield[1];
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, giantGrowth.id, me.id)
+            pushSpell(state, giantGrowth().id, me.id)
         );
         ctx.addTemporaryPTBuff(
             { type: "permanent", id: second.id } as const,
@@ -4281,19 +4307,19 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         const { spec, dropped } = specFromState(state, { mySeatId: me.id });
         expect(spec.continuousEffects).toBeUndefined();
         expect(dropped).toContainEqual(
-            expect.stringContaining(`1 of the 2 "${grizzlyBears.name}"`)
+            expect.stringContaining(`1 of the 2 "${grizzlyBears().name}"`)
         );
 
         // The discriminating half: an entry naming EVERY instance of the name
         // is exact, and IS lowered — the refusal is about ambiguity, not about
         // the board holding two of something.
         const both = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me", count: 2 }],
+            cards: [{ name: grizzlyBears().name, owner: "me", count: 2 }],
             phase: "PRECOMBAT_MAIN",
         });
         const bothCtx = buildSpellContext(
             both,
-            pushSpell(both, giantGrowth.id, both.players[0].id)
+            pushSpell(both, giantGrowth().id, both.players[0].id)
         );
         for (const card of both.players[0].battlefield) {
             bothCtx.addTemporaryPTBuff(
@@ -4319,7 +4345,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         both.stack = [];
         const lowered = specFromState(both, { mySeatId: both.players[0].id });
         expect(lowered.spec.continuousEffects?.[0].affected).toEqual({
-            me: [grizzlyBears.name, grizzlyBears.name],
+            me: [grizzlyBears().name, grizzlyBears().name],
         });
         const rebuiltBoth = buildStateFromScenario(makeState(), lowered.spec);
         for (const card of rebuiltBoth.players[0].battlefield) {
@@ -4333,13 +4359,13 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // refuses the whole row at write, and `buildStateFromScenario` throws
         // at load — the capture becomes uncapturable.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me", faceDown: true }],
+            cards: [{ name: grizzlyBears().name, owner: "me", faceDown: true }],
             phase: "PRECOMBAT_MAIN",
         });
         const [me] = state.players;
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, giantGrowth.id, me.id)
+            pushSpell(state, giantGrowth().id, me.id)
         );
         ctx.addTemporaryPTBuff(
             { type: "permanent", id: me.battlefield[0].id } as const,
@@ -4364,11 +4390,11 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // projection did not carry would be a grant the server applies and the
         // client cannot see, which is the silent half of every wiring bug.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: grizzlyBears.name, owner: "me" }],
+            cards: [{ name: grizzlyBears().name, owner: "me" }],
             continuousEffects: [
                 {
                     layer: 6,
-                    affected: { me: [grizzlyBears.name] },
+                    affected: { me: [grizzlyBears().name] },
                     controller: "me",
                     duration: { phase: "end-of-turn" },
                     payload: { kind: "keyword-grant", keyword: "flying" },
@@ -4406,7 +4432,7 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         expect(spec.continuousEffects).toBeUndefined();
         expect(dropped).toContainEqual(
             expect.stringContaining(
-                `layer 4 type-change, duration expiry, on ${grizzlyBears.name} (me)`
+                `layer 4 type-change, duration expiry, on ${grizzlyBears().name} (me)`
             )
         );
         // And NOT the blunt whole-field line, which said the same thing about
@@ -4426,14 +4452,14 @@ describe("scenario spec — the Continuous Effects Registry (issue #3488)", () =
         // animation's own revert, leaving a Land with trample, a shape no live
         // board can hold. One producer per effect: the animation's.
         const state = buildStateFromScenario(makeState(), {
-            cards: [{ name: forest.name, owner: "me" }],
+            cards: [{ name: forest().name, owner: "me" }],
             phase: "PRECOMBAT_MAIN",
         });
         const [me] = state.players;
         const land = me.battlefield[0];
         const ctx = buildSpellContext(
             state,
-            pushSpell(state, giantGrowth.id, me.id)
+            pushSpell(state, giantGrowth().id, me.id)
         );
         ctx.animateAsCreature({ type: "permanent", id: land.id } as const, {
             power: 3,
@@ -4531,7 +4557,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
      *  my own Tim ability is on top of it aimed at their face. */
     const responseWindow = (): ScenarioSpec => ({
         cards: [
-            { name: grizzlyBears.name, owner: "me" },
+            { name: grizzlyBears().name, owner: "me" },
             { name: prodigalSorcerer.name, owner: "me" },
         ],
         phase: "PRECOMBAT_MAIN",
@@ -4541,13 +4567,13 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         stack: [
             {
                 kind: "spell",
-                name: lightningBolt.name,
+                name: lightningBolt().name,
                 controller: "opp",
                 targets: [
                     {
                         kind: "permanent",
                         seat: "me",
-                        name: grizzlyBears.name,
+                        name: grizzlyBears().name,
                     },
                 ],
             },
@@ -4569,12 +4595,12 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
 
         const [p1, p2] = state.players;
         const bears = p1.battlefield.find(
-            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+            (c) => (c.card as { id?: string }).id === grizzlyBears().id
         )!;
         // BOTTOM-UP (CR 608.1): the Bolt was cast first, the ability answers it.
         expect(state.stack).toHaveLength(2);
         const [bolt, zap] = state.stack;
-        expect((bolt.card as { id?: string }).id).toBe(lightningBolt.id);
+        expect((bolt.card as { id?: string }).id).toBe(lightningBolt().id);
         expect(bolt.castById).toBe(p2.id);
         expect(bolt.abilityId).toBeUndefined();
         expect(bolt.targets).toEqual([{ type: "permanent", id: bears.id }]);
@@ -4600,19 +4626,19 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         // a 2/2 (CR 704.5g), and the corpse in MY graveyard is what proves the
         // declared target survived the rebuild as a real instance.
         const bears = p1.battlefield.find(
-            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+            (c) => (c.card as { id?: string }).id === grizzlyBears().id
         )!;
         resolveTopOfStack(state);
         expect(p1.battlefield.some((c) => c.id === bears.id)).toBe(false);
         expect(
             p1.graveyard.some(
-                (c) => (c.card as { id?: string }).id === grizzlyBears.id
+                (c) => (c.card as { id?: string }).id === grizzlyBears().id
             )
         ).toBe(true);
         expect(state.stack).toHaveLength(0);
         expect(
             p2.graveyard.some(
-                (c) => (c.card as { id?: string }).id === lightningBolt.id
+                (c) => (c.card as { id?: string }).id === lightningBolt().id
             )
         ).toBe(true);
     });
@@ -4688,7 +4714,7 @@ describe("a declared stack loads into a live game (issue #3515)", () => {
         // out of it — a strange board, not a frozen one.
         const withAttacker = buildStateFromScenario(makeState(), {
             ...spec,
-            combat: { attackers: [grizzlyBears.name] },
+            combat: { attackers: [grizzlyBears().name] },
         });
         expect(() => assertLiveGameCanContinue(withAttacker)).not.toThrow();
     });

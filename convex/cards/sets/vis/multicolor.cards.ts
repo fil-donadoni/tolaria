@@ -14,8 +14,8 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/multicolor.cards.ts`.
-import type { CardDefinition } from "../../types";
-export const simoon: CardDefinition = {
+import { defineCard } from "../../types";
+export const simoon = defineCard(() => ({
     id: "642d9239-82e0-4696-ad99-10796042d1f8", // VIS 136
     rarity: "common",
     name: "Simoon",
@@ -36,4 +36,4 @@ export const simoon: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { ref: "$each" } }],
         },
     ],
-};
+}));

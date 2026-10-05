@@ -47,7 +47,7 @@ function stateWithCleanupTrigger(): GameState {
     state.delayedTriggers = [
         {
             id: "dt-cleanup-surface",
-            sourceCardId: cloakOfConfusion.id,
+            sourceCardId: cloakOfConfusion().id,
             triggerId: "$inline-effects",
             controller: "p1",
             timing: "next-cleanup-step",

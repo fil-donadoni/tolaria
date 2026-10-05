@@ -2,7 +2,7 @@
 // `import * as mmq from "./sets/mmq/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Squee, Goblin Nabob — {2}{R} Legendary Creature. "At the beginning of your
 // upkeep, you may return this card from your graveyard to your hand." (CR
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // field was already optional; this generalizes the DSL Op rather than adding
 // a new one), then the existing Ashen Ghoul-style `$source` self-return
 // (`moveZone`'s graveyard → hand branch, issue #737/#839).
-export const squeeGoblinNabob: CardDefinition = {
+export const squeeGoblinNabob = defineCard(() => ({
     id: "4ba8325a-1203-4125-9111-94d9e2b1f14b",
     name: "Squee, Goblin Nabob",
     rarity: "rare",
@@ -55,4 +55,4 @@ export const squeeGoblinNabob: CardDefinition = {
             ],
         },
     ],
-};
+}));

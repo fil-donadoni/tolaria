@@ -96,9 +96,9 @@ function board(
                     onBattlefield("land-c", landId),
                 ],
                 library: [
-                    inHand("lib-1", mountain.id),
-                    inHand("lib-2", mountain.id),
-                    inHand("lib-3", mountain.id),
+                    inHand("lib-1", mountain().id),
+                    inHand("lib-2", mountain().id),
+                    inHand("lib-3", mountain().id),
                 ],
             }),
             makePlayer("p2"),
@@ -171,7 +171,7 @@ const inHandOf = (s: GameState, id: string) =>
 
 describe("Bot permanent-leg alternative cast, GRE → game.ts (issue #4935, CR 118.9)", () => {
     it("Fireblast with a real choice: the live sacrifice matches the search's", async () => {
-        const state = board(fireblast.id, mountain.id, "fireblast", true);
+        const state = board(fireblast().id, mountain().id, "fireblast", true);
         const move = altCastMove(state, "fireblast");
         expect(move.tapPlan).toEqual([]);
         expect(move.castCostPicks?.sacrificeIds).toHaveLength(2);
@@ -188,7 +188,7 @@ describe("Bot permanent-leg alternative cast, GRE → game.ts (issue #4935, CR 1
     });
 
     it("Gush on interchangeable Islands: the RETURN leg goes to hand, live and in the search alike", async () => {
-        const state = board(gush.id, island.id, "gush", false);
+        const state = board(gush().id, island().id, "gush", false);
         const move = altCastMove(state, "gush");
         // Interchangeable Islands: auto-resolved at announcement, nothing to submit.
         expect(move.castCostPicks).toBeUndefined();
@@ -206,10 +206,10 @@ describe("Bot permanent-leg alternative cast, GRE → game.ts (issue #4935, CR 1
     });
 
     it("a cost tax on the alternative cost (Thalia) fails closed instead of dropping the cast mid-search", () => {
-        const state = board(fireblast.id, mountain.id, "fireblast", false);
+        const state = board(fireblast().id, mountain().id, "fireblast", false);
         state.players[0].battlefield.forEach((c) => (c.isTapped = false));
         state.players[1].battlefield.push(
-            makeInstance(thaliaGuardianOfThraben.id, {
+            makeInstance(thaliaGuardianOfThraben().id, {
                 id: "thalia",
                 controllerId: "p2",
                 ownerId: "p2",

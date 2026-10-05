@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { EFFECT_TREASURE_TOKEN, GOLEM_TOKEN } from "../../sharedTokens";
 
@@ -26,7 +26,7 @@ import { EFFECT_TREASURE_TOKEN, GOLEM_TOKEN } from "../../sharedTokens";
 // without one, and `resolveExcludeSource` lowers it to a concrete
 // `excludeInstanceIds` entry when the activation's sacrifice requirement is
 // built.
-export const legionExtruder: CardDefinition = {
+export const legionExtruder = defineCard(() => ({
     id: "5a077de0-1893-40d0-a499-ee2e6e2258f1",
     name: "Legion Extruder",
     rarity: "mythic",
@@ -66,7 +66,7 @@ export const legionExtruder: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Generous Plunderer — {1}{R} Creature — Human Rogue, 2/2 (Cube FREE residue
 // token-maker, issue #1304 / #2368). "Menace. At the beginning of your
@@ -100,7 +100,7 @@ export const legionExtruder: CardDefinition = {
 //
 // Every Op above (`mayPay`, `reflexiveTrigger`, `createToken`, `dealDamage`)
 // is an exercised `EFFECT_OP_REGISTRY` entry; no new Op needed.
-export const generousPlunderer: CardDefinition = {
+export const generousPlunderer = defineCard(() => ({
     id: "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
     name: "Generous Plunderer",
     rarity: "mythic",
@@ -187,4 +187,4 @@ export const generousPlunderer: CardDefinition = {
             ],
         },
     ],
-};
+}));

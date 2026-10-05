@@ -9,7 +9,7 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
+import { defineCard, type SpellContext, type TokenSpec } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 
 function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
@@ -35,7 +35,7 @@ const GOBLIN_TOKEN: TokenSpec = {
     colors: ["R"],
 };
 
-export const goblinWarDrums: CardDefinition = {
+export const goblinWarDrums = defineCard(() => ({
     id: "2a2c4e4b-e9a7-4180-927b-589514c21876", // FEM 58a (canonical art)
     rarity: "common",
     name: "Goblin War Drums",
@@ -53,9 +53,9 @@ export const goblinWarDrums: CardDefinition = {
             keyword: "menace",
         },
     ],
-};
+}));
 
-export const goblinGrenade: CardDefinition = {
+export const goblinGrenade = defineCard(() => ({
     id: "8837eaba-9602-4f63-9897-85583fcdcf51", // FEM 56a (canonical art)
     rarity: "common",
     name: "Goblin Grenade",
@@ -72,9 +72,9 @@ export const goblinGrenade: CardDefinition = {
     // issue #690: the sweep now genuinely covers this script rather than
     // failing on it. Retired by the behavioural gold harness (issue #2703).
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
-};
+}));
 
-export const goblinWarrens: CardDefinition = {
+export const goblinWarrens = defineCard(() => ({
     id: GOBLIN_WARRENS_ID,
     rarity: "uncommon",
     name: "Goblin Warrens",
@@ -125,9 +125,9 @@ export const goblinWarrens: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const goblinKites: CardDefinition = {
+export const goblinKites = defineCard(() => ({
     id: "a0a27ac3-2273-469a-92ba-3f4a3d55de6f", // FEM 57
     rarity: "common",
     name: "Goblin Kites",
@@ -172,7 +172,7 @@ export const goblinKites: CardDefinition = {
                 // creature id and the flipping player in the serializable
                 // payload (closures are not permitted on delayed triggers).
                 ctx.scheduleDelayedTrigger(
-                    goblinKites.id,
+                    goblinKites().id,
                     "goblin-kites-flip",
                     "next-end-step",
                     { creatureId: target.id, flipperId: ctx.controller }
@@ -207,9 +207,9 @@ export const goblinKites: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const orcishCaptain: CardDefinition = {
+export const orcishCaptain = defineCard(() => ({
     id: "e43cf61d-b4d6-4461-a228-47fd8b026d33", // FEM 60
     rarity: "uncommon",
     name: "Orcish Captain",
@@ -266,9 +266,9 @@ export const orcishCaptain: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const brassclawOrcs: CardDefinition = {
+export const brassclawOrcs = defineCard(() => ({
     id: "fc0cb8f6-6ba7-402c-9829-251f7443e871", // FEM 49a (canonical art)
     rarity: "common",
     name: "Brassclaw Orcs",
@@ -289,9 +289,9 @@ export const brassclawOrcs: CardDefinition = {
                 "Brassclaw Orcs can't block creatures with power 2 or greater.",
         },
     ],
-};
+}));
 
-export const orcishVeteran: CardDefinition = {
+export const orcishVeteran = defineCard(() => ({
     id: "1dbca765-8756-4e28-9faf-25714c9b8838", // FEM 62a (canonical art)
     rarity: "common",
     name: "Orcish Veteran",
@@ -335,9 +335,9 @@ export const orcishVeteran: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const orcishSpy: CardDefinition = {
+export const orcishSpy = defineCard(() => ({
     id: "cd3890d1-563d-4519-ab8c-913031d71918", // FEM 61a (canonical art)
     rarity: "common",
     name: "Orcish Spy",
@@ -369,9 +369,9 @@ export const orcishSpy: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const orgg: CardDefinition = {
+export const orgg = defineCard(() => ({
     id: "5af19ab0-4bd0-4d5f-8d2e-507e4fe87c18", // FEM 63
     rarity: "rare",
     name: "Orgg",
@@ -407,7 +407,7 @@ export const orgg: CardDefinition = {
             oracleText: "Orgg can't block creatures with power 3 or greater.",
         },
     ],
-};
+}));
 
 // DIVERGENCE (tracked #974): only the Islandwalk keyword is modelled. The
 // second ability — "At the beginning of each combat, unless you pay {R},
@@ -417,7 +417,7 @@ export const orgg: CardDefinition = {
 // pairing delayed grant onto whichever creature this blocks/is blocked by
 // (CR 509.1h) — no Effect Script construct arms a pairing-conditioned grant off
 // a combat-start pay-or-else. Deferred rather than silently dropped.
-export const goblinFlotilla: CardDefinition = {
+export const goblinFlotilla = defineCard(() => ({
     id: "87024efe-4a74-49fe-a43a-480bed0a650a", // FEM 55
     rarity: "rare",
     name: "Goblin Flotilla",
@@ -429,9 +429,9 @@ export const goblinFlotilla: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["islandwalk"],
-};
+}));
 
-export const dwarvenSoldier: CardDefinition = {
+export const dwarvenSoldier = defineCard(() => ({
     id: "6fe77608-0b33-43f5-83fb-ae993ca1bf7c", // FEM 53a (canonical art)
     rarity: "common",
     name: "Dwarven Soldier",
@@ -480,9 +480,9 @@ export const dwarvenSoldier: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const dwarvenArmorer: CardDefinition = {
+export const dwarvenArmorer = defineCard(() => ({
     id: "1d50bf06-97ab-4874-a484-9289f41dc98e", // FEM 50
     rarity: "rare",
     name: "Dwarven Armorer",
@@ -552,9 +552,9 @@ export const dwarvenArmorer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const dwarvenCatapult: CardDefinition = {
+export const dwarvenCatapult = defineCard(() => ({
     id: "8c1c6932-638a-4df7-bf9b-8d921f7484d9", // FEM 51
     rarity: "uncommon",
     name: "Dwarven Catapult",
@@ -581,7 +581,7 @@ export const dwarvenCatapult: CardDefinition = {
             ctx.dealDamage({ type: "permanent", id }, each);
         }
     },
-};
+}));
 
 // DIVERGENCE (tracked-by: #2120): the first line — "This enchantment can't be the
 // target of white spells or abilities from white sources" — is NOT modelled.
@@ -590,7 +590,7 @@ export const dwarvenCatapult: CardDefinition = {
 // protection modules don't yet express (protection.ts keys off "protection
 // from <colour>", not "targeted by a <colour> source"). The Sacrifice-an-Orc
 // raze ability is fully implemented below; the targeting ban is deferred.
-export const raidingParty: CardDefinition = {
+export const raidingParty = defineCard(() => ({
     id: "907a3396-706b-4ca2-9973-bca758986032", // FEM 64
     rarity: "rare",
     name: "Raiding Party",
@@ -687,4 +687,4 @@ export const raidingParty: CardDefinition = {
             },
         },
     ],
-};
+}));

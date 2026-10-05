@@ -1,6 +1,6 @@
 // SCG (Scourge) — blue cards, split by colour per ADR 0043. The registry's
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 
 // Stifle — "Counter target activated or triggered ability. (Mana abilities
@@ -11,7 +11,7 @@ import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 // a card, so it goes nowhere). The oracle "activated OR triggered" is expressed
 // by the stack-object restriction `spellStackKind: "ability"`, which keeps any
 // ability (activated or triggered) on the stack and drops spells.
-export const stifle: CardDefinition = {
+export const stifle = defineCard(() => ({
     id: "2d7643c0-b2db-478f-944e-b27b77bad3eb",
     name: "Stifle",
     rarity: "rare",
@@ -25,7 +25,7 @@ export const stifle: CardDefinition = {
         spellStackKind: "ability",
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Brain Freeze — {1}{U} Instant. "Target player mills three cards. Storm
 // (When you cast this spell, copy it for each spell cast before it this
@@ -38,7 +38,7 @@ export const stifle: CardDefinition = {
 // player — the exact shape Thought Scour already exercises (dka/blue.cards.ts),
 // reused verbatim (per-Op test regime: no new Op, no hand-written per-card
 // test required).
-export const brainFreeze: CardDefinition = {
+export const brainFreeze = defineCard(() => ({
     id: "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
     name: "Brain Freeze",
     rarity: "uncommon",
@@ -49,7 +49,7 @@ export const brainFreeze: CardDefinition = {
     staticAbilities: ["storm"],
     targetRequirement: { type: "player", count: 1 },
     effects: [{ op: "mill", player: { target: 0 }, count: 3 }],
-};
+}));
 
 // Decree of Silence — {6}{U}{U} Enchantment. Three lines, and the pool's FIRST
 // shipped consumer of `cycledTrigger` (CR 702.29c).
@@ -91,7 +91,7 @@ export const brainFreeze: CardDefinition = {
 //
 // compiler-gap: "Whenever an opponent casts a spell, counter that spell and put a depletion counter on this enchantment. If there are three or more depletion counters on this enchantment, sacrifice it." (#2693)
 // compiler-gap: "When you cycle this card, you may counter target spell." (#2693)
-export const decreeOfSilence: CardDefinition = {
+export const decreeOfSilence = defineCard(() => ({
     id: "f2fc46e2-5e19-4999-a4cd-1e84697066c1",
     rarity: "rare",
     name: "Decree of Silence",
@@ -162,4 +162,4 @@ export const decreeOfSilence: CardDefinition = {
             ],
         }),
     ],
-};
+}));

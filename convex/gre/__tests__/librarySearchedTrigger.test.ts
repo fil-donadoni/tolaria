@@ -487,7 +487,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             id: "path-victim",
             controllerId: "p2",
             ownerId: "p2",
@@ -498,7 +498,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
                 makePlayer("p2", {
                     battlefield: [victim, watcherYou],
                     library: [
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: "path-lib1",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -513,7 +513,7 @@ describe("librarySearchedTrigger fires end-to-end (issue #788)", () => {
         // p1 casts Path to Exile targeting p2's creature. The stack item's
         // controller is p1, but the `search-library` choice prompts p2 (the
         // exiled creature's controller) to search p2's OWN library.
-        pushSpell(state, pathToExile.id, "p1", [
+        pushSpell(state, pathToExile().id, "p1", [
             { type: "permanent", id: "path-victim" },
         ]);
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on the search
@@ -579,7 +579,7 @@ describe("search-library overload does NOT fire LIBRARY_SEARCHED for a look-pick
             ],
         });
 
-        pushSpell(state, diabolicVision.id, "p1");
+        pushSpell(state, diabolicVision().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on the keep pick
         const keepHead = state.pendingChoices![0];
         expect(keepHead.kind).toBe("search-library");
@@ -630,7 +630,7 @@ describe("search-library overload does NOT fire LIBRARY_SEARCHED for a look-pick
             ],
         });
 
-        pushSpell(state, expressiveIteration.id, "p1");
+        pushSpell(state, expressiveIteration().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull(); // suspends on the hand pick
         const handHead = state.pendingChoices![0];
         expect(handHead.kind).toBe("search-library");

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 
@@ -57,7 +57,7 @@ import { TEZZERET_CRUEL_CAPTAIN_EMBLEM_ID } from "../../emblems";
 // compiler-gap: "0: Untap target artifact or creature. If it's an artifact creature, put a +1/+1 counter on it." (#2693)
 // compiler-gap: "-3: Search your library for an artifact card with mana value 1 or less, reveal it, put it into your hand, then shuffle." (#2693)
 // compiler-gap: "-7: You get an emblem with "At the beginning of combat on your turn, put three +1/+1 counters on target artifact you control. If it's not a creature, it becomes a 0/0 Robot artifact creature."" (#2693)
-export const tezzeretCruelCaptain: CardDefinition = {
+export const tezzeretCruelCaptain = defineCard(() => ({
     id: "02e8e540-8aa3-4e6a-9a11-c3949cab5f0f",
     name: "Tezzeret, Cruel Captain",
     rarity: "mythic",
@@ -172,4 +172,4 @@ export const tezzeretCruelCaptain: CardDefinition = {
             ],
         },
     ],
-};
+}));

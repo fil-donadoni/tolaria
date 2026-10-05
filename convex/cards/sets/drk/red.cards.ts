@@ -8,18 +8,17 @@
 // artifacts (no coloured cost) live in colorless.ts.
 
 import type {
-    CardDefinition,
     PermanentView,
     SpellContext,
     StaticEffectContext,
     StaticEffectStateView,
 } from "../../types";
-import { IS_NONBASIC_LAND } from "../../types";
+import { defineCard, IS_NONBASIC_LAND } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
-export const goblinHero: CardDefinition = {
+export const goblinHero = defineCard(() => ({
     id: "7135a569-e5d3-4a1f-924b-bdb86926b4e1",
     rarity: "common",
     name: "Goblin Hero",
@@ -29,7 +28,7 @@ export const goblinHero: CardDefinition = {
     subtypes: ["Goblin"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred — two DRK artifacts (#417) each need a "note a creature, then destroy
@@ -86,7 +85,7 @@ export const goblinHero: CardDefinition = {
 // Magus of the Moon (`sets/fut/red.cards.ts`) prints the identical Oracle line, so
 // the set is shared rather than restated once per card.
 
-export const bloodMoon: CardDefinition = {
+export const bloodMoon = defineCard(() => ({
     id: "78373616-e2d6-4ccf-998f-09f02bea45b4",
     rarity: "rare",
     name: "Blood Moon",
@@ -117,7 +116,7 @@ export const bloodMoon: CardDefinition = {
             reads: [{ characteristic: "supertypes", values: ["Basic"] }],
         },
     ],
-};
+}));
 
 // CR 611.2c — shared source-gate for the Goblin Caves / Goblin Shrine anthems:
 // "as long as enchanted land is a basic Mountain". Reads the Aura's host
@@ -160,7 +159,7 @@ function enchantedLandIsBasicMountain(
 // step regardless of whose turn it is — Ball Lightning is sacrificed on the end
 // step of the turn it was cast, and on any end step thereafter if it somehow
 // survives.)
-export const ballLightning: CardDefinition = {
+export const ballLightning = defineCard(() => ({
     id: "c1ba83ab-83f5-421d-bba1-0f925870b5c8",
     rarity: "rare",
     name: "Ball Lightning",
@@ -185,12 +184,12 @@ export const ballLightning: CardDefinition = {
             resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Brothers of Fire — "{1}{R}{R}: This creature deals 1 damage to any target and
 // 1 damage to you." (CR 605 activated ability on the stack; CR 115.4 "any
 // target"; the rider deals 1 to the controller — CR 120.3.)
-export const brothersOfFire: CardDefinition = {
+export const brothersOfFire = defineCard(() => ({
     id: "ba2cc4a6-fdcc-4082-801a-d2c50e560e8d",
     rarity: "uncommon",
     name: "Brothers of Fire",
@@ -218,14 +217,14 @@ export const brothersOfFire: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Cave People — "Whenever this creature attacks, it gets +1/-2 until end of
 // turn.\n{1}{R}{R}, {T}: Target creature gains mountainwalk until end of turn."
 // (CR 508 attack trigger applying a temporary P/T mod to itself; CR 605
 // activated ability granting the `mountainwalk` keyword to a target until EOT —
 // the Part Water grant pattern.)
-export const cavePeople: CardDefinition = {
+export const cavePeople = defineCard(() => ({
     id: "72746a5d-faa1-44b7-97b5-0ef9302a3c13",
     rarity: "uncommon",
     name: "Cave People",
@@ -278,7 +277,7 @@ export const cavePeople: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Eternal Flame — "Eternal Flame deals X damage to target opponent or
 // planeswalker and half X damage, rounded up, to you, where X is the number of
@@ -286,7 +285,7 @@ export const cavePeople: CardDefinition = {
 // NOT a cast-time {X}; the self-damage is half rounded up — CR 107.4-style
 // rounding, Math.ceil(X/2).) Modern oracle (ADR 0004): target is an opponent or
 // planeswalker.
-export const eternalFlame: CardDefinition = {
+export const eternalFlame = defineCard(() => ({
     id: "d646feea-3c20-4737-8d20-ffad42258ced",
     rarity: "rare",
     name: "Eternal Flame",
@@ -322,12 +321,12 @@ export const eternalFlame: CardDefinition = {
             ctx.dealDamage({ type: "player", id: ctx.controller }, half);
         }
     },
-};
+}));
 
 // Fire Drake — "Flying\n{R}: This creature gets +1/+0 until end of turn.
 // Activate only once each turn." (CR 702.9 flying keyword; CR 605 pump activated
 // ability with `oncePerTurn`.)
-export const fireDrake: CardDefinition = {
+export const fireDrake = defineCard(() => ({
     id: "d3419db6-1c38-4aa4-b953-1dde7d22b927",
     rarity: "uncommon",
     name: "Fire Drake",
@@ -360,12 +359,12 @@ export const fireDrake: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Fissure — "Destroy target creature or land. It can't be regenerated."
 // (CR 701.8 destroy with the regen-shield suppression; CR 114 multi-type
 // target.)
-export const fissure: CardDefinition = {
+export const fissure = defineCard(() => ({
     id: "aa2d778d-d74b-45ec-a86b-5d52ffad6ba5",
     rarity: "common",
     name: "Fissure",
@@ -381,14 +380,14 @@ export const fissure: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 
 // Goblin Caves — Aura. "Enchant land\nAs long as enchanted land is a basic
 // Mountain, Goblin creatures get +0/+2." (CR 303.4 Aura enchant land; CR 611
 // layer 7c conditional anthem — a `pt-buff` whose `applies` filters Goblin
 // creatures and whose `condition` gates on the enchanted land being a BASIC
 // Mountain, read from the Aura's host via `attachedTo`.)
-export const goblinCaves: CardDefinition = {
+export const goblinCaves = defineCard(() => ({
     id: "c6a415b0-00a2-4a65-8994-4a395c50ae2d",
     rarity: "common",
     name: "Goblin Caves",
@@ -410,7 +409,7 @@ export const goblinCaves: CardDefinition = {
             toughness: 2,
         },
     ],
-};
+}));
 
 // Goblin Rock Sled — "Trample\nThis creature doesn't untap during your untap
 // step if it attacked during your last turn.\nThis creature can't attack unless
@@ -419,7 +418,7 @@ export const goblinCaves: CardDefinition = {
 // the Sled attacks — its controller's NEXT untap step is the "your next turn"
 // untap, so a Sled that attacked this turn stays tapped next turn, CR 302.6 /
 // 502.1; the attack restriction is a pure board predicate, CR 508.1c.)
-export const goblinRockSled: CardDefinition = {
+export const goblinRockSled = defineCard(() => ({
     id: "91e0b59d-8f9b-4a76-9845-bcb0dc32523d",
     rarity: "common",
     name: "Goblin Rock Sled",
@@ -461,13 +460,13 @@ export const goblinRockSled: CardDefinition = {
             effects: [{ op: "skipNextUntap", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Goblin Shrine — Aura. "Enchant land\nAs long as enchanted land is a basic
 // Mountain, Goblin creatures get +1/+0.\nWhen this Aura leaves the battlefield,
 // it deals 1 damage to each Goblin creature." (CR 611 conditional anthem +
 // CR 603.6 LTB trigger dealing 1 to each Goblin via `dealDamageToEach`.)
-export const goblinShrine: CardDefinition = {
+export const goblinShrine = defineCard(() => ({
     id: "cd69a6dc-27f3-42aa-9e63-4417796e4ef5",
     rarity: "common",
     name: "Goblin Shrine",
@@ -507,14 +506,14 @@ export const goblinShrine: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Goblin Wizard — "{T}: You may put a Goblin permanent card from your hand onto
 // the battlefield.\n{R}: Target Goblin gains protection from white until end of
 // turn." (CR 605: the first is a non-mana activated ability — a hand →
 // battlefield zone move, CR 400.7, via `putFromHandOntoBattlefield`; the second
 // grants the `protection from white` keyword to a Goblin until EOT, CR 702.16.)
-export const goblinWizard: CardDefinition = {
+export const goblinWizard = defineCard(() => ({
     id: "9b73dfb4-d930-4a89-b621-129dd9f6328c",
     rarity: "rare",
     name: "Goblin Wizard",
@@ -585,12 +584,12 @@ export const goblinWizard: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Goblins of the Flarg — "Mountainwalk\nWhen you control a Dwarf, sacrifice this
 // creature." (CR 702.14 landwalk keyword; CR 603.8 state-trigger self-sacrifice
 // when the controller controls a Dwarf.)
-export const goblinsOfTheFlarg: CardDefinition = {
+export const goblinsOfTheFlarg = defineCard(() => ({
     id: "fd333b18-b896-4ab8-9c46-eed4efdd94f2",
     rarity: "common",
     name: "Goblins of the Flarg",
@@ -622,12 +621,12 @@ export const goblinsOfTheFlarg: CardDefinition = {
             resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Inferno — "Inferno deals 6 damage to each creature and each player."
 // (CR 120.3 mass damage to every creature and both players via
 // `dealDamageToEach`.)
-export const inferno: CardDefinition = {
+export const inferno = defineCard(() => ({
     id: "a6b61512-5b24-424c-966f-36b595781e14",
     rarity: "rare",
     name: "Inferno",
@@ -659,7 +658,7 @@ export const inferno: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Mana Clash — "You and target opponent each flip a coin. Mana Clash deals 1
 // damage to each player whose coin comes up tails. Repeat this process until
@@ -667,7 +666,7 @@ export const inferno: CardDefinition = {
 // the seeded `flipCoin`; the loop repeats until BOTH coins are heads in the same
 // round. Synchronous flips — no per-flip reveal pause — keep the loop a single
 // deterministic resolution.)
-export const manaClash: CardDefinition = {
+export const manaClash = defineCard(() => ({
     id: "72955141-d990-459f-adbe-7d3d0f5f6c95",
     rarity: "rare",
     name: "Mana Clash",
@@ -709,13 +708,13 @@ export const manaClash: CardDefinition = {
             if (youHeads && oppHeads) break;
         }
     },
-};
+}));
 
 // Orc General — "{T}, Sacrifice another Orc or Goblin: Other Orc creatures get
 // +1/+1 until end of turn." (CR 605 activated ability with tap + a
 // "sacrifice another [Orc or Goblin]" cost via `sacrificeFilter`; the buff is a
 // team pump on OTHER Orcs the controller controls, CR 611.1.)
-export const orcGeneral: CardDefinition = {
+export const orcGeneral = defineCard(() => ({
     id: "65a10fd5-506e-46bf-87e6-fde134c0dc04",
     rarity: "uncommon",
     name: "Orc General",
@@ -767,11 +766,11 @@ export const orcGeneral: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Sisters of the Flame — "{T}: Add {R}." (CR 605.1a mana ability — resolves
 // immediately, no stack, CR 605.3a.)
-export const sistersOfTheFlame: CardDefinition = {
+export const sistersOfTheFlame = defineCard(() => ({
     id: "564e0ccd-decb-48d2-981f-cefa8045340f",
     rarity: "uncommon",
     name: "Sisters of the Flame",
@@ -791,4 +790,4 @@ export const sistersOfTheFlame: CardDefinition = {
             manaProduced: { R: 1 },
         },
     ],
-};
+}));

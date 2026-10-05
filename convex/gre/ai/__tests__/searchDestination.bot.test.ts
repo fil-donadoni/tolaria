@@ -83,8 +83,8 @@ function openSearchChoice(opts: {
         players: [
             makePlayer(ME, {
                 battlefield: [
-                    makeInstance(swamp.id, { controllerId: ME, ownerId: ME }),
-                    makeInstance(swamp.id, { controllerId: ME, ownerId: ME }),
+                    makeInstance(swamp().id, { controllerId: ME, ownerId: ME }),
+                    makeInstance(swamp().id, { controllerId: ME, ownerId: ME }),
                 ],
                 hand: (opts.hand ?? []).map((id) =>
                     makeInstance(id, {
@@ -160,24 +160,24 @@ function emittedFindIds(state: GameState, choice: PendingChoice): Set<string> {
 describe("search-library destination derivation (issue #3041)", () => {
     it("reads the graveyard destination off Entomb's own Effect Script", () => {
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [forceOfNature.id, breedingPool.id],
+            tutorId: entomb().id,
+            library: [forceOfNature().id, breedingPool().id],
         });
         expect(searchFindDestination(state, choice)).toBe("graveyard");
     });
 
     it("reads the hand destination off Demonic Tutor's", () => {
         const { state, choice } = openSearchChoice({
-            tutorId: demonicTutor.id,
-            library: [forceOfNature.id, breedingPool.id],
+            tutorId: demonicTutor().id,
+            library: [forceOfNature().id, breedingPool().id],
         });
         expect(searchFindDestination(state, choice)).toBe("hand");
     });
 
     it("degrades to undefined — never a guess — when the choice names no source script", () => {
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [forceOfNature.id, breedingPool.id],
+            tutorId: entomb().id,
+            library: [forceOfNature().id, breedingPool().id],
         });
         // The stack item is gone (an imperative `resolve()` search's choice, a
         // choice read after its source left the stack): nothing to walk.
@@ -205,23 +205,23 @@ describe("graveyard-bound search pricing (issue #3041, CR 701.23)", () => {
         // assertion passes with the fix REVERTED and proves nothing: observed
         // while writing it (Force of Nature's 138 clears the land blind too).
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [sengirVampire.id, breedingPool.id],
+            tutorId: entomb().id,
+            library: [sengirVampire().id, breedingPool().id],
             // Recursion the searcher actually holds (reach shape 2).
-            hand: [reanimate.id],
+            hand: [reanimate().id],
         });
         expect(
-            priorForFinding(state, choice, sengirVampire.id)
-        ).toBeGreaterThan(priorForFinding(state, choice, breedingPool.id));
+            priorForFinding(state, choice, sengirVampire().id)
+        ).toBeGreaterThan(priorForFinding(state, choice, breedingPool().id));
     });
 
     it("prices the land at/near the floor on a graveyard destination, unlike the fetch curve", () => {
         const { state } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [sengirVampire.id, breedingPool.id],
-            hand: [reanimate.id],
+            tutorId: entomb().id,
+            library: [sengirVampire().id, breedingPool().id],
+            hand: [reanimate().id],
         });
-        const land = findInLibrary(state, breedingPool.id);
+        const land = findInLibrary(state, breedingPool().id);
         const buried = libraryTargetWorth(state, ME, land, undefined, {
             destination: "graveyard",
         });
@@ -238,14 +238,14 @@ describe("graveyard-bound search pricing (issue #3041, CR 701.23)", () => {
         // usable out of the graveyard on its own. Force of Nature is a far
         // larger card that, with no recursion in hand, is buried dead.
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [forceOfNature.id, firebolt.id, breedingPool.id],
+            tutorId: entomb().id,
+            library: [forceOfNature().id, firebolt().id, breedingPool().id],
         });
-        expect(priorForFinding(state, choice, firebolt.id)).toBeGreaterThan(
-            priorForFinding(state, choice, forceOfNature.id)
+        expect(priorForFinding(state, choice, firebolt().id)).toBeGreaterThan(
+            priorForFinding(state, choice, forceOfNature().id)
         );
-        expect(priorForFinding(state, choice, firebolt.id)).toBeGreaterThan(
-            priorForFinding(state, choice, breedingPool.id)
+        expect(priorForFinding(state, choice, firebolt().id)).toBeGreaterThan(
+            priorForFinding(state, choice, breedingPool().id)
         );
     });
 
@@ -260,21 +260,21 @@ describe("graveyard-bound search pricing (issue #3041, CR 701.23)", () => {
         // actually looking for is never emitted at all — which is the half a
         // prior cannot fix, since the candidate does not exist to be rewarded.
         const crowd = [
-            breedingPool.id,
-            hallowedFountain.id,
-            bloodCrypt.id,
-            plains.id,
-            island.id,
-            mountain.id,
-            forest.id,
-            swamp.id,
+            breedingPool().id,
+            hallowedFountain().id,
+            bloodCrypt().id,
+            plains().id,
+            island().id,
+            mountain().id,
+            forest().id,
+            swamp().id,
         ];
         expect(crowd.length).toBeGreaterThanOrEqual(CHOICE_TOP_K);
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [...crowd, firebolt.id],
+            tutorId: entomb().id,
+            library: [...crowd, firebolt().id],
         });
-        expect([...emittedFindIds(state, choice)]).toContain(firebolt.id);
+        expect([...emittedFindIds(state, choice)]).toContain(firebolt().id);
     });
 
     it("orders the unreachable finds, it does not collapse them to one floor", () => {
@@ -293,15 +293,15 @@ describe("graveyard-bound search pricing (issue #3041, CR 701.23)", () => {
         // reach either on reward. At zero the two tie and top-K admission falls
         // back to alphabetical order.
         const { state, choice } = openSearchChoice({
-            tutorId: entomb.id,
-            library: [forceOfNature.id, breedingPool.id],
+            tutorId: entomb().id,
+            library: [forceOfNature().id, breedingPool().id],
         });
         const emitted = [...emittedFindIds(state, choice)];
-        expect(emitted).toContain(forceOfNature.id);
-        expect(emitted).toContain(breedingPool.id);
+        expect(emitted).toContain(forceOfNature().id);
+        expect(emitted).toContain(breedingPool().id);
 
-        const bigBody = priorForFinding(state, choice, forceOfNature.id);
-        const land = priorForFinding(state, choice, breedingPool.id);
+        const bigBody = priorForFinding(state, choice, forceOfNature().id);
+        const land = priorForFinding(state, choice, breedingPool().id);
         // Ordered among themselves …
         expect(bigBody).toBeGreaterThan(land);
         // … and neither pinned to the band floor, so reward can still pick
@@ -310,12 +310,16 @@ describe("graveyard-bound search pricing (issue #3041, CR 701.23)", () => {
         // … while both stay far below what a REACHABLE find scores, so "not
         // deleted" has not quietly become "not demoted" either.
         const reachable = openSearchChoice({
-            tutorId: entomb.id,
-            library: [forceOfNature.id, breedingPool.id],
-            hand: [reanimate.id],
+            tutorId: entomb().id,
+            library: [forceOfNature().id, breedingPool().id],
+            hand: [reanimate().id],
         });
         expect(
-            priorForFinding(reachable.state, reachable.choice, forceOfNature.id)
+            priorForFinding(
+                reachable.state,
+                reachable.choice,
+                forceOfNature().id
+            )
         ).toBeGreaterThan(bigBody);
     });
 });
@@ -334,15 +338,15 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
      *  identical to before issue #3041" MEANS, so a graveyard branch leaking
      *  into a non-graveyard destination moves them and reds. */
     const HAND_DESTINATION_PRIORS: Record<string, number> = {
-        [forceOfNature.id]: 0.645,
-        [breedingPool.id]: 0.425,
+        [forceOfNature().id]: 0.645,
+        [breedingPool().id]: 0.425,
     };
 
     it("prices a hand tutor's finds at the pre-fix priors", () => {
         const { state, choice } = openSearchChoice({
-            tutorId: demonicTutor.id,
-            library: [forceOfNature.id, breedingPool.id],
-            hand: [reanimate.id],
+            tutorId: demonicTutor().id,
+            library: [forceOfNature().id, breedingPool().id],
+            hand: [reanimate().id],
         });
         expect(searchFindDestination(state, choice)).toBe("hand");
         for (const [cardId, expected] of Object.entries(
@@ -364,14 +368,14 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         // rather than to a guess" means, and it is a claim about two different
         // sources, not one call compared with itself.
         const { state, choice } = openSearchChoice({
-            tutorId: altarOfBone.id,
+            tutorId: altarOfBone().id,
             // Altar of Bone's own allow-list is creature cards only.
-            library: [forceOfNature.id, sengirVampire.id],
-            hand: [reanimate.id],
+            library: [forceOfNature().id, sengirVampire().id],
+            hand: [reanimate().id],
         });
         expect(searchFindDestination(state, choice)).toBeUndefined();
-        expect(priorForFinding(state, choice, forceOfNature.id)).toBeCloseTo(
-            HAND_DESTINATION_PRIORS[forceOfNature.id],
+        expect(priorForFinding(state, choice, forceOfNature().id)).toBeCloseTo(
+            HAND_DESTINATION_PRIORS[forceOfNature().id],
             6
         );
     });
@@ -382,9 +386,9 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         // generator rather than the prior — a separate call site that could
         // drift on its own.
         const { state, choice } = openSearchChoice({
-            tutorId: demonicTutor.id,
-            library: [forceOfNature.id, breedingPool.id],
-            hand: [reanimate.id],
+            tutorId: demonicTutor().id,
+            library: [forceOfNature().id, breedingPool().id],
+            hand: [reanimate().id],
         });
         const hints = new Map<string, number>();
         for (const candidate of choiceCandidates(state, choice)) {
@@ -396,7 +400,7 @@ describe("non-graveyard destinations are untouched (issue #3041)", () => {
         }
         // Force of Nature's 8/8 body (p² + t² + 10) and Breeding Pool on the
         // land fetch curve at two lands in play (70 - 2 × 10).
-        expect(hints.get(forceOfNature.id)).toBe(138);
-        expect(hints.get(breedingPool.id)).toBe(50);
+        expect(hints.get(forceOfNature().id)).toBe(138);
+        expect(hints.get(breedingPool().id)).toBe(50);
     });
 });

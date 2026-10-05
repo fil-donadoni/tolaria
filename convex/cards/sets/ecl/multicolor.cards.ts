@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, EffectOp, PermanentView } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
+import type { EffectOp, PermanentView } from "../../types";
 import { PROTECTION_FROM_EACH_OPPONENT } from "../../../gre/protection";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
@@ -62,7 +62,7 @@ function manaSpentOnCastAtLeast(color: string, pips: number) {
 //
 // The green clause's search is `count: { min: 0, max: 1 }` because CR 701.23b
 // lets a player fail to find even on a mandatory search.
-export const vibrance: CardDefinition = {
+export const vibrance = defineCard(() => ({
     id: "b9f71c3b-0840-475f-9c17-fdacbc7f3213",
     name: "Vibrance",
     rarity: "mythic",
@@ -135,7 +135,7 @@ export const vibrance: CardDefinition = {
         }),
         evokeTrigger("Vibrance"),
     ],
-};
+}));
 
 // Figure of Fable — {G/W} Creature — Kithkin, 1/1 (Vintage Cube, issue #684,
 // shipped by #1749). "{G/W}: This creature becomes a Kithkin Scout with base
@@ -158,7 +158,7 @@ export const vibrance: CardDefinition = {
 // already existed (issue #1746, CR 611.2b), the live-object `objectMatchesFilter`
 // predicate (#1747), guild-hybrid pips payable with mana (#1738/#1739) and
 // player-quality protection (#1748) — no card-shaped primitive at all.
-export const figureOfFable: CardDefinition = {
+export const figureOfFable = defineCard(() => ({
     id: "e0ef33dd-5f6d-48fa-8ef6-a8092868d50f",
     name: "Figure of Fable",
     rarity: "rare",
@@ -275,7 +275,7 @@ export const figureOfFable: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // The canonical Thoughtseize/Duress template (`reveal` + `choice
 // (choose-hand-card)` with `zoneOwnerId`, lrw/black.cards.ts), identical to Grief's
@@ -312,7 +312,7 @@ const opponentRevealsAndDiscardsNonland: EffectOp[] = [
 // the stack: `[...PERMANENT_TYPES] + excludeTypes: "Land"` is "nonland
 // permanent" (any controller's — no `controller` restriction), `excludeSource`
 // drops Deceit itself ("other"), `count { min: 0, max: 1 }` is "up to one".
-export const deceit: CardDefinition = {
+export const deceit = defineCard(() => ({
     id: "bd82c9e4-9871-4e6d-b691-ee00b4b9a3c6",
     name: "Deceit",
     rarity: "mythic",
@@ -370,7 +370,7 @@ export const deceit: CardDefinition = {
         }),
         evokeTrigger("Deceit"),
     ],
-};
+}));
 
 // Wistfulness — {3}{G/U}{G/U} Creature — Elemental Incarnation, 6/5 (ECL
 // 252, Vintage Cube, issue #684). "When this creature enters, if {G}{G} was
@@ -384,7 +384,7 @@ export const deceit: CardDefinition = {
 // the pips declarable its colour identity is genuinely G/U (CR 202.2), so it
 // belongs here alongside the rest of the cycle. `ecl/index.cards.ts` re-exports
 // both modules with `export *`, so the move needs no barrel edit.
-export const wistfulness: CardDefinition = {
+export const wistfulness = defineCard(() => ({
     id: "db9aa986-ac2a-44bb-a88b-04c5d0d502b2",
     name: "Wistfulness",
     rarity: "mythic",
@@ -455,6 +455,6 @@ export const wistfulness: CardDefinition = {
         }),
         evokeTrigger("Wistfulness"),
     ],
-};
+}));
 
 export {};

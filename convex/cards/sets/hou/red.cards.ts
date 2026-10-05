@@ -2,7 +2,7 @@
 // `import * as hou from "./sets/hou/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Abrade — "Choose one — • Abrade deals 3 damage to target creature. •
 // Destroy target artifact." (CR 700.2 modal.) Modes target different types
@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // already-announced target set). Each mode's own body is migrated
 // resolve()→effects[] (ADR 0045): a fixed-damage / destroy shape identical to
 // Lava Spike / Day of Judgment's per-mode Ops, both registered.
-export const abrade: CardDefinition = {
+export const abrade = defineCard(() => ({
     id: "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
     rarity: "uncommon",
     name: "Abrade",
@@ -36,4 +36,4 @@ export const abrade: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));

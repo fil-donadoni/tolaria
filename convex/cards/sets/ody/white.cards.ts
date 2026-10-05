@@ -1,7 +1,7 @@
 // ody — white cards (ADR 0043 colour split).
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
 import {
     causedByOpponent,
     leftTrigger,
@@ -51,7 +51,7 @@ const karmicJusticeTrigger = leftTrigger({
     },
 });
 
-export const karmicJustice: CardDefinition = {
+export const karmicJustice = defineCard(() => ({
     id: "c2ffb8e7-7ae3-4846-b3da-ca6b4598eb7c",
     rarity: "rare",
     name: "Karmic Justice",
@@ -71,4 +71,4 @@ export const karmicJustice: CardDefinition = {
             },
         },
     ],
-};
+}));

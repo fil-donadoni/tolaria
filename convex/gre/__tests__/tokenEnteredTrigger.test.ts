@@ -427,7 +427,7 @@ describe("token entry emits PERMANENT_ENTERED (CR 111.1 / 603.6a, issue #2300)",
         // no P/T, and every "whenever a creature enters" trigger silently
         // stops seeing it. Titania's Song (`sets/atq/green.cards.ts`) is the shipped
         // instance of that shape.
-        const state = boardWith([titaniasSong.id, CREATURE_WATCHER_ID]);
+        const state = boardWith([titaniasSong().id, CREATURE_WATCHER_ID]);
         createTokenPermanents(state, TREASURE, "p1", 1);
 
         expect(enteredEvents(state)).toHaveLength(1);
@@ -608,7 +608,7 @@ describe("a token's announced cardId resolves in the registry (issue #2300 censu
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(spreadingPlague.id, {
+                        makeInstance(spreadingPlague().id, {
                             id: "plague",
                             controllerId: "p1",
                             ownerId: "p1",

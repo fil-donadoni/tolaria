@@ -9,13 +9,16 @@
 
 import type {
     ActivatedAbilityContext,
-    CardDefinition,
     DelayedTriggerDef,
     SpellContext,
     StaticEffectStateView,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { makeTapForMana } from "../../abilities";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -26,7 +29,7 @@ import { combatPairKill } from "../../abilities/triggers/combatPairKillTrigger";
 import { makeLace } from "./white.cards";
 import { makeUpkeepPayOrElse } from "./white.cards";
 
-export const aspectOfWolf: CardDefinition = {
+export const aspectOfWolf = defineCard(() => ({
     id: "fd9ac9e6-1395-4fbd-80e2-645f0d910c29",
     rarity: "rare",
     name: "Aspect of Wolf",
@@ -59,7 +62,7 @@ export const aspectOfWolf: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Berserk — "Cast this spell only before the combat damage step. Target
 // creature gains trample and gets +X/+0 until end of turn, where X is its
@@ -72,7 +75,7 @@ export const aspectOfWolf: CardDefinition = {
 // end-step fire time.
 const BERSERK_ID = "e173c8ce-2352-405e-ad00-e3bb94ced1ad";
 
-export const berserk: CardDefinition = {
+export const berserk = defineCard(() => ({
     id: BERSERK_ID,
     rarity: "uncommon",
     name: "Berserk",
@@ -149,9 +152,9 @@ export const berserk: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const birdsOfParadise: CardDefinition = {
+export const birdsOfParadise = defineCard(() => ({
     id: "55fe6449-1f23-43dc-adee-d144cd505b5c",
     rarity: "rare",
     name: "Birds of Paradise",
@@ -175,14 +178,14 @@ export const birdsOfParadise: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // CR 605.1a — the granted ability adds mana and does not target, so it
 // qualifies as a mana ability (useStack: false). CR 119.4 — paying 1 life
 // requires player.life >= 1; SBA handles reaching 0 (CR 704.5a).
 const CHANNEL_ID = "c1862c47-71cc-45a3-8805-a5ddc62e55ea";
 
-export const channel: CardDefinition = {
+export const channel = defineCard(() => ({
     id: CHANNEL_ID,
     rarity: "uncommon",
     name: "Channel",
@@ -205,7 +208,7 @@ export const channel: CardDefinition = {
             phase: "end-of-turn",
         });
     },
-};
+}));
 
 // --- Combat kill pattern (Cockatrice, Thicket Basilisk) ---
 // "Whenever this creature blocks or becomes blocked by a non-Wall creature,
@@ -245,7 +248,7 @@ const thicketBasiliskCombatKill = combatKillPair(
 // combat." (CR 509.1h combat pairing trigger, CR 511.3 end-of-combat timing)
 const COCKATRICE_ID = "9cd91814-6177-4a3d-a1c1-a3be7d7c7957";
 
-export const cockatrice: CardDefinition = {
+export const cockatrice = defineCard(() => ({
     id: COCKATRICE_ID,
     rarity: "rare",
     name: "Cockatrice",
@@ -259,9 +262,9 @@ export const cockatrice: CardDefinition = {
     staticAbilities: ["flying"],
     triggeredAbilities: [cockatriceCombatKill.trigger],
     delayedTriggers: [cockatriceCombatKill.delayed],
-};
+}));
 
-export const crawWurm: CardDefinition = {
+export const crawWurm = defineCard(() => ({
     id: "bfed1a95-bd67-4e16-a781-81866028af2f",
     rarity: "common",
     name: "Craw Wurm",
@@ -271,9 +274,9 @@ export const crawWurm: CardDefinition = {
     subtypes: ["Wurm"],
     power: 6,
     toughness: 4,
-};
+}));
 
-export const elvishArchers: CardDefinition = {
+export const elvishArchers = defineCard(() => ({
     id: "1cb9d405-f2b5-4e10-a405-feafd2a87d90",
     rarity: "rare",
     name: "Elvish Archers",
@@ -284,14 +287,14 @@ export const elvishArchers: CardDefinition = {
     power: 2,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
+}));
 
 // Force of Nature — "Trample. At the beginning of your upkeep, this
 // creature deals 8 damage to you unless you pay {G}{G}{G}{G}." (CR 702.19
 // trample, CR 603.6a phase trigger, CR 117.3a may-pay; on decline the
 // source-of-damage is this creature itself, so the damage is sourced from
 // the permanent's instance id — relevant for damage tracking and shields.)
-export const forceOfNature: CardDefinition = {
+export const forceOfNature = defineCard(() => ({
     id: "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
     rarity: "rare",
     name: "Force of Nature",
@@ -314,13 +317,13 @@ export const forceOfNature: CardDefinition = {
                 ctx.dealDamage({ type: "player", id: ctx.controller }, 8),
         }),
     ],
-};
+}));
 
 // Fungusaur — "Whenever this creature is dealt damage, put a +1/+1 counter
 // on it." (CR 603.2 damage trigger, CR 122.1 counter, CR 117.5 SBA-before-
 // triggers ordering — lethal damage kills Fungusaur before the counter is
 // applied, matching the official ruling).
-export const fungusaur: CardDefinition = {
+export const fungusaur = defineCard(() => ({
     id: "5ad89f0d-b09b-40a0-84d6-3ee60dec7e23",
     rarity: "rare",
     name: "Fungusaur",
@@ -354,7 +357,7 @@ export const fungusaur: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Gaea's Liege — "As long as Gaea's Liege isn't attacking, its power and
 // toughness are each equal to the number of Forests you control. As long as
@@ -386,7 +389,7 @@ const countForestsControlledBy = (
     return n;
 };
 
-export const gaeasLiege: CardDefinition = {
+export const gaeasLiege = defineCard(() => ({
     id: "e2b15221-c8b0-4861-9f8b-8a65834ad499",
     rarity: "rare",
     name: "Gaea's Liege",
@@ -455,9 +458,9 @@ export const gaeasLiege: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const giantGrowth: CardDefinition = {
+export const giantGrowth = defineCard(() => ({
     id: "367dbefe-3366-408e-9fcf-7dc00f8cc201",
     rarity: "common",
     name: "Giant Growth",
@@ -482,12 +485,12 @@ export const giantGrowth: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Giant Spider — vanilla 2/4 with reach. (CR 702.17 reach: a creature with
 // reach can block a creature with flying.) Combat validator already honors
 // "reach" alongside "flying" in `block.ts`.
-export const giantSpider: CardDefinition = {
+export const giantSpider = defineCard(() => ({
     id: "77636b4c-faea-4bf5-b88c-dd5bb88dc930",
     rarity: "common",
     name: "Giant Spider",
@@ -498,9 +501,9 @@ export const giantSpider: CardDefinition = {
     power: 2,
     toughness: 4,
     staticAbilities: ["reach"],
-};
+}));
 
-export const grizzlyBears: CardDefinition = {
+export const grizzlyBears = defineCard(() => ({
     id: "ce2d603a-3231-4a8c-bf39-1617586ea870",
     rarity: "common",
     name: "Grizzly Bears",
@@ -510,11 +513,11 @@ export const grizzlyBears: CardDefinition = {
     subtypes: ["Bear"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // CR 107.3: X chosen on cast. CR 120.3: mirrors Earthquake but targets
 // fliers instead.
-export const hurricane: CardDefinition = {
+export const hurricane = defineCard(() => ({
     id: "52f5a19f-16e4-4d35-89e1-969ac8202f88",
     rarity: "uncommon",
     name: "Hurricane",
@@ -534,11 +537,11 @@ export const hurricane: CardDefinition = {
             players: true,
         });
     },
-};
+}));
 
 // Ice Storm — "Destroy target land." (CR 701.8). Identical shape to Sinkhole
 // / Stone Rain, distinct only in cost / color.
-export const iceStorm: CardDefinition = {
+export const iceStorm = defineCard(() => ({
     id: "9914836e-2fa6-4390-94b2-431427848a54",
     rarity: "uncommon",
     name: "Ice Storm",
@@ -547,7 +550,7 @@ export const iceStorm: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Instill Energy — "Enchant creature. Enchanted creature can attack as
 // though it had haste. {0}: Untap enchanted creature. Activate only during
@@ -558,7 +561,7 @@ export const iceStorm: CardDefinition = {
 // adequate for the engine's binary summoning-sickness model. The {0}: untap
 // uses `controllerTurnOnly` + `oncePerTurn` to enforce both timing
 // restrictions without an open infinite-untap loop.
-export const instillEnergy: CardDefinition = {
+export const instillEnergy = defineCard(() => ({
     id: "5bd38716-874c-4e3c-a315-837839a6258c",
     rarity: "uncommon",
     name: "Instill Energy",
@@ -596,9 +599,9 @@ export const instillEnergy: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const ironrootTreefolk: CardDefinition = {
+export const ironrootTreefolk = defineCard(() => ({
     id: "b93c5869-7777-44bb-967a-e9439b25ced4",
     rarity: "common",
     name: "Ironroot Treefolk",
@@ -608,7 +611,7 @@ export const ironrootTreefolk: CardDefinition = {
     subtypes: ["Treefolk"],
     power: 3,
     toughness: 5,
-};
+}));
 
 // Kudzu — "Enchant land. When enchanted land becomes tapped, destroy it. That
 // land's controller may attach this Aura to a land of their choice." (CR
@@ -621,7 +624,7 @@ export const ironrootTreefolk: CardDefinition = {
 // keeps the dead host out of the candidate set without needing an exclusion
 // filter. If the controller has no other land — or declines — Kudzu is left
 // orphaned and SBA 704.5n moves it to the graveyard.
-export const kudzu: CardDefinition = {
+export const kudzu = defineCard(() => ({
     id: "b2b72dcd-9ea1-4729-baae-ecd262fdff67",
     rarity: "rare",
     name: "Kudzu",
@@ -667,11 +670,11 @@ export const kudzu: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Lifeforce — "{G}, Sacrifice Lifeforce: Counter target black spell." (CR
 // 701.6a counter, 202.2 color filter on stack target). Mirror of Deathgrip.
-export const lifeforce: CardDefinition = {
+export const lifeforce = defineCard(() => ({
     id: "e292577e-6232-44fa-a9c2-cc09949c6ed3",
     rarity: "uncommon",
     name: "Lifeforce",
@@ -696,19 +699,21 @@ export const lifeforce: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const lifelace: CardDefinition = makeLace({
-    id: "38cb601b-a35c-412e-b386-e77dad3daa54",
-    rarity: "rare",
-    name: "Lifelace",
-    oracleText:
-        "Target spell or permanent becomes green. (Mana symbols on that permanent remain unchanged.)",
-    manaCost: { G: 1 },
-    color: "G",
-});
+export const lifelace = defineCard(() =>
+    makeLace({
+        id: "38cb601b-a35c-412e-b386-e77dad3daa54",
+        rarity: "rare",
+        name: "Lifelace",
+        oracleText:
+            "Target spell or permanent becomes green. (Mana symbols on that permanent remain unchanged.)",
+        manaCost: { G: 1 },
+        color: "G",
+    })
+);
 
-export const livingArtifact: CardDefinition = {
+export const livingArtifact = defineCard(() => ({
     id: "c9e753a2-a7d0-4d37-ae65-b5a1b5039a6e",
     rarity: "rare",
     name: "Living Artifact",
@@ -774,13 +779,13 @@ export const livingArtifact: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Living Lands — "All Forests are 1/1 creatures that are still lands."
 // (CR 305.7 type-add + pt-cda). Global static: type-add Creature to all
 // permanents with Forest subtype, pt-cda sets 1/1. Summoning sickness
 // applies to newly-animated lands.
-export const livingLands: CardDefinition = {
+export const livingLands = defineCard(() => ({
     id: "80be0580-7948-4d8e-8c0f-5e2797ac411b",
     rarity: "rare",
     name: "Living Lands",
@@ -799,9 +804,9 @@ export const livingLands: CardDefinition = {
             compute: () => ({ power: 1, toughness: 1 }),
         },
     ],
-};
+}));
 
-export const llanowarElves: CardDefinition = {
+export const llanowarElves = defineCard(() => ({
     id: "d4f1cc9e-4f99-4c26-ac1b-8ef069fa8ceb",
     rarity: "common",
     name: "Llanowar Elves",
@@ -818,14 +823,14 @@ export const llanowarElves: CardDefinition = {
             produces: { G: 1 },
         }),
     ],
-};
+}));
 
 // Lure — "Enchant creature. All creatures able to block enchanted creature
 // do so." (CR 509.1c — block requirement, scope "all-able"). The
 // StaticBlockRequirement is collected from attached auras at
 // block-confirmation time; the combat validator auto-assigns every
 // eligible defender creature to block the enchanted attacker.
-export const lure: CardDefinition = {
+export const lure = defineCard(() => ({
     id: "2a87b26e-0431-42e9-b44f-94ba8546111a",
     rarity: "uncommon",
     name: "Lure",
@@ -843,12 +848,12 @@ export const lure: CardDefinition = {
             scope: "all-able",
         },
     ],
-};
+}));
 
 // Natural Selection — {G} Instant. "Look at the top three cards of target
 // player's library, then put them back in any order. You may have that
 // player shuffle." (CR 401.4 — peek; CR 701.24 — shuffle)
-export const naturalSelection: CardDefinition = {
+export const naturalSelection = defineCard(() => ({
     id: "a8917dc8-01c0-4e72-9310-c4d501775411",
     rarity: "rare",
     name: "Natural Selection",
@@ -909,7 +914,7 @@ export const naturalSelection: CardDefinition = {
             if (doShuffle) ctx.shuffleLibrary(target.id);
         },
     ],
-};
+}));
 
 // Regeneration — "Enchant creature. {G}: Regenerate enchanted creature."
 // (CR 303.4 aura attachment, 701.19a regenerate, 614.5 destroy replacement,
@@ -917,7 +922,7 @@ export const naturalSelection: CardDefinition = {
 // affected creature is determined by the aura's `attachedTo` host. The
 // regen rider is implemented engine-side via regenerateOrDestroy: each
 // shield consumed heals damage, taps, and removes from combat.
-export const regeneration: CardDefinition = {
+export const regeneration = defineCard(() => ({
     id: "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
     rarity: "common",
     name: "Regeneration",
@@ -949,7 +954,7 @@ export const regeneration: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Regrowth — "Return target card from your graveyard to your hand."
 // CR 601.2c (target chosen at cast); CR 608.2b (illegal target on resolution
@@ -958,7 +963,7 @@ export const regeneration: CardDefinition = {
 // triple narrows legal targets to any card type sitting in the caster's own
 // graveyard. `moveCardById` is a silent no-op if the card has left the
 // graveyard before resolution, so the legality recheck on resolve is implicit.
-export const regrowth: CardDefinition = {
+export const regrowth = defineCard(() => ({
     id: "badc73ec-3728-4246-90c7-5f4eb7051ed5",
     rarity: "uncommon",
     name: "Regrowth",
@@ -974,9 +979,9 @@ export const regrowth: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // graveyard card to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
+}));
 
-export const scrybSprites: CardDefinition = {
+export const scrybSprites = defineCard(() => ({
     id: "6d929c38-91e6-457c-937a-d1884f4bba44",
     rarity: "common",
     name: "Scryb Sprites",
@@ -987,9 +992,9 @@ export const scrybSprites: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying"],
-};
+}));
 
-export const shanodinDryads: CardDefinition = {
+export const shanodinDryads = defineCard(() => ({
     id: "814cf35c-f1ad-4bf4-8c10-a5592c3b1be8",
     rarity: "common",
     name: "Shanodin Dryads",
@@ -1001,11 +1006,11 @@ export const shanodinDryads: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["forestwalk"],
-};
+}));
 
 // Stream of Life — "Target player gains X life." (CR 107.3 X cost, 118.3
 // life gain).
-export const streamOfLife: CardDefinition = {
+export const streamOfLife = defineCard(() => ({
     id: "aa1c4d4b-2645-4cd9-823e-3c9bb2eb48f9",
     rarity: "common",
     name: "Stream of Life",
@@ -1017,12 +1022,12 @@ export const streamOfLife: CardDefinition = {
     // life (CR 118.3) via the chosen-cost `{ X: true }` amount. A non-player
     // target is skipped by the executor (CR 608.2b).
     effects: [{ op: "gainLife", player: { target: 0 }, amount: { X: true } }],
-};
+}));
 
 // Thicket Basilisk — {3}{G}{G} 2/4. Same combat kill as Cockatrice, no flying.
 const THICKET_BASILISK_ID = "e92cce01-b3bd-4307-aae5-9a7c8fa386ab";
 
-export const thicketBasilisk: CardDefinition = {
+export const thicketBasilisk = defineCard(() => ({
     id: THICKET_BASILISK_ID,
     rarity: "uncommon",
     name: "Thicket Basilisk",
@@ -1035,10 +1040,10 @@ export const thicketBasilisk: CardDefinition = {
     toughness: 4,
     triggeredAbilities: [thicketBasiliskCombatKill.trigger],
     delayedTriggers: [thicketBasiliskCombatKill.delayed],
-};
+}));
 
 // Timber Wolves — vanilla 1/1 Wolf with banding (CR 702.22).
-export const timberWolves: CardDefinition = {
+export const timberWolves = defineCard(() => ({
     id: "bc2570a4-eef9-430d-b6c2-cd51d29b9d01",
     rarity: "rare",
     name: "Timber Wolves",
@@ -1050,9 +1055,9 @@ export const timberWolves: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["banding"],
-};
+}));
 
-export const tranquility: CardDefinition = {
+export const tranquility = defineCard(() => ({
     id: "774cc5a6-3a69-4812-add4-eb5eb6389238",
     rarity: "common",
     name: "Tranquility",
@@ -1074,9 +1079,9 @@ export const tranquility: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
-export const tsunami: CardDefinition = {
+export const tsunami = defineCard(() => ({
     id: "9ed67d61-cf47-446b-b454-eb404a8686b7",
     rarity: "uncommon",
     name: "Tsunami",
@@ -1098,12 +1103,12 @@ export const tsunami: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Verduran Enchantress — "Whenever you cast an enchantment spell, you may
 // draw a card." (CR 603.2 spell-cast trigger; CR 117.3a optional). The
 // trigger goes on top of the casting spell and resolves before it.
-export const verduranEnchantress: CardDefinition = {
+export const verduranEnchantress = defineCard(() => ({
     id: "9f87178b-1221-4d7a-a7a5-20d7f01b8089",
     rarity: "rare",
     name: "Verduran Enchantress",
@@ -1140,10 +1145,10 @@ export const verduranEnchantress: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Wall of Brambles — vanilla 2/3 Plant Wall with defender (CR 702.3).
-export const wallOfBrambles: CardDefinition = {
+export const wallOfBrambles = defineCard(() => ({
     id: "af2a4558-db6e-41b2-aff6-b164d93282a0",
     rarity: "uncommon",
     name: "Wall of Brambles",
@@ -1165,9 +1170,9 @@ export const wallOfBrambles: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
-export const wallOfIce: CardDefinition = {
+export const wallOfIce = defineCard(() => ({
     id: "cc743a03-867c-4bb0-8fb0-2bcaa0a8a756",
     rarity: "uncommon",
     name: "Wall of Ice",
@@ -1178,9 +1183,9 @@ export const wallOfIce: CardDefinition = {
     power: 0,
     toughness: 7,
     staticAbilities: ["defender"],
-};
+}));
 
-export const wallOfWood: CardDefinition = {
+export const wallOfWood = defineCard(() => ({
     id: "8df80424-3bd9-4982-ad79-e55d9ba3b43d",
     rarity: "common",
     name: "Wall of Wood",
@@ -1191,7 +1196,7 @@ export const wallOfWood: CardDefinition = {
     power: 0,
     toughness: 3,
     staticAbilities: ["defender"],
-};
+}));
 
 // Wanderlust — "Enchant creature. At the beginning of the upkeep of
 // enchanted creature's controller, this Aura deals 1 damage to that
@@ -1199,7 +1204,7 @@ export const wallOfWood: CardDefinition = {
 // controller, CR 120.3 source = this Aura instance.) The damage source is
 // the Aura itself, so death triggers on the Aura key from its
 // `sourceInstanceId`, not from the host's controller.
-export const wanderlust: CardDefinition = {
+export const wanderlust = defineCard(() => ({
     id: "220a03ca-8c9b-4acb-821d-f6577fbb20fb",
     rarity: "uncommon",
     name: "Wanderlust",
@@ -1233,9 +1238,9 @@ export const wanderlust: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const warMammoth: CardDefinition = {
+export const warMammoth = defineCard(() => ({
     id: "c8d6081e-f686-4263-a0a2-21c0d9af5fdb",
     rarity: "common",
     name: "War Mammoth",
@@ -1246,11 +1251,11 @@ export const warMammoth: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["trample"],
-};
+}));
 
 // Web — "Enchant creature. Enchanted creature gets +0/+2 and has reach."
 // (CR 303.4 aura, 611 layer 7c, 702.17 reach grant via static effect).
-export const web: CardDefinition = {
+export const web = defineCard(() => ({
     id: "37c7890a-86dc-4a97-a7ce-1436fa22d0c0",
     rarity: "rare",
     name: "Web",
@@ -1273,13 +1278,13 @@ export const web: CardDefinition = {
             keyword: "reach",
         },
     ],
-};
+}));
 
 // Wild Growth — "Enchant land. Whenever enchanted land is tapped for mana,
 // its controller adds an additional {G}." (CR 303.4 aura attachment, 603.2
 // PERMANENT_TAPPED trigger, 605 mana ability). The aura's host is the
 // "enchanted land"; the trigger fires only on for-mana taps of that host.
-export const wildGrowth: CardDefinition = {
+export const wildGrowth = defineCard(() => ({
     id: "fd896dfa-66c0-4327-8e5b-489bbe350c95",
     rarity: "common",
     name: "Wild Growth",
@@ -1318,11 +1323,11 @@ export const wildGrowth: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Fog — {G} Instant. "Prevent all combat damage that would be dealt this
 // turn." (CR 615)
-export const fog: CardDefinition = {
+export const fog = defineCard(() => ({
     id: "cfba606d-bb55-43ba-aa0c-299649958788",
     rarity: "common",
     name: "Fog",
@@ -1332,12 +1337,12 @@ export const fog: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
     // preventDamage is a turn-scoped global Fog (CR 615).
     effects: [{ op: "preventDamage", mode: "all-combat" }],
-};
+}));
 
 // Fastbond — {G} Enchantment. "You may play any number of lands on each of
 // your turns. Whenever you play a land, if it wasn't the first land you played
 // this turn, Fastbond deals 1 damage to you." (CR 305.2 — extra land drops)
-export const fastbond: CardDefinition = {
+export const fastbond = defineCard(() => ({
     id: "a575a9af-e1de-4a1d-91d8-440585377e4f",
     rarity: "rare",
     name: "Fastbond",
@@ -1374,4 +1379,4 @@ export const fastbond: CardDefinition = {
             },
         }),
     ],
-};
+}));

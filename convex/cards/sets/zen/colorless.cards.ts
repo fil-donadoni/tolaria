@@ -2,7 +2,7 @@
 // `import * as zen from "./sets/zen/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Fetchland family (issue #677) — "{T}, Pay 1 life, Sacrifice this land:
 // Search your library for a [Subtype] or [Subtype] card, put it onto the
@@ -13,7 +13,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // to: "battlefield")` (routes through `putFromLibraryOntoBattlefield`) +
 // `libraryLook`(shuffle).
 
-export const mistyRainforest: CardDefinition = {
+export const mistyRainforest = defineCard(() => ({
     id: "24a5cc2c-0fbf-4a5f-b175-6e0ffd0d0787",
     name: "Misty Rainforest",
     rarity: "rare",
@@ -49,9 +49,9 @@ export const mistyRainforest: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const aridMesa: CardDefinition = {
+export const aridMesa = defineCard(() => ({
     id: "16c8d2fa-54a7-46e8-980c-905258497c90",
     name: "Arid Mesa",
     rarity: "rare",
@@ -87,9 +87,9 @@ export const aridMesa: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const scaldingTarn: CardDefinition = {
+export const scaldingTarn = defineCard(() => ({
     id: "327cf118-cc92-4073-85d0-94d2a0a6989a",
     name: "Scalding Tarn",
     rarity: "rare",
@@ -125,9 +125,9 @@ export const scaldingTarn: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const marshFlats: CardDefinition = {
+export const marshFlats = defineCard(() => ({
     id: "45026d57-0324-4312-8b86-2e7d4f581ee9",
     name: "Marsh Flats",
     rarity: "rare",
@@ -163,9 +163,9 @@ export const marshFlats: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const verdantCatacombs: CardDefinition = {
+export const verdantCatacombs = defineCard(() => ({
     id: "7abd2723-2851-4f1a-b2d0-dfcb526472c3",
     name: "Verdant Catacombs",
     rarity: "rare",
@@ -201,14 +201,14 @@ export const verdantCatacombs: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Expedition Map — {1} Artifact. "{2}, {T}, Sacrifice this artifact: Search
 // your library for a land card, reveal it, put it into your hand, then
 // shuffle." The "reveal it" clause is a `reveal` Op on the picked card (issue
 // #945, CR 701.20): it makes the found land known to every player, placed
 // BEFORE the moveZone/shuffle so the knowledge rides the card into hand.
-export const expeditionMap: CardDefinition = {
+export const expeditionMap = defineCard(() => ({
     id: "c55bee97-593f-441f-b96c-a998d5212a55",
     name: "Expedition Map",
     rarity: "common",
@@ -250,4 +250,4 @@ export const expeditionMap: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -36,14 +36,14 @@ const SWAMP = "6176936d-72e2-4205-8871-4c5a4f1cb2d8";
 /** A board where p1 holds Bitter Triumph plus `spare` other hand cards, has
  *  `life` life and two untapped Swamps, and p2 has a Grizzly Bears to kill. */
 function board(opts: { life: number; spare: number }): GameState {
-    const triumph = makeInstance(bitterTriumph.id, {
+    const triumph = makeInstance(bitterTriumph().id, {
         id: "bt",
         zone: "hand",
         controllerId: "p1",
         ownerId: "p1",
     });
     const spares = Array.from({ length: opts.spare }, (_, i) =>
-        makeInstance(lightningBolt.id, {
+        makeInstance(lightningBolt().id, {
             id: `spare${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -58,7 +58,7 @@ function board(opts: { life: number; spare: number }): GameState {
             ownerId: "p1",
         })
     );
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears",
         zone: "battlefield",
         controllerId: "p2",

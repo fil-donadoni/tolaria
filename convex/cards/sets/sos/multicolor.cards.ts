@@ -3,7 +3,7 @@
 // sos/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { PERMANENT_TYPES } from "../../../gre/constants";
 
 // Traumatic Critique — {X}{U}{R} Instant. "Traumatic Critique deals X damage to
@@ -11,7 +11,7 @@ import { PERMANENT_TYPES } from "../../../gre/constants";
 // getX()), CR 115.4 "any target", CR 121.1 draw, CR 701.9 discard. Stepped
 // resolution: the irreversible damage + draw run first, then the discard pick
 // can suspend without re-running them (CR 608.2).
-export const traumaticCritique: CardDefinition = {
+export const traumaticCritique = defineCard(() => ({
     id: "2a812fa7-4599-4e25-97db-20ffc6bc0b26",
     rarity: "common",
     name: "Traumatic Critique",
@@ -40,7 +40,7 @@ export const traumaticCritique: CardDefinition = {
         },
         { op: "discard", player: "controller", cards: { ref: "$discard" } },
     ],
-};
+}));
 
 // Witherbloom Charm — "Choose one — • You may sacrifice a permanent. If you
 // do, draw two cards. • You gain 5 life. • Destroy target nonland permanent
@@ -51,7 +51,7 @@ export const traumaticCritique: CardDefinition = {
 // mechanism instead (CR 700.2c per-mode target/resolve), the same
 // established escape used by Healing Salve (lea/white.cards.ts) for this exact
 // cross-mode-target gap.
-export const witherbloomCharm: CardDefinition = {
+export const witherbloomCharm = defineCard(() => ({
     id: "254437f7-7a8a-4b11-9cea-e8e7ea23c59e",
     rarity: "uncommon",
     name: "Witherbloom Charm",
@@ -116,13 +116,13 @@ export const witherbloomCharm: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Silverquill Charm — "Choose one — • Put two +1/+1 counters on target
 // creature. • Exile target creature with power 2 or less. • Each opponent
 // loses 3 life and you gain 3 life." (CR 700.2 modal.) Same cross-mode-target
 // gap as Witherbloom Charm above — uses the legacy `modes` mechanism.
-export const silverquillCharm: CardDefinition = {
+export const silverquillCharm = defineCard(() => ({
     id: "3eb73579-f1c6-4762-81d2-9568ab501fac",
     rarity: "uncommon",
     name: "Silverquill Charm",
@@ -173,7 +173,7 @@ export const silverquillCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Quandrix Charm — {G}{U} Instant. "Choose one — Counter target spell unless
 // its controller pays {2}. / Destroy target enchantment. / Target creature
@@ -187,7 +187,7 @@ export const silverquillCharm: CardDefinition = {
 // gap (issue #683 adds mode 1's counter-unless-pay shape and mode 3's
 // `setBasePT` set, both already-shipped primitives — Force Spike (leg/blue.cards.ts)
 // and Halfdane (leg/multicolor.cards.ts) respectively).
-export const quandrixCharm: CardDefinition = {
+export const quandrixCharm = defineCard(() => ({
     id: "318486e0-f255-40f5-8150-dc272eec9d7d",
     rarity: "uncommon",
     name: "Quandrix Charm",
@@ -249,7 +249,7 @@ export const quandrixCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Lorehold Charm — {R}{W} Instant (Cube FREE wave 3, issue #1529). "Choose
 // one — • Each opponent sacrifices a nontoken artifact of their choice. •
@@ -268,7 +268,7 @@ export const quandrixCharm: CardDefinition = {
 // mass `pump` + `grantAbility` (Sandstorm Salvager precedent, `big/green.cards.ts`).
 // All three modes compose from already-shipped Ops — no new Op or construct
 // needed.
-export const loreholdCharm: CardDefinition = {
+export const loreholdCharm = defineCard(() => ({
     id: "5fe70295-e550-4577-a341-dab6c25aabfd",
     rarity: "uncommon",
     name: "Lorehold Charm",
@@ -350,7 +350,7 @@ export const loreholdCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Vicious Rivalry — {2}{B}{G} Sorcery. "As an additional cost to cast this
 // spell, pay X life. Destroy all artifacts and creatures with mana value X or
@@ -378,7 +378,7 @@ export const loreholdCharm: CardDefinition = {
 // Overload shape, `inv/red.ts`, CR 202.3) around `destroy`. Still no new Op or
 // construct — `forEach`, `if`, `manaValue`, and `destroy` are each already
 // exercised catalogue-wide; only the COMPOSITION is corrected here.
-export const viciousRivalry: CardDefinition = {
+export const viciousRivalry = defineCard(() => ({
     id: "6fa9cd18-3181-4373-ab65-49bf9de9487f",
     name: "Vicious Rivalry",
     rarity: "rare",
@@ -408,7 +408,7 @@ export const viciousRivalry: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Prismari Charm — {U}{R} Instant. "Choose one — • Surveil 2, then draw a
 // card. • Prismari Charm deals 1 damage to each of one or two targets.
@@ -450,7 +450,7 @@ export const viciousRivalry: CardDefinition = {
 // compiler-gap: "Choose one —" modal bullet list (#2693)
 // compiler-gap: "Surveil 2, then draw a card." (#2693)
 // compiler-gap: "Prismari Charm deals 1 damage to each of one or two targets." (#2693)
-export const prismariCharm: CardDefinition = {
+export const prismariCharm = defineCard(() => ({
     id: "8f6c2a5e-fe13-407c-aadd-c9caf2884ff1",
     rarity: "uncommon",
     name: "Prismari Charm",
@@ -497,4 +497,4 @@ export const prismariCharm: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));

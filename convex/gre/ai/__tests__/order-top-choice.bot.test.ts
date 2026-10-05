@@ -58,12 +58,12 @@ import { preordain } from "../../../cards/sets/m11/blue.cards";
 import { consider } from "../../../cards/sets/mid/blue.cards";
 
 // Definition ids, the vocabulary `makeInstance` and the partition helper speak.
-const ORNITHOPTER = ornithopter.id; // 0/2 for {0} — a near-worthless draw
-const CRAW_WURM = crawWurm.id; // 6/4 for {4}{G}{G} — a real threat
-const GRIZZLY_BEARS = grizzlyBears.id;
-const ISLAND = island.id;
-const PREORDAIN = preordain.id; // Scry 2, then draw (CR 701.22)
-const CONSIDER = consider.id; // Surveil 1, then draw (CR 701.25)
+const ORNITHOPTER = ornithopter().id; // 0/2 for {0} — a near-worthless draw
+const CRAW_WURM = crawWurm().id; // 6/4 for {4}{G}{G} — a real threat
+const GRIZZLY_BEARS = grizzlyBears().id;
+const ISLAND = island().id;
+const PREORDAIN = preordain().id; // Scry 2, then draw (CR 701.22)
+const CONSIDER = consider().id; // Surveil 1, then draw (CR 701.25)
 
 /** GENERATOR fixture: a live `order-top` choice over `top`, with `rest` below
  *  it, raised through the REAL primitive (`SpellContext.orderTop`) on a bare

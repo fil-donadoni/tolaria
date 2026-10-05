@@ -1,6 +1,6 @@
 // bro — colorless cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -11,7 +11,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // CR 605 activated ability with a self-sacrifice cost (DSL `exile` Op). Both
 // Ops are already interpreter-exercised — no hand-written test required
 // (per-Op regime, ADR 0046).
-export const haywireMite: CardDefinition = {
+export const haywireMite = defineCard(() => ({
     id: "847a175e-ead1-4596-baf3-5f7f57859e0b",
     name: "Haywire Mite",
     rarity: "uncommon",
@@ -48,7 +48,7 @@ export const haywireMite: CardDefinition = {
             effects: [{ op: "exile", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Portal to Phyrexia — {9} Artifact. "When this artifact enters, each
 // opponent sacrifices three creatures of their choice. At the beginning of
@@ -74,7 +74,7 @@ export const haywireMite: CardDefinition = {
 // indefinite grant on the reanimated object itself, not on Portal to
 // Phyrexia, so it survives Portal leaving the battlefield — exactly what
 // `addSubtype`'s no-`duration` semantics express. No new Op needed.
-export const portalToPhyrexia: CardDefinition = {
+export const portalToPhyrexia = defineCard(() => ({
     id: "5f608efc-0dbc-4cc3-aadd-ed473bfc29ab",
     name: "Portal to Phyrexia",
     rarity: "mythic",
@@ -133,4 +133,4 @@ export const portalToPhyrexia: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -2,10 +2,10 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import type {
-    ActivatedAbilityContext,
-    CardDefinition,
-    PermanentView,
+import {
+    defineCard,
+    type ActivatedAbilityContext,
+    type PermanentView,
 } from "../../types";
 
 // Creeping Tar Pit — the manland cycle (CR 611.1 animate). DSL-first (ADR
@@ -19,7 +19,7 @@ import type {
 // color replaces all previous colors" holds and the land reads blue+black to
 // protection / colour hosers exactly while it is animated. Vintage Cube free
 // tranche (issue #675, ADR 0041).
-export const creepingTarPit: CardDefinition = {
+export const creepingTarPit = defineCard(() => ({
     id: "0f427f0b-034c-4821-8758-e395c0042d8a",
     rarity: "rare",
     name: "Creeping Tar Pit",
@@ -69,7 +69,7 @@ export const creepingTarPit: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Celestial Colonnade — see Creeping Tar Pit's comment for the layer-5 colour
 // clause (`animate`'s `colors`, CR 613.1e / 105.3).
@@ -85,7 +85,7 @@ export const creepingTarPit: CardDefinition = {
 // to grant permanently — and is now merely one of two equivalent spellings:
 // the param carries the animation's own duration (CR 611.2a), so folding the
 // two keywords into the `animate` spec would produce the identical board.
-export const celestialColonnade: CardDefinition = {
+export const celestialColonnade = defineCard(() => ({
     id: "f6929259-2903-4f6f-9b06-42048fd55c6a",
     rarity: "rare",
     name: "Celestial Colonnade",
@@ -137,7 +137,7 @@ export const celestialColonnade: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Everflowing Chalice — "Multikicker {2}. This artifact enters with a charge
 // counter on it for each time it was kicked. {T}: Add {C} for each charge
@@ -148,7 +148,7 @@ export const celestialColonnade: CardDefinition = {
 // `manaAmount` hook — the same primitive Gaea's Cradle / the Urza land trio use
 // (`convex/gre/constants.ts` getDynamicManaProduced), counting the source's own
 // counters instead of the battlefield. Vintage Cube Kicker cluster (#692).
-export const everflowingChalice: CardDefinition = {
+export const everflowingChalice = defineCard(() => ({
     id: "1fdcc0c3-4029-4fc3-a486-5d7f45c910bd",
     rarity: "uncommon",
     name: "Everflowing Chalice",
@@ -181,4 +181,4 @@ export const everflowingChalice: CardDefinition = {
             }),
         },
     ],
-};
+}));

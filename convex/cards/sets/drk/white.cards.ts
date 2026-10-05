@@ -7,7 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 
@@ -17,7 +17,7 @@ import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 // via the generic permanent-resolution path, CR 608.3).
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const squire: CardDefinition = {
+export const squire = defineCard(() => ({
     id: "374df061-ebd2-4f1f-9a6e-7940a49197a9",
     rarity: "common",
     name: "Squire",
@@ -27,7 +27,7 @@ export const squire: CardDefinition = {
     subtypes: ["Human", "Soldier"],
     power: 1,
     toughness: 2,
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Keyword creatures (CR 702 — keywords map to `staticAbilities[]`; combat /
@@ -37,7 +37,7 @@ export const squire: CardDefinition = {
 // Knights of Thorn — Protection from red (CR 702.16) + banding (CR 702.22).
 // Both are plain keywords already shipped; the banding engine (block-as-a-group
 // + attacker damage division) was built for the LEG banding cycle.
-export const knightsOfThorn: CardDefinition = {
+export const knightsOfThorn = defineCard(() => ({
     id: "ae541c73-9903-49e6-997a-db4701135145",
     rarity: "rare",
     name: "Knights of Thorn",
@@ -48,10 +48,10 @@ export const knightsOfThorn: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["protection from red", "banding"],
-};
+}));
 
 // Pikemen — First strike (CR 702.7) + banding (CR 702.22). Plain keywords.
-export const pikemen: CardDefinition = {
+export const pikemen = defineCard(() => ({
     id: "bf2f6936-b50c-4907-9b55-ebf8a3fba8f5",
     rarity: "common",
     name: "Pikemen",
@@ -62,7 +62,7 @@ export const pikemen: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["first strike", "banding"],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Characteristic-defining P/T (CR 604.3, layer 7a) — Angry Mob
@@ -75,7 +75,7 @@ export const pikemen: CardDefinition = {
 // body so the "2 plus N" / "2" arithmetic lives in one place. The CDA reads
 // `state.activePlayerId` (a top-level GameState field that survives the wire
 // projection) to gate the opponents'-Swamp bonus on whose turn it is.
-export const angryMob: CardDefinition = {
+export const angryMob = defineCard(() => ({
     id: "9e14db1c-0a05-47d2-9f27-df881f7f37ab",
     rarity: "uncommon",
     name: "Angry Mob",
@@ -108,7 +108,7 @@ export const angryMob: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Activated-ability creatures (CR 605)
@@ -123,7 +123,7 @@ export const angryMob: CardDefinition = {
 // anything but a creature you control is never offered as a legal target,
 // not merely a no-op destroy at resolution. Mirrors Pyramids' "attached to a
 // land" clause and Savaen Elves' identical one, both on the same field.
-export const miracleWorker: CardDefinition = {
+export const miracleWorker = defineCard(() => ({
     id: "35d29bda-096c-44d4-b45e-c2c507f8efbe",
     rarity: "common",
     name: "Miracle Worker",
@@ -149,12 +149,12 @@ export const miracleWorker: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Witch Hunter — two activated abilities (CR 605): a {T} ping to a player and a
 // {1}{W}{W}, {T} bounce of an opponent's creature (CR 400.7). Planeswalkers are
 // out of scope, so the first ability targets `player` only.
-export const witchHunter: CardDefinition = {
+export const witchHunter = defineCard(() => ({
     id: "4eef9bb7-cd3c-422e-a93b-90d98684675a",
     rarity: "rare",
     name: "Witch Hunter",
@@ -194,7 +194,7 @@ export const witchHunter: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Preacher — "You may choose not to untap this creature during your untap
 // step.\n{T}: For as long as this creature remains tapped, gain control of
@@ -205,7 +205,7 @@ export const witchHunter: CardDefinition = {
 // reverting the instant Preacher untaps or leaves (checkConditionalControlChanges
 // SBA). The optional-untap clause is the shipped `may-choose-not-to-untap`
 // static so the controller can keep Preacher tapped to hold the stolen creature.
-export const preacher: CardDefinition = {
+export const preacher = defineCard(() => ({
     id: "1e03d335-d259-4ab4-814f-9333cfd3afc9",
     rarity: "rare",
     name: "Preacher",
@@ -269,7 +269,7 @@ export const preacher: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Spells (CR 601 / 608)
@@ -277,7 +277,7 @@ export const preacher: CardDefinition = {
 
 // Dust to Dust — "Exile two target artifacts." (CR 701.13 exile; two distinct
 // permanent targets, CR 601.2c.)
-export const dustToDust: CardDefinition = {
+export const dustToDust = defineCard(() => ({
     id: "ade075fd-73ee-4d12-a2da-48e5938043af",
     rarity: "common",
     name: "Dust to Dust",
@@ -291,11 +291,11 @@ export const dustToDust: CardDefinition = {
         { op: "exile", target: { target: 0 } },
         { op: "exile", target: { target: 1 } },
     ],
-};
+}));
 
 // Tivadar's Crusade — "Destroy all Goblins." (CR 701.8 mass destroy filtered on
 // the Goblin creature subtype, CR 205.3.)
-export const tivadarsCrusade: CardDefinition = {
+export const tivadarsCrusade = defineCard(() => ({
     id: "8b6da540-6803-47e5-9af0-7ae8e2f84b6c",
     rarity: "uncommon",
     name: "Tivadar's Crusade",
@@ -319,13 +319,13 @@ export const tivadarsCrusade: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Holy Light — "Nonwhite creatures get -1/-1 until end of turn." (CR 611.2
 // temporary P/T mod on a filtered set; CR 202.2 colour.) Computed as "all
 // creatures" minus "white creatures" because PermanentFilter has no negative
 // colour selector.
-export const holyLight: CardDefinition = {
+export const holyLight = defineCard(() => ({
     id: "c3c8a850-bc99-4679-a316-45ecdea696b2",
     rarity: "common",
     name: "Holy Light",
@@ -352,11 +352,11 @@ export const holyLight: CardDefinition = {
             }
         }
     },
-};
+}));
 
 // Morale — "Attacking creatures get +1/+1 until end of turn." (CR 611.2 combat
 // pump; the shipped `pump-combat` declarative effect, side "attacking".)
-export const morale: CardDefinition = {
+export const morale = defineCard(() => ({
     id: "c4104546-abd9-4bfb-a65e-5928cdd4522f",
     rarity: "common",
     name: "Morale",
@@ -364,12 +364,12 @@ export const morale: CardDefinition = {
     manaCost: { X: 1, W: 2 },
     types: ["Instant"],
     effect: { kind: "pump-combat", side: "attacking", power: 1, toughness: 1 },
-};
+}));
 
 // Martyr's Cry — "Exile all white creatures. For each creature exiled this way,
 // its controller draws a card." (CR 701.13 exile + CR 121.1 draw; snapshot the
 // per-controller count before exiling so the draws reflect what was removed.)
-export const martyrsCry: CardDefinition = {
+export const martyrsCry = defineCard(() => ({
     id: "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",
     rarity: "rare",
     name: "Martyr's Cry",
@@ -408,13 +408,13 @@ export const martyrsCry: CardDefinition = {
             if (n > 0) ctx.drawCards(pid, n);
         }
     },
-};
+}));
 
 // Fire and Brimstone — "~ deals 4 damage to target player who attacked this
 // turn and 4 damage to you." (CR 506.2 "attacked this turn" player filter; CR
 // 119 damage.) The target filter is enforced by getLegalTargets / selectTarget
 // via `playerAttackedThisTurn`.
-export const fireAndBrimstone: CardDefinition = {
+export const fireAndBrimstone = defineCard(() => ({
     id: "d5208dbb-63d2-4789-8ef9-f82499a43b3a",
     rarity: "uncommon",
     name: "Fire and Brimstone",
@@ -433,7 +433,7 @@ export const fireAndBrimstone: CardDefinition = {
         { op: "dealDamage", amount: 4, to: { target: 0 } },
         { op: "dealDamage", amount: 4, to: { player: "controller" } },
     ],
-};
+}));
 
 // Fasting — DRK C7 skip-draw-step enchantment. Modern Scryfall oracle text
 // (ADR 0004) — the printed Alpha/DRK wording ("draw phase") is superseded:
@@ -450,7 +450,7 @@ export const fireAndBrimstone: CardDefinition = {
 //      trigger via the new `drawTrigger` factory (CARD_DRAWN). Fires on ANY
 //      draw the controller makes (the natural draw if they decline the skip,
 //      or any effect-driven draw), then destroys Fasting.
-export const fasting: CardDefinition = {
+export const fasting = defineCard(() => ({
     id: "8da35f9f-e72c-4154-a212-7de98f84ad7d",
     rarity: "uncommon",
     name: "Fasting",
@@ -529,4 +529,4 @@ export const fasting: CardDefinition = {
             },
         }),
     ],
-};
+}));

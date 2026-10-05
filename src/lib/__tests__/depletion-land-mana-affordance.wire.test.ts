@@ -40,7 +40,7 @@ function projectedWoodlot(counters: number): {
     card: CardInstance;
     players: { id: string; battlefield: CardInstance[] }[];
 } {
-    const land = makeInstance(hickoryWoodlot.id, {
+    const land = makeInstance(hickoryWoodlot().id, {
         id: "woodlot",
         controllerId: "p1",
         ownerId: "p1",

@@ -1,6 +1,6 @@
 // stx — white cards (ADR 0043 colour split).
 
-import type { CardDefinition, EffectOp } from "../../types";
+import { defineCard, type EffectOp } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Elite Spellbinder — {2}{W} Creature — Human Cleric, 3/1, flying (Vintage
@@ -76,7 +76,7 @@ const eliteSpellbinderTriggerEffects: EffectOp[] = [
     },
 ];
 
-export const eliteSpellbinder: CardDefinition = {
+export const eliteSpellbinder = defineCard(() => ({
     id: "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
     name: "Elite Spellbinder",
     rarity: "rare",
@@ -107,4 +107,4 @@ export const eliteSpellbinder: CardDefinition = {
             effects: eliteSpellbinderTriggerEffects,
         }),
     ],
-};
+}));

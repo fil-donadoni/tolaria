@@ -37,7 +37,7 @@ function kikiBoard(others: CardInstanceState[]): {
     state: GameState;
     kiki: CardInstanceState;
 } {
-    const saga = makeInstance(fableOfTheMirrorBreaker.id, {
+    const saga = makeInstance(fableOfTheMirrorBreaker().id, {
         id: "fable1",
         controllerId: "p1",
         counters: { [LORE_COUNTER]: 2 },
@@ -65,7 +65,7 @@ const kikiMoves = (state: GameState) =>
 
 describe("activated-ability self-exclusion in move enumeration (issue #2399)", () => {
     it("never enumerates the SOURCE as its own 'another target' (CR 109.2)", () => {
-        const other = makeInstance(elvishArchers.id, {
+        const other = makeInstance(elvishArchers().id, {
             id: "other1",
             controllerId: "p1",
         });

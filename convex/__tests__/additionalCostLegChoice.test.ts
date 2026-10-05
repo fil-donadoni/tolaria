@@ -58,14 +58,14 @@ const SWAMP = "6176936d-72e2-4205-8871-4c5a4f1cb2d8";
 /** A board where p1 holds Bitter Triumph plus `spare` other hand cards, has
  *  `life` life and two untapped Swamps, and p2 has a Grizzly Bears to kill. */
 function board(opts: { life: number; spare: number }) {
-    const triumph = makeInstance(bitterTriumph.id, {
+    const triumph = makeInstance(bitterTriumph().id, {
         id: "bt",
         zone: "hand",
         controllerId: "p1",
         ownerId: "p1",
     });
     const spares = Array.from({ length: opts.spare }, (_, i) =>
-        makeInstance(lightningBolt.id, {
+        makeInstance(lightningBolt().id, {
             id: `spare${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -80,7 +80,7 @@ function board(opts: { life: number; spare: number }) {
             ownerId: "p1",
         })
     );
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears",
         zone: "battlefield",
         controllerId: "p2",
@@ -109,7 +109,7 @@ function pendingTargetFor(legId: string | undefined): PendingTarget {
     return {
         playerId: "p1",
         cardInstanceId: "bt",
-        requirement: bitterTriumph.targetRequirement!,
+        requirement: bitterTriumph().targetRequirement!,
         selected: [{ type: "permanent", id: "bears" }],
         keepPriority: false,
         ...(legId ? { additionalCostLegId: legId } : {}),
@@ -119,12 +119,12 @@ function pendingTargetFor(legId: string | undefined): PendingTarget {
 describe("additionalCosts.oneOf — leg resolution (CR 601.2b)", () => {
     it("flattens the named leg onto the spec and drops `oneOf`", () => {
         const life = resolveAdditionalCosts(
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "pay-3-life"
         );
         expect(life).toEqual({ payLife: 3 });
         const discard = resolveAdditionalCosts(
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "discard"
         );
         expect(discard).toEqual({ discard: { count: 1 } });
@@ -171,7 +171,7 @@ describe("Bitter Triumph — leg affordability (CR 601.2h / 119.4 / 701.9)", () 
         const state = board({ life: 20, spare: 2 });
         const legs = payableAdditionalCostLegs(
             getPlayer(state, "p1"),
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "bt"
         );
         expect(legs.map((l) => l.id)).toEqual(["discard", "pay-3-life"]);
@@ -181,7 +181,7 @@ describe("Bitter Triumph — leg affordability (CR 601.2h / 119.4 / 701.9)", () 
         const state = board({ life: 20, spare: 0 });
         const legs = payableAdditionalCostLegs(
             getPlayer(state, "p1"),
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "bt"
         );
         expect(legs.map((l) => l.id)).toEqual(["pay-3-life"]);
@@ -191,7 +191,7 @@ describe("Bitter Triumph — leg affordability (CR 601.2h / 119.4 / 701.9)", () 
         const state = board({ life: 2, spare: 1 });
         const legs = payableAdditionalCostLegs(
             getPlayer(state, "p1"),
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "bt"
         );
         expect(legs.map((l) => l.id)).toEqual(["discard"]);
@@ -215,7 +215,7 @@ describe("Bitter Triumph — leg affordability (CR 601.2h / 119.4 / 701.9)", () 
         expect(
             payableAdditionalCostLegs(
                 player,
-                bitterTriumph.additionalCosts,
+                bitterTriumph().additionalCosts,
                 "bt"
             )
         ).toEqual([]);
@@ -235,7 +235,7 @@ describe("Bitter Triumph — leg affordability (CR 601.2h / 119.4 / 701.9)", () 
 
     it("the card declares exactly the two printed legs", () => {
         expect(
-            additionalCostLegs(bitterTriumph.additionalCosts).map((l) => l.id)
+            additionalCostLegs(bitterTriumph().additionalCosts).map((l) => l.id)
         ).toEqual(["discard", "pay-3-life"]);
     });
 });
@@ -248,7 +248,7 @@ describe("Bitter Triumph — cast commit pays the CHOSEN leg (CR 601.2f / 601.2h
         expect(player.life).toBe(17);
         expect(player.hand.map((c) => c.id)).toEqual(["spare0", "spare1"]);
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card.id).toBe(bitterTriumph.id);
+        expect(state.stack[0].card.id).toBe(bitterTriumph().id);
         expect(state.stack[0].targets).toEqual([
             { type: "permanent", id: "bears" },
         ]);
@@ -274,7 +274,7 @@ describe("Bitter Triumph — cast commit pays the CHOSEN leg (CR 601.2f / 601.2h
         recordCastAlternativeHandCostPick(state, "p1", ["spare1"]);
         tryAutoCommitPendingCast(state, "p1");
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card.id).toBe(bitterTriumph.id);
+        expect(state.stack[0].card.id).toBe(bitterTriumph().id);
         expect(player.life).toBe(20);
         expect(player.graveyard.map((c) => c.id)).toEqual(["spare1"]);
         expect(player.hand.map((c) => c.id)).toEqual(["spare0"]);
@@ -340,7 +340,7 @@ describe("Bitter Triumph — cast commit pays the CHOSEN leg (CR 601.2f / 601.2h
         // hand → graveyard and no life was lost (the discard leg, not
         // pay-3-life).
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card.id).toBe(bitterTriumph.id);
+        expect(state.stack[0].card.id).toBe(bitterTriumph().id);
         expect(player.graveyard.map((c) => c.id)).toEqual(["spare0"]);
         expect(player.hand).toHaveLength(0);
         expect(player.life).toBe(20);
@@ -563,7 +563,7 @@ describe("catalogue guard — every additionalCosts.oneOf is well formed (CR 601
     });
 
     it("passes the real Bitter Triumph", () => {
-        expect(malformedOneOfLegs([bitterTriumph])).toEqual([]);
+        expect(malformedOneOfLegs([bitterTriumph()])).toEqual([]);
     });
 });
 

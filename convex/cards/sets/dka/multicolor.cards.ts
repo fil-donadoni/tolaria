@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/loyalty are from Scryfall (id = DKA paper printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "../../emblems";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ import { SORIN_LORD_OF_INNISTRAD_EMBLEM_ID } from "../../emblems";
 //     concern, expressed through the single-authority path — a dynamic
 //     `getTargetRequirement(source)` injecting `excludeInstanceIds: [source.id]`,
 //     so `getLegalTargets` and `selectTarget` agree (CR 601.2c).
-export const sorinLordOfInnistrad: CardDefinition = {
+export const sorinLordOfInnistrad = defineCard(() => ({
     id: "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
     name: "Sorin, Lord of Innistrad",
     rarity: "mythic",
@@ -141,4 +141,4 @@ export const sorinLordOfInnistrad: CardDefinition = {
             ],
         },
     ],
-};
+}));

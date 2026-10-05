@@ -1,5 +1,5 @@
 // ody — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Firebolt — {R} Sorcery. "Firebolt deals 2 damage to any target." with
 // Flashback {4}{R} (CR 702.34 — cast from the graveyard for the flashback cost,
@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 // the engine capability (convex/gre/flashback.ts); the `flashback` field
 // carries the alternative cost so the bolt can be thrown twice, once from hand
 // and once from the graveyard.
-export const firebolt: CardDefinition = {
+export const firebolt = defineCard(() => ({
     id: "d5e45005-dd81-4d80-b043-02f719aca929",
     rarity: "common",
     name: "Firebolt",
@@ -18,4 +18,4 @@ export const firebolt: CardDefinition = {
     flashback: { X: 4, R: 1 },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
-};
+}));

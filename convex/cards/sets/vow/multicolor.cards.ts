@@ -1,7 +1,7 @@
 // vow — multicolor cards (ADR 0043 colour split). Modern Scryfall oracle
 // text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { createBloodTokenOp } from "../../abilities/tokens/bloodToken";
 
@@ -39,7 +39,7 @@ import { createBloodTokenOp } from "../../abilities/tokens/bloodToken";
 // exception) — a hand-written test lives in
 // `convex/cards/sets/vow/__tests__/multicolor.test.ts` per that "explicit
 // skip" fallback in `.claude/rules/gre-development.md`.
-export const bloodtitheHarvester: CardDefinition = {
+export const bloodtitheHarvester = defineCard(() => ({
     id: "f0192cf7-3391-4720-b9c8-72dec5dde01e", // VOW 232
     rarity: "uncommon",
     name: "Bloodtithe Harvester",
@@ -96,4 +96,4 @@ export const bloodtitheHarvester: CardDefinition = {
             ],
         },
     ],
-};
+}));

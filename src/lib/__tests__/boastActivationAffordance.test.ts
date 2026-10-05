@@ -33,12 +33,12 @@ const BOAST_ID = "broadside-bombardiers-boast-damage";
 
 describe("Broadside Bombardiers — Boast affordance over the wire (CR 702.142a, issue #2375)", () => {
     it("getStackAbilities hides the boast pre-attack and offers it post-attack, over projectPublicState", () => {
-        const source = makeInstance(broadsideBombardiers.id, {
+        const source = makeInstance(broadsideBombardiers().id, {
             id: "bombardiers",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             id: "victim",
             controllerId: "p1",
             ownerId: "p1",

@@ -1,7 +1,7 @@
 // CN2 — multicolor cards, split by colour per ADR 0043. The registry's
 // `import * as cn2 from "./sets/cn2/index.cards"` re-exports this module.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Leovold, Emissary of Trest — {B}{G}{U} Legendary Creature — Elf Advisor 3/3
 // (issue #1265, PRD #779, ADR 0061). Two clauses:
@@ -23,7 +23,7 @@ import type { CardDefinition } from "../../types";
 //     cost-free `mayPay` gate over the DSL `draw` Op (the Verduran Enchantress
 //     shape) — the controller's own draw is not caught by the prevent clause
 //     (that applies only to opponents).
-export const leovoldEmissaryOfTrest: CardDefinition = {
+export const leovoldEmissaryOfTrest = defineCard(() => ({
     id: "49bb0ad3-1082-41f1-82a4-52a4006cc9b6",
     name: "Leovold, Emissary of Trest",
     rarity: "mythic",
@@ -78,4 +78,4 @@ export const leovoldEmissaryOfTrest: CardDefinition = {
             ],
         },
     ],
-};
+}));

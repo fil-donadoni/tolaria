@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 
 // Inti, Seneschal of the Sun — {1}{R} Legendary Creature — Human Knight, 2/2
@@ -34,7 +34,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // next end step", including the off-turn case (some other effect discarding
 // on Inti's behalf outside its own attack step, e.g. an opponent's-turn
 // instant-speed discard).
-export const intiSeneschalOfTheSun: CardDefinition = {
+export const intiSeneschalOfTheSun = defineCard(() => ({
     id: "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd", // LCI 156
     name: "Inti, Seneschal of the Sun",
     rarity: "rare",
@@ -160,6 +160,6 @@ export const intiSeneschalOfTheSun: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 export {};

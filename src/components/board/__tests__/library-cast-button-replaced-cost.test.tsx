@@ -85,7 +85,7 @@ function players(): Player[] {
             battlefield: [
                 {
                     id: "isl-1",
-                    card: { id: island.id },
+                    card: { id: island().id },
                     controllerId: "me",
                     ownerId: "me",
                     zone: "battlefield",
@@ -95,7 +95,7 @@ function players(): Player[] {
                 },
                 {
                     id: "isl-2",
-                    card: { id: island.id },
+                    card: { id: island().id },
                     controllerId: "me",
                     ownerId: "me",
                     zone: "battlefield",
@@ -146,7 +146,7 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
     });
 
     it("CR 601.2b — Gush on top under a Citadel: no alternative-cost picker, the cast dispatches straight away", () => {
-        renderButton(topCard(gush.id, true));
+        renderButton(topCard(gush().id, true));
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
         expect(screen.queryByText("Pay mana cost")).toBeNull();
@@ -159,7 +159,7 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
     });
 
     it("the SAME board still offers the picker without the flag — the gate is the replacement, not the zone", () => {
-        renderButton(topCard(gush.id, false));
+        renderButton(topCard(gush().id, false));
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
         expect(screen.getByText(/Return two Islands/)).toBeTruthy();
@@ -167,7 +167,7 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
     });
 
     it("CR 107.3b — Fireball on top under a Citadel: no X stepper, the cast dispatches with no chosenX", () => {
-        renderButton(topCard(fireball.id, true));
+        renderButton(topCard(fireball().id, true));
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
         expect(screen.queryByLabelText("Choose X")).toBeNull();
@@ -179,7 +179,7 @@ describe("library-top cast with a REPLACED mana cost — illegal announcement ch
     });
 
     it("the SAME card still opens the X dialog without the flag", () => {
-        renderButton(topCard(fireball.id, false));
+        renderButton(topCard(fireball().id, false));
         fireEvent.click(screen.getByRole("button", { name: "Cast" }));
 
         expect(screen.getByLabelText("Choose X")).toBeTruthy();

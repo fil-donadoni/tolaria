@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 
 // Gempalm Incinerator — {2}{R} 2/1 Goblin whose whole job is to be cycled:
@@ -28,7 +28,7 @@ import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 // own source object — the Op's default.
 //
 // compiler-gap: When you cycle this card, you may have it deal X damage to target creature, where X is the number of Goblins on the battlefield. (#2693)
-export const gempalmIncinerator: CardDefinition = {
+export const gempalmIncinerator = defineCard(() => ({
     id: "2687c311-fd0c-4fe0-bce8-e3f412216796", // LGN 94
     rarity: "uncommon",
     name: "Gempalm Incinerator",
@@ -73,4 +73,4 @@ export const gempalmIncinerator: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -51,7 +51,7 @@ function board(
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(loseFocus.id, {
+                    makeInstance(loseFocus().id, {
                         id: LOSE_FOCUS,
                         controllerId: "p1",
                         ownerId: "p1",
@@ -66,7 +66,9 @@ function board(
         ],
     });
     const bolts = Array.from({ length: boltCount }, () =>
-        pushSpell(state, lightningBolt.id, "p2", [{ type: "player", id: "p1" }])
+        pushSpell(state, lightningBolt().id, "p2", [
+            { type: "player", id: "p1" },
+        ])
     );
     return { state, bolts };
 }
@@ -93,7 +95,9 @@ const replicateTriggers = (state: GameState) =>
     state.stack.filter((s) => s.triggeredAbilityId === "replicate");
 
 const copiesOnStack = (state: GameState) =>
-    state.stack.filter((s) => s.isCopy === true && s.card.id === loseFocus.id);
+    state.stack.filter(
+        (s) => s.isCopy === true && s.card.id === loseFocus().id
+    );
 
 /** Resolves the replicate trigger to completion, KEEPING every copy's
  *  inherited target (each copy suspends for its CR 707.10c offer, because
@@ -111,7 +115,7 @@ function resolveTriggerKeepingTargets(state: GameState): void {
 
 describe("Replicate — the cost half is not a kick (CR 702.56a / 702.33d)", () => {
     it("is payable any number of times", () => {
-        expect(resolveKickerPayments(loseFocus, { replicate: 3 })).toEqual({
+        expect(resolveKickerPayments(loseFocus(), { replicate: 3 })).toEqual({
             replicate: 3,
         });
     });
@@ -126,7 +130,7 @@ describe("Replicate — the cost half is not a kick (CR 702.56a / 702.33d)", () 
         // `SpellContext.getKickerCount()` is `totalKickerCount` over this
         // record, and the announcement-time twin asks the same split.
         expect(totalKickerCount(spell.kickerPayments)).toBe(0);
-        expect(kickedCountOfPayments(loseFocus, { replicate: 2 })).toBe(0);
+        expect(kickedCountOfPayments(loseFocus(), { replicate: 2 })).toBe(0);
         // The per-id question still sees the payments.
         expect(additionalCostPaidCount(spell, "replicate")).toBe(2);
     });
@@ -229,7 +233,7 @@ describe("Replicate — the trigger crosses the wire and the save form", () => {
         const round = expandState(compactState(state));
         const [trigger] = replicateTriggers(round);
         expect(trigger.castCopiesRemaining).toBe(2);
-        expect(trigger.castCopySnapshot?.card.id).toBe(loseFocus.id);
+        expect(trigger.castCopySnapshot?.card.id).toBe(loseFocus().id);
 
         resolveTriggerKeepingTargets(round);
         expect(copiesOnStack(round)).toHaveLength(2);

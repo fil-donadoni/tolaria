@@ -259,8 +259,8 @@ describe("modal activated ability — a TARGETING mode (CR 601.2c / 700.2d)", ()
 describe("modal activated ability — several mode instances (ADR 0094, CR 700.2d)", () => {
     /** Jitte whose modal ability chooses two or three modes, repeats allowed. */
     const multiModeJitte: CardDefinition = {
-        ...umezawasJitte,
-        activatedAbilities: umezawasJitte.activatedAbilities!.map((a) =>
+        ...umezawasJitte(),
+        activatedAbilities: umezawasJitte().activatedAbilities!.map((a) =>
             a.id === JITTE_MODES
                 ? { ...a, modeSelection: { min: 2, max: 3, repeats: true } }
                 : a

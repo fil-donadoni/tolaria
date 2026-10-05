@@ -1,5 +1,5 @@
 // dft — multicolor cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // TODO(issue #676 stub — Exhaust, CR 702.177, is `planned` in
@@ -31,7 +31,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // 2). The "reveal them" clause is a `reveal` Op on the picked cards (issue
 // #945, CR 701.20): it makes the found cards known to every player, placed
 // BEFORE the moveZone/shuffle so the knowledge rides them into hand.
-export const brightglassGearhulk: CardDefinition = {
+export const brightglassGearhulk = defineCard(() => ({
     id: "3dea5b45-925c-4732-8e9d-fa8232792736",
     name: "Brightglass Gearhulk",
     rarity: "mythic",
@@ -79,4 +79,4 @@ export const brightglassGearhulk: CardDefinition = {
             ],
         }),
     ],
-};
+}));

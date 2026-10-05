@@ -40,7 +40,7 @@ import type { CardInstance } from "~/types/game";
  *  chapter through the production turn-based action, then PROJECTED. Returns
  *  what the client actually receives. */
 function projectedAfterChapter(lore: number) {
-    const saga = makeInstance(urzasSaga.id, {
+    const saga = makeInstance(urzasSaga().id, {
         id: "saga-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -73,7 +73,7 @@ function projectedAfterChapter(lore: number) {
 
 describe("Urza's Saga — granted affordances survive the client reducers (issue #1884)", () => {
     it("before any chapter, the client sees no mana ability on the Saga", () => {
-        const saga = makeInstance(urzasSaga.id, {
+        const saga = makeInstance(urzasSaga().id, {
             id: "saga-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -121,7 +121,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
      *  strips the land, and the whole board is PROJECTED — so every assertion
      *  reads exactly what the client receives. */
     function projectedUnderBloodMoon() {
-        const saga = makeInstance(urzasSaga.id, {
+        const saga = makeInstance(urzasSaga().id, {
             id: "saga-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -137,7 +137,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
         processPendingActionTriggers(state);
         resolveTopOfStack(state); // chapter I — grants "{T}: Add {C}"
 
-        const moon = makeInstance(bloodMoon.id, {
+        const moon = makeInstance(bloodMoon().id, {
             id: "moon-1",
             controllerId: "p2",
             ownerId: "p2",
@@ -155,7 +155,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
 
     it("stops printing the card's oracle text while its abilities are stripped", () => {
         const { slim } = projectedUnderBloodMoon();
-        const body = buildPreviewBody(urzasSaga.id, slim);
+        const body = buildPreviewBody(urzasSaga().id, slim);
         // The printed paragraphs describe three chapters the card no longer
         // has; the structured block below carries the live picture instead.
         expect(body.oracleParagraphs).toBeNull();
@@ -164,7 +164,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
 
     it("marks the chapter abilities AND the mana ability its own chapter I granted as lost", () => {
         const { slim } = projectedUnderBloodMoon();
-        const body = buildPreviewBody(urzasSaga.id, slim);
+        const body = buildPreviewBody(urzasSaga().id, slim);
         const granted = body.bodyAbilities.activated.find(
             (a) => a.id === "urzas-saga-mana"
         );
@@ -180,7 +180,7 @@ describe("Urza's Saga under Blood Moon — the preview shows the LIVE text (CR 6
     it("still prints the oracle text of the SAME card with no Moon on the board", () => {
         // Guards against the suppression branch swallowing the normal case.
         const { slim } = projectedAfterChapter(0);
-        const body = buildPreviewBody(urzasSaga.id, slim);
+        const body = buildPreviewBody(urzasSaga().id, slim);
         expect(body.oracleParagraphs).not.toBeNull();
         expect(
             body.bodyAbilities.activated.find((a) => a.id === "urzas-saga-mana")

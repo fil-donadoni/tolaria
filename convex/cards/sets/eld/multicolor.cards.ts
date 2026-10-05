@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { FOOD_TOKEN } from "../../sharedTokens";
 
 // Oko, Thief of Crowns — {1}{G}{U} Legendary Planeswalker — Oko, loyalty 4
@@ -69,7 +69,7 @@ import { FOOD_TOKEN } from "../../sharedTokens";
 //     ability is activated and never re-checked at resolution — the printed
 //     ruling: "It doesn't expire ... if the creature you take has its power
 //     raised above 3 later."
-export const oko: CardDefinition = {
+export const oko = defineCard(() => ({
     id: "3462a3d0-5552-49fa-9eb7-100960c55891", // ELD 197 (scryfallId)
     name: "Oko, Thief of Crowns",
     rarity: "mythic",
@@ -173,4 +173,4 @@ export const oko: CardDefinition = {
             ],
         },
     ],
-};
+}));

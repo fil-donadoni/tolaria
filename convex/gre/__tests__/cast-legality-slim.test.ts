@@ -140,7 +140,7 @@ function withTurnOf(state: GameState, playerId: string): GameState {
 
 describe("cast legality on slim card shape", () => {
     it("Elvish Archers is NOT castable without any mana (CR 601.2f)", () => {
-        const card = makeInstance(elvishArchers.id, {
+        const card = makeInstance(elvishArchers().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -155,7 +155,7 @@ describe("cast legality on slim card shape", () => {
     });
 
     it("Elvish Archers IS castable with GG in the pool", () => {
-        const card = makeInstance(elvishArchers.id, {
+        const card = makeInstance(elvishArchers().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -170,7 +170,7 @@ describe("cast legality on slim card shape", () => {
     });
 
     it("Elvish Archers is NOT castable during the opponent's main phase (CR 307.1)", () => {
-        const card = makeInstance(elvishArchers.id, {
+        const card = makeInstance(elvishArchers().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -186,12 +186,12 @@ describe("cast legality on slim card shape", () => {
     });
 
     it("Savannah Lions (sorcery-timing creature) blocked while stack non-empty (CR 307.1)", () => {
-        const lions = makeInstance(savannahLions.id, {
+        const lions = makeInstance(savannahLions().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const stackBolt: StackItem = {
-            ...makeInstance(lightningBolt.id, {
+            ...makeInstance(lightningBolt().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 zone: "stack",
@@ -212,7 +212,7 @@ describe("cast legality on slim card shape", () => {
     });
 
     it("Lightning Bolt (instant) castable on opponent turn with priority (CR 117.1, 304.1)", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -247,13 +247,13 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
     }
 
     it("Sol Ring alone ({C}{C}) pays a {2} spell — counts as two mana", () => {
-        const ankh = makeInstance(ankhOfMishra.id, {
+        const ankh = makeInstance(ankhOfMishra().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [ankh],
-            battlefield: [onBattlefield(solRing.id, "ring")],
+            battlefield: [onBattlefield(solRing().id, "ring")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -262,17 +262,17 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
     });
 
     it("repro: 2 Plains + Forest + untapped Sol Ring casts Serra Angel ({3}{W}{W})", () => {
-        const angel = makeInstance(serraAngel.id, {
+        const angel = makeInstance(serraAngel().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [angel],
             battlefield: [
-                onBattlefield(plains.id, "pl1"),
-                onBattlefield(plains.id, "pl2"),
-                onBattlefield(forest.id, "fo1"),
-                onBattlefield(solRing.id, "ring"),
+                onBattlefield(plains().id, "pl1"),
+                onBattlefield(plains().id, "pl2"),
+                onBattlefield(forest().id, "fo1"),
+                onBattlefield(solRing().id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -282,16 +282,16 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
     });
 
     it("no false positive: 2 Plains + Sol Ring (4 mana) cannot cast Serra Angel (5)", () => {
-        const angel = makeInstance(serraAngel.id, {
+        const angel = makeInstance(serraAngel().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [angel],
             battlefield: [
-                onBattlefield(plains.id, "pl1"),
-                onBattlefield(plains.id, "pl2"),
-                onBattlefield(solRing.id, "ring"),
+                onBattlefield(plains().id, "pl1"),
+                onBattlefield(plains().id, "pl2"),
+                onBattlefield(solRing().id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -301,13 +301,13 @@ describe("cast affordability with multi-mana sources (issue #132)", () => {
     });
 
     it("colored pips respected: Sol Ring's colorless cannot pay a {R} spell", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(solRing.id, "ring")],
+            battlefield: [onBattlefield(solRing().id, "ring")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -335,13 +335,13 @@ describe("cast affordability with competing tap-mana abilities (issue #1695)", (
     }
 
     it("Starting Town's any-color (life-cost) ability counts toward a colored spell even though it's declared second", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(startingTown.id, "town")],
+            battlefield: [onBattlefield(startingTown().id, "town")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -350,7 +350,7 @@ describe("cast affordability with competing tap-mana abilities (issue #1695)", (
     });
 
     it("declaration order does not change the result — any-color ability declared FIRST still counts", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -389,7 +389,7 @@ describe("cast affordability — shorter ability declared second (issue #1695 fi
     }
 
     it("a 2-unit colorless ability declared first does not shadow a shorter, differently-colored ability declared second", () => {
-        const copy = makeInstance(copyArtifact.id, {
+        const copy = makeInstance(copyArtifact().id, {
             controllerId: "p1",
             zone: "hand",
         });
@@ -426,13 +426,13 @@ describe("cast affordability — Archaeological Dig's sacrifice colors aren't pa
     }
 
     it("Archaeological Dig alone cannot cast a colored spell — only {C} is ever produced without sacrificing", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(archaeologicalDig.id, "dig")],
+            battlefield: [onBattlefield(archaeologicalDig().id, "dig")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -465,15 +465,15 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
     }
 
     it("[Farrelite Priest, Plains] cannot cast Island Sanctuary ({1}{W}) — Farrelite Priest is net ZERO mana", () => {
-        const spell = makeInstance(islandSanctuary.id, {
+        const spell = makeInstance(islandSanctuary().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(farrelitePriest.id, "priest"),
-                onBattlefield(plains.id, "plains"),
+                onBattlefield(farrelitePriest().id, "priest"),
+                onBattlefield(plains().id, "plains"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -483,15 +483,15 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
     });
 
     it("[Nomadic Elf, Forest] cannot cast Grizzly Bears ({1}{G}) — Nomadic Elf is net NEGATIVE mana", () => {
-        const spell = makeInstance(grizzlyBears.id, {
+        const spell = makeInstance(grizzlyBears().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(nomadicElf.id, "elf"),
-                onBattlefield(forest.id, "forest"),
+                onBattlefield(nomadicElf().id, "elf"),
+                onBattlefield(forest().id, "forest"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -501,15 +501,15 @@ describe("cast affordability — a cost.mana ability is NET mana, not a free uni
     });
 
     it("[Nomadic Elf, Utopia Tree] cannot cast Crusade ({W}{W}) — Nomadic Elf contributes nothing net", () => {
-        const spell = makeInstance(crusade.id, {
+        const spell = makeInstance(crusade().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(nomadicElf.id, "elf"),
-                onBattlefield(utopiaTree.id, "tree"),
+                onBattlefield(nomadicElf().id, "elf"),
+                onBattlefield(utopiaTree().id, "tree"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -542,15 +542,15 @@ describe("cast affordability — a tapOtherFilter ability must not double-count 
     }
 
     it("[Urza, Mox Sapphire] cannot cast Lord of Atlantis ({U}{U}) — only ONE physical artifact to tap", () => {
-        const spell = makeInstance(lordOfAtlantis.id, {
+        const spell = makeInstance(lordOfAtlantis().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(urzaLordHighArtificer.id, "urza"),
-                onBattlefield(moxSapphire.id, "sapphire"),
+                onBattlefield(urzaLordHighArtificer().id, "urza"),
+                onBattlefield(moxSapphire().id, "sapphire"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -560,16 +560,16 @@ describe("cast affordability — a tapOtherFilter ability must not double-count 
     });
 
     it("[Urza, Mox Sapphire, Mox Jet] CAN cast Lord of Atlantis ({U}{U}) — Sapphire's own {U} plus Urza tapping Jet for a second {U}", () => {
-        const spell = makeInstance(lordOfAtlantis.id, {
+        const spell = makeInstance(lordOfAtlantis().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [spell],
             battlefield: [
-                onBattlefield(urzaLordHighArtificer.id, "urza"),
-                onBattlefield(moxSapphire.id, "sapphire"),
-                onBattlefield(moxJet.id, "jet"),
+                onBattlefield(urzaLordHighArtificer().id, "urza"),
+                onBattlefield(moxSapphire().id, "sapphire"),
+                onBattlefield(moxJet().id, "jet"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -604,16 +604,16 @@ describe("cast affordability — board-dependent canActivate must see the real b
     }
 
     it("Mox Opal's Metalcraft ability counts toward Lightning Bolt when 3 artifacts are controlled", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [bolt],
             battlefield: [
-                onBattlefield(moxOpal.id, "mox"),
-                onBattlefield(ankhOfMishra.id, "ankh"),
-                onBattlefield(solRing.id, "ring"),
+                onBattlefield(moxOpal().id, "mox"),
+                onBattlefield(ankhOfMishra().id, "ankh"),
+                onBattlefield(solRing().id, "ring"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -623,13 +623,13 @@ describe("cast affordability — board-dependent canActivate must see the real b
     });
 
     it("Mox Opal alone (metalcraft NOT satisfied, only 1 artifact) does not make Lightning Bolt castable", () => {
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const player = makePlayer("p1", {
             hand: [bolt],
-            battlefield: [onBattlefield(moxOpal.id, "mox")],
+            battlefield: [onBattlefield(moxOpal().id, "mox")],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
         const state = withTurnOf(makeState({ players: [player] }), "p1");
@@ -665,7 +665,7 @@ describe("cast affordability — non-hand-cast board threading (issue #1695 four
     }
 
     it("Firebolt's flashback ({4}{R}) is castable from the graveyard when only Mox Opal's Metalcraft ability can pay the {R} pip", () => {
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -673,13 +673,13 @@ describe("cast affordability — non-hand-cast board threading (issue #1695 four
         const player = makePlayer("p1", {
             graveyard: [bolt],
             battlefield: [
-                onBattlefield(moxOpal.id, "mox"),
-                onBattlefield(ankhOfMishra.id, "ank1"),
-                onBattlefield(ankhOfMishra.id, "ank2"),
-                onBattlefield(island.id, "is1"),
-                onBattlefield(island.id, "is2"),
-                onBattlefield(island.id, "is3"),
-                onBattlefield(island.id, "is4"),
+                onBattlefield(moxOpal().id, "mox"),
+                onBattlefield(ankhOfMishra().id, "ank1"),
+                onBattlefield(ankhOfMishra().id, "ank2"),
+                onBattlefield(island().id, "is1"),
+                onBattlefield(island().id, "is2"),
+                onBattlefield(island().id, "is3"),
+                onBattlefield(island().id, "is4"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -689,7 +689,7 @@ describe("cast affordability — non-hand-cast board threading (issue #1695 four
     });
 
     it("Firebolt's flashback is NOT castable when Metalcraft is unsatisfied (only 1 artifact) — no other red source", () => {
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -697,11 +697,11 @@ describe("cast affordability — non-hand-cast board threading (issue #1695 four
         const player = makePlayer("p1", {
             graveyard: [bolt],
             battlefield: [
-                onBattlefield(moxOpal.id, "mox"),
-                onBattlefield(island.id, "is1"),
-                onBattlefield(island.id, "is2"),
-                onBattlefield(island.id, "is3"),
-                onBattlefield(island.id, "is4"),
+                onBattlefield(moxOpal().id, "mox"),
+                onBattlefield(island().id, "is1"),
+                onBattlefield(island().id, "is2"),
+                onBattlefield(island().id, "is3"),
+                onBattlefield(island().id, "is4"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -768,7 +768,7 @@ describe("cast affordability — escape board threading (issue #1751 finding 6, 
     }
 
     it("Nethergoyf's escape ({2}{B}) is castable from the graveyard when only Mox Opal's Metalcraft ability can pay the {B} pip", () => {
-        const goyf = makeInstance(nethergoyf.id, {
+        const goyf = makeInstance(nethergoyf().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -776,11 +776,11 @@ describe("cast affordability — escape board threading (issue #1751 finding 6, 
         const player = makePlayer("p1", {
             graveyard: [goyf, ...escapeFillerGraveyard()],
             battlefield: [
-                onBattlefield(moxOpal.id, "mox"),
-                onBattlefield(ankhOfMishra.id, "ank1"),
-                onBattlefield(ankhOfMishra.id, "ank2"),
-                onBattlefield(island.id, "is1"),
-                onBattlefield(island.id, "is2"),
+                onBattlefield(moxOpal().id, "mox"),
+                onBattlefield(ankhOfMishra().id, "ank1"),
+                onBattlefield(ankhOfMishra().id, "ank2"),
+                onBattlefield(island().id, "is1"),
+                onBattlefield(island().id, "is2"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -790,7 +790,7 @@ describe("cast affordability — escape board threading (issue #1751 finding 6, 
     });
 
     it("is NOT castable when Metalcraft is unsatisfied (only 1 artifact) — no other black source", () => {
-        const goyf = makeInstance(nethergoyf.id, {
+        const goyf = makeInstance(nethergoyf().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -798,9 +798,9 @@ describe("cast affordability — escape board threading (issue #1751 finding 6, 
         const player = makePlayer("p1", {
             graveyard: [goyf, ...escapeFillerGraveyard()],
             battlefield: [
-                onBattlefield(moxOpal.id, "mox"),
-                onBattlefield(island.id, "is1"),
-                onBattlefield(island.id, "is2"),
+                onBattlefield(moxOpal().id, "mox"),
+                onBattlefield(island().id, "is1"),
+                onBattlefield(island().id, "is2"),
             ],
             manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
         });
@@ -841,7 +841,7 @@ describe("cast affordability — an escape cast folds cost modifiers (CR 601.2f 
     }
 
     it("Nethergoyf's escape picks up Planar Gate's creature-spell cost reduction, and the payment prices it the same", () => {
-        const goyf = makeInstance(nethergoyf.id, {
+        const goyf = makeInstance(nethergoyf().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -855,8 +855,8 @@ describe("cast affordability — an escape cast folds cost modifiers (CR 601.2f 
                 deadCard("d4", "p1", ["Enchantment"]),
             ],
             battlefield: [
-                onBattlefield(planarGate.id, "gate"),
-                onBattlefield(swamp.id, "swamp1"),
+                onBattlefield(planarGate().id, "gate"),
+                onBattlefield(swamp().id, "swamp1"),
                 // Deliberately NO other mana source: the one Swamp covers the
                 // REDUCED {B} and nothing more, so this board discriminates.
                 // The unreduced {2}{B} would need two further generic sources.
@@ -910,12 +910,12 @@ describe("cast affordability with Improvise (CR 702.126)", () => {
     // Metallic Rebuke counters "target spell", so the cast is only offered when
     // a spell is on the stack to target — put an opponent's Bolt there.
     function stateWithRebuke(battlefield: ReturnType<typeof onBattlefield>[]) {
-        const rebuke = makeInstance(metallicRebuke.id, {
+        const rebuke = makeInstance(metallicRebuke().id, {
             controllerId: "p1",
             zone: "hand",
         });
         const stackBolt: StackItem = {
-            ...makeInstance(lightningBolt.id, {
+            ...makeInstance(lightningBolt().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 zone: "stack",
@@ -937,26 +937,26 @@ describe("cast affordability with Improvise (CR 702.126)", () => {
 
     it("castable: 1 Island pays {U}, 2 artifacts pay {2} via Improvise", () => {
         const { state, p1, rebuke } = stateWithRebuke([
-            onBattlefield(island.id, "is1"),
-            onBattlefield(ankhOfMishra.id, "ak1"),
-            onBattlefield(ankhOfMishra.id, "ak2"),
+            onBattlefield(island().id, "is1"),
+            onBattlefield(ankhOfMishra().id, "ak1"),
+            onBattlefield(ankhOfMishra().id, "ak2"),
         ]);
         expect(getLegalActions(state, p1, rebuke)).toContain("cast");
     });
 
     it("NOT castable: 1 Island and no artifacts — Improvise has nothing to tap", () => {
         const { state, p1, rebuke } = stateWithRebuke([
-            onBattlefield(island.id, "is1"),
+            onBattlefield(island().id, "is1"),
         ]);
         expect(getLegalActions(state, p1, rebuke)).not.toContain("cast");
     });
 
     it("Improvise cannot pay the {U} pip: only a Mountain + artifacts ⇒ not castable", () => {
         const { state, p1, rebuke } = stateWithRebuke([
-            onBattlefield(mountain.id, "mt1"),
-            onBattlefield(ankhOfMishra.id, "ak1"),
-            onBattlefield(ankhOfMishra.id, "ak2"),
-            onBattlefield(ankhOfMishra.id, "ak3"),
+            onBattlefield(mountain().id, "mt1"),
+            onBattlefield(ankhOfMishra().id, "ak1"),
+            onBattlefield(ankhOfMishra().id, "ak2"),
+            onBattlefield(ankhOfMishra().id, "ak3"),
         ]);
         expect(getLegalActions(state, p1, rebuke)).not.toContain("cast");
     });

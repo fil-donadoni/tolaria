@@ -4,14 +4,14 @@
 // echo cost is {R} under the modern errata (the original printing read a bare
 // "Echo", errata'd to the explicit mana-cost payment).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { echoTrigger } from "../../abilities/echo";
 
 // Goblin Patrol — {R} 2/1 Goblin with Echo {R} (CR 702.30). Home set is Urza's
 // Saga, its earliest paper printing (ADR 0041 routes a card to that set); the
 // print id below is the usg printing (Premodern-legal, in the CR-legal pool).
-export const goblinPatrol: CardDefinition = {
+export const goblinPatrol = defineCard(() => ({
     id: "d0fcd8d3-f159-49a1-8dd9-582ae4a0adc3",
     name: "Goblin Patrol",
     rarity: "common",
@@ -32,7 +32,7 @@ export const goblinPatrol: CardDefinition = {
             costLabel: "{R}",
         }),
     ],
-};
+}));
 
 // Goblin Cadets — {R} 2/1 Goblin with a control-donation drawback. Home set is
 // Urza's Saga, its earliest paper printing (ADR 0041 / ADR 0043; the issue's
@@ -60,7 +60,7 @@ export const goblinPatrol: CardDefinition = {
 //     the Ghazbán Ogre / Wishclaw Talisman shape that never reverts).
 //   - The reminder text is CR 506.4c: the control change removes the creature
 //     from combat, handled generically in `applyControlChange`.
-export const goblinCadets: CardDefinition = {
+export const goblinCadets = defineCard(() => ({
     id: "60081115-16bc-4924-b76d-7cfc0ad2287c",
     name: "Goblin Cadets",
     rarity: "uncommon",
@@ -94,7 +94,7 @@ export const goblinCadets: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sneak Attack — {3}{R} Enchantment. "{R}: You may put a creature card from
 // your hand onto the battlefield. That creature gains haste. Sacrifice the
@@ -121,7 +121,7 @@ export const goblinCadets: CardDefinition = {
 // fires at the BEGINNING of the next end step (sacrificing the creature),
 // strictly before the end-of-turn CLEANUP boundary the duration expires at —
 // the creature is always gone before the grant would lapse on its own.
-export const sneakAttack: CardDefinition = {
+export const sneakAttack = defineCard(() => ({
     id: "d07dc95d-82a8-4a58-8ea2-d4513bd7316d", // USG 218
     name: "Sneak Attack",
     rarity: "rare",
@@ -174,7 +174,7 @@ export const sneakAttack: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Arc Lightning — "Arc Lightning deals 3 damage divided as you choose among
 // one, two, or three targets." (CR 601.2d / 120.4 divide-as-you-choose.) The
@@ -186,7 +186,7 @@ export const sneakAttack: CardDefinition = {
 // DSL-first (ADR 0045): the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4)
 // reads the announced per-target split back off the stack item; `total`
 // mirrors `divideAsChosen.total`.
-export const arcLightning: CardDefinition = {
+export const arcLightning = defineCard(() => ({
     id: "0c81ade7-0074-4447-ba2c-b16fa0f09ccb", // USG 174
     rarity: "common",
     name: "Arc Lightning",
@@ -200,7 +200,7 @@ export const arcLightning: CardDefinition = {
         divideAsChosen: { total: 3 },
     },
     effects: [{ op: "dealDamageDividedAsChosen", total: 3 }],
-};
+}));
 
 // Goblin Lackey — {R} 1/1 Goblin. "Whenever this creature deals damage to a
 // player, you may put a Goblin permanent card from your hand onto the
@@ -219,7 +219,7 @@ export const arcLightning: CardDefinition = {
 // is `subtype: "Goblin"` AND NOT Instant/Sorcery (`excludeType`).
 //
 // compiler-gap: Whenever this creature deals damage to a player, you may put a Goblin permanent card from your hand onto the battlefield. (#2693)
-export const goblinLackey: CardDefinition = {
+export const goblinLackey = defineCard(() => ({
     id: "9b848caa-aad8-4060-8f86-304a8556de2d", // USG 190
     rarity: "uncommon",
     name: "Goblin Lackey",
@@ -261,4 +261,4 @@ export const goblinLackey: CardDefinition = {
             ],
         }),
     ],
-};
+}));

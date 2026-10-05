@@ -1,10 +1,6 @@
 // mh2 — red cards (ADR 0043 colour split).
-import type {
-    CardDefinition,
-    PermanentView,
-    StaticEffectStateView,
-} from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import type { PermanentView, StaticEffectStateView } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { dashTrigger } from "../../abilities/dash";
@@ -22,7 +18,7 @@ import { TREASURE_TOKEN } from "../../sharedTokens";
 // to a single Mountain, plus a `condition: your-turn`. The effect is a single
 // already-censused `dealDamage` Op to a creature-or-planeswalker target
 // (ADR 0045, DSL-first).
-export const mineCollapse: CardDefinition = {
+export const mineCollapse = defineCard(() => ({
     id: "56e2e8b5-660d-4469-a4fe-2367dfadb709", // MH2 135
     rarity: "common",
     name: "Mine Collapse",
@@ -44,7 +40,7 @@ export const mineCollapse: CardDefinition = {
         },
     ],
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
-};
+}));
 
 // Fury — {3}{R}{R} Creature — Elemental Incarnation, 3/3 (MH2, issue #1206).
 // "Double strike. When this creature enters, it deals 4 damage divided as you
@@ -64,7 +60,7 @@ export const mineCollapse: CardDefinition = {
 // reads the announcement-time divide snapshot off the trigger stack item — the
 // group counterpart to the single-`to` `dealDamage` Op; `total` mirrors
 // `divideAsChosen.total`.
-export const fury: CardDefinition = {
+export const fury = defineCard(() => ({
     id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
     rarity: "mythic",
     name: "Fury",
@@ -102,13 +98,13 @@ export const fury: CardDefinition = {
         }),
         evokeTrigger("Fury"),
     ],
-};
+}));
 
 // Unholy Heat — {R} Instant. "Unholy Heat deals 2 damage to target creature or
 // planeswalker. Delirium — Unholy Heat deals 6 damage instead if there are four
 // or more card types among cards in your graveyard." (Delirium ability word —
 // engine infra, no registry row.)
-export const unholyHeat: CardDefinition = {
+export const unholyHeat = defineCard(() => ({
     id: "2b73d294-6ab1-4051-9b0f-d8e335d37674",
     rarity: "common",
     name: "Unholy Heat",
@@ -138,7 +134,7 @@ export const unholyHeat: CardDefinition = {
             else: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Blazing Rootwalla — {R} Creature — Lizard, 1/1. "{R}: This creature gets +2/+0
 // until end of turn. Activate only once each turn.\nMadness {0}." (CR 605 pump
@@ -146,7 +142,7 @@ export const unholyHeat: CardDefinition = {
 // 702.35 Madness — the discard→exile cast capability, `convex/gre/madness.ts`.
 // `Madness {0}` is the empty cost `{}`. The red counterpart to Basking Rootwalla
 // first printed in Modern Horizons 2.)
-export const blazingRootwalla: CardDefinition = {
+export const blazingRootwalla = defineCard(() => ({
     id: "4404fc9c-ef02-479c-9638-0cc163f0b48f",
     rarity: "common",
     name: "Blazing Rootwalla",
@@ -177,7 +173,7 @@ export const blazingRootwalla: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ragavan, Nimble Pilferer — {R} Legendary Creature — Monkey Pirate, 2/1
 // (MH2 138, Vintage Cube FREE wave 3: keyword-residue creatures, issue
@@ -195,7 +191,7 @@ export const blazingRootwalla: CardDefinition = {
 // library rather than the caster's own. Dash is the SAME
 // factory-composed shape as Death-Greeter's Champion (moc/red.cards.ts):
 // `CardDefinition.dash` + `dashTrigger(name)`.
-export const ragavanNimblePilferer: CardDefinition = {
+export const ragavanNimblePilferer = defineCard(() => ({
     id: "a9738cda-adb1-47fb-9f4c-ecd930228c4d", // MH2 138
     name: "Ragavan, Nimble Pilferer",
     rarity: "mythic",
@@ -287,7 +283,7 @@ export const ragavanNimblePilferer: CardDefinition = {
         },
         dashTrigger("Ragavan, Nimble Pilferer"),
     ],
-};
+}));
 
 // Dragon's Rage Channeler — {R} Creature — Human Shaman, 1/1 (MH2 121,
 // Vintage Cube FREE residue #1533, split from the #1526 surveil cluster).
@@ -331,7 +327,7 @@ function hasDelirium(
     return cardTypes.size >= DELIRIUM_CARD_TYPES;
 }
 
-export const dragonsRageChanneler: CardDefinition = {
+export const dragonsRageChanneler = defineCard(() => ({
     id: "4ced112a-e775-4f97-97b3-74877e9dce12",
     rarity: "uncommon",
     name: "Dragon's Rage Channeler",
@@ -386,6 +382,6 @@ export const dragonsRageChanneler: CardDefinition = {
             condition: hasDelirium,
         },
     ],
-};
+}));
 
 export {};

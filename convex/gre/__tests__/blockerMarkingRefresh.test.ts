@@ -77,7 +77,7 @@ function makeCombatState(): {
         controllerId: "p2",
         ownerId: "p2",
     });
-    const aura = makeInstance(snowDevil.id, {
+    const aura = makeInstance(snowDevil().id, {
         id: "devil",
         controllerId: "p2",
         ownerId: "p2",
@@ -101,13 +101,13 @@ function makeCombatState(): {
                 // turn, and a draw from an empty library would end the game on
                 // SBAs (CR 704.5b) before the assertions read the board.
                 library: [
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "p1-lib-1",
                         controllerId: "p1",
                         ownerId: "p1",
                         zone: "library",
                     }),
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "p1-lib-2",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -119,16 +119,16 @@ function makeCombatState(): {
                 battlefield: [
                     blocker,
                     aura,
-                    snowLand(snowCoveredIsland.id, "snow-isle", "p2"),
+                    snowLand(snowCoveredIsland().id, "snow-isle", "p2"),
                 ],
                 library: [
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "p2-lib-1",
                         controllerId: "p2",
                         ownerId: "p2",
                         zone: "library",
                     }),
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "p2-lib-2",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -303,7 +303,7 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
             ownerId: "p1",
             isAttacking: true,
         });
-        const lurk = makeInstance(lurker.id, {
+        const lurk = makeInstance(lurker().id, {
             id: "lurk",
             controllerId: "p2",
             ownerId: "p2",
@@ -331,7 +331,7 @@ describe("confirmBlockers records hasBlockedThisTurn (CR 506.4, issue #1826)", (
     const boltCanTarget = (state: GameState) =>
         getLegalTargets(
             state,
-            lightningBolt.targetRequirement!,
+            lightningBolt().targetRequirement!,
             { ...NO_TARGETING_SOURCE, isSpell: true },
             "p1",
             undefined

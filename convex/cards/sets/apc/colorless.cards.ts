@@ -2,7 +2,7 @@
 // `import * as apc from "./sets/apc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 
@@ -23,7 +23,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // STACK (CR 601.2), and this one never goes there, so no cast-triggers fire.
 //
 // hand-tail: "{2}, {T}: You may put a multicolored creature card from your hand onto the battlefield." (#4328)
-export const dragonArch: CardDefinition = {
+export const dragonArch = defineCard(() => ({
     id: "eec581b8-e509-420c-b142-afaa6dd06cc8", // APC 135
     name: "Dragon Arch",
     rarity: "uncommon",
@@ -61,7 +61,7 @@ export const dragonArch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Brass Herald — {6} 2/2 Artifact Creature — Golem (issue #3809). Three
 // abilities linked by ONE choice (CR 607.2d — "the chosen type" refers only to
@@ -84,7 +84,7 @@ export const dragonArch: CardDefinition = {
 //    whose types change later (layer 4 before 7c) is read on the next pass.
 //
 // hand-tail: Creatures of the chosen type get +1/+1. (#4446)
-export const brassHerald: CardDefinition = {
+export const brassHerald = defineCard(() => ({
     id: "89bd60a7-2ba4-4fce-bf74-2ea9b8fd4dbe", // APC 133
     name: "Brass Herald",
     rarity: "uncommon",
@@ -136,7 +136,7 @@ export const brassHerald: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Dodecapod — {4} 3/3 Artifact Creature — Golem (issue #3814). "If a spell or
 // ability an opponent controls causes you to discard this card, put it onto
@@ -155,7 +155,7 @@ export const brassHerald: CardDefinition = {
 // "whenever you discard" triggers fire.
 //
 // hand-tail: If a spell or ability an opponent controls causes you to discard this card, put it onto the battlefield with two +1/+1 counters on it instead of putting it into your graveyard. (#4327)
-export const dodecapod: CardDefinition = {
+export const dodecapod = defineCard(() => ({
     id: "ded8b992-a1c2-4e43-ad0a-ea3995a3c8b8", // APC 134
     name: "Dodecapod",
     rarity: "uncommon",
@@ -189,7 +189,7 @@ export const dodecapod: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Emblazoned Golem — {2} Artifact Creature — Golem, 1/2 (issue #3811 /
 // #4506). "Kicker {X} / Spend only colored mana on X. No more than one mana
@@ -208,7 +208,7 @@ export const dodecapod: CardDefinition = {
 // design.
 //
 // hand-tail: "Spend only colored mana on X. No more than one mana of each color may be spent this way." (#4577)
-export const emblazonedGolem: CardDefinition = {
+export const emblazonedGolem = defineCard(() => ({
     id: "98527fc6-4f4c-4ded-9e72-49186b7e5bd3", // APC 136
     name: "Emblazoned Golem",
     rarity: "uncommon",
@@ -232,4 +232,4 @@ export const emblazonedGolem: CardDefinition = {
     // intervening clause falls out of that for free, with no separate
     // trigger.
     entersWith: { counters: [{ type: "+1/+1", count: "X" }] },
-};
+}));

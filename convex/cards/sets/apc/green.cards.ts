@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Gaea's Balance — the first CATEGORISED SEARCH (issue #3808): "Search your
 // library for a land card of each basic land type."
@@ -32,7 +32,7 @@ import type { CardDefinition } from "../../types";
 // CR 701.23e — the found cards are NOT revealed (no reveal clause in the text),
 // so no `reveal` Op rides along; CR 701.24 shuffles at the end.
 // hand-tail: "Search your library for a land card of each basic land type, put those cards onto the battlefield, then shuffle." (#4330)
-export const gaeasBalance: CardDefinition = {
+export const gaeasBalance = defineCard(() => ({
     id: "f1ffc5f8-ff1c-4733-b046-8679fa16371b",
     rarity: "uncommon",
     name: "Gaea's Balance",
@@ -82,7 +82,7 @@ export const gaeasBalance: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Kavu Mauler — {4}{G}{G} 4/4 Kavu with trample (CR 702.19a). "Whenever this
 // creature attacks, it gets +1/+1 until end of turn for each other attacking
@@ -93,7 +93,7 @@ export const gaeasBalance: CardDefinition = {
 // AND toughness are the `count` of attacking Kavu excluding the source itself.
 // `acrossAllPlayers` because the Oracle line scopes the count to no controller.
 // hand-tail: Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu. (#4337)
-export const kavuMauler: CardDefinition = {
+export const kavuMauler = defineCard(() => ({
     id: "79adc3af-5fa3-4cb6-9bbc-52ede0c69263", // APC 80
     rarity: "rare",
     name: "Kavu Mauler",
@@ -144,4 +144,4 @@ export const kavuMauler: CardDefinition = {
             ],
         }),
     ],
-};
+}));

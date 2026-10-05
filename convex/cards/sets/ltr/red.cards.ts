@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { typecyclingAbility } from "../../abilities/cycling";
 
 // Oliphaunt — "Trample. Whenever this creature attacks, another target
@@ -20,7 +20,7 @@ import { typecyclingAbility } from "../../abilities/cycling";
 //    CLEANUP, CR 514.2).
 //  - Mountaincycling {1}: CR 702.29e typecycling — `typecyclingAbility`,
 //    which shares plain Cycling's activation shell (CR 702.29f).
-export const oliphaunt: CardDefinition = {
+export const oliphaunt = defineCard(() => ({
     id: "6989018c-37b1-4282-a4af-9cc97f160b4d",
     name: "Oliphaunt",
     rarity: "common",
@@ -67,4 +67,4 @@ export const oliphaunt: CardDefinition = {
     ],
     // CR 702.29e/f — Mountaincycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Mountain")],
-};
+}));

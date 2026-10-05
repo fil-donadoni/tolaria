@@ -28,7 +28,7 @@ function pt(filters: Record<string, unknown>): PendingTarget {
 }
 
 describe("Subtlety target integration (trigger spell-target → client eligibility, CR 113)", () => {
-    const req = subtlety.triggeredAbilities!.find(
+    const req = subtlety().triggeredAbilities!.find(
         (a) => a.id === "subtlety-etb"
     )!.targetRequirement!;
     const filters = pendingTargetFiltersFromRequirement(req, undefined);

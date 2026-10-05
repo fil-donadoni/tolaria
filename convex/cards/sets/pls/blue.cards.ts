@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     PERMANENT_TYPES,
@@ -38,7 +38,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // `getBattlefieldIds`; a type with no matching land is simply not filled (CR
 // 608.2b). Mandatory ("chooses", not "may choose") — `optional` defaults to
 // false.
-export const planarOverlay: CardDefinition = {
+export const planarOverlay = defineCard(() => ({
     id: "1315fef0-234e-44f5-a7a3-bf3db78943c3", // PLS 28
     name: "Planar Overlay",
     rarity: "rare",
@@ -68,7 +68,7 @@ export const planarOverlay: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (parent PRD #1935, issue #1949) — reuse-only cards, every
@@ -82,7 +82,7 @@ export const planarOverlay: CardDefinition = {
 // 0 }`) drives BOTH the draw's player and the Domain count — no separate
 // wiring needed. Ability words carry no rules text of their own (CR 207.2c),
 // so "Domain" is not declared in `staticAbilities[]`.
-export const alliedStrategies: CardDefinition = {
+export const alliedStrategies = defineCard(() => ({
     id: "51d4f211-10e8-486d-b982-287ab0c060c9", // PLS 20
     name: "Allied Strategies",
     rarity: "uncommon",
@@ -98,7 +98,7 @@ export const alliedStrategies: CardDefinition = {
             count: { domain: { of: { target: 0 } } },
         },
     ],
-};
+}));
 
 // Arctic Merfolk — {1}{U} Creature — Merfolk, 1/1. "Kicker—Return a creature
 // you control to its owner's hand.\nIf this creature was kicked, it enters
@@ -110,7 +110,7 @@ export const alliedStrategies: CardDefinition = {
 // needed on a cost-leg `PermanentFilter`. The Kicker is single (non-multi),
 // so `count: "kicker"` on `entersWith.counters` (0 or 1, CR 702.33e) is the
 // exact Pincer Spider / Llanowar Elite template, `inv/green.cards.ts`.)
-export const arcticMerfolk: CardDefinition = {
+export const arcticMerfolk = defineCard(() => ({
     id: "86369fe5-d86d-4f4c-8f3d-dedc174f2032", // PLS 21
     rarity: "common",
     name: "Arctic Merfolk",
@@ -134,7 +134,7 @@ export const arcticMerfolk: CardDefinition = {
         },
     ],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
-};
+}));
 
 // Dralnu's Pet — {1}{U}{U} Creature — Shapeshifter, 2/2. "Kicker—{2}{B},
 // Discard a creature card.\nIf this creature was kicked, it enters with
@@ -166,7 +166,7 @@ export const arcticMerfolk: CardDefinition = {
 // Escape Routes — {2}{U} Enchantment. "{2}{U}: Return target white or black
 // creature you control to its owner's hand." (CR 400.7 bounce via the
 // target-shape `moveZone` Op.)
-export const escapeRoutes: CardDefinition = {
+export const escapeRoutes = defineCard(() => ({
     id: "dbc9062e-ddd9-41ac-a88a-33f5a7b22103", // PLS 25
     rarity: "common",
     name: "Escape Routes",
@@ -190,11 +190,11 @@ export const escapeRoutes: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Gainsay — {1}{U} Instant. "Counter target blue spell." (CR 701.6a counter,
 // `colorFilter` restricting the stack-spell target to blue.)
-export const gainsay: CardDefinition = {
+export const gainsay = defineCard(() => ({
     id: "a70a2092-5048-49c0-9351-a3f882c2f56e", // PLS 26
     rarity: "uncommon",
     name: "Gainsay",
@@ -203,14 +203,14 @@ export const gainsay: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1, colorFilter: "U" },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Hunting Drake — {4}{U} Creature — Drake, 2/2. "Flying\nWhen this creature
 // enters, put target red or green creature on top of its owner's library."
 // (CR 702.9b flying; CR 603.6a ETB; CR 603.3d announcement-time target on
 // the `enteredTrigger` factory, issue #1193; `moveZone` to `"library"` with
 // no `position` puts the permanent on TOP by default, issue #1726.)
-export const huntingDrake: CardDefinition = {
+export const huntingDrake = defineCard(() => ({
     id: "5b0293a9-48fe-4018-bd25-3e02c227a3dd", // PLS 27
     rarity: "common",
     name: "Hunting Drake",
@@ -236,7 +236,7 @@ export const huntingDrake: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "library" }],
         }),
     ],
-};
+}));
 
 // Planeswalker's Mischief — {2}{U} Enchantment. "{3}{U}: Target opponent
 // reveals a card at random from their hand. If it's an instant or sorcery
@@ -265,7 +265,7 @@ export const huntingDrake: CardDefinition = {
 // card exiled forever), so the delayed trigger below adds the RETURN this
 // card's Oracle text uniquely asks for, gated on the card still sitting in
 // exile (i.e. "if you haven't cast it") via `getExileCardOwner`.
-export const planeswalkersMischief: CardDefinition = {
+export const planeswalkersMischief = defineCard(() => ({
     id: "79aa232c-3f16-4c68-99dc-09a7aeef477b", // PLS 29
     rarity: "rare",
     name: "Planeswalker's Mischief",
@@ -361,7 +361,7 @@ export const planeswalkersMischief: CardDefinition = {
             // resolution, so valuing the template too would double-count.
         },
     ],
-};
+}));
 
 // Rushing River — {2}{U} Instant. "Kicker—Sacrifice a land.\nReturn target
 // nonland permanent to its owner's hand. If this spell was kicked, return
@@ -381,7 +381,7 @@ export const planeswalkersMischief: CardDefinition = {
 // writing ONE Op for two sentences — which read as a card whose text the
 // compiler could not reproduce (gold round-trip) rather than as the choice it
 // was.
-export const rushingRiver: CardDefinition = {
+export const rushingRiver = defineCard(() => ({
     id: "52ddf7bf-de9c-4657-8d5b-79869d36fa63", // PLS 30
     rarity: "common",
     name: "Rushing River",
@@ -418,7 +418,7 @@ export const rushingRiver: CardDefinition = {
             then: [{ op: "moveZone", target: { target: 1 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Sea Snidd — {4}{U} Creature — Beast, 3/3. "{T}: Target land becomes the
 // basic land type of your choice until end of turn." (CR 305.7 layer-4
@@ -427,7 +427,7 @@ export const rushingRiver: CardDefinition = {
 // pre-existing `optionChoice` Op, one mode per `BASIC_LAND_SUBTYPES` entry —
 // the EXACT Dream Thrush template, `inv/blue.cards.ts`, just without flying and at
 // this card's own cost/stats.)
-export const seaSnidd: CardDefinition = {
+export const seaSnidd = defineCard(() => ({
     id: "ca11015e-200b-488c-8bf5-662dcc03cd2d", // PLS 31
     rarity: "common",
     name: "Sea Snidd",
@@ -457,7 +457,7 @@ export const seaSnidd: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Shifting Sky — {2}{U} Enchantment. "As this enchantment enters, choose a
 // color.\nAll nonland permanents are the chosen color." STOP-AND-ISSUE
@@ -491,7 +491,7 @@ export const seaSnidd: CardDefinition = {
 // host via `AURA_AFFECTS_HOST`. The granted ability's own body reuses
 // `chooseColorEffects` — the SAME `setColor` Op + `optionChoice` "choose one
 // of five colors" composition Blind Seer already uses, `inv/blue.cards.ts`.)
-export const sisaysIngenuity: CardDefinition = {
+export const sisaysIngenuity = defineCard(() => ({
     id: "bbe20cc1-621a-4813-9bbb-ace006e173ff", // PLS 33
     rarity: "common",
     name: "Sisay's Ingenuity",
@@ -531,7 +531,7 @@ export const sisaysIngenuity: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Sleeping Potion — {1}{U} Enchantment — Aura. "Enchant creature.\nWhen this
 // Aura enters, tap enchanted creature.\nEnchanted creature doesn't untap
@@ -550,7 +550,7 @@ export const sisaysIngenuity: CardDefinition = {
 // already-established gap Venarian Gold's own ETB trigger documents (leaving
 // it unticketed there was the PR #2010 review's MINOR 6 finding).
 // tracked-by: #2016.
-export const sleepingPotion: CardDefinition = {
+export const sleepingPotion = defineCard(() => ({
     id: "6f79f4b2-71cd-4f78-a161-d75b162c745e", // PLS 34
     rarity: "common",
     name: "Sleeping Potion",
@@ -604,7 +604,7 @@ export const sleepingPotion: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Stormscape Battlemage — {2}{U} Creature — Metathran Wizard, 2/2. "Kicker
 // {W} and/or {2}{B}\nWhen this creature enters, if it was kicked with its
@@ -644,7 +644,7 @@ export const sleepingPotion: CardDefinition = {
 // ability COPY put on the stack without re-running `matches` (CR 707.10), and
 // a `DelayedTriggerInstance`, which carries no `interveningIf` at all. See the
 // Thunderscape Battlemage note in `pls/red.cards.ts` and its regression test.
-export const stormscapeBattlemage: CardDefinition = {
+export const stormscapeBattlemage = defineCard(() => ({
     id: "7d46a39d-c6f4-4281-b31f-f0a0c9fba887", // PLS 35
     rarity: "uncommon",
     name: "Stormscape Battlemage",
@@ -719,7 +719,7 @@ export const stormscapeBattlemage: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Stormscape Familiar — {1}{U} Creature — Bird, 1/1. "Flying\nWhite spells
 // and black spells you cast cost {1} less to cast." (CR 702.9b flying; CR
@@ -727,7 +727,7 @@ export const stormscapeBattlemage: CardDefinition = {
 // Instant-and-enchantment cost-reducer template — `inv/colorless.cards.ts` /
 // `leg/colorless.cards.ts` — restricted to the caster's OWN spells and to EITHER
 // of two colours via `.some`.)
-export const stormscapeFamiliar: CardDefinition = {
+export const stormscapeFamiliar = defineCard(() => ({
     id: "4c831c42-77a0-4f4f-9628-ad630541cf66", // PLS 36
     rarity: "common",
     name: "Stormscape Familiar",
@@ -749,7 +749,7 @@ export const stormscapeFamiliar: CardDefinition = {
             costReduction: { X: 1 },
         },
     ],
-};
+}));
 
 // Sunken Hope — {3}{U}{U} Enchantment. "At the beginning of each player's
 // upkeep, that player returns a creature they control to its owner's hand."
@@ -761,7 +761,7 @@ export const stormscapeFamiliar: CardDefinition = {
 // bound pick — the Teferi, Hero of Dominaria "+1" delayed-body template,
 // `dom/multicolor.cards.ts`, reused for an immediate effect body instead of an
 // inline delayed one.)
-export const sunkenHope: CardDefinition = {
+export const sunkenHope = defineCard(() => ({
     id: "5f12ac0c-cfe6-4f08-b6df-20be4ce83e8c", // PLS 37
     rarity: "rare",
     name: "Sunken Hope",
@@ -801,7 +801,7 @@ export const sunkenHope: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Waterspout Elemental — {3}{U}{U} Creature — Elemental, 3/4. "Kicker {U}.
 // Flying. When this creature enters, if it was kicked, return all other
@@ -842,7 +842,7 @@ export const sunkenHope: CardDefinition = {
 // The skip is the NEW `skipNextTurn` Op (issue #1957) against `"controller"`
 // — Waterspout Elemental's clause never targets a player, it always names
 // the caster ("you skip your next turn").
-export const waterspoutElemental: CardDefinition = {
+export const waterspoutElemental = defineCard(() => ({
     id: "425156e6-8eee-4bff-8f2f-86edd9a4f73b", // PLS 38
     rarity: "rare",
     name: "Waterspout Elemental",
@@ -900,7 +900,7 @@ export const waterspoutElemental: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Confound — {1}{U} Instant. "Counter target spell that targets a creature.
 // Draw a card." (CR 114.1 / 109.2, issue #1956, parent PRD #1935.) The
@@ -917,7 +917,7 @@ export const waterspoutElemental: CardDefinition = {
 // `counter` Op doing nothing, and the `draw` Op running. (If Confound's own
 // target has become illegal it is countered on resolution and never draws —
 // CR 608.2b, the general fizzle rule, not a card clause.)
-export const confound: CardDefinition = {
+export const confound = defineCard(() => ({
     id: "4f3b7d39-ce98-48e2-b2bf-0d55b4d3102b", // PLS 22
     name: "Confound",
     rarity: "common",
@@ -933,7 +933,7 @@ export const confound: CardDefinition = {
         { op: "counter", target: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Ertai's Trickery — {U} Instant. "Counter target spell if it was kicked."
 // (CR 608.2a / 702.33a, issue #1956, parent PRD #1935.)

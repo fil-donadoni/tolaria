@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, EffectTokenSpec } from "../../types";
+import { defineCard, type EffectTokenSpec } from "../../types";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -100,7 +100,7 @@ const ROKU_DRAGON_TOKEN: EffectTokenSpec = {
 // compiler-gap: "I — Exile the top three cards of your library. Until the end of your next turn, you may play those cards." (#2693)
 // compiler-gap: "II — Add one mana of any color." (#2693)
 // compiler-gap: "III — Exile this Saga, then return it to the battlefield transformed under your control." (#2693)
-export const theLegendOfRoku: CardDefinition = {
+export const theLegendOfRoku = defineCard(() => ({
     id: THE_LEGEND_OF_ROKU_ID,
     name: "The Legend of Roku",
     rarity: "mythic",
@@ -212,4 +212,4 @@ export const theLegendOfRoku: CardDefinition = {
             },
         ],
     },
-};
+}));

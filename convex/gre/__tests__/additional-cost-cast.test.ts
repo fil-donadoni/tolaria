@@ -36,7 +36,7 @@ import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 
 describe("announceCast — unpayable additional-cost sacrifice (issue #944)", () => {
     it("Natural Order: assertLegalAction rejects cleanly with no green creature (no crash)", () => {
-        const naturalOrderInst = makeInstance(naturalOrder.id, {
+        const naturalOrderInst = makeInstance(naturalOrder().id, {
             zone: "hand",
         });
         const state: GameState = makeState({
@@ -64,8 +64,8 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
     });
 
     it("Natural Order: assertLegalAction allows the cast and buildAdditionalCostPicker returns the real picker once a green creature exists", () => {
-        const bears = makeInstance(grizzlyBears.id, { zone: "battlefield" });
-        const naturalOrderInst = makeInstance(naturalOrder.id, {
+        const bears = makeInstance(grizzlyBears().id, { zone: "battlefield" });
+        const naturalOrderInst = makeInstance(naturalOrder().id, {
             zone: "hand",
         });
         const state: GameState = makeState({
@@ -89,7 +89,7 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
             assertLegalAction(state, player, cardInHand, "cast")
         ).not.toThrow();
 
-        const def = getDefinition(naturalOrder.id);
+        const def = getDefinition(naturalOrder().id);
         const picker = buildAdditionalCostPicker(def.additionalCosts, player);
         expect(picker).toEqual({
             kind: "sacrifice",
@@ -101,8 +101,8 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
     });
 
     it("Soul Exchange: assertLegalAction rejects cleanly with no creature to exile (no crash)", () => {
-        const grave = makeInstance(grizzlyBears.id, { zone: "graveyard" });
-        const soulExchangeInst = makeInstance(soulExchange.id, {
+        const grave = makeInstance(grizzlyBears().id, { zone: "graveyard" });
+        const soulExchangeInst = makeInstance(soulExchange().id, {
             zone: "hand",
         });
         const state: GameState = makeState({
@@ -130,9 +130,9 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
     });
 
     it("Soul Exchange: assertLegalAction allows the cast and buildAdditionalCostPicker returns the real picker once an own creature exists", () => {
-        const bears = makeInstance(grizzlyBears.id, { zone: "battlefield" });
-        const grave = makeInstance(grizzlyBears.id, { zone: "graveyard" });
-        const soulExchangeInst = makeInstance(soulExchange.id, {
+        const bears = makeInstance(grizzlyBears().id, { zone: "battlefield" });
+        const grave = makeInstance(grizzlyBears().id, { zone: "graveyard" });
+        const soulExchangeInst = makeInstance(soulExchange().id, {
             zone: "hand",
         });
         const state: GameState = makeState({
@@ -157,7 +157,7 @@ describe("announceCast — unpayable additional-cost sacrifice (issue #944)", ()
             assertLegalAction(state, player, cardInHand, "cast")
         ).not.toThrow();
 
-        const def = getDefinition(soulExchange.id);
+        const def = getDefinition(soulExchange().id);
         const picker = buildAdditionalCostPicker(def.additionalCosts, player);
         expect(picker).toEqual({
             kind: "exile",

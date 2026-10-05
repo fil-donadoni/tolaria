@@ -148,14 +148,14 @@ describe("isZonePickConfirmEnabled (Done/Skip gate, CR 608.2)", () => {
                 players: [
                     makePlayer("p1", {
                         battlefield: [
-                            makeInstance(plains.id, {
+                            makeInstance(plains().id, {
                                 id: "p1-plains",
                                 controllerId: "p1",
                                 ownerId: "p1",
                             }),
                             // A Plains/Island dual — it alone answers both
                             // categories (Gatherer's dual-land ruling).
-                            makeInstance(tundra.id, {
+                            makeInstance(tundra().id, {
                                 id: "p1-tundra",
                                 controllerId: "p1",
                                 ownerId: "p1",
@@ -165,7 +165,7 @@ describe("isZonePickConfirmEnabled (Done/Skip gate, CR 608.2)", () => {
                     makePlayer("p2"),
                 ],
             });
-            pushSpell(state, planarOverlay.id, "p1");
+            pushSpell(state, planarOverlay().id, "p1");
             resolveTopOfStack(state);
             const projected = projectPublicState(state, 1, "p1");
             return projected.pendingChoices![0];

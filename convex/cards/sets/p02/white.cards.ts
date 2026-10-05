@@ -9,9 +9,9 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/white.cards.ts`.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-export const angelOfMercy: CardDefinition = {
+export const angelOfMercy = defineCard(() => ({
     id: "dac5c913-4eb5-4cfb-9c24-223f14f07064", // P02 8
     rarity: "uncommon",
     name: "Angel of Mercy",
@@ -30,4 +30,4 @@ export const angelOfMercy: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 3 }],
         }),
     ],
-};
+}));

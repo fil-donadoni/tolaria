@@ -2,7 +2,7 @@
 // `import * as fin from "./sets/fin/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Suplex — "Choose one — • Suplex deals 3 damage to target creature. If that
 // creature would die this turn, exile it instead. • Exile target artifact."
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // (hou/red.cards.ts), so this uses the legacy `modes` mechanism too. Mode 1's
 // "exile instead of dying" is the existing `setExileOnDeath` primitive
 // (Disintegrate precedent, lea/red.cards.ts) — no new primitive.
-export const suplex: CardDefinition = {
+export const suplex = defineCard(() => ({
     id: "f61693a2-7042-44e0-85ba-9bf12ab94e7e",
     rarity: "common",
     name: "Suplex",
@@ -47,4 +47,4 @@ export const suplex: CardDefinition = {
             },
         },
     ],
-};
+}));

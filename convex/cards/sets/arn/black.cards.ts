@@ -6,13 +6,13 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition, TargetSelection } from "../../types";
-import { DAMAGEABLE_PERMANENT_TYPES } from "../../types";
+import type { TargetSelection } from "../../types";
+import { defineCard, DAMAGEABLE_PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
-export const stoneThrowingDevils: CardDefinition = {
+export const stoneThrowingDevils = defineCard(() => ({
     id: "d1c387dd-1347-4443-91ce-b71f7ccdceba",
     rarity: "common",
     name: "Stone-Throwing Devils",
@@ -23,9 +23,9 @@ export const stoneThrowingDevils: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
+}));
 
-export const juzamDjinn: CardDefinition = {
+export const juzamDjinn = defineCard(() => ({
     id: "31bf3f14-b5df-498b-a1bb-965885c82401",
     rarity: "rare",
     name: "Juzám Djinn",
@@ -48,9 +48,9 @@ export const juzamDjinn: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const jununEfreet: CardDefinition = {
+export const jununEfreet = defineCard(() => ({
     id: "5f46783a-b91e-4829-a173-5515b09ca615",
     rarity: "rare",
     name: "Junún Efreet",
@@ -90,9 +90,9 @@ export const jununEfreet: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const hasranOgress: CardDefinition = {
+export const hasranOgress = defineCard(() => ({
     id: "9f310cf5-0985-4826-9779-19a713089d6d",
     rarity: "common",
     name: "Hasran Ogress",
@@ -136,9 +136,9 @@ export const hasranOgress: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const elHajjaj: CardDefinition = {
+export const elHajjaj = defineCard(() => ({
     id: "c4b610d3-2005-4347-bcda-c30b5b7972e5",
     rarity: "rare",
     name: "El-Hajjâj",
@@ -164,9 +164,9 @@ export const elHajjaj: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const khabalGhoul: CardDefinition = {
+export const khabalGhoul = defineCard(() => ({
     id: "18607bf6-ce11-41cb-b001-0c9538406ba0",
     rarity: "uncommon",
     name: "Khabál Ghoul",
@@ -202,7 +202,7 @@ export const khabalGhoul: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Erg Raiders — end-step self-damage unless it attacked, with a
 // "came under your control this turn" exemption (CR 603.4 intervening-if for
@@ -212,7 +212,7 @@ export const khabalGhoul: CardDefinition = {
 // reads `self.isSummoningSick`: that flag is set when a creature enters or
 // changes controller and is cleared at its controller's untap step, so it is
 // true for exactly the turn the creature came under your control.
-export const ergRaiders: CardDefinition = {
+export const ergRaiders = defineCard(() => ({
     id: "35c73a97-531d-4dd5-8236-39b89c183c38",
     rarity: "common",
     name: "Erg Raiders",
@@ -241,11 +241,11 @@ export const ergRaiders: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // MTGJSON ARN.json: subtypes ["Human", "Wizard", "Sorcerer"] — "Sorcerer" was
 // missing, caught by the widened data/json conformance guard.
-export const sorceressQueen: CardDefinition = {
+export const sorceressQueen = defineCard(() => ({
     id: "94742003-f0f1-4483-b1a0-e7163995db1b",
     rarity: "uncommon",
     name: "Sorceress Queen",
@@ -284,7 +284,7 @@ export const sorceressQueen: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Oubliette — modern Oracle uses phasing, not exile (ADR 0004). The ETB
 // trigger phases a chosen creature (with its Auras/Equipment) out of existence
@@ -299,7 +299,7 @@ export const sorceressQueen: CardDefinition = {
 // ability" triggers, which the old choice-as-target workaround silently
 // skipped. The resolve() reads the announced target via `ctx.targets[0]` and
 // keeps the phase-out (with Auras/Equipment) + source-leaves return legs.
-export const oubliette: CardDefinition = {
+export const oubliette = defineCard(() => ({
     id: "30d1450f-2909-410e-9920-731278fa74de",
     rarity: "common",
     name: "Oubliette",
@@ -331,7 +331,7 @@ export const oubliette: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Cuombajj Witches — "{T}: This creature deals 1 damage to any target and 1
 // damage to any target of an opponent's choice." (modern oracle, ADR 0004).
@@ -347,7 +347,7 @@ export const oubliette: CardDefinition = {
 // engine applies the two pings sequentially within the single resolve step.
 // With 1 damage each and no replacement interaction between the two, the
 // observable outcome is identical, so the simplification is safe.
-export const cuombajjWitches: CardDefinition = {
+export const cuombajjWitches = defineCard(() => ({
     id: "7995c3f9-a147-43c9-9f82-470924818a4c",
     rarity: "common",
     name: "Cuombajj Witches",
@@ -435,7 +435,7 @@ export const cuombajjWitches: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Guardian Beast — "As long as Guardian Beast is untapped, noncreature
 // artifacts you control can't be enchanted, can't be the targets of spells or
@@ -463,7 +463,7 @@ export const cuombajjWitches: CardDefinition = {
 // destroy that hits Guardian Beast and a guarded artifact spares the artifact
 // as long as Guardian Beast has not yet left when the artifact's destroy is
 // processed. Strict CR 616 simultaneous-replacement ordering is out of scope.
-export const guardianBeast: CardDefinition = {
+export const guardianBeast = defineCard(() => ({
     id: "9941f83b-2903-4eab-ac6d-5313e3978fa3",
     rarity: "rare",
     name: "Guardian Beast",
@@ -489,4 +489,4 @@ export const guardianBeast: CardDefinition = {
             controlCantChange: true,
         },
     ],
-};
+}));

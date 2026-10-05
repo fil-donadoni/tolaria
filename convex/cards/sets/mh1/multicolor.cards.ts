@@ -1,6 +1,6 @@
 // mh1 — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { WRENN_AND_SIX_EMBLEM_ID } from "../../emblems";
 import { ninjutsuAbility } from "../../abilities/ninjutsu";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -27,7 +27,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // hybrid pips (`manaValue` / `getColorsFromCost`). No `effects`/`resolve`: a
 // vanilla-bodied creature whose entire rules text is keyword abilities + cost
 // modifiers, so the DSL smoke sweep needs nothing from it.
-export const hogaakArisenNecropolis: CardDefinition = {
+export const hogaakArisenNecropolis = defineCard(() => ({
     id: "0049e68d-0caf-474f-9523-dad343f1250a",
     rarity: "rare",
     name: "Hogaak, Arisen Necropolis",
@@ -48,7 +48,7 @@ export const hogaakArisenNecropolis: CardDefinition = {
     staticAbilities: ["convoke", "delve", "trample"],
     cantSpendManaToCast: true,
     castableFromOwnGraveyard: true,
-};
+}));
 
 // Fallen Shinobi — {3}{U}{B} Creature — Zombie Ninja, 5/4 (MH1, issue #2390).
 // "Ninjutsu {2}{U}{B}. Whenever this creature deals combat damage to a player,
@@ -83,7 +83,7 @@ export const hogaakArisenNecropolis: CardDefinition = {
 // shape that has no Op for the compiler to emit.
 // compiler-gap: "Ninjutsu {2}{U}{B}" (#2693)
 // compiler-gap: "that player exiles the top two cards of their library. Until end of turn, you may play those cards without paying their mana costs." (#2693)
-export const fallenShinobi: CardDefinition = {
+export const fallenShinobi = defineCard(() => ({
     id: "900c9dfd-ece1-4b09-a801-0fa05e1994b9", // MH1 199
     name: "Fallen Shinobi",
     rarity: "rare",
@@ -149,7 +149,7 @@ export const fallenShinobi: CardDefinition = {
             aiEffects: [{ op: "draw", player: "controller", count: 2 }],
         },
     ],
-};
+}));
 
 // Wrenn and Six — {R}{G} Legendary Planeswalker — Wrenn, loyalty 3 (MH1,
 // issue #2358). All three loyalty abilities use the shipped loyalty framework
@@ -169,7 +169,7 @@ export const fallenShinobi: CardDefinition = {
 // The card is the only exposure of Retrace (CR 702.81) in the pool: no card
 // prints the keyword yet, and the emblem's grant is what makes an instant or
 // sorcery in the graveyard castable for its printed cost plus a discarded land.
-export const wrennAndSix: CardDefinition = {
+export const wrennAndSix = defineCard(() => ({
     id: "4a706ecf-3277-40e3-871c-4ba4ead16e20",
     name: "Wrenn and Six",
     rarity: "mythic",
@@ -217,4 +217,4 @@ export const wrennAndSix: CardDefinition = {
             effects: [{ op: "emblem", emblem: WRENN_AND_SIX_EMBLEM_ID }],
         },
     ],
-};
+}));

@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Colourless artifacts (no
 // coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Powder Keg — "At the beginning of your upkeep, you may put a fuse counter on
@@ -25,7 +25,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // the source's counters and the interpreter's `resolveValue` counters branch
 // falls back to `getCounterCount` via `ctx.sourceInstanceId` for an
 // off-battlefield `$source` (see convex/gre/effects/interpreter.ts).
-export const powderKeg: CardDefinition = {
+export const powderKeg = defineCard(() => ({
     id: "4d9715c2-9036-4ae2-a5b4-1b190d50c963",
     rarity: "rare",
     name: "Powder Keg",
@@ -113,4 +113,4 @@ export const powderKeg: CardDefinition = {
             ],
         },
     ],
-};
+}));

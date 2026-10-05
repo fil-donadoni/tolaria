@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Once Upon a Time — {1}{G} Instant (issue #790). Modern Oracle text (the
 // printed card's original flash-on-your-first-turn clause was later dropped
@@ -23,7 +23,7 @@ import type { CardDefinition } from "../../types";
 // shape — so this card introduces no new Op and needs no hand-written GRE/
 // wire test beyond the catalogue-wide static sweep + auto-generated smoke
 // test (the per-Op regime, `.claude/rules/gre-development.md`).
-export const onceUponATime: CardDefinition = {
+export const onceUponATime = defineCard(() => ({
     id: "4034e5ba-9974-43e3-bde7-8d9b4586c3a4",
     name: "Once Upon a Time",
     rarity: "rare",
@@ -52,7 +52,7 @@ export const onceUponATime: CardDefinition = {
             prompt: "Once Upon a Time — you may put a creature or land card into your hand.",
         },
     ],
-};
+}));
 
 // Questing Beast — {2}{G}{G} Legendary Creature — Beast 4/4 (issue #2395).
 // Modern Scryfall oracle (ADR 0004):
@@ -71,7 +71,7 @@ export const onceUponATime: CardDefinition = {
 //  3. the unpreventable clause is the `combat-damage-unpreventable` static
 //     (CR 615.12) this card ships — see `gre/combatDamagePrevention.ts`;
 //  4. the planeswalker clause is a normal triggered ability.
-export const questingBeast: CardDefinition = {
+export const questingBeast = defineCard(() => ({
     id: "e41cf82d-3213-47ce-a015-6e51a8b07e4f",
     name: "Questing Beast",
     rarity: "mythic",
@@ -170,4 +170,4 @@ export const questingBeast: CardDefinition = {
             aiEffects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
         },
     ],
-};
+}));

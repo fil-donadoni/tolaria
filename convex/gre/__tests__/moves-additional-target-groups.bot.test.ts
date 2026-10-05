@@ -54,13 +54,13 @@ import type { GameState } from "../state";
 /** p1 holds Hull Breach with untapped R + G sources; p2 has one artifact and
  *  one enchantment, so mode `both` is the only mode with two live groups. */
 function hullBreachBoard(): GameState {
-    const breach = makeInstance(hullBreach.id, {
+    const breach = makeInstance(hullBreach().id, {
         id: "breach-1",
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
     });
-    const lands = [mountain.id, forest.id].map((cardId, i) =>
+    const lands = [mountain().id, forest().id].map((cardId, i) =>
         makeInstance(cardId, {
             id: `land-${i}`,
             controllerId: "p1",
@@ -68,13 +68,13 @@ function hullBreachBoard(): GameState {
             zone: "battlefield",
         })
     );
-    const art = makeInstance(blackLotus.id, {
+    const art = makeInstance(blackLotus().id, {
         id: "art-1",
         controllerId: "p2",
         ownerId: "p2",
         zone: "battlefield",
     });
-    const ench = makeInstance(dralnusCrusade.id, {
+    const ench = makeInstance(dralnusCrusade().id, {
         id: "ench-1",
         controllerId: "p2",
         ownerId: "p2",
@@ -161,7 +161,7 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
     // The card-level twin of the same seam — Fumarole ("Destroy target creature
     // and target land") predates this PR and was enumerated with one target too.
     it("enumerates the CARD-level group list too (Fumarole)", () => {
-        const fum = makeInstance(fumarole.id, {
+        const fum = makeInstance(fumarole().id, {
             id: "fum-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -169,11 +169,11 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
         });
         // {3}{B}{R} — five sources, at least one black and one red.
         const lands = [
-            mountain.id,
-            mountain.id,
-            swamp.id,
-            swamp.id,
-            swamp.id,
+            mountain().id,
+            mountain().id,
+            swamp().id,
+            swamp().id,
+            swamp().id,
         ].map((cardId, i) =>
             makeInstance(cardId, {
                 id: `fum-land-${i}`,
@@ -182,13 +182,13 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
                 zone: "battlefield",
             })
         );
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             id: "bears-1",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
-        const theirLand = makeInstance(mountain.id, {
+        const theirLand = makeInstance(mountain().id, {
             id: "their-land",
             controllerId: "p2",
             ownerId: "p2",
@@ -226,7 +226,7 @@ describe("bot enumeration — mode-level additional target groups (Hull Breach, 
 
 /** p1 holds Prismatic Ward with two untapped Plains; p2 has one creature. */
 function prismaticWardBoard(): GameState {
-    const ward = makeInstance(prismaticWard.id, {
+    const ward = makeInstance(prismaticWard().id, {
         id: "ward-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -234,14 +234,14 @@ function prismaticWardBoard(): GameState {
     });
     // {1}{W} — two Plains cover both the generic and the coloured pip.
     const lands = [0, 1].map((i) =>
-        makeInstance(plains.id, {
+        makeInstance(plains().id, {
             id: `plains-${i}`,
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         })
     );
-    const victim = makeInstance(grizzlyBears.id, {
+    const victim = makeInstance(grizzlyBears().id, {
         id: "bears-1",
         controllerId: "p2",
         ownerId: "p2",
@@ -352,7 +352,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
 
         // The spell is on the stack carrying BOTH announced targets.
         const after = harness.state();
-        const item = after.stack.find((s) => s.card.id === hullBreach.id)!;
+        const item = after.stack.find((s) => s.card.id === hullBreach().id)!;
         expect(item).toBeDefined();
         expect((item.targets ?? []).map((t) => t.id)).toEqual([
             "art-1",
@@ -422,7 +422,7 @@ describe("bot execution — the enumerated multi-group move is executable end to
         ).resolves.toBeUndefined();
 
         const after = harness.state();
-        const item = after.stack.find((s) => s.card.id === prismaticWard.id)!;
+        const item = after.stack.find((s) => s.card.id === prismaticWard().id)!;
         expect(item).toBeDefined();
         expect((item.targets ?? []).map((t) => t.id)).toEqual(["bears-1"]);
         expect(item.chosenModeIds?.[0]).toBeUndefined();

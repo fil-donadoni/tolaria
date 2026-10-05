@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, Color, TriggeredAbility } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { Color, TriggeredAbility } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -57,7 +57,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // signal (same as Mana Vortex on a landless board) — there is no notify/log Op
 // in the vocabulary to say more, and inventing one would be a stop-and-issue
 // case, not an authoring liberty.
-export const keldonTwilight: CardDefinition = {
+export const keldonTwilight = defineCard(() => ({
     id: "e071665e-bb72-42e0-a42d-0d0ff02abd2b",
     rarity: "rare",
     name: "Keldon Twilight",
@@ -94,7 +94,7 @@ export const keldonTwilight: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Phyrexian Tyranny — {U}{B}{R} Enchantment. "Whenever a player draws a
 // card, that player loses 2 life unless they pay {2}." (issue #1946, parent
@@ -122,7 +122,7 @@ export const keldonTwilight: CardDefinition = {
 // the payer resolved to the drawing player instead of `"controller"`. No new
 // Op, no new primitive: only the `player` ref differs from every prior
 // mayPay card.
-export const phyrexianTyranny: CardDefinition = {
+export const phyrexianTyranny = defineCard(() => ({
     id: "e8440ca8-73ca-462b-a735-f6fb3d0de603",
     rarity: "rare",
     name: "Phyrexian Tyranny",
@@ -161,7 +161,7 @@ export const phyrexianTyranny: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ────────────────────────────────────────────────────────────────────────────
 // PLS free tranche — two-colour gold cards (issue #1953, parent PRD #1935,
@@ -234,7 +234,7 @@ function bounceOnEntry(
 // Ancient Spider — {2}{G}{W} Creature — Spider, 2/5. Pure keyword data: both
 // "first strike" (CR 702.7) and "reach" (CR 702.17) are already-implemented
 // Mechanics Registry rows, so the card needs no script at all.
-export const ancientSpider: CardDefinition = {
+export const ancientSpider = defineCard(() => ({
     id: "75ca99de-57e7-47c4-b40a-6e41e3b18069", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Ancient Spider",
@@ -246,7 +246,7 @@ export const ancientSpider: CardDefinition = {
     power: 2,
     toughness: 5,
     staticAbilities: ["first strike", "reach"],
-};
+}));
 
 // Cavern Harpy — {U}{B} Creature — Harpy Beast, 2/1. The set's engine piece:
 // the mandatory ETB bounce plus a free self-bounce for 1 life, which together
@@ -254,7 +254,7 @@ export const ancientSpider: CardDefinition = {
 // activated ability with a CR 119.4 life cost (`cost: { life: 1 }`) — no mana,
 // no tap, so it is usable the turn it enters (summoning sickness only gates
 // {T} costs, CR 302.6).
-export const cavernHarpy: CardDefinition = {
+export const cavernHarpy = defineCard(() => ({
     id: "adfb0804-50d6-4bca-8733-72e01030a543", // PLS printing (scryfallId)
     rarity: "common",
     name: "Cavern Harpy",
@@ -280,12 +280,12 @@ export const cavernHarpy: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Daring Leap — {1}{W}{U} Instant. One target creature, three until-end-of-turn
 // riders: a CR 613 layer-7c P/T modification (`pump`) and two CR 702 keyword
 // grants (`grantAbility`). Three already-exercised Ops, no new vocabulary.
-export const daringLeap: CardDefinition = {
+export const daringLeap = defineCard(() => ({
     id: "37ec6c4b-2de0-4759-a25d-007706cb18cc", // PLS printing (scryfallId)
     rarity: "common",
     name: "Daring Leap",
@@ -315,14 +315,14 @@ export const daringLeap: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Eladamri's Call — {G}{W} Instant. The canonical CR 701.23 search: search,
 // reveal (CR 701.20 — the reveal is public and is what distinguishes this from
 // Demonic Tutor's silent fetch), put into hand, shuffle. `count: { min: 0,
 // max: 1 }` because a search may legally fail to find (CR 701.23b) — a library
 // with no creature card is a legal, visible no-op, not a stuck resolution.
-export const eladamrisCall: CardDefinition = {
+export const eladamrisCall = defineCard(() => ({
     id: "dcb79f39-5ef3-4ad6-9a43-04beb27d8480", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Eladamri's Call",
@@ -351,12 +351,12 @@ export const eladamrisCall: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Fleetfoot Panther — {1}{G}{W} Creature — Cat, 3/4. Flash (CR 702.8) is the
 // whole point: cast in response, bounce a creature that is about to die or
 // whose ETB you want again.
-export const fleetfootPanther: CardDefinition = {
+export const fleetfootPanther = defineCard(() => ({
     id: "b70220d8-f81b-44a4-b92e-d66de8c1b4ce", // PLS printing (scryfallId)
     rarity: "uncommon",
     name: "Fleetfoot Panther",
@@ -371,11 +371,11 @@ export const fleetfootPanther: CardDefinition = {
     triggeredAbilities: [
         bounceOnEntry("fleetfoot-panther", ["G", "W"], "green or white"),
     ],
-};
+}));
 
 // Gerrard's Command — {G}{W} Instant. Untap (CR 701.26b) then a CR 613 layer-7c
 // pump, in oracle order.
-export const gerrardsCommand: CardDefinition = {
+export const gerrardsCommand = defineCard(() => ({
     id: "d0fda263-b6a7-43e3-998a-72a9d84c4572", // PLS printing (scryfallId)
     rarity: "common",
     name: "Gerrard's Command",
@@ -393,11 +393,11 @@ export const gerrardsCommand: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Horned Kavu — {R}{G} Creature — Kavu, 3/4. A two-mana 3/4 whose whole cost is
 // the mandatory bounce.
-export const hornedKavu: CardDefinition = {
+export const hornedKavu = defineCard(() => ({
     id: "ecd79fbf-626d-4549-917b-435f16b973d9", // PLS printing (scryfallId)
     rarity: "common",
     name: "Horned Kavu",
@@ -411,11 +411,11 @@ export const hornedKavu: CardDefinition = {
     triggeredAbilities: [
         bounceOnEntry("horned-kavu", ["R", "G"], "red or green"),
     ],
-};
+}));
 
 // Lava Zombie — {1}{B}{R} Creature — Zombie, 4/3. Bounce template plus a
 // firebreathing-shaped generic pump.
-export const lavaZombie: CardDefinition = {
+export const lavaZombie = defineCard(() => ({
     id: "fd87185b-1242-4fb3-abee-44bc267ee5fb", // PLS printing (scryfallId)
     rarity: "common",
     name: "Lava Zombie",
@@ -446,7 +446,7 @@ export const lavaZombie: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Malicious Advice — {X}{U}{B} Instant. "Tap X target artifacts, creatures,
 // and/or lands. You lose X life."
@@ -466,7 +466,7 @@ export const lavaZombie: CardDefinition = {
 // `gre/state.ts`), so nothing resolves and no life is lost. With at least one
 // legal target left the spell resolves in full — the illegal targets are
 // skipped and the life loss is still the announced X, not the surviving count.
-export const maliciousAdvice: CardDefinition = {
+export const maliciousAdvice = defineCard(() => ({
     id: "7b1547c2-ae9f-4871-a675-4026bf20e7e1", // PLS printing (scryfallId)
     rarity: "common",
     name: "Malicious Advice",
@@ -485,12 +485,12 @@ export const maliciousAdvice: CardDefinition = {
         },
         { op: "loseLife", player: "controller", amount: { X: true } },
     ],
-};
+}));
 
 // Marsh Crocodile — {2}{U}{B} Creature — Crocodile, 4/4. TWO separate ETB
 // triggers (two Oracle lines = two `TriggeredAbility` entries, CR 603.1; they
 // go on the stack in the controller's chosen order, CR 603.3b).
-export const marshCrocodile: CardDefinition = {
+export const marshCrocodile = defineCard(() => ({
     id: "813279d1-d7bd-4d49-bd9d-fc9a6595dd39", // PLS printing (scryfallId)
     rarity: "uncommon",
     name: "Marsh Crocodile",
@@ -546,14 +546,14 @@ export const marshCrocodile: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Razing Snidd — {4}{B}{R} Creature — Beast, 3/3. Bounce template plus a
 // symmetric land sacrifice. "A land of their choice" is explicit in the modern
 // Oracle text: each player picks their OWN land (CR 701.17a), which is the
 // `choice(kind: "sacrifice-permanents")` feeding `sacrifice` shape Mana Vortex
 // (`drk/blue.cards.ts`) and Keldon Twilight (above) already use.
-export const razingSnidd: CardDefinition = {
+export const razingSnidd = defineCard(() => ({
     id: "d2090b80-2ce2-4c9a-87fe-d221f3c677b4", // PLS printing (scryfallId)
     rarity: "uncommon",
     name: "Razing Snidd",
@@ -595,11 +595,11 @@ export const razingSnidd: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Shivan Wurm — {3}{R}{G} Creature — Wurm, 7/7 trample. The template's payoff
 // card: a five-mana 7/7 whose drawback is the mandatory bounce.
-export const shivanWurm: CardDefinition = {
+export const shivanWurm = defineCard(() => ({
     id: "4bc72997-78b0-47aa-a029-bf55f77c3e73", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Shivan Wurm",
@@ -614,10 +614,10 @@ export const shivanWurm: CardDefinition = {
     triggeredAbilities: [
         bounceOnEntry("shivan-wurm", ["R", "G"], "red or green"),
     ],
-};
+}));
 
 // Silver Drake — {1}{W}{U} Creature — Drake, 3/3 flying.
-export const silverDrake: CardDefinition = {
+export const silverDrake = defineCard(() => ({
     id: "ac35ee86-96b2-47aa-a1ba-2988737f11ee", // PLS printing (scryfallId)
     rarity: "common",
     name: "Silver Drake",
@@ -632,14 +632,14 @@ export const silverDrake: CardDefinition = {
     triggeredAbilities: [
         bounceOnEntry("silver-drake", ["W", "U"], "white or blue"),
     ],
-};
+}));
 
 // Sparkcaster — {2}{R}{G} Creature — Kavu, 5/3. Bounce template plus a targeted
 // ping. CR 603.3d — a triggered ability chooses its targets when it is PUT ON
 // THE STACK, which is what `TriggeredAbility.targetRequirement` wires; the
 // modern Oracle text says "target player or planeswalker", the array form of
 // `TargetRequirement.type`.
-export const sparkcaster: CardDefinition = {
+export const sparkcaster = defineCard(() => ({
     id: "daf442b3-fa39-4f6a-90a0-22dcd9df649c", // PLS printing (scryfallId)
     rarity: "uncommon",
     name: "Sparkcaster",
@@ -668,10 +668,10 @@ export const sparkcaster: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Steel Leaf Paladin — {4}{G}{W} Creature — Elf Knight, 4/4 first strike.
-export const steelLeafPaladin: CardDefinition = {
+export const steelLeafPaladin = defineCard(() => ({
     id: "28e8697f-fdf3-4a1a-a84d-dd29b17336c2", // PLS printing (scryfallId)
     rarity: "common",
     name: "Steel Leaf Paladin",
@@ -686,13 +686,13 @@ export const steelLeafPaladin: CardDefinition = {
     triggeredAbilities: [
         bounceOnEntry("steel-leaf-paladin", ["G", "W"], "green or white"),
     ],
-};
+}));
 
 // Terminate — {B}{R} Instant. The set's most-played card and the cleanest
 // possible Effect Script: CR 701.8 destroy with the CR 701.19 regeneration
 // shield explicitly denied (`cantBeRegenerated`, applied BEFORE the destroy so
 // a shield already on the creature is stripped rather than consumed).
-export const terminate: CardDefinition = {
+export const terminate = defineCard(() => ({
     id: "190ca502-672d-4cc0-b6e0-b9de517058d0", // PLS printing (scryfallId)
     rarity: "common",
     name: "Terminate",
@@ -703,7 +703,7 @@ export const terminate: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 
 // Urza's Guilt — {2}{U}{B} Sorcery. "Each player draws two cards, then discards
 // three cards, then loses 4 life."
@@ -714,7 +714,7 @@ export const terminate: CardDefinition = {
 // one pass with a three-Op body. That ordering is observable: a player who was
 // at 4 life is still alive to discard, and a card drawn by the opponent is in
 // hand (and therefore discardable) before anyone discards.
-export const urzasGuilt: CardDefinition = {
+export const urzasGuilt = defineCard(() => ({
     id: "d429233e-1cf9-4f87-b191-894a73e7a876", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Urza's Guilt",
@@ -764,7 +764,7 @@ export const urzasGuilt: CardDefinition = {
             effects: [{ op: "loseLife", player: { ref: "$each" }, amount: 4 }],
         },
     ],
-};
+}));
 
 // Sawtooth Loon — {2}{W}{U} Creature — Bird, 2/2 flying. Bounce template plus
 // a card-filtering ETB.
@@ -780,7 +780,7 @@ export const urzasGuilt: CardDefinition = {
 //
 // `count: 2` clamps to hand size (CR 608.2b) — a Loon resolving into an
 // otherwise-empty hand puts back only the two cards it just drew.
-export const sawtoothLoon: CardDefinition = {
+export const sawtoothLoon = defineCard(() => ({
     id: "31b0a87f-e946-4ef1-b30d-fe32c19a0f52", // PLS printing (scryfallId)
     rarity: "uncommon",
     name: "Sawtooth Loon",
@@ -820,7 +820,7 @@ export const sawtoothLoon: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Doomsday Specter — {2}{U}{B} Creature — Specter, 2/3 flying. Bounce template
 // plus the Specter clause.
@@ -838,7 +838,7 @@ export const sawtoothLoon: CardDefinition = {
 // `$event.damagedPlayer` ref (ADR 0049), the same way Blazing Specter
 // (`inv/multicolor.cards.ts`) does — NOT `"opponent"`, which would be the source's
 // controller-relative opponent rather than the player actually dealt damage.
-export const doomsdaySpecter: CardDefinition = {
+export const doomsdaySpecter = defineCard(() => ({
     id: "85206cc1-5484-40c6-b11d-b8d6fad4fc5c", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Doomsday Specter",
@@ -883,7 +883,7 @@ export const doomsdaySpecter: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Cloud Cover — {2}{W}{U} Enchantment. "Whenever another permanent you control
 // becomes the target of a spell or ability an opponent controls, you may return
@@ -912,7 +912,7 @@ export const doomsdaySpecter: CardDefinition = {
 // object-family branch already resolves it, including the CR 608.2b
 // battlefield-presence recheck that makes a permanent which already left the
 // battlefield (killed in response) a silent no-op.
-export const cloudCover: CardDefinition = {
+export const cloudCover = defineCard(() => ({
     id: "943b3886-5556-474f-8dc1-18219e25abc3", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Cloud Cover",
@@ -953,7 +953,7 @@ export const cloudCover: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Dralnu's Crusade — {1}{B}{R} Enchantment. "All Goblins get +1/+1. All Goblins
 // are black and are Zombies in addition to their other creature types."
@@ -987,7 +987,7 @@ export const cloudCover: CardDefinition = {
 // e.g. protection from red still stops it. Same additive-vs-set gap Sinister
 // Strength (`pls/black.cards.ts`) documents in this very set, and the same tracking
 // ticket — tracked-by: #2009.
-export const dralnusCrusade: CardDefinition = {
+export const dralnusCrusade = defineCard(() => ({
     id: "6a35d227-4489-4a0b-8f81-eb8e5949e1fc", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Dralnu's Crusade",
@@ -1016,7 +1016,7 @@ export const dralnusCrusade: CardDefinition = {
             colors: ["B"],
         },
     ],
-};
+}));
 
 // Natural Emergence — {2}{R}{G} Enchantment. "When this enchantment enters,
 // return a red or green enchantment you control to its owner's hand.
@@ -1046,7 +1046,7 @@ export const dralnusCrusade: CardDefinition = {
 // The ETB is the same mandatory-return template as the gold creatures, retargeted
 // at enchantments — and Natural Emergence itself is red-green, so it is always a
 // legal choice (and the only one, on an otherwise enchantment-free board).
-export const naturalEmergence: CardDefinition = {
+export const naturalEmergence = defineCard(() => ({
     id: "c3eb4857-7c66-42e4-913c-97a0306366d5", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Natural Emergence",
@@ -1085,7 +1085,7 @@ export const naturalEmergence: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));
 
 // Hull Breach — {R}{G} Sorcery. "Choose one — • Destroy target artifact.
 // • Destroy target enchantment. • Destroy target artifact and target
@@ -1109,7 +1109,7 @@ export const naturalEmergence: CardDefinition = {
 // artifact OR no legal enchantment (`announceCast` validates every group before
 // announcing) — the player falls back to mode 1 or 2, which is the correct
 // rules outcome.
-export const hullBreach: CardDefinition = {
+export const hullBreach = defineCard(() => ({
     id: "6907fa19-29ed-4319-8835-68f424c92831", // PLS printing (scryfallId)
     rarity: "common",
     name: "Hull Breach",
@@ -1144,7 +1144,7 @@ export const hullBreach: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Meddling Mage — {W}{U} Creature — Human Wizard, 2/2. "As this creature
 // enters, choose a nonland card name. Spells with the chosen name can't be
@@ -1180,7 +1180,7 @@ export const hullBreach: CardDefinition = {
 //     Mage's own controller included) and only to CASTING. A named card can
 //     still be discarded, cycled, put onto the battlefield by another effect,
 //     or copied — none of those is casting.
-export const meddlingMage: CardDefinition = {
+export const meddlingMage = defineCard(() => ({
     id: "176f84c6-aa5e-449c-bd2b-cc91a898f0c7", // PLS printing (scryfallId)
     rarity: "rare",
     name: "Meddling Mage",
@@ -1225,7 +1225,7 @@ export const meddlingMage: CardDefinition = {
                 ctx.hasChosenName(spell, source.chosenName),
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS free tranche — three-colour gold cards + Ertai / Phelddagrif (#1954,
@@ -1247,7 +1247,7 @@ export const meddlingMage: CardDefinition = {
 // regenerated. / Destroy target artifact." (Modern Oracle text, verified
 // against Scryfall — the 2001 printing read differently.) Mode 2 mirrors Dark
 // Banishing's `excludeColors` + `cantBeRegenerated` shape exactly (ice/black.cards.ts).
-export const crosissCharm: CardDefinition = {
+export const crosissCharm = defineCard(() => ({
     id: "b59a9e75-9988-4040-a718-b1655fc20d11", // PLS 99
     rarity: "uncommon",
     name: "Crosis's Charm",
@@ -1292,14 +1292,14 @@ export const crosissCharm: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Darigaaz's Charm — {B}{R}{G} Instant. "Choose one — Return target creature
 // card from your graveyard to your hand. / Darigaaz's Charm deals 3 damage to
 // any target. / Target creature gets +3/+3 until end of turn." Mode 1 mirrors
 // Raise Dead's graveyard-target shape (lea/black.cards.ts); mode 3 mirrors Giant
 // Growth's `pump` shape (lea/green.cards.ts).
-export const darigaazsCharm: CardDefinition = {
+export const darigaazsCharm = defineCard(() => ({
     id: "cf4c9d6a-86eb-45be-9405-473eb263b94c", // PLS 100
     rarity: "uncommon",
     name: "Darigaaz's Charm",
@@ -1344,11 +1344,11 @@ export const darigaazsCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Dromar's Charm — {W}{U}{B} Instant. "Choose one — You gain 5 life. /
 // Counter target spell. / Target creature gets -2/-2 until end of turn."
-export const dromarsCharm: CardDefinition = {
+export const dromarsCharm = defineCard(() => ({
     id: "c7a1894c-af4e-4530-960f-2225916be8cb", // PLS 105
     rarity: "uncommon",
     name: "Dromar's Charm",
@@ -1386,14 +1386,14 @@ export const dromarsCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Treva's Charm — {G}{W}{U} Instant. "Choose one — Destroy target
 // enchantment. / Exile target attacking creature. / Draw a card, then discard
 // a card." Mode 2's `combatRoleFilter: "attacking"` mirrors the DRK
 // precedent (drk/colorless.cards.ts); mode 3's draw-then-discard mirrors Jalum
 // Tome's loot shape (atq/colorless.cards.ts).
-export const trevasCharm: CardDefinition = {
+export const trevasCharm = defineCard(() => ({
     id: "72acb67d-01cb-4fde-8b0b-199e8d1e396a", // PLS 129
     rarity: "uncommon",
     name: "Treva's Charm",
@@ -1443,7 +1443,7 @@ export const trevasCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Destructive Flow — {B}{R}{G} Enchantment. "At the beginning of each
 // player's upkeep, that player sacrifices a nonbasic land of their choice."
@@ -1456,7 +1456,7 @@ export const trevasCharm: CardDefinition = {
 // `scope: "each"`, where that differs from the ability's own `"controller"`
 // on the opponent's turn. Zero matching nonbasic lands clamps the choice to
 // zero and the sacrifice is a no-op (CR 701.21a / 608.2b).
-export const destructiveFlow: CardDefinition = {
+export const destructiveFlow = defineCard(() => ({
     id: "7db86e34-c3ec-4a29-8779-81350a985644", // PLS 102
     rarity: "rare",
     name: "Destructive Flow",
@@ -1486,7 +1486,7 @@ export const destructiveFlow: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Ertai, the Corrupted — {2}{W}{U}{B} Legendary Creature — Phyrexian Human
 // Wizard, 3/4. "{U}, {T}, Sacrifice a creature or enchantment: Counter target
@@ -1495,7 +1495,7 @@ export const destructiveFlow: CardDefinition = {
 // spell.) Two printings within PLS itself (PLS 107 / 107★ foil-only alt art,
 // ADR 0014) — the canonical `CardDefinition` plus a sibling `CardPrint`,
 // mirroring Skyship Weatherlight's own alt-art pair (colorless.ts, this set).
-export const ertaiTheCorrupted: CardDefinition = {
+export const ertaiTheCorrupted = defineCard(() => ({
     id: "66b950d9-8fef-4deb-b51b-26edb90abc56", // PLS 107 (canonical art)
     rarity: "rare",
     name: "Ertai, the Corrupted",
@@ -1522,7 +1522,7 @@ export const ertaiTheCorrupted: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Questing Phelddagrif — {1}{G}{W}{U} Legendary Creature — Phelddagrif, 4/4.
 // "{G}: This creature gets +1/+1 until end of turn. Target opponent creates a
@@ -1546,7 +1546,7 @@ export const ertaiTheCorrupted: CardDefinition = {
 // green Hippo) is the only Hippo token Scryfall has at all, pinned as a
 // same-characteristics substitute (name/colour/creature-type match; P/T is
 // carried by the TokenSpec itself, not the art).
-export const questingPhelddagrif: CardDefinition = {
+export const questingPhelddagrif = defineCard(() => ({
     id: "cea4cfef-6736-42a5-9f3e-10de8d0cd8d3", // PLS 119
     rarity: "rare",
     name: "Questing Phelddagrif",
@@ -1657,7 +1657,7 @@ export const questingPhelddagrif: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS C4 — source-scoped prevention shields (#1955, parent PRD #1935).
@@ -1675,7 +1675,7 @@ export const questingPhelddagrif: CardDefinition = {
 // after the ability resolves (CR 615.6) as well as one that already was.
 // `colors` is an OR-set (CR 202.2 — blue OR black, not both), and `cardType`
 // pins it to creatures so a blue artifact's ping is untouched.
-export const radiantKavu: CardDefinition = {
+export const radiantKavu = defineCard(() => ({
     id: "153077a8-38c0-44aa-9b84-cdd9ade50ad6", // PLS 120
     rarity: "rare",
     name: "Radiant Kavu",
@@ -1703,7 +1703,7 @@ export const radiantKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Rith's Charm — {R}{G}{W} Instant. "Choose one — Destroy target nonbasic
 // land. / Create three 1/1 green Saproling creature tokens. / Prevent all
@@ -1729,7 +1729,7 @@ export const radiantKavu: CardDefinition = {
 // rather than the CoP cycle's `"any"`): a damage source is an object
 // (CR 609.7), and a player-typed pick would key a shield that matches no
 // damage source at all.
-export const rithsCharm: CardDefinition = {
+export const rithsCharm = defineCard(() => ({
     id: "dd30f389-bac8-4b82-a8a7-6948d43a9f60", // PLS 122
     rarity: "uncommon",
     name: "Rith's Charm",
@@ -1787,4 +1787,4 @@ export const rithsCharm: CardDefinition = {
             ],
         },
     ],
-};
+}));

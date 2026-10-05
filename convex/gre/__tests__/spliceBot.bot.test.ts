@@ -54,19 +54,19 @@ function board(lands: number): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(lavaSpike.id, {
+                    makeInstance(lavaSpike().id, {
                         id: SPIKE,
                         zone: "hand",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(throughTheBreach.id, {
+                    makeInstance(throughTheBreach().id, {
                         id: BREACH,
                         zone: "hand",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: BEARS,
                         zone: "hand",
                         controllerId: "p1",
@@ -177,7 +177,7 @@ describe("Splice onto Arcane — Bot reachability (CR 702.47, issue #2394)", () 
         // what fails if the sandbox drops `splicedCardIds`: the Bot would pay
         // four extra mana for a board identical to the plain one.
         expect(afterSpliced.stack[0]?.splicedCardIds).toEqual([
-            throughTheBreach.id,
+            throughTheBreach().id,
         ]);
         expect(afterPlain.stack[0]?.splicedCardIds).toBeUndefined();
         expect(spliceChoice(afterSpliced)?.candidateIds).toEqual([BEARS]);
@@ -198,7 +198,7 @@ describe("Splice onto Arcane — Bot reachability (CR 702.47, issue #2394)", () 
 
         expect(tapped(splicedWorld) - tapped(plainWorld)).toBe(4);
         expect(splicedWorld.stack[0]?.splicedCardIds).toEqual([
-            throughTheBreach.id,
+            throughTheBreach().id,
         ]);
         expect(plainWorld.stack[0]?.splicedCardIds).toBeUndefined();
         // Unlike the greedy sandbox, the tree leaves the spell ON the stack and

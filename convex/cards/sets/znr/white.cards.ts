@@ -2,8 +2,7 @@
 // `import * as znr from "./sets/znr/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
-import { PERMANENT_TYPES } from "../../../../convex/cards/types";
+import { defineCard, PERMANENT_TYPES } from "../../../../convex/cards/types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -28,7 +27,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // (`{ target: 0 }`) is a thin declarative skin over the exact
 // `ctx.addCounter` call this closure made; skipped when the target is gone
 // (CR 608.2b), matching the old `if (!target) return` guard.
-export const luminarchAspirant: CardDefinition = {
+export const luminarchAspirant = defineCard(() => ({
     id: "fe964e7e-e2c5-4263-889d-0a531eb51442",
     name: "Luminarch Aspirant",
     rarity: "rare",
@@ -69,7 +68,7 @@ export const luminarchAspirant: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Skyclave Apparition — {1}{W}{W} Creature — Kor Spirit, 2/2 (issue #2384,
 // Cube). "When this creature enters, exile up to one target nonland, nontoken
@@ -104,7 +103,7 @@ export const luminarchAspirant: CardDefinition = {
 //
 // The exile is PERMANENT — no play-from-exile grant (contrast the
 // `grantCastFromExile` family): plain `exile`, and the owner can never play it.
-export const skyclaveApparition: CardDefinition = {
+export const skyclaveApparition = defineCard(() => ({
     id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
     name: "Skyclave Apparition",
     rarity: "rare",
@@ -178,4 +177,4 @@ export const skyclaveApparition: CardDefinition = {
             ],
         }),
     ],
-};
+}));

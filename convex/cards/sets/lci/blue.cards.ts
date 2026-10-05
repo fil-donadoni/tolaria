@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Tishana's Tidebinder — {2}{U} Creature — Merfolk Wizard, 3/2 (LCI, issue
@@ -44,7 +44,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // battlefield (dies / sacrifice / bounce / destroy) — no bespoke teardown,
 // see the Op's own doc comment (`cards/types.ts`), which also notes the
 // pre-existing phasing gap the departure funnel does NOT cover.
-export const tishanasTidebinder: CardDefinition = {
+export const tishanasTidebinder = defineCard(() => ({
     id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
     name: "Tishana's Tidebinder",
     rarity: "rare",
@@ -77,7 +77,7 @@ export const tishanasTidebinder: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Malcolm, Alluring Scoundrel — {1}{U} Legendary Creature — Siren Pirate,
 // 2/1 (LCI, residue of #1302, parent PRD #620, issues #1344 / #1477). "Flash.
@@ -113,7 +113,7 @@ export const tishanasTidebinder: CardDefinition = {
 //      finish the trigger with nothing cast. No later-in-turn window is ever
 //      granted (the impulse-window bug of the previous `grantCastFromGraveyard`
 //      implementation, issue #1344, is gone).
-export const malcolmAlluringScoundrel: CardDefinition = {
+export const malcolmAlluringScoundrel = defineCard(() => ({
     id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
     name: "Malcolm, Alluring Scoundrel",
     rarity: "rare",
@@ -185,4 +185,4 @@ export const malcolmAlluringScoundrel: CardDefinition = {
             ],
         },
     ],
-};
+}));

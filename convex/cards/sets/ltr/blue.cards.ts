@@ -2,7 +2,7 @@
 // `import * as ltr from "./sets/ltr/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { typecyclingAbility } from "../../abilities/cycling";
 
 // Lórien Revealed — {3}{U}{U} Sorcery. "Draw three cards. Islandcycling {1}
@@ -15,7 +15,7 @@ import { typecyclingAbility } from "../../abilities/cycling";
 // CR 702.29a's "functions only while the card is in a player's hand" is
 // exactly what `activateFromHand` gates, so a sorcery carries it the same way
 // a land or creature does.
-export const lorienRevealed: CardDefinition = {
+export const lorienRevealed = defineCard(() => ({
     id: "0ce44270-a684-4489-9077-521456e6dfaa",
     name: "Lórien Revealed",
     rarity: "common",
@@ -26,7 +26,7 @@ export const lorienRevealed: CardDefinition = {
     effects: [{ op: "draw", player: "controller", count: 3 }],
     // CR 702.29e/f — Islandcycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Island")],
-};
+}));
 
 // Stern Scolding — {U} Instant. "Counter target creature spell with power or
 // toughness 2 or less." (CR 701.6a counter, CR 114.1 + 208.2 the new
@@ -34,7 +34,7 @@ export const lorienRevealed: CardDefinition = {
 // power/toughness gate on a "spell" target that didn't exist before this
 // card). No mayPay/if — an unconditional counter, so the effect is a single
 // Op.
-export const sternScolding: CardDefinition = {
+export const sternScolding = defineCard(() => ({
     id: "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
     rarity: "uncommon",
     name: "Stern Scolding",
@@ -49,4 +49,4 @@ export const sternScolding: CardDefinition = {
         spellCreaturePtFilter: { maxPowerOrToughness: 2 },
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));

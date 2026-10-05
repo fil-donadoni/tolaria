@@ -49,12 +49,12 @@ function perm(
 
 /** A board with the Citadel plus `nonlands` Bears and `lands` Mountains. */
 function board(nonlands: number, lands: number): CardInstance[] {
-    const citadel = perm("citadel", bolassCitadel);
+    const citadel = perm("citadel", bolassCitadel());
     const bears = Array.from({ length: nonlands }, (_, i) =>
-        perm(`bear-${i}`, grizzlyBears)
+        perm(`bear-${i}`, grizzlyBears())
     );
     const mountains = Array.from({ length: lands }, (_, i) =>
-        perm(`mtn-${i}`, mountain)
+        perm(`mtn-${i}`, mountain())
     );
     return [citadel, ...bears, ...mountains];
 }

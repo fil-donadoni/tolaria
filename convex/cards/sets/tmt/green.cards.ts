@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { MUTAGEN_TOKEN } from "../../sharedTokens";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -39,7 +39,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // compiler-gap: "When Michelangelo enters, create a Mutagen token." (#2693)
 // compiler-gap: "If one or more +1/+1 counters would be put on a creature you control, that many plus one +1/+1 counters are put on it instead." (#2693)
-export const michelangeloWeirdnessTo11: CardDefinition = {
+export const michelangeloWeirdnessTo11 = defineCard(() => ({
     id: "18477047-218d-4b2a-a086-37431b6a3025",
     name: "Michelangelo, Weirdness to 11",
     rarity: "rare",
@@ -88,4 +88,4 @@ export const michelangeloWeirdnessTo11: CardDefinition = {
             },
         },
     ],
-};
+}));

@@ -127,9 +127,13 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
     // CR 702.165a/c — one row per shipped Backup card: the granted ability is
     // the card's OWN printed keyword below the Backup line.
     const CARDS: ReadonlyArray<[string, string, string]> = [
-        ["Consuming Aetherborn", consumingAetherborn.id, "lifelink"],
-        ["Guardian Scalelord", guardianScalelord.id, "flying"],
-        ["Death-Greeter's Champion", deathGreetersChampion.id, "double strike"],
+        ["Consuming Aetherborn", consumingAetherborn().id, "lifelink"],
+        ["Guardian Scalelord", guardianScalelord().id, "flying"],
+        [
+            "Death-Greeter's Champion",
+            deathGreetersChampion().id,
+            "double strike",
+        ],
     ];
 
     for (const [name, cardId, keyword] of CARDS) {
@@ -163,7 +167,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
 
     it("survives the wire projection — the client sees the granted keyword", () => {
         const state = chooseTargetAndResolve(
-            castBackupCreature(consumingAetherborn.id),
+            castBackupCreature(consumingAetherborn().id),
             TARGET_ID
         );
         // Both seats: a granted keyword is public information (CR 613.1f).
@@ -179,7 +183,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
 
     it("grants to a creature its controller does NOT control", () => {
         const state = chooseTargetAndResolve(
-            castBackupCreature(consumingAetherborn.id, {
+            castBackupCreature(consumingAetherborn().id, {
                 bearController: "p2",
             }),
             TARGET_ID
@@ -192,7 +196,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
 
     it("granted lifelink is live in combat — damage gains its controller life", () => {
         const state = chooseTargetAndResolve(
-            castBackupCreature(consumingAetherborn.id),
+            castBackupCreature(consumingAetherborn().id),
             TARGET_ID
         );
         // The backed-up bear (now 3/3 with a +1/+1 counter) attacks unblocked.
@@ -215,7 +219,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
 
     it("expires at CLEANUP and does not persist into the next turn", () => {
         let state = chooseTargetAndResolve(
-            castBackupCreature(consumingAetherborn.id),
+            castBackupCreature(consumingAetherborn().id),
             TARGET_ID
         );
         const runTo = (phase: Phase) => {
@@ -254,7 +258,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        pushSpell(state, consumingAetherborn.id, "p1");
+        pushSpell(state, consumingAetherborn().id, "p1");
         resolveTopOfStack(state);
         resolveTriggerOrder(state);
         expect(state.pendingTarget).toBeUndefined();
@@ -275,7 +279,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
     });
 
     it("self-target CHOSEN over another legal creature: counter only, no grant", () => {
-        const pending = castBackupCreature(consumingAetherborn.id);
+        const pending = castBackupCreature(consumingAetherborn().id);
         // The Backup creature itself — the only non-bear permanent in play.
         const sourceId = pending.players[0].battlefield.find(
             (c) => c.id !== TARGET_ID
@@ -332,7 +336,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
                     makePlayer("p2"),
                 ],
             });
-            pushSpell(state, guardianScalelord.id, "p1");
+            pushSpell(state, guardianScalelord().id, "p1");
             resolveTopOfStack(state);
             resolveTriggerOrder(state);
             return chooseTargetAndResolve(state, WURM_ID);
@@ -367,7 +371,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
             expect(wurm.staticAbilities).toContain("flying");
             expect(wurm.grantedTriggeredAbilities).toEqual([
                 {
-                    sourceCardId: guardianScalelord.id,
+                    sourceCardId: guardianScalelord().id,
                     abilityId: "guardian-scalelord-attack",
                     duration: { phase: "end-of-turn" },
                     seq: expect.any(Number), // CR 613.7 layer timestamp
@@ -435,7 +439,7 @@ describe("Backup N — real trigger path (CR 702.165, issue #1692)", () => {
     it("grants even when the Backup source left the battlefield in response", () => {
         // CR 702.165a is a one-shot effect: it does not depend on its source
         // still being on the battlefield when the trigger resolves (CR 611.2c).
-        const state = castBackupCreature(consumingAetherborn.id);
+        const state = castBackupCreature(consumingAetherborn().id);
         const pt = state.pendingTarget!;
         pt.selected = [{ type: "permanent", id: TARGET_ID }];
         finalizeTargetSelection(state, pt, pt.playerId);

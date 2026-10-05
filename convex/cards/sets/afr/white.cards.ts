@@ -2,8 +2,7 @@
 // `import * as afr from "./sets/afr/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -25,7 +24,7 @@ const portableHoleHoldsSomething = (
     state?: { exileHeld?: ReadonlyArray<{ sourceId: string }> }
 ): boolean => !!state?.exileHeld?.some((b) => b.sourceId === self.id);
 
-export const portableHole: CardDefinition = {
+export const portableHole = defineCard(() => ({
     id: "80fca8c0-ae3e-439e-b202-228b9f360e9a",
     rarity: "uncommon",
     name: "Portable Hole",
@@ -69,4 +68,4 @@ export const portableHole: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));

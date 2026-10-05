@@ -9,12 +9,8 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    EffectTokenSpec,
-    SpellContext,
-} from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import type { EffectTokenSpec, SpellContext } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
@@ -32,7 +28,7 @@ const THRULL_TOKEN: EffectTokenSpec = {
     colors: ["B"],
 };
 
-export const basalThrull: CardDefinition = {
+export const basalThrull = defineCard(() => ({
     id: "0c1d5d13-0160-48cb-8fac-dd86102569b4", // FEM 34a (canonical art)
     rarity: "common",
     name: "Basal Thrull",
@@ -51,9 +47,9 @@ export const basalThrull: CardDefinition = {
             manaProduced: { B: 2 },
         },
     ],
-};
+}));
 
-export const breedingPit: CardDefinition = {
+export const breedingPit = defineCard(() => ({
     id: BREEDING_PIT_ID,
     rarity: "uncommon",
     name: "Breeding Pit",
@@ -87,9 +83,9 @@ export const breedingPit: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const derelor: CardDefinition = {
+export const derelor = defineCard(() => ({
     id: "9eb2b79f-f09a-49dc-8e0f-7d711ba78981", // FEM 36
     rarity: "rare",
     name: "Derelor",
@@ -109,9 +105,9 @@ export const derelor: CardDefinition = {
             costIncrease: { B: 1 },
         },
     ],
-};
+}));
 
-export const ebonPraetor: CardDefinition = {
+export const ebonPraetor = defineCard(() => ({
     id: "40451f7a-692a-422d-99d3-d93a4d9315e0", // FEM 37
     rarity: "rare",
     name: "Ebon Praetor",
@@ -173,9 +169,9 @@ export const ebonPraetor: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const hymnToTourach: CardDefinition = {
+export const hymnToTourach = defineCard(() => ({
     id: "eb9273ea-9a41-42e3-8c9c-0d50b127a818", // FEM 38a (canonical art)
     rarity: "common",
     name: "Hymn to Tourach",
@@ -184,11 +180,11 @@ export const hymnToTourach: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     effects: [{ op: "discardAtRandom", player: { target: 0 }, count: 2 }],
-};
+}));
 
 const INITIATES_EBON_HAND_ID = "5be87527-3b8f-4529-afdb-a61ad4e787e1"; // FEM 39a
 
-export const initiatesOfTheEbonHand: CardDefinition = {
+export const initiatesOfTheEbonHand = defineCard(() => ({
     id: INITIATES_EBON_HAND_ID,
     rarity: "common",
     name: "Initiates of the Ebon Hand",
@@ -245,9 +241,9 @@ export const initiatesOfTheEbonHand: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const mindstabThrull: CardDefinition = {
+export const mindstabThrull = defineCard(() => ({
     id: "499a791f-ac4f-4a96-b59b-37043686a79a", // FEM 40a (canonical art)
     rarity: "common",
     name: "Mindstab Thrull",
@@ -304,9 +300,9 @@ export const mindstabThrull: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const necrite: CardDefinition = {
+export const necrite = defineCard(() => ({
     id: "311d752a-ce8a-44cb-8aeb-1ed66705eb09", // FEM 41a (canonical art)
     rarity: "common",
     name: "Necrite",
@@ -367,9 +363,9 @@ export const necrite: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const orderOfTheEbonHand: CardDefinition = {
+export const orderOfTheEbonHand = defineCard(() => ({
     id: "9e51f5d8-a7cc-4720-8af5-e002bcfd78a0", // FEM 42a (canonical art)
     rarity: "common",
     name: "Order of the Ebon Hand",
@@ -415,9 +411,9 @@ export const orderOfTheEbonHand: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const soulExchange: CardDefinition = {
+export const soulExchange = defineCard(() => ({
     id: "9f73597d-f453-4d37-b2ef-c54ef683a884", // FEM 43
     rarity: "uncommon",
     name: "Soul Exchange",
@@ -453,9 +449,9 @@ export const soulExchange: CardDefinition = {
             ctx.addCounter({ type: "permanent", id: t.id }, "+2/+2", 1);
         }
     },
-};
+}));
 
-export const thrullChampion: CardDefinition = {
+export const thrullChampion = defineCard(() => ({
     id: "4d3cafdd-a03b-4b08-b9c1-c776f8450d3a", // FEM 44
     rarity: "rare",
     name: "Thrull Champion",
@@ -499,9 +495,9 @@ export const thrullChampion: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const thrullRetainer: CardDefinition = {
+export const thrullRetainer = defineCard(() => ({
     id: "d800512b-1492-41d2-931d-57c625044454", // FEM 45
     rarity: "uncommon",
     name: "Thrull Retainer",
@@ -538,9 +534,9 @@ export const thrullRetainer: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const thrullWizard: CardDefinition = {
+export const thrullWizard = defineCard(() => ({
     id: "c4e732fb-cbef-4fd8-b704-e4d513a6cf2d", // FEM 46
     rarity: "uncommon",
     name: "Thrull Wizard",
@@ -599,9 +595,9 @@ export const thrullWizard: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const tourachsChant: CardDefinition = {
+export const tourachsChant = defineCard(() => ({
     id: "06883fd2-eccd-47c6-8c34-10d95e923685", // FEM 47
     rarity: "uncommon",
     name: "Tourach's Chant",
@@ -676,9 +672,9 @@ export const tourachsChant: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const tourachsGate: CardDefinition = {
+export const tourachsGate = defineCard(() => ({
     id: "d77f6401-a9fb-449c-b511-6fb837055bb4", // FEM 48
     rarity: "rare",
     name: "Tourach's Gate",
@@ -788,4 +784,4 @@ export const tourachsGate: CardDefinition = {
             },
         },
     ],
-};
+}));

@@ -66,7 +66,7 @@ const asView = (card: CardInstanceState): PermanentView =>
  *  CONTROLLER controls — the shape that can only answer correctly if layer 2
  *  has already been applied when the predicate runs (CR 613.7). */
 function controllerScopedTypeAdder(id: string) {
-    const base = getDefinition(blackLotus.id);
+    const base = getDefinition(blackLotus().id);
     return {
         ...base,
         id,
@@ -87,7 +87,7 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
     it("layer 2 is applied before layer 4 reads: a control change makes a controller-scoped type-add apply in the SAME read", () => {
         const adderId = "s4-controller-scoped-adder";
         withTemporaryDefinition(controllerScopedTypeAdder(adderId), () => {
-            const bears = makeInstance(grizzlyBears.id, {
+            const bears = makeInstance(grizzlyBears().id, {
                 id: "bears",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -130,7 +130,7 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
     });
 
     it("CR 613.7 orders WITHIN layer 4 by timestamp: the later subtype SET overwrites the earlier one", () => {
-        const mtn = makeInstance(mountain.id, {
+        const mtn = makeInstance(mountain().id, {
             id: "mtn",
             controllerId: "p1",
         });
@@ -175,7 +175,7 @@ describe("CR 613.7 — layer order and per-read composition (PRD #2064 S4)", () 
         // regardless of stamp, which is the only order that answers correctly.
         const adderId = "s4-layer-key-adder";
         withTemporaryDefinition(controllerScopedTypeAdder(adderId), () => {
-            const bears = makeInstance(grizzlyBears.id, {
+            const bears = makeInstance(grizzlyBears().id, {
                 id: "bears",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -231,7 +231,7 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
     }
 
     it("SETS the whole line: every type the object had and the entry does not name is suppressed (CR 205.1a)", () => {
-        const lotus = makeInstance(blackLotus.id, {
+        const lotus = makeInstance(blackLotus().id, {
             id: "lotus",
             controllerId: "p1",
         });
@@ -261,7 +261,7 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
     });
 
     it("CR 400.7 — the SET dies with the object: a bounced permanent shows its PRINTED line", () => {
-        const lotus = makeInstance(blackLotus.id, {
+        const lotus = makeInstance(blackLotus().id, {
             id: "lotus",
             controllerId: "p1",
             ownerId: "p1",
@@ -289,7 +289,7 @@ describe("CR 205.1a — the one-shot card-type SET is a registry entry (issue #2
 
 describe("wire format — the derived layer-4/5 answer survives projectPublicState (PRD #2064 S4)", () => {
     it("a derived type line, subtype line and colour grant all reach the client", () => {
-        const mtn = makeInstance(mountain.id, {
+        const mtn = makeInstance(mountain().id, {
             id: "mtn",
             controllerId: "p1",
             ownerId: "p1",
@@ -370,7 +370,7 @@ describe("CR 611.2b — the phase boundary re-derives layers 2-5 (PRD #2064 S4)"
         // the old restore wrote `restoreSubtypes` back onto `subtypes`
         // directly, which is the derivation's OUTPUT: with a longer-lived
         // `subtype-set` still applying, that array is not the answer.
-        const mtn = makeInstance(mountain.id, {
+        const mtn = makeInstance(mountain().id, {
             id: "mtn",
             controllerId: "p1",
             ownerId: "p1",
@@ -427,12 +427,12 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // directly, which put its answer last by accident. As a derivation
         // input its ledger row needs a real minted stamp, or it sorts below
         // every `staticSeq` and the OLDER aura wins the CR 613.7 race.
-        const land = makeInstance(mountain.id, {
+        const land = makeInstance(mountain().id, {
             id: "land",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const aura = makeInstance(evilPresence.id, {
+        const aura = makeInstance(evilPresence().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -447,7 +447,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         beginApplyingStaticEffects(state, aura);
         expect(land.subtypes).toEqual(["Swamp"]);
 
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         buildSpellContext(state, item).setSubtypesUntil(
             { type: "permanent", id: "land" },
             ["Forest"],
@@ -464,7 +464,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // `hasSupertypeLive` checks GRANTED before REMOVED, so a walk that
         // accumulates both lists answers `true` forever: Arcum's Weathervane
         // could make a land snow but never make it non-snow again.
-        const land = makeInstance(mountain.id, {
+        const land = makeInstance(mountain().id, {
             id: "land",
             controllerId: "p1",
             ownerId: "p1",
@@ -495,7 +495,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // longer exist on `CardInstanceState` at all — the COMPACT row is the
         // only place a pre-S4 record survives, which is also what makes the pass
         // idempotent by construction: `compactCard` can never write one back.
-        const lotus = makeInstance(blackLotus.id, {
+        const lotus = makeInstance(blackLotus().id, {
             id: "lotus",
             controllerId: "p1",
             ownerId: "p1",
@@ -566,7 +566,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // writes (`subtypeAddHolds`); the pre-S4 `grantedSubtypesAdd` row is
         // reconstructed on LOAD (PRD #2064 S6b-part-2), which is the only moment
         // it exists.
-        const land = makeInstance(mountain.id, {
+        const land = makeInstance(mountain().id, {
             id: "land",
             controllerId: "p1",
             ownerId: "p1",
@@ -582,7 +582,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         syncLayers2to5(state);
         expect(land.baseSubtypes).toEqual(["Mountain"]);
 
-        const legacy = makeInstance(mountain.id, {
+        const legacy = makeInstance(mountain().id, {
             id: "legacy",
             controllerId: "p1",
             ownerId: "p1",
@@ -613,7 +613,7 @@ describe("review findings — the shapes a materialise-to-derive migration loses
         // `layer4SubtypeBase` falls back to `subtypes` — the derivation's own
         // answer — when no base is captured, so a stale base left behind would
         // silently undo the very rewrite `clearLayers2to5Base` exists to admit.
-        const land = makeInstance(mountain.id, {
+        const land = makeInstance(mountain().id, {
             id: "land",
             controllerId: "p1",
             ownerId: "p1",
@@ -660,7 +660,7 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
         for (const kind of Object.keys(LAYER_2_5_STATIC_EFFECT_KINDS)) {
             const id = `s4-precheck-${kind}`;
             const probe: CardDefinition = {
-                ...getDefinition(blackLotus.id),
+                ...getDefinition(blackLotus().id),
                 id,
                 name: `Precheck ${kind}`,
                 staticEffects: [

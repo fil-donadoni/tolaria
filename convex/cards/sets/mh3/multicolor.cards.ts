@@ -3,11 +3,11 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    EffectOp,
-    PermanentView,
-    StaticEffectContext,
+import {
+    defineCard,
+    type EffectOp,
+    type PermanentView,
+    type StaticEffectContext,
 } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -31,7 +31,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // "Exile three cards from your graveyard: This creature gains flying until end
 //  of turn." (CR 118.5 exile-from-graveyard cost; CR 611.2a temporary keyword
 //  grant via `grantStaticAbility`.)
-export const psychicFrog: CardDefinition = {
+export const psychicFrog = defineCard(() => ({
     id: "68924203-c3d9-41ce-8ca8-c6dd491eb3ca",
     name: "Psychic Frog",
     rarity: "rare",
@@ -96,7 +96,7 @@ export const psychicFrog: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // CR 702.138b — "sacrifice it unless it escaped": sacrifice $source when the
 // escaped flag reads 0 (a non-escape cast). The escaped EffectValue resolves to
@@ -139,7 +139,7 @@ const phlageValueEffects: EffectOp[] = [
 // "Whenever Phlage enters or attacks, it deals 3 damage to any target and you
 //  gain 3 life."
 // "Escape—{R}{R}{W}{W}, Exile five other cards from your graveyard." (CR 702.138.)
-export const phlageTitanOfFiresFury: CardDefinition = {
+export const phlageTitanOfFiresFury = defineCard(() => ({
     id: "e419cd0b-2449-4cc5-9ead-b9e45e271700",
     name: "Phlage, Titan of Fire's Fury",
     rarity: "mythic",
@@ -186,7 +186,7 @@ export const phlageTitanOfFiresFury: CardDefinition = {
     ],
     // CR 702.138 — Escape. {R}{R}{W}{W} + exile five OTHER graveyard cards.
     escape: { mana: { R: 2, W: 2 }, exile: { count: 5 } },
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Nadu, Winged Wisdom — {1}{G}{U} Legendary Creature — Bird Wizard 3/4.
@@ -247,7 +247,7 @@ const NADU_AFFECTS_YOUR_CREATURES: (
 // (CR 701.20a reveal + CR 400.7 zone change): reveal the top card, route a
 // land onto the battlefield, everything else into hand. The land ENTERS —
 // it is not "played", so it costs no land drop (CR 305.2 / 400.7).
-export const naduWingedWisdom: CardDefinition = {
+export const naduWingedWisdom = defineCard(() => ({
     id: "94b67489-5eb0-4406-9bf3-27e50dc632eb",
     name: "Nadu, Winged Wisdom",
     rarity: "rare",
@@ -303,4 +303,4 @@ export const naduWingedWisdom: CardDefinition = {
             ],
         },
     ],
-};
+}));

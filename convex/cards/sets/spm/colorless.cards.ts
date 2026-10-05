@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { BASIC_LAND_SUBTYPES } from "../../types";
+import { defineCard, BASIC_LAND_SUBTYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Multiversal Passage — "As this land enters, choose a basic land type. Then
@@ -30,7 +29,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //    type", `lea/blue.cards.ts`). Once the subtype is set, the land's `{T}: Add
 //    [colour]` mana ability is INTRINSIC (CR 305.6, `getBasicLandMana`
 //    reads live/effective subtypes) — no `activatedAbilities` needed.
-export const multiversalPassage: CardDefinition = {
+export const multiversalPassage = defineCard(() => ({
     id: "f5fb426a-5618-4dd4-9c51-0cc847be8c1d",
     name: "Multiversal Passage",
     rarity: "rare",
@@ -75,4 +74,4 @@ export const multiversalPassage: CardDefinition = {
             },
         }),
     ],
-};
+}));

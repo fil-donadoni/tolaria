@@ -8,8 +8,8 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, PermanentView } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import type { PermanentView } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivatedTrigger";
@@ -32,7 +32,7 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // target's controller + mana value BEFORE it leaves the battlefield (CR
 // 608.2h/608.2c), mirroring Reanimate's `bind` + `{ ref: "$x.manaValue" }`
 // shape (tmp/black.cards.ts).
-export const crumble: CardDefinition = {
+export const crumble = defineCard(() => ({
     id: "d2101f86-8d3c-4ba8-ac42-bd3df0644280",
     rarity: "common",
     name: "Crumble",
@@ -54,7 +54,7 @@ export const crumble: CardDefinition = {
             amount: { ref: "$c.manaValue" },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Value triggers & counter creatures (free tranche, #276) — CR 603.2 triggered
@@ -70,7 +70,7 @@ export const crumble: CardDefinition = {
 // casts an artifact spell, put a +1/+1 counter on this creature." (CR 603.2
 // SPELL_CAST trigger scoped to opponents + filtered to Artifact spells; CR
 // 122.1 +1/+1 counter feeding layer 7d P/T.)
-export const citanulDruid: CardDefinition = {
+export const citanulDruid = defineCard(() => ({
     id: "f8a130dc-3b1f-4fae-8459-b26bb5647fec",
     rarity: "uncommon",
     name: "Citanul Druid",
@@ -104,7 +104,7 @@ export const citanulDruid: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Gaea's Avenger — {1}{G}{G} Creature — Treefolk, 1+*/1+*. "Gaea's Avenger's
 // power and toughness are each equal to 1 plus the number of artifacts your
@@ -112,7 +112,7 @@ export const citanulDruid: CardDefinition = {
 // `compute` result is ADDED to base P/T, so base is 1/1 and the contribution
 // is the opponent-artifact count.) Recomputed live from the board on each
 // stat read, so it tracks artifacts entering/leaving play.
-export const gaeasAvenger: CardDefinition = {
+export const gaeasAvenger = defineCard(() => ({
     id: "39d763bd-b0a9-46ba-bcd2-9304063446f2",
     rarity: "rare",
     name: "Gaea's Avenger",
@@ -140,7 +140,7 @@ export const gaeasAvenger: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Powerleech — {G}{G} Enchantment. "Whenever an artifact an opponent controls
 // becomes tapped or an opponent activates an artifact's ability without {T} in
@@ -150,7 +150,7 @@ export const gaeasAvenger: CardDefinition = {
 // Imperative: the ability-activated half is built via
 // `abilityActivatedTrigger`, which takes a `resolve` only (no `effects[]`
 // site), so the card stays imperative whole.
-export const powerleech: CardDefinition = {
+export const powerleech = defineCard(() => ({
     id: "ae1d7b09-3a1f-410f-b330-04ae768b0455",
     rarity: "uncommon",
     name: "Powerleech",
@@ -180,7 +180,7 @@ export const powerleech: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster C+D — continuous prevention/redirection of damage from artifact
@@ -237,7 +237,7 @@ function artifactSourcePreventionEffect(opts: {
 // this creature by artifact creatures." (CR 509.1b block restriction reusing
 // the existing predicate machinery; CR 615 continuous prevention narrowed to
 // artifact creatures.)
-export const argothianPixies: CardDefinition = {
+export const argothianPixies = defineCard(() => ({
     id: "5712e87a-2381-4f5b-a853-6973841f9bf1",
     rarity: "common",
     name: "Argothian Pixies",
@@ -269,12 +269,12 @@ export const argothianPixies: CardDefinition = {
             isArtifactCreatureOnly: true,
         }),
     ],
-};
+}));
 
 // Argothian Treefolk — {3}{G}{G} Creature — Treefolk, 3/5. "Prevent all damage
 // that would be dealt to this creature by artifact sources." (CR 615
 // continuous prevention narrowed to artifact sources.)
-export const argothianTreefolk: CardDefinition = {
+export const argothianTreefolk = defineCard(() => ({
     id: "8db8882e-4db6-4e3c-9e9e-8c71d557a071",
     rarity: "common",
     name: "Argothian Treefolk",
@@ -293,7 +293,7 @@ export const argothianTreefolk: CardDefinition = {
             appliesToId: (self) => self.id,
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster F — animate noncreature artifact (#288). CR 613.1f (layer-6 ability
@@ -342,7 +342,7 @@ const IS_NONCREATURE_ARTIFACT: (
 // declaration per effect and not one per card because the oracle's "this
 // effect" is the whole animation: three `StaticEffect`s make it up, and each
 // carries its own lifetime the way each carries its own layer.
-export const titaniasSong: CardDefinition = {
+export const titaniasSong = defineCard(() => ({
     id: "583a53af-2e2a-4f3f-8eab-bd874c6ed80a",
     rarity: "uncommon",
     name: "Titania's Song",
@@ -375,4 +375,4 @@ export const titaniasSong: CardDefinition = {
             lingersAfterSourceLeaves: { phase: "end-of-turn" },
         },
     ],
-};
+}));

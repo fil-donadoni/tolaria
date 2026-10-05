@@ -1,6 +1,6 @@
 // clu — red cards (ADR 0043 colour split).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -28,7 +28,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // exiled card stops being playable at end of turn while it stays in exile. If
 // the exiled card is a LAND it is played as a land (CR 305.2, consuming the land
 // drop), not just cast — the play-from-exile path routes both.
-export const headlinerScarlett: CardDefinition = {
+export const headlinerScarlett = defineCard(() => ({
     id: "be77b98a-dd79-477c-8ab2-7ebf5637a89e",
     name: "Headliner Scarlett",
     rarity: "rare",
@@ -99,4 +99,4 @@ export const headlinerScarlett: CardDefinition = {
             },
         }),
     ],
-};
+}));

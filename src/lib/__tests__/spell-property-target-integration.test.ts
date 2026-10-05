@@ -77,12 +77,12 @@ function scenario(): {
             makePlayer("p2", {
                 life: 20,
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bear",
                         controllerId: "p2",
                         ownerId: "p2",
                     }),
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "isle",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -91,16 +91,16 @@ function scenario(): {
             }),
         ],
     });
-    const targetsCreature = pushSpell(state, lightningBolt.id, "p2", [
+    const targetsCreature = pushSpell(state, lightningBolt().id, "p2", [
         { type: "permanent", id: "bear" },
     ]);
-    const targetsPlayer = pushSpell(state, lightningBolt.id, "p2", [
+    const targetsPlayer = pushSpell(state, lightningBolt().id, "p2", [
         { type: "player", id: "p1" },
     ]);
-    const targetsLand = pushSpell(state, stoneRain.id, "p2", [
+    const targetsLand = pushSpell(state, stoneRain().id, "p2", [
         { type: "permanent", id: "isle" },
     ]);
-    const kicked = pushSpell(state, urzasRage.id, "p2", [
+    const kicked = pushSpell(state, urzasRage().id, "p2", [
         { type: "permanent", id: "bear" },
     ]);
     kicked.kickerPayments = { kicker: 1 };
@@ -109,7 +109,7 @@ function scenario(): {
     // and no `kickerPayments` at all, which is exactly what the split at the
     // write produces; the client sees a slim stack item with no card definition
     // and must still read it as unkicked without one.
-    const unkicked = pushSpell(state, urzasRage.id, "p2", [
+    const unkicked = pushSpell(state, urzasRage().id, "p2", [
         { type: "permanent", id: "bear" },
     ]);
     unkicked.unkickedCostPayments = { offspring: 1 };
@@ -130,7 +130,7 @@ function scenario(): {
  *  actually builds. */
 function clientClickable(
     state: GameState,
-    requirement: NonNullable<typeof confound.targetRequirement>
+    requirement: NonNullable<ReturnType<typeof confound>["targetRequirement"]>
 ): string[] {
     const projected = projectPublicState(state, 1, "p1");
     const pendingTarget = {
@@ -158,7 +158,7 @@ function clientClickable(
 
 const serverOffered = (
     state: GameState,
-    requirement: NonNullable<typeof confound.targetRequirement>
+    requirement: NonNullable<ReturnType<typeof confound>["targetRequirement"]>
 ) =>
     getLegalTargets(state, requirement, NO_TARGETING_SOURCE, "p1").map(
         (t) => t.id
@@ -175,7 +175,7 @@ const KICKED_REQ: TargetRequirement = {
 describe("spell-property target filters — server offered set == client clickable set (issue #1956)", () => {
     it("Confound: the projected client verdict matches getLegalTargets exactly", () => {
         const { state, ids } = scenario();
-        const req = confound.targetRequirement!;
+        const req = confound().targetRequirement!;
         expect(clientClickable(state, req).sort()).toEqual(
             serverOffered(state, req).sort()
         );
@@ -220,7 +220,7 @@ describe("spell-property target filters — server offered set == client clickab
     });
 
     it("both requirements enable stack-spell selection (wantsSpellTarget)", () => {
-        expect(wantsSpellTarget(confound.targetRequirement!.type)).toBe(true);
+        expect(wantsSpellTarget(confound().targetRequirement!.type)).toBe(true);
         expect(wantsSpellTarget(KICKED_REQ.type)).toBe(true);
     });
 
@@ -229,7 +229,7 @@ describe("spell-property target filters — server offered set == client clickab
         // are `"spell"`, which `TARGET_LABEL` already spells "a spell on the
         // stack", and neither narrows `spellStackKind` away from the default
         // (which is what would reword the prompt to an ability).
-        for (const req of [confound.targetRequirement!, KICKED_REQ]) {
+        for (const req of [confound().targetRequirement!, KICKED_REQ]) {
             expect(req.type).toBe("spell");
             expect(
                 pendingTargetFiltersFromRequirement(req, undefined)
@@ -310,7 +310,7 @@ describe("spell-property target filters — server offered set == client clickab
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("Teferi's Response — conjunctive targeted-permanent clause (issue #2708)", () => {
-    const REQ = teferisResponse.targetRequirement!;
+    const REQ = teferisResponse().targetRequirement!;
 
     function board(): { state: GameState; ids: Record<string, string> } {
         const state = makeState({
@@ -318,12 +318,12 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                 makePlayer("p1", {
                     life: 20,
                     battlefield: [
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             id: "myLand",
                             controllerId: "p1",
                             ownerId: "p1",
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "myBear",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -333,7 +333,7 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                 makePlayer("p2", {
                     life: 20,
                     battlefield: [
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             id: "theirLand",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -347,16 +347,16 @@ describe("Teferi's Response — conjunctive targeted-permanent clause (issue #27
                 }),
             ],
         });
-        const onMyLand = pushSpell(state, stoneRain.id, "p2", [
+        const onMyLand = pushSpell(state, stoneRain().id, "p2", [
             { type: "permanent", id: "myLand" },
         ]);
-        const onTheirLand = pushSpell(state, stoneRain.id, "p2", [
+        const onTheirLand = pushSpell(state, stoneRain().id, "p2", [
             { type: "permanent", id: "theirLand" },
         ]);
-        const onMyBear = pushSpell(state, lightningBolt.id, "p2", [
+        const onMyBear = pushSpell(state, lightningBolt().id, "p2", [
             { type: "permanent", id: "myBear" },
         ]);
-        const mineOnMyLand = pushSpell(state, stoneRain.id, "p1", [
+        const mineOnMyLand = pushSpell(state, stoneRain().id, "p1", [
             { type: "permanent", id: "myLand" },
         ]);
         // An ABILITY on the stack, built by the production builder — the half

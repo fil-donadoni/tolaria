@@ -1,5 +1,5 @@
 // plc — green cards (ADR 0043 colour split).
-import type { CardDefinition, StaticPTSet } from "../../types";
+import { defineCard, type StaticPTSet } from "../../types";
 
 /** Life and Limb's one predicate, shared by all four of its clauses so the
  *  layers cannot disagree about WHAT the card animates. Typed off
@@ -46,7 +46,7 @@ const IS_FOREST_OR_SAPROLING: StaticPTSet["applies"] = (target, _source, ctx) =>
 // the live subtypes, which their subtype replacement writes, so this card waits
 // for them however the two were played.
 // compiler-gap: All Forests and all Saprolings are 1/1 green Saproling creatures and Forest lands in addition to their other types. (#2693)
-export const lifeAndLimb: CardDefinition = {
+export const lifeAndLimb = defineCard(() => ({
     id: "0efe9e8e-7fb3-4a6d-be3d-7965d2ffb0a3",
     rarity: "rare",
     name: "Life and Limb",
@@ -101,4 +101,4 @@ export const lifeAndLimb: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));

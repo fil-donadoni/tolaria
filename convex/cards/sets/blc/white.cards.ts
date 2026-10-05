@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { RABBIT_TOKEN } from "../../sharedTokens";
 
@@ -40,7 +40,7 @@ import { RABBIT_TOKEN } from "../../sharedTokens";
 // EFFECTIVE power through the layer system, so the Ravenous counters (and any
 // other pump) are included, which is what "equal to this creature's power"
 // means (CR 613). Ouroboroid (`sets/eoe/green.ts`) is the reference shape.
-export const jackedRabbit: CardDefinition = {
+export const jackedRabbit = defineCard(() => ({
     id: "2c695df6-6bf2-4e6b-8500-e3116137ca27",
     name: "Jacked Rabbit",
     rarity: "rare",
@@ -94,4 +94,4 @@ export const jackedRabbit: CardDefinition = {
             ],
         },
     ],
-};
+}));

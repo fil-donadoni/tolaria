@@ -37,12 +37,12 @@ import type { CardType } from "../../../convex/cards/types";
 /** Resolves Gut's attack trigger through the REAL production entry points and
  *  returns the public projection the human controller (`p1`) actually sees. */
 function projectedGutChoice() {
-    const gut = makeInstance(gutTrueSoulZealot.id, { id: "gut" });
-    const fodder = makeInstance(grizzlyBears.id, { id: "fodder" });
+    const gut = makeInstance(gutTrueSoulZealot().id, { id: "gut" });
+    const fodder = makeInstance(grizzlyBears().id, { id: "fodder" });
     // A creature-only board would let a `types: "Creature"` clause alone
     // explain a rejection; an artifact is present so the `any` clause list on
     // the wire filter is genuinely the one under test.
-    const bauble = makeInstance(grizzlyBears.id, {
+    const bauble = makeInstance(grizzlyBears().id, {
         id: "bauble",
         types: ["Artifact"] as CardType[],
         subtypes: [],

@@ -7,12 +7,12 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    Color,
-    ManaCost,
-    SpellContext,
-    TriggeredAbility,
+import {
+    defineCard,
+    type Color,
+    type ManaCost,
+    type SpellContext,
+    type TriggeredAbility,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
@@ -92,7 +92,7 @@ function sacrificeWhenNoIslands(
 // then discards every card whose printed types contain no Land type. Lands are
 // kept; everything else (instants, sorceries, creatures, artifacts,
 // enchantments) is discarded.
-export const amnesia: CardDefinition = {
+export const amnesia = defineCard(() => ({
     id: "e07df65c-ebcc-4873-b928-d99040d1f2f6",
     rarity: "uncommon",
     name: "Amnesia",
@@ -114,12 +114,12 @@ export const amnesia: CardDefinition = {
             if (!c.types.includes("Land")) ctx.discardCard(playerId, c.id);
         }
     },
-};
+}));
 
 // Apprentice Wizard — "{U}, {T}: Add {C}{C}{C}." (CR 605.1a mana ability —
 // resolves immediately, no stack, CR 605.3a.) Pays one blue to filter into
 // three colorless.
-export const apprenticeWizard: CardDefinition = {
+export const apprenticeWizard = defineCard(() => ({
     id: "151b332e-164b-4646-8f52-741984cd71ad",
     rarity: "rare",
     name: "Apprentice Wizard",
@@ -139,7 +139,7 @@ export const apprenticeWizard: CardDefinition = {
             manaProduced: { C: 3 },
         },
     ],
-};
+}));
 
 // Erosion — Aura enchant land. "At the beginning of the upkeep of enchanted
 // land's controller, destroy that land unless that player pays {1} or 1 life."
@@ -148,7 +148,7 @@ export const apprenticeWizard: CardDefinition = {
 // "pay {1} or 1 life" alternatives are offered as two sequential may-pay
 // prompts: mana first, then (if declined) 1 life; declining both destroys the
 // land.
-export const erosion: CardDefinition = {
+export const erosion = defineCard(() => ({
     id: "5f4b6507-89ee-482e-aafd-8e05ada8f1ce",
     rarity: "common",
     name: "Erosion",
@@ -216,12 +216,12 @@ export const erosion: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Ghost Ship — "Flying\n{U}{U}{U}: Regenerate this creature." (CR 702.9 flying;
 // CR 605 activated ability; CR 701.19a regenerate via a shield consumed by the
 // next destroy.)
-export const ghostShip: CardDefinition = {
+export const ghostShip = defineCard(() => ({
     id: "db591b28-37e5-4e7c-ae4d-d761262b12d0",
     rarity: "common",
     name: "Ghost Ship",
@@ -243,7 +243,7 @@ export const ghostShip: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Giant Shark — "This creature can't attack unless defending player controls an
 // Island.\nWhenever this creature blocks or becomes blocked by a creature that
@@ -253,7 +253,7 @@ export const ghostShip: CardDefinition = {
 // opponent creature's marked damage — `getMarkedDamage` > 0 means it has been
 // dealt damage this turn (CR 120.3, cleared at CLEANUP); CR 603.8 state-trigger
 // sacrifice.)
-export const giantShark: CardDefinition = {
+export const giantShark = defineCard(() => ({
     id: "53ec4a19-0f2f-4713-a869-58832484648d",
     rarity: "common",
     name: "Giant Shark",
@@ -331,7 +331,7 @@ export const giantShark: CardDefinition = {
         },
         sacrificeWhenNoIslands("giant-shark-no-islands", "Giant Shark"),
     ],
-};
+}));
 
 // Mana Vortex — "When you cast this spell, counter it unless you sacrifice a
 // land.\nAt the beginning of each player's upkeep, that player sacrifices a
@@ -339,7 +339,7 @@ export const giantShark: CardDefinition = {
 // this enchantment." (CR 603.6e cast trigger that may counter the spell on the
 // stack; CR 603.6a each-player upkeep land sacrifice; CR 603.8 state-trigger
 // self-sacrifice.) The cast trigger uses `spellCastTrigger` scope "self".
-export const manaVortex: CardDefinition = {
+export const manaVortex = defineCard(() => ({
     id: "f857a00a-82e0-4227-86ee-1f9c7ca232ae",
     rarity: "rare",
     name: "Mana Vortex",
@@ -459,12 +459,12 @@ export const manaVortex: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 
 // Merfolk Assassin — "{T}: Destroy target creature with islandwalk." (CR 605
 // activated ability; CR 701.8 destroy; `requireAbility: "islandwalk"` scopes
 // legal targets to islandwalkers, CR 702.)
-export const merfolkAssassin: CardDefinition = {
+export const merfolkAssassin = defineCard(() => ({
     id: "36313dc7-6bf2-4d73-b696-969d984a7466",
     rarity: "uncommon",
     name: "Merfolk Assassin",
@@ -490,14 +490,14 @@ export const merfolkAssassin: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Mind Bomb — "Each player may discard up to three cards. Mind Bomb deals
 // damage to each player equal to 3 minus the number of cards they discarded
 // this way." (CR 701.9 optional discard per player + CR 119 damage.) Each
 // player independently chooses 0–3 cards to discard; the damage is 3 minus the
 // count they discarded. APNAP order via `allPlayerIds`.
-export const mindBomb: CardDefinition = {
+export const mindBomb = defineCard(() => ({
     id: "0ee810a5-f0f9-4b73-8194-3d1344784050",
     rarity: "rare",
     name: "Mind Bomb",
@@ -530,7 +530,7 @@ export const mindBomb: CardDefinition = {
             if (damage > 0) ctx.dealDamage({ type: "player", id: pid }, damage);
         }
     },
-};
+}));
 
 const PSYCHIC_ALLERGY_COLOR_NAMES: Record<string, string> = {
     W: "white",
@@ -548,7 +548,7 @@ const PSYCHIC_ALLERGY_COLORS = ["W", "U", "B", "R", "G"] as const;
 // sacrifice two Islands." (CR 700.2c modal colour pick stored as `chosenModeId`;
 // CR 603.6a opponents'-upkeep damage trigger; CR 603.6a + CR 117.3a own-upkeep
 // destroy-unless-sacrifice-two-Islands.)
-export const psychicAllergy: CardDefinition = {
+export const psychicAllergy = defineCard(() => ({
     id: "fec3275e-4491-43a8-9f23-d7b48177c103",
     rarity: "rare",
     name: "Psychic Allergy",
@@ -681,11 +681,11 @@ export const psychicAllergy: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Riptide — "Tap all blue creatures." (CR 701.26a — tap every blue creature on
 // the battlefield, either controller; CR 202.2 colour.)
-export const riptide: CardDefinition = {
+export const riptide = defineCard(() => ({
     id: "b0f11ae4-e30e-441d-bb64-439930d9997c",
     rarity: "common",
     name: "Riptide",
@@ -709,12 +709,12 @@ export const riptide: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sunken City — "At the beginning of your upkeep, sacrifice this enchantment
 // unless you pay {U}{U}.\nBlue creatures get +1/+1." (CR 603.6a + CR 117.3a
 // upkeep maintenance cost; CR 611 layer 7c anthem filtered on blue, CR 202.2.)
-export const sunkenCity: CardDefinition = {
+export const sunkenCity = defineCard(() => ({
     id: "f1e0f9ec-2b06-4bda-8b80-a716d82d1f13",
     rarity: "common",
     name: "Sunken City",
@@ -741,12 +741,12 @@ export const sunkenCity: CardDefinition = {
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Water Wurm — "This creature gets +0/+1 as long as an opponent controls an
 // Island." (CR 611 layer 7d conditional buff via a `pt-cda` whose `compute`
 // reads the board — the Kird Ape pattern.)
-export const waterWurm: CardDefinition = {
+export const waterWurm = defineCard(() => ({
     id: "e3da4a88-5225-467f-9240-f30bc1eee520",
     rarity: "common",
     name: "Water Wurm",
@@ -778,7 +778,7 @@ export const waterWurm: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ═════════════════════════════════════════════════════════════════════════════
 // BLUE C4 — Copy-as-token (Dance of Many, #421).
@@ -832,7 +832,7 @@ export const waterWurm: CardDefinition = {
 // The two leave triggers are mutual no-ops on the second hop: when the
 // enchantment leaves it exiles the token, whose departure tries to sacrifice
 // the already-gone enchantment (silent no-op, CR 608.2b); and vice versa.
-export const danceOfMany: CardDefinition = {
+export const danceOfMany = defineCard(() => ({
     id: "13453abe-3f05-4956-8493-382d7d2af699",
     rarity: "rare",
     name: "Dance of Many",
@@ -929,7 +929,7 @@ export const danceOfMany: CardDefinition = {
             costText: "{U}{U}",
         }),
     ],
-};
+}));
 
 // Deep Water — "{U}: Until end of turn, if you tap a land you control for mana,
 // it produces {U} instead of any other type." (CR 605 activated ability that
@@ -938,7 +938,7 @@ export const danceOfMany: CardDefinition = {
 // per-turn, controller-scoped flag (`replaceLandManaWithBlue`) consumed by the
 // engine's single `applyLandManaReplacement` mana funnel; expires at CLEANUP,
 // CR 514.2.)
-export const deepWater: CardDefinition = {
+export const deepWater = defineCard(() => ({
     id: "9dd6a230-6bc0-499c-b7fd-4aaa2569f98f",
     rarity: "common",
     name: "Deep Water",
@@ -960,7 +960,7 @@ export const deepWater: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Free tranche — Multicolor (#416). Six gold / off-color-activation cards from
@@ -975,7 +975,7 @@ export const deepWater: CardDefinition = {
 // Drowned — {1}{U} 1/1 Zombie, "{B}: Regenerate this creature." (CR 605
 // activated ability; CR 701.19a regenerate via a shield consumed by the next
 // destroy/lethal-damage event.)
-export const drowned: CardDefinition = {
+export const drowned = defineCard(() => ({
     id: "951b6c10-cbba-44b6-aae2-2c386b7ebacb",
     rarity: "common",
     name: "Drowned",
@@ -996,14 +996,14 @@ export const drowned: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Electric Eel — {U} 1/1 Fish. "When this creature enters, it deals 1 damage to
 // you.\n{R}{R}: This creature gets +2/+0 until end of turn and deals 1 damage to
 // you." (CR 603.6a ETB self-trigger dealing damage to controller; CR 605
 // activated pump with a CR 611.1 end-of-turn P/T buff plus self-inflicted
 // damage. The two clauses of the activated ability resolve together, CR 608.)
-export const electricEel: CardDefinition = {
+export const electricEel = defineCard(() => ({
     id: "b8834c18-0e4e-4785-9d15-b33345e3789b",
     rarity: "uncommon",
     name: "Electric Eel",
@@ -1051,4 +1051,4 @@ export const electricEel: CardDefinition = {
             ],
         },
     ],
-};
+}));

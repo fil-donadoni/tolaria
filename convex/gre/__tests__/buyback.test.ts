@@ -66,7 +66,7 @@ describe("Buyback — cost validation (CR 702.27)", () => {
     });
 
     it("rejects a paid request for a card with no buyback cost", () => {
-        expect(() => resolveBuybackChoice(grizzlyBears, true)).toThrow();
+        expect(() => resolveBuybackChoice(grizzlyBears(), true)).toThrow();
     });
 });
 
@@ -277,7 +277,7 @@ describe("Buyback — a COUNTERED spell drops buybackPaid at every SpellContext.
         // A throwaway counter spell — only its presence on the stack is
         // needed to obtain a `SpellContext`; `SpellContext.counter()` reads
         // no field of its OWN item, only the target's.
-        const counterer = pushSpell(state, counterspell.id, "p2");
+        const counterer = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, counterer);
         ctx.counter({ type: "spell", id: probe.id }, destination);
         return { state, probeId: probe.id };
@@ -337,7 +337,7 @@ describe("Buyback — moveSpellFromStack (Subtlety) strips buybackPaid (CR 701.6
         // A throwaway spell on the stack — only its presence is needed to
         // obtain a `SpellContext`; `moveSpellFromStack` reads no field of its
         // OWN item, only the target's.
-        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const subtletySource = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, subtletySource);
         ctx.moveSpellFromStack({ type: "spell", id: probe.id }, "library-top");
 
@@ -356,7 +356,7 @@ describe("Buyback — moveSpellFromStack (Subtlety) strips buybackPaid (CR 701.6
         });
         const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
         probe.buybackPaid = true;
-        const subtletySource = pushSpell(state, counterspell.id, "p2");
+        const subtletySource = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, subtletySource);
         ctx.moveSpellFromStack(
             { type: "spell", id: probe.id },
@@ -384,7 +384,7 @@ describe("Buyback — moveSpellFromStack (Subtlety) strips buybackPaid (CR 701.6
         });
         const probe = pushSpell(state, BUYBACK_PROBE_ID, "p1");
         probe.buybackPaid = true;
-        const reprieveSource = pushSpell(state, counterspell.id, "p2");
+        const reprieveSource = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, reprieveSource);
         ctx.moveSpellFromStack({ type: "spell", id: probe.id }, "hand");
 
@@ -434,7 +434,7 @@ describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (is
         probe.buybackPaid = true;
 
         // 2. Counter it — default "graveyard" destination.
-        const counterer = pushSpell(state, counterspell.id, "p2");
+        const counterer = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, counterer);
         ctx.counter({ type: "spell", id: probe.id });
 
@@ -450,7 +450,7 @@ describe("Buyback — countered → graveyard → Regrowth → UNPAID recast (is
         );
 
         // 3. Regrowth returns it to hand.
-        pushSpell(state, regrowth.id, "p1", [
+        pushSpell(state, regrowth().id, "p1", [
             { type: "graveyard-card", id: probe.id, playerId: "p1" },
         ]);
         resolveTopOfStack(state);

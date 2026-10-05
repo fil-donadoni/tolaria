@@ -46,7 +46,7 @@ const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
  *  SYNCHRONOUS extent, and every mutation here is awaited. */
 const X_PROBE_ID = "test:aluren-x-cost-probe";
 const xCostProbe: CardDefinition = {
-    ...grizzlyBears,
+    ...grizzlyBears(),
     id: X_PROBE_ID,
     name: "Aluren X-Cost Probe",
     manaCost: { X: "X", G: 1 },
@@ -95,13 +95,13 @@ function alurenState(opts: {
             makePlayer("p1", {
                 hand: caster === "p1" ? hand : [],
                 battlefield: [
-                    makeInstance(aluren.id, {
+                    makeInstance(aluren().id, {
                         id: "aluren",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
                     ...Array.from({ length: forests }, (_, i) =>
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: `forest-${i}`,
                             controllerId: "p1",
                             ownerId: "p1",
@@ -120,7 +120,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
     it("the controller casts a covered creature for free in their own main phase — nothing tapped, no life spent", async () => {
         const harness = makeMutationCtx("p1", [
             gameStateSeed(
-                alurenState({ handCardId: grizzlyBears.id, caster: "p1" })
+                alurenState({ handCardId: grizzlyBears().id, caster: "p1" })
             ),
         ]);
 
@@ -143,7 +143,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
     it("the OPPONENT casts it on p1's turn — 'any player may cast', at instant speed (CR 601.3b / 702.8a)", async () => {
         const harness = makeMutationCtx("p2", [
             gameStateSeed(
-                alurenState({ handCardId: grizzlyBears.id, caster: "p2" })
+                alurenState({ handCardId: grizzlyBears().id, caster: "p2" })
             ),
         ]);
 
@@ -161,7 +161,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
     it("rejects a PAID announcement off the caster's sorcery window — CR 118.9b makes the permission's cost mandatory", async () => {
         const harness = makeMutationCtx("p2", [
             gameStateSeed(
-                alurenState({ handCardId: grizzlyBears.id, caster: "p2" })
+                alurenState({ handCardId: grizzlyBears().id, caster: "p2" })
             ),
         ]);
 
@@ -176,7 +176,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
     it("rejects an unknown permission id — a client cannot invent a free cast", async () => {
         const harness = makeMutationCtx("p1", [
             gameStateSeed(
-                alurenState({ handCardId: grizzlyBears.id, caster: "p1" })
+                alurenState({ handCardId: grizzlyBears().id, caster: "p1" })
             ),
         ]);
 
@@ -213,7 +213,7 @@ describe("announceCast under a board cast permission (CR 601.3 / 118.9, issue #2
 
     it("charges the printed cost without the permission — the same creature is not castable for free once Aluren is gone", async () => {
         const state = alurenState({
-            handCardId: grizzlyBears.id,
+            handCardId: grizzlyBears().id,
             caster: "p1",
         });
         state.players[0].battlefield = state.players[0].battlefield.filter(

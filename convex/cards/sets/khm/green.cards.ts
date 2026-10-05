@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { makeVehicle } from "../../abilities/vehicle";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
@@ -51,51 +50,53 @@ import { CAT_TOKEN } from "../../sharedTokens";
 // compiler-gap: "When Esika's Chariot enters, create two 2/2 green Cat creature tokens." (#2693)
 // compiler-gap: "Whenever Esika's Chariot attacks, create a token that's a copy of target token you control." (#2693)
 // compiler-gap: "Crew 4" (#2693)
-export const esikasChariot: CardDefinition = makeVehicle({
-    id: "a87606cc-fbf0-4e2c-9798-f1c935d0573d",
-    name: "Esika's Chariot",
-    rarity: "rare",
-    manaCost: { X: 3, G: 1 },
-    oracleText:
-        "When Esika's Chariot enters, create two 2/2 green Cat creature tokens.\nWhenever Esika's Chariot attacks, create a token that's a copy of target token you control.\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
-    power: 4,
-    toughness: 4,
-    crew: 4,
-    supertypes: ["Legendary"],
-    triggeredAbilities: [
-        enteredTrigger({
-            id: "esikas-chariot-etb-cats",
-            oracleText:
-                "When Esika's Chariot enters, create two 2/2 green Cat creature tokens.",
-            scope: "self",
-            effects: [
-                {
-                    op: "createToken",
-                    token: CAT_TOKEN,
-                    controller: "controller",
-                    count: 2,
+export const esikasChariot = defineCard(() =>
+    makeVehicle({
+        id: "a87606cc-fbf0-4e2c-9798-f1c935d0573d",
+        name: "Esika's Chariot",
+        rarity: "rare",
+        manaCost: { X: 3, G: 1 },
+        oracleText:
+            "When Esika's Chariot enters, create two 2/2 green Cat creature tokens.\nWhenever Esika's Chariot attacks, create a token that's a copy of target token you control.\nCrew 4 (Tap any number of creatures you control with total power 4 or more: This Vehicle becomes an artifact creature until end of turn.)",
+        power: 4,
+        toughness: 4,
+        crew: 4,
+        supertypes: ["Legendary"],
+        triggeredAbilities: [
+            enteredTrigger({
+                id: "esikas-chariot-etb-cats",
+                oracleText:
+                    "When Esika's Chariot enters, create two 2/2 green Cat creature tokens.",
+                scope: "self",
+                effects: [
+                    {
+                        op: "createToken",
+                        token: CAT_TOKEN,
+                        controller: "controller",
+                        count: 2,
+                    },
+                ],
+            }),
+            attacksTrigger({
+                id: "esikas-chariot-attack-copy",
+                oracleText:
+                    "Whenever Esika's Chariot attacks, create a token that's a copy of target token you control.",
+                scope: "self",
+                // CR 603.3d — chosen as the trigger is put on the stack.
+                targetRequirement: {
+                    type: [...PERMANENT_TYPES],
+                    count: 1,
+                    isToken: true,
+                    controller: "you",
                 },
-            ],
-        }),
-        attacksTrigger({
-            id: "esikas-chariot-attack-copy",
-            oracleText:
-                "Whenever Esika's Chariot attacks, create a token that's a copy of target token you control.",
-            scope: "self",
-            // CR 603.3d — chosen as the trigger is put on the stack.
-            targetRequirement: {
-                type: [...PERMANENT_TYPES],
-                count: 1,
-                isToken: true,
-                controller: "you",
-            },
-            effects: [
-                {
-                    op: "createTokenCopy",
-                    source: { target: 0 },
-                    controller: "controller",
-                },
-            ],
-        }),
-    ],
-});
+                effects: [
+                    {
+                        op: "createTokenCopy",
+                        source: { target: 0 },
+                        controller: "controller",
+                    },
+                ],
+            }),
+        ],
+    })
+);

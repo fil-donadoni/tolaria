@@ -2,8 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
-import { hasMetalcraft } from "../../types";
+import { defineCard, hasMetalcraft } from "../../types";
 import { makeDualLand } from "../../abilities";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -11,45 +10,55 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // The SOM "fast land" cycle — see `makeDualLand`'s `fastLand` flag in
 // `convex/cards/abilities/index.ts` for the shared conditional-tapped shape.
 // Vintage Cube free tranche (issue #675, ADR 0041).
-export const copperlineGorge: CardDefinition = makeDualLand({
-    id: "28f1d784-f286-418d-a712-bc07ad10d4a2",
-    name: "Copperline Gorge",
-    rarity: "rare",
-    colors: ["R", "G"],
-    fastLand: true,
-});
+export const copperlineGorge = defineCard(() =>
+    makeDualLand({
+        id: "28f1d784-f286-418d-a712-bc07ad10d4a2",
+        name: "Copperline Gorge",
+        rarity: "rare",
+        colors: ["R", "G"],
+        fastLand: true,
+    })
+);
 
-export const razorvergeThicket: CardDefinition = makeDualLand({
-    id: "345e053a-3178-485c-8602-1624bbf2f064",
-    name: "Razorverge Thicket",
-    rarity: "rare",
-    colors: ["G", "W"],
-    fastLand: true,
-});
+export const razorvergeThicket = defineCard(() =>
+    makeDualLand({
+        id: "345e053a-3178-485c-8602-1624bbf2f064",
+        name: "Razorverge Thicket",
+        rarity: "rare",
+        colors: ["G", "W"],
+        fastLand: true,
+    })
+);
 
-export const blackcleaveCliffs: CardDefinition = makeDualLand({
-    id: "3d71be5f-0fd7-4a88-8041-f4d6bc4cc9ac",
-    name: "Blackcleave Cliffs",
-    rarity: "rare",
-    colors: ["B", "R"],
-    fastLand: true,
-});
+export const blackcleaveCliffs = defineCard(() =>
+    makeDualLand({
+        id: "3d71be5f-0fd7-4a88-8041-f4d6bc4cc9ac",
+        name: "Blackcleave Cliffs",
+        rarity: "rare",
+        colors: ["B", "R"],
+        fastLand: true,
+    })
+);
 
-export const seachromeCoast: CardDefinition = makeDualLand({
-    id: "99939b90-e88c-4c2f-ba78-56d455611703",
-    name: "Seachrome Coast",
-    rarity: "rare",
-    colors: ["W", "U"],
-    fastLand: true,
-});
+export const seachromeCoast = defineCard(() =>
+    makeDualLand({
+        id: "99939b90-e88c-4c2f-ba78-56d455611703",
+        name: "Seachrome Coast",
+        rarity: "rare",
+        colors: ["W", "U"],
+        fastLand: true,
+    })
+);
 
-export const darkslickShores: CardDefinition = makeDualLand({
-    id: "e530388b-eb19-4211-abd8-8a4c3c38c3af",
-    name: "Darkslick Shores",
-    rarity: "rare",
-    colors: ["U", "B"],
-    fastLand: true,
-});
+export const darkslickShores = defineCard(() =>
+    makeDualLand({
+        id: "e530388b-eb19-4211-abd8-8a4c3c38c3af",
+        name: "Darkslick Shores",
+        rarity: "rare",
+        colors: ["U", "B"],
+        fastLand: true,
+    })
+);
 
 const MOX_OPAL_COLORS = ["W", "U", "B", "R", "G"] as const;
 
@@ -74,7 +83,7 @@ const MOX_OPAL_COLORS = ["W", "U", "B", "R", "G"] as const;
 // DSL fallback (no board-conditional colour narrowing needed here — unlike
 // Chrome Mox's imprint set, Mox Opal always offers all five colours once
 // active, so no `getManaChoices` override is needed).
-export const moxOpal: CardDefinition = {
+export const moxOpal = defineCard(() => ({
     id: "6be9b1d5-9ab8-4adb-ba54-2c0117e842fa",
     name: "Mox Opal",
     rarity: "mythic",
@@ -99,7 +108,7 @@ export const moxOpal: CardDefinition = {
             manaChoices: MOX_OPAL_COLORS.map((c) => ({ [c]: 1 })),
         },
     ],
-};
+}));
 
 // Myr Battlesphere (SOM) — {7} 4/7 Artifact Creature — Myr Construct. Vintage
 // Cube (issue #3244).
@@ -128,7 +137,7 @@ export const moxOpal: CardDefinition = {
 // needs no separate branch.
 // hand-tail: "When this creature enters, create four 1/1 colorless Myr artifact creature tokens." (#4195)
 // hand-tail: "Whenever this creature attacks, you may tap X untapped Myr you control. If you do, this creature gets +X/+0 until end of turn and deals X damage to the player or planeswalker it's attacking." (#4195)
-export const myrBattlesphere: CardDefinition = {
+export const myrBattlesphere = defineCard(() => ({
     id: "b0ae94ed-7314-470b-baba-f2f58bbc894a", // SOM 180
     name: "Myr Battlesphere",
     rarity: "rare",
@@ -202,4 +211,4 @@ export const myrBattlesphere: CardDefinition = {
             ],
         }),
     ],
-};
+}));

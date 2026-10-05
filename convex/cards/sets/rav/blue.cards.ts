@@ -1,5 +1,5 @@
 // rav — blue cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Remand — {1}{U} Instant. "Counter target spell. If that spell is countered
 // this way, put it into its owner's hand instead of into that player's
@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 // owner's hand" redirect clause, followed by an unconditional draw.) An
 // unconditional counter + draw — no mayPay/if — so the effect is two Ops in
 // sequence.
-export const remand: CardDefinition = {
+export const remand = defineCard(() => ({
     id: "581f3780-c480-48c6-b15c-1618f2feccb9",
     rarity: "uncommon",
     name: "Remand",
@@ -25,4 +25,4 @@ export const remand: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

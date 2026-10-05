@@ -73,7 +73,7 @@ function submitChoice(state: GameState, cardInstanceIds: string[]) {
 
 /** Un-imprinted Chrome Mox on an otherwise empty board. */
 function makeUnimprintedMox() {
-    const mox = makeInstance(chromeMox.id, {
+    const mox = makeInstance(chromeMox().id, {
         id: "mox",
         controllerId: "p1",
         ownerId: "p1",
@@ -88,12 +88,12 @@ function makeUnimprintedMox() {
 /** Chrome Mox imprinted with a green card (mirrors the ETB flow exercised in
  *  `convex/cards/sets/mrd/__tests__/colorless.test.ts`). */
 function makeImprintedMox() {
-    const mox = makeInstance(chromeMox.id, {
+    const mox = makeInstance(chromeMox().id, {
         id: "mox",
         controllerId: "p1",
         ownerId: "p1",
     });
-    const greenCard = makeInstance(balduvianBears.id, {
+    const greenCard = makeInstance(balduvianBears().id, {
         id: "greenCard",
         controllerId: "p1",
         ownerId: "p1",
@@ -133,7 +133,7 @@ describe("getActivatedManaAbility / hasManaAbility gate on canActivate (CR 602.5
     });
 
     it("the gate is general: a mana ability with no canActivate (Talisman of Progress) is unaffected", () => {
-        const rock = makeInstance(talismanOfProgress.id, {
+        const rock = makeInstance(talismanOfProgress().id, {
             id: "rock",
             controllerId: "p1",
             ownerId: "p1",

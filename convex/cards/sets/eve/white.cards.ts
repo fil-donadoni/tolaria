@@ -1,7 +1,6 @@
 // eve — white cards (ADR 0043 colour split).
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 const FLICKERWISP_ID = "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024";
@@ -28,7 +27,7 @@ const FLICKERWISP_ID = "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024";
 // OWNER's control by default (no explicit `controller` — matches "under its
 // owner's control"). `from: "exile"` pins the #1469 RETURN-A-DEPARTED-OBJECT
 // recovery path explicitly.
-export const flickerwisp: CardDefinition = {
+export const flickerwisp = defineCard(() => ({
     id: FLICKERWISP_ID,
     name: "Flickerwisp",
     rarity: "uncommon",
@@ -77,4 +76,4 @@ export const flickerwisp: CardDefinition = {
             ],
         }),
     ],
-};
+}));

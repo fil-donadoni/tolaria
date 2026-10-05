@@ -83,7 +83,7 @@ const ALUREN_ALT_COST_ID = "cast-permission:any-player-creature-f9f346f4";
  *  hard-coded (issue #3284): `altCostFor` renders `label ?? oracleText`, so this
  *  follows a relabelling instead of going red on one. */
 const ALUREN_ROW_LABEL = (() => {
-    const permission = (aluren.staticEffects ?? []).find(
+    const permission = (aluren().staticEffects ?? []).find(
         (effect) => effect.kind === "cast-permission"
     );
     if (!permission || permission.kind !== "cast-permission") {
@@ -116,13 +116,13 @@ function projected(
                     }),
                 ],
                 battlefield: [
-                    makeInstance(aluren.id, {
+                    makeInstance(aluren().id, {
                         id: "aluren",
                         controllerId: "me",
                         ownerId: "me",
                     }),
                     ...Array.from({ length: 2 }, (_, i) =>
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: `forest-${i}`,
                             controllerId: "me",
                             ownerId: "me",
@@ -190,13 +190,13 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     it("Grizzly Bears under Aluren: the picker opens and the free cast reaches announceCast", () => {
         // The premise: the card declares NO alternative cost of its own — which
         // is exactly why the old def-shape gate skipped it.
-        expect(grizzlyBears.alternativeCosts).toBeUndefined();
-        expect(grizzlyBears.evoke).toBeUndefined();
-        expect(grizzlyBears.dash).toBeUndefined();
-        expect(grizzlyBears.bestow).toBeUndefined();
-        expect(grizzlyBears.morph).toBeUndefined();
+        expect(grizzlyBears().alternativeCosts).toBeUndefined();
+        expect(grizzlyBears().evoke).toBeUndefined();
+        expect(grizzlyBears().dash).toBeUndefined();
+        expect(grizzlyBears().bestow).toBeUndefined();
+        expect(grizzlyBears().morph).toBeUndefined();
 
-        const p = projected(grizzlyBears.id, "bears1");
+        const p = projected(grizzlyBears().id, "bears1");
         expect(p.card.legalActions).toContain("cast");
 
         renderCard(p);
@@ -243,7 +243,7 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     // picker used to render the row anyway and turn a legal-looking click into
     // a raw mutation rejection.
     it("Grizzly Bears under Aluren, OFF the caster's window: no picker, the free cast dispatches straight through", () => {
-        const p = projected(grizzlyBears.id, "bears2", "them");
+        const p = projected(grizzlyBears().id, "bears2", "them");
         // The permission's flash grant is what makes it castable here at all.
         expect(p.card.legalActions).toContain("cast");
         // The server said so — the client re-derives no cast timing (ADR 0074).
@@ -271,7 +271,7 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     });
 
     it("inside the caster's own window the printed cast stays legal — no flag, both rows", () => {
-        const p = projected(grizzlyBears.id, "bears3");
+        const p = projected(grizzlyBears().id, "bears3");
         // Absent, never `false` — the same shape as `flashSurchargeRequired`.
         expect(p.card.printedCostCastUnavailable).toBeUndefined();
 
@@ -291,9 +291,9 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     // permission — one click from the same rejection. Ragavan is mana value 2,
     // inside Aluren's filter, and declares `dash`.
     it("Ragavan under Aluren, OFF the window: its own Dash row is illegal too and is not offered", () => {
-        expect(ragavanNimblePilferer.dash).toBeDefined();
+        expect(ragavanNimblePilferer().dash).toBeDefined();
 
-        const p = projected(ragavanNimblePilferer.id, "ragavan1", "them");
+        const p = projected(ragavanNimblePilferer().id, "ragavan1", "them");
         expect(p.card.legalActions).toContain("cast");
         expect(p.card.printedCostCastUnavailable).toBe(true);
 
@@ -318,7 +318,7 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     });
 
     it("Ragavan INSIDE the window: Dash and the printed cost are both legal, both offered", () => {
-        const p = projected(ragavanNimblePilferer.id, "ragavan2");
+        const p = projected(ragavanNimblePilferer().id, "ragavan2");
         expect(p.card.printedCostCastUnavailable).toBeUndefined();
 
         renderCard(p);
@@ -341,9 +341,9 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     // free cast is the only legal announcement. The cost dialog still asked for
     // X, and the answer went straight to the mutation's throw.
     it("Balduvian Hydra under Aluren, OFF the window: no X stepper, X locked to 0 by CR 107.3b", () => {
-        expect(balduvianHydra.manaCost?.X).toBe("X");
+        expect(balduvianHydra().manaCost?.X).toBe("X");
 
-        const p = projected(balduvianHydra.id, "hydra1", "them");
+        const p = projected(balduvianHydra().id, "hydra1", "them");
         expect(p.card.legalActions).toContain("cast");
         expect(p.card.printedCostCastUnavailable).toBe(true);
 
@@ -360,7 +360,7 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     });
 
     it("Balduvian Hydra INSIDE the window: the printed cast is legal, so X is still asked", () => {
-        const p = projected(balduvianHydra.id, "hydra2");
+        const p = projected(balduvianHydra().id, "hydra2");
         expect(p.card.printedCostCastUnavailable).toBeUndefined();
 
         renderCard(p);
@@ -373,7 +373,7 @@ describe("cast-option picker under a board cast permission (CR 118.9, #2706)", (
     it("Shivan Dragon (the must-NOT row): outside the filter, no picker and a plain announcement", () => {
         // CR 202.3 — mana value 6, so Aluren covers nothing here and the click
         // must behave exactly as it did before this mechanic existed.
-        const p = projected(shivanDragon.id, "dragon1");
+        const p = projected(shivanDragon().id, "dragon1");
         expect(p.card.legalActions).toContain("cast");
 
         renderCard(p);

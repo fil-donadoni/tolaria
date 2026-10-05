@@ -2,12 +2,8 @@
 // `import * as ecl from "./sets/ecl/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    CardDefinition,
-    SpellContext,
-    TriggeredAbility,
-} from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { SpellContext, TriggeredAbility } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // A discarded/milled card CAN be a land, so the "permanent card" check below
@@ -130,7 +126,7 @@ function moonshadowRemoveCounter(): TriggeredAbility {
     };
 }
 
-export const moonshadow: CardDefinition = {
+export const moonshadow = defineCard(() => ({
     id: "2573e694-eaa0-42ca-b470-2ab507cbcec1",
     name: "Moonshadow",
     rarity: "mythic",
@@ -144,7 +140,7 @@ export const moonshadow: CardDefinition = {
     staticAbilities: ["menace"],
     entersWith: { counters: [{ type: "-1/-1", count: 6 }] },
     triggeredAbilities: [moonshadowRemoveCounter()],
-};
+}));
 
 // Iron-Shield Elf — {1}{B} Creature — Elf Warrior, 3/1 (issue #1307 residue
 // re-audit, 2026-07-18; originally stubbed under issue #684). "Discard a
@@ -162,7 +158,7 @@ export const moonshadow: CardDefinition = {
 // `tapUntap`), composed after the `grantAbility` indestructible grant — both
 // Ops are already interpreter-exercised (per-Op regime, ADR 0046), no
 // hand-written test required.
-export const ironShieldElf: CardDefinition = {
+export const ironShieldElf = defineCard(() => ({
     id: "9e0140b2-0185-4adb-b365-2611ce89a0e2",
     name: "Iron-Shield Elf",
     rarity: "uncommon",
@@ -191,7 +187,7 @@ export const ironShieldElf: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Twilight Diviner — {2}{B} Creature — Elf Cleric, 3/3 (ECL, Vintage Cube FREE
 // residue #1533, split from the #1526 surveil cluster). "When this creature
@@ -311,7 +307,7 @@ function twilightDivinerGraveyardCopy(): TriggeredAbility {
     };
 }
 
-export const twilightDiviner: CardDefinition = {
+export const twilightDiviner = defineCard(() => ({
     id: "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
     name: "Twilight Diviner",
     rarity: "rare",
@@ -339,4 +335,4 @@ export const twilightDiviner: CardDefinition = {
         }),
         twilightDivinerGraveyardCopy(),
     ],
-};
+}));

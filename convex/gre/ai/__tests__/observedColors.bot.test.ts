@@ -19,7 +19,7 @@ import { observedOpponentColors } from "../observedColors";
 describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a battlefield permanent's effective colour is evidence", () => {
         const p1 = makePlayer("p1", {
-            battlefield: [grizzlyBears, grizzlyBears].map((def, i) =>
+            battlefield: [grizzlyBears(), grizzlyBears()].map((def, i) =>
                 makeInstance(def.id, { id: `bear-${i}`, controllerId: "p1" })
             ),
         });
@@ -30,7 +30,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a graveyard card's STATIC colour is evidence, even with no matching permanent", () => {
         const p1 = makePlayer("p1", {
             graveyard: [
-                makeInstance(lightningBolt.id, {
+                makeInstance(lightningBolt().id, {
                     id: "bolt-gy",
                     controllerId: "p1",
                     zone: "graveyard",
@@ -44,21 +44,21 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a spell on the stack CAST BY the opponent is evidence, keyed on castById not controllerId", () => {
         const p1 = makePlayer("p1");
         const state = makeState({ players: [p1, makePlayer("p2")] });
-        pushSpell(state, lightningBolt.id, "p1");
+        pushSpell(state, lightningBolt().id, "p1");
         expect(observedOpponentColors(state, "p1")).toEqual({ R: 3 });
     });
 
     it("a spell on the stack cast by someone ELSE is not this player's evidence", () => {
         const p1 = makePlayer("p1");
         const state = makeState({ players: [p1, makePlayer("p2")] });
-        pushSpell(state, lightningBolt.id, "p2");
+        pushSpell(state, lightningBolt().id, "p2");
         expect(observedOpponentColors(state, "p1")).toEqual({});
     });
 
     it("acceptance criterion 3 — an UNTAPPED colour-producing land counts as a threat with ZERO matching permanents", () => {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(island.id, {
+                makeInstance(island().id, {
                     id: "isle-1",
                     controllerId: "p1",
                     isTapped: false,
@@ -72,7 +72,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a TAPPED land contributes nothing — spent mana is not a shown threat", () => {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(island.id, {
+                makeInstance(island().id, {
                     id: "isle-1",
                     controllerId: "p1",
                     isTapped: true,
@@ -86,7 +86,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a SACRIFICE-gated mana source (Lotus Petal) is excluded — spending it is a decision not yet made", () => {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(lotusPetal.id, {
+                makeInstance(lotusPetal().id, {
                     id: "petal-1",
                     controllerId: "p1",
                     isTapped: false,
@@ -100,11 +100,11 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("a REAL permanent on board is WEIGHTED STRONGER than a merely-producible mana source", () => {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: "bear-1",
                     controllerId: "p1",
                 }),
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     id: "mtn-1",
                     controllerId: "p1",
                     isTapped: false,
@@ -119,7 +119,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
     it("acceptance criterion 6 — never reads the opponent's hand (hidden-info-safe by construction)", () => {
         const base = makePlayer("p1", {
             battlefield: [
-                makeInstance(island.id, {
+                makeInstance(island().id, {
                     id: "isle-1",
                     controllerId: "p1",
                     isTapped: false,
@@ -131,7 +131,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
                 {
                     ...base,
                     hand: [
-                        makeInstance(lightningBolt.id, {
+                        makeInstance(lightningBolt().id, {
                             id: "hidden-1",
                             controllerId: "p1",
                             zone: "hand",
@@ -146,7 +146,7 @@ describe("observedOpponentColors — evidence weighting (issue #2306)", () => {
                 {
                     ...base,
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "hidden-2",
                             controllerId: "p1",
                             zone: "hand",

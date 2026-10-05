@@ -172,7 +172,7 @@ describe("CR 709.3 — the Bot reaches a split half outside the hand (issue #334
         // casting on one spell, so `announceCast` refuses that Move outright —
         // the #2283/#2284 bot-freeze shape. Only the split half is exempt,
         // because CR 709.3's choice of half is not a price at all.
-        const card = makeInstance(bonecrusherGiant.id, {
+        const card = makeInstance(bonecrusherGiant().id, {
             id: "giant-card",
             controllerId: "p1",
             ownerId: "p1",

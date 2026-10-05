@@ -1,5 +1,5 @@
 // dka — white cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Lingering Souls — {2}{W} Sorcery. "Create two 1/1 white Spirit creature
 // tokens with flying." with Flashback {1}{B} (CR 702.34 — cast from the
@@ -8,7 +8,7 @@ import type { CardDefinition } from "../../types";
 // with flying via `staticAbilities`. Flashback is the engine capability
 // (convex/gre/flashback.ts); the `flashback` field carries the alternative,
 // off-colour cost — the DKA gold-standard "cast it white, flash it back black".
-export const lingeringSouls: CardDefinition = {
+export const lingeringSouls = defineCard(() => ({
     id: "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
     rarity: "uncommon",
     name: "Lingering Souls",
@@ -33,7 +33,7 @@ export const lingeringSouls: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Cost-modifier static effect (CR 601.2f, layer-agnostic — scanned at cast
@@ -53,7 +53,7 @@ export const lingeringSouls: CardDefinition = {
 // (CR 305.1) so they never reach this site. Both the `cost-modifier` static
 // and `first strike` are already exercised — no hand-written test required
 // (per-Op regime, ADR 0046).
-export const thaliaGuardianOfThraben: CardDefinition = {
+export const thaliaGuardianOfThraben = defineCard(() => ({
     id: "824423ff-6441-4be6-b754-810adf9ca6a2",
     rarity: "rare",
     name: "Thalia, Guardian of Thraben",
@@ -72,4 +72,4 @@ export const thaliaGuardianOfThraben: CardDefinition = {
             costIncrease: { X: 1 },
         },
     ],
-};
+}));

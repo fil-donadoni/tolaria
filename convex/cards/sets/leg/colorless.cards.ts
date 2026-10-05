@@ -13,14 +13,14 @@ import type {
     StaticEffectContext,
     Color,
 } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { payOrSacrificeUpkeepTrigger } from "./multicolor.cards";
 import { chooseColorEffects } from "../../abilities/chooseColor";
 
 // --- Vanilla / keyword creatures (CR 110.1 — pure data) -------------------
 
 // Crimson Kobolds — vanilla 0/1 Kobold (CR 110.1; cost {0}, CR 202.1).
-export const crimsonKobolds: CardDefinition = {
+export const crimsonKobolds = defineCard(() => ({
     id: "13696657-aeef-4add-9a3b-8137fce01fe3",
     rarity: "common",
     name: "Crimson Kobolds",
@@ -30,10 +30,10 @@ export const crimsonKobolds: CardDefinition = {
     subtypes: ["Kobold"],
     power: 0,
     toughness: 1,
-};
+}));
 
 // Crookshank Kobolds — vanilla 0/1 Kobold (CR 110.1).
-export const crookshankKobolds: CardDefinition = {
+export const crookshankKobolds = defineCard(() => ({
     id: "7af6b119-7db4-49dd-aaa4-044b8c133f13",
     rarity: "common",
     name: "Crookshank Kobolds",
@@ -43,10 +43,10 @@ export const crookshankKobolds: CardDefinition = {
     subtypes: ["Kobold"],
     power: 0,
     toughness: 1,
-};
+}));
 
 // Kobolds of Kher Keep — vanilla 0/1 Kobold (CR 110.1).
-export const koboldsOfKherKeep: CardDefinition = {
+export const koboldsOfKherKeep = defineCard(() => ({
     id: "df0320d9-7c2a-456a-9159-1b4fae67bfb5",
     rarity: "common",
     name: "Kobolds of Kher Keep",
@@ -56,7 +56,7 @@ export const koboldsOfKherKeep: CardDefinition = {
     subtypes: ["Kobold"],
     power: 0,
     toughness: 1,
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifacts, lands & colorless free tranche (#377) — every artifact, land, and
@@ -129,7 +129,7 @@ export const koboldsOfKherKeep: CardDefinition = {
 // Mana Matrix — "Instant and enchantment spells you cast cost {2} less."
 // Generic-only reduction (CR 601.2f) scoped to the controller via the spell's
 // controllerId matching the artifact's controllerId.
-export const manaMatrix: CardDefinition = {
+export const manaMatrix = defineCard(() => ({
     id: "a3eedc11-0b47-430c-8391-577a2d05c2ae",
     rarity: "rare",
     name: "Mana Matrix",
@@ -151,10 +151,10 @@ export const manaMatrix: CardDefinition = {
             costReduction: { X: 2 },
         },
     ],
-};
+}));
 
 // Planar Gate — "Creature spells you cast cost {2} less to cast."
-export const planarGate: CardDefinition = {
+export const planarGate = defineCard(() => ({
     id: "dd27f0fe-c032-4f61-9f3d-98a6d2e2c426",
     rarity: "rare",
     name: "Planar Gate",
@@ -174,7 +174,7 @@ export const planarGate: CardDefinition = {
             costReduction: { X: 2 },
         },
     ],
-};
+}));
 
 // --- Utility artifacts (CR 602 activated abilities) -----------------------
 
@@ -191,7 +191,7 @@ export const planarGate: CardDefinition = {
 // text (CR 207.2), not a rule: the grant is scoped to the spell's MANA cost and
 // never reaches a kicker/sacrifice/life leg, because it lives entirely in the
 // mana-payment layer.
-export const northStar: CardDefinition = {
+export const northStar = defineCard(() => ({
     id: "daac2a6b-27c8-4567-9e0c-7b262628d331",
     rarity: "rare",
     name: "North Star",
@@ -215,12 +215,12 @@ export const northStar: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Alchor's Tomb — "{2}, {T}: Target permanent you control becomes the color of
 // your choice. (This effect lasts indefinitely.)" (CR 105.2, 611 color-set via
 // indefinite setColorOverride; the color is a player option choice.)
-export const alchorsTomb: CardDefinition = {
+export const alchorsTomb = defineCard(() => ({
     id: "f4395b19-2118-4a09-8932-f9ce9bc54d6d",
     rarity: "rare",
     name: "Alchor's Tomb",
@@ -260,12 +260,12 @@ export const alchorsTomb: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Mirror Universe — "{T}, Sacrifice Mirror Universe: Exchange life totals with
 // target opponent. Activate only during your upkeep." (CR 118.5 life exchange,
 // modeled as gain/loss deltas since there is no setLife primitive.)
-export const mirrorUniverse: CardDefinition = {
+export const mirrorUniverse = defineCard(() => ({
     id: "a8f05d5e-bb7d-4554-b880-f0c6b4688357",
     rarity: "rare",
     name: "Mirror Universe",
@@ -318,14 +318,14 @@ export const mirrorUniverse: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Legendary lands (CR 305 land + 205.4a Legendary supertype) -----------
 
 // Pendelhaven — Legendary land. "{T}: Add {G}." + "{T}: Target 1/1 creature gets
 // +1/+2 until end of turn." (CR 605.1a mana ability; CR 611.1 temp P/T buff
 // gated by a 1/1 power+toughness filter.)
-export const pendelhaven: CardDefinition = {
+export const pendelhaven = defineCard(() => ({
     id: "79427109-c1f3-476d-a029-0049217237b5",
     rarity: "uncommon",
     name: "Pendelhaven",
@@ -368,7 +368,7 @@ export const pendelhaven: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Karakas — Legendary Land (Vintage Cube FREE misc value/utility, issue #687).
 // "{T}: Add {W}. {T}: Return target legendary creature to its owner's hand."
@@ -378,7 +378,7 @@ export const pendelhaven: CardDefinition = {
 // the supertype-target filter that was missing when LEG first shipped (its
 // SKIPPED note above) and has since landed, so the card is now expressible
 // with only live Ops (`moveZone` to hand).
-export const karakas: CardDefinition = {
+export const karakas = defineCard(() => ({
     id: "31d2422a-bb7d-4cdd-9aac-e5a936a4be3b",
     rarity: "rare",
     name: "Karakas",
@@ -410,7 +410,7 @@ export const karakas: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C4 — Bands with other [quality] (CR 702.22j, #381)
@@ -458,7 +458,7 @@ const legendaryCreatureGrant =
 
 // Adventurers' Guildhouse — "Green legendary creatures you control have 'bands
 // with other legendary creatures.'" (CR 702.22j via keyword-grant.)
-export const adventurersGuildhouse: CardDefinition = {
+export const adventurersGuildhouse = defineCard(() => ({
     id: "32865e68-5842-4f17-b2ea-4ffa743b511f",
     rarity: "uncommon",
     name: "Adventurers' Guildhouse",
@@ -473,10 +473,10 @@ export const adventurersGuildhouse: CardDefinition = {
             keyword: "bands with other:legendary",
         },
     ],
-};
+}));
 
 // Cathedral of Serra — White legendary creatures grant-land.
-export const cathedralOfSerra: CardDefinition = {
+export const cathedralOfSerra = defineCard(() => ({
     id: "e65356e6-0ead-49fd-b069-be1ea9b1c105",
     rarity: "uncommon",
     name: "Cathedral of Serra",
@@ -491,10 +491,10 @@ export const cathedralOfSerra: CardDefinition = {
             keyword: "bands with other:legendary",
         },
     ],
-};
+}));
 
 // Mountain Stronghold — Red legendary creatures grant-land.
-export const mountainStronghold: CardDefinition = {
+export const mountainStronghold = defineCard(() => ({
     id: "314fd1d7-4bd8-4d95-b7c2-1aa6660ab88a",
     rarity: "uncommon",
     name: "Mountain Stronghold",
@@ -509,10 +509,10 @@ export const mountainStronghold: CardDefinition = {
             keyword: "bands with other:legendary",
         },
     ],
-};
+}));
 
 // Seafarer's Quay — Blue legendary creatures grant-land.
-export const seafarersQuay: CardDefinition = {
+export const seafarersQuay = defineCard(() => ({
     id: "66641d88-b3f0-4bcd-8d2d-29aa2de69e30",
     rarity: "uncommon",
     name: "Seafarer's Quay",
@@ -527,10 +527,10 @@ export const seafarersQuay: CardDefinition = {
             keyword: "bands with other:legendary",
         },
     ],
-};
+}));
 
 // Unholy Citadel — Black legendary creatures grant-land.
-export const unholyCitadel: CardDefinition = {
+export const unholyCitadel = defineCard(() => ({
     id: "9de534ff-fb48-4692-bd0f-dd237ca28502",
     rarity: "uncommon",
     name: "Unholy Citadel",
@@ -545,13 +545,13 @@ export const unholyCitadel: CardDefinition = {
             keyword: "bands with other:legendary",
         },
     ],
-};
+}));
 
 // Tolaria — "{T}: Add {U}." and "{T}: Target creature loses banding and all
 // 'bands with other' abilities until end of turn. Activate only during any
 // upkeep step." (CR 605.1a mana ability + CR 611.2a duration-scoped strip with
 // a phase-restricted activation.) Legendary land.
-export const tolaria: CardDefinition = {
+export const tolaria = defineCard(() => ({
     id: "d43c01b7-443d-4061-a934-6863d230c9b8",
     rarity: "uncommon",
     name: "Tolaria",
@@ -594,7 +594,7 @@ export const tolaria: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 /** CR 205 — true if `target` is a Creature (The Tabernacle's affected set).
  *  Reads live `types` so a permanent animated into a creature is taxed too;
@@ -615,7 +615,7 @@ const IS_CREATURE: (
 // pay-or-destroy decision is independent per creature (CR 603.3b). Legendary
 // land → tapping for no mana; supertype carried as data (CR 205.4a), legend
 // rule applies once the C1 SBA lands.
-export const theTabernacleAtPendrellVale: CardDefinition = {
+export const theTabernacleAtPendrellVale = defineCard(() => ({
     id: "64bc9b1d-5818-4d9e-b771-e49af4ff9a5c",
     rarity: "rare",
     name: "The Tabernacle at Pendrell Vale",
@@ -642,7 +642,7 @@ export const theTabernacleAtPendrellVale: CardDefinition = {
             consequence: "destroy",
         }),
     ],
-};
+}));
 
 // --- Mana Batteries (#482) ---------------------------------------------------
 //
@@ -739,37 +739,47 @@ function makeManaBattery(config: {
     };
 }
 
-export const blackManaBattery: CardDefinition = makeManaBattery({
-    id: "d0c66e64-e357-457d-8302-b3a1fc0c56ce",
-    rarity: "uncommon",
-    name: "Black Mana Battery",
-    color: "B",
-});
+export const blackManaBattery = defineCard(() =>
+    makeManaBattery({
+        id: "d0c66e64-e357-457d-8302-b3a1fc0c56ce",
+        rarity: "uncommon",
+        name: "Black Mana Battery",
+        color: "B",
+    })
+);
 
-export const blueManaBattery: CardDefinition = makeManaBattery({
-    id: "35393661-2c53-46f0-bb33-2390d552b060",
-    rarity: "uncommon",
-    name: "Blue Mana Battery",
-    color: "U",
-});
+export const blueManaBattery = defineCard(() =>
+    makeManaBattery({
+        id: "35393661-2c53-46f0-bb33-2390d552b060",
+        rarity: "uncommon",
+        name: "Blue Mana Battery",
+        color: "U",
+    })
+);
 
-export const greenManaBattery: CardDefinition = makeManaBattery({
-    id: "4671fa01-4a9e-4cd9-8154-b0d45e11b702",
-    rarity: "uncommon",
-    name: "Green Mana Battery",
-    color: "G",
-});
+export const greenManaBattery = defineCard(() =>
+    makeManaBattery({
+        id: "4671fa01-4a9e-4cd9-8154-b0d45e11b702",
+        rarity: "uncommon",
+        name: "Green Mana Battery",
+        color: "G",
+    })
+);
 
-export const redManaBattery: CardDefinition = makeManaBattery({
-    id: "363cc5d6-70f8-4a3c-92bd-8f49774bdce2",
-    rarity: "uncommon",
-    name: "Red Mana Battery",
-    color: "R",
-});
+export const redManaBattery = defineCard(() =>
+    makeManaBattery({
+        id: "363cc5d6-70f8-4a3c-92bd-8f49774bdce2",
+        rarity: "uncommon",
+        name: "Red Mana Battery",
+        color: "R",
+    })
+);
 
-export const whiteManaBattery: CardDefinition = makeManaBattery({
-    id: "35fbbe41-d21b-4028-905f-054c44d30eb2",
-    rarity: "uncommon",
-    name: "White Mana Battery",
-    color: "W",
-});
+export const whiteManaBattery = defineCard(() =>
+    makeManaBattery({
+        id: "35fbbe41-d21b-4028-905f-054c44d30eb2",
+        rarity: "uncommon",
+        name: "White Mana Battery",
+        color: "W",
+    })
+);

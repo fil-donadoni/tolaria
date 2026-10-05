@@ -86,9 +86,9 @@ function probeItem(
 describe("SPELL_KICKED — one event per KICK (CR 702.33d)", () => {
     it("a single Kicker paid once emits exactly one event carrying the kicking player", () => {
         const events = buildSpellKickedEvents(
-            burstLightning,
+            burstLightning(),
             probeItem({ kicker: 1 }),
-            burstLightning.id,
+            burstLightning().id,
             ["R"]
         );
         expect(events).toEqual([
@@ -96,7 +96,7 @@ describe("SPELL_KICKED — one event per KICK (CR 702.33d)", () => {
                 type: "SPELL_KICKED",
                 casterId: "p1",
                 spellInstanceId: "spell1",
-                spellCardId: burstLightning.id,
+                spellCardId: burstLightning().id,
                 kickerId: "kicker",
                 spellTypes: ["Instant"],
                 spellSubtypes: [],
@@ -111,9 +111,9 @@ describe("SPELL_KICKED — one event per KICK (CR 702.33d)", () => {
         // three times fires a "whenever a player kicks a spell" ability three
         // times (three separate stack objects, each independently counterable).
         const events = buildSpellKickedEvents(
-            everflowingChalice,
+            everflowingChalice(),
             probeItem({ kicker: 3 }),
-            everflowingChalice.id,
+            everflowingChalice().id,
             []
         );
         expect(events).toHaveLength(3);
@@ -128,9 +128,9 @@ describe("SPELL_KICKED — one event per KICK (CR 702.33d)", () => {
         // Thornscape Battlemage: "Kicker {R} and/or {W}" — two separately
         // payable Kickers (CR 702.33b). Both paid = kicked twice.
         const events = buildSpellKickedEvents(
-            thornscapeBattlemage,
+            thornscapeBattlemage(),
             probeItem({ "kicker-r": 1, "kicker-w": 1 }),
-            thornscapeBattlemage.id,
+            thornscapeBattlemage().id,
             ["G"]
         );
         expect(events).toHaveLength(2);
@@ -142,9 +142,9 @@ describe("SPELL_KICKED — one event per KICK (CR 702.33d)", () => {
 
     it("emits in the card's DECLARATION order so the batch is deterministic", () => {
         const events = buildSpellKickedEvents(
-            thornscapeBattlemage,
+            thornscapeBattlemage(),
             probeItem({ "kicker-w": 1, "kicker-r": 1 }),
-            thornscapeBattlemage.id,
+            thornscapeBattlemage().id,
             ["G"]
         );
         expect(events.map((e) => e.kickerId)).toEqual(["kicker-r", "kicker-w"]);
@@ -158,9 +158,9 @@ describe("SPELL_KICKED — must NOT emit (fail-closed axes)", () => {
     it("an UNKICKED cast emits nothing (no payment record at all)", () => {
         expect(
             buildSpellKickedEvents(
-                burstLightning,
+                burstLightning(),
                 probeItem(undefined),
-                burstLightning.id,
+                burstLightning().id,
                 ["R"]
             )
         ).toEqual([]);
@@ -169,9 +169,9 @@ describe("SPELL_KICKED — must NOT emit (fail-closed axes)", () => {
     it("a ZERO count is not a kick (CR 702.33d — the intention was never declared)", () => {
         expect(
             buildSpellKickedEvents(
-                burstLightning,
+                burstLightning(),
                 probeItem({ kicker: 0 }),
-                burstLightning.id,
+                burstLightning().id,
                 ["R"]
             )
         ).toEqual([]);
@@ -184,9 +184,9 @@ describe("SPELL_KICKED — must NOT emit (fail-closed axes)", () => {
         // a kick out of a name nothing on the card answers to.
         expect(
             buildSpellKickedEvents(
-                burstLightning,
+                burstLightning(),
                 probeItem({ "kicker-nope": 4 }),
-                burstLightning.id,
+                burstLightning().id,
                 ["R"]
             )
         ).toEqual([]);
@@ -195,9 +195,9 @@ describe("SPELL_KICKED — must NOT emit (fail-closed axes)", () => {
     it("DECLARATION-GATED: a card with NO Kickers at all emits nothing for a stray record", () => {
         expect(
             buildSpellKickedEvents(
-                grizzlyBears,
+                grizzlyBears(),
                 probeItem({ kicker: 2 }),
-                grizzlyBears.id,
+                grizzlyBears().id,
                 ["G"]
             )
         ).toEqual([]);
@@ -209,20 +209,20 @@ describe("SPELL_KICKED — must NOT emit (fail-closed axes)", () => {
 // ---------------------------------------------------------------------------
 describe("SPELL_KICKED — emitted at the real cast choke point (CR 601.2i / 702.33d)", () => {
     function burstLightningCast(kickerPayments?: Record<string, number>) {
-        const bolt = makeInstance(burstLightning.id, {
+        const bolt = makeInstance(burstLightning().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "bolt1",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears1",
             power: 2,
             toughness: 2,
         });
-        const observer = makeInstance(saprolingInfestation.id, {
+        const observer = makeInstance(saprolingInfestation().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "infest1",
@@ -299,7 +299,7 @@ describe("SPELL_KICKED — emitted at the real cast choke point (CR 601.2i / 702
 // trigger the event did or did not produce is the durable evidence.
 // ---------------------------------------------------------------------------
 function observerBoard() {
-    const infest = makeInstance(saprolingInfestation.id, {
+    const infest = makeInstance(saprolingInfestation().id, {
         controllerId: "p1",
         ownerId: "p1",
         id: "infest-obs",
@@ -325,7 +325,7 @@ describe("SPELL_KICKED — a COPY of a kicked spell is not a kick (CR 707.10)", 
         // kicked" clause sees it) but NOBODY kicked it: no player declared or
         // paid a kicker cost for the copy.
         const state = observerBoard();
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears2",
@@ -336,7 +336,7 @@ describe("SPELL_KICKED — a COPY of a kicked spell is not a kick (CR 707.10)", 
         // The already-kicked spell sits on the stack, kicker snapshot and all.
         // Its own cast happened earlier and is not replayed here.
         const kickedSpell: StackItem = {
-            ...makeInstance(burstLightning.id, {
+            ...makeInstance(burstLightning().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 zone: "stack",
@@ -347,7 +347,7 @@ describe("SPELL_KICKED — a COPY of a kicked spell is not a kick (CR 707.10)", 
             kickerPayments: { kicker: 1 },
         };
         state.stack.push(kickedSpell);
-        const forkItem = pushSpell(state, fork.id, "p1", [
+        const forkItem = pushSpell(state, fork().id, "p1", [
             { type: "spell", id: "kickedbolt" },
         ]);
         forkItem.id = "fork1";
@@ -438,7 +438,7 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
         //      the new stack item and emit a phantom SPELL_KICKED: a free
         //      Saproling for a spell nobody kicked.
         const state = observerBoard();
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears-stale",
@@ -446,7 +446,7 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
             toughness: 2,
         });
         getPlayer(state, "p2").battlefield.push(victim);
-        const bolt = makeInstance(burstLightning.id, {
+        const bolt = makeInstance(burstLightning().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -479,7 +479,7 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
         expect(inGraveyard!.kickerPayments).toBeUndefined();
 
         // 3. Regrowth returns it to hand.
-        pushSpell(state, regrowth.id, "p1", [
+        pushSpell(state, regrowth().id, "p1", [
             { type: "graveyard-card", id: "bolt-stale", playerId: "p1" },
         ]);
         resolveTopOfStack(state);
@@ -538,7 +538,7 @@ describe("SPELL_KICKED — a stale kickerPayments record is not a kick (CR 400.7
 describe("SPELL_KICKED — a COUNTERED kicked spell drops its snapshot too (CR 400.7)", () => {
     function counterAKickedBolt(counterCard: CardDefinition) {
         const state = observerBoard();
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears-ctr",
@@ -546,7 +546,7 @@ describe("SPELL_KICKED — a COUNTERED kicked spell drops its snapshot too (CR 4
             toughness: 2,
         });
         getPlayer(state, "p2").battlefield.push(victim);
-        const bolt = makeInstance(burstLightning.id, {
+        const bolt = makeInstance(burstLightning().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -586,7 +586,7 @@ describe("SPELL_KICKED — a COUNTERED kicked spell drops its snapshot too (CR 4
         // owner.hand.push(item)`. Without the strip, the hand card keeps
         // `{ kicker: 1 }` — a CR 400.7 violation and a field persisted to the
         // DB for a cast that is over.
-        const state = counterAKickedBolt(remand);
+        const state = counterAKickedBolt(remand());
         const inHand = getPlayer(state, "p1").hand.find(
             (c: CardInstanceState) => c.id === "bolt-ctr"
         );
@@ -595,7 +595,7 @@ describe("SPELL_KICKED — a COUNTERED kicked spell drops its snapshot too (CR 4
     });
 
     it("Memory Lapse — the countered spell reaches the LIBRARY with no kicker snapshot", () => {
-        const state = counterAKickedBolt(memoryLapse);
+        const state = counterAKickedBolt(memoryLapse());
         const inLibrary = getPlayer(state, "p1").library.find(
             (c: CardInstanceState) => c.id === "bolt-ctr"
         );
@@ -616,7 +616,7 @@ describe("SPELL_KICKED — $event.casterId census (ADR 0049)", () => {
                 type: "SPELL_KICKED",
                 casterId: "p2",
                 spellInstanceId: "s1",
-                spellCardId: burstLightning.id,
+                spellCardId: burstLightning().id,
                 kickerId: "kicker",
                 spellTypes: ["Instant"],
                 spellSubtypes: [],

@@ -6,11 +6,11 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    PermanentView,
-    TriggeredAbility,
-    TriggerStateView,
+import {
+    defineCard,
+    type PermanentView,
+    type TriggeredAbility,
+    type TriggerStateView,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -48,7 +48,7 @@ function sacrificeSelfWhen(args: {
     };
 }
 
-export const flyingMen: CardDefinition = {
+export const flyingMen = defineCard(() => ({
     id: "25ab9a2b-e248-4ae2-aac3-b49fdb3e260a",
     rarity: "common",
     name: "Flying Men",
@@ -59,9 +59,9 @@ export const flyingMen: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying"],
-};
+}));
 
-export const serendibEfreet: CardDefinition = {
+export const serendibEfreet = defineCard(() => ({
     id: "cf56e862-3169-4f63-acd0-731080fa32f2",
     rarity: "rare",
     name: "Serendib Efreet",
@@ -85,9 +85,9 @@ export const serendibEfreet: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const serendibDjinn: CardDefinition = {
+export const serendibDjinn = defineCard(() => ({
     id: "0458b733-d689-4cb5-8970-3b675c67fc4d",
     rarity: "rare",
     name: "Serendib Djinn",
@@ -152,9 +152,9 @@ export const serendibDjinn: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const dandan: CardDefinition = {
+export const dandan = defineCard(() => ({
     id: "414d3cae-b8cf-4d53-bd6b-1aa83a828ba9",
     rarity: "common",
     name: "Dandân",
@@ -189,9 +189,9 @@ export const dandan: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const islandFishJasconius: CardDefinition = {
+export const islandFishJasconius = defineCard(() => ({
     id: "8537cb0f-4821-417b-80cc-ea57d51ee9b8",
     rarity: "rare",
     name: "Island Fish Jasconius",
@@ -261,9 +261,9 @@ export const islandFishJasconius: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const giantTortoise: CardDefinition = {
+export const giantTortoise = defineCard(() => ({
     id: "096f7ac8-c639-4347-9767-7305eaf490ba",
     rarity: "common",
     name: "Giant Tortoise",
@@ -282,9 +282,9 @@ export const giantTortoise: CardDefinition = {
             toughness: 3,
         },
     ],
-};
+}));
 
-export const fishliverOil: CardDefinition = {
+export const fishliverOil = defineCard(() => ({
     id: "deb6ed87-aa07-4b5e-ac40-1e16dc2a817a",
     rarity: "common",
     name: "Fishliver Oil",
@@ -300,9 +300,9 @@ export const fishliverOil: CardDefinition = {
             keyword: "islandwalk",
         },
     ],
-};
+}));
 
-export const unstableMutation: CardDefinition = {
+export const unstableMutation = defineCard(() => ({
     id: "a79e9236-a39e-471a-b18a-2c2ba16e7774",
     rarity: "common",
     name: "Unstable Mutation",
@@ -345,14 +345,14 @@ export const unstableMutation: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Old Man of the Sea — control change conditioned on "remains tapped and the
 // target's power stays <= this creature's power". The "may choose not to
 // untap" clause is not yet modelled (no optional-untap choice mechanism); Old
 // Man therefore untaps normally and the SBA reverts control at the controller's
 // next upkeep. Tracked as a follow-up.
-export const oldManOfTheSea: CardDefinition = {
+export const oldManOfTheSea = defineCard(() => ({
     id: "d10f8a05-78b0-42a7-adcd-83f6bafe5417",
     rarity: "rare",
     name: "Old Man of the Sea",
@@ -396,7 +396,7 @@ export const oldManOfTheSea: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Merchant Ship — Dandân's Island restrictions (CR 508.1c attack restriction;
 // CR 603.8 "when you control no Islands" state trigger) plus "Whenever this
@@ -406,7 +406,7 @@ export const oldManOfTheSea: CardDefinition = {
 // compiler-gap: "This creature can't attack unless defending player controls an Island." (#2693)
 // compiler-gap: "Whenever this creature attacks and isn't blocked, you gain 2 life." (#2693)
 // compiler-gap: "When you control no Islands, sacrifice this creature." (#2693)
-export const merchantShip: CardDefinition = {
+export const merchantShip = defineCard(() => ({
     id: "2b827094-fb2c-46db-b898-02e0c308601f",
     rarity: "uncommon",
     name: "Merchant Ship",
@@ -451,4 +451,4 @@ export const merchantShip: CardDefinition = {
             },
         }),
     ],
-};
+}));

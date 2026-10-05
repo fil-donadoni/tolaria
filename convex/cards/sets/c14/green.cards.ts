@@ -2,7 +2,7 @@
 // `import * as c14 from "./sets/c14/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Titania, Protector of Argoth — {3}{G}{G} Legendary Creature. "When Titania
 // enters, return target land card from your graveyard to the battlefield.
@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // `from: "graveyard"` source (issue #680), paired with `to: "battlefield"`.
 const TITANIA_ID = "224d904a-5972-4152-878a-9a922e7a55b6";
 
-export const titaniaProtectorOfArgoth: CardDefinition = {
+export const titaniaProtectorOfArgoth = defineCard(() => ({
     id: TITANIA_ID,
     name: "Titania, Protector of Argoth",
     rarity: "mythic",
@@ -90,4 +90,4 @@ export const titaniaProtectorOfArgoth: CardDefinition = {
             ],
         },
     ],
-};
+}));

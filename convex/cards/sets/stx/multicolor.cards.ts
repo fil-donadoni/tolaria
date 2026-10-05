@@ -1,7 +1,7 @@
 // Strixhaven (STX) — multicolor cards, split by colour per ADR 0043. The
 // registry's `import * as stx from "./sets/stx/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Expressive Iteration — {U}{R} Sorcery. "Look at the top three cards of your
 // library. Put one of them into your hand, put one of them on the bottom of
@@ -14,7 +14,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // re-runs on each submit, reading the stored answer once provided. The library
 // is mutated only after both picks resolve, so the candidate sets stay stable
 // across re-runs.
-export const expressiveIteration: CardDefinition = {
+export const expressiveIteration = defineCard(() => ({
     id: "31b770cc-09e7-4c0b-b2a4-462ab4f7200d",
     name: "Expressive Iteration",
     rarity: "uncommon",
@@ -79,7 +79,7 @@ export const expressiveIteration: CardDefinition = {
             ctx.reorderLibraryTop(me, [...rest, bottomId]);
         }
     },
-};
+}));
 
 // Witherbloom Apprentice — {B}{G} Creature — Human Druid, 2/2 (Vintage Cube
 // edict/discard/hand disruption, issue #682). "Magecraft — Whenever you cast

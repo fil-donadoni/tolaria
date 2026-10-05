@@ -89,16 +89,16 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
 
     it("guards the guard: both offences are reported on a synthetic card", () => {
         const offender: CardDefinition = {
-            ...hullBreach,
+            ...hullBreach(),
             modeSelection: {
                 min: 1,
                 max: 1,
                 when: { condition: { kicked: true }, min: 1, max: 2 },
             },
             modes: [
-                { ...hullBreach.modes![0], staticEffects: [] },
+                { ...hullBreach().modes![0], staticEffects: [] },
                 {
-                    ...hullBreach.modes![1],
+                    ...hullBreach().modes![1],
                     staticEffects: [{ type: "keyword-grant" } as never],
                 },
                 {
@@ -115,7 +115,7 @@ describe("ModeSelection catalogue guard (ADR 0094)", () => {
         ]);
         expect(
             cardOffences({
-                ...hullBreach,
+                ...hullBreach(),
                 modeSelection: { min: 3, max: 2 },
             })
         ).toEqual([

@@ -63,7 +63,7 @@ function board(
         ownerId: "p1",
         zone: "hand",
     });
-    const land = makeInstance(mountain.id, {
+    const land = makeInstance(mountain().id, {
         id: "mountain-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -111,9 +111,9 @@ function persisted(harness: ReturnType<typeof makeMutationCtx>): GameState {
 
 describe("forced target choice (CR 601.2c) — announcement", () => {
     it("narrows the pick to the Flagbearer, leaving the better target illegal", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         const { after } = await announce(state);
         // The 2/2 is the target a burn spell wants; CR 601.2c takes it away.
@@ -125,18 +125,18 @@ describe("forced target choice (CR 601.2c) — announcement", () => {
     it('is absent — "if able" — when no legal target satisfies it', async () => {
         // Stone Rain targets a LAND; the Flagbearer is a creature, so no legal
         // candidate obeys the requirement and the pick is unconstrained.
-        const state = board(stoneRain.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(mountain.id, "opp-mountain"),
+        const state = board(stoneRain().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(mountain().id, "opp-mountain"),
         ]);
         state.players[0]!.battlefield.push(
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: "mountain-2",
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "battlefield",
             }),
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: "mountain-3",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -151,11 +151,11 @@ describe("forced target choice (CR 601.2c) — announcement", () => {
     it("binds only the OPPONENTS of the requirement's controller", async () => {
         // The Flagbearer is on the CASTER's own side: CR 601.2c's clause reads
         // "while an OPPONENT is choosing targets", so p1 chooses freely.
-        const state = board(lightningBolt.id, [
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         state.players[0]!.battlefield.push(
-            makeInstance(standardBearer.id, {
+            makeInstance(standardBearer().id, {
                 id: "own-bearer",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -169,9 +169,9 @@ describe("forced target choice (CR 601.2c) — announcement", () => {
 
 describe("forced target choice (CR 601.2c) — acceptance", () => {
     it("rejects a pick outside the narrowed set", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         const { harness } = await announce(state);
         await expect(
@@ -184,8 +184,8 @@ describe("forced target choice (CR 601.2c) — acceptance", () => {
     });
 
     it("rejects the opposing PLAYER as a target while the requirement binds", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
         ]);
         const { harness } = await announce(state);
         await expect(
@@ -198,9 +198,9 @@ describe("forced target choice (CR 601.2c) — acceptance", () => {
     });
 
     it("accepts the Flagbearer and commits the announcement", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         const { harness } = await announce(state);
         await runMutation(selectTarget as unknown as AnyHandler, harness.ctx, {
@@ -234,8 +234,8 @@ describe("forced target choice (CR 601.2c) — an ACTIVATED ability (CR 602.2b)"
                 makePlayer("p1", { battlefield: [tim] }),
                 makePlayer("p2", {
                     battlefield: [
-                        oppPermanent(standardBearer.id, "bearer"),
-                        oppPermanent(grizzlyBears.id, "bears"),
+                        oppPermanent(standardBearer().id, "bearer"),
+                        oppPermanent(grizzlyBears().id, "bears"),
                     ],
                 }),
             ],
@@ -286,17 +286,17 @@ describe("forced target choice (CR 601.2c) — a cross-slot constraint", () => {
     it("binds the FIRST pick rather than deferring into an unsatisfiable second", async () => {
         await withTemporaryDefinitionAsync(SPITE, async () => {
             const state = board(SPITE.id, [
-                oppPermanent(standardBearer.id, "bearer"),
-                oppPermanent(grizzlyBears.id, "bears"),
+                oppPermanent(standardBearer().id, "bearer"),
+                oppPermanent(grizzlyBears().id, "bears"),
             ]);
             state.players[0]!.battlefield.push(
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: "mine-1",
                     controllerId: "p1",
                     ownerId: "p1",
                     zone: "battlefield",
                 }),
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: "mine-2",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -321,9 +321,9 @@ describe("forced target choice (CR 601.2c) — a cross-slot constraint", () => {
 
 describe("forced target choice (CR 601.2c) — action space", () => {
     it("offers only the narrowed pick in `legalActions`", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         const { after } = await announce(state);
         const targets = legalActions(after)
@@ -343,8 +343,8 @@ describe("forced target choice (CR 601.2c) — action space", () => {
 
 describe("forced target choice (CR 601.2c) — what satisfies it", () => {
     it("counts a creature that is a Flagbearer only by an Aura (CR 613 layer 4)", () => {
-        const bears = oppPermanent(grizzlyBears.id, "bears");
-        const flag = makeInstance(coalitionFlag.id, {
+        const bears = oppPermanent(grizzlyBears().id, "bears");
+        const flag = makeInstance(coalitionFlag().id, {
             id: "flag",
             controllerId: "p2",
             ownerId: "p2",
@@ -377,8 +377,8 @@ describe("forced target choice (CR 601.2c) — what satisfies it", () => {
                 makePlayer("p1"),
                 makePlayer("p2", {
                     battlefield: [
-                        oppPermanent(standardBearer.id, "bearer-1"),
-                        oppPermanent(standardBearer.id, "bearer-2"),
+                        oppPermanent(standardBearer().id, "bearer-1"),
+                        oppPermanent(standardBearer().id, "bearer-2"),
                     ],
                 }),
             ],
@@ -392,9 +392,9 @@ describe("forced target choice (CR 601.2c) — what satisfies it", () => {
 
 describe("forced target choice (CR 601.2c) — wire format", () => {
     it("survives projectPublicState so the client can grey the rest out", async () => {
-        const state = board(lightningBolt.id, [
-            oppPermanent(standardBearer.id, "bearer"),
-            oppPermanent(grizzlyBears.id, "bears"),
+        const state = board(lightningBolt().id, [
+            oppPermanent(standardBearer().id, "bearer"),
+            oppPermanent(grizzlyBears().id, "bears"),
         ]);
         const { after } = await announce(state);
         const projected = projectPublicState(after, 1, "p1");

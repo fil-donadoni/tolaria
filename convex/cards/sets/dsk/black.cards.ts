@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/P-T are from Scryfall (id = DSK paper printing).
 
-import type { CardDefinition, GameEvent } from "../../types";
+import { defineCard, type GameEvent } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 // Overlord of the Balemurk — {3}{B}{B} Enchantment Creature. "Impending 5 —
@@ -69,7 +69,7 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever you gain life, target opponent loses that much life. (#2693)
 // compiler-gap: When Enduring Tenacity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
-export const enduringTenacity: CardDefinition = {
+export const enduringTenacity = defineCard(() => ({
     id: "d5756d4b-3068-412c-8643-880d3459151e",
     name: "Enduring Tenacity",
     rarity: "rare",
@@ -115,4 +115,4 @@ export const enduringTenacity: CardDefinition = {
             cardName: "Enduring Tenacity",
         }),
     ],
-};
+}));

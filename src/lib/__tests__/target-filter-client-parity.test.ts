@@ -153,8 +153,8 @@ describe("spell-target client parity (issue #1734)", () => {
         // Counterspell is mana value 2 (legal under `{ max: 2 }`), Shivan
         // Dragon is 6 (illegal). Before #1734 `mvFilter` was classified
         // "server-only" client-side: BOTH rows were offered.
-        const state = stackWith(counterspell.id, shivanDragon.id);
-        const req = prohibit.targetRequirement!;
+        const state = stackWith(counterspell().id, shivanDragon().id);
+        const req = prohibit().targetRequirement!;
         const server = serverOffered(state, req);
         expect(server).toHaveLength(1);
         expect(clientSpellOffered(state, req)).toEqual(server);
@@ -166,8 +166,8 @@ describe("spell-target client parity (issue #1734)", () => {
         // registry for the printed cost — the fat `card` definition the
         // projection strips to `{ id }` is never needed. This assertion is what
         // proves that: it runs entirely on projected stack items.
-        const state = stackWith(counterspell.id, disenchant.id);
-        const req = gainsay.targetRequirement!;
+        const state = stackWith(counterspell().id, disenchant().id);
+        const req = gainsay().targetRequirement!;
         const server = serverOffered(state, req);
         expect(server).toHaveLength(1);
         expect(clientSpellOffered(state, req)).toEqual(server);
@@ -177,7 +177,7 @@ describe("spell-target client parity (issue #1734)", () => {
         // The deleted mirrors tested `abilityId || triggeredAbilityId` and
         // omitted `delayedTriggerId`, so a delayed trigger on the stack read as
         // a legal "target instant or sorcery spell" — fail-OPEN.
-        const state = stackWith(counterspell.id, shivanDragon.id);
+        const state = stackWith(counterspell().id, shivanDragon().id);
         const delayed = state.stack[1];
         delayed.delayedTriggerId = "some-delayed-trigger";
         const req: TargetRequirement = {
@@ -196,7 +196,7 @@ describe("spell-target client parity (issue #1734)", () => {
         // 0045) the registry handles — so a DSL land-destruction spell was
         // silently UNCLICKABLE under Equinox's granted counter ability. That is
         // the over-filter direction, invisible without a parity assertion.
-        const myLand = makeInstance(grizzlyBears.id, {
+        const myLand = makeInstance(grizzlyBears().id, {
             id: "my-land",
             controllerId: CHOOSER,
             ownerId: CHOOSER,
@@ -213,10 +213,10 @@ describe("spell-target client parity (issue #1734)", () => {
         // [{ op: "destroy" }]`), NOT the `effect: "destroy-target"` shorthand
         // the deleted mirror recognised — that is precisely the branch it
         // missed.
-        pushSpell(state, thermokarst.id, "p2", [
+        pushSpell(state, thermokarst().id, "p2", [
             { type: "permanent", id: "my-land" },
         ]);
-        pushSpell(state, counterspell.id, "p2");
+        pushSpell(state, counterspell().id, "p2");
         const req: TargetRequirement = {
             type: "spell",
             count: 1,
@@ -230,7 +230,7 @@ describe("spell-target client parity (issue #1734)", () => {
     it("unfiltered spell requirement still offers every spell (no over-filtering)", () => {
         // The inverse-regression guard in its plainest form: routing through
         // the registry must not narrow anything on its own.
-        const state = stackWith(counterspell.id, disenchant.id);
+        const state = stackWith(counterspell().id, disenchant().id);
         const req: TargetRequirement = { type: "spell", count: 1 };
         const server = serverOffered(state, req);
         expect(server).toHaveLength(2);
@@ -246,14 +246,14 @@ describe("player-target client parity (issue #1734)", () => {
         // nameplates lit up and the server rejected whichever the player
         // clicked.
         const state = makeState();
-        const req = forgottenLore.targetRequirement!;
+        const req = forgottenLore().targetRequirement!;
         const server = serverOffered(state, req);
         expect(server).toEqual(["p2"]);
         expect(clientPlayerOffered(state, req)).toEqual(server);
     });
 
     it("playerAttackedThisTurn (Fire and Brimstone, CR 506.2) — offered set matches the server", () => {
-        const attacker = makeInstance(grizzlyBears.id, {
+        const attacker = makeInstance(grizzlyBears().id, {
             id: "atk",
             controllerId: "p2",
             ownerId: "p2",
@@ -266,7 +266,7 @@ describe("player-target client parity (issue #1734)", () => {
                 makePlayer("p2", { battlefield: [attacker] }),
             ],
         });
-        const req = fireAndBrimstone.targetRequirement!;
+        const req = fireAndBrimstone().targetRequirement!;
         const server = serverOffered(state, req);
         expect(server).toEqual(["p2"]);
         expect(clientPlayerOffered(state, req)).toEqual(server);
@@ -274,7 +274,7 @@ describe("player-target client parity (issue #1734)", () => {
 
     it("no player attacked — both sides offer nobody", () => {
         const state = makeState();
-        const req = fireAndBrimstone.targetRequirement!;
+        const req = fireAndBrimstone().targetRequirement!;
         expect(serverOffered(state, req)).toEqual([]);
         expect(clientPlayerOffered(state, req)).toEqual([]);
     });
@@ -286,7 +286,7 @@ describe("player-target client parity (issue #1734)", () => {
         // in the client's ctx at all, so the whole dimension could not be
         // evaluated browser-side.
         const oppCreatures = [0, 1].map((i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `opp-bear-${i}`,
                 controllerId: "p2",
                 ownerId: "p2",
@@ -299,20 +299,20 @@ describe("player-target client parity (issue #1734)", () => {
                 makePlayer("p2", { battlefield: oppCreatures }),
             ],
         });
-        const req = oathOfDruids.triggeredAbilities![0].targetRequirement!;
+        const req = oathOfDruids().triggeredAbilities![0].targetRequirement!;
         const server = serverOffered(state, req);
         expect(server).toEqual(["p2"]);
         expect(clientPlayerOffered(state, req)).toEqual(server);
     });
 
     it("playerControlsMoreThan — a TIE offers NOBODY, on both sides", () => {
-        const mine = makeInstance(grizzlyBears.id, {
+        const mine = makeInstance(grizzlyBears().id, {
             id: "my-bear",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
-        const theirs = makeInstance(grizzlyBears.id, {
+        const theirs = makeInstance(grizzlyBears().id, {
             id: "their-bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -324,7 +324,7 @@ describe("player-target client parity (issue #1734)", () => {
                 makePlayer("p2", { battlefield: [theirs] }),
             ],
         });
-        const req = oathOfDruids.triggeredAbilities![0].targetRequirement!;
+        const req = oathOfDruids().triggeredAbilities![0].targetRequirement!;
         expect(serverOffered(state, req)).toEqual([]);
         expect(clientPlayerOffered(state, req)).toEqual([]);
     });
@@ -409,8 +409,8 @@ describe("CR 601.2c already-chosen exclusion — client parity (issue #1734)", (
 
     it("a spell already chosen under this SAME requirement is no longer offered", () => {
         const state = makeState();
-        const first = pushSpell(state, counterspell.id, "p2");
-        const second = pushSpell(state, disenchant.id, "p2");
+        const first = pushSpell(state, counterspell().id, "p2");
+        const second = pushSpell(state, disenchant().id, "p2");
         const req: TargetRequirement = { type: "spell", count: 2 };
 
         // Control: with nothing chosen yet BOTH stack items are legal, so
@@ -447,7 +447,7 @@ describe("graveyard-card client parity (issue #1734)", () => {
         // The card kind was already routed through `checkCardTargetFilters`
         // (issue #1950); this pins the parity through the REAL projection so a
         // regression in either the projection or the forward set is caught.
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: CHOOSER,
             ownerId: CHOOSER,
@@ -458,7 +458,7 @@ describe("graveyard-card client parity (issue #1734)", () => {
         // `subtypeFilter` — the dimension under test — never does any work.
         // (Proof-of-failure caught exactly that: with an Instant decoy this
         // test stayed green after the pre-#1950 narrow mirror was restored.)
-        const dragon = makeInstance(shivanDragon.id, {
+        const dragon = makeInstance(shivanDragon().id, {
             id: "dragon",
             controllerId: CHOOSER,
             ownerId: CHOOSER,

@@ -28,7 +28,7 @@ import { NO_BOARD_LAYER_VIEW } from "../../../convex/gre/layers";
 /** p1's face-down Mahamoti Djinn on the battlefield, targeted by p2's
  *  Lightning Bolt still on the stack. */
 function stateWithBoltOnFaceDownDjinn() {
-    const djinn = makeInstance(mahamotiDjinn.id, {
+    const djinn = makeInstance(mahamotiDjinn().id, {
         id: "djinn-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -38,7 +38,7 @@ function stateWithBoltOnFaceDownDjinn() {
     const state = makeState({
         players: [makePlayer("p1", { battlefield: [djinn] }), makePlayer("p2")],
     });
-    pushSpell(state, lightningBolt.id, "p2", [
+    pushSpell(state, lightningBolt().id, "p2", [
         { type: "permanent", id: "djinn-1" },
     ]);
     return state;

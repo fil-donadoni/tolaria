@@ -20,7 +20,7 @@ import { lightningBolt } from "../../cards/sets/lea/index.cards";
 describe("Per-player spell-cast counter (CR 601.2i, issue #1343)", () => {
     it("increments per-caster and carries casterSpellCountThisTurn (the caster's own prior count) on SPELL_CAST", () => {
         const state = makeState();
-        const bolt1 = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt1 = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt1);
@@ -33,7 +33,7 @@ describe("Per-player spell-cast counter (CR 601.2i, issue #1343)", () => {
             casterSpellCountThisTurn: 0,
         });
 
-        const bolt2 = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt2 = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt2);
@@ -49,11 +49,11 @@ describe("Per-player spell-cast counter (CR 601.2i, issue #1343)", () => {
 
     it("is scoped PER PLAYER — P1's 1st + P2's 1st spell must NOT read as anyone's 2nd", () => {
         const state = makeState();
-        const p1Bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const p1Bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, p1Bolt);
-        const p2Bolt = pushSpell(state, lightningBolt.id, "p2", [
+        const p2Bolt = pushSpell(state, lightningBolt().id, "p2", [
             { type: "player", id: "p1" },
         ]);
         emitSpellCastEvent(state, p2Bolt);
@@ -77,7 +77,7 @@ describe("Per-player spell-cast counter (CR 601.2i, issue #1343)", () => {
         });
 
         // Now P1 casts a SECOND spell — this is the caster's own 2nd spell.
-        const p1Bolt2 = pushSpell(state, lightningBolt.id, "p1", [
+        const p1Bolt2 = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, p1Bolt2);

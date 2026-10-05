@@ -16,11 +16,11 @@ const TOLERANCE = 1;
 
 const CASES = [
     // body = a representative 2/2 at MV2 (the copied body is unknowable).
-    { def: phantasmalImage, body: [2, 2, 2], premium: 0 },
+    { def: phantasmalImage(), body: [2, 2, 2], premium: 0 },
     // vanilla 2/4 MV4 + 25 for the repeatable redirect.
-    { def: mirrorwoodTreefolk, body: [2, 4, 4], premium: 25 },
+    { def: mirrorwoodTreefolk(), body: [2, 4, 4], premium: 25 },
     // 2/2 MV2 + 7 for the soft Duress-grade disruption.
-    { def: meddlingMage, body: [2, 2, 2], premium: 7 },
+    { def: meddlingMage(), body: [2, 2, 2], premium: 7 },
 ] as const;
 
 describe("creature aiValue overrides track the fitted discount (issue #5012)", () => {

@@ -2,14 +2,14 @@
 // `import * as aer from "./sets/aer/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Walking Ballista — "This creature enters with X +1/+1 counters on it. {4}:
 // Put a +1/+1 counter on this creature. Remove a +1/+1 counter from this
 // creature: It deals 1 damage to any target." (CR 122 counters; CR 107.3i
 // {X}{X} mana cost, ADR — encoded as `X: "X"` with `xFactor: 2` so the chosen
 // X is paid twice.)
-export const walkingBallista: CardDefinition = {
+export const walkingBallista = defineCard(() => ({
     id: "329a8738-3e17-403a-857a-0ba529ce8cd1",
     rarity: "rare",
     name: "Walking Ballista",
@@ -47,4 +47,4 @@ export const walkingBallista: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));

@@ -33,7 +33,7 @@ function merfolk(
 function lord(counters?: Record<string, number>): CardInstanceState {
     return {
         id: "lord",
-        card: { id: lordOfAtlantis.id },
+        card: { id: lordOfAtlantis().id },
         types: ["Creature"],
         subtypes: ["Merfolk"],
         power: 2,

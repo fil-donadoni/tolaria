@@ -2,9 +2,9 @@
 // `import * as tla from "./sets/tla/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    ActivatedAbilityContext,
-    CardDefinition,
+import {
+    defineCard,
+    type ActivatedAbilityContext,
 } from "../../../../convex/cards/types";
 // `hasSupertypeLive` (CR 205.4a) reads the Basic SUPERTYPE, not a basic land
 // SUBTYPE — the two diverge for nonbasic lands that carry a basic land type
@@ -25,7 +25,7 @@ import { hasSupertypeLive } from "../../snowReads";
 // {T}: Put a +1/+1 counter on each creature you control." (CR 614.1c
 // self-conditional tapped-entry via `entersTappedUnless`; CR 605.1a mana
 // ability; CR 122 mass counter placement via `forEach`.)
-export const abandonedAirTemple: CardDefinition = {
+export const abandonedAirTemple = defineCard(() => ({
     id: "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
     name: "Abandoned Air Temple",
     rarity: "rare",
@@ -83,4 +83,4 @@ export const abandonedAirTemple: CardDefinition = {
             ],
         },
     ],
-};
+}));

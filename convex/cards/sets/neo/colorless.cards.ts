@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { channelAbility } from "../../abilities/channel";
 import { LAND_SUBTYPE_MANA } from "../../../gre/constants";
 
@@ -56,7 +56,7 @@ const LEGENDARY_CREATURE_COUNT = {
 // never `supertype: "Basic"`, which would wrongly exclude a dual.
 //
 // compiler-gap: Channel — {1}{G}, Discard this card: Destroy target artifact, enchantment, or nonbasic land an opponent controls. That player may search their library for a land card with a basic land type, put it onto the battlefield, then shuffle. This ability costs {1} less to activate for each legendary creature you control. (#2693)
-export const boseijuWhoEndures: CardDefinition = {
+export const boseijuWhoEndures = defineCard(() => ({
     id: "2135ac5a-187b-4dc9-8f82-34e8d1603416",
     name: "Boseiju, Who Endures",
     rarity: "rare",
@@ -132,7 +132,7 @@ export const boseijuWhoEndures: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Otawara, Soaring City — Legendary Land. "{T}: Add {U}.\nChannel — {3}{U},
 // Discard this card: Return target artifact, creature, enchantment or
@@ -155,7 +155,7 @@ export const boseijuWhoEndures: CardDefinition = {
 // hand-written test does not appear here.
 //
 // compiler-gap: Channel — {3}{U}, Discard this card: Return target artifact, creature, enchantment or planeswalker to its owner's hand. This ability costs {1} less to activate for each legendary creature you control. (#2693)
-export const otawaraSoaringCity: CardDefinition = {
+export const otawaraSoaringCity = defineCard(() => ({
     id: "486d7edc-d983-41f0-8b78-c99aecd72996",
     name: "Otawara, Soaring City",
     rarity: "rare",
@@ -186,4 +186,4 @@ export const otawaraSoaringCity: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         }),
     ],
-};
+}));

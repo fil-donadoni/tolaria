@@ -138,11 +138,11 @@ describe("client mana mirrors see a granted mana ability through projectPublicSt
 
     it("getManaChoices prompts when a grant adds a SECOND option next to the intrinsic one (CR 305.6)", () => {
         // A plain Forest has exactly one option — no picker.
-        const plain = projected(forest.id, []);
+        const plain = projected(forest().id, []);
         expect(getManaChoices(plain.card, plain.players)).toBeNull();
 
         // Granted "{1}, {T}: Add {W}" → the granted {W} AND the Forest's {G}.
-        const granted = projected(forest.id, costedGrant);
+        const granted = projected(forest().id, costedGrant);
         expect(getManaChoices(granted.card, granted.players)).toEqual([
             { W: 1 },
             { G: 1 },

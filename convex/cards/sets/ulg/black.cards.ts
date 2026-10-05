@@ -1,7 +1,7 @@
 // Urza's Legacy (ULG) — black cards, split by colour per ADR 0043. The
 // registry's `import * as ulg from "./sets/ulg/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
 import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 
@@ -11,7 +11,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // shape as Reanimate (tmp/black.cards.ts); the `mvFilter: { max: 3 }` gates the
 // target (CR 601.2c) as in Sevinne's Reclamation (c19/white.ts). The Cycling
 // ability is the engine/cost capability from issue #689.
-export const unearth: CardDefinition = {
+export const unearth = defineCard(() => ({
     id: "b6cb2549-e485-44d6-9d65-7605c568909e",
     name: "Unearth",
     rarity: "common",
@@ -31,7 +31,7 @@ export const unearth: CardDefinition = {
     effects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
     // CR 702.29 — Cycling {2}. Usable only from hand at instant speed.
     activatedAbilities: [cyclingAbility({ generic: 2 })],
-};
+}));
 
 // Engineered Plague — {2}{B} Enchantment. "As this enchantment enters, choose a
 // creature type. All creatures of the chosen type get -1/-1." (CR 614.12a the
@@ -57,7 +57,7 @@ export const unearth: CardDefinition = {
 // applied before layer 7c) is seen by this predicate on the next read.
 // compiler-gap: As this enchantment enters, choose a creature type. (#2693)
 // compiler-gap: All creatures of the chosen type get -1/-1. (#2693)
-export const engineeredPlague: CardDefinition = {
+export const engineeredPlague = defineCard(() => ({
     id: "27e158d5-efb2-4f90-8898-60ede98f7d29",
     name: "Engineered Plague",
     rarity: "uncommon",
@@ -82,4 +82,4 @@ export const engineeredPlague: CardDefinition = {
             toughness: -1,
         },
     ],
-};
+}));

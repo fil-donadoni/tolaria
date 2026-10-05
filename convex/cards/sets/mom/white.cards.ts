@@ -3,7 +3,6 @@
 
 import { modalLandBackFace } from "../../abilities";
 import { incubateOp } from "../../abilities/tokens/incubatorToken";
-import type { CardDefinition } from "../../types";
 import { defineCard } from "../../types";
 
 // Witch Enchanter // Witch-Blessed Meadow — {3}{W} Creature — Human Warlock
@@ -76,7 +75,7 @@ export const witchEnchanter = defineCard(() => ({
 // count of the creatures it's about to be created alongside — the pre-exile
 // creature count computed by `incubateOp`'s `count` always equals the
 // post-exile actually-exiled count.
-export const sunfall: CardDefinition = {
+export const sunfall = defineCard(() => ({
     id: "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d",
     name: "Sunfall",
     rarity: "rare",
@@ -102,4 +101,4 @@ export const sunfall: CardDefinition = {
             effects: [{ op: "exile", target: { ref: "$each" } }],
         },
     ],
-};
+}));

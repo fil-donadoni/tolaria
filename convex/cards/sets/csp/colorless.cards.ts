@@ -2,10 +2,10 @@
 // colour per ADR 0043. The registry's `import * as csp from "./sets/csp/index.cards"`
 // resolves through csp/index.cards.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n`.
-import type {
-    CardDefinition,
-    DelayedTriggerDef,
-    SpellContext,
+import {
+    defineCard,
+    type DelayedTriggerDef,
+    type SpellContext,
 } from "../../types";
 
 // "Draw a card at the beginning of the next turn's upkeep" cantrip rider
@@ -45,7 +45,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 // look-at-top-N mechanism (`peekLibraryTop` + `SpellContext.markKnown`, ADR
 // 0026): the top card stays revealed to the controller until it changes zones
 // or the library is shuffled. CR 603.7d schedules the delayed draw.)
-export const mishrasBauble: CardDefinition = {
+export const mishrasBauble = defineCard(() => ({
     id: "8a720448-017f-4f4a-9501-678245eaed17",
     name: "Mishra's Bauble",
     rarity: "uncommon",
@@ -78,13 +78,13 @@ export const mishrasBauble: CardDefinition = {
                     ctx.notifyReveal(
                         [ctx.controller],
                         top,
-                        mishrasBauble.id,
+                        mishrasBauble().id,
                         "look"
                     );
                 }
-                scheduleNextUpkeepDraw(ctx, mishrasBauble.id);
+                scheduleNextUpkeepDraw(ctx, mishrasBauble().id);
             },
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
-};
+}));

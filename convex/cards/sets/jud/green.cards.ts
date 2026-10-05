@@ -1,5 +1,5 @@
 // jud — green cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Krosan Reclamation — {1}{G} Instant. "Target player shuffles up to two
 // target cards from their graveyard into their library." with Flashback {1}{G}
@@ -16,7 +16,7 @@ import type { CardDefinition } from "../../types";
 // the engine's "up to two" idiom (issue #677). The picks then `moveZone`
 // graveyard → library (5dn/green.cards.ts Eternal Witness cards-shape) and a trailing
 // `libraryLook` shuffle (CR 701.24) randomizes the target player's library.
-export const krosanReclamation: CardDefinition = {
+export const krosanReclamation = defineCard(() => ({
     id: "5b3c5144-7e15-46c6-b819-d729ecb30bb1",
     rarity: "uncommon",
     name: "Krosan Reclamation",
@@ -46,4 +46,4 @@ export const krosanReclamation: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: { target: 0 } },
     ],
-};
+}));

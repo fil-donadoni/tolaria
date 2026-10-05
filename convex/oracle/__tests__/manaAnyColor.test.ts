@@ -147,7 +147,7 @@ describe("golden — the painland rider composes with the any-colour production"
 });
 
 describe("gold — the hand-written any-colour twins round-trip through their own text", () => {
-    it.each([birdsOfParadise, celestialPrism])("$name", (card) => {
+    it.each([birdsOfParadise(), celestialPrism()])("$name", (card) => {
         const verdict = roundTripCard(card).verdict;
         expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });
     });

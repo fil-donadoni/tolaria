@@ -111,7 +111,12 @@ function reanimate(state: GameState): void {
 
 describe("CR 614.12a — the mode pick is declared on entersWith.asEnters", () => {
     it("every shipped card whose modes ARE its as-enters clause declares it", () => {
-        for (const def of [voiceOfAll, prismaticWard, quirionElves, jihad]) {
+        for (const def of [
+            voiceOfAll(),
+            prismaticWard(),
+            quirionElves(),
+            jihad(),
+        ]) {
             expect(declaresAsEntersMode(def)).toBe(true);
         }
     });
@@ -119,8 +124,8 @@ describe("CR 614.12a — the mode pick is declared on entersWith.asEnters", () =
     it("an ordinary CR 700.2 modal SPELL is NOT swept in (the must-NOT row)", () => {
         // Vision Charm's modes are chosen at announcement (CR 700.2c) and drive
         // its resolution; it never enters the battlefield at all.
-        expect(declaresAsEntersMode(visionCharm)).toBe(false);
-        expect(declaresAsEntersMode(grizzlyBears)).toBe(false);
+        expect(declaresAsEntersMode(visionCharm())).toBe(false);
+        expect(declaresAsEntersMode(grizzlyBears())).toBe(false);
     });
 });
 
@@ -128,7 +133,7 @@ describe("CR 614.12a — the mode pick is declared on entersWith.asEnters", () =
 
 describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", () => {
     it("Voice of All reanimated out of a graveyard is parked, asked, and enters with the answer", () => {
-        const state = withInGraveyard(voiceOfAll);
+        const state = withInGraveyard(voiceOfAll());
         reanimate(state);
 
         // Parked off EVERY zone until it answers (ADR 0100 D2).
@@ -160,7 +165,7 @@ describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", 
     });
 
     it("Quirion Elves reanimated produces the CHOSEN colour from its second mana ability", () => {
-        const state = withInGraveyard(quirionElves);
+        const state = withInGraveyard(quirionElves());
         reanimate(state);
         answer(state, ["U"]);
 
@@ -180,15 +185,15 @@ describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", 
     it("Jihad reanimated grants its anthem off the chosen colour", () => {
         // Repentant Blacksmith is white (the anthem's beneficiary); Mijae Djinn
         // is the opponent's RED nontoken permanent (the anthem's condition).
-        const white = makeInstance(repentantBlacksmith.id, {
+        const white = makeInstance(repentantBlacksmith().id, {
             id: "white-creature",
             controllerId: "p1",
         });
-        const red = makeInstance(mijaeDjinn.id, {
+        const red = makeInstance(mijaeDjinn().id, {
             id: "red-perm",
             controllerId: "p2",
         });
-        const state = withInGraveyard(jihad, {
+        const state = withInGraveyard(jihad(), {
             p1Battlefield: [white],
             p2Battlefield: [red],
         });
@@ -211,15 +216,15 @@ describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", 
         // what it enchants AND answers its own as-enters clause. Two legal
         // hosts, so the host pick is a real prompt (ADR 0003: a single legal
         // host is auto-attached with no prompt — covered below).
-        const hostA = makeInstance(grizzlyBears.id, {
+        const hostA = makeInstance(grizzlyBears().id, {
             id: "host-a",
             controllerId: "p1",
         });
-        const hostB = makeInstance(grizzlyBears.id, {
+        const hostB = makeInstance(grizzlyBears().id, {
             id: "host-b",
             controllerId: "p1",
         });
-        const state = withInGraveyard(prismaticWard, {
+        const state = withInGraveyard(prismaticWard(), {
             p1Battlefield: [hostA, hostB],
         });
         reanimate(state);
@@ -243,11 +248,11 @@ describe("CR 614.12a — a non-cast entry raises the mode pick (census row B)", 
         // ADR 0003 — one legal host is a zero-branch decision (no host prompt),
         // but the CR 614.12a colour pick is still owed and the auto-attach must
         // survive the park.
-        const onlyHost = makeInstance(grizzlyBears.id, {
+        const onlyHost = makeInstance(grizzlyBears().id, {
             id: "only-host",
             controllerId: "p1",
         });
-        const state = withInGraveyard(prismaticWard, {
+        const state = withInGraveyard(prismaticWard(), {
             p1Battlefield: [onlyHost],
         });
         reanimate(state);
@@ -268,7 +273,7 @@ describe("CR 614.12a — a CAST permanent is asked exactly once, at entry", () =
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, voiceOfAll.id, "p1");
+        const item = pushSpell(state, voiceOfAll().id, "p1");
         // The stack item carries NO `chosenModeId` — `announceCast` no longer
         // accepts one for this card.
         expect(item.chosenModeIds?.[0]).toBeUndefined();
@@ -296,7 +301,7 @@ describe("CR 614.12a — a CAST permanent is asked exactly once, at entry", () =
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, voiceOfAll.id, "p1");
+        const item = pushSpell(state, voiceOfAll().id, "p1");
         resolveTopOfStack(state);
         answer(state, ["G"]);
 
@@ -330,24 +335,24 @@ describe("CR 614.12a — SpellContext.getCardModes stops offering the pick", () 
                 }),
             ],
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         return buildSpellContext(state, item);
     }
 
     it("returns NO modes for a card whose pick is an as-enters choice", () => {
         // Word of Command / `castDuringResolution` would otherwise prompt at
         // announcement and the entry chokepoint would prompt again.
-        expect(ctxWithHandCard(voiceOfAll).getCardModes("p2", "held")).toEqual(
-            []
-        );
+        expect(
+            ctxWithHandCard(voiceOfAll()).getCardModes("p2", "held")
+        ).toEqual([]);
     });
 
     it("still returns the modes of an ordinary modal spell (the must-NOT row)", () => {
         expect(
-            ctxWithHandCard(visionCharm)
+            ctxWithHandCard(visionCharm())
                 .getCardModes("p2", "held")
                 .map((m) => m.id)
-        ).toEqual(visionCharm.modes!.map((m) => m.id));
+        ).toEqual(visionCharm().modes!.map((m) => m.id));
     });
 });
 
@@ -361,7 +366,7 @@ describe("CR 611/613 — the readers of chosenModeId are untouched", () => {
         // `condition: source.chosenModeId === color`, and CR 611.2 materializes
         // the winning one into `staticAbilities` — so the assertion is on the
         // colour the field NAMES, plus the must-NOT rows for the other four.
-        const voice = makeInstance(voiceOfAll.id, {
+        const voice = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });

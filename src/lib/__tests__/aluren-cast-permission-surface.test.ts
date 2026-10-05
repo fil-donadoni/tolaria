@@ -38,7 +38,7 @@ function projectedFor(handCardId: string) {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(aluren.id, {
+                    makeInstance(aluren().id, {
                         id: "aluren",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -71,7 +71,7 @@ function projectedFor(handCardId: string) {
 
 describe("affordableAltCostsForCard — board cast permission (CR 601.3 / 118.9)", () => {
     it("offers the opponent's Aluren free cast through the projected view", () => {
-        const { projected, card } = projectedFor(grizzlyBears.id);
+        const { projected, card } = projectedFor(grizzlyBears().id);
 
         const altIds = affordableAltCostsForCard(
             card,
@@ -84,7 +84,7 @@ describe("affordableAltCostsForCard — board cast permission (CR 601.3 / 118.9)
     });
 
     it("offers nothing for a card the permission's filter excludes (CR 202.3 — mana value 6)", () => {
-        const { projected, card } = projectedFor(shivanDragon.id);
+        const { projected, card } = projectedFor(shivanDragon().id);
 
         expect(
             affordableAltCostsForCard(

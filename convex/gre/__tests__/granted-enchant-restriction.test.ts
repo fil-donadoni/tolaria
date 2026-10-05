@@ -103,7 +103,7 @@ function board(opts: { creatureIds: string[]; withLand?: boolean }): {
     const battlefield: CardInstanceState[] = [
         enchantment,
         ...opts.creatureIds.map((id) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -113,7 +113,7 @@ function board(opts: { creatureIds: string[]; withLand?: boolean }): {
     ];
     if (opts.withLand) {
         battlefield.push(
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: "land-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -266,7 +266,7 @@ describe("granted restrictions are battlefield-scoped (CR 400.7 / 303.4f)", () =
         state: GameState;
         entered: string[];
     } {
-        const artifact = makeInstance(mountain.id, {
+        const artifact = makeInstance(mountain().id, {
             id: "sol-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -276,7 +276,7 @@ describe("granted restrictions are battlefield-scoped (CR 400.7 / 303.4f)", () =
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "bear-1",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -303,7 +303,7 @@ describe("granted restrictions are battlefield-scoped (CR 400.7 / 303.4f)", () =
         // auto-attached to `sol-1`; staging then dropped the clause, the sweep
         // re-read the printed one, and Control Magic was binned attached to a
         // host it had just been offered.
-        const aura = makeInstance(controlMagic.id, {
+        const aura = makeInstance(controlMagic().id, {
             id: "cm-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -385,7 +385,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
         // The Aura can enchant only objects or players that match all of its
         // enchant abilities." Control Magic is printed "enchant creature"; a
         // granted "enchant artifact" leaves only artifact creatures legal.
-        const printed = makeInstance(controlMagic.id, {
+        const printed = makeInstance(controlMagic().id, {
             id: "cm-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -394,7 +394,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             { types: ["Creature"], players: false },
         ]);
 
-        const granted = makeInstance(controlMagic.id, {
+        const granted = makeInstance(controlMagic().id, {
             id: "cm-2",
             controllerId: "p1",
             ownerId: "p1",
@@ -405,7 +405,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             { types: ["Creature"], players: false },
         ]);
 
-        const artifactHost = makeInstance(mountain.id, {
+        const artifactHost = makeInstance(mountain().id, {
             id: "art-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -419,7 +419,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
             false
         );
 
-        const artifactCreature = makeInstance(grizzlyBears.id, {
+        const artifactCreature = makeInstance(grizzlyBears().id, {
             id: "ac-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -435,7 +435,7 @@ describe("one predicate, both consumers (CR 303.4c/704.5m and CR 303.4f)", () =>
     });
 
     it("an object with neither a granted nor a printed restriction has no legal host", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -451,17 +451,17 @@ describe("printed Auras are unchanged (regression)", () => {
     function printedAuraBoard(hostTypes: "creature" | "land"): GameState {
         const host =
             hostTypes === "creature"
-                ? makeInstance(grizzlyBears.id, {
+                ? makeInstance(grizzlyBears().id, {
                       id: "host",
                       controllerId: "p2",
                       ownerId: "p2",
                   })
-                : makeInstance(mountain.id, {
+                : makeInstance(mountain().id, {
                       id: "host",
                       controllerId: "p2",
                       ownerId: "p2",
                   });
-        const aura = makeInstance(controlMagic.id, {
+        const aura = makeInstance(controlMagic().id, {
             id: "cm-1",
             controllerId: "p1",
             ownerId: "p1",

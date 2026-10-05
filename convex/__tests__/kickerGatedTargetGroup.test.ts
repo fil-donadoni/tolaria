@@ -107,13 +107,13 @@ function board(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [spell],
-                battlefield: [permanent(plains.id, "my-plains", "p1")],
+                battlefield: [permanent(plains().id, "my-plains", "p1")],
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 4 },
             }),
             makePlayer("p2", {
                 battlefield: [
-                    permanent(ankhOfMishra.id, "ankh", "p2"),
-                    permanent(grizzlyBears.id, "bears", "p2"),
+                    permanent(ankhOfMishra().id, "ankh", "p2"),
+                    permanent(grizzlyBears().id, "bears", "p2"),
                 ],
             }),
         ],
@@ -193,7 +193,7 @@ function probeBoard(): GameState {
         zone: "hand",
     });
     const library = Array.from({ length: 5 }, (_, i) =>
-        makeInstance(plains.id, {
+        makeInstance(plains().id, {
             id: `lib-${i}`,
             controllerId: "p1",
             ownerId: "p1",

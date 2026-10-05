@@ -2,7 +2,7 @@
 // `import * as mkm from "./sets/mkm/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // No More Lies — {W}{U} Instant. "Counter target spell unless its controller
 // pays {3}. If that spell is countered this way, exile it instead of putting
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // issue #683's "exile it instead" redirect clause.) Same mayPay + if(not
 // $paid) + counter shape as Force Spike (leg/blue.cards.ts), with a `destination`
 // override on the consequence.
-export const noMoreLies: CardDefinition = {
+export const noMoreLies = defineCard(() => ({
     id: "1e0c695d-62f9-4805-9e2f-7032e8464136",
     rarity: "uncommon",
     name: "No More Lies",
@@ -43,4 +43,4 @@ export const noMoreLies: CardDefinition = {
             ],
         },
     ],
-};
+}));

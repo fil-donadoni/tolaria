@@ -4,14 +4,13 @@
 
 import type {
     ActivatedAbilityContext,
-    CardDefinition,
     GameEvent,
     PermanentView,
     SpellContext,
     StaticEffectContext,
     StaticEffectStateView,
 } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { firstBlockerOf } from "../../abilities/triggers/rampageTrigger";
 import {
@@ -37,7 +36,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // Creeping Tar Pit are caught) selects the qualifying ones at untap-collection
 // time. `maxUntap: 0` makes it a hard skip — matching lands cannot untap while
 // Tsabo's Web is in play (mana-only lands untap normally).
-export const tsabosWeb: CardDefinition = {
+export const tsabosWeb = defineCard(() => ({
     id: "0dee69f8-cceb-41b9-a0ee-6b2ac9f4bad9",
     rarity: "rare",
     name: "Tsabo's Web",
@@ -63,7 +62,7 @@ export const tsabosWeb: CardDefinition = {
             dynamicMatch: (_candidate, def) => hasNonManaActivatedAbility(def),
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -76,7 +75,7 @@ export const tsabosWeb: CardDefinition = {
 // `toughness` are the ninth EffectValue grammar member `{ domain: { of } }`
 // — no arithmetic needed, a straight reuse of the same value member Tribal
 // Flames uses for `dealDamage`.
-export const powerArmor: CardDefinition = {
+export const powerArmor = defineCard(() => ({
     id: "ed1981dd-c0f3-4e9d-a1f1-8bea823326ef",
     name: "Power Armor",
     rarity: "uncommon",
@@ -103,7 +102,7 @@ export const powerArmor: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1074, parent PRD #1063) — the remaining 11 of 13
@@ -135,7 +134,7 @@ export const powerArmor: CardDefinition = {
 // `duration` (indefinite, mirrors the removed `setColorOverride` call this
 // closure made directly). Scope is `self`, so the entering permanent IS the
 // source — `$source` needs no `entered` payload.
-export const alloyGolem: CardDefinition = {
+export const alloyGolem = defineCard(() => ({
     id: "1fb6d6a1-9d71-405b-9c93-1a7f06c67abd",
     rarity: "uncommon",
     name: "Alloy Golem",
@@ -168,7 +167,7 @@ export const alloyGolem: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Chromatic Sphere — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add
 // one mana of any color. Draw a card." (CR 605.1a — a mana ability MAY carry
@@ -191,7 +190,7 @@ export const alloyGolem: CardDefinition = {
 // Sphere were destroyed by unrelated removal instead of sacrificed for its
 // own ability — `drawsCardOnTap` instead ties the draw only to activating
 // THIS ability, matching Sphere's actual text.
-export const chromaticSphere: CardDefinition = {
+export const chromaticSphere = defineCard(() => ({
     id: "920cd17f-9274-443e-906f-c9904f0658d5",
     rarity: "uncommon",
     name: "Chromatic Sphere",
@@ -211,7 +210,7 @@ export const chromaticSphere: CardDefinition = {
             drawsCardOnTap: 1,
         },
     ],
-};
+}));
 
 // Juntu Stakes — {2} Artifact. "Creatures with power 1 or less don't untap
 // during their controllers' untap steps." (CR 502.1 untap-restriction, same
@@ -221,7 +220,7 @@ export const chromaticSphere: CardDefinition = {
 // live effective power directly via `dynamicMatch`, the same per-candidate
 // refinement hook Tsabo's Web uses above (there keyed on the card
 // definition; here keyed on live P/T instead).
-export const juntuStakes: CardDefinition = {
+export const juntuStakes = defineCard(() => ({
     id: "3ab7cf53-f62d-47e1-af70-ab12be0d22e2",
     rarity: "rare",
     name: "Juntu Stakes",
@@ -239,12 +238,12 @@ export const juntuStakes: CardDefinition = {
             dynamicMatch: (candidate) => (candidate.power ?? 0) <= 1,
         }),
     ],
-};
+}));
 
 // Lotus Guardian — {7} Artifact Creature — Dragon 4/4. "Flying\n{T}: Add one
 // mana of any color." (CR 702.9b flying; CR 605.1a "any color" mana ability —
 // the City of Brass / Celestial Prism `manaChoices` shape.)
-export const lotusGuardian: CardDefinition = {
+export const lotusGuardian = defineCard(() => ({
     id: "ddfc6396-5377-4ab3-9c10-8abcdeae2aa1",
     rarity: "rare",
     name: "Lotus Guardian",
@@ -265,7 +264,7 @@ export const lotusGuardian: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Phyrexian Altar — {3} Artifact. "Sacrifice a creature: Add one mana of any
 // color." CR 605.1a — no target, adds mana, no loyalty, no library movement: a
@@ -274,7 +273,7 @@ export const lotusGuardian: CardDefinition = {
 // shared cost-pick window and commits inline (issue #3455); the colour is
 // picked at activation from the `manaChoices` descriptor, the Birds of
 // Paradise shape.
-export const phyrexianAltar: CardDefinition = {
+export const phyrexianAltar = defineCard(() => ({
     id: "25158cd5-749b-408c-9ab1-0f83e38730f7",
     rarity: "rare",
     name: "Phyrexian Altar",
@@ -290,13 +289,13 @@ export const phyrexianAltar: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Phyrexian Lens — {3} Artifact. "{T}, Pay 1 life: Add one mana of any
 // color." (CR 605.1a mana ability with a life-payment cost — the Mana
 // Confluence / Horizon-land shape — combined with the `manaChoices` "any
 // color" picker.)
-export const phyrexianLens: CardDefinition = {
+export const phyrexianLens = defineCard(() => ({
     id: "6ec9a91d-7af0-44a8-839f-fb9960be0ddd",
     rarity: "rare",
     name: "Phyrexian Lens",
@@ -313,14 +312,14 @@ export const phyrexianLens: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Planar Portal — {6} Artifact. "{6}, {T}: Search your library for a card,
 // put that card into your hand, then shuffle." (CR 701.20a search library —
 // no reveal clause here, unlike Spellseeker/Manipulate Fate — reuse of the
 // same search→moveZone(hand)→shuffle tutor template this set already ships
 // (Manipulate Fate), just with no `filter` (any card) and `count: 1`.)
-export const planarPortal: CardDefinition = {
+export const planarPortal = defineCard(() => ({
     id: "24315eaa-ef55-4fd6-9145-e75b3de6f492",
     rarity: "rare",
     name: "Planar Portal",
@@ -356,7 +355,7 @@ export const planarPortal: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sparring Golem — {3} Artifact Creature — Golem 2/2. "Whenever this creature
 // becomes blocked, it gets +1/+1 until end of turn for each creature blocking
@@ -378,7 +377,7 @@ export const planarPortal: CardDefinition = {
 // selector in the `EffectValue`/`forEach` grammar. A small dedicated trigger
 // mirrors the shipped `rampageTrigger` shape exactly, reusing its exported
 // dedupe helper rather than duplicating it.
-export const sparringGolem: CardDefinition = {
+export const sparringGolem = defineCard(() => ({
     id: "d829d9de-83fa-4feb-8efc-0075315163c6",
     rarity: "uncommon",
     name: "Sparring Golem",
@@ -424,7 +423,7 @@ export const sparringGolem: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Tek — {5} Artifact Creature — Dragon 2/2. "This creature gets +0/+2 as long
 // as you control a Plains, has flying as long as you control an Island, gets
@@ -456,7 +455,7 @@ function controlsBasicLandType(landType: string) {
         );
 }
 
-export const tek: CardDefinition = {
+export const tek = defineCard(() => ({
     id: "c1f38104-a699-4bb9-930a-699f7bbc338a",
     rarity: "rare",
     name: "Tek",
@@ -500,7 +499,7 @@ export const tek: CardDefinition = {
             keyword: "trample",
         },
     ],
-};
+}));
 
 // Urza's Filter — {4} Artifact. "Multicolored spells cost {2} less to cast."
 // (CR 601.2f cost-modifier, generic-only reduction; CR 202.2 multicolored =
@@ -510,7 +509,7 @@ export const tek: CardDefinition = {
 // Gate, the discount is NOT scoped to its controller — it reduces EVERY
 // player's multicolored spells — so `appliesToSpell` has no `controllerId`
 // check.)
-export const urzasFilter: CardDefinition = {
+export const urzasFilter = defineCard(() => ({
     id: "680c75b1-e766-40be-84d7-2332047bb3de",
     rarity: "rare",
     name: "Urza's Filter",
@@ -525,14 +524,14 @@ export const urzasFilter: CardDefinition = {
             costReduction: { X: 2 },
         },
     ],
-};
+}));
 
 // Archaeological Dig — Land. "{T}: Add {C}.\n{T}, Sacrifice this land: Add
 // one mana of any color." (CR 605.1a fixed-colorless tap ability + a
 // self-sacrifice "any color" mana ability — the Black Lotus/Chromatic Star
 // `manaChoices` shape — modeled as two separate tap abilities, the same
 // two-ability land shape Strip Mine already ships in this codebase.)
-export const archaeologicalDig: CardDefinition = {
+export const archaeologicalDig = defineCard(() => ({
     id: "35f55af0-5a46-4900-b3d0-ca796b710e07",
     rarity: "uncommon",
     name: "Archaeological Dig",
@@ -558,4 +557,4 @@ export const archaeologicalDig: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));

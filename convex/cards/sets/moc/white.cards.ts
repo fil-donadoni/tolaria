@@ -2,8 +2,8 @@
 // `import * as moc from "./sets/moc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, TriggeredAbility } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { TriggeredAbility } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 
 // Guardian Scalelord — {4}{W} Creature — Dragon, 3/4 (MOC 16, Vintage Cube
@@ -98,7 +98,7 @@ const guardianScalelordAttackTrigger: TriggeredAbility = {
     effects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
 };
 
-export const guardianScalelord: CardDefinition = {
+export const guardianScalelord = defineCard(() => ({
     id: "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4", // MOC 16
     name: "Guardian Scalelord",
     rarity: "rare",
@@ -122,4 +122,4 @@ export const guardianScalelord: CardDefinition = {
     // CR 702.165c — the template Backup 1 grants (`grantedTriggeredId`), the
     // very same printed trigger above.
     triggeredGrantTemplates: [guardianScalelordAttackTrigger],
-};
+}));

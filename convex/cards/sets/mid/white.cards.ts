@@ -2,14 +2,13 @@
 // `import * as mid from "./sets/mid/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import { EFFECT_AFFECTS_SELF } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { HUMAN_TOKEN } from "../../sharedTokens";
 
 // Cathar Commando — "Flash. {1}, Sacrifice this creature: Destroy target
 // artifact or enchantment." (CR 702.8 flash; CR 701.8 destroy; CR 602.1
 // activated ability with a sacrifice-self cost.)
-export const catharCommando: CardDefinition = {
+export const catharCommando = defineCard(() => ({
     id: "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",
     rarity: "common",
     name: "Cathar Commando",
@@ -35,7 +34,7 @@ export const catharCommando: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Adeline, Resplendent Cathar — {1}{W}{W} Legendary Creature — Human Knight,
 // */4 (MID 1, issue #2370, Vintage Cube). "Vigilance. Adeline's power is
@@ -105,7 +104,7 @@ export const catharCommando: CardDefinition = {
 // player" is unambiguous (there is exactly one opponent), so "attacking that
 // player" is satisfied by construction; the planeswalker branch stays out of
 // scope for this issue, tracked by the existing #1865.
-export const adelineResplendentCathar: CardDefinition = {
+export const adelineResplendentCathar = defineCard(() => ({
     id: "18092f68-b96e-4084-9eba-b240d2195d81", // MID 1
     rarity: "rare",
     name: "Adeline, Resplendent Cathar",
@@ -160,4 +159,4 @@ export const adelineResplendentCathar: CardDefinition = {
             ],
         },
     ],
-};
+}));

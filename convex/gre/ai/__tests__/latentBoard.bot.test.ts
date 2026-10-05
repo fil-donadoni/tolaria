@@ -98,7 +98,7 @@ describe("the representative victim (issue #3398)", () => {
     it("flattens a card's target requirements into the slot list its script indexes", () => {
         // Stone Rain's `{ op: "destroy", target: { target: 0 } }` reads slot 0,
         // which must resolve to "target land" — not to nothing.
-        const slots = targetSlotRequirements(stoneRain);
+        const slots = targetSlotRequirements(stoneRain());
         expect(slots).toHaveLength(1);
         expect(slots[0].type).toBe("Land");
     });
@@ -108,12 +108,12 @@ describe("the representative victim (issue #3398)", () => {
         // BOTH `{ target: 0 }` and `{ target: 1 }`. Emitting a single slot for
         // the group left slot 1 off the end of the list, where the valuer read
         // it as one full representative victim.
-        const slots = targetSlotRequirements(forceOfVigor);
+        const slots = targetSlotRequirements(forceOfVigor());
         expect(slots).toHaveLength(2);
         expect(slots[1]).toBe(slots[0]);
         // Bounded on both ends, so nothing absorbs a HIGHER index: a script
         // naming slot 2 would be naming a requirement the card never declares.
-        expect(openEndedSlotRequirement(forceOfVigor)).toBeUndefined();
+        expect(openEndedSlotRequirement(forceOfVigor())).toBeUndefined();
     });
 
     it("leaves an OPEN-ENDED group to absorb every index past the authored list", () => {
@@ -136,7 +136,7 @@ describe("the representative victim (issue #3398)", () => {
 
 describe("permanentRealisedValue — what removing one permanent costs (issue #3398)", () => {
     it("prices an untapped basic land at the board-presence + mana weights", () => {
-        const { state } = boardWith(stoneRain.id, [forest.id]);
+        const { state } = boardWith(stoneRain().id, [forest().id]);
         const land = state.players[1].battlefield[0];
         // `permanentWeight` + `manaWeight` — the quantity issue #3322 quotes
         // (at the pre-fit weights, 17) for what a Forest is worth on the
@@ -145,9 +145,9 @@ describe("permanentRealisedValue — what removing one permanent costs (issue #3
     });
 
     it("prices a big creature far above a small one", () => {
-        const { state } = boardWith(swordsToPlowshares.id, [
-            shivanDragon.id,
-            llanowarElves.id,
+        const { state } = boardWith(swordsToPlowshares().id, [
+            shivanDragon().id,
+            llanowarElves().id,
         ]);
         const [dragon, elves] = state.players[1].battlefield;
         expect(permanentRealisedValue(state, dragon)).toBeGreaterThan(
@@ -161,32 +161,32 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // Nothing legal to destroy ⇒ no units ⇒ no latent worth. Under the
         // fixed `DESTROY_VALUE` this read 160, and the `base + MV` floor kept
         // it at 38 even once the script valued at nothing.
-        expect(latentInHand(stoneRain.id, [])).toBe(0);
+        expect(latentInHand(stoneRain().id, [])).toBe(0);
     });
 
     it("is the fitted weight times a LAND's realised loss against three Forests", () => {
-        const forests = [forest.id, forest.id, forest.id];
+        const forests = [forest().id, forest().id, forest().id];
         // `latent.boardRemoval` × (a Forest's board worth / the representative
         // victim's) — the weight times the best legal victim's realised board
         // loss in representative-victim units.
         const expected =
             DEFAULT_EVAL_WEIGHTS.latent.boardRemoval *
             (LAND_ON_BOARD / representativeVictimLoss(DEFAULT_EVAL_WEIGHTS));
-        expect(latentInHand(stoneRain.id, forests)).toBeCloseTo(expected, 6);
+        expect(latentInHand(stoneRain().id, forests)).toBeCloseTo(expected, 6);
     });
 
     it("prices Stone Rain BELOW the land it destroys, so announcing it is not a loss", () => {
         // The whole symptom of issue #3322: the spell leaving the hand must
         // cost less than the board loss it inflicts, or the search passes.
-        const value = latentInHand(stoneRain.id, [forest.id]);
+        const value = latentInHand(stoneRain().id, [forest().id]);
         expect(value).toBeLessThan(LAND_ON_BOARD);
     });
 
     it("values Swords to Plowshares against Shivan Dragon above Llanowar Elves", () => {
         expect(
-            latentInHand(swordsToPlowshares.id, [shivanDragon.id])
+            latentInHand(swordsToPlowshares().id, [shivanDragon().id])
         ).toBeGreaterThan(
-            latentInHand(swordsToPlowshares.id, [llanowarElves.id])
+            latentInHand(swordsToPlowshares().id, [llanowarElves().id])
         );
     });
 
@@ -194,12 +194,12 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // A fat creature is NOT a legal Disenchant target: the lens must read
         // the requirement, not the board's biggest permanent. Black Lotus (an
         // Artifact) is legal; Shivan Dragon is not.
-        const againstArtifact = latentInHand(disenchant.id, [
-            blackLotus.id,
-            shivanDragon.id,
+        const againstArtifact = latentInHand(disenchant().id, [
+            blackLotus().id,
+            shivanDragon().id,
         ]);
-        const againstNothingLegal = latentInHand(disenchant.id, [
-            shivanDragon.id,
+        const againstNothingLegal = latentInHand(disenchant().id, [
+            shivanDragon().id,
         ]);
         expect(againstNothingLegal).toBe(0);
         expect(againstArtifact).toBeGreaterThan(0);
@@ -212,10 +212,10 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // nothing it could legally destroy — MORE than Stone Rain is worth
         // against three real Forests, with the `base + MV` floor lifted
         // underneath it because slot 0 had answered.
-        expect(latentInHand(forceOfVigor.id, [shivanDragon.id])).toBe(0);
+        expect(latentInHand(forceOfVigor().id, [shivanDragon().id])).toBe(0);
         // And with one legal victim it is priced by THAT victim, on both
         // slots, not by a phantom on the second.
-        const oneArtifact = latentInHand(forceOfVigor.id, [blackLotus.id]);
+        const oneArtifact = latentInHand(forceOfVigor().id, [blackLotus().id]);
         expect(oneArtifact).toBeGreaterThan(0);
         expect(oneArtifact).toBeLessThan(
             2 * DEFAULT_EVAL_WEIGHTS.latent.boardRemoval
@@ -226,7 +226,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
         // p1 holds Stone Rain and controls the only land in play. Destroying
         // your own land is a cost the search finds on its own — never latent
         // worth held in hand.
-        const handCard = makeInstance(stoneRain.id, {
+        const handCard = makeInstance(stoneRain().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -236,7 +236,7 @@ describe("latent removal value follows the board (issue #3398)", () => {
                 makePlayer("p1", {
                     hand: [handCard],
                     battlefield: [
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             controllerId: "p1",
                             ownerId: "p1",
                         }),
@@ -300,9 +300,9 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
     it("is the opponent's land surplus, net of the caster's own lands", () => {
         expect(
             latentAgainst(
-                armageddon.id,
-                [forest.id],
-                [forest.id, forest.id, forest.id]
+                armageddon().id,
+                [forest().id],
+                [forest().id, forest().id, forest().id]
             )
         ).toBeCloseTo(units(2), 6);
     });
@@ -310,16 +310,16 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
     it("is ZERO on a symmetric board, and never negative when the caster is ahead", () => {
         expect(
             latentAgainst(
-                armageddon.id,
-                [forest.id, forest.id],
-                [forest.id, forest.id]
+                armageddon().id,
+                [forest().id, forest().id],
+                [forest().id, forest().id]
             )
         ).toBe(0);
         expect(
             latentAgainst(
-                armageddon.id,
-                [forest.id, forest.id, forest.id],
-                [forest.id]
+                armageddon().id,
+                [forest().id, forest().id, forest().id],
+                [forest().id]
             )
         ).toBe(0);
     });
@@ -346,10 +346,14 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
         const nonland = sweep("nonland", { excludeType: "Land" });
         withTemporaryDefinition(nonland, () => {
             expect(
-                latentAgainst(nonland.id, [forest.id], [forest.id, forest.id])
+                latentAgainst(
+                    nonland.id,
+                    [forest().id],
+                    [forest().id, forest().id]
+                )
             ).toBe(0);
             expect(
-                latentAgainst(nonland.id, [], [llanowarElves.id])
+                latentAgainst(nonland.id, [], [llanowarElves().id])
             ).toBeGreaterThan(0);
         });
     });
@@ -365,7 +369,11 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
             const empty = latentAgainst(cheap.id, [], []);
             expect(empty).toBeGreaterThan(0);
             expect(
-                latentAgainst(cheap.id, [grizzlyBears.id, grizzlyBears.id], [])
+                latentAgainst(
+                    cheap.id,
+                    [grizzlyBears().id, grizzlyBears().id],
+                    []
+                )
             ).toBe(empty);
         });
     });
@@ -375,9 +383,9 @@ describe("a sweep's latent value is the surplus it takes (issue #4773)", () => {
         // creature: the Shivan Dragon is not a member.
         expect(
             latentAgainst(
-                armageddon.id,
-                [forest.id],
-                [forest.id, shivanDragon.id]
+                armageddon().id,
+                [forest().id],
+                [forest().id, shivanDragon().id]
             )
         ).toBe(0);
     });
@@ -390,23 +398,27 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
     it("a bounce sweep is worth the opponent's surplus in what it returns", () => {
         // Hibernation: "Return all green permanents to their owners' hands."
         const ahead = latentAgainst(
-            hibernation.id,
-            [grizzlyBears.id],
-            [grizzlyBears.id, grizzlyBears.id]
+            hibernation().id,
+            [grizzlyBears().id],
+            [grizzlyBears().id, grizzlyBears().id]
         );
         expect(ahead).toBeGreaterThan(0);
         // The surplus, not the gross count: one Bears net either way.
         expect(ahead).toBeCloseTo(
-            latentAgainst(hibernation.id, [], [grizzlyBears.id]),
+            latentAgainst(hibernation().id, [], [grizzlyBears().id]),
             6
         );
         expect(
-            latentAgainst(hibernation.id, [grizzlyBears.id], [grizzlyBears.id])
+            latentAgainst(
+                hibernation().id,
+                [grizzlyBears().id],
+                [grizzlyBears().id]
+            )
         ).toBe(0);
         expect(
             latentAgainst(
-                hibernation.id,
-                [grizzlyBears.id, grizzlyBears.id],
+                hibernation().id,
+                [grizzlyBears().id, grizzlyBears().id],
                 []
             )
         ).toBe(0);
@@ -416,13 +428,13 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
         // What the bounce takes is the permanent's realised loss minus the
         // card's worth back in hand — and the card in hand is a new object,
         // so the counters stay behind: they are all taken.
-        const handCard = makeInstance(hibernation.id, {
+        const handCard = makeInstance(hibernation().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
         const bears = (counters?: Record<string, number>) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 ...(counters ? { counters } : {}),
@@ -452,13 +464,13 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
     it("a bounced card goes to its OWNER's hand, not its controller's (CR 400.3)", () => {
         // p1 controls one of p2's Bears: bouncing it takes the body from p1
         // AND hands the card to p2, so it outweighs the surplus of three.
-        const handCard = makeInstance(hibernation.id, {
+        const handCard = makeInstance(hibernation().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
         const opp = () =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 controllerId: "p2",
                 ownerId: "p2",
             });
@@ -469,7 +481,7 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
                         makePlayer("p1", {
                             hand: [handCard],
                             battlefield: [
-                                makeInstance(grizzlyBears.id, {
+                                makeInstance(grizzlyBears().id, {
                                     controllerId: "p1",
                                     ownerId: ownerOfMine,
                                 }),
@@ -488,46 +500,52 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
 
     it("a bounce sweep's colour filter is matched exactly", () => {
         // CR 105.2 — Shivan Dragon is red: Hibernation returns nothing.
-        expect(latentAgainst(hibernation.id, [], [shivanDragon.id])).toBe(0);
+        expect(latentAgainst(hibernation().id, [], [shivanDragon().id])).toBe(
+            0
+        );
     });
 
     it("a damage sweep is worth the opponent's surplus in what it kills", () => {
         // Pyroclasm: 2 damage to each creature. CR 704.5g — the 2/2 and the
         // 1/1 die, the 6/4 survives and is no loss to anyone.
         const kills = latentAgainst(
-            pyroclasm.id,
+            pyroclasm().id,
             [],
-            [grizzlyBears.id, llanowarElves.id]
+            [grizzlyBears().id, llanowarElves().id]
         );
         expect(kills).toBeGreaterThan(0);
         expect(
             latentAgainst(
-                pyroclasm.id,
+                pyroclasm().id,
                 [],
-                [grizzlyBears.id, llanowarElves.id, crawWurm.id]
+                [grizzlyBears().id, llanowarElves().id, crawWurm().id]
             )
         ).toBeCloseTo(kills, 6);
-        expect(latentAgainst(pyroclasm.id, [], [crawWurm.id])).toBe(0);
+        expect(latentAgainst(pyroclasm().id, [], [crawWurm().id])).toBe(0);
         expect(
-            latentAgainst(pyroclasm.id, [grizzlyBears.id], [grizzlyBears.id])
+            latentAgainst(
+                pyroclasm().id,
+                [grizzlyBears().id],
+                [grizzlyBears().id]
+            )
         ).toBe(0);
         expect(
             latentAgainst(
-                pyroclasm.id,
-                [grizzlyBears.id, llanowarElves.id],
-                [crawWurm.id]
+                pyroclasm().id,
+                [grizzlyBears().id, llanowarElves().id],
+                [crawWurm().id]
             )
         ).toBe(0);
     });
 
     it("a damage sweep counts the damage already marked (CR 120.3e)", () => {
-        const handCard = makeInstance(pyroclasm.id, {
+        const handCard = makeInstance(pyroclasm().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
         const wurm = (damageMarked: number) =>
-            makeInstance(crawWurm.id, {
+            makeInstance(crawWurm().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 damageMarked,
@@ -549,12 +567,18 @@ describe("bounce, damage and filtered sweeps read the board (issue #4781)", () =
     it("a subtype-filtered destroy sweep reads the board (CR 205.3)", () => {
         // Flashfires: "Destroy all Plains."
         expect(
-            latentAgainst(flashfires.id, [plains.id], [plains.id, plains.id])
+            latentAgainst(
+                flashfires().id,
+                [plains().id],
+                [plains().id, plains().id]
+            )
         ).toBeGreaterThan(0);
-        expect(latentAgainst(flashfires.id, [], [forest.id, forest.id])).toBe(
-            0
-        );
-        expect(latentAgainst(flashfires.id, [plains.id], [plains.id])).toBe(0);
+        expect(
+            latentAgainst(flashfires().id, [], [forest().id, forest().id])
+        ).toBe(0);
+        expect(
+            latentAgainst(flashfires().id, [plains().id], [plains().id])
+        ).toBe(0);
     });
 });
 
@@ -569,19 +593,19 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
     // above what its resolution realised: the caster's `manaDevelopment`
     // falls to zero with its lands and nothing in the price said so.
     const own = [
-        plains.id,
-        plains.id,
-        solRing.id,
-        mindStone.id,
-        fellwarStone.id,
+        plains().id,
+        plains().id,
+        solRing().id,
+        mindStone().id,
+        fellwarStone().id,
     ];
     const opp = [
-        forest.id,
-        forest.id,
-        forest.id,
-        forest.id,
-        forest.id,
-        forest.id,
+        forest().id,
+        forest().id,
+        forest().id,
+        forest().id,
+        forest().id,
+        forest().id,
     ];
     const noDiscount = { ...DEFAULT_EVAL_WEIGHTS, recoverableSweepFraction: 1 };
 
@@ -600,7 +624,7 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
                 players: [
                     makePlayer("p1", {
                         hand: [
-                            makeInstance(armageddon.id, {
+                            makeInstance(armageddon().id, {
                                 controllerId: "p1",
                                 ownerId: "p1",
                                 zone: "hand",
@@ -624,14 +648,14 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
         const before = aggregates(own, opp);
         // CR 701.8a — every land goes; the rocks and the card in hand stay.
         const after = aggregates(
-            [solRing.id, mindStone.id, fellwarStone.id],
+            [solRing().id, mindStone().id, fellwarStone().id],
             []
         );
         const moved = before.opp - after.opp - (before.self - after.self);
         expect(before.self - after.self).toBeGreaterThan(0);
         expect(
-            latentAgainst(armageddon.id, own, opp, noDiscount) -
-                latentAgainst(armageddon.id, own, opp, {
+            latentAgainst(armageddon().id, own, opp, noDiscount) -
+                latentAgainst(armageddon().id, own, opp, {
                     ...noDiscount,
                     manaDevWeight: 0,
                     colorCoverageWeight: 0,
@@ -645,9 +669,9 @@ describe("a sweep's price counts the aggregate terms its members move (issue #48
         // card out of the hand in the "after" board read that cost back as
         // the sweep's worth, so a sweep whose only member is the caster's own
         // Forest was worth more than the land it loses.
-        expect(latentAgainst(armageddon.id, [forest.id], [], noDiscount)).toBe(
-            0
-        );
+        expect(
+            latentAgainst(armageddon().id, [forest().id], [], noDiscount)
+        ).toBe(0);
     });
 });
 
@@ -664,17 +688,17 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
 
     it("scales a land sweep's surplus by the fraction", () => {
         const full = latentAgainst(
-            armageddon.id,
-            [forest.id],
-            [forest.id, forest.id, forest.id],
+            armageddon().id,
+            [forest().id],
+            [forest().id, forest().id, forest().id],
             at(1)
         );
         expect(full).toBeGreaterThan(0);
         expect(
             latentAgainst(
-                armageddon.id,
-                [forest.id],
-                [forest.id, forest.id, forest.id],
+                armageddon().id,
+                [forest().id],
+                [forest().id, forest().id, forest().id],
                 at(0.5)
             )
         ).toBeCloseTo(0.5 * full, 6);
@@ -684,22 +708,22 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
         // Committed weights, aggregates on: an all-land sweep is recoverable
         // whole, so its WHOLE price scales.
         const own = [
-            plains.id,
-            plains.id,
-            solRing.id,
-            mindStone.id,
-            fellwarStone.id,
+            plains().id,
+            plains().id,
+            solRing().id,
+            mindStone().id,
+            fellwarStone().id,
         ];
         const opp = [
-            forest.id,
-            forest.id,
-            forest.id,
-            forest.id,
-            forest.id,
-            forest.id,
+            forest().id,
+            forest().id,
+            forest().id,
+            forest().id,
+            forest().id,
+            forest().id,
         ];
         const withAggregates = (fraction: number) =>
-            latentAgainst(armageddon.id, own, opp, {
+            latentAgainst(armageddon().id, own, opp, {
                 ...DEFAULT_EVAL_WEIGHTS,
                 recoverableSweepFraction: fraction,
             });
@@ -709,20 +733,20 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
 
     it("scales a bounce, but not a bounced token (CR 111.7)", () => {
         const bounced = latentAgainst(
-            hibernation.id,
+            hibernation().id,
             [],
-            [grizzlyBears.id],
+            [grizzlyBears().id],
             at(1)
         );
         expect(
-            latentAgainst(hibernation.id, [], [grizzlyBears.id], at(0.5))
+            latentAgainst(hibernation().id, [], [grizzlyBears().id], at(0.5))
         ).toBeCloseTo(0.5 * bounced, 6);
-        const handCard = makeInstance(hibernation.id, {
+        const handCard = makeInstance(hibernation().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const token = makeInstance(grizzlyBears.id, {
+        const token = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             isToken: true,
@@ -747,16 +771,16 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
         for (const fraction of [1, 0.5, 0]) {
             expect(
                 latentAgainst(
-                    pyroclasm.id,
+                    pyroclasm().id,
                     [],
-                    [grizzlyBears.id, llanowarElves.id],
+                    [grizzlyBears().id, llanowarElves().id],
                     at(fraction)
                 )
             ).toBeCloseTo(
                 latentAgainst(
-                    pyroclasm.id,
+                    pyroclasm().id,
                     [],
-                    [grizzlyBears.id, llanowarElves.id],
+                    [grizzlyBears().id, llanowarElves().id],
                     at(1)
                 ),
                 6
@@ -782,9 +806,9 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
         withTemporaryDefinition(everything, () => {
             const board = (f: number, opp: readonly string[]) =>
                 latentAgainst(everything.id, [], opp, at(f));
-            const creature = board(1, [grizzlyBears.id]);
-            const land = board(1, [forest.id]);
-            expect(board(0.5, [grizzlyBears.id, forest.id])).toBeCloseTo(
+            const creature = board(1, [grizzlyBears().id]);
+            const land = board(1, [forest().id]);
+            expect(board(0.5, [grizzlyBears().id, forest().id])).toBeCloseTo(
                 creature + 0.5 * land,
                 6
             );
@@ -835,8 +859,8 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
                 withAggregates(1)
             ).opp;
         withTemporaryDefinition(everything, () => {
-            const before = oppAggregate([llanowarElves.id, forest.id]);
-            const elvesGone = oppAggregate([forest.id]);
+            const before = oppAggregate([llanowarElves().id, forest().id]);
+            const elvesGone = oppAggregate([forest().id]);
             const elvesAggregate =
                 before.manaDevelopment +
                 before.colorCoverage -
@@ -845,14 +869,14 @@ describe("a recoverable sweep's swing is credited in part (issue #4880)", () => 
             const elvesBody = latentAgainst(
                 everything.id,
                 [],
-                [llanowarElves.id],
+                [llanowarElves().id],
                 at(1)
             );
             expect(
                 latentAgainst(
                     everything.id,
                     [],
-                    [llanowarElves.id, forest.id],
+                    [llanowarElves().id, forest().id],
                     withAggregates(0)
                 )
             ).toBeCloseTo(elvesBody + PER_POINT * elvesAggregate, 6);

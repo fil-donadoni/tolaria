@@ -1,5 +1,5 @@
 // mh2 — white cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
@@ -35,7 +35,7 @@ import { evokeTrigger } from "../../abilities/evoke";
 // `count 0..1` = "up to one". The resolve() then reads the announced slot via
 // `ctx.targets[0]`; life gain reads the target's power BEFORE exile (CR 613
 // last-known information).
-export const solitude: CardDefinition = {
+export const solitude = defineCard(() => ({
     id: "47a6234f-309f-4e03-9263-66da48b57153",
     rarity: "mythic",
     name: "Solitude",
@@ -81,6 +81,6 @@ export const solitude: CardDefinition = {
         }),
         evokeTrigger("Solitude"),
     ],
-};
+}));
 
 export {};

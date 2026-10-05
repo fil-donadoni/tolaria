@@ -1,6 +1,6 @@
 // SCG (Scourge) — black cards, split by colour per ADR 0043. The registry's
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Tendrils of Agony — {2}{B}{B} Sorcery. "Target player loses 2 life and you
 // gain 2 life. Storm (When you cast this spell, copy it for each spell cast
@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // drain ability already exercises (inv/multicolor.cards.ts): `loseLife` on the
 // announced target player, then `gainLife` on the resolving controller — no
 // new Op, reused verbatim (per-Op test regime).
-export const tendrilsOfAgony: CardDefinition = {
+export const tendrilsOfAgony = defineCard(() => ({
     id: "0559352e-95c1-403b-bd8f-d0679717cfa2",
     name: "Tendrils of Agony",
     rarity: "uncommon",
@@ -26,4 +26,4 @@ export const tendrilsOfAgony: CardDefinition = {
         { op: "loseLife", player: { target: 0 }, amount: 2 },
         { op: "gainLife", player: "controller", amount: 2 },
     ],
-};
+}));

@@ -89,7 +89,7 @@ function projected() {
         players: [
             makePlayer("me", {
                 hand: [
-                    makeInstance(sinkIntoStupor.id, {
+                    makeInstance(sinkIntoStupor().id, {
                         id: "mdfc1",
                         controllerId: "me",
                         ownerId: "me",
@@ -97,7 +97,7 @@ function projected() {
                     }),
                 ],
                 battlefield: Array.from({ length: 3 }, (_, i) =>
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: `island-${i}`,
                         controllerId: "me",
                         ownerId: "me",
@@ -106,7 +106,7 @@ function projected() {
             }),
             makePlayer("them", {
                 battlefield: [
-                    makeInstance(hillGiant.id, {
+                    makeInstance(hillGiant().id, {
                         id: "giant",
                         controllerId: "them",
                         ownerId: "them",
@@ -215,7 +215,7 @@ describe("a modal double-faced card in hand offers BOTH plays (CR 712.12)", () =
             players: [
                 makePlayer("me", {
                     hand: [
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             id: "plainland",
                             controllerId: "me",
                             ownerId: "me",

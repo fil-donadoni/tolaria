@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import {
     nthSpellThisTurn,
     spellCastTrigger,
@@ -73,7 +72,7 @@ import { equipAbility } from "../../abilities/equipment";
 // Reconfigure's first activated ability uses, targeting an announced
 // creature you control (not a `bind` snapshot — this is the ordinary
 // activated-ability form, CR 701.3c).
-export const coriSteelCutter: CardDefinition = {
+export const coriSteelCutter = defineCard(() => ({
     id: "490eb213-9ae2-4b45-abec-6f1dfc83792a",
     name: "Cori-Steel Cutter",
     rarity: "rare",
@@ -145,7 +144,7 @@ export const coriSteelCutter: CardDefinition = {
             oracleText: "Equip {1}{R}",
         }),
     ],
-};
+}));
 
 // TODO(issue #679 stub — Tersa Lightshatter's attack trigger needs to
 // "exile a card AT RANDOM from your graveyard": SpellContext has no

@@ -30,12 +30,12 @@ describe("Nadu's granted trigger renders on the stack (frontend wiring)", () => 
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const nadu = makeInstance(naduWingedWisdom.id, {
+        const nadu = makeInstance(naduWingedWisdom().id, {
             id: "nadu-1",
             controllerId: "p1",
             zone: "battlefield",
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear-1",
             controllerId: "p1",
             zone: "battlefield",
@@ -59,7 +59,7 @@ describe("Nadu's granted trigger renders on the stack (frontend wiring)", () => 
         const item = projected.stack[0];
         // The stack item's card is the BEAR — looking the ability up on its own
         // definition finds nothing, which is exactly the trap.
-        expect(item.card.id).toBe(grizzlyBears.id);
+        expect(item.card.id).toBe(grizzlyBears().id);
         const text = getTriggeredAbilityOracleText(
             item.card.id,
             item.triggeredAbilityId!,

@@ -14,7 +14,7 @@
 // points at a not-yet-implemented LEA stub is uncommented once that LEA def
 // lands.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeDualLand } from "../../abilities";
 
 // Out of scope — see ADR 0010 (physical-dexterity card, irrealizable).
@@ -27,10 +27,12 @@ import { makeDualLand } from "../../abilities";
 // Volcanic Island — Beta-original (no Alpha printing). The tenth ABUR dual;
 // taps for {U} or {R} (CR 305.6). Same factory as the LEA duals. Single
 // printing, so the def id is its own LEB Scryfall id.
-export const volcanicIsland: CardDefinition = makeDualLand({
-    id: "0324641d-af55-4c53-b4dc-c8262e967da5",
-    rarity: "rare", // matches the LEA ABUR dual cycle
-    name: "Volcanic Island",
-    oracleText: "({T}: Add {U} or {R}.)",
-    colors: ["U", "R"],
-});
+export const volcanicIsland = defineCard(() =>
+    makeDualLand({
+        id: "0324641d-af55-4c53-b4dc-c8262e967da5",
+        rarity: "rare", // matches the LEA ABUR dual cycle
+        name: "Volcanic Island",
+        oracleText: "({T}: Add {U} or {R}.)",
+        colors: ["U", "R"],
+    })
+);

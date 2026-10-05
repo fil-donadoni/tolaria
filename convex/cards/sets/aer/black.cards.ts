@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Fatal Push — {B} Instant. "Destroy target creature if it has mana value 2 or
 // less. Revolt — Destroy that creature if it has mana value 4 or less instead
@@ -15,7 +15,7 @@ import type { CardDefinition } from "../../types";
 // creature's mana value — against a variable threshold (2 without revolt, 4
 // with revolt). The frozen predicate grammar does not express "target's mana
 // value" as an EffectValue.
-export const fatalPush: CardDefinition = {
+export const fatalPush = defineCard(() => ({
     id: "b5e81649-9954-424c-89d1-f87d73b66047",
     rarity: "uncommon",
     name: "Fatal Push",
@@ -32,4 +32,4 @@ export const fatalPush: CardDefinition = {
             ctx.destroy(target);
         }
     },
-};
+}));

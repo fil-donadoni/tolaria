@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Glorybringer — {3}{R}{R} Creature — Dragon 4/4.
 // "Flying, haste
@@ -25,7 +25,7 @@ import type { CardDefinition } from "../../types";
 // exert paid as an activation cost elsewhere on the board, can fire it.
 //
 // hand-tail: "You may exert this creature as it attacks. When you do, it deals 4 damage to target non-Dragon creature an opponent controls." (#4195)
-export const glorybringer: CardDefinition = {
+export const glorybringer = defineCard(() => ({
     id: "3277ad99-5682-4baa-b106-de15721876a6",
     name: "Glorybringer",
     rarity: "rare",
@@ -68,4 +68,4 @@ export const glorybringer: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
         },
     ],
-};
+}));

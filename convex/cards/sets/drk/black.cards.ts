@@ -7,10 +7,10 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
+import {
+    defineCard,
+    type SpellContext,
+    type TargetSelection,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -27,7 +27,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // deals 5 damage to you." (CR 701.13 exile two distinct creature targets, CR
 // 601.2c; `excludeTypes: "Artifact"` enforces "nonartifact"; CR 119 the 5
 // damage to the caster.)
-export const ashesToAshes: CardDefinition = {
+export const ashesToAshes = defineCard(() => ({
     id: "825496e5-19c7-4f50-8070-0265a58608dc",
     rarity: "common",
     name: "Ashes to Ashes",
@@ -47,13 +47,13 @@ export const ashesToAshes: CardDefinition = {
         { op: "exile", target: { target: 1 } },
         { op: "dealDamage", amount: 5, to: { player: "controller" } },
     ],
-};
+}));
 
 // Banshee — "{X}, {T}: This creature deals half X damage, rounded down, to any
 // target, and half X damage, rounded up, to you." (CR 605 activated ability
 // with an {X} cost read at activation via `ctx.getX()`; CR 115.4 "any target";
 // CR 119 the floor/ceil split of half X.)
-export const banshee: CardDefinition = {
+export const banshee = defineCard(() => ({
     id: "66eaa7d6-48b2-4b35-a834-790edd679e0e",
     rarity: "uncommon",
     name: "Banshee",
@@ -96,10 +96,10 @@ export const banshee: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Bog Imp — vanilla flier (CR 702.9). Keyword on `staticAbilities[]`.
-export const bogImp: CardDefinition = {
+export const bogImp = defineCard(() => ({
     id: "e3bb7271-634a-4612-9073-7a5438e8c2b8",
     rarity: "common",
     name: "Bog Imp",
@@ -110,12 +110,12 @@ export const bogImp: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying"],
-};
+}));
 
 // Bog Rats — "This creature can't be blocked by Walls." (CR 509.1b block
 // restriction, `side: "attacker"`: a candidate blocker that is a Wall is
 // rejected. CR 205.3 the Wall subtype.)
-export const bogRats: CardDefinition = {
+export const bogRats = defineCard(() => ({
     id: "d64c9153-bc6d-4a64-885f-c039a5487a31",
     rarity: "common",
     name: "Bog Rats",
@@ -136,7 +136,7 @@ export const bogRats: CardDefinition = {
             predicate: (_self, opponent) => !opponent.subtypes.includes("Wall"),
         },
     ],
-};
+}));
 
 // Curse Artifact — Aura enchant artifact. "At the beginning of the upkeep of
 // enchanted artifact's controller, this Aura deals 2 damage to that player
@@ -144,7 +144,7 @@ export const bogRats: CardDefinition = {
 // HOST's controller + CR 117.3a do-X-unless-you-sacrifice; mirrors Erosion's
 // host-controller scope, but the "unless" is a sacrifice of the host, not a
 // mana/life payment, and the consequence is 2 damage rather than destroy.)
-export const curseArtifact: CardDefinition = {
+export const curseArtifact = defineCard(() => ({
     id: "9fc0d070-8a42-4d5e-8f2b-ceb59147de6f",
     rarity: "uncommon",
     name: "Curse Artifact",
@@ -192,7 +192,7 @@ export const curseArtifact: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Eater of the Dead — "{0}: If this creature is tapped, exile target creature
 // card from a graveyard and untap this creature." (CR 605 activated ability
@@ -200,7 +200,7 @@ export const curseArtifact: CardDefinition = {
 // 701.13 exile the graveyard-card target; CR 701.26b untap. The famous "untap
 // loop" is harmless here — each activation requires a distinct creature card in
 // a graveyard, so it terminates when graveyards run dry.)
-export const eaterOfTheDead: CardDefinition = {
+export const eaterOfTheDead = defineCard(() => ({
     id: "d89fe2be-bb7e-4bae-9b1f-9f0d58f20ceb",
     rarity: "uncommon",
     name: "Eater of the Dead",
@@ -237,7 +237,7 @@ export const eaterOfTheDead: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Frankenstein's Monster — DEFERRED (TODO(#413)). "As this creature enters,
 // exile X creature cards from your graveyard. ... For each creature card exiled
@@ -256,7 +256,7 @@ export const eaterOfTheDead: CardDefinition = {
 // Grave Robbers — "{B}, {T}: Exile target artifact card from a graveyard. You
 // gain 2 life." (CR 605 activated ability; CR 701.13 exile the graveyard-card
 // target filtered to artifacts; CR 119.3 lifegain.)
-export const graveRobbers: CardDefinition = {
+export const graveRobbers = defineCard(() => ({
     id: "a131605a-f646-4745-a1e4-48d155a3d94f",
     rarity: "rare",
     name: "Grave Robbers",
@@ -288,12 +288,12 @@ export const graveRobbers: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Inquisition — "Target player reveals their hand. Inquisition deals damage to
 // that player equal to the number of white cards in their hand." (CR 701.x
 // reveal; CR 202.2 colour count via `getHandCards().colors`; CR 119 damage.)
-export const inquisition: CardDefinition = {
+export const inquisition = defineCard(() => ({
     id: "5f133f06-6398-4db1-8577-66c16fd3e00d",
     rarity: "common",
     name: "Inquisition",
@@ -313,11 +313,11 @@ export const inquisition: CardDefinition = {
         if (whiteCount > 0)
             ctx.dealDamage({ type: "player", id: playerId }, whiteCount);
     },
-};
+}));
 
 // Marsh Gas — "All creatures get -2/-0 until end of turn." (CR 611.2 temporary
 // P/T mod on every creature; mirrors Holy Light's iterate-all-creatures shape.)
-export const marshGas: CardDefinition = {
+export const marshGas = defineCard(() => ({
     id: "b80ecb15-258b-4fc9-86e4-c2bf01891606",
     rarity: "common",
     name: "Marsh Gas",
@@ -345,13 +345,13 @@ export const marshGas: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Murk Dwellers — "Whenever this creature attacks and isn't blocked, it gets
 // +2/+0 until end of combat." (CR 509.1h — the new ATTACKER_UNBLOCKED combat
 // event fires once per unblocked attacker when the block graph is finalized;
 // CR 611.2 the +2/+0 pump scoped to end of combat.)
-export const murkDwellers: CardDefinition = {
+export const murkDwellers = defineCard(() => ({
     id: "a213450f-02f4-4c08-8da8-891ebfa8e237",
     rarity: "common",
     name: "Murk Dwellers",
@@ -384,7 +384,7 @@ export const murkDwellers: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Nameless Race — "Trample\nAs this creature enters, pay any amount of life.
 // The amount you pay can't be more than the total number of white nontoken
@@ -401,7 +401,7 @@ export const murkDwellers: CardDefinition = {
 // the declared `options: []` below is never actually offered in that shape —
 // "two kinds composing beats one more bespoke kind" over inventing a
 // pay-then-set-CDA kind for this one card.
-export const namelessRace: CardDefinition = {
+export const namelessRace = defineCard(() => ({
     id: "348a467a-4661-4fdb-af1d-9171a1a930d9",
     rarity: "rare",
     name: "Nameless Race",
@@ -426,13 +426,13 @@ export const namelessRace: CardDefinition = {
             { kind: "body", options: [] },
         ],
     },
-};
+}));
 
 // Rag Man — "{B}{B}{B}, {T}: Target opponent reveals their hand and discards a
 // creature card at random. Activate only during your turn." (CR 605 activated
 // ability with `controllerTurnOnly`; CR 701.20a reveal; CR 701.9a the filtered
 // random discard via `discardAtRandom(..., "Creature")`.)
-export const ragMan: CardDefinition = {
+export const ragMan = defineCard(() => ({
     id: "f4c133b8-8383-433f-be96-c47a937287b7",
     rarity: "rare",
     name: "Rag Man",
@@ -464,7 +464,7 @@ export const ragMan: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Season of the Witch — "At the beginning of your upkeep, sacrifice this
 // enchantment unless you pay 2 life.\nAt the beginning of the end step, destroy
@@ -473,7 +473,7 @@ export const ragMan: CardDefinition = {
 // CR 603.6a each end step a mass destroy of untapped creatures that didn't
 // attack — excepting those that "couldn't attack": creatures with defender or
 // that were summoning-sick this turn.)
-export const seasonOfTheWitch: CardDefinition = {
+export const seasonOfTheWitch = defineCard(() => ({
     id: "06900a71-34ca-48c6-94ac-fca744356829",
     rarity: "rare",
     name: "Season of the Witch",
@@ -558,7 +558,7 @@ export const seasonOfTheWitch: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // The Fallen — "At the beginning of your upkeep, this creature deals 1 damage to
 // each opponent and planeswalker it has dealt damage to this game." (CR 603.6a
@@ -567,7 +567,7 @@ export const seasonOfTheWitch: CardDefinition = {
 // Fallen damages an opponent, and the upkeep trigger deals 1 to that opponent
 // while the flag is set. Planeswalkers are out of scope, so only the opponent
 // player is tracked — exactly one opponent in a 2-player game.)
-export const theFallen: CardDefinition = {
+export const theFallen = defineCard(() => ({
     id: "f4a176e1-b22b-4f36-ba7b-c506cb4e1bed",
     rarity: "uncommon",
     name: "The Fallen",
@@ -638,14 +638,14 @@ export const theFallen: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Uncle Istvan — "Prevent all damage that would be dealt to this creature by
 // creatures." (CR 615 — a continuous damage-prevention replacement that
 // consumes any damage event whose source is a creature and whose target is
 // Uncle Istvan; the Desert Nomads shape but filtered on `sourceTypes` rather
 // than `sourceSubtypes`.)
-export const uncleIstvan: CardDefinition = {
+export const uncleIstvan = defineCard(() => ({
     id: "848ad6d5-3a7e-4d6b-9929-36465796871f",
     rarity: "uncommon",
     name: "Uncle Istvan",
@@ -671,7 +671,7 @@ export const uncleIstvan: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 
 // Word of Binding — "Tap X target creatures." (CR 601.2c a variable number of
 // creature targets fixed at announcement by X; CR 701.26a tap each.) Mana
@@ -680,7 +680,7 @@ export const uncleIstvan: CardDefinition = {
 // guard caught: `hasX` (gre/moves.ts) keys on `typeof cost.X === "string"`,
 // so with a fixed X this was never offered as an X spell at all, and its own
 // `count: "X"` targetRequirement below had no announced X to resolve against.
-export const wordOfBinding: CardDefinition = {
+export const wordOfBinding = defineCard(() => ({
     id: "ee30efdb-f1f1-497f-80a6-ec961db67c1d",
     rarity: "common",
     name: "Word of Binding",
@@ -703,7 +703,7 @@ export const wordOfBinding: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Worms of the Earth — {2}{B}{B}{B} Enchantment.
 // "Players can't play lands.\nLands can't enter the battlefield.\nAt the
@@ -727,7 +727,7 @@ export const wordOfBinding: CardDefinition = {
 // the "sacrifice two lands" option is offered only when the player controls at
 // least two lands. `resolveSteps` checkpoints the irreversible
 // sacrifice/damage before `destroy`, so a suspended choice never re-applies.
-export const wormsOfTheEarth: CardDefinition = {
+export const wormsOfTheEarth = defineCard(() => ({
     id: "65a97821-ca5b-46fb-af08-86de81d0daac",
     rarity: "rare",
     name: "Worms of the Earth",
@@ -806,4 +806,4 @@ export const wormsOfTheEarth: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -45,7 +45,7 @@ import { projectedToGameState } from "../state-adapter";
 /** `n` filler cards in `owner`'s hand. */
 function handCards(owner: string, n: number): CardInstanceState[] {
     return Array.from({ length: n }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `${owner}-hand-${i}`,
             controllerId: owner,
             ownerId: owner,
@@ -60,7 +60,7 @@ function board(p1Hand: number, p2Hand: number): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(darkSuspicions.id, {
+                    makeInstance(darkSuspicions().id, {
                         id: "dark-suspicions",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -156,7 +156,9 @@ describe("hand size survives the client reducer chain (CR 402.2, issue #2006)", 
         // Same bug class as The Rack / Storm World / Ivory Tower: they all read
         // `ctx.getHandSize` off the pile this adapter rebuilds.
         const world = throughClientReducers(board(1, 4), "p1");
-        pushSpell(world, stormSeeker.id, "p1", [{ type: "player", id: "p2" }]);
+        pushSpell(world, stormSeeker().id, "p1", [
+            { type: "player", id: "p2" },
+        ]);
         resolveTopOfStack(world);
         expect(world.players[1].life).toBe(16);
     });

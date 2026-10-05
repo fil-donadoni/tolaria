@@ -77,7 +77,7 @@ function boardOf(...cards: CardInstanceState[]): GameState {
 }
 
 function ctxFor(state: GameState) {
-    return buildSpellContext(state, pushSpell(state, grizzlyBears.id, "p1"));
+    return buildSpellContext(state, pushSpell(state, grizzlyBears().id, "p1"));
 }
 
 function count(card: CardInstanceState, keyword: string): number {
@@ -112,8 +112,8 @@ function expiriesOn(
 describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
     describe("the three grant provenances differ only in EXPIRY (CR 611.2)", () => {
         it("a SOURCE grant ends when its source leaves, and nothing revokes it", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear" });
-            const aura = makeInstance(flight.id, {
+            const bear = makeInstance(grizzlyBears().id, { id: "bear" });
+            const aura = makeInstance(flight().id, {
                 id: "aura",
                 attachedTo: "bear",
             });
@@ -127,7 +127,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         });
 
         it("a DURATION grant survives its source leaving and ends at its boundary", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear" });
             const state = boardOf(bear);
             const ctx = ctxFor(state);
             ctx.grantStaticAbility(
@@ -147,7 +147,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         });
 
         it("a COUNTER grant is gated on the counter and needs no unapply", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear" });
             const state = boardOf(bear);
             const ctx = ctxFor(state);
             ctx.addCounter({ type: "permanent", id: "bear" }, "flying", 1);
@@ -162,8 +162,8 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         });
 
         it("a keyword REMOVAL splits the same way — source-keyed and duration-keyed", () => {
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere" });
             const state = boardOf(elemental, sphere);
 
             // Source-keyed: Gravity Sphere, live on the battlefield.
@@ -192,7 +192,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // silently defeats `compareLayer6Entries`' equal-timestamp
             // tie-break, which exists so a grant sharing a stripper's stamp
             // survives it (CR 613.1f, issue #1715).
-            const bear = makeInstance(grizzlyBears.id, { id: "multi" });
+            const bear = makeInstance(grizzlyBears().id, { id: "multi" });
             bear.staticAbilities = ["flying", "trample", "vigilance"];
             bear.baseStaticAbilities = ["flying", "trample", "vigilance"];
             const state = boardOf(bear);
@@ -220,8 +220,8 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // where the two come apart. Nothing reads `expiry.controllerId`
             // yet; it is stored provenance, and storing the wrong player is a
             // bug the first duration or end-step that reads it inherits.
-            const mine = makeInstance(grizzlyBears.id, { id: "mine" });
-            const theirs = makeInstance(grizzlyBears.id, {
+            const mine = makeInstance(grizzlyBears().id, { id: "mine" });
+            const theirs = makeInstance(grizzlyBears().id, {
                 id: "theirs",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -259,7 +259,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         });
 
         it("a resolving ability's grant carries a real timestamp, so it survives an earlier strip", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear" });
             const state = boardOf(bear);
             const ctx = ctxFor(state);
             // Oko's `+1` shape: strip everything, indefinitely.
@@ -284,7 +284,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
          *  pre-registry model the string was rendered once, at materialisation
          *  time, and nothing ever recomputed it. */
         const ADAPTIVE: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             staticEffects: [
                 {
                     kind: "keyword-grant",
@@ -377,12 +377,12 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             wight: CardInstanceState;
             victim: CardInstanceState;
         } {
-            const wight = makeInstance(dreadWight.id, {
+            const wight = makeInstance(dreadWight().id, {
                 id: "wight",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const victim = makeInstance(grizzlyBears.id, {
+            const victim = makeInstance(grizzlyBears().id, {
                 id: "victim",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -505,7 +505,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // The property the whole slice rests on: the field is OUTPUT. A
             // value nothing in the registry accounts for cannot survive a
             // recompute, so no consumer can be reading an authority.
-            const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear" });
             const state = boardOf(bear);
             recomputeContinuousEffects(state);
             bear.staticAbilities = [...bear.staticAbilities, "flying"];
@@ -515,7 +515,7 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
         });
 
         it("the derivation reads the BASE, never its own previous output", () => {
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
             const state = boardOf(elemental);
             recomputeContinuousEffects(state);
             expect(elemental.baseStaticAbilities).toEqual(["flying"]);
@@ -530,8 +530,8 @@ describe("layer 6 derives from the registry (CR 613.1f, PRD #2064 S3)", () => {
             // `stopApplyingStaticEffects` runs BEFORE the permanent is spliced
             // out of the battlefield, so board presence and "is applying"
             // disagree for exactly that instant.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere" });
             const state = boardOf(elemental, sphere);
             beginApplyingStaticEffects(state, sphere);
             expect(count(elemental, "flying")).toBe(0);
@@ -557,9 +557,9 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // occurrence. So the term moved to the one moment its precondition
             // provably holds — `expandState`, where the row was written by the
             // old engine at the instant it spliced the keyword.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
             elemental.staticAbilities = [];
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere" });
             const compact = compactState(boardOf(elemental, sphere)) as {
                 players: { battlefield: Record<string, unknown>[] }[];
             };
@@ -586,9 +586,9 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // account of what it took. Titania's Song strips NONCREATURE
             // ARTIFACTS (CR 613.1f), so the subject is one that prints a
             // keyword.
-            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
+            const gear = makeInstance(ashnodsBattleGear().id, { id: "gear" });
             gear.staticAbilities = [];
-            const song = makeInstance(titaniasSong.id, { id: "song" });
+            const song = makeInstance(titaniasSong().id, { id: "song" });
             const compact = compactState(boardOf(gear, song)) as {
                 players: { battlefield: Record<string, unknown>[] }[];
             };
@@ -640,7 +640,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // not give an occurrence back (a base holding flying twice, so the
             // strip takes one and the Elemental keeps flying), and a live
             // grant-and-strip pair must not eat the PRINTED occurrence.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
             const state = boardOf(elemental);
             state.continuousEffects = [
                 {
@@ -670,8 +670,8 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // Gravity Sphere) eats a printed keyword permanently: those two are
             // source-provenance, so no registry entry names the permanent and
             // the inverse has nothing to add back.
-            const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
-            const song = makeInstance(titaniasSong.id, { id: "song" });
+            const gear = makeInstance(ashnodsBattleGear().id, { id: "gear" });
+            const song = makeInstance(titaniasSong().id, { id: "song" });
             const state = boardOf(gear, song);
             beginApplyingStaticEffects(state, song);
             expect(gear.staticAbilities).toEqual([]);
@@ -699,9 +699,9 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // `abilitiesSuppressedBy` ledger row is distinguishable from this
             // module's own derived output — so the case arrives through a
             // compact document, exactly as it does in production.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
             elemental.staticAbilities = [];
-            const binder = makeInstance(grizzlyBears.id, { id: "binder" });
+            const binder = makeInstance(grizzlyBears().id, { id: "binder" });
             const compact = compactState(boardOf(elemental, binder)) as {
                 players: { battlefield: Record<string, unknown>[] }[];
             };
@@ -728,7 +728,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
             // in via `migrateLegacyInstanceKeywordLedgers` (`gre/serialize.ts`)
             // and the capture then inverts the migrated ENTRY, which is the
             // half of `captureLayer6Base` this slice rewrote.
-            const elemental = makeInstance(airElemental.id, { id: "ae" });
+            const elemental = makeInstance(airElemental().id, { id: "ae" });
             elemental.staticAbilities = [];
             const compact = compactState(boardOf(elemental)) as {
                 players: { battlefield: Record<string, unknown>[] }[];
@@ -758,8 +758,8 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         // between the swap and the next sync is one the search's
         // `turn-face-up` leaf and a mana ability's `payRemoveCounterCost` both
         // read in, so the answer has to be right inside it.
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
-        const aura = makeInstance(flight.id, {
+        const bear = makeInstance(grizzlyBears().id, { id: "bear" });
+        const aura = makeInstance(flight().id, {
             id: "aura",
             attachedTo: "bear",
         });
@@ -788,8 +788,8 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         // The other half of the same window, and the more dangerous one:
         // clearing `abilitiesSuppressedBy` would silently END a Titania's Song
         // strip mid-resolution, handing the permanent every ability back.
-        const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
-        const song = makeInstance(titaniasSong.id, { id: "song" });
+        const gear = makeInstance(ashnodsBattleGear().id, { id: "gear" });
+        const song = makeInstance(titaniasSong().id, { id: "song" });
         const state = boardOf(gear, song);
         beginApplyingStaticEffects(state, song);
         expect(gear.staticAbilities).toEqual([]);
@@ -808,11 +808,11 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         // Proven regression: `payRemoveCounterCost` takes no GameState, so it
         // goes through the instance recompose — which used to clear every
         // `auraId` row on the way past.
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             counters: { fade: 1 },
         });
-        const aura = makeInstance(flight.id, {
+        const aura = makeInstance(flight().id, {
             id: "aura",
             attachedTo: "bear",
         });
@@ -850,7 +850,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
                 ],
             },
             () => {
-                const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+                const bear = makeInstance(grizzlyBears().id, { id: "bear" });
                 const state = boardOf(bear);
                 state.emblems = [
                     {
@@ -894,8 +894,10 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
                 ],
             },
             () => {
-                const gear = makeInstance(ashnodsBattleGear.id, { id: "gear" });
-                const song = makeInstance(titaniasSong.id, { id: "song" });
+                const gear = makeInstance(ashnodsBattleGear().id, {
+                    id: "gear",
+                });
+                const song = makeInstance(titaniasSong().id, { id: "song" });
                 const state = boardOf(gear, song);
                 // The Song begins applying FIRST and strips every ability.
                 beginApplyingStaticEffects(state, song);
@@ -916,7 +918,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
 
     it("`keywordFor` returning null grants NOTHING, not the fixed keyword", () => {
         const DECLINING: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             staticEffects: [
                 {
                     kind: "keyword-grant",
@@ -944,7 +946,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
         // a duration entry would have applied for the rest of the game) is
         // gone: `tickAllDurations` splices the registry at the boundary like
         // every other duration in the engine.
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const bear = makeInstance(grizzlyBears().id, { id: "bear" });
         const state = boardOf(bear);
         const ctx = ctxFor(state);
         ctx.addContinuousEffect({
@@ -965,7 +967,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
     it("entry ids do not collide once an entry is removed", () => {
         // `ce-N` is the documented removal handle, so a LENGTH-derived suffix
         // would re-issue a live id and a removal would take the wrong effect.
-        const bear = makeInstance(grizzlyBears.id, { id: "bear" });
+        const bear = makeInstance(grizzlyBears().id, { id: "bear" });
         const state = boardOf(bear);
         const ctx = ctxFor(state);
         const add = (keyword: string) =>
@@ -992,7 +994,7 @@ describe("review round 1 — the holes the derivation opened (PR #3032)", () => 
 // here rather than silently leaving the module unreferenced.
 describe("deriveLayer6 is the single layer-6 authority", () => {
     it("returns the composed multiset for one permanent", () => {
-        const elemental = makeInstance(airElemental.id, { id: "ae" });
+        const elemental = makeInstance(airElemental().id, { id: "ae" });
         const state = boardOf(elemental);
         recomputeContinuousEffects(state);
         const derived = deriveLayer6(
@@ -1021,7 +1023,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         for (const kind of Object.keys(LAYER_6_STATIC_EFFECT_KINDS)) {
             const id = `s7-precheck-${kind}`;
             const probe: CardDefinition = {
-                ...getDefinition(grizzlyBears.id),
+                ...getDefinition(grizzlyBears().id),
                 id,
                 name: `Precheck ${kind}`,
                 staticEffects: [
@@ -1044,7 +1046,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         // source and its effect never applies.
         const id = "s7-precheck-compiled-layer6";
         const probe: CardDefinition = {
-            ...getDefinition(grizzlyBears.id),
+            ...getDefinition(grizzlyBears().id),
             id,
             name: "Compiled Lord",
             staticEffects: undefined,
@@ -1072,7 +1074,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         let appliesCalls = 0;
         const lordId = "s7-counting-lord";
         const lord: CardDefinition = {
-            ...getDefinition(grizzlyBears.id),
+            ...getDefinition(grizzlyBears().id),
             id: lordId,
             name: "Counting Lord",
             staticEffects: [
@@ -1093,8 +1095,8 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
 
         withTemporaryDefinition(lord, () => {
             const source = makeInstance(lordId, { id: "lord" });
-            const a = makeInstance(grizzlyBears.id, { id: "a" });
-            const b = makeInstance(grizzlyBears.id, { id: "b" });
+            const a = makeInstance(grizzlyBears().id, { id: "a" });
+            const b = makeInstance(grizzlyBears().id, { id: "b" });
             const state = boardOf(source, a, b);
             beginApplyingStaticEffects(state, source);
 
@@ -1119,7 +1121,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         // a source leaving the battlefield is how a keyword grant ends — but
         // the keyword it granted is still sitting in `staticAbilities`, and a
         // skip would strand it there forever.
-        const elemental = makeInstance(airElemental.id, { id: "ae" });
+        const elemental = makeInstance(airElemental().id, { id: "ae" });
         const state = boardOf(elemental);
         elemental.staticAbilities = ["flying", "trample"];
         elemental.baseStaticAbilities = ["flying"];
@@ -1133,7 +1135,7 @@ describe("PRD #2064 S7 — the source half is walked once per board pass", () =>
         // The wire projection reads the RESULT rather than the field the sync
         // leaves behind (PRD #2064 S5), so a skipped permanent would ship with
         // no layer-6 answer at all.
-        const bear = makeInstance(grizzlyBears.id, { id: "plain" });
+        const bear = makeInstance(grizzlyBears().id, { id: "plain" });
         const state = boardOf(bear);
         syncLayer6(state);
 

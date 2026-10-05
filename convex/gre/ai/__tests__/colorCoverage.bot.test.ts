@@ -47,10 +47,10 @@ describe("ownHandColorCoverage — the seat whose hand may be read (issue #3532)
     it("a hand the base cannot supply the colours for reads 0, the same hand with the right land reads 1", () => {
         const screwed = makePlayer("p1", {
             battlefield: [
-                card(mountain.id, "mtn-1", "p1"),
-                card(mountain.id, "mtn-2", "p1"),
+                card(mountain().id, "mtn-1", "p1"),
+                card(mountain().id, "mtn-2", "p1"),
             ],
-            hand: [card(darkRitual.id, "rit-1", "p1", { zone: "hand" })],
+            hand: [card(darkRitual().id, "rit-1", "p1", { zone: "hand" })],
         });
         const screwedState = makeState({
             players: [screwed, makePlayer("p2")],
@@ -61,10 +61,10 @@ describe("ownHandColorCoverage — the seat whose hand may be read (issue #3532)
 
         const fixed = makePlayer("p1", {
             battlefield: [
-                card(mountain.id, "mtn-1", "p1"),
-                card(swamp.id, "swp-1", "p1"),
+                card(mountain().id, "mtn-1", "p1"),
+                card(swamp().id, "swp-1", "p1"),
             ],
-            hand: [card(darkRitual.id, "rit-1", "p1", { zone: "hand" })],
+            hand: [card(darkRitual().id, "rit-1", "p1", { zone: "hand" })],
         });
         const fixedState = makeState({ players: [fixed, makePlayer("p2")] });
         expect(ownHandColorCoverage(fixed, base(fixedState, fixed))).toBe(1);
@@ -72,10 +72,10 @@ describe("ownHandColorCoverage — the seat whose hand may be read (issue #3532)
 
     it("counts per CARD, so half a colour-dead hand reads one half", () => {
         const player = makePlayer("p1", {
-            battlefield: [card(mountain.id, "mtn-1", "p1")],
+            battlefield: [card(mountain().id, "mtn-1", "p1")],
             hand: [
-                card(darkRitual.id, "rit-1", "p1", { zone: "hand" }),
-                card(lightningBolt.id, "bolt-1", "p1", {
+                card(darkRitual().id, "rit-1", "p1", { zone: "hand" }),
+                card(lightningBolt().id, "bolt-1", "p1", {
                     zone: "hand",
                 }),
             ],
@@ -86,15 +86,15 @@ describe("ownHandColorCoverage — the seat whose hand may be read (issue #3532)
 
     it("a hand that demands no colour at all is never colour-screwed — empty denominator reads 1, not 0", () => {
         const player = makePlayer("p1", {
-            battlefield: [card(mountain.id, "mtn-1", "p1")],
-            hand: [card(forest.id, "for-hand", "p1", { zone: "hand" })],
+            battlefield: [card(mountain().id, "mtn-1", "p1")],
+            hand: [card(forest().id, "for-hand", "p1", { zone: "hand" })],
         });
         const state = makeState({ players: [player, makePlayer("p2")] });
         // A land in hand has no mana cost (CR 202.3a) — no colour demanded, so
         // it is not in the denominator and cannot make the hand read as dead.
         expect(ownHandColorCoverage(player, base(state, player))).toBe(1);
         const empty = makePlayer("p1", {
-            battlefield: [card(mountain.id, "mtn-1", "p1")],
+            battlefield: [card(mountain().id, "mtn-1", "p1")],
         });
         const emptyState = makeState({ players: [empty, makePlayer("p2")] });
         expect(ownHandColorCoverage(empty, base(emptyState, empty))).toBe(1);
@@ -105,9 +105,9 @@ describe("observedColorCoverage — the seat whose hand never may be read (issue
     /** A green creature, a Forest and a Plains: {G} is evidenced by BOTH the
      *  creature and the land, {W} only by the land itself. */
     function boardWithGreenThreat(opts: { forest: boolean; plains: boolean }) {
-        const battlefield = [card(grizzlyBears.id, "bear-1", "p2")];
-        if (opts.forest) battlefield.push(card(forest.id, "for-1", "p2"));
-        if (opts.plains) battlefield.push(card(plains.id, "pla-1", "p2"));
+        const battlefield = [card(grizzlyBears().id, "bear-1", "p2")];
+        if (opts.forest) battlefield.push(card(forest().id, "for-1", "p2"));
+        if (opts.plains) battlefield.push(card(plains().id, "pla-1", "p2"));
         const opponent = makePlayer("p2", { battlefield });
         const state = makeState({ players: [makePlayer("p1"), opponent] });
         return { state, opponent };
@@ -195,7 +195,7 @@ describe("observedColorCoverage — the seat whose hand never may be read (issue
         // exactly one colour — which is what makes all three readings distinct
         // on this one board.
         const opponent = makePlayer("p2", {
-            battlefield: [card(island.id, "isl-1", "p2", { isTapped: true })],
+            battlefield: [card(island().id, "isl-1", "p2", { isTapped: true })],
         });
         const state = makeState({ players: [makePlayer("p1"), opponent] });
         const units = base(state, opponent);

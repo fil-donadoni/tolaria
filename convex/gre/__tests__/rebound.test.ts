@@ -70,7 +70,7 @@ function advanceToOwnUpkeep(
 describe("Rebound capability (CR 702.88)", () => {
     describe("resolution-time exile redirect (CR 702.88a)", () => {
         it("exiles a hand-cast rebound spell instead of the graveyard, and schedules a caster-scoped next-upkeep delayed trigger", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -79,7 +79,7 @@ describe("Rebound capability (CR 702.88)", () => {
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             // A raw hand-cast commit stamps `reboundFromHand` — mirror it here
@@ -106,12 +106,12 @@ describe("Rebound capability (CR 702.88)", () => {
         });
 
         it("a spell without rebound resolves to the graveyard as normal (control)", () => {
-            const bear = makeInstance(grizzlyBears.id, { zone: "hand" });
+            const bear = makeInstance(grizzlyBears().id, { zone: "hand" });
             expect(hasRebound(bear)).toBe(false);
             const p1 = makePlayer("p1", { hand: [bear] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
 
-            const item = pushSpell(state, grizzlyBears.id, "p1");
+            const item = pushSpell(state, grizzlyBears().id, "p1");
             resolveTopOfStack(state);
 
             // Grizzly Bears is a creature — resolves to the battlefield, not
@@ -126,26 +126,26 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("cast-stack-flag gate (CR 702.88a)", () => {
         it("stamps reboundFromHand only for a hand cast of a rebound card", () => {
-            const card = makeInstance(ephemerate.id, { zone: "hand" });
+            const card = makeInstance(ephemerate().id, { zone: "hand" });
             expect(reboundCastStackFlags(card, "hand")).toEqual({
                 reboundFromHand: true,
             });
         });
 
         it("omits the flag for a non-hand cast zone — CR 702.88a's 'no second rebound' is free from this single gate", () => {
-            const card = makeInstance(ephemerate.id, { zone: "exile" });
+            const card = makeInstance(ephemerate().id, { zone: "exile" });
             expect(reboundCastStackFlags(card, "exile")).toEqual({});
         });
 
         it("omits the flag for a hand-cast card with no rebound", () => {
-            const bear = makeInstance(grizzlyBears.id, { zone: "hand" });
+            const bear = makeInstance(grizzlyBears().id, { zone: "hand" });
             expect(reboundCastStackFlags(bear, "hand")).toEqual({});
         });
     });
 
     describe("reflexive cast-trigger fires at the caster's OWN next upkeep only", () => {
         it("does NOT fire on the opponent's next upkeep", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -153,7 +153,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -167,7 +167,7 @@ describe("Rebound capability (CR 702.88)", () => {
         });
 
         it("fires at the caster's own next upkeep, and resolving the reflexive trigger opens the Cast/Decline window", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -175,7 +175,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -225,7 +225,7 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("decline → stays exiled (CR 702.88c)", () => {
         it("declineRebound leaves the card in exile, NOT the graveyard", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -233,7 +233,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -257,13 +257,13 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("exile recast (CR 702.88a) — resolves to graveyard, never reboundes again", () => {
         it("an exile-cast rebound spell (no reboundFromHand) resolves normally to the graveyard", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "battlefield",
             });
-            const secondTarget = makeInstance(grizzlyBears.id, {
+            const secondTarget = makeInstance(grizzlyBears().id, {
                 id: "bear2",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -273,7 +273,7 @@ describe("Rebound capability (CR 702.88)", () => {
                 battlefield: [target, secondTarget],
             });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -318,7 +318,7 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("serialization round-trip", () => {
         it("preserves the rebound-exile marker and the scheduled delayed trigger before the window opens", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -326,7 +326,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -346,7 +346,7 @@ describe("Rebound capability (CR 702.88)", () => {
         });
 
         it("preserves the open cast window (castableFromExileBy + reboundCastWindow)", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -354,7 +354,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -378,7 +378,7 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("frontend wiring — projectPublicState (CR 702.88a)", () => {
         it("carries the cast affordance to the caster and hides it from the opponent while the window is open", () => {
-            const target = makeInstance(grizzlyBears.id, {
+            const target = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -386,7 +386,7 @@ describe("Rebound capability (CR 702.88)", () => {
             });
             const p1 = makePlayer("p1", { battlefield: [target] });
             const state = makeState({ players: [p1, makePlayer("p2")] });
-            const item = pushSpell(state, ephemerate.id, "p1", [
+            const item = pushSpell(state, ephemerate().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             item.reboundFromHand = true;
@@ -411,10 +411,10 @@ describe("Rebound capability (CR 702.88)", () => {
 
     describe("card definitions", () => {
         it("Ephemerate carries the rebound keyword and targets a creature you control", () => {
-            const e = makeInstance(ephemerate.id, { zone: "hand" });
+            const e = makeInstance(ephemerate().id, { zone: "hand" });
             expect(hasRebound(e)).toBe(true);
-            expect(ephemerate.staticAbilities).toContain("rebound");
-            expect(ephemerate.targetRequirement).toEqual({
+            expect(ephemerate().staticAbilities).toContain("rebound");
+            expect(ephemerate().targetRequirement).toEqual({
                 type: "Creature",
                 count: 1,
                 controller: "you",

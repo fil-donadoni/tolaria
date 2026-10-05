@@ -68,7 +68,7 @@ describe("additionalCostLifePayment — the life a cast owes for its own additio
         // flatten is the identity and the spec the commit reads is the printed
         // one.
         const spec = resolveAdditionalCosts(
-            toxicDeluge.additionalCosts,
+            toxicDeluge().additionalCosts,
             undefined
         );
         expect(additionalCostLifePayment(spec, 3)).toBe(3);
@@ -79,19 +79,19 @@ describe("additionalCostLifePayment — the life a cast owes for its own additio
 
     it("prices the CHOSEN oneOf life leg, and charges nothing for the discard leg", () => {
         const life = resolveAdditionalCosts(
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "pay-3-life"
         );
         expect(additionalCostLifePayment(life, undefined)).toBe(3);
         const discard = resolveAdditionalCosts(
-            bitterTriumph.additionalCosts,
+            bitterTriumph().additionalCosts,
             "discard"
         );
         expect(additionalCostLifePayment(discard, undefined)).toBe(0);
     });
 
     it("charges nothing for a card with no additional cost", () => {
-        expect(lightningBolt.additionalCosts).toBeUndefined();
+        expect(lightningBolt().additionalCosts).toBeUndefined();
         expect(additionalCostLifePayment(undefined, 5)).toBe(0);
     });
 });
@@ -116,7 +116,7 @@ function floatingManaBoard(cardId: string) {
         zone: "hand",
     });
     const lands = Array.from({ length: 6 }, (_, i) =>
-        makeInstance(swamp.id, {
+        makeInstance(swamp().id, {
             id: `swamp-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -144,7 +144,7 @@ describe("announceCast — the NO-TARGET commit charges the card's own 'pay X li
         // and this branch folded no additional-cost life at all, so the spell
         // used to land on the stack with the caster still at 20.
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(floatingManaBoard(toxicDeluge.id)),
+            gameStateSeed(floatingManaBoard(toxicDeluge().id)),
         ]);
         expect(harness.state().players[0].life).toBe(20);
 
@@ -162,7 +162,7 @@ describe("announceCast — the NO-TARGET commit charges the card's own 'pay X li
         const after = harness.state();
         // Committed, not parked: the cast is on the stack, out of hand.
         expect(after.stack).toHaveLength(1);
-        expect(after.stack[0].card.id).toBe(toxicDeluge.id);
+        expect(after.stack[0].card.id).toBe(toxicDeluge().id);
         expect(after.pendingCast).toBeUndefined();
         expect(after.players[0].hand).toHaveLength(0);
         // CR 119.4 — and the additional cost was actually PAID: the payment
@@ -172,7 +172,7 @@ describe("announceCast — the NO-TARGET commit charges the card's own 'pay X li
 
     it("Toxic Deluge for X = 0: nothing is charged (CR 601.2b — X may be announced as zero)", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(floatingManaBoard(toxicDeluge.id)),
+            gameStateSeed(floatingManaBoard(toxicDeluge().id)),
         ]);
 
         await runMutation<AnnounceCastArgs, void>(

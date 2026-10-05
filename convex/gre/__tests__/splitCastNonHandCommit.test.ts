@@ -221,7 +221,7 @@ describe("CR 709.3 — announceCast commits a split HALF from a non-hand zone (i
         // library-top leg, because until CR 709.3's half became the one
         // announcement allowed to ride the substitution nothing could reach it.
         // The half was cast for free.
-        const card = makeInstance(lifeDeath.id, {
+        const card = makeInstance(lifeDeath().id, {
             id: "lifedeath",
             controllerId: "p1",
             ownerId: "p1",
@@ -248,7 +248,7 @@ describe("CR 709.3 — announceCast commits a split HALF from a non-hand zone (i
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
         await announce(harness, {
             cardInstanceId: "lifedeath",
-            alternativeCostId: splitCastAltCostId(lifeDeath, "left"),
+            alternativeCostId: splitCastAltCostId(lifeDeath(), "left"),
         });
 
         const after = harness.state();

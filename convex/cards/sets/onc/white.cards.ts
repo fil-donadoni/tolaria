@@ -2,7 +2,7 @@
 // `import * as onc from "./sets/onc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { tokenCreatedTrigger } from "../../abilities/triggers/tokenCreatedTrigger";
 import { equipAbility, forMirrodin } from "../../abilities/equipment";
@@ -35,7 +35,7 @@ import { equipAbility, forMirrodin } from "../../abilities/equipment";
 //   - The activated ability — `{W}, {T}, Remove a story counter` cost (the
 //     `removeCounter` activation-cost shape `eld/black.cards.ts`'s Wishclaw
 //     Talisman already exercises) → a plain `draw` Op.
-export const staffOfTheStoryteller: CardDefinition = {
+export const staffOfTheStoryteller = defineCard(() => ({
     id: "ab1d1461-1625-4163-aacd-a939f4871fad", // ONC 10
     name: "Staff of the Storyteller",
     rarity: "rare",
@@ -96,7 +96,7 @@ export const staffOfTheStoryteller: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Glimmer Lens (issue #2610) — {1}{W} Artifact — Equipment. Oracle text:
 // "For Mirrodin! (When this Equipment enters, create a 2/2 red Rebel
@@ -116,7 +116,7 @@ export const staffOfTheStoryteller: CardDefinition = {
 //    once per combat by construction — never once per additional attacker.
 //    The condition is "the host is among the attackers AND at least 2
 //    creatures total attacked" (equipped creature + at least one other).
-export const glimmerLens: CardDefinition = {
+export const glimmerLens = defineCard(() => ({
     id: "c9262000-e6f3-4da1-ad1c-038f65d3bef6", // ONC 6
     name: "Glimmer Lens",
     rarity: "rare",
@@ -150,4 +150,4 @@ export const glimmerLens: CardDefinition = {
             oracleText: "Equip {1}{W}",
         }),
     ],
-};
+}));

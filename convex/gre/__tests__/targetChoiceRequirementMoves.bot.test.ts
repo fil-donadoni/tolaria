@@ -91,7 +91,7 @@ function board(spellId: string = SPRAY.id): GameState {
                     }),
                 ],
                 battlefield: [
-                    makeInstance(mountain.id, {
+                    makeInstance(mountain().id, {
                         id: "mountain-1",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -105,19 +105,19 @@ function board(spellId: string = SPRAY.id): GameState {
                     // `combinations` walks the legal targets in board order, so
                     // the tuples the enumerator builds first are the ones that
                     // open with a Grizzly Bears.
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bears-1",
                         controllerId: "p2",
                         ownerId: "p2",
                         zone: "battlefield",
                     }),
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bears-2",
                         controllerId: "p2",
                         ownerId: "p2",
                         zone: "battlefield",
                     }),
-                    makeInstance(standardBearer.id, {
+                    makeInstance(standardBearer().id, {
                         id: "bearer",
                         controllerId: "p2",
                         ownerId: "p2",

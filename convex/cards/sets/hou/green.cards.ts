@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Ramunap Excavator — {2}{G} Creature — Snake Cleric, 2/3. "You may play
 // lands from your graveyard." A single declarative field, no `resolve()` and
@@ -15,7 +15,7 @@ import type { CardDefinition } from "../../types";
 // Same shape as Icetill Explorer (`eoe/green.cards.ts`) and Crucible of Worlds
 // (`5dn/colorless.cards.ts`); the source's card type is irrelevant to the
 // permission scan.
-export const ramunapExcavator: CardDefinition = {
+export const ramunapExcavator = defineCard(() => ({
     id: "90a54d18-8403-441d-a115-ee462fabdabb",
     name: "Ramunap Excavator",
     rarity: "rare",
@@ -26,4 +26,4 @@ export const ramunapExcavator: CardDefinition = {
     power: 2,
     toughness: 3,
     graveyardPlayPermission: { actions: ["play-land"] },
-};
+}));

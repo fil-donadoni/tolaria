@@ -50,7 +50,7 @@ function makeBoard(
     landCounters: Record<string, number>,
     sourceCardIds: { id: string; instanceId: string; attachedTo?: string }[]
 ): { state: GameState; land: CardInstanceState; sources: CardInstanceState[] } {
-    const land = makeInstance(mishrasFactory.id, {
+    const land = makeInstance(mishrasFactory().id, {
         id: "land-1",
         counters: { ...landCounters },
     });
@@ -80,11 +80,11 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // LATER timestamp, so the loss wins (CR 613.1f).
             const { state, land, sources } = makeBoard({ sleep: 1 }, [
                 {
-                    id: venarianGold.id,
+                    id: venarianGold().id,
                     instanceId: "wight-1",
                     attachedTo: "land-1",
                 },
-                { id: bloodMoon.id, instanceId: "moon-1" },
+                { id: bloodMoon().id, instanceId: "moon-1" },
             ]);
             const [wight, moon] = sources;
 
@@ -106,7 +106,7 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         it("still grants when no live stripper removed that keyword", () => {
             const { state, land, sources } = makeBoard({ sleep: 1 }, [
                 {
-                    id: venarianGold.id,
+                    id: venarianGold().id,
                     instanceId: "wight-1",
                     attachedTo: "land-1",
                 },
@@ -125,8 +125,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // Cyclopean Tomb mires the land (Swamp, counter-gated) FIRST; Blood
             // Moon's subtype-set (Mountain) has the later timestamp and wins.
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: bloodMoon.id, instanceId: "moon-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: bloodMoon().id, instanceId: "moon-1" },
             ]);
             const [tomb, moon] = sources;
 
@@ -149,8 +149,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // Cyclopean Tomb sets the land to Swamp; Yavimaya then ADDS Forest
             // "in addition to its other land types" (later timestamp).
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
             ]);
             const [tomb, yavimaya] = sources;
 
@@ -167,13 +167,13 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         it("is stable with a grant, a stripper, a subtype-set and a subtype-add live at once", () => {
             const { state, land, sources } = makeBoard({ sleep: 1, mire: 1 }, [
                 {
-                    id: venarianGold.id,
+                    id: venarianGold().id,
                     instanceId: "wight-1",
                     attachedTo: "land-1",
                 },
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: bloodMoon.id, instanceId: "moon-1" },
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: bloodMoon().id, instanceId: "moon-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
             ]);
             const [wight, tomb, moon, yavimaya] = sources;
             beginApplyingStaticEffects(state, wight);
@@ -238,12 +238,12 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             aura: CardInstanceState;
             sphere: CardInstanceState;
         } {
-            const elemental = makeInstance(airElemental.id, { id: "elem-1" });
-            const aura = makeInstance(flight.id, {
+            const elemental = makeInstance(airElemental().id, { id: "elem-1" });
+            const aura = makeInstance(flight().id, {
                 id: "flight-1",
                 attachedTo: "elem-1",
             });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-1" });
             const state = makeState({
                 players: [
                     makePlayer("p1", {
@@ -268,17 +268,17 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
         });
 
         it("Flight, Gravity Sphere, Flight: the later grant still wins (no native flier)", () => {
-            const grizzly = makeInstance(airElemental.id, { id: "elem-1" });
+            const grizzly = makeInstance(airElemental().id, { id: "elem-1" });
             grizzly.staticAbilities = [];
-            const aura1 = makeInstance(flight.id, {
+            const aura1 = makeInstance(flight().id, {
                 id: "flight-1",
                 attachedTo: "elem-1",
             });
-            const aura2 = makeInstance(flight.id, {
+            const aura2 = makeInstance(flight().id, {
                 id: "flight-2",
                 attachedTo: "elem-1",
             });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-1" });
             const state = makeState({
                 players: [
                     makePlayer("p1", {
@@ -336,8 +336,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
     describe("layer 4 ordering — sets and adds replay on ONE timestamp axis (CR 613.7)", () => {
         it("set-then-add: the later add survives", () => {
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
             ]);
             const [tomb, yavimaya] = sources;
             beginApplyingStaticEffects(state, tomb);
@@ -354,8 +354,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // composer got wrong: it replayed every add on top of the newest
             // set unconditionally, so the answer flipped on the first SBA pass.
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
             // PRD #2064 S4 — layer 4 is DERIVED from the BOARD, so a source is
@@ -381,9 +381,9 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
 
         it("add, set, set: every entry replays in timestamp order, pass-count independent", () => {
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: bloodMoon.id, instanceId: "moon-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: bloodMoon().id, instanceId: "moon-1" },
             ]);
             const [yavimaya, tomb, moon] = sources;
             beginApplyingStaticEffects(state, yavimaya);
@@ -408,8 +408,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // not a new timestamp (CR 613.7d), the set stays EARLIER than the
             // add, so the Forest survives.
             const { state, land, sources } = makeBoard({}, [
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
             ]);
             const [tomb, yavimaya] = sources;
             beginApplyingStaticEffects(state, tomb);
@@ -427,8 +427,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
 
         it("overwrites an earlier add when the set's source has the later timestamp", () => {
             const { state, land, sources } = makeBoard({}, [
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
             beginApplyingStaticEffects(state, yavimaya);
@@ -448,8 +448,8 @@ describe("materialized static refresh — round-trip semantics (issue #1715)", (
             // The derivation must not make an add immortal: `baseSubtypes` is
             // captured WITHOUT the live add contributions.
             const { state, land, sources } = makeBoard({ mire: 1 }, [
-                { id: yavimayaCradleOfGrowth.id, instanceId: "yavimaya-1" },
-                { id: cyclopeanTomb.id, instanceId: "tomb-1" },
+                { id: yavimayaCradleOfGrowth().id, instanceId: "yavimaya-1" },
+                { id: cyclopeanTomb().id, instanceId: "tomb-1" },
             ]);
             const [yavimaya, tomb] = sources;
             beginApplyingStaticEffects(state, tomb);

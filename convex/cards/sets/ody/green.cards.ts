@@ -1,6 +1,9 @@
 // ody — green cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 
 const SQUIRREL_NEST_ID = "22eccb27-1723-4c5a-96b8-85e6e5739c30";
 
@@ -15,7 +18,7 @@ const SQUIRREL_NEST_ID = "22eccb27-1723-4c5a-96b8-85e6e5739c30";
 // (CR 111 / 701.7) — the 1/1 green Squirrel spec Deep Forest Hermit already
 // uses (nem/green.cards.ts). "Enchant land" carries no controller clause, so it may
 // sit on an opponent's land (that land's controller activates).
-export const squirrelNest: CardDefinition = {
+export const squirrelNest = defineCard(() => ({
     id: SQUIRREL_NEST_ID,
     name: "Squirrel Nest",
     rarity: "uncommon",
@@ -60,7 +63,7 @@ export const squirrelNest: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
 
@@ -72,7 +75,7 @@ const CALL_OF_THE_HERD_ID = "429a88cc-53db-4c5e-a061-f0f49a38c675";
 // `jud/green.ts` uses it). The body is the plain `createToken` Op (CR 111 /
 // 701.7) with the token's printed art resolved by the client from the creating
 // printing's Token Print (a missing image renders a placeholder silently).
-export const callOfTheHerd: CardDefinition = {
+export const callOfTheHerd = defineCard(() => ({
     id: CALL_OF_THE_HERD_ID,
     name: "Call of the Herd",
     rarity: "rare",
@@ -95,7 +98,7 @@ export const callOfTheHerd: CardDefinition = {
             count: 1,
         },
     ],
-};
+}));
 
 // Terravore — {1}{G}{G} Creature — Lhurgoyf with trample (CR 702.19a) whose
 // power AND toughness are each the number of land cards in ALL graveyards
@@ -109,7 +112,7 @@ export const callOfTheHerd: CardDefinition = {
 // projection.
 //
 // hand-tail: Terravore's power and toughness are each equal to the number of land cards in all graveyards. (#4195)
-export const terravore: CardDefinition = {
+export const terravore = defineCard(() => ({
     id: "c39c412b-2f21-483a-b744-5d55bc007c0d",
     name: "Terravore",
     rarity: "rare",
@@ -136,4 +139,4 @@ export const terravore: CardDefinition = {
             },
         },
     ],
-};
+}));

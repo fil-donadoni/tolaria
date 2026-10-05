@@ -1,6 +1,6 @@
 // sth — white cards (ADR 0043 colour split).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import {
     causedByOpponent,
     leftTrigger,
@@ -32,7 +32,7 @@ import {
 // act on the departed object stays imperative. Mirrors every existing
 // leftTrigger card that reads `leaving.id` / `leaving.ownerId` (Personal
 // Incarnation's `pinc-ltb`, lea/white.cards.ts).
-export const sacredGround: CardDefinition = {
+export const sacredGround = defineCard(() => ({
     id: "37ae4b01-a9c1-4eec-9204-78cb2508e0df",
     rarity: "rare",
     name: "Sacred Ground",
@@ -58,4 +58,4 @@ export const sacredGround: CardDefinition = {
             },
         }),
     ],
-};
+}));

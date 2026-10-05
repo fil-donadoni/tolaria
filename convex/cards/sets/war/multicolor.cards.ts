@@ -1,6 +1,6 @@
 // war — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 
 // TODO(issue #679 stub — still blocked, but on a NARROWER gap than before.
 // The categorized shared-window half of #1364 HAS since shipped as the
@@ -48,7 +48,7 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 //     owner's hand. Draw a card." A `moveZone`-to-hand of the up-to-one
 //     announced target (CR 400.7; `count { min: 0, max: 1 }` = "up to one", a
 //     no-op when none is chosen/legal, CR 608.2b) then `draw` 1.
-export const teferiTimeRaveler: CardDefinition = {
+export const teferiTimeRaveler = defineCard(() => ({
     id: "5cb76266-ae50-4bbc-8f96-d98f309b02d3",
     name: "Teferi, Time Raveler",
     rarity: "rare",
@@ -113,7 +113,7 @@ export const teferiTimeRaveler: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
 
@@ -136,7 +136,7 @@ const SAHEELI_SUBLIME_ARTIFICER_ID = "5a10b543-d5d4-42a8-9ee8-dada59a2ad7e";
 //     artifact creature.
 // compiler-gap: "Whenever you cast a noncreature spell, create a 1/1 colorless Servo artifact creature token." (#2693)
 // compiler-gap: "−2: Target artifact you control becomes a copy of another target artifact or creature you control until end of turn, except it's an artifact in addition to its other types." (#2693)
-export const saheeliSublimeArtificer: CardDefinition = {
+export const saheeliSublimeArtificer = defineCard(() => ({
     id: SAHEELI_SUBLIME_ARTIFICER_ID, // WAR 234
     name: "Saheeli, Sublime Artificer",
     rarity: "uncommon",
@@ -218,4 +218,4 @@ export const saheeliSublimeArtificer: CardDefinition = {
             ],
         },
     ],
-};
+}));

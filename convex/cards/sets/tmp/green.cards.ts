@@ -2,7 +2,7 @@
 // `import * as tmp from "./sets/tmp/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Mirri's Guile — {G} Enchantment. "At the beginning of your upkeep, you may
@@ -17,7 +17,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // and marks the cards known to the controller (ADR 0026). Each suspending Op
 // checkpoints on its own Op index so a suspension never re-runs an earlier step
 // (CR 608.3).
-export const mirrisGuile: CardDefinition = {
+export const mirrisGuile = defineCard(() => ({
     id: "73d51a3c-95c0-4810-b847-4b8afd12fd64",
     name: "Mirri's Guile",
     rarity: "rare",
@@ -55,7 +55,7 @@ export const mirrisGuile: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Earthcraft — {1}{G} Enchantment. "Tap an untapped creature you control:
 // Untap target basic land." Authored DSL-first (ADR 0045). The ability lives
@@ -68,7 +68,7 @@ export const mirrisGuile: CardDefinition = {
 // (CR 701.26b) on the announced basic-land slot; the target is any basic land
 // (`supertypeFilter: "Basic"`, CR 205.4a — oracle says "target basic land",
 // not restricted to lands you control).
-export const earthcraft: CardDefinition = {
+export const earthcraft = defineCard(() => ({
     id: "9dda7531-82a1-4f49-8858-601ddbc6e2bc",
     name: "Earthcraft",
     rarity: "rare",
@@ -98,7 +98,7 @@ export const earthcraft: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Harrow — {2}{G} Instant. "As an additional cost to cast this spell,
 // sacrifice a land. Search your library for up to two basic land cards, put
@@ -109,7 +109,7 @@ export const earthcraft: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/green.cards.ts`.
-export const harrow: CardDefinition = {
+export const harrow = defineCard(() => ({
     id: "3c207142-4880-4935-9827-b91bc7d9d643", // TMP 230
     rarity: "uncommon",
     name: "Harrow",
@@ -138,7 +138,7 @@ export const harrow: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Aluren — {2}{G}{G} Enchantment. "Any player may cast creature spells with
 // mana value 3 or less without paying their mana costs and as though they had
@@ -176,7 +176,7 @@ export const harrow: CardDefinition = {
 // Enforced once, at announcement, by `castPermissionRequiredFor`
 // (`convex/gre/rules.ts`).
 //
-export const aluren: CardDefinition = {
+export const aluren = defineCard(() => ({
     id: "268403bc-733d-446e-a7c1-abc957c42bc2",
     name: "Aluren",
     rarity: "rare",
@@ -206,4 +206,4 @@ export const aluren: CardDefinition = {
             label: "Cast with Aluren",
         },
     ],
-};
+}));

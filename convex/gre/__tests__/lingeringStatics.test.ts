@@ -38,12 +38,12 @@ function withSong(): {
     ring: CardInstanceState;
 } {
     const state = makeState();
-    const song = makeInstance(titaniasSong.id, {
+    const song = makeInstance(titaniasSong().id, {
         id: "song-1",
         controllerId: "p1",
         zone: "battlefield",
     });
-    const ring = makeInstance(solRing.id, {
+    const ring = makeInstance(solRing().id, {
         id: "ring-1",
         controllerId: "p1",
         zone: "battlefield",
@@ -84,7 +84,7 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         const { state } = withSong();
         removePermanentTo(state, "song-1", "graveyard");
 
-        const late = makeInstance(solRing.id, {
+        const late = makeInstance(solRing().id, {
             id: "ring-2",
             controllerId: "p1",
             zone: "battlefield",
@@ -132,7 +132,7 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
                 controllerId: "p1",
                 zone: "battlefield",
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear-1",
                 controllerId: "p1",
                 zone: "battlefield",
@@ -215,12 +215,12 @@ describe("a static effect that lingers after its source leaves (CR 611.3b/611.3d
         // a layer-6 effect that was NOT applying would START applying the
         // moment its source left, which is the inversion CR 611.2b forbids.
         const state = makeState();
-        const song = makeInstance(titaniasSong.id, {
+        const song = makeInstance(titaniasSong().id, {
             id: "song-1",
             controllerId: "p1",
             zone: "battlefield",
         });
-        const ring = makeInstance(solRing.id, {
+        const ring = makeInstance(solRing().id, {
             id: "ring-1",
             controllerId: "p1",
             zone: "battlefield",

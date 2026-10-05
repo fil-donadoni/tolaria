@@ -75,7 +75,7 @@ function boardWithGraveyardAura(opts: {
     const p1Battlefield = opts.creatures
         .filter((c) => c.controllerId === "p1")
         .map((c) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: c.id,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -84,7 +84,7 @@ function boardWithGraveyardAura(opts: {
         );
     if (opts.extraNonCreature) {
         p1Battlefield.push(
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: "land-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -95,7 +95,7 @@ function boardWithGraveyardAura(opts: {
     const p2Battlefield = opts.creatures
         .filter((c) => c.controllerId === "p2")
         .map((c) =>
-            makeInstance(savannahLions.id, {
+            makeInstance(savannahLions().id, {
                 id: c.id,
                 controllerId: "p2",
                 ownerId: "p2",
@@ -143,7 +143,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
     it("CR 303.4g — no legal host: the Aura stays in the graveyard", () => {
         // Unholy Strength enchants a creature; p1 has none on the battlefield.
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [],
             extraNonCreature: true, // a land is not a legal host
         });
@@ -165,7 +165,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("exactly one legal host: auto-attaches with no prompt (ADR 0003)", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [{ id: "bear-1", controllerId: "p1" }],
         });
         const entered = reanimateAura(state, auraId);
@@ -184,7 +184,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("two legal hosts: enqueues a choose-aura-host choice with both candidates", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [
                 { id: "bear-1", controllerId: "p1" },
                 { id: "bear-2", controllerId: "p1" },
@@ -203,7 +203,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         // The prompt names the Aura (resolved from the definition, not the slim
         // `{ id }`), and the subject card id drives the dialog image.
         expect(choice?.prompt).toBe("Choose what Unholy Strength enchants.");
-        expect(choice?.subjectCardId).toBe(unholyStrength.id);
+        expect(choice?.subjectCardId).toBe(unholyStrength().id);
         // Only creatures are candidates — the land is filtered out (303.4f
         // enchant restriction).
         expect(new Set(choice?.candidateIds)).toEqual(
@@ -220,7 +220,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("the submitted host choice attaches the reanimated Aura to the chosen host", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [
                 { id: "bear-1", controllerId: "p1" },
                 { id: "bear-2", controllerId: "p1" },
@@ -246,7 +246,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("submit path (applyPendingChoiceSubmit) drives the same attachment", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [
                 { id: "bear-1", controllerId: "p1" },
                 { id: "bear-2", controllerId: "p1" },
@@ -270,7 +270,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("rejects a submission outside the candidate allow-list", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [
                 { id: "bear-1", controllerId: "p1" },
                 { id: "bear-2", controllerId: "p1" },
@@ -295,7 +295,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         // A legal host may sit on the opponent's battlefield — Control Magic
         // enchants any creature. Both creatures are candidates.
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: controlMagic.id,
+            auraId: controlMagic().id,
             creatures: [
                 { id: "mine", controllerId: "p1" },
                 { id: "theirs", controllerId: "p2" },
@@ -321,7 +321,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
 
     it("wire format — candidateIds survive projectPublicState (CR 303.4f)", () => {
         const { state, auraId } = boardWithGraveyardAura({
-            auraId: unholyStrength.id,
+            auraId: unholyStrength().id,
             creatures: [
                 { id: "bear-1", controllerId: "p1" },
                 { id: "bear-2", controllerId: "p1" },
@@ -337,7 +337,7 @@ describe("non-cast Aura host choice (CR 303.4f)", () => {
         );
         // The subject card id survives the wire so the dialog can render the
         // Aura image client-side.
-        expect(choice?.subjectCardId).toBe(unholyStrength.id);
+        expect(choice?.subjectCardId).toBe(unholyStrength().id);
     });
 });
 
@@ -349,19 +349,19 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
     it("CR 702.16b — a host protected from the Aura's color is never a candidate", () => {
         // Unholy Strength is black; White Knight has protection from black.
         // Grizzly Bears has no protection, so it's the only legal host.
-        const aura = makeInstance(unholyStrength.id, {
+        const aura = makeInstance(unholyStrength().id, {
             id: "aura-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const knight = makeInstance(whiteKnight.id, {
+        const knight = makeInstance(whiteKnight().id, {
             id: "knight-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -388,13 +388,13 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
     });
 
     it("CR 702.16b — protected from EVERY candidate: the Aura stays in the graveyard", () => {
-        const aura = makeInstance(unholyStrength.id, {
+        const aura = makeInstance(unholyStrength().id, {
             id: "aura-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const knight = makeInstance(whiteKnight.id, {
+        const knight = makeInstance(whiteKnight().id, {
             id: "knight-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -421,20 +421,20 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
     it("CR 303.4 (Guardian Beast) — a cantBeEnchanted host is never a candidate", () => {
         // Guardian Beast (untapped): noncreature artifacts ITS CONTROLLER
         // controls can't be enchanted. Warp Artifact enchants any artifact.
-        const aura = makeInstance(warpArtifact.id, {
+        const aura = makeInstance(warpArtifact().id, {
             id: "aura-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const beast = makeInstance(guardianBeast.id, {
+        const beast = makeInstance(guardianBeast().id, {
             id: "beast-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
             isTapped: false,
         });
-        const monolith = makeInstance(basaltMonolith.id, {
+        const monolith = makeInstance(basaltMonolith().id, {
             id: "monolith-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -461,20 +461,20 @@ describe("bulk-reanimated Aura host legality — protection & cantBeEnchanted (C
     });
 
     it("CR 303.4 (Guardian Beast) — a TAPPED Guardian Beast no longer guards: the artifact is a legal host", () => {
-        const aura = makeInstance(warpArtifact.id, {
+        const aura = makeInstance(warpArtifact().id, {
             id: "aura-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const beast = makeInstance(guardianBeast.id, {
+        const beast = makeInstance(guardianBeast().id, {
             id: "beast-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
             isTapped: true, // the guard is "as long as untapped"
         });
-        const monolith = makeInstance(basaltMonolith.id, {
+        const monolith = makeInstance(basaltMonolith().id, {
             id: "monolith-1",
             controllerId: "p1",
             ownerId: "p1",

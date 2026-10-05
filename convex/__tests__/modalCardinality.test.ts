@@ -79,7 +79,7 @@ const DISCARD: SpellMode = {
  *  order, with the given cardinality. */
 function probe(modeSelection: ModeSelection | undefined): CardDefinition {
     return {
-        ...hullBreach,
+        ...hullBreach(),
         manaCost: {},
         modes: [PING, DRAW, DISCARD],
         ...(modeSelection ? { modeSelection } : {}),
@@ -106,14 +106,14 @@ function board(opts: {
     myBattlefield?: CardInstanceState[];
     extraHand?: CardInstanceState[];
 }): GameState {
-    const spell = makeInstance(hullBreach.id, {
+    const spell = makeInstance(hullBreach().id, {
         id: SPELL,
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
     });
     const library = Array.from({ length: 5 }, (_, i) =>
-        makeInstance(plains.id, {
+        makeInstance(plains().id, {
             id: `lib-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -206,7 +206,7 @@ describe("ModeSelection — announcement bounds (CR 700.2a / 700.2d)", () => {
                     gameStateSeed(
                         board({
                             oppCreatures: [
-                                creature(grizzlyBears.id, "bears", "p2"),
+                                creature(grizzlyBears().id, "bears", "p2"),
                             ],
                         })
                     ),
@@ -229,7 +229,7 @@ describe("ModeSelection — announcement bounds (CR 700.2a / 700.2d)", () => {
                     gameStateSeed(
                         board({
                             extraHand: [
-                                makeInstance(plains.id, {
+                                makeInstance(plains().id, {
                                     id: "h1",
                                     controllerId: "p1",
                                     ownerId: "p1",
@@ -298,8 +298,8 @@ describe("mode instances — targets, order, resolution (CR 608.2c / 700.2d)", (
                     gameStateSeed(
                         board({
                             oppCreatures: [
-                                creature(grizzlyBears.id, "bears", "p2"),
-                                creature(hillGiant.id, "giant", "p2"),
+                                creature(grizzlyBears().id, "bears", "p2"),
+                                creature(hillGiant().id, "giant", "p2"),
                             ],
                         })
                     ),
@@ -340,7 +340,7 @@ describe("mode instances — targets, order, resolution (CR 608.2c / 700.2d)", (
                     gameStateSeed(
                         board({
                             oppCreatures: [
-                                creature(hillGiant.id, "giant", "p2"),
+                                creature(hillGiant().id, "giant", "p2"),
                             ],
                         })
                     ),
@@ -360,7 +360,7 @@ describe("mode instances — targets, order, resolution (CR 608.2c / 700.2d)", (
 
     it("a repeated mode's choice suspends and prompts afresh per instance (CR 700.2d)", async () => {
         const hand = ["h1", "h2"].map((id) =>
-            makeInstance(plains.id, {
+            makeInstance(plains().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -408,8 +408,8 @@ describe("copies (CR 700.2g)", () => {
             async () => {
                 const state = board({
                     oppCreatures: [
-                        creature(grizzlyBears.id, "bears", "p2"),
-                        creature(hillGiant.id, "giant", "p2"),
+                        creature(grizzlyBears().id, "bears", "p2"),
+                        creature(hillGiant().id, "giant", "p2"),
                     ],
                 });
                 const spell = state.players[0].hand.pop()!;
@@ -425,7 +425,7 @@ describe("copies (CR 700.2g)", () => {
                     ],
                 });
                 state.stack.push({
-                    ...makeInstance(fork.id, {
+                    ...makeInstance(fork().id, {
                         id: "fork-1",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -451,7 +451,7 @@ describe("copies (CR 700.2g)", () => {
 describe("the permanent domain (CR 700.2, ADR 0094)", () => {
     it("a resolving modal permanent spell stores its first announced mode as chosenModeId", () => {
         const modalBears: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             modes: [
                 { id: "x", label: "x", oracleText: "x" },
                 { id: "y", label: "y", oracleText: "y" },
@@ -460,7 +460,7 @@ describe("the permanent domain (CR 700.2, ADR 0094)", () => {
         withTemporaryDefinition(modalBears, () => {
             const state = board({});
             state.stack.push({
-                ...makeInstance(grizzlyBears.id, {
+                ...makeInstance(grizzlyBears().id, {
                     id: "modal-bears",
                     controllerId: "p1",
                     ownerId: "p1",

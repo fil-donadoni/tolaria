@@ -1,7 +1,7 @@
 // vow — red cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { BLOOD_TOKEN_SPEC } from "../../abilities/tokens/bloodToken";
 
@@ -18,7 +18,7 @@ import { BLOOD_TOKEN_SPEC } from "../../abilities/tokens/bloodToken";
 // `discardFilter` (#778) so the Blood token's real "{1}, {T}, Discard a
 // card, Sacrifice this token: Draw a card." ability ships instead of an
 // inert placeholder — the exact gap the earlier stub was blocked on.
-export const voldarenEpicure: CardDefinition = {
+export const voldarenEpicure = defineCard(() => ({
     id: "ae154e64-f626-45fb-bd52-840c1c27b2d3",
     name: "Voldaren Epicure",
     rarity: "common",
@@ -45,4 +45,4 @@ export const voldarenEpicure: CardDefinition = {
             ],
         }),
     ],
-};
+}));

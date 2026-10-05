@@ -8,7 +8,7 @@
 // into Stupor is a `{1}{U}{U}` blue instant everywhere the colour split looks,
 // and its land back face never makes it a colourless card.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { modalLandBackFace } from "../../abilities";
 
 // Sink into Stupor // Soporific Springs — {1}{U}{U} Instant, with a Land back
@@ -31,7 +31,7 @@ import { modalLandBackFace } from "../../abilities";
 // being an instant card.
 // compiler-gap: "Return target spell or nonland permanent an opponent controls to its owner's hand." (#2693)
 // compiler-gap: "As this land enters, you may pay 3 life. If you don't, it enters tapped." (#2693)
-export const sinkIntoStupor: CardDefinition = {
+export const sinkIntoStupor = defineCard(() => ({
     id: "5358b87a-1a29-426d-b165-40c97da2c14d",
     name: "Sink into Stupor",
     rarity: "uncommon",
@@ -58,4 +58,4 @@ export const sinkIntoStupor: CardDefinition = {
         color: "U",
         life: 3,
     }),
-};
+}));

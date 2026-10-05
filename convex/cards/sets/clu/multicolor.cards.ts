@@ -1,12 +1,8 @@
 // clu — multicolor cards (ADR 0043 colour split). Modern Scryfall oracle
 // text is authoritative (ADR 0004).
 
-import type {
-    CardDefinition,
-    PermanentView,
-    StaticEffectStateView,
-} from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import type { PermanentView, StaticEffectStateView } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { investigateOp } from "../../abilities/tokens/clueToken";
 
@@ -61,7 +57,7 @@ function controllerHandSizeAtMost(max: number) {
 // `staticEffects[]` entries sharing the SAME CR 611.2c gate — `pt-buff` for
 // +2/+2 (layer 7c, the Jihad shape, `arn/white.cards.ts`) and `keyword-grant` for
 // menace (the Kavu Runner shape, `inv/red.cards.ts`).
-export const carnageInterpreter: CardDefinition = {
+export const carnageInterpreter = defineCard(() => ({
     id: "f6fb576e-a4a4-496b-b553-3f81cc651210", // CLU 26
     name: "Carnage Interpreter",
     rarity: "rare",
@@ -105,4 +101,4 @@ export const carnageInterpreter: CardDefinition = {
             keyword: "menace",
         },
     ],
-};
+}));

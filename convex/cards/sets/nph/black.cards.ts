@@ -3,7 +3,7 @@
 // #696). Dismember is black even though it can be cast for life: its Phyrexian
 // pips `{B/P}` are black mana symbols (CR 105.2 — `getColorsFromCost` counts
 // them).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Dismember — "Target creature gets -5/-5 until end of turn." Phyrexian mana
 // `{1}{B/P}{B/P}` (CR 107.4f): each `{B/P}` is paid with {B} or 2 life, the
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // ts`, threaded through `announceCast.phyrexianLifePips`). The on-resolution
 // effect is a plain -5/-5 until end of turn via the `pump` Op (CR 611.1 layer
 // 7c temporary P/T modification) — DSL-first, no closure needed.
-export const dismember: CardDefinition = {
+export const dismember = defineCard(() => ({
     id: "064dfdeb-485f-473e-9fa0-8fdb7638cdc6",
     rarity: "uncommon",
     name: "Dismember",
@@ -29,4 +29,4 @@ export const dismember: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));

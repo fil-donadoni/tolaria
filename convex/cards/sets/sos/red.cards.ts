@@ -3,7 +3,7 @@
 // sos/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Impractical Joke — {R} Sorcery (SOS). "Damage can't be prevented this turn.
 // Impractical Joke deals 3 damage to up to one target creature or
@@ -33,7 +33,7 @@ import type { CardDefinition } from "../../types";
 // clause still applies — the spell resolves and does its first half.
 // `type: ["Creature", "Planeswalker"]` is the OR type filter; `["any"]` would
 // wrongly admit a player (issue #3073).
-export const impracticalJoke: CardDefinition = {
+export const impracticalJoke = defineCard(() => ({
     id: "39a816b4-39b8-421c-b828-68db901d34b7", // SOS 12
     rarity: "uncommon",
     name: "Impractical Joke",
@@ -49,4 +49,4 @@ export const impracticalJoke: CardDefinition = {
         { op: "suppressDamagePrevention" },
         { op: "dealDamage", amount: 3, to: { target: 0 } },
     ],
-};
+}));

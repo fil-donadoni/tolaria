@@ -3,7 +3,7 @@
 // soi/index.cards.ts. Cards are classified by the colour identity of their mana cost
 // (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 import {
     leftTrigger,
@@ -21,7 +21,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 // a real `filter.subtypes` match, both newly threaded through
 // `PermanentLeftEvent`). Both halves reuse shared factories: `landfallTrigger`
 // (#694) for the ETB half, `leftTrigger` + `wasSacrificed` for the sac half.
-export const tirelessTracker: CardDefinition = {
+export const tirelessTracker = defineCard(() => ({
     id: "ee8e9928-d9b2-4570-adb8-44b34115decd",
     name: "Tireless Tracker",
     oracleText:
@@ -64,4 +64,4 @@ export const tirelessTracker: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { typecyclingAbility } from "../../abilities/cycling";
 import { amassOps } from "../../abilities/amass";
 
@@ -30,7 +30,7 @@ const ORCISH_BOWMASTERS_TRIGGER =
 // (it would wrongly exempt an opponent's first upkeep draw, and wrongly punish
 // their draw-step draw on any turn they drew earlier), and the CR 504.1
 // turn-based-action flag is the only faithful reading.
-export const orcishBowmasters: CardDefinition = {
+export const orcishBowmasters = defineCard(() => ({
     id: "7c024bae-5631-4e20-ac69-df392ac9e109",
     name: "Orcish Bowmasters",
     rarity: "rare",
@@ -71,7 +71,7 @@ export const orcishBowmasters: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Troll of Khazad-dûm — "This creature can't be blocked except by three or
 // more creatures. Swampcycling {1}." (Issue #1839.)
@@ -88,7 +88,7 @@ export const orcishBowmasters: CardDefinition = {
 //
 // Swampcycling {1}: CR 702.29e typecycling — `typecyclingAbility`, which
 // shares plain Cycling's activation shell (CR 702.29f).
-export const trollOfKhazadDum: CardDefinition = {
+export const trollOfKhazadDum = defineCard(() => ({
     id: "a6539e26-b63b-4725-9407-caaf451de084",
     name: "Troll of Khazad-dûm",
     rarity: "common",
@@ -103,4 +103,4 @@ export const trollOfKhazadDum: CardDefinition = {
     staticAbilities: ["minimum-blockers:3"],
     // CR 702.29e/f — Swampcycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Swamp")],
-};
+}));

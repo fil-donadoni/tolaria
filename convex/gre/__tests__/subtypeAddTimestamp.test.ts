@@ -38,14 +38,14 @@ function makeBoard(land: CardInstanceState, extra: CardInstanceState[] = []) {
 }
 
 function ctxFor(state: GameState) {
-    const item: StackItem = pushSpell(state, grizzlyBears.id, "p1");
+    const item: StackItem = pushSpell(state, grizzlyBears().id, "p1");
     return buildSpellContext(state, item);
 }
 
 describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 part a)", () => {
     it("a later indefinite add survives an earlier live subtype-set's recompose", () => {
-        const land = makeInstance(tundra.id, { id: "land-add-1" });
-        const moon = makeInstance(bloodMoon.id, { id: "moon-add-1" });
+        const land = makeInstance(tundra().id, { id: "land-add-1" });
+        const moon = makeInstance(bloodMoon().id, { id: "moon-add-1" });
         const state = makeBoard(land, [moon]);
         const ctx = ctxFor(state);
 
@@ -75,8 +75,8 @@ describe("SpellContext.addSubtype stamps a real CR 613.7 timestamp (issue #1750 
         // The converse check: the fix must not make every add unconditionally
         // win — only a genuinely LATER one. An add BEFORE a live set is still
         // correctly erased by the set's wholesale land-type replace.
-        const land = makeInstance(tundra.id, { id: "land-add-2" });
-        const moon = makeInstance(bloodMoon.id, { id: "moon-add-2" });
+        const land = makeInstance(tundra().id, { id: "land-add-2" });
+        const moon = makeInstance(bloodMoon().id, { id: "moon-add-2" });
         const state = makeBoard(land, [moon]);
         const ctx = ctxFor(state);
 

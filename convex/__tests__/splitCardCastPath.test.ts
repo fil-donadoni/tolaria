@@ -37,9 +37,9 @@ import {
 } from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
-const LEFT_ALT = splitCastAltCostId(standDeliver, "left");
-const RIGHT_ALT = splitCastAltCostId(standDeliver, "right");
-const LEFT_ID = splitHalfDefinitionId(standDeliver.id, "left");
+const LEFT_ALT = splitCastAltCostId(standDeliver(), "left");
+const RIGHT_ALT = splitCastAltCostId(standDeliver(), "right");
+const LEFT_ID = splitHalfDefinitionId(standDeliver().id, "left");
 
 type AnnounceCastArgs = {
     gameId: Id<"games">;
@@ -108,7 +108,7 @@ function position(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(standDeliver.id, {
+                    makeInstance(standDeliver().id, {
                         id: "split",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -116,13 +116,13 @@ function position(): GameState {
                     }),
                 ],
                 battlefield: [
-                    makeInstance(plains.id, {
+                    makeInstance(plains().id, {
                         id: "plains0",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
                     ...Array.from({ length: 3 }, (_, i) =>
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             id: `island${i}`,
                             controllerId: "p1",
                             ownerId: "p1",
@@ -132,7 +132,7 @@ function position(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(hillGiant.id, {
+                    makeInstance(hillGiant().id, {
                         id: "giant",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -170,7 +170,7 @@ describe("announceCast of one split half (CR 709.3, ADR 0121)", () => {
         // CR 709.3b — "while on the stack, only the characteristics of the
         // half being cast exist."
         expect((item.card as { id?: string }).id).toBe(LEFT_ID);
-        expect(item.splitHalfOf).toBe(standDeliver.id);
+        expect(item.splitHalfOf).toBe(standDeliver().id);
         // CR 709.4b — the card costs {2}{W}{U} in the hand it just left, and
         // that is NOT what was paid: one Plains, and the Islands untouched.
         const p1 = after.players[0];
@@ -211,7 +211,7 @@ describe("announceCast of one split half (CR 709.3, ADR 0121)", () => {
         await runTapForPayment(harness.ctx, ["island0", "island1", "island2"]);
         const after = harness.state();
         expect((after.stack[0].card as { id?: string }).id).toBe(
-            splitHalfDefinitionId(standDeliver.id, "right")
+            splitHalfDefinitionId(standDeliver().id, "right")
         );
         // {2}{U} — the three Islands, and the Plains left standing.
         expect(

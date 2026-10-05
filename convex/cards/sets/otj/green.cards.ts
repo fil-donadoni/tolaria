@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 
 // Bristly Bill, Spine Sower — {1}{G} Legendary Creature — Plant Druid, 2/2.
@@ -36,7 +36,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // creature, a number of +1/+1 counters equal to the count already present —
 // the `counters` Op with a `counters` EffectValue count (CR 122.6, issue
 // #1015). Doubling N via "add N more" needs no new Op.
-export const bristlyBillSpineSower: CardDefinition = {
+export const bristlyBillSpineSower = defineCard(() => ({
     id: "52eef0d6-24b7-40b7-8403-e8e863d0cd55",
     rarity: "rare",
     name: "Bristly Bill, Spine Sower",
@@ -109,4 +109,4 @@ export const bristlyBillSpineSower: CardDefinition = {
             ],
         },
     ],
-};
+}));

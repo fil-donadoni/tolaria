@@ -41,7 +41,7 @@ function board(counters: number): {
     player: PlayerState;
     woodlot: CardInstanceState;
 } {
-    const woodlot = makeInstance(hickoryWoodlot.id, {
+    const woodlot = makeInstance(hickoryWoodlot().id, {
         id: "woodlot",
         controllerId: "p1",
         ownerId: "p1",

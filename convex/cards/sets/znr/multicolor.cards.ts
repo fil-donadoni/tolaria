@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 
@@ -26,7 +26,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // 4th-or-later landfall this turn falls through every branch as a no-op —
 // matches the real card's "choose one that hasn't been chosen this turn" cap
 // (only three modes exist, so a fourth trigger has nothing left to choose).
-export const omnathLocusOfCreation: CardDefinition = {
+export const omnathLocusOfCreation = defineCard(() => ({
     id: "4e4fb50c-a81f-44d3-93c5-fa9a0b37f617",
     name: "Omnath, Locus of Creation",
     rarity: "mythic",
@@ -115,4 +115,4 @@ export const omnathLocusOfCreation: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -2,7 +2,7 @@
 // `import * as vis from "./sets/vis/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, TriggerStateView } from "../../types";
+import { defineCard, type TriggerStateView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -14,7 +14,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // filter — "a card" is any card). The shuffle Op runs BEFORE the
 // `library-top` move, mirroring the oracle text's own "then shuffle and put
 // that card on top" ordering; the life loss is unconditional and runs last.
-export const vampiricTutor: CardDefinition = {
+export const vampiricTutor = defineCard(() => ({
     id: "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d",
     name: "Vampiric Tutor",
     rarity: "rare",
@@ -42,7 +42,7 @@ export const vampiricTutor: CardDefinition = {
         },
         { op: "loseLife", player: "controller", amount: 2 },
     ],
-};
+}));
 
 /** CR 603.4 intervening-if support — "if it's on the battlefield", asked of the
  *  trigger's own source. Answered from the `TriggerStateView` the engine passes
@@ -118,7 +118,7 @@ function sourceIsOnBattlefield(
 // `LeavingPermanent.attachedToBeforeLeave` (CR 603.10a — leaves-the-battlefield
 // abilities look back in time), a `leftTrigger`-only payload the Effect Script
 // interpreter has no ref selector for.
-export const necromancy: CardDefinition = {
+export const necromancy = defineCard(() => ({
     id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
     name: "Necromancy",
     rarity: "uncommon",
@@ -233,4 +233,4 @@ export const necromancy: CardDefinition = {
             },
         }),
     ],
-};
+}));

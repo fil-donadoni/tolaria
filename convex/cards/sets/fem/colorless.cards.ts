@@ -9,11 +9,12 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    Color,
-    ManaCost,
-    SpellContext,
+import {
+    defineCard,
+    type CardDefinition,
+    type Color,
+    type ManaCost,
+    type SpellContext,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -51,35 +52,45 @@ function makeSacrificeLand(config: {
     };
 }
 
-export const ruinsOfTrokair: CardDefinition = makeSacrificeLand({
-    id: "4ce2e734-8cff-4bfe-85f8-17b3e1903f18", // FEM 100
-    name: "Ruins of Trokair",
-    color: "W",
-});
+export const ruinsOfTrokair = defineCard(() =>
+    makeSacrificeLand({
+        id: "4ce2e734-8cff-4bfe-85f8-17b3e1903f18", // FEM 100
+        name: "Ruins of Trokair",
+        color: "W",
+    })
+);
 
-export const svyeluniteTemple: CardDefinition = makeSacrificeLand({
-    id: "8b3fde62-ab21-459b-9c5d-01aa6fe1d08e", // FEM 102
-    name: "Svyelunite Temple",
-    color: "U",
-});
+export const svyeluniteTemple = defineCard(() =>
+    makeSacrificeLand({
+        id: "8b3fde62-ab21-459b-9c5d-01aa6fe1d08e", // FEM 102
+        name: "Svyelunite Temple",
+        color: "U",
+    })
+);
 
-export const ebonStronghold: CardDefinition = makeSacrificeLand({
-    id: "3fb2a11f-a8e4-4acf-871a-11171e3304ef", // FEM 95
-    name: "Ebon Stronghold",
-    color: "B",
-});
+export const ebonStronghold = defineCard(() =>
+    makeSacrificeLand({
+        id: "3fb2a11f-a8e4-4acf-871a-11171e3304ef", // FEM 95
+        name: "Ebon Stronghold",
+        color: "B",
+    })
+);
 
-export const dwarvenRuins: CardDefinition = makeSacrificeLand({
-    id: "0dfe1352-27be-4c99-a58f-b961f911f270", // FEM 94
-    name: "Dwarven Ruins",
-    color: "R",
-});
+export const dwarvenRuins = defineCard(() =>
+    makeSacrificeLand({
+        id: "0dfe1352-27be-4c99-a58f-b961f911f270", // FEM 94
+        name: "Dwarven Ruins",
+        color: "R",
+    })
+);
 
-export const havenwoodBattleground: CardDefinition = makeSacrificeLand({
-    id: "9028f200-80dd-4c53-877f-ea380ff417cb", // FEM 96
-    name: "Havenwood Battleground",
-    color: "G",
-});
+export const havenwoodBattleground = defineCard(() =>
+    makeSacrificeLand({
+        id: "9028f200-80dd-4c53-877f-ea380ff417cb", // FEM 96
+        name: "Havenwood Battleground",
+        color: "G",
+    })
+);
 
 function makeStorageLand(config: {
     id: string;
@@ -150,37 +161,47 @@ function makeStorageLand(config: {
     };
 }
 
-export const icatianStore: CardDefinition = makeStorageLand({
-    id: "d7cd8d8c-52c7-402f-92e1-5e5866f2555a", // FEM 98
-    name: "Icatian Store",
-    color: "W",
-});
+export const icatianStore = defineCard(() =>
+    makeStorageLand({
+        id: "d7cd8d8c-52c7-402f-92e1-5e5866f2555a", // FEM 98
+        name: "Icatian Store",
+        color: "W",
+    })
+);
 
-export const sandSilos: CardDefinition = makeStorageLand({
-    id: "3f6f1fcb-d903-4a31-abab-40488569eef6", // FEM 101
-    name: "Sand Silos",
-    color: "U",
-});
+export const sandSilos = defineCard(() =>
+    makeStorageLand({
+        id: "3f6f1fcb-d903-4a31-abab-40488569eef6", // FEM 101
+        name: "Sand Silos",
+        color: "U",
+    })
+);
 
-export const bottomlessVault: CardDefinition = makeStorageLand({
-    id: "639ae988-d1d1-4ead-b0f8-47fc39eb64a0", // FEM 92
-    name: "Bottomless Vault",
-    color: "B",
-});
+export const bottomlessVault = defineCard(() =>
+    makeStorageLand({
+        id: "639ae988-d1d1-4ead-b0f8-47fc39eb64a0", // FEM 92
+        name: "Bottomless Vault",
+        color: "B",
+    })
+);
 
-export const dwarvenHold: CardDefinition = makeStorageLand({
-    id: "a3142ded-ff62-4817-aa54-75a7ea4498a6", // FEM 93
-    name: "Dwarven Hold",
-    color: "R",
-});
+export const dwarvenHold = defineCard(() =>
+    makeStorageLand({
+        id: "a3142ded-ff62-4817-aa54-75a7ea4498a6", // FEM 93
+        name: "Dwarven Hold",
+        color: "R",
+    })
+);
 
-export const hollowTrees: CardDefinition = makeStorageLand({
-    id: "90845410-e09a-4753-ad4c-bf2b2f3c95ac", // FEM 97
-    name: "Hollow Trees",
-    color: "G",
-});
+export const hollowTrees = defineCard(() =>
+    makeStorageLand({
+        id: "90845410-e09a-4753-ad4c-bf2b2f3c95ac", // FEM 97
+        name: "Hollow Trees",
+        color: "G",
+    })
+);
 
-export const rainbowVale: CardDefinition = {
+export const rainbowVale = defineCard(() => ({
     id: "c1b138e1-f8fc-435c-9aed-98004768479c", // FEM 99
     rarity: "rare",
     name: "Rainbow Vale",
@@ -231,9 +252,9 @@ export const rainbowVale: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const implementsOfSacrifice: CardDefinition = {
+export const implementsOfSacrifice = defineCard(() => ({
     id: "aa5deb95-79a6-4398-b82a-c1df169550d9", // FEM 88
     rarity: "common",
     name: "Implements of Sacrifice",
@@ -251,9 +272,9 @@ export const implementsOfSacrifice: CardDefinition = {
             manaChoices: [{ W: 2 }, { U: 2 }, { B: 2 }, { R: 2 }, { G: 2 }],
         },
     ],
-};
+}));
 
-export const spiritShield: CardDefinition = {
+export const spiritShield = defineCard(() => ({
     id: "213d6e0d-5ec9-441e-a38d-50ce44583e4b", // FEM 90
     rarity: "common",
     name: "Spirit Shield",
@@ -277,9 +298,9 @@ export const spiritShield: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const zelyonSword: CardDefinition = {
+export const zelyonSword = defineCard(() => ({
     id: "4137160b-5248-4fbd-8ae8-25e9afd8fb5c", // FEM 91
     rarity: "rare",
     name: "Zelyon Sword",
@@ -303,9 +324,9 @@ export const zelyonSword: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const aeolipile: CardDefinition = {
+export const aeolipile = defineCard(() => ({
     id: "a09030ee-415c-45af-bf08-7623197a314f", // FEM 81
     rarity: "common",
     name: "Aeolipile",
@@ -324,9 +345,9 @@ export const aeolipile: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const balmOfRestoration: CardDefinition = {
+export const balmOfRestoration = defineCard(() => ({
     id: "7f95de4a-7fae-42bc-9660-39ea7685ca02", // FEM 82
     rarity: "common",
     name: "Balm of Restoration",
@@ -362,9 +383,9 @@ export const balmOfRestoration: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const conchHorn: CardDefinition = {
+export const conchHorn = defineCard(() => ({
     id: "860a9ba3-e4c4-4af9-bdfe-1ada39289fd5", // FEM 83
     rarity: "uncommon",
     name: "Conch Horn",
@@ -393,9 +414,9 @@ export const conchHorn: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const ringOfRenewal: CardDefinition = {
+export const ringOfRenewal = defineCard(() => ({
     id: "a532d38a-809b-4132-8690-be15fe23afab", // FEM 89
     rarity: "rare",
     name: "Ring of Renewal",
@@ -412,7 +433,7 @@ export const ringOfRenewal: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 2 }],
         },
     ],
-};
+}));
 
 // Delif's Cone — {0} Artifact. "{T}, Sacrifice this artifact: This turn, when
 // target creature you control attacks and isn't blocked, you may gain life
@@ -440,7 +461,7 @@ export const ringOfRenewal: CardDefinition = {
 // Squee/Sylvan Library shape): declining leaves BOTH halves undone, so the
 // life gain and the damage suppression sit together inside the `if` branch —
 // gaining the life is what pays for the creature dealing no combat damage.
-export const delifsCone: CardDefinition = {
+export const delifsCone = defineCard(() => ({
     id: "262b8788-c5a0-4c8e-9d58-b769b1b0a2ff", // FEM 84
     rarity: "common",
     name: "Delif's Cone",
@@ -495,7 +516,7 @@ export const delifsCone: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Delif's Cube — {1} Artifact. Delif's Cone's repeatable sibling: the same
 // armed unblocked-attack rider (CR 603.7a delayed trigger + CR 509.1h), but
@@ -505,7 +526,7 @@ export const delifsCone: CardDefinition = {
 // still on the battlefield at fire time and rides into the body as a second
 // capture (`$cube`); `$source` is deliberately invisible inside a delayed body
 // (ADR 0048), so the artifact must be captured explicitly like any other datum.
-export const delifsCube: CardDefinition = {
+export const delifsCube = defineCard(() => ({
     id: "14749600-9eca-4122-b04f-30ddda091b74", // FEM 85
     rarity: "uncommon",
     name: "Delif's Cube",
@@ -564,4 +585,4 @@ export const delifsCube: CardDefinition = {
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
-};
+}));

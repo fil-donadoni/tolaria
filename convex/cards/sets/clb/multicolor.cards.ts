@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/loyalty are from Scryfall (id = CLB paper printing).
 
-import type { CardDefinition, EffectTokenSpec } from "../../types";
+import { defineCard, type EffectTokenSpec } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Minsc & Boo, Timeless Heroes — the reflexive-trigger tracer (CR 603.12)
@@ -62,7 +62,7 @@ const BOO_TOKEN: EffectTokenSpec = {
     imagePrintId: "0d0475e9-68ae-4553-a5ef-650091e04967",
 };
 
-export const minscAndBooTimelessHeroes: CardDefinition = {
+export const minscAndBooTimelessHeroes = defineCard(() => ({
     id: "928036c9-11b8-493e-b9f2-8fbd3487cd19",
     name: "Minsc & Boo, Timeless Heroes",
     rarity: "mythic",
@@ -220,4 +220,4 @@ export const minscAndBooTimelessHeroes: CardDefinition = {
             ],
         },
     ],
-};
+}));

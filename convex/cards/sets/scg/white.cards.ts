@@ -1,6 +1,6 @@
 // SCG (Scourge) — white cards, split by colour per ADR 0043. The registry's
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { cyclingAbility, cycledTrigger } from "../../abilities/cycling";
 
 const DECREE_OF_JUSTICE_ID = "5e8a7e5c-f252-4de8-94d7-e7327210bf26";
@@ -23,7 +23,7 @@ const DECREE_OF_JUSTICE_ID = "5e8a7e5c-f252-4de8-94d7-e7327210bf26";
 //
 // compiler-gap: "Create X 4/4 white Angel creature tokens with flying." (#2693)
 // compiler-gap: "When you cycle this card, you may pay {X}. If you do, create X 1/1 white Soldier creature tokens." (#2693)
-export const decreeOfJustice: CardDefinition = {
+export const decreeOfJustice = defineCard(() => ({
     id: DECREE_OF_JUSTICE_ID,
     name: "Decree of Justice",
     rarity: "rare",
@@ -80,4 +80,4 @@ export const decreeOfJustice: CardDefinition = {
             ],
         }),
     ],
-};
+}));

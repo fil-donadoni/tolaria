@@ -289,7 +289,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, clockworkBeast.id, "p1");
+        const item = pushSpell(state, clockworkBeast().id, "p1");
         resolveTopOfStack(state);
 
         const live = state.players[0].battlefield.find(
@@ -313,7 +313,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, clockworkBeast.id, "p1");
+        const item = pushSpell(state, clockworkBeast().id, "p1");
         resolveTopOfStack(state);
         expect(state.stack).toEqual([]);
         processPendingActionTriggers(state);
@@ -329,7 +329,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, rockHydra.id, "p1");
+        const item = pushSpell(state, rockHydra().id, "p1");
         item.chosenX = 3;
         resolveTopOfStack(state);
         const live = state.players[0].battlefield.find(
@@ -342,7 +342,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, everflowingChalice.id, "p1");
+        const item = pushSpell(state, everflowingChalice().id, "p1");
         item.kickerPayments = { kicker: 2 };
         resolveTopOfStack(state);
         const live = state.players[0].battlefield.find(
@@ -357,7 +357,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
     // no entry counters at all: `entersWith` was read only at the
     // cast-resolution site, so a reanimated Clockwork Beast entered as a 0/4.
     it("applies on the non-cast entry path too (reanimation / put onto the battlefield)", () => {
-        const beast = makeInstance(clockworkBeast.id, {
+        const beast = makeInstance(clockworkBeast().id, {
             id: "beast",
             controllerId: "p1",
             ownerId: "p1",
@@ -369,7 +369,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
                 makePlayer("p2"),
             ],
         });
-        const stackItem = pushSpell(state, resurrection.id, "p1");
+        const stackItem = pushSpell(state, resurrection().id, "p1");
         const ctx = buildSpellContext(state, stackItem);
         expect(ctx.returnToBattlefield("p1", "beast", "graveyard")).toBe(true);
 
@@ -384,7 +384,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, clockworkBeast.id, "p1");
+        const item = pushSpell(state, clockworkBeast().id, "p1");
         resolveTopOfStack(state);
 
         for (const viewer of ["p1", "p2"]) {
@@ -416,7 +416,7 @@ describe("entry counters apply AS the permanent enters (CR 614.1c)", () => {
 const BEAST_COUNTERS = 7;
 
 function beastOnBattlefield(id = "beast") {
-    return makeInstance(clockworkBeast.id, {
+    return makeInstance(clockworkBeast().id, {
         id,
         controllerId: "p1",
         ownerId: "p1",
@@ -441,7 +441,7 @@ describe("entry site: a token COPY (CR 706.2 / 707.2, issue #1693)", () => {
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, resurrection.id, "p1");
+        const item = pushSpell(state, resurrection().id, "p1");
         const ctx = buildSpellContext(state, item);
         const tokenId = ctx.createTokenCopyOf("source-beast", "p1");
         expect(tokenId).toBeDefined();
@@ -492,7 +492,7 @@ describe("entry site: a token copy of a SUNBURST permanent (CR 702.44b, issue #2
     // on how the ENTERING object arrived, not on what was spent by whatever
     // created it.
     function tokenCopyOfPrism() {
-        const source = makeInstance(pentadPrism.id, {
+        const source = makeInstance(pentadPrism().id, {
             id: "source-prism",
             controllerId: "p1",
             ownerId: "p1",
@@ -504,7 +504,7 @@ describe("entry site: a token copy of a SUNBURST permanent (CR 702.44b, issue #2
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, resurrection.id, "p1");
+        const item = pushSpell(state, resurrection().id, "p1");
         // CR 106.10 — the CREATING spell's own colour spend, which must not
         // leak onto the token it creates.
         item.notedManaSpent = { W: 1, U: 1, B: 1 };
@@ -521,7 +521,7 @@ describe("entry site: a token copy of a SUNBURST permanent (CR 702.44b, issue #2
         // Control for the assertion below: proves the ZERO is CR 702.44b
         // talking, not an inert or unread declaration.
         expect(
-            resolveEntersWithCounters(pentadPrism, {
+            resolveEntersWithCounters(pentadPrism(), {
                 manaSpentToCast: { W: 1, U: 1, B: 1 },
             })
         ).toEqual({ charge: 3 });
@@ -563,7 +563,7 @@ describe("entry site: a CLONE that copied during its own resolution (CR 707.2, i
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, clone.id, "p1");
+        const item = pushSpell(state, clone().id, "p1");
         item.id = "clone1";
         driveCopyChoice(state, item, "source-beast");
         return state;
@@ -574,7 +574,7 @@ describe("entry site: a CLONE that copied during its own resolution (CR 707.2, i
         const copy = state.players[0].battlefield.find(
             (c) => c.id === "clone1"
         )!;
-        expect((copy.card as { id: string }).id).toBe(clockworkBeast.id);
+        expect((copy.card as { id: string }).id).toBe(clockworkBeast().id);
         expect(copy.counters?.["+1/+0"]).toBe(BEAST_COUNTERS);
         expect(getEffectivePower(state, copy)).toBe(BEAST_COUNTERS);
         expect(getEffectiveToughness(state, copy)).toBe(4);
@@ -601,7 +601,7 @@ describe("entry site: BLINK / flicker return (CR 603.7a, issue #1693)", () => {
     function blinkedBeast(noted: number) {
         const beast = beastOnBattlefield();
         beast.counters = { "+1/+0": noted };
-        const coffin = makeInstance(clockworkBeast.id, {
+        const coffin = makeInstance(clockworkBeast().id, {
             id: "coffin",
             controllerId: "p1",
             ownerId: "p1",
@@ -662,7 +662,7 @@ describe("entry site: token CREATION (CR 111.9 / 122.1c, issue #1693)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, resurrection.id, "p1");
+        const item = pushSpell(state, resurrection().id, "p1");
         const ctx = buildSpellContext(state, item);
         const [id] = ctx.createToken(
             {
@@ -747,7 +747,7 @@ describe("entry site: token CREATION (CR 111.9 / 122.1c, issue #1693)", () => {
         const state = makeState({
             players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
         });
-        const item = pushSpell(state, resurrection.id, "p1");
+        const item = pushSpell(state, resurrection().id, "p1");
         const ctx = buildSpellContext(state, item);
         const [tokenId] = ctx.createToken(
             {
@@ -869,7 +869,7 @@ describe("entry site: put onto the battlefield WITH a pending pay-choice (CR 614
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, resurrection.id, "p1");
+        const item = pushSpell(state, resurrection().id, "p1");
         const ctx = buildSpellContext(state, item);
         ctx.returnToBattlefield("p1", "shock1", "graveyard");
 
@@ -895,7 +895,7 @@ describe("debug scenario boards default to the declared entry counters (issue #1
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: clockworkBeast.name,
+                    name: clockworkBeast().name,
                     owner: "me",
                     zone: "battlefield",
                 },
@@ -911,7 +911,7 @@ describe("debug scenario boards default to the declared entry counters (issue #1
         const spec: ScenarioSpec = {
             cards: [
                 {
-                    name: clockworkBeast.name,
+                    name: clockworkBeast().name,
                     owner: "me",
                     zone: "battlefield",
                     counters: { "+1/+0": 2 },
@@ -1030,7 +1030,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
             kickerCount = 2
         ) {
             const state = boardWith(...battlefield);
-            const item = pushSpell(state, everflowingChalice.id, "p1");
+            const item = pushSpell(state, everflowingChalice().id, "p1");
             item.kickerPayments = { kicker: kickerCount };
             resolveTopOfStack(state);
             const live = state.players[0].battlefield.find(
@@ -1040,7 +1040,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         }
 
         it("enters with ZERO counters under Titania's Song", () => {
-            const song = makeInstance(titaniasSong.id, {
+            const song = makeInstance(titaniasSong().id, {
                 id: "song-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1056,7 +1056,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         });
 
         it("wire format: the suppressed permanent shows no counters after projectPublicState", () => {
-            const song = makeInstance(titaniasSong.id, {
+            const song = makeInstance(titaniasSong().id, {
                 id: "song-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1074,7 +1074,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
             // An `indestructible` entry counter grants the keyword. Suppressed,
             // there is no counter, so there is nothing to grant.
             registerTokenDefinition(KEYWORD_COUNTER_ARTIFACT);
-            const song = makeInstance(titaniasSong.id, {
+            const song = makeInstance(titaniasSong().id, {
                 id: "song-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1112,7 +1112,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         }
 
         it("a nonbasic land enters with ZERO counters while Blood Moon is out", () => {
-            const moon = makeInstance(bloodMoon.id, {
+            const moon = makeInstance(bloodMoon().id, {
                 id: "moon-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1136,7 +1136,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         function tokenCopyOfBeast(battlefield: CardInstanceState[]) {
             const source = beastOnBattlefield("source-beast");
             const state = boardWith(...battlefield, source);
-            const item = pushSpell(state, resurrection.id, "p1");
+            const item = pushSpell(state, resurrection().id, "p1");
             const ctx = buildSpellContext(state, item);
             const tokenId = ctx.createTokenCopyOf("source-beast", "p1")!;
             const token = state.players[0].battlefield.find(
@@ -1166,7 +1166,7 @@ describe("ability-loss suppresses entry counters (CR 614.1c + 613.1f, issue #188
         // `createTokenPermanents` opts out via `fromCreatingEffect`.
         it("a token created WITH counters keeps them under a 'loses all abilities' static", () => {
             const state = boardWith(humilityInstance());
-            const item = pushSpell(state, resurrection.id, "p1");
+            const item = pushSpell(state, resurrection().id, "p1");
             const ctx = buildSpellContext(state, item);
             const [id] = ctx.createToken(
                 {

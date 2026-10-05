@@ -348,8 +348,8 @@ describe("validateBlockerEligibility — landwalk (CR 702.14b)", () => {
 
 describe("validateBlockerEligibility — block-restriction staticEffects (CR 509.1b)", () => {
     it("rejects a Wall blocker against Juggernaut (attacker-side restriction)", () => {
-        const jug = makeInstance(juggernaut.id, { id: "jug" });
-        const wall = makeInstance(wallOfSwords.id, {
+        const jug = makeInstance(juggernaut().id, { id: "jug" });
+        const wall = makeInstance(wallOfSwords().id, {
             id: "wall",
             controllerId: "p2",
         });
@@ -365,8 +365,8 @@ describe("validateBlockerEligibility — block-restriction staticEffects (CR 509
     });
 
     it("allows non-Wall blockers against Juggernaut", () => {
-        const jug = makeInstance(juggernaut.id, { id: "jug" });
-        const bears = makeInstance(savannahLions.id, {
+        const jug = makeInstance(juggernaut().id, { id: "jug" });
+        const bears = makeInstance(savannahLions().id, {
             id: "bears",
             controllerId: "p2",
         });
@@ -382,15 +382,15 @@ describe("validateBlockerEligibility — block-restriction staticEffects (CR 509
     });
 
     it("stacks attacker-side restriction with flying", () => {
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "jug",
             staticAbilities: ["flying"],
         });
-        const groundWall = makeInstance(wallOfSwords.id, {
+        const groundWall = makeInstance(wallOfSwords().id, {
             id: "wall",
             controllerId: "p2",
         });
-        const flyer = makeInstance(savannahLions.id, {
+        const flyer = makeInstance(savannahLions().id, {
             id: "flyer",
             controllerId: "p2",
             staticAbilities: ["flying"],
@@ -444,7 +444,7 @@ describe("validateBlockerEligibility — unblockable (CR 509.1b)", () => {
 
 describe("validateBlockerEligibility — Invisibility aura block-restriction (CR 509.1b)", () => {
     function setup() {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -456,7 +456,7 @@ describe("validateBlockerEligibility — Invisibility aura block-restriction (CR
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, invisibility.id, "p1", [
+        pushSpell(state, invisibility().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
@@ -466,7 +466,7 @@ describe("validateBlockerEligibility — Invisibility aura block-restriction (CR
     it("rejects non-Wall blockers against enchanted creature", () => {
         const { state } = setup();
         const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
-        const blocker = makeInstance(grizzlyBears.id, {
+        const blocker = makeInstance(grizzlyBears().id, {
             id: "blk",
             controllerId: "p2",
         });
@@ -483,7 +483,7 @@ describe("validateBlockerEligibility — Invisibility aura block-restriction (CR
     it("accepts Wall blockers against enchanted creature", () => {
         const { state } = setup();
         const bear = state.players[0].battlefield.find((c) => c.id === "bear")!;
-        const wall = makeInstance(wallOfSwords.id, {
+        const wall = makeInstance(wallOfSwords().id, {
             id: "wall",
             controllerId: "p2",
         });
@@ -507,10 +507,10 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     // as the failing blocker, Drudge Skeletons (black) and Jade Statue
     // (colorless artifact) as the passing blockers.
     it("rejects a non-Black, non-Artifact blocker", () => {
-        const fearAttacker = makeInstance(hypnoticSpecter.id, {
+        const fearAttacker = makeInstance(hypnoticSpecter().id, {
             staticAbilities: ["fear"],
         });
-        const greenBlocker = makeInstance(grizzlyBears.id);
+        const greenBlocker = makeInstance(grizzlyBears().id);
         expect(
             validateBlockerEligibility(fearAttacker, greenBlocker, [
                 greenBlocker,
@@ -519,10 +519,10 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     });
 
     it("accepts an Artifact blocker (even if not Black)", () => {
-        const fearAttacker = makeInstance(hypnoticSpecter.id, {
+        const fearAttacker = makeInstance(hypnoticSpecter().id, {
             staticAbilities: ["fear"],
         });
-        const artifactCreature = makeInstance(jadeStatue.id, {
+        const artifactCreature = makeInstance(jadeStatue().id, {
             types: ["Artifact", "Creature"],
         });
         expect(
@@ -533,7 +533,7 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
     });
 
     it("accepts a Black blocker", () => {
-        const fearAttacker = makeInstance(hypnoticSpecter.id, {
+        const fearAttacker = makeInstance(hypnoticSpecter().id, {
             staticAbilities: ["fear"],
         });
         const blackBlocker = makeInstance(
@@ -549,11 +549,11 @@ describe("validateBlockerEligibility — fear (CR 702.36b)", () => {
 
 describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 613)", () => {
     it("rejects blocking an attacker with power ≥ 2", () => {
-        const orc = makeInstance(ironclawOrcs.id, {
+        const orc = makeInstance(ironclawOrcs().id, {
             id: "orc",
             controllerId: "p1",
         });
-        const big = makeInstance(grizzlyBears.id, {
+        const big = makeInstance(grizzlyBears().id, {
             id: "big",
             controllerId: "p2",
         });
@@ -568,11 +568,11 @@ describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 
     });
 
     it("accepts blocking an attacker with power < 2", () => {
-        const orc = makeInstance(ironclawOrcs.id, {
+        const orc = makeInstance(ironclawOrcs().id, {
             id: "orc",
             controllerId: "p1",
         });
-        const small = makeInstance(savannahLions.id, {
+        const small = makeInstance(savannahLions().id, {
             id: "small",
             controllerId: "p2",
             power: 1,
@@ -596,12 +596,12 @@ describe("validateBlockerEligibility — Ironclaw Orcs power-bound (CR 509.1b + 
 
 describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
     it("eligible creature with attack-requirement must attack", () => {
-        const jug = makeInstance(juggernaut.id, { id: "jug" });
+        const jug = makeInstance(juggernaut().id, { id: "jug" });
         expect(mustAttack(jug, makeState())).toBe(true);
     });
 
     it("tapped creature with attack-requirement is not required (can't attack)", () => {
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "jug",
             isTapped: true,
         });
@@ -609,7 +609,7 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
     });
 
     it("summoning-sick creature with attack-requirement is not required", () => {
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "jug",
             isSummoningSick: true,
         });
@@ -617,7 +617,7 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
     });
 
     it("creature with defender + attack-requirement is not required", () => {
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "jug",
             staticAbilities: ["defender"],
         });
@@ -625,12 +625,12 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
     });
 
     it("getRequiredAttackerIds collects from staticEffects[] data-driven", () => {
-        const eligible = makeInstance(juggernaut.id, { id: "jug1" });
-        const sick = makeInstance(juggernaut.id, {
+        const eligible = makeInstance(juggernaut().id, { id: "jug1" });
+        const sick = makeInstance(juggernaut().id, {
             id: "jug2",
             isSummoningSick: true,
         });
-        const bears = makeInstance(savannahLions.id, { id: "bears" });
+        const bears = makeInstance(savannahLions().id, { id: "bears" });
         expect(
             getRequiredAttackerIds([eligible, sick, bears], makeState())
         ).toEqual(["jug1"]);
@@ -643,12 +643,12 @@ describe("mustAttack / getRequiredAttackerIds (CR 508.1d)", () => {
         // combat if able" creature Hobbled by the opponent was still forced
         // to attack. `state` is now a required parameter specifically to
         // close this.
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "jug",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const hobbleAura = makeInstance(hobbleAuraDef.id, {
+        const hobbleAura = makeInstance(hobbleAuraDef().id, {
             id: "hobble-aura",
             controllerId: "p2",
             ownerId: "p2",
@@ -902,7 +902,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         const [id] = ctx.createToken(
             {
@@ -919,7 +919,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
     });
 
     it("entersAttacking joins the CURRENT combat's attackerIds directly, without emitting an attack-declaration event", () => {
-        const attacker = makeInstance(grizzlyBears.id, {
+        const attacker = makeInstance(grizzlyBears().id, {
             id: "atk1",
             controllerId: "p1",
             ownerId: "p1",
@@ -936,7 +936,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
                 blockersConfirmed: false,
             },
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         const [id] = ctx.createToken(
             {
@@ -976,7 +976,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         expect(() =>
             ctx.createToken(
@@ -994,7 +994,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
     });
 
     it("createTokenCopyOf honors entersTapped/entersAttacking on the underlying copy, applied BEFORE applyCopy overwrites its characteristics", () => {
-        const source = makeInstance(grizzlyBears.id, {
+        const source = makeInstance(grizzlyBears().id, {
             id: "src1",
             controllerId: "p1",
             ownerId: "p1",
@@ -1011,7 +1011,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
                 blockersConfirmed: false,
             },
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         const tokenId = ctx.createTokenCopyOf("src1", "p1", undefined, {
             entersTapped: true,
@@ -1026,17 +1026,17 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
         // Both attacking representations in sync (issue #1195 fix).
         expect(token.isAttacking).toBe(true);
         // The copy path still applied — the token presents as Grizzly Bears.
-        expect(token.power).toBe(grizzlyBears.power);
-        expect(token.toughness).toBe(grizzlyBears.toughness);
+        expect(token.power).toBe(grizzlyBears().power);
+        expect(token.toughness).toBe(grizzlyBears().toughness);
     });
 
     it("BEHAVIOURAL (issue #1195 review): an entersAttacking token is reached by an 'attacking creatures get +1/+0' static AND by combatRoleFilter:'attacking' targeting — both blind to attackerIds-only membership", () => {
-        const attacker = makeInstance(grizzlyBears.id, {
+        const attacker = makeInstance(grizzlyBears().id, {
             id: "atk-behav",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const mightstonePermanent = makeInstance(mightstone.id, {
+        const mightstonePermanent = makeInstance(mightstone().id, {
             id: "mightstone1",
             controllerId: "p1",
             ownerId: "p1",
@@ -1055,7 +1055,7 @@ describe("CR 508.4 — TokenSpec.entersTapped / entersAttacking (issue #1195)", 
                 blockersConfirmed: false,
             },
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         const [id] = ctx.createToken(
             {
@@ -1096,7 +1096,7 @@ describe("auto-pass attacker confirm honours the declared-attacker cap (CR 508.1
      *  declaration at one. */
     function autoPassBoard(withCap: boolean) {
         const juggernauts = [0, 1].map((i) =>
-            makeInstance(juggernaut.id, {
+            makeInstance(juggernaut().id, {
                 id: `j${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1105,7 +1105,7 @@ describe("auto-pass attacker confirm honours the declared-attacker cap (CR 508.1
         );
         const p2Battlefield = withCap
             ? [
-                  makeInstance(duelingGroundsDef.id, {
+                  makeInstance(duelingGroundsDef().id, {
                       id: "dg",
                       controllerId: "p2",
                   }),
@@ -1159,7 +1159,7 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
      *  A Caverns of Despair (cap two) sits on p1's board when `withCap`. */
     function camouflageBoard(withCap: boolean) {
         const attackers = [0, 1, 2].map((i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `a${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -1167,7 +1167,7 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
             })
         );
         const blockers = [0, 1, 2].map((i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `b${i}`,
                 controllerId: "p2",
                 ownerId: "p2",
@@ -1177,7 +1177,7 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
         const p1Battlefield = withCap
             ? [
                   ...attackers,
-                  makeInstance(cavernsOfDespairDef.id, {
+                  makeInstance(cavernsOfDespairDef().id, {
                       id: "caverns",
                       controllerId: "p1",
                   }),
@@ -1205,7 +1205,7 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
         // Camouflage writes `blockerAssignments` DIRECTLY during resolution —
         // it never passes through `assignBlockerTarget` or the confirm-time
         // validators, so the cap has to hold at this writer or not at all.
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         ctx.applyCamouflagePileBlocks("p2", [["b0"], ["b1"], ["b2"]]);
         return state;
@@ -1242,13 +1242,13 @@ describe("Camouflage pile blocks honour the declared-blocker cap (CR 509.1a)", (
 
 describe("confirm-time validators reject a declaration that obeys fewer requirements than possible", () => {
     it("validateDeclaredAttackers rejects a voluntary attacker holding the only slot (CR 508.1d)", () => {
-        const jug = makeInstance(juggernaut.id, {
+        const jug = makeInstance(juggernaut().id, {
             id: "j1",
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: false,
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -1261,7 +1261,7 @@ describe("confirm-time validators reject a declaration that obeys fewer requirem
                 makePlayer("p1", { battlefield: [jug, bear] }),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(duelingGroundsDef.id, {
+                        makeInstance(duelingGroundsDef().id, {
                             id: "dg",
                             controllerId: "p2",
                         }),
@@ -1288,14 +1288,14 @@ describe("confirm-time validators reject a declaration that obeys fewer requirem
     });
 
     it("validateDeclaredBlockers rejects a voluntary block holding the only slot (CR 509.1c)", () => {
-        const aura = makeInstance(lure.id, {
+        const aura = makeInstance(lure().id, {
             id: "lure",
             controllerId: "p1",
             ownerId: "p1",
         });
         aura.attachedTo = "a";
         const mk = (id: string, owner: string) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: owner,
                 ownerId: owner,
@@ -1310,7 +1310,7 @@ describe("confirm-time validators reject a declaration that obeys fewer requirem
                         mk("a", "p1"),
                         mk("a2", "p1"),
                         aura,
-                        makeInstance(duelingGroundsDef.id, {
+                        makeInstance(duelingGroundsDef().id, {
                             id: "dg",
                             controllerId: "p1",
                         }),
@@ -1352,19 +1352,19 @@ describe("the requirement backstop reads the DEFENDER's battlefield (CR 508.1c/5
         // and the declaration is waved through — while the fold (which resolves
         // the defender through `getOpponentId`) still refuses it, leaving a
         // declare-attackers step nobody can confirm.
-        const mutant = makeInstance(goblinMutant.id, {
+        const mutant = makeInstance(goblinMutant().id, {
             id: "gm",
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: false,
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: false,
         });
-        const bigBlocker = makeInstance(juggernaut.id, {
+        const bigBlocker = makeInstance(juggernaut().id, {
             id: "big",
             controllerId: "p2",
             ownerId: "p2",
@@ -1379,7 +1379,7 @@ describe("the requirement backstop reads the DEFENDER's battlefield (CR 508.1c/5
                 makePlayer("p2", {
                     battlefield: [
                         bigBlocker,
-                        makeInstance(duelingGroundsDef.id, {
+                        makeInstance(duelingGroundsDef().id, {
                             id: "dg",
                             controllerId: "p2",
                         }),

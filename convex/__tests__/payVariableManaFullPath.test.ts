@@ -82,7 +82,7 @@ function boardWithDecree(pool: Record<string, number>): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(decreeOfJustice.id, {
+                    makeInstance(decreeOfJustice().id, {
                         id: "decree",
                         controllerId: "p1",
                         ownerId: "p1",

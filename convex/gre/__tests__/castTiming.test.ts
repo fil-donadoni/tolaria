@@ -44,8 +44,8 @@ function frame(overrides: Partial<GameState> = {}): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    handCard(braingeyser.id, "sorcery1"),
-                    handCard(lightningBolt.id, "instant1"),
+                    handCard(braingeyser().id, "sorcery1"),
+                    handCard(lightningBolt().id, "instant1"),
                 ],
             }),
             makePlayer("p2"),
@@ -87,7 +87,7 @@ describe("isSorceryTimingFor — caster-aware sorcery window (CR 307.1)", () => 
             priorityPlayerId: "p1",
         });
         withStack.stack.push({
-            ...handCard(lightningBolt.id, "onstack"),
+            ...handCard(lightningBolt().id, "onstack"),
             zone: "stack",
             castById: "p2",
         } as (typeof withStack.stack)[number]);

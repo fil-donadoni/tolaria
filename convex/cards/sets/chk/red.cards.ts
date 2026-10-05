@@ -2,14 +2,14 @@
 // The registry's `import * as chk from "./sets/chk/index.cards"` resolves through
 // chk/index.cards.ts. Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Lava Spike — "Lava Spike deals 3 damage to target player or planeswalker."
 // (CR 120.1 damage.) First DSL-only card (ADR 0045, issue #800): the whole
 // effect is a declarative Effect Script — a single `dealDamage` Op on the
 // announced target — executed by the interpreter through the existing
 // SpellContext primitives. No imperative `resolve()`.
-export const lavaSpike: CardDefinition = {
+export const lavaSpike = defineCard(() => ({
     id: "60b2fae1-242b-45e0-a757-b1adc02c06f3",
     rarity: "common",
     name: "Lava Spike",
@@ -19,7 +19,7 @@ export const lavaSpike: CardDefinition = {
     subtypes: ["Arcane"],
     targetRequirement: { type: ["player", "Planeswalker"], count: 1 },
     effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
-};
+}));
 
 // Through the Breach — "You may put a creature card from your hand onto the
 // battlefield. That creature gains haste. Sacrifice that creature at the
@@ -49,7 +49,7 @@ export const lavaSpike: CardDefinition = {
 //
 // compiler-gap: "You may put a creature card from your hand onto the battlefield. That creature gains haste. Sacrifice that creature at the beginning of the next end step." (#2693)
 // compiler-gap: "Splice onto Arcane {2}{R}{R}" (#2693)
-export const throughTheBreach: CardDefinition = {
+export const throughTheBreach = defineCard(() => ({
     id: "6da09e6a-2965-4855-bd41-41b41ba188fb", // CHK 193
     rarity: "rare",
     name: "Through the Breach",
@@ -97,4 +97,4 @@ export const throughTheBreach: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$captured" } }],
         },
     ],
-};
+}));

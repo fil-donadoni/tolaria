@@ -7,9 +7,8 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/white.cards.ts`.
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
-export const shackles: CardDefinition = {
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
+export const shackles = defineCard(() => ({
     id: "c5315668-b8ef-49ab-a8f5-144adc7bcd84", // EXO 18
     rarity: "common",
     name: "Shackles",
@@ -37,4 +36,4 @@ export const shackles: CardDefinition = {
             ],
         },
     ],
-};
+}));

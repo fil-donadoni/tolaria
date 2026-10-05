@@ -4,7 +4,7 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -128,7 +128,7 @@ import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 // `permanents?: EffectRef`. There is no way to feed the chosen creature id into
 // `destroy` declaratively. Blocked on: a picks-ref shape on `destroy` (mirroring
 // `sacrifice`'s `permanents` field). Stays resolve().
-export const theAbyss: CardDefinition = {
+export const theAbyss = defineCard(() => ({
     id: "86a27d68-3e58-4ade-976d-36381beed451",
     rarity: "rare",
     name: "The Abyss",
@@ -175,12 +175,12 @@ export const theAbyss: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 
 // Headless Horseman — vanilla 2/2 (CR 110.1 pure data).
-export const headlessHorseman: CardDefinition = {
+export const headlessHorseman = defineCard(() => ({
     id: "d1aa37c8-98fa-4984-b09b-cf65ad84e97b",
     rarity: "common",
     name: "Headless Horseman",
@@ -190,10 +190,10 @@ export const headlessHorseman: CardDefinition = {
     subtypes: ["Zombie", "Knight"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Lost Soul — swampwalk (CR 702.14 landwalk variant).
-export const lostSoul: CardDefinition = {
+export const lostSoul = defineCard(() => ({
     id: "601eed5c-436d-425b-a45f-07881ad893c8",
     rarity: "common",
     name: "Lost Soul",
@@ -205,14 +205,14 @@ export const lostSoul: CardDefinition = {
     power: 2,
     toughness: 1,
     staticAbilities: ["swampwalk"],
-};
+}));
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Fallen Angel — Flying; "Sacrifice a creature: This creature gets +2/+1 until
 // end of turn." (CR 702.9 flying + CR 602.1 sacrifice-another cost via
 // `sacrificeFilter`, CR 611.1 buff.)
-export const fallenAngel: CardDefinition = {
+export const fallenAngel = defineCard(() => ({
     id: "0f4174e4-0be8-49b5-8c52-22001790f6eb",
     rarity: "uncommon",
     name: "Fallen Angel",
@@ -244,12 +244,12 @@ export const fallenAngel: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Hell's Caretaker — "{T}, Sacrifice a creature: Return target creature card
 // from your graveyard to the battlefield. Activate only during your upkeep."
 // (CR 602.5b activation-window restriction + CR 400.7 reanimation.)
-export const hellsCaretaker: CardDefinition = {
+export const hellsCaretaker = defineCard(() => ({
     id: "336b3b8f-d104-4f06-ad4f-c92b8a9038ca",
     rarity: "rare",
     name: "Hell's Caretaker",
@@ -283,13 +283,13 @@ export const hellsCaretaker: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Auras (CR 303 — Enchant land) ----------------------------------------
 
 // Blight — "Enchant land. When enchanted land becomes tapped, destroy it."
 // (CR 303.4 host trigger via the tapped factory → CR 701.8 destroy.)
-export const blight: CardDefinition = {
+export const blight = defineCard(() => ({
     id: "9ca19b39-4201-463c-bd40-fbffa31c9eda",
     rarity: "uncommon",
     name: "Blight",
@@ -320,13 +320,13 @@ export const blight: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // --- Removal / sweeper spells (CR 701.7) -----------------------------------
 
 // Hell Swarm — "All creatures get -1/-0 until end of turn." (CR 611.1 one-shot
 // team debuff applied per creature on the battlefield.)
-export const hellSwarm: CardDefinition = {
+export const hellSwarm = defineCard(() => ({
     id: "64164d1b-75f4-456e-a717-90ce554dc16c",
     rarity: "common",
     name: "Hell Swarm",
@@ -355,13 +355,13 @@ export const hellSwarm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Hellfire — "Destroy all nonblack creatures. Hellfire deals X plus 3 damage to
 // you, where X is the number of creatures that died this way." (CR 701.7 mass
 // destroy filtered on colour + CR 614.5 count of permanents destroyed this way,
 // then CR 120.1 damage to caster.)
-export const hellfire: CardDefinition = {
+export const hellfire = defineCard(() => ({
     id: "362f1fe9-20af-434c-9957-7a1a564d89e6",
     rarity: "rare",
     name: "Hellfire",
@@ -400,14 +400,14 @@ export const hellfire: CardDefinition = {
         }
         ctx.dealDamage({ type: "player", id: ctx.caster }, died + 3);
     },
-};
+}));
 
 // --- Drain / burn spells ---------------------------------------------------
 
 // Syphon Soul — "Syphon Soul deals 2 damage to each other player. You gain life
 // equal to the damage dealt this way." (CR 120.1 damage to each opponent → CR
 // 119.3 lifegain; 2-player so a single opponent contributes 2.)
-export const syphonSoul: CardDefinition = {
+export const syphonSoul = defineCard(() => ({
     id: "f3020304-7a39-411e-b055-3ade72b4bff8",
     rarity: "common",
     name: "Syphon Soul",
@@ -422,12 +422,12 @@ export const syphonSoul: CardDefinition = {
         { op: "dealDamage", amount: 2, to: { player: "opponent" } },
         { op: "gainLife", player: "controller", amount: 2 },
     ],
-};
+}));
 
 // Jovial Evil — "Jovial Evil deals X damage to target opponent, where X is twice
 // the number of white creatures that player controls." (CR 202.2 colour count
 // snapshot at resolution → CR 120.1 damage.)
-export const jovialEvil: CardDefinition = {
+export const jovialEvil = defineCard(() => ({
     id: "c993c74c-a574-423b-81c8-96b0a7a6e529",
     rarity: "rare",
     name: "Jovial Evil",
@@ -453,14 +453,14 @@ export const jovialEvil: CardDefinition = {
             to: { target: 0 },
         },
     ],
-};
+}));
 
 // --- Tricks / regeneration utility -----------------------------------------
 
 // Touch of Darkness — "One or more target creatures become black until end of
 // turn." (CR 305.7 layer-5 colour override, end-of-turn duration; variable
 // target count, CR 601.2c.)
-export const touchOfDarkness: CardDefinition = {
+export const touchOfDarkness = defineCard(() => ({
     id: "eda7177f-1354-4008-aaaa-2c8b823ed5e9",
     rarity: "uncommon",
     name: "Touch of Darkness",
@@ -485,13 +485,13 @@ export const touchOfDarkness: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Death triggers (CR 603.2) ---------------------------------------------
 
 // Cyclopean Mummy — "When this creature dies, exile it." (CR 603.2 self death
 // trigger → CR 406 exile of the card now in the graveyard.)
-export const cyclopeanMummy: CardDefinition = {
+export const cyclopeanMummy = defineCard(() => ({
     id: "479ccc50-2d72-4adc-901e-fbd4eef2cf92",
     rarity: "common",
     name: "Cyclopean Mummy",
@@ -525,11 +525,11 @@ export const cyclopeanMummy: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Darkness — "Prevent all combat damage that would be dealt this turn."
 // (CR 615 — the global combat-damage prevention used by Fog-style cards.)
-export const darkness: CardDefinition = {
+export const darkness = defineCard(() => ({
     id: "53b04dab-45b7-418b-a0f0-bcf35145fc53",
     rarity: "common",
     name: "Darkness",
@@ -539,14 +539,14 @@ export const darkness: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
     // preventDamage is a turn-scoped global Fog (CR 615).
     effects: [{ op: "preventDamage", mode: "all-combat" }],
-};
+}));
 
 // Cosmic Horror — {3}{B}{B}{B} 7/7 Horror, First strike. Destroy-variant of the
 // upkeep tax with a self-damage rider: "At the beginning of your upkeep,
 // destroy this creature unless you pay {3}{B}{B}{B}. If this creature is
 // destroyed this way, it deals 7 damage to you." CR 603.6a + CR 117.3a +
 // CR 701.8 destroy. The self-damage only fires on the destroy branch.
-export const cosmicHorror: CardDefinition = {
+export const cosmicHorror = defineCard(() => ({
     id: "18bc6ac2-19e0-4765-852b-e303a5bb4040",
     rarity: "rare",
     name: "Cosmic Horror",
@@ -596,7 +596,7 @@ export const cosmicHorror: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Mold Demon — {5}{B}{B} 6/6 Fungus Demon. ETB sacrifice-as-cost variant of the
 // do-X-unless-you-pay family: "When this creature enters, sacrifice it unless
@@ -604,7 +604,7 @@ export const cosmicHorror: CardDefinition = {
 // "pay" is an alternate cost (sacrifice two Swamps, CR 118.3) rather than mana.
 // CR 603.6a ETB + CR 701.21 sacrifice. Composes `requestMayPay` (the yes/no
 // gate) + a `sacrifice-permanents` `requestChoice` for the Swamp cost.
-export const moldDemon: CardDefinition = {
+export const moldDemon = defineCard(() => ({
     id: "649a33aa-7eac-4161-ae1a-fcbc758abccf",
     rarity: "rare",
     name: "Mold Demon",
@@ -683,7 +683,7 @@ export const moldDemon: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C7 deferred (tracked-by: #2785) — need a primitive not yet built; each lands when its primitive
@@ -743,7 +743,7 @@ export const moldDemon: CardDefinition = {
 // put a -0/-2 counter on it." (CR 701.26a becomes-tapped trigger via the
 // tapped-trigger factory; CR 122.1 / 613.4d the -0/-2 counter rides the layer-7d
 // P/T pipeline, so the toughness drop is visible the moment the counter lands.)
-export const spiritShackle: CardDefinition = {
+export const spiritShackle = defineCard(() => ({
     id: "a30bb266-5bd1-4998-ae94-56f0f3354167",
     rarity: "common",
     name: "Spirit Shackle",
@@ -782,7 +782,7 @@ export const spiritShackle: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C5 deferred — counter cards needing a primitive owned by another cluster.
@@ -860,7 +860,7 @@ export const spiritShackle: CardDefinition = {
 // Nether Void — {3}{B} World Enchantment. "Whenever a player casts a spell,
 // counter it unless that player pays {3}." (CR 601.2i cast trigger → CR 117.3a
 // may-pay billed to the spell's controller → CR 701.6a counter on decline.)
-export const netherVoid: CardDefinition = {
+export const netherVoid = defineCard(() => ({
     id: "2e72f8cb-5bc3-4711-9b7c-a6eea9a0beaf",
     rarity: "rare",
     name: "Nether Void",
@@ -899,7 +899,7 @@ export const netherVoid: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Dynamic base-P/T set (layer 7b) with a stated duration (#487, CR 613.4b)
@@ -923,7 +923,7 @@ export const netherVoid: CardDefinition = {
 // Wall of Tombstones — {1}{B} 0/1 Wall with Defender. "At the beginning of your
 // upkeep, change this creature's base toughness to 1 plus the number of creature
 // cards in your graveyard." The effect lasts indefinitely (CR 613.4b).
-export const wallOfTombstones: CardDefinition = {
+export const wallOfTombstones = defineCard(() => ({
     id: "55da1e86-fe18-486a-b510-f941e6f6e378",
     rarity: "uncommon",
     name: "Wall of Tombstones",
@@ -965,4 +965,4 @@ export const wallOfTombstones: CardDefinition = {
             },
         }),
     ],
-};
+}));

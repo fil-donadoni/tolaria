@@ -66,7 +66,7 @@ function makeBoard(bear: CardInstanceState, extra: CardInstanceState[] = []) {
 }
 
 function ctxFor(state: GameState) {
-    const item: StackItem = pushSpell(state, grizzlyBears.id, "p1");
+    const item: StackItem = pushSpell(state, grizzlyBears().id, "p1");
     return buildSpellContext(state, item);
 }
 
@@ -124,7 +124,7 @@ function runCleanup(state: GameState): void {
 describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
     describe("keyword counter vs. until-end-of-turn grant", () => {
         it("removing the counter keeps the until-EOT grant's flying (CR 122.1c)", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-1" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-1" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -156,7 +156,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("the CLEANUP purge keeps the counter grant's flying (CR 514.2)", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-2" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-2" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -177,7 +177,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("a natively-printed keyword survives a counter grant's teardown (CR 113.1)", () => {
-            const elemental = makeInstance(airElemental.id, { id: "ae-1" });
+            const elemental = makeInstance(airElemental().id, { id: "ae-1" });
             const state = makeBoard(elemental);
             const ctx = ctxFor(state);
             expect(count(elemental, "flying")).toBe(1);
@@ -192,7 +192,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
 
     describe("an add must own its occurrence, never piggyback (CR 611.2c)", () => {
         it("an indefinite grant survives the CLEANUP purge of an until-EOT grant of the same keyword", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-3" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-3" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -217,7 +217,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("a second indefinite grant of the same keyword stays idempotent", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-4" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-4" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -235,7 +235,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("an animate-granted keyword survives an until-EOT grant's purge", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-5" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-5" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -265,8 +265,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // #1706 names by line number, and the stripper-hold reclaim is the
             // half of it nothing else reaches: every other reclaim test enters
             // through `removeCounter` or `stopApplyingStaticEffects`.
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-9" });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-4" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-9" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-4" });
             const state = makeBoard(bear, [sphere]);
             const ctx = ctxFor(state);
 
@@ -303,8 +303,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("a counter grant removed under Gravity Sphere does not come back when the Sphere leaves", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-6" });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-6" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-1" });
             const state = makeBoard(bear, [sphere]);
             const ctx = ctxFor(state);
 
@@ -334,8 +334,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("Gravity Sphere still restores the PRINTED flying it took", () => {
-            const elemental = makeInstance(airElemental.id, { id: "ae-2" });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-2" });
+            const elemental = makeInstance(airElemental().id, { id: "ae-2" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-2" });
             const state = makeBoard(elemental, [sphere]);
             const ctx = ctxFor(state);
 
@@ -368,12 +368,12 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // occurrence it granted. (The TRANSIENT flavour — the counter-gated
             // refresh, which must NOT cancel the hold — is guarded by
             // `staticEffectRefresh.test.ts`.)
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-8" });
-            const aura = makeInstance(flight.id, {
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-8" });
+            const aura = makeInstance(flight().id, {
                 id: "flight-1",
                 attachedTo: "bear-8",
             });
-            const sphere = makeInstance(gravitySphere.id, { id: "sphere-3" });
+            const sphere = makeInstance(gravitySphere().id, { id: "sphere-3" });
             const state = makeBoard(bear, [aura, sphere]);
 
             beginApplyingStaticEffects(state, aura);
@@ -393,7 +393,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("a counter grant removed under a duration-scoped strip does not come back at CLEANUP", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-7" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-7" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -425,7 +425,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // `finalizeCleanup`) scans the BATTLEFIELD only, so a hold that
             // leaves play with the card is otherwise held forever, and the
             // permanent stays flightless in every later zone.
-            const elemental = makeInstance(airElemental.id, { id: "ae-4" });
+            const elemental = makeInstance(airElemental().id, { id: "ae-4" });
             const state = makeBoard(elemental);
             const ctx = ctxFor(state);
 
@@ -491,12 +491,12 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // A Grizzly Bear prints no flying, so every occurrence in play is
             // accounted for by a live source — the scenario issue #1750 needed
             // and could only fake.
-            const bear = makeInstance(grizzlyBears.id, { id: bearId });
-            const aura = makeInstance(flight.id, {
+            const bear = makeInstance(grizzlyBears().id, { id: bearId });
+            const aura = makeInstance(flight().id, {
                 id: `${bearId}-flight`,
                 attachedTo: bearId,
             });
-            const sphere = makeInstance(gravitySphere.id, {
+            const sphere = makeInstance(gravitySphere().id, {
                 id: `${bearId}-sphere`,
             });
             const state = makeBoard(bear, [aura, sphere]);
@@ -556,8 +556,8 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
             // it is now arithmetic — one source has ONE timestamp, and CR 613.7
             // ordering is strict, so its own removal can never be later than
             // its own grant.
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-14" });
-            const aura = makeInstance(flight.id, {
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-14" });
+            const aura = makeInstance(flight().id, {
                 id: "bear-14-flight",
                 attachedTo: "bear-14",
             });
@@ -582,7 +582,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
     // boundary in both directions.
     describe("animate's granted keywords take THEIR OWN duration (CR 611.2a)", () => {
         it("an until-EOT animate grant expires at cleanup; an unbounded one does not", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-anim-1" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-anim-1" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -605,7 +605,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("an animate with NO stated duration still grants indefinitely", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-anim-2" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-anim-2" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -622,7 +622,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("a bounded grant onto an ALREADY indefinitely-animated permanent still ends at cleanup", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-anim-3" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-anim-3" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 
@@ -655,7 +655,7 @@ describe("granted keyword occurrence ownership (CR 113.1, issue #1706)", () => {
         });
 
         it("an unbounded grant onto an ALREADY until-EOT-animated permanent survives cleanup", () => {
-            const bear = makeInstance(grizzlyBears.id, { id: "bear-anim-4" });
+            const bear = makeInstance(grizzlyBears().id, { id: "bear-anim-4" });
             const state = makeBoard(bear);
             const ctx = ctxFor(state);
 

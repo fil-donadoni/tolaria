@@ -240,7 +240,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
             id: "atog-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at, orn] }),
@@ -270,8 +270,8 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
             id: "atog-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
-        const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
+        const lionInst = makeInstance(grizzlyBears().id, { id: "lion-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at, orn, lionInst] }),
@@ -289,7 +289,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const at = makeInstance("2249fc40-4412-48fd-800a-7ea3678aee3f", {
             id: "atog-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [at, orn] }),
@@ -312,9 +312,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Priest of Yawgmoth: snapshots the sacrificed artifact's mv → adds that much {B}", () => {
-        const priest = makeInstance(priestOfYawgmoth.id, { id: "priest-1" });
+        const priest = makeInstance(priestOfYawgmoth().id, { id: "priest-1" });
         // Yotian Soldier is a {3} artifact creature → mv 3.
-        const soldier = makeInstance(yotianSoldier.id, { id: "soldier-1" });
+        const soldier = makeInstance(yotianSoldier().id, { id: "soldier-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [priest, soldier] }),
@@ -340,7 +340,7 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const mech = makeInstance("5e34fc6b-5f00-4a22-9ee2-afc1caf99961", {
             id: "mech-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [mech, orn] }),
@@ -369,8 +369,8 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const sage = makeInstance("b4ff60ce-073c-46b8-807c-8b40467b960c", {
             id: "sage-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
-        const lib = makeInstance(grizzlyBears.id, {
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
+        const lib = makeInstance(grizzlyBears().id, {
             id: "lib-1",
             zone: "library",
         });
@@ -397,8 +397,8 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
         const smith = makeInstance("0848d94a-2704-460f-986b-b192dd6d26b7", {
             id: "smith-1",
         });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
-        const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
+        const lionInst = makeInstance(grizzlyBears().id, { id: "lion-1" });
         const state = makeState({
             phase: "UPKEEP",
             players: [
@@ -423,9 +423,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
     });
 
     it("Gate to Phyrexia: sacrifice a creature → destroy target artifact", () => {
-        const gate = makeInstance(gateToPhyrexia.id, { id: "gate-1" });
-        const lionInst = makeInstance(grizzlyBears.id, { id: "lion-1" });
-        const oppArtifact = makeInstance(ornithopter.id, {
+        const gate = makeInstance(gateToPhyrexia().id, { id: "gate-1" });
+        const lionInst = makeInstance(grizzlyBears().id, { id: "lion-1" });
+        const oppArtifact = makeInstance(ornithopter().id, {
             id: "art-1",
             controllerId: "p2",
             ownerId: "p2",
@@ -470,7 +470,9 @@ describe("sacrifice-as-cost activation flow (CR 602.1 / 118.5)", () => {
 // ---------------------------------------------------------------------------
 describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2367)', () => {
     it("Legion Extruder: NOT activatable when the only artifact on the board is itself", () => {
-        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
+        const extruder = makeInstance(legionExtruder().id, {
+            id: "extruder-1",
+        });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [extruder] }),
@@ -488,8 +490,10 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
     });
 
     it("Legion Extruder: activatable with a SECOND artifact, and the source is not among the offered picks", () => {
-        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const extruder = makeInstance(legionExtruder().id, {
+            id: "extruder-1",
+        });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [extruder, orn] }),
@@ -514,8 +518,10 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
     });
 
     it("Legion Extruder: the server's own pick gate rejects naming the source, accepts the other artifact", () => {
-        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const extruder = makeInstance(legionExtruder().id, {
+            id: "extruder-1",
+        });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [extruder, orn] }),
@@ -538,8 +544,10 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
     });
 
     it("Legion Extruder: full path — pick the other artifact, sacrifice it, create the 3/3 Golem", () => {
-        const extruder = makeInstance(legionExtruder.id, { id: "extruder-1" });
-        const orn = makeInstance(ornithopter.id, { id: "orn-1" });
+        const extruder = makeInstance(legionExtruder().id, {
+            id: "extruder-1",
+        });
+        const orn = makeInstance(ornithopter().id, { id: "orn-1" });
         const state = makeState({
             phase: "PRECOMBAT_MAIN",
             players: [
@@ -581,7 +589,7 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
         // `{ types: "Creature", subtypes: ["Orc", "Goblin"] }` cost matched the
         // source and the ability was activatable — and self-payable — on an
         // otherwise empty board.
-        const general = makeInstance(orcGeneral.id, { id: "general-1" });
+        const general = makeInstance(orcGeneral().id, { id: "general-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [general] }),
@@ -599,8 +607,8 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
     });
 
     it("Orc General: with a second Orc, the pump resolves and the source is never the victim", () => {
-        const general = makeInstance(orcGeneral.id, { id: "general-1" });
-        const grunt = makeInstance(orcGeneral.id, { id: "grunt-1" });
+        const general = makeInstance(orcGeneral().id, { id: "general-1" });
+        const grunt = makeInstance(orcGeneral().id, { id: "grunt-1" });
         const state = makeState({
             phase: "PRECOMBAT_MAIN",
             players: [
@@ -640,8 +648,8 @@ describe('"sacrifice another" activation cost self-exclusion (CR 109.2, issue #2
 // `game.ts` imports from this module — they go red.
 describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 / 602.2b, issue #2297)', () => {
     it("offers the source among the sacrifice candidates alongside another creature", () => {
-        const angel = makeInstance(fallenAngel.id, { id: "angel-1" });
-        const bears = makeInstance(grizzlyBears.id, { id: "bears-1" });
+        const angel = makeInstance(fallenAngel().id, { id: "angel-1" });
+        const bears = makeInstance(grizzlyBears().id, { id: "bears-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [angel, bears] }),
@@ -654,10 +662,10 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
         // production one grew a source exclusion.
         const selection = buildActivationSacrificeSelection(
             state,
-            fallenAngel.activatedAbilities![0],
+            fallenAngel().activatedAbilities![0],
             state.players[0].battlefield.find((c) => c.id === "angel-1")!,
             state.players[0],
-            fallenAngel.name
+            fallenAngel().name
         )!;
         expect(
             sacrificeCandidates(state, "p1", selection.requirements[0].filter)
@@ -670,8 +678,8 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
     });
 
     it("accepts the source as the named victim and sacrifices it", () => {
-        const angel = makeInstance(fallenAngel.id, { id: "angel-1" });
-        const bears = makeInstance(grizzlyBears.id, { id: "bears-1" });
+        const angel = makeInstance(fallenAngel().id, { id: "angel-1" });
+        const bears = makeInstance(grizzlyBears().id, { id: "bears-1" });
         const state = makeState({
             phase: "PRECOMBAT_MAIN",
             players: [
@@ -693,10 +701,10 @@ describe('bare "Sacrifice a creature" keeps the source a legal victim (CR 109.2 
         // (`.claude/rules/gre-development.md`).
         pa.sacrificeSelection = buildActivationSacrificeSelection(
             state,
-            fallenAngel.activatedAbilities![0],
+            fallenAngel().activatedAbilities![0],
             state.players[0].battlefield.find((c) => c.id === "angel-1")!,
             state.players[0],
-            fallenAngel.name
+            fallenAngel().name
         );
         // The exact gate `game.ts`'s `selectSacrifice` applies to the pick.
         expect(

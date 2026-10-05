@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, EffectTokenSpec } from "../../types";
+import { defineCard, type EffectTokenSpec } from "../../types";
 import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ const GOBLIN_SHAMAN_TOKEN: EffectTokenSpec = {
     ],
 };
 
-export const fableOfTheMirrorBreaker: CardDefinition = {
+export const fableOfTheMirrorBreaker = defineCard(() => ({
     id: "24c0d87b-0049-4beb-b9cb-6f813b7aa7dc",
     name: "Fable of the Mirror-Breaker",
     rarity: "rare",
@@ -249,4 +249,4 @@ export const fableOfTheMirrorBreaker: CardDefinition = {
             },
         ],
     },
-};
+}));

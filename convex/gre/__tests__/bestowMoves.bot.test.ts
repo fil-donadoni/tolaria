@@ -43,7 +43,7 @@ const FOREST = getCardByName("Forest").id;
 /** p1 holds Springheart Nantuko with two untapped Forests; `creatures` names
  *  the creatures on the board and who controls each. */
 function board(creatures: Array<["p1" | "p2", string]>): GameState {
-    const nantuko = makeInstance(springheartNantuko.id, {
+    const nantuko = makeInstance(springheartNantuko().id, {
         id: "nantuko",
         controllerId: "p1",
         ownerId: "p1",
@@ -52,12 +52,12 @@ function board(creatures: Array<["p1" | "p2", string]>): GameState {
     const mine = creatures
         .filter(([who]) => who === "p1")
         .map(([, id]) =>
-            makeInstance(grizzlyBears.id, { id, controllerId: "p1" })
+            makeInstance(grizzlyBears().id, { id, controllerId: "p1" })
         );
     const theirs = creatures
         .filter(([who]) => who === "p2")
         .map(([, id]) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p2",
                 ownerId: "p2",

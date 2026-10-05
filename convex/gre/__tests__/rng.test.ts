@@ -171,7 +171,7 @@ describe("SpellContext.pickAtRandom (seeded, pool-agnostic)", () => {
             players: [makePlayer("p1"), makePlayer("p2")],
             rngSeed: seed,
         });
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         return buildSpellContext(state, item);
     }
 

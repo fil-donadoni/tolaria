@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -41,7 +40,7 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // LKI attachment fields) and created a latent double-fire trap for any
 // future card whose ability listens for both events. This ships as a
 // `leftTrigger` reuse plus the one missing `ownerId` field row instead.
-export const warpedDevotion: CardDefinition = {
+export const warpedDevotion = defineCard(() => ({
     id: "3bce620f-799a-4ad8-9edb-6fb3d9ea1cc6", // PLS 57
     name: "Warped Devotion",
     rarity: "uncommon",
@@ -74,7 +73,7 @@ export const warpedDevotion: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Noxious Vapors — {1}{B}{B} Sorcery. "Each player reveals their hand,
 // chooses one card of each color from it, then discards all other nonland
@@ -104,7 +103,7 @@ export const warpedDevotion: CardDefinition = {
 // smallest covering set, not the maximum matching. A colour with no matching
 // card in hand is simply not filled (CR 608.2b). Mandatory ("chooses", not
 // "may choose") — `optional` defaults to false.
-export const noxiousVapors: CardDefinition = {
+export const noxiousVapors = defineCard(() => ({
     id: "e3cf9326-6e1c-4a05-abea-16d6b6cb2a6d", // PLS 49
     name: "Noxious Vapors",
     rarity: "uncommon",
@@ -143,7 +142,7 @@ export const noxiousVapors: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (parent PRD #1935, issue #1950) — every card below is
@@ -178,7 +177,7 @@ export const noxiousVapors: CardDefinition = {
 // N }` lets the targeted player submit zero cards even with a full hand. This
 // copies the shipped Hypnotic Cloud idiom verbatim (`inv/black.cards.ts`) — a
 // pre-existing class defect, not introduced here. tracked-by: #2018
-export const bogDown: CardDefinition = {
+export const bogDown = defineCard(() => ({
     id: "8752a605-38f8-4d75-b122-063a788dff6e", // PLS 39
     name: "Bog Down",
     rarity: "common",
@@ -236,7 +235,7 @@ export const bogDown: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Dark Suspicions — {2}{B}{B} Enchantment. "At the beginning of each
 // opponent's upkeep, that player loses X life, where X is the number of
@@ -262,7 +261,7 @@ export const bogDown: CardDefinition = {
 // is zero or negative and nothing happens: `loseLife` returns on a
 // non-positive amount, which is exactly the Oracle ruling (a negative X
 // loses no life; it never becomes a life GAIN for the opponent).
-export const darkSuspicions: CardDefinition = {
+export const darkSuspicions = defineCard(() => ({
     id: "d518e2fd-7767-43d7-92e3-62a4a465154c", // PLS 40
     name: "Dark Suspicions",
     rarity: "rare",
@@ -303,7 +302,7 @@ export const darkSuspicions: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Death Bomb — {3}{B} Instant. "As an additional cost to cast this spell,
 // sacrifice a creature. Destroy target nonblack creature. It can't be
@@ -317,7 +316,7 @@ export const darkSuspicions: CardDefinition = {
 // live for it. Safe because the spell has exactly one target: CR 608.2b
 // fizzles the whole spell if that single target is illegal at resolution,
 // so by the time either Op runs the creature is guaranteed still in play.
-export const deathBomb: CardDefinition = {
+export const deathBomb = defineCard(() => ({
     id: "f8a84715-c5dc-4a19-af6a-796c6ee912c2", // PLS 41
     name: "Death Bomb",
     rarity: "common",
@@ -339,7 +338,7 @@ export const deathBomb: CardDefinition = {
         },
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 
 // Diabolic Intent — {1}{B} Sorcery. "As an additional cost to cast this
 // spell, sacrifice a creature. Search your library for a card, put that
@@ -347,7 +346,7 @@ export const deathBomb: CardDefinition = {
 // cost, CR 401.4 search.) The tutor body is Demonic Tutor's own effect body
 // verbatim (`lea/black.cards.ts`) — this card's only distinguishing clause is the
 // additional cost.
-export const diabolicIntent: CardDefinition = {
+export const diabolicIntent = defineCard(() => ({
     id: "76d1b5c5-cc47-465f-8549-4fd1ca4280df", // PLS 42
     name: "Diabolic Intent",
     rarity: "rare",
@@ -375,14 +374,14 @@ export const diabolicIntent: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Exotic Disease — {4}{B} Sorcery. "Domain — Target player loses X life and
 // you gain X life, where X is the number of basic land types among lands
 // you control." (CR 702 preamble Domain ability word, issue #1066's shipped
 // `{ domain: { of } }` EffectValue — the exact shape Wandering Stream
 // (`inv/green.cards.ts`) already uses for "gain life for each basic land type".)
-export const exoticDisease: CardDefinition = {
+export const exoticDisease = defineCard(() => ({
     id: "4e9624e5-79a2-41de-997b-12d871d4be66", // PLS 43
     name: "Exotic Disease",
     rarity: "uncommon",
@@ -403,7 +402,7 @@ export const exoticDisease: CardDefinition = {
             amount: { domain: { of: "controller" } },
         },
     ],
-};
+}));
 
 // Lord of the Undead — {1}{B}{B} Creature — Zombie, 2/2. "Other Zombie
 // creatures get +1/+1. {1}{B}, {T}: Return target Zombie card from your
@@ -411,7 +410,7 @@ export const exoticDisease: CardDefinition = {
 // Lord of Atlantis's `pt-buff` shape exactly, `lea/blue.ts`; CR 400.7
 // zone-change activated ability, mirroring Recover's plain graveyard target
 // — `zone: "graveyard", controller: "you"` — `inv/black.cards.ts`.)
-export const lordOfTheUndead: CardDefinition = {
+export const lordOfTheUndead = defineCard(() => ({
     id: "0a7f50f4-37a0-476e-8655-edba228aafd6", // PLS 44
     name: "Lord of the Undead",
     rarity: "rare",
@@ -450,13 +449,13 @@ export const lordOfTheUndead: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Maggot Carrier — {B} Creature — Zombie, 1/1. "When this creature enters,
 // each player loses 1 life." (CR 603.6a self-ETB trigger; CR 119.3 life
 // loss for every player via `forEach { set: "players" }` + `loseLife`,
 // mirroring Noxious Vapors' own `forEach` reveal loop above.)
-export const maggotCarrier: CardDefinition = {
+export const maggotCarrier = defineCard(() => ({
     id: "ab2c3dc4-bb49-4ec3-a6c8-4256d1939326", // PLS 45
     name: "Maggot Carrier",
     rarity: "common",
@@ -482,7 +481,7 @@ export const maggotCarrier: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Morgue Toad — {2}{B} Creature — Frog, 2/2. "Sacrifice this creature: Add
 // {U}{R}." (CR 605.1a mana ability, sacrifice-self cost, NO tap component.)
@@ -495,7 +494,7 @@ export const maggotCarrier: CardDefinition = {
 // `getActivatedManaColor`, which returns null for {U}{R} even when it matches.
 // CR 302.6 — no {T} in the cost, so summoning sickness does not gate it: the
 // Toad can be sacrificed for mana the turn it enters.
-export const morgueToad: CardDefinition = {
+export const morgueToad = defineCard(() => ({
     id: "77d8ae73-70d1-4082-8581-5f74c1aaa63b", // PLS 46
     name: "Morgue Toad",
     rarity: "common",
@@ -514,7 +513,7 @@ export const morgueToad: CardDefinition = {
             manaProduced: { U: 1, R: 1 },
         },
     ],
-};
+}));
 
 // Nightscape Battlemage — {2}{B} Creature — Zombie Wizard, 2/2. "Kicker
 // {2}{U} and/or {2}{R}. When this creature enters, if it was kicked with
@@ -549,7 +548,7 @@ export const morgueToad: CardDefinition = {
 // so all three shipped Battlemages share one gate (`conditionOnSelf` over
 // `condition` so `withTriggerGate` stamps a DECIDED gate the bot can
 // evaluate, issue #1936).
-export const nightscapeBattlemage: CardDefinition = {
+export const nightscapeBattlemage = defineCard(() => ({
     id: "d5389643-4cc0-4a17-bc2d-7f9b76d30f9f", // PLS 47
     name: "Nightscape Battlemage",
     rarity: "uncommon",
@@ -619,7 +618,7 @@ export const nightscapeBattlemage: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Nightscape Familiar — {1}{B} Creature — Zombie, 1/1. "Blue spells and red
 // spells you cast cost {1} less to cast. {1}{B}: Regenerate this creature."
@@ -627,7 +626,7 @@ export const nightscapeBattlemage: CardDefinition = {
 // filter — Derelor's single-colour shape (`fem/black.cards.ts`) widened to an OR
 // of two colours; CR 701.19/701.19 regenerate, Goham Djinn's `{1}{B}:
 // Regenerate` shape, `inv/black.cards.ts`.)
-export const nightscapeFamiliar: CardDefinition = {
+export const nightscapeFamiliar = defineCard(() => ({
     id: "24fa6853-09b0-4c9f-a138-9dd005780255", // PLS 48
     name: "Nightscape Familiar",
     rarity: "common",
@@ -658,7 +657,7 @@ export const nightscapeFamiliar: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Phyrexian Bloodstock — {4}{B} Creature — Phyrexian Zombie, 3/3. "When this
 // creature leaves the battlefield, destroy target white creature. It can't
@@ -668,7 +667,7 @@ export const nightscapeFamiliar: CardDefinition = {
 // exactly: no leaves-trigger in the catalogue had needed one before this
 // card. `scope: "self"`, no `toZone` filter — Bloodstock's own Oracle text
 // has no destination restriction, unlike Warped Devotion above.)
-export const phyrexianBloodstock: CardDefinition = {
+export const phyrexianBloodstock = defineCard(() => ({
     id: "785e1a67-af94-48e8-bb37-4999d1fb4c66", // PLS 50
     name: "Phyrexian Bloodstock",
     rarity: "common",
@@ -699,7 +698,7 @@ export const phyrexianBloodstock: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Phyrexian Scuta — {3}{B} Creature — Phyrexian Zombie, 3/3. "Kicker—Pay 3
 // life. If this creature was kicked, it enters with two +1/+1 counters on
@@ -709,7 +708,7 @@ export const phyrexianBloodstock: CardDefinition = {
 // `life: 3` shape. CR 122.1/614.1c ETB counters via `entersWith`'s
 // `count: "kicker"`, the Duskwalker shape (`inv/black.cards.ts`) — TWO entries so
 // the placement loop sums them to exactly 0 or 2.)
-export const phyrexianScuta: CardDefinition = {
+export const phyrexianScuta = defineCard(() => ({
     id: "eb57e656-c94e-4cc2-ae8d-9300f51f941f", // PLS 51
     name: "Phyrexian Scuta",
     rarity: "rare",
@@ -733,7 +732,7 @@ export const phyrexianScuta: CardDefinition = {
             { type: "+1/+1", count: "kicker" },
         ],
     },
-};
+}));
 
 // Planeswalker's Scorn — {2}{B} Enchantment. "{3}{B}: Target opponent
 // reveals a card at random from their hand. Target creature gets -X/-X
@@ -765,7 +764,7 @@ export const phyrexianScuta: CardDefinition = {
 // of turn." (CR 702.14b fear, CR 611.2a temporary keyword grant via the
 // shipped `grantAbility` Op — Hooded Kavu's own self-targeted shape
 // (`inv/multicolor.cards.ts`) with an announced target instead of `$source`.)
-export const shriekOfDread: CardDefinition = {
+export const shriekOfDread = defineCard(() => ({
     id: "54a7fb3b-8e81-4763-b2a1-7c2108a00afe", // PLS 53
     name: "Shriek of Dread",
     rarity: "common",
@@ -781,7 +780,7 @@ export const shriekOfDread: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Sinister Strength — {1}{B} Enchantment — Aura. "Enchant creature.
 // Enchanted creature gets +3/+1 and is black." (CR 303.4 aura; CR 611 layer
@@ -809,7 +808,7 @@ export const shriekOfDread: CardDefinition = {
 // clause needs the CR 613.1e colour-SET static effect tracked by sibling
 // issue #2009 ("[engine] Layer 5 color-SET continuous static effect
 // (Shifting Sky)"). tracked-by: #2009
-export const sinisterStrength: CardDefinition = {
+export const sinisterStrength = defineCard(() => ({
     id: "afe487b8-c1ae-483d-bcd5-62c62b66a22e", // PLS 54
     name: "Sinister Strength",
     rarity: "common",
@@ -831,13 +830,13 @@ export const sinisterStrength: CardDefinition = {
             colors: ["B"],
         },
     ],
-};
+}));
 
 // Slay — {2}{B} Instant. "Destroy target green creature. It can't be
 // regenerated. Draw a card." (CR 701.8/701.19c destroy + can't-be-
 // regenerated — Terror's shape (`lea/black.cards.ts`) with a positive
 // `colorFilter: "G"` instead of `excludeColors`; CR 120.1 draw.)
-export const slay: CardDefinition = {
+export const slay = defineCard(() => ({
     id: "eccda747-2680-4793-8a13-35e49b4de12f", // PLS 55
     name: "Slay",
     rarity: "uncommon",
@@ -850,14 +849,14 @@ export const slay: CardDefinition = {
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Volcano Imp — {3}{B} Creature — Imp, 2/2. "Flying. {1}{R}: This creature
 // gains first strike until end of turn." (CR 702.9b flying keyword; CR
 // 611.2a temporary keyword grant via `grantAbility`, self-targeted through
 // `$source` — the same shape as every other activated "gains X until end of
 // turn" pump ability in the catalogue.)
-export const volcanoImp: CardDefinition = {
+export const volcanoImp = defineCard(() => ({
     id: "a8281cc6-2132-4f76-841e-d1ade9cafb84", // PLS 56
     name: "Volcano Imp",
     rarity: "common",
@@ -886,4 +885,4 @@ export const volcanoImp: CardDefinition = {
             ],
         },
     ],
-};
+}));

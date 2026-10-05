@@ -4,7 +4,7 @@
 // name/cost/types/loyalty are from Scryfall (id = the WWK printing, the
 // earliest paper printing per ADR 0041).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Jace, the Mind Sculptor — {2}{U}{U} Legendary Planeswalker — Jace,
@@ -31,7 +31,7 @@ import type { CardDefinition } from "../../types";
 //     `moveZone` Ops (CR 400.7): library→exile (bulk), then hand→library, then
 //     an explicit `libraryLook{shuffle}` (a plain `moveZone` into a library
 //     does NOT auto-shuffle — the Timetwister composition precedent).
-export const jaceTheMindSculptor: CardDefinition = {
+export const jaceTheMindSculptor = defineCard(() => ({
     id: "0e606072-a3aa-4300-ba90-ec92a721fa76",
     name: "Jace, the Mind Sculptor",
     rarity: "mythic",
@@ -121,4 +121,4 @@ export const jaceTheMindSculptor: CardDefinition = {
             ],
         },
     ],
-};
+}));

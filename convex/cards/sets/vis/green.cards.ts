@@ -2,10 +2,10 @@
 // `import * as vis from "./sets/vis/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    CardDefinition,
-    PermanentView,
-    StaticEffectContext,
+import {
+    defineCard,
+    type PermanentView,
+    type StaticEffectContext,
 } from "../../../../convex/cards/types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 
@@ -16,7 +16,7 @@ import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 // cost reuses `additionalCosts.sacrificeFilter` (a `PermanentFilter`, already
 // supports `colors`); the search reuses the `choice` Op's `filter.color`
 // (issue #677).
-export const naturalOrder: CardDefinition = {
+export const naturalOrder = defineCard(() => ({
     id: "0845f0b0-9413-4ddd-861d-9607636bebc6",
     name: "Natural Order",
     rarity: "rare",
@@ -47,7 +47,7 @@ export const naturalOrder: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Elephant Grass — {G} Enchantment. Three clauses, all directed at the
 // controller ("you"):
@@ -63,7 +63,7 @@ export const naturalOrder: CardDefinition = {
 //      `attack-mana-tax` kind (CR 508.1c/1g, #1053): the collector
 //      (`collectAttackManaTax`) already scopes the tax to sources controlled by the
 //      player being attacked, so the predicate only filters colour (nonblack).
-export const elephantGrass: CardDefinition = {
+export const elephantGrass = defineCard(() => ({
     id: "f4c1f5a7-0d28-43ab-9b66-937e963f42cd",
     name: "Elephant Grass",
     rarity: "uncommon",
@@ -110,4 +110,4 @@ export const elephantGrass: CardDefinition = {
                 "Nonblack creatures can't attack you unless their controller pays {2} for each creature they control that's attacking you (Elephant Grass).",
         },
     ],
-};
+}));

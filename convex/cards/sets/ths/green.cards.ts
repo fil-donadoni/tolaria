@@ -2,7 +2,7 @@
 // text is authoritative (ADR 0004). Cards are classified by the colour
 // identity of their mana cost (CR 202.2).
 
-import type { ActivatedAbilityContext, CardDefinition } from "../../types";
+import { defineCard, type ActivatedAbilityContext } from "../../types";
 
 // Sylvan Caryatid — Defender, hexproof; "{T}: Add one mana of any color."
 // (CR 605.1a mana ability, `useStack: false`, CR 702.11 hexproof, CR 702.3 defender
@@ -10,7 +10,7 @@ import type { ActivatedAbilityContext, CardDefinition } from "../../types";
 // Paradise / Talisman shape: `effect` produces a representative default, the
 // `manaChoices` array exposes every option to the picker. Vintage Cube free
 // tranche (issue #675, ADR 0041).
-export const sylvanCaryatid: CardDefinition = {
+export const sylvanCaryatid = defineCard(() => ({
     id: "d40b65c1-b24d-492d-81b9-d8474ebdc08c",
     rarity: "rare",
     name: "Sylvan Caryatid",
@@ -33,4 +33,4 @@ export const sylvanCaryatid: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));

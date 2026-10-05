@@ -53,7 +53,7 @@ const OPP = "p2";
 
 /** N filler cards in `ME`'s graveyard, ids `filler-0…`, so an assertion can
  *  name the exact cards a cost is expected to spend. */
-function filler(n: number, defId: string = grizzlyBears.id) {
+function filler(n: number, defId: string = grizzlyBears().id) {
     return Array.from({ length: n }, (_, i) =>
         makeInstance(defId, {
             id: `filler-${i}`,
@@ -119,7 +119,7 @@ describe("escape cast enumeration (CR 702.138a)", () => {
         state: GameState;
         uro: CardInstanceState;
     } {
-        const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+        const uro = makeInstance(uroTitanOfNaturesWrath().id, {
             id: "uro",
             controllerId: ME,
             ownerId: ME,
@@ -127,11 +127,11 @@ describe("escape cast enumeration (CR 702.138a)", () => {
         });
         const state = stateWith({
             battlefield: [
-                untapped(forest.id, "f1"),
-                untapped(forest.id, "f2"),
-                untapped(island.id, "i1"),
-                untapped(island.id, "i2"),
-                untapped(island.id, "i3"),
+                untapped(forest().id, "f1"),
+                untapped(forest().id, "f2"),
+                untapped(island().id, "i1"),
+                untapped(island().id, "i2"),
+                untapped(island().id, "i3"),
             ],
             graveyard: [uro, ...filler(fillerCount)],
         });
@@ -201,7 +201,7 @@ describe("escape cast enumeration (CR 702.138a)", () => {
     it("charges a GRANTED escape cost too (Underworld Breach, CR 702.138)", () => {
         // Breach grants escape to each NONLAND card in its controller's
         // graveyard: the card's own mana cost plus exile three others.
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: ME,
             ownerId: ME,
@@ -209,11 +209,11 @@ describe("escape cast enumeration (CR 702.138a)", () => {
         });
         const state = stateWith({
             battlefield: [
-                untapped(underworldBreach.id, "breach"),
-                untapped(forest.id, "f1"),
-                untapped(forest.id, "f2"),
+                untapped(underworldBreach().id, "breach"),
+                untapped(forest().id, "f1"),
+                untapped(forest().id, "f2"),
             ],
-            graveyard: [bears, ...filler(3, swamp.id)],
+            graveyard: [bears, ...filler(3, swamp().id)],
         });
         const cast = castsOf(state, "bears")[0];
         expect(cast).toBeDefined();
@@ -233,14 +233,14 @@ describe("escape cast enumeration (CR 702.138a)", () => {
 describe("non-mana flashback cast enumeration (CR 702.34a / 118.8)", () => {
     it("enumerates Lava Dart's flashback and carries the sacrificed Mountain", () => {
         // Lava Dart's flashback pays NO mana — only "Sacrifice a Mountain".
-        const dart = makeInstance(lavaDart.id, {
+        const dart = makeInstance(lavaDart().id, {
             id: "dart",
             controllerId: ME,
             ownerId: ME,
             zone: "graveyard",
         });
         const state = stateWith({
-            battlefield: [untapped(mountain.id, "mtn")],
+            battlefield: [untapped(mountain().id, "mtn")],
             graveyard: [dart],
         });
         const casts = castsOf(state, "dart");
@@ -262,14 +262,14 @@ describe("non-mana flashback cast enumeration (CR 702.34a / 118.8)", () => {
     });
 
     it("does not offer Lava Dart's flashback with no Mountain to sacrifice", () => {
-        const dart = makeInstance(lavaDart.id, {
+        const dart = makeInstance(lavaDart().id, {
             id: "dart",
             controllerId: ME,
             ownerId: ME,
             zone: "graveyard",
         });
         const state = stateWith({
-            battlefield: [untapped(forest.id, "f1")],
+            battlefield: [untapped(forest().id, "f1")],
             graveyard: [dart],
         });
         expect(castsOf(state, "dart")).toEqual([]);
@@ -279,14 +279,14 @@ describe("non-mana flashback cast enumeration (CR 702.34a / 118.8)", () => {
         // Flashback—{1}{U}, Exile X BLUE cards from your graveyard. The
         // fillers are Islands (blue? no — lands are colourless), so the
         // eligible fodder is a set of blue cards.
-        const foi = makeInstance(flashOfInsight.id, {
+        const foi = makeInstance(flashOfInsight().id, {
             id: "foi",
             controllerId: ME,
             ownerId: ME,
             zone: "graveyard",
         });
         const blueFodder = Array.from({ length: 3 }, (_, i) =>
-            makeInstance(flashOfInsight.id, {
+            makeInstance(flashOfInsight().id, {
                 id: `blue-${i}`,
                 controllerId: ME,
                 ownerId: ME,
@@ -294,7 +294,10 @@ describe("non-mana flashback cast enumeration (CR 702.34a / 118.8)", () => {
             })
         );
         const state = stateWith({
-            battlefield: [untapped(island.id, "i1"), untapped(island.id, "i2")],
+            battlefield: [
+                untapped(island().id, "i1"),
+                untapped(island().id, "i2"),
+            ],
             graveyard: [foi, ...blueFodder],
         });
         const casts = castsOf(state, "foi");
@@ -343,7 +346,7 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
      *  AND sacrificed that same Mountain for a flashback cost the cast never
      *  owed — a Move the server cannot execute. */
     function lavaDartUnderBreach() {
-        const dart = makeInstance(lavaDart.id, {
+        const dart = makeInstance(lavaDart().id, {
             id: "dart",
             controllerId: ME,
             ownerId: ME,
@@ -351,10 +354,10 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
         });
         const state = stateWith({
             battlefield: [
-                untapped(underworldBreach.id, "breach"),
-                untapped(mountain.id, "mtn"),
+                untapped(underworldBreach().id, "breach"),
+                untapped(mountain().id, "mtn"),
             ],
-            graveyard: [dart, ...filler(3, forest.id)],
+            graveyard: [dart, ...filler(3, forest().id)],
         });
         return { state, dart };
     }
@@ -386,7 +389,7 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
         // demanded a flashback cost this escape cast does not owe. A Forest
         // cannot pay {R}, so the position also pins that the gate prices the
         // ESCAPE mana cost: with only Forests the cast is correctly absent.
-        const dart = makeInstance(lavaDart.id, {
+        const dart = makeInstance(lavaDart().id, {
             id: "dart",
             controllerId: ME,
             ownerId: ME,
@@ -394,10 +397,10 @@ describe("a card with both escape and flashback pays the ESCAPE cost only", () =
         });
         const withMountainOnly = stateWith({
             battlefield: [
-                untapped(underworldBreach.id, "breach"),
-                untapped(mountain.id, "mtn"),
+                untapped(underworldBreach().id, "breach"),
+                untapped(mountain().id, "mtn"),
             ],
-            graveyard: [dart, ...filler(3, forest.id)],
+            graveyard: [dart, ...filler(3, forest().id)],
         });
         expect(
             getLegalActions(
@@ -421,7 +424,7 @@ describe("the variable escape cost pays a MINIMAL covering set", () => {
         // the card types left in the graveyard it just emptied, so the maximal
         // payment is the worst one and the search would never choose it —
         // reachable but frozen.
-        const goyf = makeInstance(nethergoyf.id, {
+        const goyf = makeInstance(nethergoyf().id, {
             id: "goyf",
             controllerId: ME,
             ownerId: ME,
@@ -430,49 +433,49 @@ describe("the variable escape cost pays a MINIMAL covering set", () => {
         // Eight other cards spanning FOUR card types — Nethergoyf's threshold
         // — two of each, so a covering set is half the candidate list.
         const others = [
-            makeInstance(forest.id, {
+            makeInstance(forest().id, {
                 id: "gy-land-a",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(island.id, {
+            makeInstance(island().id, {
                 id: "gy-land-b",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "gy-crea-a",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "gy-crea-b",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(lavaDart.id, {
+            makeInstance(lavaDart().id, {
                 id: "gy-inst-a",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(flashOfInsight.id, {
+            makeInstance(flashOfInsight().id, {
                 id: "gy-inst-b",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(blackLotus.id, {
+            makeInstance(blackLotus().id, {
                 id: "gy-arti-a",
                 controllerId: ME,
                 ownerId: ME,
                 zone: "graveyard",
             }),
-            makeInstance(blackLotus.id, {
+            makeInstance(blackLotus().id, {
                 id: "gy-arti-b",
                 controllerId: ME,
                 ownerId: ME,
@@ -482,9 +485,9 @@ describe("the variable escape cost pays a MINIMAL covering set", () => {
         const state = stateWith({
             // Escape—{2}{B}: one Swamp plus two more lands.
             battlefield: [
-                untapped(swamp.id, "s1"),
-                untapped(forest.id, "f1"),
-                untapped(forest.id, "f2"),
+                untapped(swamp().id, "s1"),
+                untapped(forest().id, "f1"),
+                untapped(forest().id, "f2"),
             ],
             graveyard: [goyf, ...others],
         });
@@ -500,7 +503,8 @@ describe("the variable escape cost pays a MINIMAL covering set", () => {
         // And it really covers the threshold, through the engine's own counter.
         const paid = others.filter((c) => picks.includes(c.id));
         expect(countDistinctCardTypes(paid)).toBeGreaterThanOrEqual(
-            (nethergoyf.escape!.exile as { minCardTypes: number }).minCardTypes
+            (nethergoyf().escape!.exile as { minCardTypes: number })
+                .minCardTypes
         );
         // Charged: exactly those cards leave the graveyard.
         const after = applyMoveForSearch(state, ME, cast);
@@ -524,7 +528,7 @@ describe("a delve spell given escape does not double-spend the exile slot", () =
         // discounting the generic cost by a delve the server never charges
         // builds a tap plan short of the real cost and parks the announcement
         // unpayable, which is the announce-then-abort freeze.
-        const cruise = makeInstance(treasureCruise.id, {
+        const cruise = makeInstance(treasureCruise().id, {
             id: "cruise",
             controllerId: ME,
             ownerId: ME,
@@ -532,9 +536,9 @@ describe("a delve spell given escape does not double-spend the exile slot", () =
         });
         const state = stateWith({
             battlefield: [
-                untapped(underworldBreach.id, "breach"),
-                untapped(island.id, "i1"),
-                untapped(island.id, "i2"),
+                untapped(underworldBreach().id, "breach"),
+                untapped(island().id, "i1"),
+                untapped(island().id, "i2"),
             ],
             graveyard: [cruise, ...filler(8)],
         });
@@ -542,7 +546,7 @@ describe("a delve spell given escape does not double-spend the exile slot", () =
     });
 
     it("still delves normally from the HAND, where no exile cost claims the slot", () => {
-        const cruise = makeInstance(treasureCruise.id, {
+        const cruise = makeInstance(treasureCruise().id, {
             id: "cruise",
             controllerId: ME,
             ownerId: ME,
@@ -551,7 +555,10 @@ describe("a delve spell given escape does not double-spend the exile slot", () =
         const me = makePlayer(ME, {
             hand: [cruise],
             graveyard: filler(8),
-            battlefield: [untapped(island.id, "i1"), untapped(island.id, "i2")],
+            battlefield: [
+                untapped(island().id, "i1"),
+                untapped(island().id, "i2"),
+            ],
         });
         const state = makeState({
             players: [me, makePlayer(OPP)],
@@ -609,7 +616,7 @@ describe("the enumerated pick is what the real cast mutation accepts", () => {
     }
 
     it("accepts the escape exile pick end to end (CR 702.138a)", () => {
-        const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+        const uro = makeInstance(uroTitanOfNaturesWrath().id, {
             id: "uro",
             controllerId: ME,
             ownerId: ME,
@@ -617,10 +624,10 @@ describe("the enumerated pick is what the real cast mutation accepts", () => {
         });
         const state = stateWith({
             battlefield: [
-                untapped(forest.id, "f1"),
-                untapped(forest.id, "f2"),
-                untapped(island.id, "i1"),
-                untapped(island.id, "i2"),
+                untapped(forest().id, "f1"),
+                untapped(forest().id, "f2"),
+                untapped(island().id, "i1"),
+                untapped(island().id, "i2"),
             ],
             graveyard: [uro, ...filler(5)],
         });
@@ -633,7 +640,7 @@ describe("the enumerated pick is what the real cast mutation accepts", () => {
     });
 
     it("accepts a granted escape exile pick end to end (Underworld Breach)", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: ME,
             ownerId: ME,
@@ -641,11 +648,11 @@ describe("the enumerated pick is what the real cast mutation accepts", () => {
         });
         const state = stateWith({
             battlefield: [
-                untapped(underworldBreach.id, "breach"),
-                untapped(forest.id, "f1"),
-                untapped(forest.id, "f2"),
+                untapped(underworldBreach().id, "breach"),
+                untapped(forest().id, "f1"),
+                untapped(forest().id, "f2"),
             ],
-            graveyard: [bears, ...filler(3, swamp.id)],
+            graveyard: [bears, ...filler(3, swamp().id)],
         });
         const cast = castsOf(state, "bears")[0];
         expect(cast).toBeDefined();

@@ -74,7 +74,7 @@ type Ctx = React.ContextType<typeof GameContext>;
  *  DEFENDER (p2), who is the viewer picking blockers. Returns the projected
  *  token `CardInstance` as the frontend actually receives it. */
 function buildProjectedAttackingToken(): CardInstance {
-    const attacker = makeInstance(grizzlyBears.id, {
+    const attacker = makeInstance(grizzlyBears().id, {
         id: "atk1",
         controllerId: "p1",
         ownerId: "p1",
@@ -91,7 +91,7 @@ function buildProjectedAttackingToken(): CardInstance {
             blockersConfirmed: false,
         },
     });
-    const item = pushSpell(state, grizzlyBears.id, "p1");
+    const item = pushSpell(state, grizzlyBears().id, "p1");
     const ctx = buildSpellContext(state, item);
     const [tokenId] = ctx.createToken(
         {

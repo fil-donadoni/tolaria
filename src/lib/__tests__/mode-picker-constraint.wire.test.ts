@@ -40,7 +40,7 @@ const GAIN: SpellMode = { id: "gain", label: "Gain", oracleText: "Gain." };
 const MODES = [PING, DRAW, GAIN];
 
 function board(opts: { wizard?: boolean; creature?: boolean }): GameState {
-    const spell = makeInstance(hullBreach.id, {
+    const spell = makeInstance(hullBreach().id, {
         id: "spell",
         controllerId: "p1",
         ownerId: "p1",
@@ -58,7 +58,7 @@ function board(opts: { wizard?: boolean; creature?: boolean }): GameState {
         : [];
     const theirs = opts.creature
         ? [
-              makeInstance(grizzlyBears.id, {
+              makeInstance(grizzlyBears().id, {
                   id: "bears",
                   controllerId: "p2",
                   ownerId: "p2",

@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/P-T/loyalty are from Scryfall (id = ORI paper printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../emblems";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ import { JACE_TELEPATH_UNBOUND_EMBLEM_ID } from "../../emblems";
 // The back face's `activatedAbilities` are JSON-encoded into the synthesized
 // back-face definition id (`tokenDefinitionId`), so every one of them must be
 // pure data — no `getTargetRequirement` closure, no `resolve()`. All three are.
-export const jaceVrynsProdigy: CardDefinition = {
+export const jaceVrynsProdigy = defineCard(() => ({
     id: "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
     name: "Jace, Vryn's Prodigy",
     rarity: "mythic",
@@ -188,4 +188,4 @@ export const jaceVrynsProdigy: CardDefinition = {
             },
         ],
     },
-};
+}));

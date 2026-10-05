@@ -20,7 +20,7 @@ import type { GameState } from "../state";
 
 function fillLibrary(count: number, controllerId: string) {
     return Array.from({ length: count }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `lib-${controllerId}-${i}`,
             controllerId,
             ownerId: controllerId,
@@ -53,14 +53,14 @@ function setup(): GameState {
     });
     // Three prior spells this turn -> priorSpellCount = 3 -> 3 copies.
     for (let i = 0; i < 3; i++) {
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state);
     }
     expect(state.spellsCastThisTurn).toBe(3);
-    const bf = pushSpell(state, brainFreeze.id, "p1", [
+    const bf = pushSpell(state, brainFreeze().id, "p1", [
         { type: "player", id: "p2" },
     ]);
     emitSpellCastEvent(state, bf); // priorSpellCount = 3

@@ -33,7 +33,7 @@ type Ctx = React.ContextType<typeof GameContext>;
 
 describe("useDivideTargets — permanent label for the controller's own face-down creature (#1735)", () => {
     it("labels the controller's own face-down permanent with its REAL name, not the sentinel", () => {
-        const faceDown = makeInstance(mahamotiDjinn.id, {
+        const faceDown = makeInstance(mahamotiDjinn().id, {
             id: "fd-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -84,7 +84,7 @@ describe("useDivideTargets — permanent label for the controller's own face-dow
         expect(items[0]).toMatchObject({
             type: "permanent",
             id: "fd-1",
-            name: mahamotiDjinn.name,
+            name: mahamotiDjinn().name,
         });
     });
 });

@@ -29,7 +29,7 @@ import { everflowingChalice } from "@convex/cards/sets/wwk/colorless.cards";
 
 describe("Saproling Infestation's kicked trigger on the stack (CR 702.33d)", () => {
     it("keeps its ability id and Oracle text through projectPublicState", () => {
-        const infest = makeInstance(saprolingInfestation.id, {
+        const infest = makeInstance(saprolingInfestation().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "infest-wire",
@@ -42,7 +42,7 @@ describe("Saproling Infestation's kicked trigger on the stack (CR 702.33d)", () 
         });
         // A real kicked cast: Everflowing Chalice with Multikicker paid once.
         const chalice: StackItem = {
-            ...makeInstance(everflowingChalice.id, {
+            ...makeInstance(everflowingChalice().id, {
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "stack",

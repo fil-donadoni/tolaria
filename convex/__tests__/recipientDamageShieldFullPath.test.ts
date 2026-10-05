@@ -41,7 +41,7 @@ const BASE = { gameId: "game-1" as Id<"games">, playerId: "p1" };
 /** p1 holds Captain's Maneuver and exactly {3}{R}{W}; p2 has a Craw Wurm to
  *  point the redirect at. */
 function board(): GameState {
-    const spell = makeInstance(captainsManeuver.id, {
+    const spell = makeInstance(captainsManeuver().id, {
         id: SPELL,
         controllerId: "p1",
         ownerId: "p1",
@@ -52,7 +52,7 @@ function board(): GameState {
             makePlayer("p1", {
                 hand: [spell],
                 battlefield: [
-                    makeInstance(plains.id, {
+                    makeInstance(plains().id, {
                         id: "my-plains",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -63,7 +63,7 @@ function board(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(crawWurm.id, {
+                    makeInstance(crawWurm().id, {
                         id: "wurm",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -109,7 +109,7 @@ describe("CR 614.9 full path — Captain's Maneuver from announcement to board",
         });
 
         // The opponent burns the shielded player; the shield moves it.
-        pushSpell(state, lightningBolt.id, "p2", [
+        pushSpell(state, lightningBolt().id, "p2", [
             { type: "player", id: "p1" },
         ]);
         resolveTopOfStack(state);

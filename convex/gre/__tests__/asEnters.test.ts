@@ -338,7 +338,7 @@ describe("as-enters resume (CR 117.3b, ADR 0100 D5)", () => {
         // A permanent spell resolving is what "parked" the entry: the entry is
         // staged mid-resolution, so the parking item is still on the stack
         // (resolution is peek-and-pop).
-        const parking = pushSpell(state, grizzlyBears.id, "p1");
+        const parking = pushSpell(state, grizzlyBears().id, "p1");
         reanimateAll(state);
         expect(state.stagedEntries).toHaveLength(1);
         expect(state.stagedEntries![0].parkedStackItemId).toBe(parking.id);
@@ -413,14 +413,14 @@ describe("as-enters resume (CR 117.3b, ADR 0100 D5)", () => {
         // the (already popped) parking item, and both players are auto-passing,
         // so a tail that ran on regardless would resolve it in a finished game.
         const state = boardWithGraveyard([], 3);
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             id: "victim",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
         state.players[1].battlefield.push(victim);
-        const second = pushSpell(state, lightningBolt.id, "p1", [
+        const second = pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "victim" },
         ]);
         pushSpell(state, PAY_LIFE_ID, "p1");
@@ -486,7 +486,7 @@ describe("as-enters owed list grows mid-flight (CR 707.6, ADR 0100 D4)", () => {
     it("a definition already consulted is never re-owed", () => {
         const state = boardWithGraveyard([copyCreature], 10);
         state.players[0].battlefield.push(
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "plain-bear",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -702,7 +702,7 @@ describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
         )!;
         // Normalized to the registry's canonical casing, like every other
         // name-card submission.
-        expect(entered.chosenName).toBe(grizzlyBears.name);
+        expect(entered.chosenName).toBe(grizzlyBears().name);
         expect(state.priorityPlayerId).toBe(state.activePlayerId);
     });
 
@@ -745,7 +745,7 @@ describe("as-enters `name` kind (CR 614.1c, ADR 0100 D3)", () => {
         const entered = state.players[0].battlefield.find(
             (c) => c.id === "staged-0"
         )!;
-        expect(entered.chosenName).toBe(grizzlyBears.name);
+        expect(entered.chosenName).toBe(grizzlyBears().name);
     });
 
     it("still rejects an unregistered name", () => {
@@ -804,7 +804,7 @@ describe("as-enters park vs CR 400.7 (no memory of a previous existence)", () =>
         // neither. The entry tail re-applies only what an ANSWER wrote.
         const state = boardWithGraveyard([payLifeCreature]);
         const dead = state.players[0].graveyard[0];
-        dead.chosenName = lightningBolt.name;
+        dead.chosenName = lightningBolt().name;
         dead.chosenSubtypes = ["Forest", "Island"];
 
         reanimateAll(state);
@@ -846,7 +846,7 @@ describe("as-enters submission validation", () => {
     it("rejects a copy pick outside the candidate allow-list", () => {
         const state = boardWithGraveyard([copyCreature], 10);
         state.players[0].battlefield.push(
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "plain-bear",
                 controllerId: "p1",
                 ownerId: "p1",

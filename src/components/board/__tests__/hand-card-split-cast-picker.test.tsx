@@ -73,8 +73,8 @@ import { hillGiant } from "@convex/cards/sets/lea/red.cards";
 import { plains, island } from "@convex/cards/sets/lea/colorless.cards";
 import { splitCastAltCostId } from "@convex/gre/splitCast";
 
-const LEFT_ALT = splitCastAltCostId(standDeliver, "left");
-const RIGHT_ALT = splitCastAltCostId(standDeliver, "right");
+const LEFT_ALT = splitCastAltCostId(standDeliver(), "left");
+const RIGHT_ALT = splitCastAltCostId(standDeliver(), "right");
 
 /** `me` holds Stand // Deliver with one Plains and three Islands in their own
  *  main phase — enough for EITHER half, so the two rows are a genuine choice.
@@ -85,7 +85,7 @@ function projected() {
         players: [
             makePlayer("me", {
                 hand: [
-                    makeInstance(standDeliver.id, {
+                    makeInstance(standDeliver().id, {
                         id: "split1",
                         controllerId: "me",
                         ownerId: "me",
@@ -93,13 +93,13 @@ function projected() {
                     }),
                 ],
                 battlefield: [
-                    makeInstance(plains.id, {
+                    makeInstance(plains().id, {
                         id: "plains-0",
                         controllerId: "me",
                         ownerId: "me",
                     }),
                     ...Array.from({ length: 3 }, (_, i) =>
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             id: `island-${i}`,
                             controllerId: "me",
                             ownerId: "me",
@@ -110,7 +110,7 @@ function projected() {
             }),
             makePlayer("them", {
                 battlefield: [
-                    makeInstance(hillGiant.id, {
+                    makeInstance(hillGiant().id, {
                         id: "giant",
                         controllerId: "them",
                         ownerId: "them",

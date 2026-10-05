@@ -577,7 +577,7 @@ function forestWithCostedGrant(): {
     state: GameState;
     land: CardInstanceState;
 } {
-    const land = makeInstance(forest.id, {
+    const land = makeInstance(forest().id, {
         id: "granted-land",
         controllerId: "p1",
         ownerId: "p1",
@@ -648,7 +648,7 @@ describe("getProducibleColors includes a granted mana ability (CR 106.4, issue #
     });
 
     it("without the grant it could produce only {G}", () => {
-        const plain = makeInstance(forest.id, {
+        const plain = makeInstance(forest().id, {
             id: "plain-forest",
             controllerId: "p1",
             ownerId: "p1",

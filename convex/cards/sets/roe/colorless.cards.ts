@@ -3,11 +3,11 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    GameEvent,
-    PermanentView,
-    TriggeredAbility,
+import {
+    defineCard,
+    type GameEvent,
+    type PermanentView,
+    type TriggeredAbility,
 } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
@@ -118,7 +118,7 @@ function emrakulShuffleGraveyardFromAnywhere(): TriggeredAbility {
     };
 }
 
-export const emrakulTheAeonsTorn: CardDefinition = {
+export const emrakulTheAeonsTorn = defineCard(() => ({
     id: "67600383-bbb8-411c-b8e6-2296650bc747",
     name: "Emrakul, the Aeons Torn",
     rarity: "mythic",
@@ -159,4 +159,4 @@ export const emrakulTheAeonsTorn: CardDefinition = {
         }),
         emrakulShuffleGraveyardFromAnywhere(),
     ],
-};
+}));

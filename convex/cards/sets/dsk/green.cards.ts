@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/P-T are from Scryfall (id = DSK paper printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 
 // Enduring Vitality — {1}{G}{G} Enchantment Creature — Elk Glimmer, 3/3
@@ -52,7 +52,7 @@ import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Creatures you control have "{T}: Add one mana of any color." (#2693)
 // compiler-gap: When Enduring Vitality dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
-export const enduringVitality: CardDefinition = {
+export const enduringVitality = defineCard(() => ({
     id: "9d76a30c-0431-4334-892a-9822dda9671a",
     name: "Enduring Vitality",
     rarity: "rare",
@@ -90,4 +90,4 @@ export const enduringVitality: CardDefinition = {
             cardName: "Enduring Vitality",
         }),
     ],
-};
+}));

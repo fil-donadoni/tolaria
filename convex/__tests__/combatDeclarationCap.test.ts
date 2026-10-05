@@ -110,7 +110,7 @@ function declareAttackersState(
     withGrounds = true
 ): GameState {
     const p2Battlefield = withGrounds
-        ? [makeInstance(duelingGrounds.id, { id: "dg", controllerId: "p2" })]
+        ? [makeInstance(duelingGrounds().id, { id: "dg", controllerId: "p2" })]
         : [];
     return makeState({
         phase: "DECLARE_ATTACKERS",
@@ -134,8 +134,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         const h = makeMutationCtx("p1", [
             gameStateSeed(
                 declareAttackersState([
-                    creature(grizzlyBears.id, "a", "p1"),
-                    creature(grizzlyBears.id, "b", "p1"),
+                    creature(grizzlyBears().id, "a", "p1"),
+                    creature(grizzlyBears().id, "b", "p1"),
                 ])
             ),
         ]);
@@ -154,8 +154,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
             gameStateSeed(
                 declareAttackersState(
                     [
-                        creature(grizzlyBears.id, "a", "p1"),
-                        creature(grizzlyBears.id, "b", "p1"),
+                        creature(grizzlyBears().id, "a", "p1"),
+                        creature(grizzlyBears().id, "b", "p1"),
                     ],
                     false
                 )
@@ -175,8 +175,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         const h = makeMutationCtx("p1", [
             gameStateSeed(
                 declareAttackersState([
-                    creature(juggernaut.id, "j1", "p1"),
-                    creature(juggernaut.id, "j2", "p1"),
+                    creature(juggernaut().id, "j1", "p1"),
+                    creature(juggernaut().id, "j2", "p1"),
                 ])
             ),
         ]);
@@ -198,8 +198,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         const h = makeMutationCtx("p1", [
             gameStateSeed(
                 declareAttackersState([
-                    creature(juggernaut.id, "j1", "p1"),
-                    creature(grizzlyBears.id, "bear", "p1"),
+                    creature(juggernaut().id, "j1", "p1"),
+                    creature(grizzlyBears().id, "bear", "p1"),
                 ])
             ),
         ]);
@@ -223,8 +223,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
             gameStateSeed(
                 declareAttackersState(
                     [
-                        creature(juggernaut.id, "j1", "p1"),
-                        creature(grizzlyBears.id, "bear", "p1"),
+                        creature(juggernaut().id, "j1", "p1"),
+                        creature(grizzlyBears().id, "bear", "p1"),
                     ],
                     false
                 )
@@ -248,9 +248,9 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         // branch does, which the fold has to repeat because it removes
         // attackers the player never deselected.
         const state = declareAttackersState([
-            creature(juggernaut.id, "j1", "p1"),
-            creature(grizzlyBears.id, "bear", "p1"),
-            creature(grizzlyBears.id, "bear2", "p1"),
+            creature(juggernaut().id, "j1", "p1"),
+            creature(grizzlyBears().id, "bear", "p1"),
+            creature(grizzlyBears().id, "bear2", "p1"),
         ]);
         state.combat!.attackerIds = ["bear", "bear2"];
         state.combat!.attackTargets = { bear: "pw1", bear2: "pw1" };
@@ -274,8 +274,8 @@ describe("declared-attacker cap through the real mutations (CR 508.1a, issue #11
         const h = makeMutationCtx("p1", [
             gameStateSeed(
                 declareAttackersState([
-                    creature(juggernaut.id, "j1", "p1"),
-                    creature(juggernaut.id, "j2", "p1"),
+                    creature(juggernaut().id, "j1", "p1"),
+                    creature(juggernaut().id, "j2", "p1"),
                 ])
             ),
         ]);
@@ -297,9 +297,9 @@ describe("declared-blocker cap through the real mutations (CR 509.1a, issue #112
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        creature(grizzlyBears.id, "a", "p1"),
-                        creature(grizzlyBears.id, "b", "p1"),
-                        makeInstance(duelingGrounds.id, {
+                        creature(grizzlyBears().id, "a", "p1"),
+                        creature(grizzlyBears().id, "b", "p1"),
+                        makeInstance(duelingGrounds().id, {
                             id: "dg",
                             controllerId: "p1",
                         }),
@@ -310,8 +310,8 @@ describe("declared-blocker cap through the real mutations (CR 509.1a, issue #112
                         // Two-Headed Giant of Foriys can block an ADDITIONAL
                         // creature (CR 509.1b), so the second assignment below
                         // is refused by the cap alone and by nothing else.
-                        creature(twoHeadedGiantOfForiys.id, "x", "p2"),
-                        creature(grizzlyBears.id, "y", "p2"),
+                        creature(twoHeadedGiantOfForiys().id, "x", "p2"),
+                        creature(grizzlyBears().id, "y", "p2"),
                     ],
                 }),
             ],
@@ -348,8 +348,8 @@ describe("must-block requirements under the declared-blocker cap (CR 509.1a/509.
     /** p1 attacking with a Lure-enchanted creature; p2 has two untapped
      *  creatures, both "able to block" it and therefore both REQUIRED to. */
     function lureState(withCap: boolean): GameState {
-        const attacker = creature(grizzlyBears.id, "a", "p1");
-        const aura = makeInstance(lure.id, {
+        const attacker = creature(grizzlyBears().id, "a", "p1");
+        const aura = makeInstance(lure().id, {
             id: "lure",
             controllerId: "p1",
             ownerId: "p1",
@@ -358,7 +358,7 @@ describe("must-block requirements under the declared-blocker cap (CR 509.1a/509.
         const p1Battlefield: CardInstanceState[] = [attacker, aura];
         if (withCap) {
             p1Battlefield.push(
-                makeInstance(duelingGrounds.id, {
+                makeInstance(duelingGrounds().id, {
                     id: "dg",
                     controllerId: "p1",
                 })
@@ -372,8 +372,8 @@ describe("must-block requirements under the declared-blocker cap (CR 509.1a/509.
                 makePlayer("p1", { battlefield: p1Battlefield }),
                 makePlayer("p2", {
                     battlefield: [
-                        creature(grizzlyBears.id, "x", "p2"),
-                        creature(grizzlyBears.id, "y", "p2"),
+                        creature(grizzlyBears().id, "x", "p2"),
+                        creature(grizzlyBears().id, "y", "p2"),
                     ],
                 }),
             ],
@@ -424,22 +424,22 @@ describe("must-block requirements never yield to a VOLUNTARY block (CR 509.1a/50
     function lureBoard(
         assignments: Record<string, string[]>,
         withCap: boolean,
-        defenderDefId: string = grizzlyBears.id
+        defenderDefId: string = grizzlyBears().id
     ): GameState {
-        const aura = makeInstance(lure.id, {
+        const aura = makeInstance(lure().id, {
             id: "lure",
             controllerId: "p1",
             ownerId: "p1",
         });
         aura.attachedTo = "a";
         const p1Battlefield: CardInstanceState[] = [
-            creature(grizzlyBears.id, "a", "p1"),
-            creature(grizzlyBears.id, "a2", "p1"),
+            creature(grizzlyBears().id, "a", "p1"),
+            creature(grizzlyBears().id, "a2", "p1"),
             aura,
         ];
         if (withCap) {
             p1Battlefield.push(
-                makeInstance(duelingGrounds.id, {
+                makeInstance(duelingGrounds().id, {
                     id: "dg",
                     controllerId: "p1",
                 })
@@ -454,7 +454,7 @@ describe("must-block requirements never yield to a VOLUNTARY block (CR 509.1a/50
                 makePlayer("p2", {
                     battlefield: [
                         creature(defenderDefId, "x", "p2"),
-                        creature(grizzlyBears.id, "y", "p2"),
+                        creature(grizzlyBears().id, "y", "p2"),
                     ],
                 }),
             ],
@@ -512,7 +512,7 @@ describe("must-block requirements never yield to a VOLUNTARY block (CR 509.1a/50
         // obeyed) and the declaration unconfirmable.
         const h = makeMutationCtx("p2", [
             gameStateSeed(
-                lureBoard({ x: ["a2"] }, true, twoHeadedGiantOfForiys.id)
+                lureBoard({ x: ["a2"] }, true, twoHeadedGiantOfForiys().id)
             ),
         ]);
         await confirm(h.ctx);

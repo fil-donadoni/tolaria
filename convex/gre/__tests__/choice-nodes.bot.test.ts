@@ -100,7 +100,7 @@ function stateWithChoice(
         players: [
             makePlayer("p1", {
                 battlefield: bearIds.map((id) =>
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id,
                         controllerId: "p1",
                         ownerId: "p1",
@@ -150,7 +150,7 @@ function stateWithLibrarySearch(
                 battlefield: Array.from(
                     { length: opts.landsInPlay ?? 0 },
                     (_, i) =>
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: `${prefix}-land-${i}`,
                             controllerId: "p1",
                             ownerId: "p1",
@@ -345,7 +345,7 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
     });
 
     it("stable identity: definition name, and a count-aware multiset for a set", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "x",
             controllerId: "p1",
             ownerId: "p1",
@@ -644,7 +644,7 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
     });
 
     it("a colour the opponent's board shows scores ABOVE one it doesn't", () => {
-        const state = colorChoiceState([grizzlyBears.id]); // green permanent
+        const state = colorChoiceState([grizzlyBears().id]); // green permanent
         const head = state.pendingChoices![0];
         const green = heuristicChoicePrior(
             state,
@@ -674,7 +674,7 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
     });
 
     it("colourless (`C`, Giver of Runes' extra mode) is scored neutral, never penalised for carrying no colour evidence", () => {
-        const state = colorChoiceState([grizzlyBears.id]);
+        const state = colorChoiceState([grizzlyBears().id]);
         const head = state.pendingChoices![0];
         const colorless = heuristicChoicePrior(
             state,
@@ -685,7 +685,7 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
     });
 
     it("a non-colour option-pick (Primal Clay body modes) is untouched — no `hint.colorMode` stays neutral", () => {
-        const state = colorChoiceState([grizzlyBears.id]);
+        const state = colorChoiceState([grizzlyBears().id]);
         const head = state.pendingChoices![0];
         const noColor = heuristicChoicePrior(state, head, {
             key: "option-pick:3-3-body",
@@ -714,7 +714,7 @@ describe("colorModePrior (issue #2306) — protection-colour choice scored again
                 makePlayer("p1"),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "opp-bear",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -769,7 +769,7 @@ describe("modeProtectionColor through the REAL interpreter (issue #2306 review r
                 makePlayer("p1", { battlefield: controllerBattlefield }),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "opp-bear",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -781,7 +781,7 @@ describe("modeProtectionColor through the REAL interpreter (issue #2306 review r
     }
 
     it("Kavu Chameleon's real `colorChoiceModes` ability raises options with NO protectionColor — every candidate stays NEUTRAL_PRIOR even against strong opponent evidence", () => {
-        const kavu = makeInstance(kavuChameleon.id, {
+        const kavu = makeInstance(kavuChameleon().id, {
             id: "kavu",
             controllerId: "p1",
             ownerId: "p1",
@@ -812,7 +812,7 @@ describe("modeProtectionColor through the REAL interpreter (issue #2306 review r
     });
 
     it("Mother of Runes' real protection ability raises options WITH protectionColor set, scored against opponent evidence, and the field survives the wire projection", () => {
-        const mother = makeInstance(motherOfRunes.id, {
+        const mother = makeInstance(motherOfRunes().id, {
             id: "mother",
             controllerId: "p1",
             ownerId: "p1",
@@ -920,7 +920,7 @@ describe("choice-node traversal seams (issue #1425)", () => {
             players: [
                 makePlayer("p1", {
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "land-1",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -1163,11 +1163,11 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     it("collapses the pool to DISTINCT card identities, keyed by name", () => {
         // Four Forests are ONE decision ("fetch a Forest"), not four.
         const state = stateWithLibrarySearch([
-            forest.id,
-            forest.id,
-            forest.id,
-            forest.id,
-            grizzlyBears.id,
+            forest().id,
+            forest().id,
+            forest().id,
+            forest().id,
+            grizzlyBears().id,
         ]);
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         expect(cands.map((c) => c.key).sort()).toEqual([
@@ -1180,7 +1180,7 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
 
     it("ranks targets by worth: the bigger body opens before the smaller one", () => {
         const state = stateWithLibrarySearch(
-            [grizzlyBears.id, crawWurm.id],
+            [grizzlyBears().id, crawWurm().id],
             {},
             { landsInPlay: 5 }
         );
@@ -1197,7 +1197,7 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     it("prices a fetched LAND against the searcher's mana development", () => {
         // Land-light (the fetchland's real window): the land outranks a body.
         const early = stateWithLibrarySearch(
-            [crawWurm.id, forest.id],
+            [crawWurm().id, forest().id],
             {},
             { landsInPlay: 0 }
         );
@@ -1206,7 +1206,7 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
         );
         // Flooded: another land is nearly worthless, the body wins.
         const flooded = stateWithLibrarySearch(
-            [crawWurm.id, forest.id],
+            [crawWurm().id, forest().id],
             {},
             { landsInPlay: 5 }
         );
@@ -1219,7 +1219,7 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
         // A fetchland's "search for a basic land card" is precomputed into
         // `candidateIds` when the choice is raised (hidden zone, CR 400.2).
         const state = stateWithLibrarySearch(
-            [grizzlyBears.id, forest.id, crawWurm.id],
+            [grizzlyBears().id, forest().id, crawWurm().id],
             { candidateIds: ["lib-1"] }
         );
         const cands = choiceCandidates(state, state.pendingChoices![0]);
@@ -1234,14 +1234,14 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     });
 
     it("CR 701.23b: 'fail to find' is a branch only when the count admits it", () => {
-        const may = stateWithLibrarySearch([forest.id], {
+        const may = stateWithLibrarySearch([forest().id], {
             count: { min: 0, max: 1 },
         });
         expect(
             choiceCandidates(may, may.pendingChoices![0]).map((c) => c.key)
         ).toContain("search-library:none");
 
-        const mustFind = stateWithLibrarySearch([forest.id], { count: 1 });
+        const mustFind = stateWithLibrarySearch([forest().id], { count: 1 });
         expect(
             choiceCandidates(mustFind, mustFind.pendingChoices![0]).map(
                 (c) => c.key
@@ -1250,7 +1250,7 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     });
 
     it("finding outranks failing to find, but failing stays reachable", () => {
-        const state = stateWithLibrarySearch([crawWurm.id], {
+        const state = stateWithLibrarySearch([crawWurm().id], {
             count: { min: 0, max: 1 },
         });
         const cands = choiceCandidates(state, state.pendingChoices![0]);
@@ -1301,9 +1301,12 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     it("a multi-card search fills greedily and keys the whole multiset", () => {
         // "Search for up to two cards": the answer space is the subset lattice;
         // the generator emits one candidate per LEAD identity, greedily filled.
-        const state = stateWithLibrarySearch([grizzlyBears.id, crawWurm.id], {
-            count: 2,
-        });
+        const state = stateWithLibrarySearch(
+            [grizzlyBears().id, crawWurm().id],
+            {
+                count: 2,
+            }
+        );
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         expect(cands.map((c) => c.key)).toEqual([
             "search-library:Craw Wurm | Grizzly Bears",
@@ -1317,12 +1320,12 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
         // ISMCTS reshuffles the searcher's library every iteration: same cards,
         // different order and (for a fabricated world) different ids.
         const worldA = stateWithLibrarySearch(
-            [grizzlyBears.id, crawWurm.id],
+            [grizzlyBears().id, crawWurm().id],
             {},
             { idPrefix: "worldA" }
         );
         const worldB = stateWithLibrarySearch(
-            [crawWurm.id, grizzlyBears.id],
+            [crawWurm().id, grizzlyBears().id],
             {},
             { idPrefix: "worldB" }
         );
@@ -1342,7 +1345,10 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
     });
 
     it("enumerateMoves / decidingPlayer expose the node to the search", () => {
-        const state = stateWithLibrarySearch([grizzlyBears.id, crawWurm.id]);
+        const state = stateWithLibrarySearch([
+            grizzlyBears().id,
+            crawWurm().id,
+        ]);
         expect(decidingPlayer(state)).toBe("p1");
         const moves = enumerateMoves(state, "p1");
         expect(moves).toHaveLength(2);
@@ -1374,13 +1380,13 @@ describe("search-library generator (CR 701.23 — fetchlands / tutors, issue #14
             players: [
                 makePlayer("p1", {
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "lib-bear",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "library",
                         }),
-                        makeInstance(crawWurm.id, {
+                        makeInstance(crawWurm().id, {
                             id: "lib-wurm",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -1440,13 +1446,13 @@ describe("search-library playout: searchWithTrace fetches a sensible target (iss
             players: [
                 makePlayer("p1", {
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "lib-bear",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "library",
                         }),
-                        makeInstance(crawWurm.id, {
+                        makeInstance(crawWurm().id, {
                             id: "lib-wurm",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -1482,7 +1488,7 @@ describe("search-library determinization safety (issue #1429)", () => {
         // `min` eligible cards. A short submission is ILLEGAL, and the throw
         // would escape `iterate` and kill the whole search — so the generator
         // must offer nothing rather than an under-count pick.
-        const state = stateWithLibrarySearch([grizzlyBears.id], {
+        const state = stateWithLibrarySearch([grizzlyBears().id], {
             count: { min: 2, max: 2 },
         });
         const head = state.pendingChoices![0];
@@ -1493,7 +1499,7 @@ describe("search-library determinization safety (issue #1429)", () => {
     });
 
     it("pins WHY: the real resolver rejects an under-count submission", () => {
-        const state = stateWithLibrarySearch([grizzlyBears.id], {
+        const state = stateWithLibrarySearch([grizzlyBears().id], {
             count: { min: 2, max: 2 },
         });
         expect(() =>
@@ -1510,7 +1516,7 @@ describe("search-library determinization safety (issue #1429)", () => {
     it("selectRootMove re-resolves the winning edge against the ROOT world", () => {
         // The root world (the REAL state the move is submitted against).
         const rootState = stateWithLibrarySearch(
-            [grizzlyBears.id, crawWurm.id],
+            [grizzlyBears().id, crawWurm().id],
             {},
             { idPrefix: "root" }
         );
@@ -1682,7 +1688,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         } as CardDefinition);
 
         const state = stateWithLibrarySearch(
-            [diskId, aboveFloorCreatureId, forest.id],
+            [diskId, aboveFloorCreatureId, forest().id],
             {},
             { landsInPlay: 5 } // flooded — a fetched land is near-worthless too
         );
@@ -1721,9 +1727,9 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         // fixtures) so the assertion pins the actual catalogue, not a
         // hand-tuned stand-in.
         const state = stateWithLibrarySearch([
-            lightningBolt.id, // burn: dealDamage 3 (own spell script)
-            mindStone.id, // draw-1: sacrifice ability draws a card
-            mirrisGuile.id, // scry-only: upkeep ability, may-look-and-reorder
+            lightningBolt().id, // burn: dealDamage 3 (own spell script)
+            mindStone().id, // draw-1: sacrifice ability draws a card
+            mirrisGuile().id, // scry-only: upkeep ability, may-look-and-reorder
         ]);
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         const boltCand = cands.find((c) => c.key.includes("Lightning Bolt"))!;
@@ -1759,7 +1765,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         // `noncreatureCardWorth` falls back to — it must still price at the
         // flat floor, not zero — losing the fallback entirely would be its
         // own bug.
-        const state = stateWithLibrarySearch([blackLotus.id]);
+        const state = stateWithLibrarySearch([blackLotus().id]);
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         const lotusCand = cands.find((c) => c.key.includes("Black Lotus"))!;
         expect(lotusCand).toBeDefined();
@@ -1789,7 +1795,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
                     makePlayer("p2", {
                         battlefield: hasThreat
                             ? [
-                                  makeInstance(crawWurm.id, {
+                                  makeInstance(crawWurm().id, {
                                       id: "opp-wurm",
                                       controllerId: "p2",
                                       ownerId: "p2",
@@ -1862,7 +1868,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
                 }),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(crawWurm.id, {
+                        makeInstance(crawWurm().id, {
                             id: "f4-opp-wurm",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -1938,7 +1944,7 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
                             }),
                         ],
                         battlefield: Array.from({ length: n }, (_, i) =>
-                            makeInstance(grizzlyBears.id, {
+                            makeInstance(grizzlyBears().id, {
                                 id: `cb-bear-${i}`,
                                 controllerId: "p1",
                                 ownerId: "p1",
@@ -2201,7 +2207,7 @@ describe("multi-pick `option-pick` choice nodes (CR 614.12a as-enters `subtypes`
             priorityPlayerId: "p1",
             activePlayerId: "p1",
         });
-        pushSpell(state, illusionaryTerrain.id, "p1");
+        pushSpell(state, illusionaryTerrain().id, "p1");
         resolveTopOfStack(state);
         const head = state.pendingChoices![0];
         expect(head.kind).toBe("option-pick");
@@ -2238,7 +2244,7 @@ describe("multi-pick `option-pick` choice nodes (CR 614.12a as-enters `subtypes`
                 choiceId: head.choiceId,
             });
             const terrain = fresh.players[0].battlefield.find(
-                (c) => c.card.id === illusionaryTerrain.id
+                (c) => c.card.id === illusionaryTerrain().id
             )!;
             expect(terrain.chosenSubtypes).toHaveLength(2);
             expect(fresh.pendingChoices?.length ?? 0).toBe(0);

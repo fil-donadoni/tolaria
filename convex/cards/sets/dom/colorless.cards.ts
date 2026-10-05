@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { constructArtifactsYouControlToken } from "../../sharedTokens";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -50,7 +50,7 @@ function createKarnConstruct(ctx: SpellContext): void {
     ctx.createToken(KARN_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
 
-export const karnScionOfUrza: CardDefinition = {
+export const karnScionOfUrza = defineCard(() => ({
     id: "07a3d9e8-8597-498b-869c-cff79e0df516",
     name: "Karn, Scion of Urza",
     rarity: "mythic",
@@ -150,4 +150,4 @@ export const karnScionOfUrza: CardDefinition = {
             ],
         },
     ],
-};
+}));

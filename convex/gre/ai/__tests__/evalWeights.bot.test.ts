@@ -157,7 +157,7 @@ describe("evaluate() reads an explicit weights vector (issue #2683)", () => {
         const p1 = makePlayer("p1", {
             life: 20,
             battlefield: [
-                makeInstance(island.id, {
+                makeInstance(island().id, {
                     id: "p1-island",
                     controllerId: "p1",
                     isTapped: false,

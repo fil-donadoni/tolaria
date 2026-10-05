@@ -2,7 +2,7 @@
 // `import * as nem from "./sets/nem/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Seal of Fire — "Sacrifice this enchantment: It deals 2 damage to any
 // target." A "Seal" permanent: it enters as an Enchantment and stores a
@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // `dealDamage` Op to the announced any-target (CR 120.1). The source is
 // removed to the graveyard at cost payment, before the ability resolves off
 // its stack-item clone.
-export const sealOfFire: CardDefinition = {
+export const sealOfFire = defineCard(() => ({
     id: "37eaf1f6-4bdc-4669-9a15-50b65e016ccf",
     rarity: "common",
     name: "Seal of Fire",
@@ -32,7 +32,7 @@ export const sealOfFire: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Arc Mage — {2}{R} 2/2 Human Spellshaper. "{2}{R}, {T}, Discard a card: This
 // creature deals 2 damage divided as you choose among one or two targets." (CR
@@ -46,7 +46,7 @@ export const sealOfFire: CardDefinition = {
 // DSL-first (ADR 0045): the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4)
 // reads the announced per-target split off the ability's stack item; `total`
 // mirrors `divideAsChosen.total`.
-export const arcMage: CardDefinition = {
+export const arcMage = defineCard(() => ({
     id: "62982dab-4c27-45b3-9740-38fec3df7226", // NEM 77
     rarity: "uncommon",
     name: "Arc Mage",
@@ -76,4 +76,4 @@ export const arcMage: CardDefinition = {
             effects: [{ op: "dealDamageDividedAsChosen", total: 2 }],
         },
     ],
-};
+}));

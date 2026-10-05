@@ -2,7 +2,7 @@
 // `import * as dmu from "./sets/dmu/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 
 // Sheoldred, the Apocalypse — {2}{B}{B} Legendary Creature — Phyrexian
@@ -16,7 +16,7 @@ import { drawTrigger } from "../../abilities/triggers/drawTrigger";
 // clause calls `ctx.loseLife(drawingPlayerId, 2)` directly (mirrors the
 // documented `phaseTrigger`/`drawTrigger` `effects` scope restriction, not an
 // unmodelled Op). Part of the #674 card-draw/card-advantage FREE tranche.)
-export const sheoldredTheApocalypse: CardDefinition = {
+export const sheoldredTheApocalypse = defineCard(() => ({
     id: "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
     name: "Sheoldred, the Apocalypse",
     rarity: "mythic",
@@ -45,7 +45,7 @@ export const sheoldredTheApocalypse: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // TODO(issue #1303 residue audit — "target creature with total power and
 // toughness 5 or less" needs a summed power+toughness target filter;

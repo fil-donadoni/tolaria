@@ -1,7 +1,7 @@
 // mom — black cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 
 // Consuming Aetherborn — {3}{B} Creature — Aetherborn Vampire, 2/2. "Backup 1
@@ -12,7 +12,7 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 // its only granted ability is the single already-implemented keyword
 // `lifelink`, so `backupTrigger(1, ["lifelink"])` is the entire triggered-
 // ability body — no other unshipped mechanic involved.
-export const consumingAetherborn: CardDefinition = {
+export const consumingAetherborn = defineCard(() => ({
     id: "7311ade8-eb75-40f8-b018-668762aa3b77", // MOM printing (scryfallId)
     name: "Consuming Aetherborn",
     rarity: "common",
@@ -28,4 +28,4 @@ export const consumingAetherborn: CardDefinition = {
     // 702.9, AND is what backupTrigger(1, [...]) grants a non-self target).
     staticAbilities: ["backup 1", "lifelink"],
     triggeredAbilities: [backupTrigger(1, ["lifelink"])],
-};
+}));

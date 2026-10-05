@@ -111,7 +111,7 @@ describe("token static-effect codec (CR 611)", () => {
             isTapped: false,
             isSummoningSick: true,
         };
-        const thopter = makeInstance(ornithopter.id, {
+        const thopter = makeInstance(ornithopter().id, {
             id: "thopter-1",
             controllerId: "p1",
             ownerId: "p1",

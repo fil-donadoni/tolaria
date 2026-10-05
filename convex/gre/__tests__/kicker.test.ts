@@ -81,23 +81,23 @@ registerTokenDefinition(kickerAltProbe);
 describe("Kicker — cost validation (CR 702.33 / 702.33e)", () => {
     it("returns undefined for an absent / all-zero request", () => {
         expect(
-            resolveKickerPayments(burstLightning, undefined)
+            resolveKickerPayments(burstLightning(), undefined)
         ).toBeUndefined();
-        expect(resolveKickerPayments(burstLightning, {})).toBeUndefined();
+        expect(resolveKickerPayments(burstLightning(), {})).toBeUndefined();
         expect(
-            resolveKickerPayments(burstLightning, { kicker: 0 })
+            resolveKickerPayments(burstLightning(), { kicker: 0 })
         ).toBeUndefined();
     });
 
     it("accepts a single kick for a non-Multikicker card", () => {
-        expect(resolveKickerPayments(burstLightning, { kicker: 1 })).toEqual({
+        expect(resolveKickerPayments(burstLightning(), { kicker: 1 })).toEqual({
             kicker: 1,
         });
     });
 
     it("rejects paying a single kicker more than once (CR 702.33 vs 702.33e)", () => {
         expect(() =>
-            resolveKickerPayments(burstLightning, { kicker: 2 })
+            resolveKickerPayments(burstLightning(), { kicker: 2 })
         ).toThrow();
     });
 
@@ -110,22 +110,22 @@ describe("Kicker — cost validation (CR 702.33 / 702.33e)", () => {
 
     it("rejects a positive count for a card with no kicker", () => {
         expect(() =>
-            resolveKickerPayments(grizzlyBears, { kicker: 1 })
+            resolveKickerPayments(grizzlyBears(), { kicker: 1 })
         ).toThrow();
     });
 
     it("rejects a kicker id the card does not declare (ADR 0079)", () => {
         expect(() =>
-            resolveKickerPayments(burstLightning, { "kicker-nope": 1 })
+            resolveKickerPayments(burstLightning(), { "kicker-nope": 1 })
         ).toThrow();
     });
 
     it("rejects a non-integer / negative count", () => {
         expect(() =>
-            resolveKickerPayments(burstLightning, { kicker: 1.5 })
+            resolveKickerPayments(burstLightning(), { kicker: 1.5 })
         ).toThrow();
         expect(() =>
-            resolveKickerPayments(burstLightning, { kicker: -1 })
+            resolveKickerPayments(burstLightning(), { kicker: -1 })
         ).toThrow();
     });
 });
@@ -146,13 +146,13 @@ describe("Kicker — the total is DERIVED, never stored (ADR 0079)", () => {
 describe("Kicker — cost fold + tally snapshot (CR 702.33a / 601.2f)", () => {
     it("folds the kicker cost into the paid mana and stamps kickerPayments on the stack item", () => {
         // Bloodchief's Thirst: {B}; Kicker {2}{B}. Kicked total = {2}{B}{B}.
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "thirst1",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "victim1",
@@ -186,13 +186,13 @@ describe("Kicker — cost fold + tally snapshot (CR 702.33a / 601.2f)", () => {
     });
 
     it("pays only the base cost when not kicked", () => {
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "thirst2",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "victim2",
@@ -304,7 +304,7 @@ describe("Kicker composes with an alternative cost (CR 702.33a additional + CR 1
 describe("Kicker — kickedTargetRequirement widens legal targets (CR 702.33)", () => {
     it("unkicked Bloodchief's Thirst can't target a mana-value-5 creature; kicked can", () => {
         // Serra Angel has mana value 5.
-        const angel = makeInstance(serraAngel.id, {
+        const angel = makeInstance(serraAngel().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "angel1",
@@ -317,14 +317,14 @@ describe("Kicker — kickedTargetRequirement widens legal targets (CR 702.33)", 
         });
         const unkicked = getLegalTargets(
             state,
-            bloodchiefsThirst.targetRequirement!,
+            bloodchiefsThirst().targetRequirement!,
             NO_TARGETING_SOURCE,
             "p1"
         );
         expect(unkicked.some((t) => t.id === "angel1")).toBe(false);
         const kicked = getLegalTargets(
             state,
-            bloodchiefsThirst.kickedTargetRequirement!,
+            bloodchiefsThirst().kickedTargetRequirement!,
             NO_TARGETING_SOURCE,
             "p1"
         );
@@ -342,14 +342,14 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
     const FULL_POOL = { W: 2, U: 2, B: 2, R: 2, G: 2, C: 2 };
 
     it("Bloodchief's Thirst is castable when only a mana-value-5 creature exists (kicked path)", () => {
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
             id: "thirst1",
         });
         // Serra Angel has mana value 5 — outside the unkicked MV ≤ 2 set.
-        const angel = makeInstance(serraAngel.id, {
+        const angel = makeInstance(serraAngel().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "angel1",
@@ -361,14 +361,14 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
     });
 
     it("Bloodchief's Thirst is castable with a mana-value-2 creature (base path, no regression)", () => {
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
             id: "thirst2",
         });
         // Grizzly Bears has mana value 2 — inside the unkicked MV ≤ 2 set.
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears1",
@@ -380,7 +380,7 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
     });
 
     it("Bloodchief's Thirst is NOT castable with no creature/planeswalker anywhere (boundary)", () => {
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
@@ -395,7 +395,7 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
     });
 
     it("Tear Asunder is castable when only a creature exists (kicked nonland-permanent path)", () => {
-        const tear = makeInstance(tearAsunder.id, {
+        const tear = makeInstance(tearAsunder().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
@@ -403,7 +403,7 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
         });
         // Only a creature on the battlefield — outside the unkicked
         // artifact/enchantment set, but inside the kicked nonland-permanent set.
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "bears2",
@@ -415,13 +415,13 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
     });
 
     it("Tear Asunder is castable with an artifact present (base path, no regression)", () => {
-        const tear = makeInstance(tearAsunder.id, {
+        const tear = makeInstance(tearAsunder().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
             id: "tear2",
         });
-        const lotus = makeInstance(blackLotus.id, {
+        const lotus = makeInstance(blackLotus().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "lotus1",
@@ -436,7 +436,7 @@ describe("Kicker — cast legality considers the kicked target set (CR 702.33 / 
 describe("Kicker — serialization round-trip (schema drift guard, CR 702.33)", () => {
     it("preserves a stack item's kickerPayments across compact/expand", () => {
         const state = makeState();
-        const item = pushSpell(state, burstLightning.id, "p1", [
+        const item = pushSpell(state, burstLightning().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         item.kickerPayments = { kicker: 1 };
@@ -533,7 +533,7 @@ const returnLegProbe: CardDefinition = {
 registerTokenDefinition(returnLegProbe);
 
 function land(id: string) {
-    return makeInstance(forest.id, {
+    return makeInstance(forest().id, {
         controllerId: "p1",
         ownerId: "p1",
         id,
@@ -668,7 +668,7 @@ describe("Kicker — PERMANENT leg is ALWAYS an explicit pick (CR 702.33a kicker
             zone: "hand",
             id: "ret1",
         });
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "bears-own",
@@ -701,13 +701,13 @@ describe("Kicker — HAND leg (CR 702.33a kicker / 701.9 discard)", () => {
             zone: "hand",
             id: "hand1",
         });
-        const fodderA = makeInstance(grizzlyBears.id, {
+        const fodderA = makeInstance(grizzlyBears().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "fodderA",
         });
-        const fodderB = makeInstance(serraAngel.id, {
+        const fodderB = makeInstance(serraAngel().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -810,23 +810,23 @@ describe("Kicker — the cast's OWN additional cost survives a kicked cast (CR 6
     // pip) is the shipped-card reproduction: unkicked the Swamp goes, kicked it
     // used to survive while the spell still reached the stack.
     function thirstUnderDrought(kicked: boolean) {
-        const thirst = makeInstance(bloodchiefsThirst.id, {
+        const thirst = makeInstance(bloodchiefsThirst().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "thirstD",
         });
-        const droughtInst = makeInstance(drought.id, {
+        const droughtInst = makeInstance(drought().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "drought1",
         });
-        const swampInst = makeInstance(swamp.id, {
+        const swampInst = makeInstance(swamp().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "swamp1",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "victimD",
@@ -912,12 +912,12 @@ describe("Kicker — a permanent leg colliding with another additional cost fail
             zone: "hand",
             id: "pipsac1",
         });
-        const droughtInst = makeInstance(drought.id, {
+        const droughtInst = makeInstance(drought().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "drought2",
         });
-        const swampInst = makeInstance(swamp.id, {
+        const swampInst = makeInstance(swamp().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "swamp2",
@@ -1014,12 +1014,12 @@ describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE,
             zone: "hand",
             id: "pipsacT1",
         });
-        const droughtInst = makeInstance(drought.id, {
+        const droughtInst = makeInstance(drought().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "droughtT",
         });
-        const swampInst = makeInstance(swamp.id, {
+        const swampInst = makeInstance(swamp().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "swampT",
@@ -1122,12 +1122,12 @@ describe("Kicker permanent-leg collision — rejected in announceCast's PRELUDE,
             zone: "hand",
             id: "pipsacU1",
         });
-        const droughtInst = makeInstance(drought.id, {
+        const droughtInst = makeInstance(drought().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "droughtU",
         });
-        const swampInst = makeInstance(swamp.id, {
+        const swampInst = makeInstance(swamp().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "swampU",

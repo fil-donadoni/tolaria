@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Robber of the Rich — {1}{R} Creature — Human Archer Rogue, 2/2, reach,
 // haste (Vintage Cube FREE: ETB/dies/attack triggers, issue #679). "Reach,
@@ -32,7 +32,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // "Any COLOR", not "any type": CR 105.1's five colours, colorless never a
 // substitution target — a `{C}` pip on the stolen card stays payable only with
 // colorless mana (CR 107.4c).
-export const robberOfTheRich: CardDefinition = {
+export const robberOfTheRich = defineCard(() => ({
     id: "0ecbe097-ba51-42e5-957c-382eb66c08f0",
     name: "Robber of the Rich",
     rarity: "mythic",
@@ -93,7 +93,7 @@ export const robberOfTheRich: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slice 2 of ADR 0120 — the second adventurer card (issue #3303, CR 715).
@@ -146,7 +146,7 @@ export const robberOfTheRich: CardDefinition = {
 // baselined — a new card cannot be added to that baseline.
 // compiler-gap: "Whenever this creature becomes the target of a spell, this creature deals 2 damage to that spell's controller." (#2693)
 // compiler-gap: "Damage can't be prevented this turn." (#2693)
-export const bonecrusherGiant: CardDefinition = {
+export const bonecrusherGiant = defineCard(() => ({
     id: "ff984a4c-1818-4f8f-a9d7-fce57e77937d", // ELD 115
     rarity: "rare",
     name: "Bonecrusher Giant",
@@ -198,4 +198,4 @@ export const bonecrusherGiant: CardDefinition = {
             { op: "dealDamage", amount: 2, to: { target: 0 } },
         ],
     },
-};
+}));

@@ -2,7 +2,7 @@
 // split). Modern Scryfall oracle text is authoritative (ADR 0004). Colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
+import { defineCard, type SpellContext, type TokenSpec } from "../../types";
 import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 
 const CURRENCY_CONVERTER_ID = "187b6719-e5ed-4615-a00b-3313ceca055b";
@@ -90,7 +90,7 @@ const ROGUE_TOKEN: TokenSpec = {
 //      declaratively-selected `forEach` set. Blocked on: missing Op for
 //      per-source exile-linkage retrieval. Planned-migratable if that Op is
 //      ever added.
-export const currencyConverter: CardDefinition = {
+export const currencyConverter = defineCard(() => ({
     id: CURRENCY_CONVERTER_ID,
     name: "Currency Converter",
     rarity: "rare",
@@ -208,4 +208,4 @@ export const currencyConverter: CardDefinition = {
             },
         },
     ],
-};
+}));

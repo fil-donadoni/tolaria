@@ -154,7 +154,7 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
             MOUNTAIN,
             MOUNTAIN,
             MOUNTAIN,
-            demonicTutor.id,
+            demonicTutor().id,
         ];
         const state = makeState({
             activePlayerId: "bot",
@@ -165,7 +165,7 @@ describe("AI own-library rehydration from decklist (issue #1509)", () => {
             ],
         });
         // The bot has cast Demonic Tutor — it sits on the stack, owned by the bot.
-        pushSpell(state, demonicTutor.id, "bot");
+        pushSpell(state, demonicTutor().id, "bot");
 
         // Rehydrate through the real adapter path WITH the decklist.
         const projected = projectPublicState(state, 1, "bot");

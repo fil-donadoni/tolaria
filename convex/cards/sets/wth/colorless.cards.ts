@@ -2,12 +2,12 @@
 // colour per ADR 0043. The registry's `import * as wth from "./sets/wth/index.cards"`
 // resolves through wth/index.cards.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n` (e.g. {2} → { X: 2 }).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mind Stone — {2} Artifact. A mana rock that can be cashed in for a card late
 // (CR 605.1a mana ability resolves immediately; CR 605 activated draw goes on
 // the stack).
-export const mindStone: CardDefinition = {
+export const mindStone = defineCard(() => ({
     id: "162e81d3-6cd4-4cb8-8ed8-cfbd8d34ca71",
     name: "Mind Stone",
     rarity: "uncommon",
@@ -32,7 +32,7 @@ export const mindStone: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Phyrexian Furnace — {1} Artifact, a two-ability graveyard-hate rock:
 //  • "{T}: Exile the bottom card of target player's graveyard." The target is
@@ -51,7 +51,7 @@ export const mindStone: CardDefinition = {
 //    followed by the plain `draw` Op.
 //
 // hand-tail: {T}: Exile the bottom card of target player's graveyard. (#4195)
-export const phyrexianFurnace: CardDefinition = {
+export const phyrexianFurnace = defineCard(() => ({
     id: "e98bca31-8c05-430b-b5d7-331bdc55710a",
     name: "Phyrexian Furnace",
     rarity: "uncommon",
@@ -97,4 +97,4 @@ export const phyrexianFurnace: CardDefinition = {
             ],
         },
     ],
-};
+}));

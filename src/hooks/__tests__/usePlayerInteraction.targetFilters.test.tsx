@@ -96,7 +96,7 @@ function targetableSeats(requirement: TargetRequirement): string[] {
 
 describe("usePlayerInteraction — player-kind target filters (issue #1734)", () => {
     it("controller: opponent (Forgotten Lore) rings ONLY the opponent's nameplate", () => {
-        expect(targetableSeats(forgottenLore.targetRequirement!)).toEqual([
+        expect(targetableSeats(forgottenLore().targetRequirement!)).toEqual([
             "p2",
         ]);
     });

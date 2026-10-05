@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Day of Judgment — "Destroy all creatures." (CR 701.8 mass destroy.) The
 // first DSL card using the forEach construct (ADR 0045, issue #807 — the
@@ -21,7 +21,7 @@ import type { CardDefinition } from "../../types";
 // implemented against the M11 reprint, which filed it under the wrong home
 // set and rendered the wrong art. That printing now rides along as a
 // `CardPrint` in `m11/white.cards.ts`.
-export const dayOfJudgment: CardDefinition = {
+export const dayOfJudgment = defineCard(() => ({
     id: "2aa98fca-972b-46c2-bdec-6ace35c988d5", // ZEN 8
     name: "Day of Judgment",
     rarity: "rare",
@@ -39,4 +39,4 @@ export const dayOfJudgment: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));

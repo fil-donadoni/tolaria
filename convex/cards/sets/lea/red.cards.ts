@@ -7,8 +7,12 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, ManaCost, SpellContext } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import type { ManaCost, SpellContext } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { resolveCompiledStatic } from "../../compiledStatics";
 import { legalTargetSlots } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -20,7 +24,7 @@ import { makeElementalBlast } from "./blue.cards";
 
 // Burrowing — "Enchant creature. Enchanted creature has mountainwalk." (CR
 // 303.4 aura attachment, 702.13c landwalk, 611.2 keyword grant).
-export const burrowing: CardDefinition = {
+export const burrowing = defineCard(() => ({
     id: "a14c05e4-8df3-450b-8a98-5028e73b14c1",
     rarity: "uncommon",
     name: "Burrowing",
@@ -37,17 +41,19 @@ export const burrowing: CardDefinition = {
             keyword: "mountainwalk",
         },
     ],
-};
+}));
 
-export const chaoslace: CardDefinition = makeLace({
-    id: "72ea2048-57bc-43d5-8987-33ca727f1a97",
-    rarity: "rare",
-    name: "Chaoslace",
-    oracleText:
-        "Target spell or permanent becomes red. (Its mana symbols remain unchanged.)",
-    manaCost: { R: 1 },
-    color: "R",
-});
+export const chaoslace = defineCard(() =>
+    makeLace({
+        id: "72ea2048-57bc-43d5-8987-33ca727f1a97",
+        rarity: "rare",
+        name: "Chaoslace",
+        oracleText:
+            "Target spell or permanent becomes red. (Its mana symbols remain unchanged.)",
+        manaCost: { R: 1 },
+        color: "R",
+    })
+);
 
 // Dragon Whelp — "Flying. {R}: Dragon Whelp gets +1/+0 until end of turn.
 // If this ability has been activated four or more times this turn, sacrifice
@@ -60,7 +66,7 @@ export const chaoslace: CardDefinition = makeLace({
 // by the time later ones fire, so extra triggers are no-ops).
 const DRAGON_WHELP_ID = "6bbf1eab-bc32-4835-b566-8634b1fe81b0";
 
-export const dragonWhelp: CardDefinition = {
+export const dragonWhelp = defineCard(() => ({
     id: DRAGON_WHELP_ID,
     rarity: "uncommon",
     name: "Dragon Whelp",
@@ -124,13 +130,13 @@ export const dragonWhelp: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$targetId" } }],
         },
     ],
-};
+}));
 
 // Dwarven Warriors — "{T}: Target creature with power 2 or less can't be
 // blocked this turn." (CR 113.1 grant of `unblockable` keyword via
 // grantStaticAbility, 509.1b block restriction, 613 layer 7c power filter
 // on target selection.)
-export const dwarvenWarriors: CardDefinition = {
+export const dwarvenWarriors = defineCard(() => ({
     id: "2d4d87a3-5f8b-4152-9a8b-538ab49d62e8",
     rarity: "common",
     name: "Dwarven Warriors",
@@ -165,9 +171,9 @@ export const dwarvenWarriors: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const earthElemental: CardDefinition = {
+export const earthElemental = defineCard(() => ({
     id: "b24b5864-44c0-4bc8-8705-9504f83b2c03",
     rarity: "uncommon",
     name: "Earth Elemental",
@@ -177,14 +183,14 @@ export const earthElemental: CardDefinition = {
     subtypes: ["Elemental"],
     power: 4,
     toughness: 5,
-};
+}));
 
 // Earthbind — "Enchant creature. Enchanted creature loses flying. When
 // Earthbind enters, if enchanted creature has flying, Earthbind deals 2
 // damage to that creature." (CR 613.1a keyword removal, layer 6). The
 // keyword-remove is always active; the ETB damage fires only if the host
 // originally had flying (checked via removedKeywords record).
-export const earthbind: CardDefinition = {
+export const earthbind = defineCard(() => ({
     id: "a6d492b7-b0b3-420e-8d00-6dacb11de77e",
     rarity: "common",
     name: "Earthbind",
@@ -220,12 +226,12 @@ export const earthbind: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // CR 107.3: X chosen on cast. CR 120.3: damage respects flying at
 // resolution time (creatures losing flying mid-resolution aren't affected,
 // since matching creatures are snapshotted).
-export const earthquake: CardDefinition = {
+export const earthquake = defineCard(() => ({
     id: "e68ac362-6cdc-48a6-bdd3-4f8ea32add64",
     rarity: "rare",
     name: "Earthquake",
@@ -245,13 +251,13 @@ export const earthquake: CardDefinition = {
             players: true,
         });
     },
-};
+}));
 
 // False Orders — "Cast only during the declare blockers step. Remove target
 // creature defending player controls from combat." (CR 506.4 remove from
 // combat). The optional re-assignment as blocker is deferred (not modeled (tracked-by: #2785)
 // in initial scope — the primary effect of removing from combat is complete).
-export const falseOrders: CardDefinition = {
+export const falseOrders = defineCard(() => ({
     id: "7eb71ac4-796d-4011-9002-1129bc09c284",
     rarity: "common",
     name: "False Orders",
@@ -290,9 +296,9 @@ export const falseOrders: CardDefinition = {
             ctx.becomeUnblocked(attackerId);
         }
     },
-};
+}));
 
-export const fireElemental: CardDefinition = {
+export const fireElemental = defineCard(() => ({
     id: "da237992-2919-4e37-8f56-2164095f59b5",
     rarity: "uncommon",
     name: "Fire Elemental",
@@ -302,11 +308,11 @@ export const fireElemental: CardDefinition = {
     subtypes: ["Elemental"],
     power: 5,
     toughness: 4,
-};
+}));
 
 // CR 601.2f: costs {1} more per extra target. CR 120.1: damage divided
 // evenly, rounded down — remainder is discarded. CR 107.3: X chosen on cast.
-export const fireball: CardDefinition = {
+export const fireball = defineCard(() => ({
     id: "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece",
     rarity: "common",
     name: "Fireball",
@@ -333,12 +339,12 @@ export const fireball: CardDefinition = {
         // a rule — so it is recorded here rather than changed.
         ctx.dealDividedDamage(legalTargetSlots(ctx.targets), ctx.getX());
     },
-};
+}));
 
 // Firebreathing — "Enchant creature. {R}: Enchanted creature gets +1/+0
 // until end of turn." (CR 303.4 aura, 611.1 temp P/T mod). Same shape as
 // Regeneration's host-aware activated ability.
-export const firebreathing: CardDefinition = {
+export const firebreathing = defineCard(() => ({
     id: "3eb27381-505d-4e47-bf66-9e7ba91a5075",
     rarity: "common",
     name: "Firebreathing",
@@ -369,9 +375,9 @@ export const firebreathing: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const flashfires: CardDefinition = {
+export const flashfires = defineCard(() => ({
     id: "ee8a05a4-0ce3-4abe-bb60-08af53cf08e5",
     rarity: "uncommon",
     name: "Flashfires",
@@ -393,13 +399,13 @@ export const flashfires: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Fork — "Copy target instant or sorcery spell, except that the copy is red.
 // You may choose new targets for the copy." (CR 707.10 copying a spell,
 // 707.10b new targets, 707.10c color-change to red). The copy is put on the
 // stack above the original and resolves first; it ceases to exist afterward.
-export const fork: CardDefinition = {
+export const fork = defineCard(() => ({
     id: "e6b43916-fe2d-417a-a550-d7c795023297",
     rarity: "rare",
     name: "Fork",
@@ -425,14 +431,14 @@ export const fork: CardDefinition = {
         // spell or an item that left the stack); nothing to retarget then.
         if (copyId) ctx.requestCopyRetarget(copyId);
     },
-};
+}));
 
 // Goblin King — "Other Goblins get +1/+1 and have mountainwalk." (CR 611
 // layer 7c, 702.13c landwalk). Both halves wired via lord-style static
 // effects: pt-buff applied at stat-read time, keyword-grant applied
 // imperatively at battlefield entry/exit (see `applyExistingGrantsTo` /
 // `beginApplyingStaticEffects` in gre/state.ts).
-export const goblinKing: CardDefinition = {
+export const goblinKing = defineCard(() => ({
     id: "5873672d-37ea-4c0f-97f3-12b74fde112d",
     rarity: "rare",
     name: "Goblin King",
@@ -461,11 +467,11 @@ export const goblinKing: CardDefinition = {
             keyword: "mountainwalk",
         },
     ],
-};
+}));
 
 // Granite Gargoyle — flying + "{R}: This creature gets +0/+1 until end of turn."
 // (CR 702.9 flying, 611.1 temp P/T mod).
-export const graniteGargoyle: CardDefinition = {
+export const graniteGargoyle = defineCard(() => ({
     id: "f15bf2b2-6848-4fbd-b89a-8d8da8ae1cdc",
     rarity: "rare",
     name: "Granite Gargoyle",
@@ -493,9 +499,9 @@ export const graniteGargoyle: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const grayOgre: CardDefinition = {
+export const grayOgre = defineCard(() => ({
     id: "73ae5276-b607-4f23-a9d2-e8cc7b8e3693",
     rarity: "common",
     name: "Gray Ogre",
@@ -505,9 +511,9 @@ export const grayOgre: CardDefinition = {
     subtypes: ["Ogre"],
     power: 2,
     toughness: 2,
-};
+}));
 
-export const hillGiant: CardDefinition = {
+export const hillGiant = defineCard(() => ({
     id: "0ddb98e8-13fe-4786-83f7-b72c56db135a",
     rarity: "common",
     name: "Hill Giant",
@@ -517,9 +523,9 @@ export const hillGiant: CardDefinition = {
     subtypes: ["Giant"],
     power: 3,
     toughness: 3,
-};
+}));
 
-export const hurloonMinotaur: CardDefinition = {
+export const hurloonMinotaur = defineCard(() => ({
     id: "78a9088f-8755-47cb-aa93-51d992ccab90",
     rarity: "common",
     name: "Hurloon Minotaur",
@@ -529,13 +535,13 @@ export const hurloonMinotaur: CardDefinition = {
     subtypes: ["Minotaur"],
     power: 2,
     toughness: 3,
-};
+}));
 
 // Ironclaw Orcs — "Ironclaw Orcs can't block creatures with power 2 or
 // greater." (CR 509.1b block restriction, CR 613 layer 7c for effective
 // power). The combat validator enriches P/T to post-layer values before
 // calling the predicate, so `opponent.power` is already effective.
-export const ironclawOrcs: CardDefinition = {
+export const ironclawOrcs = defineCard(() => ({
     id: "d56421a8-34ae-4033-943f-c59a7bf2b6f9",
     rarity: "common",
     name: "Ironclaw Orcs",
@@ -556,13 +562,13 @@ export const ironclawOrcs: CardDefinition = {
                 "Ironclaw Orcs can't block creatures with power 2 or greater.",
         },
     ],
-};
+}));
 
 // Keldon Warlord — "Keldon Warlord's power and toughness are each equal to
 // the number of other creatures you control." (CR 604.3 CDA, layer 7b). Same
 // pt-cda shape as Nightmare; counts every creature controlled by source's
 // controller, excluding the Warlord itself.
-export const keldonWarlord: CardDefinition = {
+export const keldonWarlord = defineCard(() => ({
     id: "8fe3fd83-969c-4add-888f-86f4306b067c",
     rarity: "uncommon",
     name: "Keldon Warlord",
@@ -594,7 +600,7 @@ export const keldonWarlord: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Migrated resolve() → effects[] pilot (ADR 0045, issue #809). The entire effect is a single
 // `dealDamage` Op on the announced target (CR 120.1) — the same Op already
@@ -602,7 +608,7 @@ export const keldonWarlord: CardDefinition = {
 // pre-existing per-card behaviour test (lea/__tests__/red.test.ts, "Lightning
 // Bolt … CR 608.3") is the migration harness: green before, green after, with
 // the assertions untouched, proves the DSL script preserves behaviour.
-export const lightningBolt: CardDefinition = {
+export const lightningBolt = defineCard(() => ({
     id: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
     rarity: "common",
     name: "Lightning Bolt",
@@ -615,7 +621,7 @@ export const lightningBolt: CardDefinition = {
     // attacker) in combat, so over-committing into it is discounted.
     aiCombatHint: { removal: true },
     effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
-};
+}));
 
 // Mana Flare — "Whenever a player taps a land for mana, that player adds one
 // mana of any type that land produced." (CR 603.2 PERMANENT_TAPPED trigger,
@@ -623,7 +629,7 @@ export const lightningBolt: CardDefinition = {
 // PERMANENT_TAPPED.manaProduced carries the activated ability's output, and
 // we add one mana of the first non-zero color found there. Lands with only a
 // single produced color (the LEA basics) hit the canonical case exactly.
-export const manaFlare: CardDefinition = {
+export const manaFlare = defineCard(() => ({
     id: "7fb99a26-beeb-4aca-bb02-b2d2ce0595f9",
     rarity: "rare",
     name: "Mana Flare",
@@ -672,13 +678,13 @@ export const manaFlare: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Manabarbs — "Whenever a player taps a land for mana, this enchantment
 // deals 1 damage to that player." (CR 603.2 PERMANENT_TAPPED trigger,
 // 120.1 damage). The mana itself was already added when the tap fired —
 // this is a pure penalty on top.
-export const manabarbs: CardDefinition = {
+export const manabarbs = defineCard(() => ({
     id: "6121f72f-680f-4bb4-ae4d-37ee4ebed4d8",
     rarity: "rare",
     name: "Manabarbs",
@@ -705,9 +711,9 @@ export const manabarbs: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const monssGoblinRaiders: CardDefinition = {
+export const monssGoblinRaiders = defineCard(() => ({
     id: "b4eb3db3-6a7c-488a-9433-d5d1d3133816",
     rarity: "common",
     name: "Mons's Goblin Raiders",
@@ -717,14 +723,14 @@ export const monssGoblinRaiders: CardDefinition = {
     subtypes: ["Goblin"],
     power: 1,
     toughness: 1,
-};
+}));
 
 // Orcish Artillery — "{T}: Orcish Artillery deals 2 damage to any target and
 // 3 damage to you." (CR 605 activated ability, 120.1 damage). Both damage
 // events resolve in the same effect call — the self-damage is a normal
 // damage to a player target (preventable / redirectable per CR 615), not
 // life loss.
-export const orcishArtillery: CardDefinition = {
+export const orcishArtillery = defineCard(() => ({
     id: "a97208b1-a91b-4129-8a00-2f97b418accc",
     rarity: "uncommon",
     name: "Orcish Artillery",
@@ -752,9 +758,9 @@ export const orcishArtillery: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const orcishOriflamme: CardDefinition = {
+export const orcishOriflamme = defineCard(() => ({
     id: "911538ea-322c-4c40-a9c3-35e47fe60fce",
     rarity: "uncommon",
     name: "Orcish Oriflamme",
@@ -772,13 +778,13 @@ export const orcishOriflamme: CardDefinition = {
             toughness: 0,
         },
     ],
-};
+}));
 
 // Power Surge — "At the beginning of each player's upkeep, Power Surge
 // deals damage to that player equal to the number of untapped lands they
 // control." (CR 603.6a phase trigger, 120.1 damage). APNAP not modeled (tracked-by: #2785) —
 // per-trigger event identifies the upkeep player via `activePlayerId`.
-export const powerSurge: CardDefinition = {
+export const powerSurge = defineCard(() => ({
     id: "62858604-ca5a-4f69-a045-a7515ebfabf2",
     rarity: "rare",
     name: "Power Surge",
@@ -811,7 +817,7 @@ export const powerSurge: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Raging River — pile combat (CR 509.2 variant, ADR 0012). When the
 // controller's creatures attack, the defender divides their non-flying
@@ -823,7 +829,7 @@ export const powerSurge: CardDefinition = {
 // attacker's chosen label becomes a transient combatBlockRestriction consumed
 // generically by the block validator. Single defending player, matching the
 // rest of combat.
-export const ragingRiver: CardDefinition = {
+export const ragingRiver = defineCard(() => ({
     id: "61e4f56d-1f4f-49f2-8534-0d09196a3327",
     rarity: "rare",
     name: "Raging River",
@@ -905,18 +911,20 @@ export const ragingRiver: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const redElementalBlast: CardDefinition = makeElementalBlast({
-    id: "776ad9be-3309-4f1d-9f27-6219d9477662",
-    rarity: "common",
-    name: "Red Elemental Blast",
-    oracleColor: "blue",
-    castColor: "R",
-    targetColor: "U",
-});
+export const redElementalBlast = defineCard(() =>
+    makeElementalBlast({
+        id: "776ad9be-3309-4f1d-9f27-6219d9477662",
+        rarity: "common",
+        name: "Red Elemental Blast",
+        oracleColor: "blue",
+        castColor: "R",
+        targetColor: "U",
+    })
+);
 
-export const rocOfKherRidges: CardDefinition = {
+export const rocOfKherRidges = defineCard(() => ({
     id: "731a4b86-c213-4d8e-bf01-0a0e8cff0ff1",
     rarity: "rare",
     name: "Roc of Kher Ridges",
@@ -927,9 +935,9 @@ export const rocOfKherRidges: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["flying"],
-};
+}));
 
-export const rockHydra: CardDefinition = {
+export const rockHydra = defineCard(() => ({
     id: "410ac9e6-fbc1-4cc8-84db-84e2eb1bab97",
     rarity: "rare",
     name: "Rock Hydra",
@@ -1006,9 +1014,9 @@ export const rockHydra: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const sedgeTroll: CardDefinition = {
+export const sedgeTroll = defineCard(() => ({
     id: "b13bf496-f3c0-4c13-8282-e7abfab6a198",
     rarity: "rare",
     name: "Sedge Troll",
@@ -1047,11 +1055,11 @@ export const sedgeTroll: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Shatter — "Destroy target artifact." (CR 701.8). Declarative shorthand via
 // the shared destroy-target effect, same shape as Sinkhole / Disenchant.
-export const shatter: CardDefinition = {
+export const shatter = defineCard(() => ({
     id: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
     rarity: "common",
     name: "Shatter",
@@ -1060,11 +1068,11 @@ export const shatter: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "Artifact", count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Shivan Dragon — flying + "{R}: This creature gets +1/+0 until end of turn."
 // (CR 702.9 flying, 611.1 temp P/T mod).
-export const shivanDragon: CardDefinition = {
+export const shivanDragon = defineCard(() => ({
     id: "fefbf149-f988-4f8b-9f53-56f5878116a6",
     rarity: "rare",
     name: "Shivan Dragon",
@@ -1092,7 +1100,7 @@ export const shivanDragon: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Smoke — modern Oracle (Scryfall, ADR 0004): "Players can't untap more
 // than one creature during their untap steps." (CR 502.1). Encoded as a
@@ -1103,7 +1111,7 @@ export const shivanDragon: CardDefinition = {
 // to the active player. Land and non-creature permanents are unaffected.
 // Composes with Winter Orb's land cap — both restrictions fire
 // independently in FIFO order during the same untap step.
-export const smoke: CardDefinition = {
+export const smoke = defineCard(() => ({
     id: "7c67788e-d713-47c3-ab9f-b8a6212ae24f",
     rarity: "rare",
     name: "Smoke",
@@ -1119,7 +1127,7 @@ export const smoke: CardDefinition = {
             maxUntap: 1,
         }),
     ],
-};
+}));
 
 // Stone Giant — "{T}: Target creature you control with toughness less than
 // Stone Giant's power gains flying until end of turn. Destroy that creature
@@ -1129,7 +1137,7 @@ export const smoke: CardDefinition = {
 // current power. resolve grants flying EOT and schedules a delayed destroy.
 const STONE_GIANT_ID = "7ffaedb9-25f8-4304-9085-e12505b93312";
 
-export const stoneGiant: CardDefinition = {
+export const stoneGiant = defineCard(() => ({
     id: STONE_GIANT_ID,
     rarity: "uncommon",
     name: "Stone Giant",
@@ -1201,11 +1209,11 @@ export const stoneGiant: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$targetId" } }],
         },
     ],
-};
+}));
 
 // Stone Rain — "Destroy target land." (CR 701.8). Identical shape to Sinkhole
 // modulo cost / type.
-export const stoneRain: CardDefinition = {
+export const stoneRain = defineCard(() => ({
     id: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
     rarity: "common",
     name: "Stone Rain",
@@ -1214,12 +1222,12 @@ export const stoneRain: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Tunnel — "Destroy target Wall. It can't be regenerated." (CR 205.3 subtype
 // filter, 701.8 destroy, 701.19c can't-be-regenerated). Same shape as Fissure
 // (drk/red.cards.ts) / Detonate (atq/red.cards.ts) modulo target filter.
-export const tunnel: CardDefinition = {
+export const tunnel = defineCard(() => ({
     id: "b21ebc9f-a93e-4d18-b3e8-8459e3abbf31",
     rarity: "uncommon",
     name: "Tunnel",
@@ -1238,12 +1246,12 @@ export const tunnel: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 
 // Two-Headed Giant of Foriys — "Trample. Two-Headed Giant of Foriys can
 // block an additional creature each combat." (CR 509.1a — multi-block).
 // canBlockAdditional: 1 lets the combat validator allow blocking 2 attackers.
-export const twoHeadedGiantOfForiys: CardDefinition = {
+export const twoHeadedGiantOfForiys = defineCard(() => ({
     id: "31c687dc-ee0c-4e54-a2b3-5d8e633b3245",
     rarity: "rare",
     name: "Two-Headed Giant of Foriys",
@@ -1256,11 +1264,11 @@ export const twoHeadedGiantOfForiys: CardDefinition = {
     toughness: 4,
     staticAbilities: ["trample"],
     canBlockAdditional: 1,
-};
+}));
 
 // Wall of Fire — defender + "{R}: This creature gets +1/+0 until end of turn."
 // (CR 702.3 defender, 611.1 temp P/T mod).
-export const wallOfFire: CardDefinition = {
+export const wallOfFire = defineCard(() => ({
     id: "efcf12cd-fb70-444e-9641-73ffa0e8f16e",
     rarity: "uncommon",
     name: "Wall of Fire",
@@ -1289,9 +1297,9 @@ export const wallOfFire: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const wallOfStone: CardDefinition = {
+export const wallOfStone = defineCard(() => ({
     id: "140e567c-6e4a-42b0-8084-d6c9695ae802",
     rarity: "uncommon",
     name: "Wall of Stone",
@@ -1302,14 +1310,14 @@ export const wallOfStone: CardDefinition = {
     power: 0,
     toughness: 8,
     staticAbilities: ["defender"],
-};
+}));
 
 // Wheel of Fortune — "Each player discards their hand, then draws seven
 // cards." (CR 701.8, 121.1)
 // Wheel of Fortune itself is on the stack during resolution, so it's not in
 // the caster's hand to be discarded; after resolve() it goes to its owner's
 // graveyard normally.
-export const wheelOfFortune: CardDefinition = {
+export const wheelOfFortune = defineCard(() => ({
     id: "67b369c4-faa8-45c8-a1b9-98f228b69682",
     rarity: "rare",
     name: "Wheel of Fortune",
@@ -1329,12 +1337,12 @@ export const wheelOfFortune: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Disintegrate — {X}{R} Sorcery. "Disintegrate deals X damage to any target.
 // If it's a creature, it can't be regenerated this turn, and if it would die
 // this turn, exile it instead." (CR 614.1a — exile-on-death replacement)
-export const disintegrate: CardDefinition = {
+export const disintegrate = defineCard(() => ({
     id: "8712c49e-f171-4669-bed9-87575a37af11",
     rarity: "common",
     name: "Disintegrate",
@@ -1359,4 +1367,4 @@ export const disintegrate: CardDefinition = {
         }
         ctx.dealDamage(t, ctx.getX());
     },
-};
+}));

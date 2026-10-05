@@ -2,8 +2,8 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { makeTalisman } from "../../abilities";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { affinityForArtifacts } from "../../abilities/affinity";
@@ -39,7 +39,7 @@ const CHROME_MOX_COLORS = ["W", "U", "B", "R", "G"] as const;
 // choices, Fellwar Stone's own mechanism) reads them back to offer exactly
 // the exiled card's colours; a card with no colours (or no imprint) offers
 // none.
-export const chromeMox: CardDefinition = {
+export const chromeMox = defineCard(() => ({
     id: CHROME_MOX_ID,
     name: "Chrome Mox",
     rarity: "rare",
@@ -133,24 +133,28 @@ export const chromeMox: CardDefinition = {
                 ).map((c) => ({ [c]: 1 })),
         },
     ],
-};
+}));
 
 // Talisman of Progress / Dominance — {2} artifact mana rocks (Vintage Cube
 // free tranche, issue #675, ADR 0041). See `makeTalisman` in
 // `convex/cards/abilities/index.ts` for the shared painland-shaped ability.
-export const talismanOfProgress: CardDefinition = makeTalisman({
-    id: "41ff849e-2439-4690-8aa4-769039b6da4c",
-    name: "Talisman of Progress",
-    rarity: "uncommon",
-    colors: ["W", "U"],
-});
+export const talismanOfProgress = defineCard(() =>
+    makeTalisman({
+        id: "41ff849e-2439-4690-8aa4-769039b6da4c",
+        name: "Talisman of Progress",
+        rarity: "uncommon",
+        colors: ["W", "U"],
+    })
+);
 
-export const talismanOfDominance: CardDefinition = makeTalisman({
-    id: "991037a2-fea2-49f5-8ace-ebbf9f678cff",
-    name: "Talisman of Dominance",
-    rarity: "uncommon",
-    colors: ["U", "B"],
-});
+export const talismanOfDominance = defineCard(() =>
+    makeTalisman({
+        id: "991037a2-fea2-49f5-8ace-ebbf9f678cff",
+        name: "Talisman of Dominance",
+        rarity: "uncommon",
+        colors: ["U", "B"],
+    })
+);
 
 // Aether Spellbomb — {1} Artifact (Vintage Cube FREE misc value/utility,
 // issue #687). "{U}, Sacrifice this artifact: Return target creature to its
@@ -158,7 +162,7 @@ export const talismanOfDominance: CardDefinition = makeTalisman({
 // activated abilities (CR 602.1), each with a mana + sacrifice-self cost
 // (`sacrifice: true`, CR 118.5 / 701.21). The effects compose live Ops only:
 // `moveZone` to hand (CR 400.7 bounce) and `draw` (CR 121.1).
-export const aetherSpellbomb: CardDefinition = {
+export const aetherSpellbomb = defineCard(() => ({
     id: "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
     rarity: "common",
     name: "Aether Spellbomb",
@@ -184,7 +188,7 @@ export const aetherSpellbomb: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Lightning Greaves — {2} Artifact — Equipment (Vintage Cube FREE wave 3,
 // issue #1530, parent PRD #1525). "Equipped creature has haste and shroud.
@@ -214,7 +218,7 @@ export const aetherSpellbomb: CardDefinition = {
 // The explicit `permanent-guard` here is kept anyway — belt-and-braces,
 // matching the established per-card pattern — not because the string alone
 // is inert.
-export const lightningGreaves: CardDefinition = {
+export const lightningGreaves = defineCard(() => ({
     id: "61a28870-cf78-4323-9d82-cee764067764",
     name: "Lightning Greaves",
     rarity: "uncommon",
@@ -247,7 +251,7 @@ export const lightningGreaves: CardDefinition = {
             oracleText: "Equip {0}",
         }),
     ],
-};
+}));
 
 // Frogmite — {4} Artifact Creature — Frog, 2/2 (MRD 172). "Affinity for
 // artifacts (This spell costs {1} less to cast for each artifact you
@@ -264,7 +268,7 @@ export const lightningGreaves: CardDefinition = {
 // the Frogmite being cast is not among the artifacts it counts. With four
 // other artifacts out it costs {0} — there is no `minTotalMana` floor
 // (CR 601.2f lets a reduction reach zero).
-export const frogmite: CardDefinition = {
+export const frogmite = defineCard(() => ({
     id: "ff504dcb-2eb8-4b3c-a8b9-29697739b649", // MRD 172
     name: "Frogmite",
     rarity: "common",
@@ -276,4 +280,4 @@ export const frogmite: CardDefinition = {
     power: 2,
     toughness: 2,
     ...affinityForArtifacts(),
-};
+}));

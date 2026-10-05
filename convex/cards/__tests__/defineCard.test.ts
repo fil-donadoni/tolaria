@@ -7,7 +7,8 @@
  * The converted cards cover the three shapes the issue names: Breath of
  * Darigaaz (a `resolve()` card), Aura Blast (an Effect Script) and Witch
  * Enchanter (a modal double-faced card, CR 712, whose back face is a derived
- * twin). Lightning Bolt is the eager control.
+ * twin). Lightning Bolt (also a factory since the migrate step, issue #4859)
+ * is the control that was once the eager one.
  */
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
@@ -34,7 +35,7 @@ describe("defineCard", () => {
         let calls = 0;
         const card = defineCard(() => {
             calls++;
-            return { ...lightningBolt, id: "define-card-probe" };
+            return { ...lightningBolt(), id: "define-card-probe" };
         });
         expect(isCardFactory(card)).toBe(true);
         expect(calls).toBe(0);
@@ -45,10 +46,10 @@ describe("defineCard", () => {
         expect(card.builds()).toBe(1);
     });
 
-    it("tells a factory from an eager definition and from a plain function", () => {
+    it("tells a factory from a built definition and from a plain function", () => {
         expect(isCardFactory(auraBlast)).toBe(true);
-        expect(isCardFactory(lightningBolt)).toBe(false);
-        expect(isCardFactory(() => lightningBolt)).toBe(false);
+        expect(isCardFactory(lightningBolt())).toBe(false);
+        expect(isCardFactory(() => lightningBolt())).toBe(false);
     });
 });
 
@@ -58,7 +59,7 @@ const declared: [string, () => CardDefinition, string][] = [
     ["Breath of Darigaaz", () => breathOfDarigaaz(), "inv"],
     ["Aura Blast", () => auraBlast(), "pls"],
     ["Witch Enchanter", () => witchEnchanter(), "mom"],
-    ["Lightning Bolt", () => lightningBolt, "lea"],
+    ["Lightning Bolt", () => lightningBolt(), "lea"],
 ];
 
 describe("the catalogue resolves a factory card as it resolves an eager one (issue #4857)", () => {

@@ -2,7 +2,7 @@
 // `import * as zen from "./sets/zen/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Spell Pierce — "Counter target noncreature spell unless its controller
 // pays {2}." (CR 701.6a counter-unless-pay, CR 117.3a may-pay, CR 114.1
@@ -10,7 +10,7 @@ import type { CardDefinition } from "../../types";
 // restriction). Same mayPay + if(not $paid) + counter shape as Force Spike
 // (leg/blue.cards.ts), restricted to noncreature spells at the target-requirement
 // level.
-export const spellPierce: CardDefinition = {
+export const spellPierce = defineCard(() => ({
     id: "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e",
     rarity: "uncommon",
     name: "Spell Pierce",
@@ -39,4 +39,4 @@ export const spellPierce: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

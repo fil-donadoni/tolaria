@@ -1,5 +1,5 @@
 // c19 — white cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Sevinne's Reclamation — {2}{W} Sorcery. "Return target permanent card with
 // mana value 3 or less from your graveyard to the battlefield. If this spell was
@@ -15,7 +15,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // CR 707.12) behind a free "you may" — none of which the Op vocabulary expresses
 // (there is no spell-copy Op). Split into resolveSteps so the copy may-choice
 // suspends without re-reanimating.
-export const sevinnesReclamation: CardDefinition = {
+export const sevinnesReclamation = defineCard(() => ({
     id: "7e68f4df-88ce-4e09-a03c-7edf40bff167",
     rarity: "rare",
     name: "Sevinne's Reclamation",
@@ -57,4 +57,4 @@ export const sevinnesReclamation: CardDefinition = {
             if (copyId) ctx.requestCopyRetarget(copyId);
         },
     ],
-};
+}));

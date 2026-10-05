@@ -573,7 +573,7 @@ describe("shipped producer: Soul Exchange (fem/black.cards.ts) — issue #2570 c
             players: [
                 makePlayer("p1", {
                     graveyard: [
-                        makeInstance(voiceOfAll.id, {
+                        makeInstance(voiceOfAll().id, {
                             id: "gy-voice",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -584,7 +584,7 @@ describe("shipped producer: Soul Exchange (fem/black.cards.ts) — issue #2570 c
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, soulExchange.id, "p1", [
+        const item = pushSpell(state, soulExchange().id, "p1", [
             { type: "graveyard-card", id: "gy-voice", playerId: "p1" },
         ]);
 

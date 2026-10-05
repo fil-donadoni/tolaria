@@ -89,7 +89,7 @@ function wrennEmblem(ownerId: string) {
 describe("Retrace capability (CR 702.81)", () => {
     describe("the grant producers (convex/gre/retrace.ts)", () => {
         it("the emblem grants retrace to an instant in its OWNER's graveyard", () => {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -109,7 +109,7 @@ describe("Retrace capability (CR 702.81)", () => {
         });
 
         it("without the emblem nothing in the graveyard has retrace", () => {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -129,7 +129,7 @@ describe("Retrace capability (CR 702.81)", () => {
         it("the grant does NOT reach a card type outside its wording (a creature)", () => {
             // "INSTANT AND SORCERY cards in your graveyard have retrace" — the
             // `cardTypes` filter is fail-closed, so a creature card is untouched.
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -145,7 +145,7 @@ describe("Retrace capability (CR 702.81)", () => {
         });
 
         it("the grant NEVER reaches a land (CR 305.1 — a land is never a spell)", () => {
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -163,12 +163,12 @@ describe("Retrace capability (CR 702.81)", () => {
         it("the grant is scoped to its OWNER's graveyard, never the opponent's", () => {
             // CR 114.3 — "cards in YOUR graveyard". p2's identical instant is
             // untouched by p1's emblem.
-            const mine = makeInstance(lightningBolt.id, {
+            const mine = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const theirs = makeInstance(lightningBolt.id, {
+            const theirs = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -186,7 +186,7 @@ describe("Retrace capability (CR 702.81)", () => {
 
         it("PRINTED retrace works through the ordinary keyword channel, with no emblem", () => {
             // CR 702.81a — the keyword itself, `staticAbilities: ["retrace"]`.
-            const printed = makeInstance(lightningBolt.id, {
+            const printed = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -206,17 +206,17 @@ describe("Retrace capability (CR 702.81)", () => {
 
     describe("the additional cost (CR 702.81a — discard a land card)", () => {
         it("is payable with a land in hand and unpayable without one", () => {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -239,7 +239,7 @@ describe("Retrace capability (CR 702.81)", () => {
             mana?: number;
             hand?: "land" | "nonland" | "empty";
         }): { state: GameState; boltId: string } {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -247,7 +247,7 @@ describe("Retrace capability (CR 702.81)", () => {
             const hand =
                 opts.hand === "land"
                     ? [
-                          makeInstance(mountain.id, {
+                          makeInstance(mountain().id, {
                               zone: "hand",
                               controllerId: "p1",
                               ownerId: "p1",
@@ -255,7 +255,7 @@ describe("Retrace capability (CR 702.81)", () => {
                       ]
                     : opts.hand === "nonland"
                       ? [
-                            makeInstance(grizzlyBears.id, {
+                            makeInstance(grizzlyBears().id, {
                                 zone: "hand",
                                 controllerId: "p1",
                                 ownerId: "p1",
@@ -311,12 +311,12 @@ describe("Retrace capability (CR 702.81)", () => {
 
     describe("the real cast seam + NO exile on resolution (CR 608.2m)", () => {
         function retraceState() {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -397,7 +397,7 @@ describe("Retrace capability (CR 702.81)", () => {
             const { state, bolt, land } = retraceState();
             // Two lands in hand, so the picker is a REAL choice and parks
             // rather than auto-resolving.
-            const land2 = makeInstance(mountain.id, {
+            const land2 = makeInstance(mountain().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -442,12 +442,12 @@ describe("Retrace capability (CR 702.81)", () => {
             // both mechanisms. Retrace costs strictly more (printed cost + a
             // discarded land), so `locateCastSource` must take flashback — and
             // the resulting cast must still exile on resolution.
-            const fb = makeInstance(firebolt.id, {
+            const fb = makeInstance(firebolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -479,12 +479,12 @@ describe("Retrace capability (CR 702.81)", () => {
         }
 
         it('tags the viewer\'s own retrace card castKind: "retrace" with legalActions', () => {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -516,7 +516,7 @@ describe("Retrace capability (CR 702.81)", () => {
         });
 
         it("attaches NO castKind when nothing grants retrace", () => {
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -535,7 +535,7 @@ describe("Retrace capability (CR 702.81)", () => {
         });
 
         it("never tags the OPPONENT's graveyard card, even under their own emblem", () => {
-            const theirs = makeInstance(lightningBolt.id, {
+            const theirs = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -584,14 +584,14 @@ type AnnounceCastArgs = {
  *  land cards in hand. Two lands make the retrace discard a REAL choice, so
  *  the cast parks on the picker rather than auto-resolving it. */
 function wrathRetraceBoard(lands: number): GameState {
-    const wrath = makeInstance(wrathOfGod.id, {
+    const wrath = makeInstance(wrathOfGod().id, {
         id: "wrath",
         zone: "graveyard",
         controllerId: "p1",
         ownerId: "p1",
     });
     const hand = Array.from({ length: lands }, (_, i) =>
-        makeInstance(plains.id, {
+        makeInstance(plains().id, {
             id: `land-${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -683,13 +683,13 @@ describe("finalizeTargetSelection — a FORCED retrace discard survives the mana
         // the `else` branch — which used to spread no `alternativeCostHandChoice`
         // at all, and `tryAutoCommitPendingCast` reads the choice off
         // `pendingCast` and nowhere else. The land was never discarded.
-        const bolt = makeInstance(lightningBolt.id, {
+        const bolt = makeInstance(lightningBolt().id, {
             id: "bolt",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const land = makeInstance(mountain.id, {
+        const land = makeInstance(mountain().id, {
             id: "land",
             zone: "hand",
             controllerId: "p1",

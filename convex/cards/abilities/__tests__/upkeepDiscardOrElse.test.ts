@@ -105,7 +105,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
             controllerId: "p1",
             ownerId: "p1",
         });
-        const handCard = makeInstance(grizzlyBears.id, {
+        const handCard = makeInstance(grizzlyBears().id, {
             id: "hand1",
             controllerId: "p1",
             ownerId: "p1",
@@ -130,7 +130,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
             controllerId: "p1",
             ownerId: "p1",
         });
-        const handCard = makeInstance(grizzlyBears.id, {
+        const handCard = makeInstance(grizzlyBears().id, {
             id: "hand1",
             controllerId: "p1",
             ownerId: "p1",
@@ -147,7 +147,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
         // observable proof that `ctx.discardCard` really emitted
         // CARD_DISCARDED off the shared choke point (not a bespoke
         // graveyard move that bypasses it).
-        const necro = makeInstance(necropotence.id, {
+        const necro = makeInstance(necropotence().id, {
             id: "necro",
             controllerId: "p1",
             ownerId: "p1",
@@ -200,7 +200,7 @@ describe("upkeepDiscardOrElseTrigger (CR 603.6a + 117.3a + 701.8, #1129)", () =>
             controllerId: "p1",
             ownerId: "p1",
         });
-        const handCard = makeInstance(grizzlyBears.id, {
+        const handCard = makeInstance(grizzlyBears().id, {
             id: "hand1",
             controllerId: "p1",
             ownerId: "p1",

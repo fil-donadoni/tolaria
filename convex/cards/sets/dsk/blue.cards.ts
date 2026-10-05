@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/P-T are from Scryfall (id = DSK paper printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
@@ -43,7 +43,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever a creature you control deals combat damage to a player, draw a card. (#2693)
 // compiler-gap: When Enduring Curiosity dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
-export const enduringCuriosity: CardDefinition = {
+export const enduringCuriosity = defineCard(() => ({
     id: "8616629e-08f9-41ad-bfec-f86c8096f1cb",
     name: "Enduring Curiosity",
     rarity: "rare",
@@ -73,4 +73,4 @@ export const enduringCuriosity: CardDefinition = {
             cardName: "Enduring Curiosity",
         }),
     ],
-};
+}));

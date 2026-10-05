@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { cardsExiledTrigger } from "../../abilities/triggers/cardsExiledTrigger";
 
 // Laelia, the Blade Reforged — {2}{R} Legendary Creature — Spirit Warrior,
@@ -26,7 +26,7 @@ import { cardsExiledTrigger } from "../../abilities/triggers/cardsExiledTrigger"
 // fires off Laelia's OWN first ability — attacking exiles a card
 // from her controller's library, which is itself a qualifying occurrence —
 // the card's core growth loop (attack → exile → +1/+1 counter).
-export const laeliaTheBladeReforged: CardDefinition = {
+export const laeliaTheBladeReforged = defineCard(() => ({
     id: "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
     name: "Laelia, the Blade Reforged",
     rarity: "rare",
@@ -100,4 +100,4 @@ export const laeliaTheBladeReforged: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { AURA_AFFECTS_HOST } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { equipAbility, livingWeapon } from "../../abilities/equipment";
 
 // Batterskull (issue #1340, parent PRD #620) — the Living Weapon tracer.
@@ -24,7 +23,7 @@ import { equipAbility, livingWeapon } from "../../abilities/equipment";
 //    battlefield), which leaves the Germ an unbuffed 0/0 that dies to the
 //    zero-toughness SBA (CR 704.5f) — the printed "reset" play pattern, all
 //    pre-existing engine behavior.
-export const batterskull: CardDefinition = {
+export const batterskull = defineCard(() => ({
     id: "cd114ec3-d286-4c70-a122-3043bc53cc88",
     name: "Batterskull",
     rarity: "mythic",
@@ -68,4 +67,4 @@ export const batterskull: CardDefinition = {
             oracleText: "Equip {5}",
         }),
     ],
-};
+}));

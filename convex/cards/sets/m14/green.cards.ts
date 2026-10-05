@@ -2,13 +2,13 @@
 // oracle text is authoritative (ADR 0004). Cards are classified by the colour
 // identity of their mana cost (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeTapForMana } from "../../abilities";
 
 // Elvish Mystic — vanilla one-mana dork, identical shape to Llanowar Elves
 // (CR 605.1a mana ability, `useStack: false`). Vintage Cube free tranche
 // (issue #675, ADR 0041).
-export const elvishMystic: CardDefinition = {
+export const elvishMystic = defineCard(() => ({
     id: "60d0e6a6-629a-45a7-bfcb-25ba7156788b",
     rarity: "common",
     name: "Elvish Mystic",
@@ -25,4 +25,4 @@ export const elvishMystic: CardDefinition = {
             produces: { G: 1 },
         }),
     ],
-};
+}));

@@ -4,14 +4,14 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Burst Lightning — "Kicker {4}. Burst Lightning deals 2 damage to any target.
 // If this spell was kicked, it deals 4 damage instead." (CR 702.33 Kicker,
 // CR 120.) The target set is unchanged by the kick; only the amount differs, so
 // the effect branches on `{ kickerCount: true } >= 1`. Vintage Cube Kicker
 // cluster (issue #692, ADR 0041).
-export const burstLightning: CardDefinition = {
+export const burstLightning = defineCard(() => ({
     id: "2dc16614-5cf8-444d-a5ae-cac25018af68",
     rarity: "common",
     name: "Burst Lightning",
@@ -35,4 +35,4 @@ export const burstLightning: CardDefinition = {
             else: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));

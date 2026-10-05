@@ -1,6 +1,6 @@
 // c13 — black cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Toxic Deluge — {2}{B} Sorcery. "As an additional cost to cast this spell,
 // pay X life. All creatures get -X/-X until end of turn." (CR 118.4 / 119.4 pay-X-life
@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../types";
 // skip — `convex/gre/effects/scenarioGenerator.ts`), so a hand-written test
 // lives in `convex/cards/sets/c13/__tests__/black.test.ts` per the "explicit
 // skip is the signal to add one" rule.
-export const toxicDeluge: CardDefinition = {
+export const toxicDeluge = defineCard(() => ({
     id: "564caf57-4ba5-4993-a35e-945699c94eb7",
     name: "Toxic Deluge",
     rarity: "rare",
@@ -50,4 +50,4 @@ export const toxicDeluge: CardDefinition = {
             ],
         },
     ],
-};
+}));

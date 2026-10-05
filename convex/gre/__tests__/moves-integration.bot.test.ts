@@ -265,7 +265,7 @@ function confirmBlockSeam(
 
 describe("menace — Goblin War Drums grant through the confirm-blockers seam", () => {
     function boardWithWarDrums() {
-        const drums = makeInstance(goblinWarDrums.id, {
+        const drums = makeInstance(goblinWarDrums().id, {
             id: "drums",
             controllerId: "p1",
             ownerId: "p1",
@@ -369,7 +369,7 @@ describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
             controllerId: hostController,
             ownerId: hostController,
         });
-        const aura = makeInstance(merseine.id, {
+        const aura = makeInstance(merseine().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -395,7 +395,7 @@ describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
         // costs {1}{G} → the dynamic cost is {1}{G} (normalized X=1, G=1).
         const state = merseineBoard("p1", {});
         const aura = state.players[0].battlefield.find((c) => c.id === "aura")!;
-        const ability = merseine.activatedAbilities!.find(
+        const ability = merseine().activatedAbilities!.find(
             (a) => a.id === "merseine-remove-net"
         )!;
         const cost = resolveAbilityManaCost(state, aura, ability);
@@ -406,7 +406,7 @@ describe("Merseine — dynamic cost K (CR 601.2f / 202.3)", () => {
         const state = merseineBoard("p1", {});
         const aura = state.players[0].battlefield.find((c) => c.id === "aura")!;
         aura.attachedTo = undefined; // host gone
-        const ability = merseine.activatedAbilities!.find(
+        const ability = merseine().activatedAbilities!.find(
             (a) => a.id === "merseine-remove-net"
         )!;
         expect(() => resolveAbilityManaCost(state, aura, ability)).toThrow();
@@ -474,7 +474,7 @@ describe("High Tide — extra {U} per Island tap, through the mana funnel (CR 61
 
 describe("Seasinger — optional skip-untap through the real untap step (CR 502.1)", () => {
     it("untapStep enqueues a 0..1 untap-pick for a may-choose-not-to-untap permanent and leaves it tapped", () => {
-        const singer = makeInstance(seasinger.id, {
+        const singer = makeInstance(seasinger().id, {
             id: "singer",
             controllerId: "p1",
             ownerId: "p1",
@@ -596,7 +596,7 @@ describe("graveyard-source activation: enumerate → execute → token (issue #2
 // ---------------------------------------------------------------------------
 describe("minimum-blockers:3 — Troll of Khazad-dûm across all three consumers (CR 509.1b)", () => {
     function boardWithTroll() {
-        const troll = makeInstance(trollOfKhazadDum.id, {
+        const troll = makeInstance(trollOfKhazadDum().id, {
             id: "troll",
             controllerId: "p1",
             ownerId: "p1",

@@ -4,7 +4,7 @@
 // live here per the colour-split convention.
 
 import { makeTapForMana } from "../../abilities";
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mana Crypt — {0} Artifact. "At the beginning of your upkeep, flip a coin.
 // If you lose the flip, this artifact deals 3 damage to you.\n{T}: Add
@@ -21,7 +21,7 @@ import type { CardDefinition } from "../../types";
 // `reprint` flag confirms it, not the more familiar Eternal Masters print).
 // It was first drafted against the EMA reprint; that printing now rides
 // along as a `CardPrint` in `ema/colorless.cards.ts`.
-export const manaCrypt: CardDefinition = {
+export const manaCrypt = defineCard(() => ({
     id: "160cf235-6463-4e16-a426-8b5be76b10d2", // PHPR
     name: "Mana Crypt",
     rarity: "rare",
@@ -67,4 +67,4 @@ export const manaCrypt: CardDefinition = {
             produces: { C: 2 },
         }),
     ],
-};
+}));

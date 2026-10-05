@@ -5,7 +5,7 @@
 
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
-import { AURA_AFFECTS_HOST, type CardDefinition } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
 // The Flagbearer cycle (issue #3805). All three cards print the SAME
 // rules-modifying clause, so all three declare the same `target-choice-requirement`
@@ -21,7 +21,7 @@ const FLAGBEARER_TARGET_REQUIREMENT_TEXT =
     "While an opponent is choosing targets as part of casting a spell they control or activating an ability they control, that player must choose at least one Flagbearer on the battlefield if able.";
 
 // Standard Bearer — {1}{W} 1/1 Human Flagbearer.
-export const standardBearer: CardDefinition = {
+export const standardBearer = defineCard(() => ({
     id: "e0f8e16a-55f0-4147-a01a-dba7938f31c4", // APC 18
     rarity: "common",
     name: "Standard Bearer",
@@ -40,11 +40,11 @@ export const standardBearer: CardDefinition = {
             filter: { subtypes: "Flagbearer" },
         },
     ],
-};
+}));
 
 // Coalition Honor Guard — {3}{W} 2/4 Human Flagbearer, the same clause on a
 // tougher body.
-export const coalitionHonorGuard: CardDefinition = {
+export const coalitionHonorGuard = defineCard(() => ({
     id: "c5b7be3e-b4af-46d4-bcc6-b44c651f2012", // APC 3
     rarity: "common",
     name: "Coalition Honor Guard",
@@ -63,7 +63,7 @@ export const coalitionHonorGuard: CardDefinition = {
             filter: { subtypes: "Flagbearer" },
         },
     ],
-};
+}));
 
 // Coalition Flag — {W} Aura. "Enchant creature you control / Enchanted creature
 // is a Flagbearer / <the cycle's clause>."
@@ -75,7 +75,7 @@ export const coalitionHonorGuard: CardDefinition = {
 // matches the LIVE, layer-materialized subtypes, so an enchanted vanilla
 // creature is as good a Flagbearer as a printed one.
 // hand-tail: Enchanted creature is a Flagbearer. (#4365)
-export const coalitionFlag: CardDefinition = {
+export const coalitionFlag = defineCard(() => ({
     id: "0e417461-a230-4548-bcc1-71377487f21b", // APC 2
     rarity: "uncommon",
     name: "Coalition Flag",
@@ -100,7 +100,7 @@ export const coalitionFlag: CardDefinition = {
             filter: { subtypes: "Flagbearer" },
         },
     ],
-};
+}));
 
 // Divine Light — {W} Sorcery. "Prevent all damage that would be dealt this
 // turn to creatures you control." (CR 615.1a.)
@@ -120,7 +120,7 @@ export const coalitionFlag: CardDefinition = {
 // The Oracle line is a Grammar Gap worth two corpus cards, below the hand-tail
 // floor, so the card is written by hand rather than paid for with a rule.
 // hand-tail: "Prevent all damage that would be dealt this turn to creatures you control." (#4321)
-export const divineLight: CardDefinition = {
+export const divineLight = defineCard(() => ({
     id: "8f596ce1-b754-4e34-98e3-e1ddda2fd9b0", // APC 8
     rarity: "common",
     name: "Divine Light",
@@ -135,7 +135,7 @@ export const divineLight: CardDefinition = {
             match: { controller: "controller", cardType: "Creature" },
         },
     ],
-};
+}));
 
 // False Dawn — {1}{W} Sorcery (issue #3811). "Until end of turn, spells and
 // abilities you control that would add colored mana instead add that much
@@ -152,7 +152,7 @@ export const divineLight: CardDefinition = {
 //    may pay any coloured pip of any cost this player pays, which is what
 //    keeps the first effect from locking its own caster out of their colours.
 //    The cost and the mana spent are unchanged by it.
-export const falseDawn: CardDefinition = {
+export const falseDawn = defineCard(() => ({
     id: "1695e0ba-005a-4652-aea7-e1d1f9ff5d66", // APC 10
     rarity: "rare",
     name: "False Dawn",
@@ -170,7 +170,7 @@ export const falseDawn: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Gerrard Capashen — {3}{W}{W} 3/4 Legendary Human Soldier.
 //  • Upkeep: gain 1 life per card in TARGET opponent's hand — a real announced
@@ -183,7 +183,7 @@ export const falseDawn: CardDefinition = {
 //    on it via `activationPreconditionViolation`; the client affordability
 //    sweep skips `canActivate` abilities by design.
 // hand-tail: {3}{W}: Tap target creature. Activate only if {self} is attacking. (#4331)
-export const gerrardCapashen: CardDefinition = {
+export const gerrardCapashen = defineCard(() => ({
     id: "ccca800f-e850-4bec-95d0-70280b51b7a7", // APC 11
     rarity: "rare",
     name: "Gerrard Capashen",
@@ -230,7 +230,7 @@ export const gerrardCapashen: CardDefinition = {
             effects: [{ op: "tapUntap", action: "tap", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Haunted Angel — {2}{W} 3/3 Creature — Angel, flying. "When this creature dies,
 // exile it and each other player creates a 3/3 black Angel creature token with
@@ -246,7 +246,7 @@ export const gerrardCapashen: CardDefinition = {
 // (`$source` only finds a battlefield permanent; same reason as Cyclopean
 // Mummy / Rooting Kavu), so the whole trigger stays resolve().
 // hand-tail: When this creature dies, exile it and each other player creates a 3/3 black Angel creature token with flying. (#4334)
-export const hauntedAngel: CardDefinition = {
+export const hauntedAngel = defineCard(() => ({
     id: "78d2d11b-12e4-4810-a32d-8f1cdda3ec49", // APC 12
     rarity: "uncommon",
     name: "Haunted Angel",
@@ -309,7 +309,7 @@ export const hauntedAngel: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Manacles of Decay — {1}{W} Aura (issue #4356). "Enchant creature / Enchanted
 // creature can't attack. / {B}: Enchanted creature gets -1/-1 until end of
@@ -321,7 +321,7 @@ export const hauntedAngel: CardDefinition = {
 // Hobble uses (CR 508.1c); "can't block this turn" is a turn-scoped
 // `restrictCombat` grant (CR 509.1a), not a static.
 // hand-tail: {R}: Enchanted creature can't block this turn. (#4356)
-export const manaclesOfDecay: CardDefinition = {
+export const manaclesOfDecay = defineCard(() => ({
     id: "f3da5010-78b6-426f-aeb4-73c21d2af581", // APC 14
     rarity: "common",
     name: "Manacles of Decay",
@@ -369,4 +369,4 @@ export const manaclesOfDecay: CardDefinition = {
             ],
         },
     ],
-};
+}));

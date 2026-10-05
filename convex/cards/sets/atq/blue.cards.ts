@@ -8,8 +8,8 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, PermanentView, SpellContext } from "../../types";
-import { legalTargetSlots } from "../../types";
+import type { PermanentView, SpellContext } from "../../types";
+import { defineCard, legalTargetSlots } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Hurkyl's Recall — {1}{U} Instant. "Return all artifacts target player owns
@@ -24,7 +24,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // practice owner == controller for artifacts; a strict owner-scoped
 // enumeration would need a new engine query and is deferred (no engine change
 // in this tranche).
-export const hurkylsRecall: CardDefinition = {
+export const hurkylsRecall = defineCard(() => ({
     id: "f32373dd-06d8-45d1-8777-3b1411bcb30a",
     rarity: "rare",
     name: "Hurkyl's Recall",
@@ -48,7 +48,7 @@ export const hurkylsRecall: CardDefinition = {
             effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Graveyard / library recursion & card-flow (free tranche, #275) — CR 400.7
@@ -67,7 +67,7 @@ export const hurkylsRecall: CardDefinition = {
 // `controller: "you"` scopes legal targets to artifact cards in the caster's
 // own graveyard (rules.ts graveyard branch). `moveCardById` routes the picked
 // card graveyard → hand.
-export const reconstruction: CardDefinition = {
+export const reconstruction = defineCard(() => ({
     id: "1aa2d27b-cc25-4baa-86f4-4db45b30e2a4",
     rarity: "common",
     name: "Reconstruction",
@@ -83,7 +83,7 @@ export const reconstruction: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // graveyard artifact card to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
+}));
 
 // Drafna's Restoration — {U} Sorcery. "Put any number of target artifact cards
 // from target player's graveyard on top of their library in any order."
@@ -113,7 +113,7 @@ export const reconstruction: CardDefinition = {
 // those cards via a `reorder-library` choice gated by `candidateIds`, and
 // finally `reorderLibraryTop` over the FULL library with the chosen cards first
 // — placing them on top in the chosen order ahead of the pre-existing library.
-export const drafnasRestoration: CardDefinition = {
+export const drafnasRestoration = defineCard(() => ({
     id: "4be2aa3b-207b-4d21-abfb-6788520c7676",
     rarity: "common",
     name: "Drafna's Restoration",
@@ -182,7 +182,7 @@ export const drafnasRestoration: CardDefinition = {
             ctx.reorderLibraryTop(ownerId, [...ordered, ...rest]);
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster J (#290) — activated-ability cost reduction. CR 601.2f models cost
@@ -206,7 +206,7 @@ export const drafnasRestoration: CardDefinition = {
 // floored at one total mana, so a {T} mana ability like Mana Vault's
 // "{T}: Add {C}{C}{C}" (no mana in its cost) is unaffected, "{3}: Untap" drops
 // to {1}, and "{2}, {T}" drops to "{T}" only down to the one-mana floor.
-export const powerArtifact: CardDefinition = {
+export const powerArtifact = defineCard(() => ({
     id: "e48bc89e-6da5-43da-b4e0-60d5f850199c",
     rarity: "uncommon",
     name: "Power Artifact",
@@ -230,7 +230,7 @@ export const powerArtifact: CardDefinition = {
             minTotalMana: 1,
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster N (#291) — grant a triggered ability to a filtered set. CR 113.1
@@ -268,7 +268,7 @@ const IS_ARTIFACT: (
 // the start of their own upkeep, may pay {2} to keep it — otherwise it is
 // sacrificed. Each artifact gets its own trigger on the stack, so the
 // pay-or-sacrifice decision is independent per artifact (CR 603.3b).
-export const energyFlux: CardDefinition = {
+export const energyFlux = defineCard(() => ({
     id: "bd1f624b-e8f2-462f-838a-7cb9e8fda988",
     rarity: "uncommon",
     name: "Energy Flux",
@@ -320,7 +320,7 @@ export const energyFlux: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Library tutor → battlefield (ATQ cluster H, ADR 0027)
@@ -341,7 +341,7 @@ export const energyFlux: CardDefinition = {
 // until that final pass, so `getManaValue` reads its live mana value just
 // before it leaves (CR 608.2g — the sacrifice and the comparison are part of
 // the same resolution; no priority intervenes).
-export const transmuteArtifact: CardDefinition = {
+export const transmuteArtifact = defineCard(() => ({
     id: "6eab6765-eba3-4844-81ca-ae37a6e903df",
     rarity: "uncommon",
     name: "Transmute Artifact",
@@ -449,4 +449,4 @@ export const transmuteArtifact: CardDefinition = {
             ctx.shuffleLibrary(ctx.caster);
         },
     ],
-};
+}));

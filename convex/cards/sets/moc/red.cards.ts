@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { dashTrigger } from "../../abilities/dash";
 import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 
@@ -24,7 +24,7 @@ import { backupTrigger } from "../../abilities/triggers/backupTrigger";
 //   - Backup 1: `backupTrigger(1, ["double strike"])` — the SAME factory
 //     Consuming Aetherborn (`mom/black.cards.ts`) already proved, granting the
 //     card's own printed ability (double strike) to a non-self target.
-export const deathGreetersChampion: CardDefinition = {
+export const deathGreetersChampion = defineCard(() => ({
     id: "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94", // MOC 30
     name: "Death-Greeter's Champion",
     rarity: "rare",
@@ -45,4 +45,4 @@ export const deathGreetersChampion: CardDefinition = {
         backupTrigger(1, ["double strike"]),
         dashTrigger("Death-Greeter's Champion"),
     ],
-};
+}));

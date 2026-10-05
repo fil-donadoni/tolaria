@@ -1,6 +1,6 @@
 // blb (Bloomburrow) — blue cards (ADR 0043 colour split).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import {
     CLASS_SUBTYPE,
     classLevelGainedTrigger,
@@ -37,7 +37,7 @@ import { OTTER_TOKEN } from "../../sharedTokens";
 // "Until your next turn" maps to the `{ phase: "untap", player: "controller" }`
 // DurationSpec (precedent: Orcish Farmer's "until its controller's next untap
 // step").
-export const azureBeastbinder: CardDefinition = {
+export const azureBeastbinder = defineCard(() => ({
     id: "211af1bf-910b-41a5-b928-f378188d1871",
     name: "Azure Beastbinder",
     rarity: "rare",
@@ -116,7 +116,7 @@ export const azureBeastbinder: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Stormchaser's Talent — {U} Enchantment — Class (Vintage Cube, issue #3234).
 // The engine's first Class card (CR 716), so the whole CR 716 machinery ships
@@ -144,7 +144,7 @@ export const azureBeastbinder: CardDefinition = {
 // compiler-gap: "{3}{U}: Level 2" (#2693)
 // compiler-gap: "When this Class becomes level 2, return target instant or sorcery card from your graveyard to your hand." (#2693)
 // compiler-gap: "{5}{U}: Level 3" (#2693)
-export const stormchasersTalent: CardDefinition = {
+export const stormchasersTalent = defineCard(() => ({
     id: "a36e682d-b43d-4e08-bf5b-70d7e924dbe5", // BLB 75
     rarity: "rare",
     name: "Stormchaser's Talent",
@@ -221,4 +221,4 @@ export const stormchasersTalent: CardDefinition = {
             ],
         },
     ],
-};
+}));

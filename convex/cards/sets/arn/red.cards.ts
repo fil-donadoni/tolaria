@@ -6,12 +6,12 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition, TargetSelection } from "../../types";
+import { defineCard, type TargetSelection } from "../../types";
 import { resolveCompiledStatic } from "../../compiledStatics";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { untapRestriction } from "../../abilities/static/untapRestriction";
 
-export const birdMaiden: CardDefinition = {
+export const birdMaiden = defineCard(() => ({
     id: "5c1ba0b9-db01-447f-90cc-a2fc2c24146e",
     rarity: "common",
     name: "Bird Maiden",
@@ -22,11 +22,11 @@ export const birdMaiden: CardDefinition = {
     power: 1,
     toughness: 2,
     staticAbilities: ["flying"],
-};
+}));
 
 const RUKH_EGG_ID = "b28f9e63-e5e4-44b5-a17e-8301ff17c623";
 
-export const rukhEgg: CardDefinition = {
+export const rukhEgg = defineCard(() => ({
     id: RUKH_EGG_ID,
     rarity: "common",
     name: "Rukh Egg",
@@ -95,9 +95,9 @@ export const rukhEgg: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const kirdApe: CardDefinition = {
+export const kirdApe = defineCard(() => ({
     id: "ebe8845e-df1c-481c-949c-aab84af99a05",
     rarity: "common",
     name: "Kird Ape",
@@ -124,13 +124,13 @@ export const kirdApe: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Ali from Cairo — declarative damage replacement (CR 614): clamp any damage
 // that would drop its controller's life below 1 so it lands on exactly 1.
 // Applies to EVERY damage event, not once: each is a separate event, and
 // CR 614.5's one opportunity to affect an event is counted per event.
-export const aliFromCairo: CardDefinition = {
+export const aliFromCairo = defineCard(() => ({
     id: "42027613-d261-4ce2-8ba1-7a2480c660f8",
     rarity: "rare",
     name: "Ali from Cairo",
@@ -173,12 +173,12 @@ export const aliFromCairo: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Aladdin — activated control change conditioned on "you control Aladdin"
 // (CR 611.2b). Reverts via the conditional-control SBA when Aladdin leaves or
 // changes controller.
-export const aladdin: CardDefinition = {
+export const aladdin = defineCard(() => ({
     id: "db52bad2-a3ec-4f6f-9418-12e8c40703f6",
     rarity: "rare",
     name: "Aladdin",
@@ -210,12 +210,12 @@ export const aladdin: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Desert Nomads — desertwalk (reuses the landwalk evasion machinery, keyed to
 // the Desert subtype) plus a static "prevent all damage Deserts would deal to
 // this creature" replacement (CR 614).
-export const desertNomads: CardDefinition = {
+export const desertNomads = defineCard(() => ({
     id: "e46d0c10-ec09-48ba-9e93-1392dca8111a",
     rarity: "common",
     name: "Desert Nomads",
@@ -242,7 +242,7 @@ export const desertNomads: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 
 // Magnetic Mountain (ARN) — "Blue creatures don't untap during their
 // controllers' untap steps. / At the beginning of each player's upkeep, that
@@ -257,7 +257,7 @@ export const desertNomads: CardDefinition = {
 // upkeep (scope "each"); the upkeep player is the chooser/payer. The resolve
 // suspends twice (ADR 0008): a choose-any-number pick, then a may-pay scaled
 // to {4} × chosen (CR 118), and on payment untaps the chosen creatures.
-export const magneticMountain: CardDefinition = {
+export const magneticMountain = defineCard(() => ({
     id: "95fde48b-e40a-4183-b324-1ec276dde015",
     rarity: "uncommon",
     name: "Magnetic Mountain",
@@ -323,9 +323,9 @@ export const magneticMountain: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const mijaeDjinn: CardDefinition = {
+export const mijaeDjinn = defineCard(() => ({
     id: "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
     rarity: "rare",
     name: "Mijae Djinn",
@@ -373,9 +373,9 @@ export const mijaeDjinn: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const ydwenEfreet: CardDefinition = {
+export const ydwenEfreet = defineCard(() => ({
     id: "efdba2a9-d171-45ed-8dd4-9d0046128f68",
     rarity: "rare",
     name: "Ydwen Efreet",
@@ -447,14 +447,14 @@ export const ydwenEfreet: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Hurr Jackal — "{T}: Target creature can't be regenerated this turn." (CR
 // 701.19 regenerate; the `preventRegeneration` Op writes the turn-scoped
 // can't-be-regenerated marker purged at CLEANUP — Gravebind's clause, here on
 // a tap ability.)
 // compiler-gap: "{T}: Target creature can't be regenerated this turn." (#2693)
-export const hurrJackal: CardDefinition = {
+export const hurrJackal = defineCard(() => ({
     id: "f4aadda8-8577-480d-8186-532d2b173c15",
     rarity: "common",
     name: "Hurr Jackal",
@@ -474,4 +474,4 @@ export const hurrJackal: CardDefinition = {
             effects: [{ op: "preventRegeneration", target: { target: 0 } }],
         },
     ],
-};
+}));

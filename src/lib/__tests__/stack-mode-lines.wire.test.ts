@@ -25,7 +25,7 @@ import {
 /** Vision Charm on the stack with mode "mill" locked in at cast, as
  *  `announceCast` would leave it (chosenModeId + announced target). */
 function stateWithModalOnStack(modeId: string) {
-    const lotus = makeInstance(blackLotus.id, {
+    const lotus = makeInstance(blackLotus().id, {
         id: "lotus",
         controllerId: "p1",
         ownerId: "p1",
@@ -34,7 +34,7 @@ function stateWithModalOnStack(modeId: string) {
     const state = makeState({
         players: [makePlayer("p1", { battlefield: [lotus] }), makePlayer("p2")],
     });
-    const item = pushSpell(state, visionCharm.id, "p1", [
+    const item = pushSpell(state, visionCharm().id, "p1", [
         { type: "player", id: "p2" },
     ]);
     item.chosenModeIds = [modeId];
@@ -84,7 +84,7 @@ describe("stack chosen-mode highlight survives the wire (issue #1274, CR 700.2c)
         });
         // A modal spell on the stack with NO locked mode (shouldn't happen in
         // practice, but the helper must be defensive) → null.
-        pushSpell(state, visionCharm.id, "p1");
+        pushSpell(state, visionCharm().id, "p1");
         expect(getStackModeLines(state.stack[0])).toBeNull();
     });
 });
@@ -102,7 +102,7 @@ describe("stack chosen-mode highlight for a modal TRIGGER (CR 603.3c, issue #246
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "mine",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -112,7 +112,7 @@ describe("stack chosen-mode highlight for a modal TRIGGER (CR 603.3c, issue #246
                 }),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "theirs",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -124,7 +124,7 @@ describe("stack chosen-mode highlight for a modal TRIGGER (CR 603.3c, issue #246
         });
         state.stack.push({
             id: "exarch-trig",
-            card: { id: deceiverExarch.id },
+            card: { id: deceiverExarch().id },
             controllerId: "p1",
             ownerId: "p1",
             castById: "p1",

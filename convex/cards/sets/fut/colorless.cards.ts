@@ -3,8 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { equipAbility } from "../../abilities/equipment";
 
 // Horizon Canopy — {T}, Pay 1 life: Add {G} or {W}; {1}, {T}, Sacrifice: Draw a
@@ -12,7 +11,7 @@ import { equipAbility } from "../../abilities/equipment";
 // payment as part of the cost; CR 305 land. The cantrip-sacrifice ability is a
 // normal activated ability that uses the stack, CR 602.) Composed entirely from
 // existing primitives — the painland mana ability mirrors Standing Stones (DRK).
-export const horizonCanopy: CardDefinition = {
+export const horizonCanopy = defineCard(() => ({
     id: "d5dfc25d-a17b-4ead-9484-e8a18b8fa176",
     rarity: "rare",
     name: "Horizon Canopy",
@@ -38,7 +37,7 @@ export const horizonCanopy: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Coalition Relic — "{T}: Add one mana of any color.\n{T}: Put a charge
 // counter on this artifact.\nAt the beginning of your first main phase,
@@ -100,7 +99,7 @@ export const horizonCanopy: CardDefinition = {
 // `BECAME_TARGET.targetPermanent`) — added in `mechanicsRegistry.ts`
 // alongside this card; NOT a new Op, the existing ADR 0049 generalization
 // mechanism for exposing an already-existing event field to the DSL.
-export const swordOfTheMeek: CardDefinition = {
+export const swordOfTheMeek = defineCard(() => ({
     id: "e9f13705-6ede-4c29-a2b4-a082bf69e9c5",
     name: "Sword of the Meek",
     rarity: "uncommon",
@@ -163,4 +162,4 @@ export const swordOfTheMeek: CardDefinition = {
             ],
         },
     ],
-};
+}));

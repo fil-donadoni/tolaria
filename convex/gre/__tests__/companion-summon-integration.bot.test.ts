@@ -43,7 +43,7 @@ function playerWithCompanion(
             makeInstance(MOUNTAIN, { controllerId: "p1", ownerId: "p1" }),
         ],
         companion: {
-            instance: makeInstance(lutri.id, {
+            instance: makeInstance(lutri().id, {
                 controllerId: "p1",
                 ownerId: "p1",
             }),
@@ -102,7 +102,7 @@ describe("summon-companion — GRE move loop (CR 116.2, ADR 0064)", () => {
             players: [
                 playerWithCompanion({
                     companion: {
-                        instance: makeInstance(lutri.id, {
+                        instance: makeInstance(lutri().id, {
                             controllerId: "p1",
                             ownerId: "p1",
                         }),
@@ -136,7 +136,7 @@ describe("summon-companion — GRE move loop (CR 116.2, ADR 0064)", () => {
         expect(p1.companion?.used).toBe(true);
         expect(
             p1.hand.some(
-                (c) => c.card && (c.card as { id: string }).id === lutri.id
+                (c) => c.card && (c.card as { id: string }).id === lutri().id
             )
         ).toBe(true);
         expect(next.stack).toHaveLength(0);
@@ -174,7 +174,7 @@ describe("summon-companion — ISMCTS in-tree applier (CR 116.2g, issue #4478)",
         expect(p1.companion?.used).toBe(true);
         expect(
             p1.hand.some(
-                (c) => c.card && (c.card as { id: string }).id === lutri.id
+                (c) => c.card && (c.card as { id: string }).id === lutri().id
             )
         ).toBe(true);
         expect(p1.battlefield.filter((c) => c.isTapped)).toHaveLength(3);
@@ -197,7 +197,7 @@ describe("summon-companion — authoritative mutation sequence (game.ts summonCo
         const p1 = state.players[0];
         expect(p1.companion?.used).toBe(true);
         expect(
-            p1.hand.some((c) => (c.card as { id: string }).id === lutri.id)
+            p1.hand.some((c) => (c.card as { id: string }).id === lutri().id)
         ).toBe(true);
         // {3} generic paid from the three tapped Mountains.
         expect(p1.battlefield.every((c) => c.isTapped)).toBe(true);

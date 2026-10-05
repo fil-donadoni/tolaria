@@ -55,14 +55,14 @@ function pitchState(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    inHand("solitude", solitude.id),
-                    inHand("angel", serraAngel.id),
-                    inHand("lions", savannahLions.id),
+                    inHand("solitude", solitude().id),
+                    inHand("angel", serraAngel().id),
+                    inHand("lions", savannahLions().id),
                 ],
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bears",
                         controllerId: "p2",
                         ownerId: "p2",

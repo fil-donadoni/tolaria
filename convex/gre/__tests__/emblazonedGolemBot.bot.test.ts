@@ -42,7 +42,7 @@ function board(lands: { id: string; def: string }[]): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(emblazonedGolem.id, {
+                    makeInstance(emblazonedGolem().id, {
                         id: GOLEM,
                         zone: "hand",
                         controllerId: "p1",
@@ -85,7 +85,7 @@ describe("Emblazoned Golem — Bot reachability (CR 107.3a / 601.2h, issue #4506
     it("bounds X by DISTINCT reachable colours, not a flat generic count: five Plains cap at X = 1", () => {
         const lands = Array.from({ length: 5 }, (_, i) => ({
             id: `pl${i}`,
-            def: plains.id,
+            def: plains().id,
         }));
         const casts = golemCasts(board(lands));
         // {2} generic leaves three Plains — all the SAME colour, so the
@@ -98,11 +98,11 @@ describe("Emblazoned Golem — Bot reachability (CR 107.3a / 601.2h, issue #4506
 
     it("EVERY kicked variant carries a chosenXColors the server's fold accepts", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
         ];
         const casts = golemCasts(board(lands));
         for (const m of casts.filter(kicked)) {
@@ -120,11 +120,11 @@ describe("Emblazoned Golem — Bot reachability (CR 107.3a / 601.2h, issue #4506
 
     it("one land of each colour: the printed {2} claims two, so the ceiling is 3, not 5", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
         ];
         const casts = golemCasts(board(lands));
         expect(Math.max(...casts.filter(kicked).map((m) => xOf(m) ?? 0))).toBe(
@@ -134,11 +134,11 @@ describe("Emblazoned Golem — Bot reachability (CR 107.3a / 601.2h, issue #4506
 
     it("the GREEDY sandbox (applyMoveForSearch) charges {2} + the chosen colours and the Golem enters with X counters", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
         ];
         const state = board(lands);
         const move = golemCasts(state).find((m) => kicked(m) && xOf(m) === 3)!;
@@ -152,11 +152,11 @@ describe("Emblazoned Golem — Bot reachability (CR 107.3a / 601.2h, issue #4506
 
     it("the ISMCTS sandbox (applyMoveInSearch) charges the same plan and announces the same X", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
         ];
         const state = board(lands);
         const move = golemCasts(state).find((m) => kicked(m) && xOf(m) === 3)!;

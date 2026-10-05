@@ -31,9 +31,9 @@ import { wireCharacteristicsOf } from "../../cards/__tests__/setup.helper";
  *  creature". The source is a permanent OTHER than its targets, which is the
  *  whole point: source-departure and target-departure are different events. */
 function makeSongBoard() {
-    const lotus = makeInstance(blackLotus.id, { id: "lotus-1" });
-    const mox = makeInstance(moxSapphire.id, { id: "mox-1" });
-    const song = makeInstance(titaniasSong.id, { id: "song-1" });
+    const lotus = makeInstance(blackLotus().id, { id: "lotus-1" });
+    const mox = makeInstance(moxSapphire().id, { id: "mox-1" });
+    const song = makeInstance(titaniasSong().id, { id: "song-1" });
     const state = makeState({
         players: [
             makePlayer("p1", { battlefield: [lotus, mox, song] }),
@@ -108,7 +108,7 @@ describe("revertTypeProvenance origin discipline (CR 205 / 400.7, issue #2086)",
         baseTypes: CardInstanceState["types"],
         types: CardInstanceState["types"]
     ) {
-        const creature = makeInstance(airElemental.id, { id: "elem-1" });
+        const creature = makeInstance(airElemental().id, { id: "elem-1" });
         creature.types = [...types];
         creature.baseTypes = [...baseTypes];
         const state = makeState({
@@ -137,7 +137,7 @@ describe("revertTypeProvenance origin discipline (CR 205 / 400.7, issue #2086)",
     it("never STRIPS a granted type the card also printed", () => {
         // A grant that duplicates a printed type (Titania's Song's "Artifact"
         // twin shape) must not take the printed type with it.
-        const lotus = makeInstance(blackLotus.id, { id: "lotus-1" });
+        const lotus = makeInstance(blackLotus().id, { id: "lotus-1" });
         lotus.baseTypes = ["Artifact"];
         const state = makeState({
             players: [
@@ -151,7 +151,7 @@ describe("revertTypeProvenance origin discipline (CR 205 / 400.7, issue #2086)",
     });
 
     it("clears entries whose source id names no live permanent (one-shot arm, issue #2084)", () => {
-        const lotus = makeInstance(blackLotus.id, { id: "lotus-1" });
+        const lotus = makeInstance(blackLotus().id, { id: "lotus-1" });
         lotus.types = ["Artifact", "Creature"];
         lotus.baseTypes = ["Artifact"];
         lotus.typeLineHolds = [{ types: ["Artifact", "Creature"], seq: 1 }];

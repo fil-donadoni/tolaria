@@ -77,7 +77,7 @@ function northStarBoard(pool: Record<string, number>): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(darkRitual.id, {
+                    makeInstance(darkRitual().id, {
                         id: "bolt",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -85,13 +85,13 @@ function northStarBoard(pool: Record<string, number>): GameState {
                     }),
                 ],
                 battlefield: [
-                    makeInstance(northStar.id, {
+                    makeInstance(northStar().id, {
                         id: "star",
                         controllerId: "p1",
                         ownerId: "p1",
                         zone: "battlefield",
                     }),
-                    makeInstance(forest.id, {
+                    makeInstance(forest().id, {
                         id: "forest",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -184,7 +184,7 @@ describe("North Star — an off-colour spell becomes payable, for ONE spell (CR 
         const after = await announce(state, "bolt");
         // CR 609.4b — the green mana was spent as though it were black.
         expect(after.stack).toHaveLength(1);
-        expect(after.stack[0].card.id).toBe(darkRitual.id);
+        expect(after.stack[0].card.id).toBe(darkRitual().id);
         expect(after.pendingCast).toBeUndefined();
         expect(after.players[0].manaPool.G).toBe(0);
         // "for ONE spell this turn" — the grant is gone.
@@ -219,7 +219,7 @@ describe("North Star — an off-colour spell becomes payable, for ONE spell (CR 
                 state,
                 state.players[0],
                 "bolt",
-                darkRitual,
+                darkRitual(),
                 { B: 1 }
             )
         ).toHaveLength(30);
@@ -234,13 +234,13 @@ describe("Robber of the Rich — the fixing rides ONE exiled card's cast permiss
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(robberOfTheRich.id, {
+                        makeInstance(robberOfTheRich().id, {
                             id: "robber",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "battlefield",
                         }),
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: "forest",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -251,7 +251,7 @@ describe("Robber of the Rich — the fixing rides ONE exiled card's cast permiss
                 }),
                 makePlayer("p2", {
                     hand: [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             id: "p2-hand-1",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -259,7 +259,7 @@ describe("Robber of the Rich — the fixing rides ONE exiled card's cast permiss
                         }),
                     ],
                     library: [
-                        makeInstance(darkRitual.id, {
+                        makeInstance(darkRitual().id, {
                             id: "loot",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -336,7 +336,7 @@ describe("Robber of the Rich — the fixing rides ONE exiled card's cast permiss
 
         expect(committed?.cardInstanceId).toBe("loot");
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card.id).toBe(darkRitual.id);
+        expect(state.stack[0].card.id).toBe(darkRitual().id);
         // CR 609.4b — the {G} was spent as though it were {B}.
         expect(state.players[0].manaPool.G).toBe(0);
         // The permission is consumed with the card leaving exile (CR 601.3).
@@ -355,7 +355,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
             players: [
                 makePlayer("p1", {
                     hand: [
-                        makeInstance(faerieSquadron.id, {
+                        makeInstance(faerieSquadron().id, {
                             id: "faerie",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -363,7 +363,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
                         }),
                     ],
                     battlefield: [
-                        makeInstance(northStar.id, {
+                        makeInstance(northStar().id, {
                             id: "star",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -390,7 +390,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
                 state,
                 state.players[0],
                 "faerie",
-                faerieSquadron,
+                faerieSquadron(),
                 { U: 1 }
             )
         ).toHaveLength(30);
@@ -401,7 +401,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
                 state,
                 state.players[0],
                 "faerie",
-                faerieSquadron,
+                faerieSquadron(),
                 { U: 2, X: 3 }
             )
         ).toEqual([]);
@@ -417,7 +417,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
                 state,
                 state.players[0],
                 "faerie",
-                faerieSquadron,
+                faerieSquadron(),
                 { G: 1 }
             )
         ).toEqual([]);
@@ -430,7 +430,7 @@ describe("the grant reaches the spell's MANA COST only (CR 601.2f / 609.4b)", ()
             state,
             state.players[0],
             { U: 2, X: 3 },
-            faerieSquadron,
+            faerieSquadron(),
             "faerie"
         );
         // Nothing was paid with it, so nothing was designated.
@@ -449,7 +449,7 @@ describe("the grant never reaches a 'rather than pay that mana' cost (CR 702.51a
             players: [
                 makePlayer("p1", {
                     hand: [
-                        makeInstance(hogaakArisenNecropolis.id, {
+                        makeInstance(hogaakArisenNecropolis().id, {
                             id: "hogaak",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -457,14 +457,14 @@ describe("the grant never reaches a 'rather than pay that mana' cost (CR 702.51a
                         }),
                     ],
                     battlefield: [
-                        makeInstance(northStar.id, {
+                        makeInstance(northStar().id, {
                             id: "star",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "battlefield",
                         }),
                         ...Array.from({ length: 8 }, (_, i) =>
-                            makeInstance(savannahLions.id, {
+                            makeInstance(savannahLions().id, {
                                 id: `lion-${i}`,
                                 controllerId: "p1",
                                 ownerId: "p1",
@@ -518,13 +518,13 @@ describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b /
                         }),
                     ],
                     battlefield: [
-                        makeInstance(northStar.id, {
+                        makeInstance(northStar().id, {
                             id: "star",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "battlefield",
                         }),
-                        makeInstance(savannahLions.id, {
+                        makeInstance(savannahLions().id, {
                             id: "lion",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -546,7 +546,7 @@ describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b /
 
     it("IMMEDIATE commit: Earthquake for X=1 (pool covers it) consumes the grant", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(xBoard(earthquake)),
+            gameStateSeed(xBoard(earthquake())),
         ]);
         await runMutation<AnnounceCastArgs & { chosenX: number }, void>(
             announceCast as unknown as Handler<
@@ -565,7 +565,7 @@ describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b /
 
     it("DEFERRED commit: Howl from Beyond for X=1 (target chosen after) consumes the grant", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(xBoard(howlFromBeyond)),
+            gameStateSeed(xBoard(howlFromBeyond())),
         ]);
         await runMutation<AnnounceCastArgs & { chosenX: number }, void>(
             announceCast as unknown as Handler<
@@ -591,7 +591,7 @@ describe("an X spell spends the one-shot grant on BOTH commit paths (CR 609.4b /
     });
 
     it("RESUME commit: a parked X=1 cast whose pool is later covered consumes the grant", () => {
-        const state = xBoard(earthquake);
+        const state = xBoard(earthquake());
         // The cast parked on mana at announce (X priced at the announced 1);
         // the pool has since been covered and the parked cast resumes.
         state.pendingCast = {

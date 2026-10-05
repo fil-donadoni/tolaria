@@ -97,8 +97,8 @@ function makeState(overrides: Partial<GameState> = {}): GameState {
 describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
     describe("Winter Orb — land-only cap (ADR 0004 modern Oracle)", () => {
         it("zero eligibles (no tapped lands) → no prompt; flag cleanup still runs", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: false,
                 manaCommitted: true,
@@ -119,8 +119,8 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("single tapped land → prompt with { min: 0, max: 1 }, land filter (ADR 0003 cap-style zero-branch)", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
@@ -147,12 +147,12 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("two tapped lands → prompt; resume after picking one land untaps the chosen id and leaves UNTAP", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land1 = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land1 = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const land2 = makeInstance(plains.id, {
+            const land2 = makeInstance(plains().id, {
                 id: "l2",
                 isTapped: true,
             });
@@ -195,12 +195,12 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("two tapped lands → prompt; resume with empty selection (Skip) untaps nothing and leaves UNTAP", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land1 = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land1 = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const land2 = makeInstance(plains.id, {
+            const land2 = makeInstance(plains().id, {
                 id: "l2",
                 isTapped: true,
             });
@@ -227,12 +227,12 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("Winter Orb does NOT cap non-land permanents — tapped Grizzly Bears untap normally", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
                 isSummoningSick: false,
@@ -255,8 +255,8 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("per-permanent `does-not-untap` excludes the marked permanent from eligibility and from auto-untap", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
                 staticAbilities: ["does-not-untap"],
@@ -278,12 +278,12 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("wire format: PendingChoice with range count + land filter survives projectPublicState", () => {
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land1 = makeInstance(plains.id, {
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land1 = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const land2 = makeInstance(plains.id, {
+            const land2 = makeInstance(plains().id, {
                 id: "l2",
                 isTapped: true,
             });
@@ -313,14 +313,14 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
 
     describe("Stasis — hard skip (maxUntap: 0, filter matches every permanent)", () => {
         it("no PendingChoice + all matching active-BF permanents stay tapped + cleanup runs", () => {
-            const enchant = makeInstance(stasis.id, { id: "stasis" });
-            const land = makeInstance(plains.id, {
+            const enchant = makeInstance(stasis().id, { id: "stasis" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
                 manaCommitted: true,
                 chosenMana: { W: 1 },
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
                 isSummoningSick: true,
@@ -355,13 +355,13 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
             // Per the dispatcher: a `maxUntap: 0` restriction's matched
             // permanents are removed from every other cap's eligibility
             // set, so Winter Orb's land prompt cannot surface under Stasis.
-            const enchant = makeInstance(stasis.id, { id: "stasis" });
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land1 = makeInstance(plains.id, {
+            const enchant = makeInstance(stasis().id, { id: "stasis" });
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land1 = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const land2 = makeInstance(plains.id, {
+            const land2 = makeInstance(plains().id, {
                 id: "l2",
                 isTapped: true,
             });
@@ -382,12 +382,12 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("Stasis on the opponent's side still skips the active player's untap step", () => {
-            const enchant = makeInstance(stasis.id, {
+            const enchant = makeInstance(stasis().id, {
                 id: "stasis",
                 controllerId: "p2",
                 ownerId: "p2",
             });
-            const land = makeInstance(plains.id, {
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
@@ -410,14 +410,14 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
     describe("hard-skip ∩ cap intersection (CR 502.1)", () => {
         it("Creature ∩ Creature+power≥3: cap's eligibles exclude high-power creatures", () => {
             // Meekstone (maxUntap:0, Creature power≥3) + Smoke (maxUntap:1, Creature)
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const smk = makeInstance(smoke.id, { id: "smoke" });
-            const bear = makeInstance(grizzlyBears.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const smk = makeInstance(smoke().id, { id: "smoke" });
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
                 isSummoningSick: false,
             });
-            const vamp = makeInstance(sengirVampire.id, {
+            const vamp = makeInstance(sengirVampire().id, {
                 id: "vamp",
                 isTapped: true,
                 isSummoningSick: false,
@@ -450,9 +450,9 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
 
         it("any ∩ Creature: Stasis vetoes all Smoke eligibles → no prompt", () => {
             // Stasis (maxUntap:0, any filter) + Smoke (maxUntap:1, Creature)
-            const enchant = makeInstance(stasis.id, { id: "stasis" });
-            const smk = makeInstance(smoke.id, { id: "smoke" });
-            const bear = makeInstance(grizzlyBears.id, {
+            const enchant = makeInstance(stasis().id, { id: "stasis" });
+            const smk = makeInstance(smoke().id, { id: "smoke" });
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
                 isSummoningSick: false,
@@ -476,17 +476,17 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("non-overlapping filters: Meekstone (Creature power≥3) does not affect Winter Orb (Land)", () => {
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const orb = makeInstance(winterOrb.id, { id: "orb" });
-            const land1 = makeInstance(plains.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const orb = makeInstance(winterOrb().id, { id: "orb" });
+            const land1 = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
-            const land2 = makeInstance(plains.id, {
+            const land2 = makeInstance(plains().id, {
                 id: "l2",
                 isTapped: true,
             });
-            const vamp = makeInstance(sengirVampire.id, {
+            const vamp = makeInstance(sengirVampire().id, {
                 id: "vamp",
                 isTapped: true,
                 isSummoningSick: false,
@@ -514,14 +514,14 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("cap with zero post-intersection eligibles → auto-resolve, no prompt (ADR 0003)", () => {
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const smk = makeInstance(smoke.id, { id: "smoke" });
-            const vamp1 = makeInstance(sengirVampire.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const smk = makeInstance(smoke().id, { id: "smoke" });
+            const vamp1 = makeInstance(sengirVampire().id, {
                 id: "vamp1",
                 isTapped: true,
                 isSummoningSick: false,
             });
-            const vamp2 = makeInstance(sengirVampire.id, {
+            const vamp2 = makeInstance(sengirVampire().id, {
                 id: "vamp2",
                 isTapped: true,
                 isSummoningSick: false,
@@ -543,8 +543,8 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
 
     describe("commit-time veto via computeHardSkipFilters (CR 502.1)", () => {
         it("rejects a power-4 creature matching Meekstone's hard-skip filter", () => {
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const vamp = makeInstance(sengirVampire.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const vamp = makeInstance(sengirVampire().id, {
                 id: "vamp",
                 isTapped: true,
                 isSummoningSick: false,
@@ -564,8 +564,8 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("accepts a power-2 creature not matching any hard-skip filter", () => {
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const bear = makeInstance(grizzlyBears.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
                 isSummoningSick: false,
@@ -585,8 +585,8 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
         });
 
         it("non-creature permanents (lands) are never vetoed by Meekstone's creature-power filter", () => {
-            const stone = makeInstance(meekstone.id, { id: "stone" });
-            const land = makeInstance(plains.id, {
+            const stone = makeInstance(meekstone().id, { id: "stone" });
+            const land = makeInstance(plains().id, {
                 id: "l1",
                 isTapped: true,
             });
@@ -614,11 +614,11 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
     // which is exactly the bug a `subtypes: "Goblin"` spelling would ship.
     describe("appliesToSelf — a self-scoped lock (CR 502.3, issue #2713)", () => {
         it("locks ONLY the source: the Sharpshooter stays tapped, another tapped creature untaps", () => {
-            const sharpshooter = makeInstance(goblinSharpshooter.id, {
+            const sharpshooter = makeInstance(goblinSharpshooter().id, {
                 id: "sharp",
                 isTapped: true,
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
             });
@@ -654,15 +654,15 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
             // board-wide filter (or one keyed on the Sharpshooter's own
             // characteristics) would keep `bear` tapped too. Only a lock that
             // names its own instance id lets it untap.
-            const first = makeInstance(goblinSharpshooter.id, {
+            const first = makeInstance(goblinSharpshooter().id, {
                 id: "sharp-1",
                 isTapped: true,
             });
-            const second = makeInstance(goblinSharpshooter.id, {
+            const second = makeInstance(goblinSharpshooter().id, {
                 id: "sharp-2",
                 isTapped: true,
             });
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 isTapped: true,
             });

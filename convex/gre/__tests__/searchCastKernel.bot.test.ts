@@ -42,13 +42,13 @@ function boltPosition(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(mountain.id, {
+                    makeInstance(mountain().id, {
                         id: "mtn",
                         controllerId: "p1",
                         ownerId: "p1",
                         zone: "battlefield",
                     }),
-                    makeInstance(blackLotus.id, {
+                    makeInstance(blackLotus().id, {
                         id: "lotus",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -56,7 +56,7 @@ function boltPosition(): GameState {
                     }),
                 ],
                 hand: [
-                    makeInstance(lightningBolt.id, {
+                    makeInstance(lightningBolt().id, {
                         id: "bolt",
                         controllerId: "p1",
                         ownerId: "p1",

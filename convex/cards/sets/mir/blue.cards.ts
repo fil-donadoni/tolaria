@@ -2,7 +2,7 @@
 // `import * as mir from "./sets/mir/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mystical Tutor — {U} Instant. "Search your library for an instant or
 // sorcery card, reveal it, then shuffle and put that card on top." (CR
@@ -16,7 +16,7 @@ import type { CardDefinition } from "../../types";
 // current top card"); the shuffle then runs, and the `library-top` move
 // relocates the (now-shuffled) picked card to the front, per the oracle
 // text's own ordering.
-export const mysticalTutor: CardDefinition = {
+export const mysticalTutor = defineCard(() => ({
     id: "5d98101f-e32a-4a4a-a649-faa920d111ee",
     name: "Mystical Tutor",
     rarity: "uncommon",
@@ -45,7 +45,7 @@ export const mysticalTutor: CardDefinition = {
             to: "library-top",
         },
     ],
-};
+}));
 
 // Flash — {1}{U} Instant. "You may put a creature card from your hand onto
 // the battlefield. If you do, sacrifice it unless you pay its mana cost
@@ -64,7 +64,7 @@ export const mysticalTutor: CardDefinition = {
 // picks ref, CR 608.2b), since declining the initial "you may" never raises
 // the mayPay prompt at all (`resolveMayPayCost` skips the whole Op when
 // `$picked` is empty).
-export const flash: CardDefinition = {
+export const flash = defineCard(() => ({
     id: "63af3c26-5b1f-46f6-9aa2-036c615bf5ea", // MIR 66
     name: "Flash",
     rarity: "rare",
@@ -103,4 +103,4 @@ export const flash: CardDefinition = {
             then: [{ op: "sacrifice", permanents: { ref: "$picked" } }],
         },
     ],
-};
+}));

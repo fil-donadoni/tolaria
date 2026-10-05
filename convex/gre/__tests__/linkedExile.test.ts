@@ -33,13 +33,13 @@ import { compactState, expandState } from "../serialize";
 // getCardsExiledWith, independent of the pushed stack item's own id. Kept as
 // a named helper purely for readability at each call site.
 function ctxFor(state: GameState) {
-    const item = pushSpell(state, grizzlyBears.id, "p1");
+    const item = pushSpell(state, grizzlyBears().id, "p1");
     return buildSpellContext(state, item);
 }
 
 describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () => {
     it("linkExileToSource + getCardsExiledWith round-trips an arbitrary source/card pair", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-exiled",
             controllerId: "p1",
             ownerId: "p1",
@@ -62,7 +62,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("getCardsExiledWith finds a linked card even in an OPPONENT's exile (CR 400.7)", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-p2-exile",
             controllerId: "p2",
             ownerId: "p2",
@@ -80,7 +80,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("a card linked to source A is NOT returned when querying source B", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-other-link",
             controllerId: "p1",
             ownerId: "p1",
@@ -97,7 +97,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("composes with returnToBattlefield: puts a creature card exiled with this permanent onto the battlefield", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-to-return",
             controllerId: "p1",
             ownerId: "p1",
@@ -130,7 +130,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("regression: the stale link is cleared once the card leaves exile via returnToBattlefield (issue #1319)", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-stale-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -157,13 +157,13 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("regression: the stale link is cleared on exile -> hand / graveyard via moveCardById (general zone-mover)", () => {
-        const toHand = makeInstance(grizzlyBears.id, {
+        const toHand = makeInstance(grizzlyBears().id, {
             id: "bear-stale-hand",
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
         });
-        const toGraveyard = makeInstance(grizzlyBears.id, {
+        const toGraveyard = makeInstance(grizzlyBears().id, {
             id: "bear-stale-gy",
             controllerId: "p1",
             ownerId: "p1",
@@ -196,7 +196,7 @@ describe("linked-exile tracking (CR 610.3 / issue #791, generalized #1319)", () 
     });
 
     it("survives the DB round trip while sitting in exile (serialize drift guard, CR 111)", () => {
-        const exiled = makeInstance(grizzlyBears.id, {
+        const exiled = makeInstance(grizzlyBears().id, {
             id: "bear-persist",
             controllerId: "p1",
             ownerId: "p1",

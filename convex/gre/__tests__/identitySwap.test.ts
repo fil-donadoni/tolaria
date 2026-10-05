@@ -164,7 +164,7 @@ function makeBoard(...cards: CardInstanceState[]): GameState {
 }
 
 function ctxFor(state: GameState) {
-    const item: StackItem = pushSpell(state, grizzlyBears.id, "p1");
+    const item: StackItem = pushSpell(state, grizzlyBears().id, "p1");
     return buildSpellContext(state, item);
 }
 
@@ -256,7 +256,7 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
     for (const site of SWAP_SITES) {
         it(`${site.name} keeps an until-EOT grant`, () => {
             const card = makeInstance(SWAP_FRONT_ID, { id: "swap-1" });
-            const source = makeInstance(mahamotiDjinn.id, { id: "src-1" });
+            const source = makeInstance(mahamotiDjinn().id, { id: "src-1" });
             const state = makeBoard(card, source);
             const ctx = ctxFor(state);
             ctx.grantStaticAbility(
@@ -402,9 +402,9 @@ describe("shape (a) — a live keyword grant survives every identity swap (CR 40
 
 describe("shape (b) — a live layer-6 removal is not undone by an identity swap (CR 613.1f)", () => {
     it("Gravity Sphere: a permanent that becomes a copy of a printed flier still does not fly", () => {
-        const elemental = makeInstance(airElemental.id, { id: "elem-1" });
-        const djinn = makeInstance(mahamotiDjinn.id, { id: "djinn-1" });
-        const sphere = makeInstance(gravitySphere.id, { id: "sphere-1" });
+        const elemental = makeInstance(airElemental().id, { id: "elem-1" });
+        const djinn = makeInstance(mahamotiDjinn().id, { id: "djinn-1" });
+        const sphere = makeInstance(gravitySphere().id, { id: "sphere-1" });
         const state = makeBoard(elemental, djinn, sphere);
 
         beginApplyingStaticEffects(state, sphere);
@@ -431,7 +431,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
     it("Gravity Sphere: transforming into a flying back face still does not fly", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b1" });
-        const sphere = makeInstance(gravitySphere.id, { id: "sphere-2" });
+        const sphere = makeInstance(gravitySphere().id, { id: "sphere-2" });
         const state = makeBoard(card, sphere);
 
         beginApplyingStaticEffects(state, sphere);
@@ -453,9 +453,9 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
     });
 
     it("a stale hold is dropped: a keyword the new face does not print is not restored later", () => {
-        const elemental = makeInstance(airElemental.id, { id: "elem-2" });
-        const bear = makeInstance(grizzlyBears.id, { id: "bear-src" });
-        const sphere = makeInstance(gravitySphere.id, { id: "sphere-3" });
+        const elemental = makeInstance(airElemental().id, { id: "elem-2" });
+        const bear = makeInstance(grizzlyBears().id, { id: "bear-src" });
+        const sphere = makeInstance(gravitySphere().id, { id: "sphere-3" });
         const state = makeBoard(elemental, bear, sphere);
 
         beginApplyingStaticEffects(state, sphere);
@@ -526,7 +526,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
     it("CR 613.7 — a grant with a LATER timestamp than the stripper survives the swap (Humility, then Fire Whip)", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b4" });
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-3" });
-        const aura = makeInstance(flight.id, {
+        const aura = makeInstance(flight().id, {
             id: "flight-1",
             attachedTo: "swap-b4",
         });
@@ -552,7 +552,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
     it("CR 613.7 — a grant with an EARLIER timestamp than the stripper stays eaten across the swap", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b6" });
-        const aura = makeInstance(flight.id, {
+        const aura = makeInstance(flight().id, {
             id: "flight-3",
             attachedTo: "swap-b6",
         });
@@ -587,7 +587,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
     it("CR 613.7 — a targeted removal that PREDATES a blanket stripper keeps its own hold across the swap", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b7" });
-        const sphere = makeInstance(gravitySphere.id, { id: "sphere-5" });
+        const sphere = makeInstance(gravitySphere().id, { id: "sphere-5" });
         const nullifier = makeInstance(NULLIFIER_ID, { id: "null-6" });
         const state = makeBoard(card, sphere, nullifier);
 
@@ -640,7 +640,7 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
     it("CR 613.7 — an eaten grant is held by the EARLIEST stripper that outranks it, not by the first one on the board", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b8" });
         const first = makeInstance(NULLIFIER_ID, { id: "null-7" });
-        const aura = makeInstance(flight.id, {
+        const aura = makeInstance(flight().id, {
             id: "flight-4",
             attachedTo: "swap-b8",
         });
@@ -726,8 +726,8 @@ describe("shape (b) — a live layer-6 removal is not undone by an identity swap
 
     it("CR 613.7 — Gravity Sphere then Flight still flies with a swap in the middle (#1715)", () => {
         const card = makeInstance(SWAP_FRONT_ID, { id: "swap-b5" });
-        const sphere = makeInstance(gravitySphere.id, { id: "sphere-4" });
-        const aura = makeInstance(flight.id, {
+        const sphere = makeInstance(gravitySphere().id, { id: "sphere-4" });
+        const aura = makeInstance(flight().id, {
             id: "flight-2",
             attachedTo: "swap-b5",
         });
@@ -808,7 +808,7 @@ describe("shape (c) — a restore anchor is re-captured from the NEW base (CR 61
 
     it("an animated permanent that is copied restores to the COPIED identity's P/T", () => {
         const card = makeInstance(ANIM_FRONT_ID, { id: "anim-2" });
-        const bear = makeInstance(grizzlyBears.id, { id: "bear-2" });
+        const bear = makeInstance(grizzlyBears().id, { id: "bear-2" });
         const state = makeBoard(card, bear);
         const ctx = ctxFor(state);
         ctx.animateAsCreature(

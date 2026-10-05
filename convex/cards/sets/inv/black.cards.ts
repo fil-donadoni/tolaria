@@ -60,8 +60,9 @@
 //         cap); #2246 ships the card on top of both.
 // ═════════════════════════════════════════════════════════════════════════════
 
-import type { CardDefinition, Color, SpellContext } from "../../types";
+import type { Color, SpellContext } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     countDomain,
     EFFECT_AFFECTS_SELF,
@@ -136,7 +137,7 @@ function addleMode(color: Color, label: string) {
     };
 }
 
-export const addle: CardDefinition = {
+export const addle = defineCard(() => ({
     id: "e8afb9d0-affa-4599-bf29-729cfe64703b", // INV 91
     rarity: "uncommon",
     name: "Addle",
@@ -159,7 +160,7 @@ export const addle: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Andradite Leech — {2}{B} 2/2. "Black spells you cast cost {B} more to
 // cast. {B}: This creature gets +1/+1 until end of turn." (CR 601.2f cost
@@ -167,7 +168,7 @@ export const addle: CardDefinition = {
 // (fem/black.cards.ts): `effectSource.controllerId === card.controllerId` scopes
 // the tax to the Leech's OWN controller's black spells (not a Gloom-style
 // blanket tax).
-export const andraditeLeech: CardDefinition = {
+export const andraditeLeech = defineCard(() => ({
     id: "6da0d4f3-9216-406c-8f3e-b9bb0a11dc75", // INV 93
     rarity: "rare",
     name: "Andradite Leech",
@@ -205,7 +206,7 @@ export const andraditeLeech: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Annihilate — {3}{B}{B} Instant. "Destroy target nonblack creature. It
 // can't be regenerated. Draw a card." (CR 701.8 destroy, CR 701.19c
@@ -215,7 +216,7 @@ export const andraditeLeech: CardDefinition = {
 // `cantBeRegenerated` param (added since this card's original comment was
 // written) now covers the CR 701.19c clause, so the whole effect composes
 // from registered Ops.
-export const annihilate: CardDefinition = {
+export const annihilate = defineCard(() => ({
     id: "4a3bf039-ecf6-477e-997c-e32c55323c01", // INV 94
     rarity: "uncommon",
     name: "Annihilate",
@@ -228,10 +229,10 @@ export const annihilate: CardDefinition = {
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Bog Initiate — {1}{B} 1/1. "{1}: Add {B}." (CR 605.3a mana ability.)
-export const bogInitiate: CardDefinition = {
+export const bogInitiate = defineCard(() => ({
     id: "8962dc3b-24ca-4c3c-ba1d-933c29cf7b73", // INV 95
     rarity: "common",
     name: "Bog Initiate",
@@ -253,7 +254,7 @@ export const bogInitiate: CardDefinition = {
             manaProduced: { B: 1 },
         },
     ],
-};
+}));
 
 // Cremate — {B} Instant. "Exile target card from a graveyard. Draw a card."
 // (CR 701.13 exile, CR 121.1 draw.) Any graveyard (`controller` omitted =
@@ -267,7 +268,7 @@ export const bogInitiate: CardDefinition = {
 // graveyard/hand/library target goes through the general `moveZone` Op,
 // which infers the object's current zone from its kind — the same reading
 // the Oracle compiler independently produces for this card.
-export const cremate: CardDefinition = {
+export const cremate = defineCard(() => ({
     id: "1095cdfe-8060-4a73-bacf-9f983152b486", // INV 96
     rarity: "uncommon",
     name: "Cremate",
@@ -284,7 +285,7 @@ export const cremate: CardDefinition = {
         { op: "moveZone", target: { target: 0 }, to: "exile" },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Crypt Angel — {4}{B} 3/3. "Flying, protection from white. When this
 // creature enters, return target blue or red creature card from your
@@ -294,7 +295,7 @@ export const cremate: CardDefinition = {
 // precedent): `choice(choose-graveyard-card)` + `moveZone` — no snapshot of
 // the picked card is needed afterward, so this stays fully DSL (unlike
 // Phyrexian Delver below, which needs the picked card's mana value).
-export const cryptAngel: CardDefinition = {
+export const cryptAngel = defineCard(() => ({
     id: "522ddc6f-ec13-4a70-8f4c-b3c846b102fd", // INV 97
     rarity: "rare",
     name: "Crypt Angel",
@@ -333,7 +334,7 @@ export const cryptAngel: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // UNSHIPPED STUB (tracked-by: #3720) — Defiling Tears: "Until end of turn,
 // target creature becomes black, gets +1/-1, and gains '{B}: Regenerate this
@@ -363,7 +364,7 @@ export const cryptAngel: CardDefinition = {
 // rest exiled — reading the name back via a bare `{ ref }` into
 // `EffectCardFilter.name` (Desperate Research is the shape both Ops were
 // designed for).
-export const desperateResearch: CardDefinition = {
+export const desperateResearch = defineCard(() => ({
     id: "6a42ac7e-4a27-488c-a2e7-338b18103b02", // INV 100
     name: "Desperate Research",
     rarity: "rare",
@@ -387,7 +388,7 @@ export const desperateResearch: CardDefinition = {
             destination: "exile",
         },
     ],
-};
+}));
 
 // Devouring Strossus — {5}{B}{B}{B} 9/9. "Flying, trample. At the beginning
 // of your upkeep, sacrifice a creature. Sacrifice a creature: Regenerate
@@ -400,7 +401,7 @@ export const desperateResearch: CardDefinition = {
 // `sacrificeFilter: { types: "Creature" }` shape (any creature, not
 // necessarily this one) — distinct from `sacrifice: true` (which would
 // sacrifice Strossus itself).
-export const devouringStrossus: CardDefinition = {
+export const devouringStrossus = defineCard(() => ({
     id: "064f013f-e74f-419d-8d17-7748bd91885e", // INV 101
     rarity: "rare",
     name: "Devouring Strossus",
@@ -443,14 +444,14 @@ export const devouringStrossus: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Dredge — {B} Instant. "Sacrifice a creature or land. Draw a card." (CR
 // 701.21 sacrifice, CR 121.1 draw.) Not the Dredge KEYWORD (CR 702.52) —
 // this INV card predates it and is a plain sacrifice-then-draw effect;
 // choice count clamps to 0 when the caster controls neither (CR 608.2b), so
 // the draw still happens with no sacrifice.
-export const dredge: CardDefinition = {
+export const dredge = defineCard(() => ({
     id: "68bfa3d5-0f0b-4684-9567-f1478da01df7", // INV 103
     rarity: "uncommon",
     name: "Dredge",
@@ -471,7 +472,7 @@ export const dredge: CardDefinition = {
         { op: "sacrifice", permanents: { ref: "$sac" } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Duskwalker — {B} 1/1. "Kicker {3}{B}. If this creature was kicked, it
 // enters with two +1/+1 counters on it and with fear." (CR 702.33 Kicker,
@@ -491,7 +492,7 @@ export const dredge: CardDefinition = {
 // for the two failure modes (spurious gain from an external pump, spurious
 // loss to `-1/-1` annihilation) that made it a proxy and not a live
 // condition.
-export const duskwalker: CardDefinition = {
+export const duskwalker = defineCard(() => ({
     id: "39a4a026-f44e-40e1-9942-a3d8448aca70", // INV 104
     rarity: "common",
     name: "Duskwalker",
@@ -537,7 +538,7 @@ export const duskwalker: CardDefinition = {
             keyword: "fear",
         },
     ],
-};
+}));
 
 // Goham Djinn — {5}{B} 5/5. "{1}{B}: Regenerate this creature. This creature
 // gets -2/-2 as long as black is the most common color among all permanents
@@ -545,7 +546,7 @@ export const duskwalker: CardDefinition = {
 // The conditional P/T reduction is a `pt-cda` whose `compute` reads the full
 // board via `StaticEffectStateView` (mirrors People of the Woods,
 // drk/green.cards.ts) through the shared `mostCommonColors` helper (`cards/types.ts`).
-export const gohamDjinn: CardDefinition = {
+export const gohamDjinn = defineCard(() => ({
     id: "d67796c7-4d93-4c50-8839-bb69e075bc42", // INV 107
     rarity: "uncommon",
     name: "Goham Djinn",
@@ -577,11 +578,11 @@ export const gohamDjinn: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Hate Weaver — {1}{B} 2/1. "{2}: Target blue or red creature gets +1/+0
 // until end of turn." (CR 613.4c temporary pump.)
-export const hateWeaver: CardDefinition = {
+export const hateWeaver = defineCard(() => ({
     id: "8328e131-b44d-4dd0-9ce4-454c6afe6fa6", // INV 108
     rarity: "uncommon",
     name: "Hate Weaver",
@@ -615,7 +616,7 @@ export const hateWeaver: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Hypnotic Cloud — {1}{B} Sorcery. "Kicker {4}. Target player discards a
 // card. If this spell was kicked, that player discards three cards
@@ -624,7 +625,7 @@ export const hateWeaver: CardDefinition = {
 // operand must be a positive int (validator), so `0` isn't expressible —
 // `kickerCount >= 1` is equivalent to "was kicked".
 
-export const hypnoticCloud: CardDefinition = {
+export const hypnoticCloud = defineCard(() => ({
     id: "a7502ea2-7555-449e-baee-6ecef5573a3b", // INV 109
     rarity: "common",
     name: "Hypnotic Cloud",
@@ -683,14 +684,14 @@ export const hypnoticCloud: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Marauding Knight — {2}{B}{B} 2/2. "Protection from white. This creature
 // gets +1/+1 for each Plains your opponents control." (CR 702.16 protection,
 // CR 613.4a CDA.) Mirrors Goham Djinn's `pt-cda` shape — a plain permanent
 // count over `StaticEffectStateView.players[].battlefield`, no shared-color
 // tally needed here.
-export const maraudingKnight: CardDefinition = {
+export const maraudingKnight = defineCard(() => ({
     id: "cea2a7de-c67e-4541-be8c-e5ef7b64d94a", // INV 110
     rarity: "rare",
     name: "Marauding Knight",
@@ -722,12 +723,12 @@ export const maraudingKnight: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Mourning — {1}{B} Aura. "Enchant creature. Enchanted creature gets -2/-0.
 // {B}: Return this Aura to its owner's hand." (CR 613.4c pt-buff, CR 400.7
 // return-to-hand self-bounce.)
-export const mourning: CardDefinition = {
+export const mourning = defineCard(() => ({
     id: "4649d881-709f-4ed0-91de-744d232a82f5", // INV 111
     rarity: "common",
     name: "Mourning",
@@ -756,7 +757,7 @@ export const mourning: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Phyrexian Battleflies — {B} 0/1. "Flying. {B}: This creature gets +1/+0
 // until end of turn. Activate no more than twice each turn." (CR 702.9
@@ -767,7 +768,7 @@ export const mourning: CardDefinition = {
 // extension point Clockwork Beast-style conditional abilities use. The Bot's
 // enumerator evaluates the closure through the same predicate the server reads
 // (`activationPreconditionViolation`, issue #3441).
-export const phyrexianBattleflies: CardDefinition = {
+export const phyrexianBattleflies = defineCard(() => ({
     id: "da27c489-c541-4b0d-a844-71aa65e55ceb", // INV 114
     rarity: "common",
     name: "Phyrexian Battleflies",
@@ -800,7 +801,7 @@ export const phyrexianBattleflies: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Phyrexian Delver — {3}{B}{B} 3/2. "When this creature enters, return
 // target creature card from your graveyard to the battlefield. You lose
@@ -821,7 +822,7 @@ export const phyrexianBattleflies: CardDefinition = {
 // TriggeredAbility's `targetRequirement` as for a spell's), `bind` snapshots
 // the graveyard card's mana value BEFORE it leaves the graveyard (CR 202.3 /
 // 608.2h), and `loseLife`'s `amount` reads it back via `ref.manaValue`.
-export const phyrexianDelver: CardDefinition = {
+export const phyrexianDelver = defineCard(() => ({
     id: "e66d87a5-7b67-4ec5-b5e2-518d67123118", // INV 115
     rarity: "rare",
     name: "Phyrexian Delver",
@@ -860,7 +861,7 @@ export const phyrexianDelver: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Phyrexian Reaper — {4}{B} 3/3. "Whenever this creature becomes blocked by
 // a green creature, destroy that creature. It can't be regenerated." (CR
@@ -881,7 +882,7 @@ export const phyrexianDelver: CardDefinition = {
 // so `destroy`'s `target` reads the blocking creature straight off the firing
 // event with no `resolve` needed; `cantBeRegenerated` is the same shipped
 // passthrough Annihilate uses above.
-export const phyrexianReaper: CardDefinition = {
+export const phyrexianReaper = defineCard(() => ({
     id: "ccdd498b-1081-43fe-8193-518337a5a3ea", // INV 117
     rarity: "common",
     name: "Phyrexian Reaper",
@@ -915,13 +916,13 @@ export const phyrexianReaper: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Phyrexian Slayer — {3}{B} 2/2. "Flying. Whenever this creature becomes
 // blocked by a white creature, destroy that creature. It can't be
 // regenerated." (Same shape as Phyrexian Reaper above, filtered to white —
 // same `$event.blockerId` DSL effect body, same live-color `matches` gate.)
-export const phyrexianSlayer: CardDefinition = {
+export const phyrexianSlayer = defineCard(() => ({
     id: "5fa8c604-343f-4c94-ac25-439ab1845c19", // INV 118
     rarity: "common",
     name: "Phyrexian Slayer",
@@ -956,7 +957,7 @@ export const phyrexianSlayer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Plague Spitter — {2}{B} 2/2. "At the beginning of your upkeep, this
 // creature deals 1 damage to each creature and each player. When this
@@ -967,7 +968,7 @@ export const phyrexianSlayer: CardDefinition = {
 // and every player, not itself), so it composes fully now that `diedTrigger`
 // accepts `effects[]` (binds `ctx.controller`/`$source` only — sufficient
 // here since neither is referenced).
-export const plagueSpitter: CardDefinition = {
+export const plagueSpitter = defineCard(() => ({
     id: "8845e6bd-40ee-45ca-a099-53f19ff20a8a", // INV 119
     rarity: "uncommon",
     name: "Plague Spitter",
@@ -1041,7 +1042,7 @@ export const plagueSpitter: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Recover — {2}{B} Sorcery. "Return target creature card from your
 // graveyard to your hand.\nDraw a card." (CR 400.7 zone change, CR 121.1
@@ -1049,7 +1050,7 @@ export const plagueSpitter: CardDefinition = {
 // capability needed. The second printed line was missing from this definition
 // until the compiler's own twin disagreed with it (issue #4133): the card
 // shipped as a strictly worse Raise Dead.
-export const recover: CardDefinition = {
+export const recover = defineCard(() => ({
     id: "771e695b-24e1-4c65-81e0-1624bda646e7", // INV 122
     rarity: "common",
     name: "Recover",
@@ -1067,12 +1068,12 @@ export const recover: CardDefinition = {
         { op: "moveZone", target: { target: 0 }, to: "hand" },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Scavenged Weaponry — {2}{B} Aura. "Enchant creature. When this Aura
 // enters, draw a card. Enchanted creature gets +1/+1." (CR 603.6a ETB, CR
 // 613.4c pt-buff.)
-export const scavengedWeaponry: CardDefinition = {
+export const scavengedWeaponry = defineCard(() => ({
     id: "4e8072a9-2699-4c6c-9556-67d91bd67a4b", // INV 123
     rarity: "common",
     name: "Scavenged Weaponry",
@@ -1093,7 +1094,7 @@ export const scavengedWeaponry: CardDefinition = {
     staticEffects: [
         { kind: "pt-buff", applies: AURA_AFFECTS_HOST, power: 1, toughness: 1 },
     ],
-};
+}));
 
 // Spreading Plague — {4}{B} Enchantment. "Whenever a creature enters,
 // destroy all other creatures that share a color with it. They can't be
@@ -1114,7 +1115,7 @@ export const scavengedWeaponry: CardDefinition = {
 // Composes only already-shipped primitives: `getColors`,
 // `allPlayerIds`/`getBattlefieldIds`, `destroy` (incl. the now-shipped
 // `cantBeRegenerated` passthrough, see Annihilate above).
-export const spreadingPlague: CardDefinition = {
+export const spreadingPlague = defineCard(() => ({
     id: "ac86055d-ce08-4b05-a92c-45e007ca0ba4", // INV 125
     rarity: "rare",
     name: "Spreading Plague",
@@ -1154,13 +1155,13 @@ export const spreadingPlague: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Tainted Well — {2}{B} Aura. "Enchant land. When this Aura enters, draw a
 // card. Enchanted land is a Swamp." (CR 603.6a ETB, CR 305.7/611 layer-4
 // subtype ADDITION — Urborg, Tomb of Yawgmoth precedent, plc/colorless.cards.ts:
 // "is a Swamp" ADDS the type, it doesn't replace the land's other types.)
-export const taintedWell: CardDefinition = {
+export const taintedWell = defineCard(() => ({
     id: "2eec00a1-7e12-42d2-8f46-de8ab7323c2c", // INV 126
     rarity: "common",
     name: "Tainted Well",
@@ -1185,7 +1186,7 @@ export const taintedWell: CardDefinition = {
             subtypes: ["Swamp"],
         },
     ],
-};
+}));
 
 // Tsabo's Assassin — {2}{B}{B} 1/1. "{T}: Destroy target creature if it
 // shares a color with the most common color among all permanents or a
@@ -1201,7 +1202,7 @@ export const taintedWell: CardDefinition = {
 // `destroy`'s `cantBeRegenerated` passthrough is already shipped (see
 // Annihilate above) and not itself a blocker. Composes only already-shipped
 // primitives via the shared `mostCommonColors` helper.
-export const tsabosAssassin: CardDefinition = {
+export const tsabosAssassin = defineCard(() => ({
     id: "0047302d-4e3d-4327-9bb2-ecd5b00b00e3", // INV 128
     rarity: "rare",
     name: "Tsabo's Assassin",
@@ -1232,7 +1233,7 @@ export const tsabosAssassin: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Tsabo's Decree — {5}{B} Instant. "Choose a creature type. Target player
 // reveals their hand and discards all creature cards of that type. Then
@@ -1259,7 +1260,7 @@ export const tsabosAssassin: CardDefinition = {
 //
 // compiler-gap: Target player reveals their hand and discards all creature cards of that type. (#2693)
 // compiler-gap: Then destroy all creatures of that type that player controls. They can't be regenerated. (#2693)
-export const tsabosDecree: CardDefinition = {
+export const tsabosDecree = defineCard(() => ({
     id: "0c1a0ebd-1add-49e6-b5e6-5b26abb1de88",
     name: "Tsabo's Decree",
     rarity: "rare",
@@ -1298,7 +1299,7 @@ export const tsabosDecree: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Twilight's Call — the CR 601.3c conditional-flash rider (issue #2146),
 // shipped as `flashSurcharge`: legal to ANNOUNCE at any priority ("that player
@@ -1312,7 +1313,7 @@ export const tsabosDecree: CardDefinition = {
 // returns as one event rather than one-by-one (CR 603.3b: the ETB triggers
 // batch and are ordered by their controllers, instead of each arrival
 // resolving before the next card moves).
-export const twilightsCall: CardDefinition = {
+export const twilightsCall = defineCard(() => ({
     id: "3c97c8a5-33b3-4f7f-a224-bb4df7b4bcc0", // INV 130
     name: "Twilight's Call",
     rarity: "rare",
@@ -1335,13 +1336,13 @@ export const twilightsCall: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Urborg Shambler — {2}{B}{B} 4/3. "Other black creatures get -1/-1." (CR
 // 613.4c board-wide pt-buff — the Contamination/Anathema-cycle shape:
 // applies to every OTHER black creature regardless of controller, not just
 // "you control".)
-export const urborgShambler: CardDefinition = {
+export const urborgShambler = defineCard(() => ({
     id: "eaedd5c8-03c6-4bbb-bf83-632551830bd4", // INV 133
     rarity: "uncommon",
     name: "Urborg Shambler",
@@ -1362,7 +1363,7 @@ export const urborgShambler: CardDefinition = {
             toughness: -1,
         },
     ],
-};
+}));
 
 // Urborg Skeleton — {B} 0/1. "Kicker {3}. {B}: Regenerate this creature. If
 // this creature was kicked, it enters with a +1/+1 counter on it." (CR
@@ -1370,7 +1371,7 @@ export const urborgShambler: CardDefinition = {
 // A single `entersWith.counters` entry with `count: "kicker"` is exact here
 // (kickerCount is 0/1 for a single Kicker, matching "a +1/+1 counter" 1:1) —
 // unlike Duskwalker, no keyword grant is involved, so no proxy is needed.
-export const urborgSkeleton: CardDefinition = {
+export const urborgSkeleton = defineCard(() => ({
     id: "6e522a62-fbca-4362-9006-d4356c525704", // INV 134
     rarity: "common",
     name: "Urborg Skeleton",
@@ -1398,7 +1399,7 @@ export const urborgSkeleton: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // STOP-AND-ISSUE (tracked-by: #2246) — Yawgmoth's Agenda: "You can't cast
 // more than one spell each turn. You may play lands and cast spells from
@@ -1470,7 +1471,7 @@ export const urborgSkeleton: CardDefinition = {
 // new predicate/condition shape invented). The target's own presence is
 // already guaranteed by `targetLegalityGate`, so the guard only needs to
 // check the source.
-export const phyrexianInfiltrator: CardDefinition = {
+export const phyrexianInfiltrator = defineCard(() => ({
     id: "224b8254-553d-4d88-8163-1f15e1244bd2", // INV 116
     name: "Phyrexian Infiltrator",
     rarity: "rare",
@@ -1522,7 +1523,7 @@ export const phyrexianInfiltrator: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1534,7 +1535,7 @@ export const phyrexianInfiltrator: CardDefinition = {
 // word, issue #1066.) Mirrors Strength of Unity's `pt-cda` shape exactly
 // (`inv/white.cards.ts`) with a NEGATED delta — the shared `countDomain` helper
 // read against the Aura's OWN controller (`source.controllerId`).
-export const exoticCurse: CardDefinition = {
+export const exoticCurse = defineCard(() => ({
     id: "8ee35d99-9a8a-421b-bf43-74446909d87d",
     name: "Exotic Curse",
     rarity: "common",
@@ -1554,7 +1555,7 @@ export const exoticCurse: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Pile-division cluster (parent PRD #1063, issue #1067, ADR 0053)
@@ -1569,7 +1570,7 @@ export const exoticCurse: CardDefinition = {
 // Chooser: that player" row. The chosen pile is destroyed via `forEach {
 // set: "bound" }` + `destroy` with `cantBeRegenerated: true` (the widened Op,
 // ADR 0053); the other pile has no consequence (an empty `otherEffect`).
-export const doOrDie: CardDefinition = {
+export const doOrDie = defineCard(() => ({
     id: "05f63cd9-e82b-4cf8-b8ce-f0aa0157692b",
     name: "Do or Die",
     rarity: "rare",
@@ -1610,4 +1611,4 @@ export const doOrDie: CardDefinition = {
             otherEffect: [],
         },
     ],
-};
+}));

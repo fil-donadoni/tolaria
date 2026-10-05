@@ -70,7 +70,7 @@ function position(): GameState {
         players: [
             makePlayer("p1", {
                 exile: [
-                    makeInstance(vodalianMerchant.id, {
+                    makeInstance(vodalianMerchant().id, {
                         id: "merch",
                         ownerId: "p1",
                         controllerId: "p1",
@@ -80,7 +80,7 @@ function position(): GameState {
                     }),
                 ],
                 hand: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "p1-hand",
                         ownerId: "p1",
                         controllerId: "p1",
@@ -88,7 +88,7 @@ function position(): GameState {
                     }),
                 ],
                 library: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "p1-lib",
                         ownerId: "p1",
                         controllerId: "p1",
@@ -98,7 +98,7 @@ function position(): GameState {
             }),
             makePlayer("p2", {
                 library: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "p2-lib",
                         ownerId: "p2",
                         controllerId: "p2",

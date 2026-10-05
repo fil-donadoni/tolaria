@@ -2,14 +2,14 @@
 // `import * as tor from "./sets/tor/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Basking Rootwalla — {G} Creature — Lizard, 1/1. "{1}{G}: This creature gets
 // +2/+2 until end of turn. Activate only once each turn.\nMadness {0}." (CR 605
 // pump activated ability with `oncePerTurn`, template Fire Drake `drk/red.cards.ts`;
 // CR 702.35 Madness — the discard→exile cast capability, `convex/gre/madness.ts`.
 // `Madness {0}` is the empty cost `{}`.)
-export const baskingRootwalla: CardDefinition = {
+export const baskingRootwalla = defineCard(() => ({
     id: "1a67768a-6cd9-4163-b941-752f29c87a8d",
     rarity: "common",
     name: "Basking Rootwalla",
@@ -40,4 +40,4 @@ export const baskingRootwalla: CardDefinition = {
             ],
         },
     ],
-};
+}));

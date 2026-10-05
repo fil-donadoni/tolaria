@@ -48,7 +48,7 @@ function boardWith(battlefield: CardInstanceState[]) {
     const state = makeState({
         players: [makePlayer("p1", { battlefield }), makePlayer("p2")],
     });
-    const item = pushSpell(state, grizzlyBears.id, "p1");
+    const item = pushSpell(state, grizzlyBears().id, "p1");
     return { state, ctx: buildSpellContext(state, item) };
 }
 
@@ -63,7 +63,7 @@ function tokenOnBattlefield(
 
 describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
     it("creates the token from LKI when the named source has already left the battlefield", () => {
-        const source = makeInstance(serraAngel.id, {
+        const source = makeInstance(serraAngel().id, {
             id: "src",
             controllerId: "p1",
             ownerId: "p1",
@@ -77,7 +77,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
             lastKnownCopiable: true,
         });
         const token = tokenOnBattlefield(state, tokenId);
-        expect(presentedDefId(token)).toBe(serraAngel.id);
+        expect(presentedDefId(token)).toBe(serraAngel().id);
         expect(token.power).toBe(4);
         expect(token.toughness).toBe(4);
         expect(token.staticAbilities).toEqual(
@@ -90,12 +90,12 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
         // `revertCopy` runs at the departure funnel (CR 707.2 — the copy effect
         // lasts only while the object is on the battlefield), so the card in
         // the graveyard is the printed Grizzly Bears.
-        const original = makeInstance(serraAngel.id, {
+        const original = makeInstance(serraAngel().id, {
             id: "orig",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const clone = makeInstance(grizzlyBears.id, {
+        const clone = makeInstance(grizzlyBears().id, {
             id: "clone",
             controllerId: "p1",
             ownerId: "p1",
@@ -107,13 +107,13 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
         const inGraveyard = state.players[0].graveyard.find(
             (c) => c.id === "clone"
         )!;
-        expect(presentedDefId(inGraveyard)).toBe(grizzlyBears.id);
+        expect(presentedDefId(inGraveyard)).toBe(grizzlyBears().id);
 
         const tokenId = ctx.createTokenCopyOf("clone", "p1", undefined, {
             lastKnownCopiable: true,
         });
         const token = tokenOnBattlefield(state, tokenId);
-        expect(presentedDefId(token)).toBe(serraAngel.id);
+        expect(presentedDefId(token)).toBe(serraAngel().id);
         expect(token.power).toBe(4);
     });
 
@@ -155,19 +155,19 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
     });
 
     it("copies the BASE power/toughness, not the anthem-buffed effective values (CR 707.2 — 'other effects are not copied')", () => {
-        const lion = makeInstance(savannahLions.id, {
+        const lion = makeInstance(savannahLions().id, {
             id: "lion",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const anthem = makeInstance(crusade.id, {
+        const anthem = makeInstance(crusade().id, {
             id: "anthem",
             controllerId: "p1",
             ownerId: "p1",
         });
         const { state, ctx } = boardWith([lion, anthem]);
         // The anthem is live while the lion is on the battlefield.
-        expect(getEffectivePower(state, lion)).toBe(savannahLions.power! + 1);
+        expect(getEffectivePower(state, lion)).toBe(savannahLions().power! + 1);
 
         removePermanentTo(state, "lion", "graveyard");
         const tokenId = ctx.createTokenCopyOf("lion", "p1", undefined, {
@@ -175,18 +175,20 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
         });
         const token = tokenOnBattlefield(state, tokenId);
         // Layer 1 is the printed body …
-        expect(token.power).toBe(savannahLions.power);
-        expect(token.toughness).toBe(savannahLions.toughness);
+        expect(token.power).toBe(savannahLions().power);
+        expect(token.toughness).toBe(savannahLions().toughness);
         // … and the still-live anthem applies to the NEW token on top of it,
         // once — not twice, which is what copying the buffed value would give.
-        expect(getEffectivePower(state, token)).toBe(savannahLions.power! + 1);
+        expect(getEffectivePower(state, token)).toBe(
+            savannahLions().power! + 1
+        );
         expect(getEffectiveToughness(state, token)).toBe(
-            savannahLions.toughness! + 1
+            savannahLions().toughness! + 1
         );
     });
 
     it("copies the FACE-DOWN body of a face-down permanent, not the card CR 708.9 reveals as it leaves", () => {
-        const morph = makeInstance(serraAngel.id, {
+        const morph = makeInstance(serraAngel().id, {
             id: "morph",
             controllerId: "p1",
             ownerId: "p1",
@@ -199,7 +201,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
         const revealed = state.players[0].graveyard.find(
             (c) => c.id === "morph"
         )!;
-        expect(presentedDefId(revealed)).toBe(serraAngel.id);
+        expect(presentedDefId(revealed)).toBe(serraAngel().id);
 
         const tokenId = ctx.createTokenCopyOf("morph", "p1", undefined, {
             lastKnownCopiable: true,
@@ -213,12 +215,12 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
     });
 
     it("inherits the 'except it's N/N' stamp a copy effect left on the departed object (CR 707.3)", () => {
-        const original = makeInstance(serraAngel.id, {
+        const original = makeInstance(serraAngel().id, {
             id: "orig",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const eternalized = makeInstance(grizzlyBears.id, {
+        const eternalized = makeInstance(grizzlyBears().id, {
             id: "etb",
             controllerId: "p1",
             ownerId: "p1",
@@ -243,7 +245,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
     });
 
     it("REGRESSION (CR 608.2b, Dance of Many): a caller that does NOT opt in still fizzles when its source has left", () => {
-        const source = makeInstance(serraAngel.id, {
+        const source = makeInstance(serraAngel().id, {
             id: "src",
             controllerId: "p1",
             ownerId: "p1",
@@ -260,7 +262,7 @@ describe("last known copiable values (CR 608.2h / 111.12, ADR 0086)", () => {
 
 describe("LKI copiable store — CR 514 pruning on a two-turn window (ADR 0086)", () => {
     function stateWithDepartureOnTurn(turn: number) {
-        const source = makeInstance(serraAngel.id, {
+        const source = makeInstance(serraAngel().id, {
             id: "src",
             controllerId: "p1",
             ownerId: "p1",
@@ -292,14 +294,14 @@ describe("LKI copiable store — CR 514 pruning on a two-turn window (ADR 0086)"
         finalizeCleanup(state);
         // Turn N+2's upkeep: the longest-lived referent the engine can produce.
         state.turn = 7;
-        const item = pushSpell(state, grizzlyBears.id, "p1");
+        const item = pushSpell(state, grizzlyBears().id, "p1");
         const ctx = buildSpellContext(state, item);
         const tokenId = ctx.createTokenCopyOf("src", "p1", undefined, {
             lastKnownCopiable: true,
         });
         expect(tokenId).toBeDefined();
         expect(presentedDefId(tokenOnBattlefield(state, tokenId))).toBe(
-            serraAngel.id
+            serraAngel().id
         );
         // …and only THEN does the window close.
         finalizeCleanup(state);
@@ -329,7 +331,7 @@ describe("LKI copiable store — CR 514 pruning on a two-turn window (ADR 0086)"
 
 describe("LKI copiable store — persistence and wire format", () => {
     function stateWithEntry() {
-        const source = makeInstance(serraAngel.id, {
+        const source = makeInstance(serraAngel().id, {
             id: "src",
             controllerId: "p1",
             ownerId: "p1",
@@ -349,7 +351,7 @@ describe("LKI copiable store — persistence and wire format", () => {
         const state = stateWithEntry();
         const restored = expandState(compactState(state));
         expect(restored.lastKnownCopiable?.["src"]).toEqual({
-            defId: serraAngel.id,
+            defId: serraAngel().id,
             copyExcept: { basePower: 4, baseToughness: 4 },
             turn: state.turn,
         });
@@ -365,10 +367,10 @@ describe("LKI copiable store — persistence and wire format", () => {
         )["src"];
         expect(typeof entry.d).toBe("number");
         expect((compact.cardPool as string[])[entry.d as number]).toBe(
-            serraAngel.id
+            serraAngel().id
         );
         expect(JSON.stringify(compact.lastKnownCopiable)).not.toContain(
-            serraAngel.id
+            serraAngel().id
         );
     });
 
@@ -569,7 +571,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             controllerId: "p1",
             ownerId: "p1",
         });
-        const clone = makeInstance(grizzlyBears.id, {
+        const clone = makeInstance(grizzlyBears().id, {
             id: "self2",
             controllerId: "p1",
             ownerId: "p1",
@@ -587,7 +589,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             presentedDefId(
                 state.players[0].graveyard.find((c) => c.id === "self2")!
             )
-        ).toBe(grizzlyBears.id);
+        ).toBe(grizzlyBears().id);
 
         resolveTopOfStack(state);
 
@@ -653,7 +655,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
             controllerId: "p1",
             ownerId: "p1",
         });
-        const clone = makeInstance(grizzlyBears.id, {
+        const clone = makeInstance(grizzlyBears().id, {
             id: "self4",
             controllerId: "p1",
             ownerId: "p1",
@@ -679,7 +681,7 @@ describe("createTokenCopy Op — LKI source (CR 608.2h / 111.12, ADR 0086)", () 
     });
 
     it("REGRESSION (CR 608.2b): an announced TARGET that has left still fizzles through the Op", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "tgt",
             controllerId: "p1",
             ownerId: "p1",

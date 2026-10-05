@@ -110,13 +110,13 @@ describe("Blood token (CR 111.10g, issue #778)", () => {
 
     it("activating the ability requires paying mana + tap + discard, then draws a card and sacrifices the token", () => {
         const id = registerBloodSpell("test-blood-activate");
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "discard-me",
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const libTop = makeInstance(grizzlyBears.id, {
+        const libTop = makeInstance(grizzlyBears().id, {
             id: "lib-top",
             controllerId: "p1",
             ownerId: "p1",

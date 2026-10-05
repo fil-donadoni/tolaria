@@ -1,11 +1,6 @@
 // mh2 — multicolor cards (ADR 0043 colour split).
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-    TokenSpec,
-} from "../../types";
-import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
+import type { SpellContext, TargetSelection, TokenSpec } from "../../types";
+import { defineCard, countDomain, EFFECT_AFFECTS_SELF } from "../../types";
 import { INSECT_TOKEN, literalTokenPT } from "../../sharedTokens";
 import { cardIsInOwnerGraveyard } from "../../graveyardOrder";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
@@ -25,7 +20,7 @@ import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 //     gates the `moveZone` graveyard → hand self-return on the "if you do"
 //     clause. The "if this card is in your graveyard" intervening-if is a
 //     declared `interveningIf` (CR 603.4) — see the note on the ability.
-export const masterOfDeath: CardDefinition = {
+export const masterOfDeath = defineCard(() => ({
     id: "b9775175-6763-4826-afc8-dc520a235c36",
     name: "Master of Death",
     rarity: "rare",
@@ -97,7 +92,7 @@ export const masterOfDeath: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Grist, the Hunger Tide — {1}{B}{G} Legendary Planeswalker — Grist, loyalty 3.
 // Oracle (Scryfall, 2026-08-18):
@@ -151,7 +146,7 @@ const gristInsectToken: TokenSpec = {
     colors: INSECT_TOKEN.colors,
 };
 
-export const gristTheHungerTide: CardDefinition = {
+export const gristTheHungerTide = defineCard(() => ({
     id: GRIST_ID,
     name: "Grist, the Hunger Tide",
     rarity: "mythic",
@@ -298,7 +293,7 @@ export const gristTheHungerTide: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Territorial Kavu — {R}{G} Creature — Kavu, printed */*. "Domain —
 // Territorial Kavu's power and toughness are each equal to the number of basic
@@ -325,7 +320,7 @@ export const gristTheHungerTide: CardDefinition = {
 // same {@link AbilityMode} list `enteredTrigger` already forwards for a modal
 // ETB (Deceiver Exarch, `nph/blue.cards.ts`): a modal trigger differs only in WHICH
 // event puts it on the stack.
-export const territorialKavu: CardDefinition = {
+export const territorialKavu = defineCard(() => ({
     id: "2605df98-0b02-4aab-bc36-01e93c693743",
     rarity: "rare",
     name: "Territorial Kavu",
@@ -420,4 +415,4 @@ export const territorialKavu: CardDefinition = {
             ],
         }),
     ],
-};
+}));

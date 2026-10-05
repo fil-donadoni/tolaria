@@ -1,6 +1,6 @@
 // mh2 — green cards (ADR 0043 colour split).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
@@ -11,7 +11,7 @@ import { evokeTrigger } from "../../abilities/evoke";
 // Hierarch: the exalted keyword expands to its triggered ability at the
 // `getDefinition` seam, and the CHOICE mana ability is a CR 605.1a mana
 // ability (useStack: false) via `manaChoices`.
-export const ignobleHierarch: CardDefinition = {
+export const ignobleHierarch = defineCard(() => ({
     id: "aba51852-af8f-49d8-8fb6-22d52a1742b8",
     rarity: "rare",
     name: "Ignoble Hierarch",
@@ -35,7 +35,7 @@ export const ignobleHierarch: CardDefinition = {
             manaChoices: [{ B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Endurance — {1}{G}{G} Creature — Elemental Incarnation, 3/4 (MH2, #1207).
 // "Flash. Reach. When this creature enters, up to one target player puts all
@@ -56,7 +56,7 @@ export const ignobleHierarch: CardDefinition = {
 // then reads the announced slot via `ctx.targets[0]` and hands its player id
 // to `putGraveyardOnBottomOfLibrary`, the CR-faithful "bottom of library in a
 // random order" bulk move (seeded PRNG, knowledge cleared — ADR 0026).
-export const endurance: CardDefinition = {
+export const endurance = defineCard(() => ({
     id: "eb0e0404-4846-4891-acfa-bd0951ecf9c6",
     rarity: "mythic",
     name: "Endurance",
@@ -95,6 +95,6 @@ export const endurance: CardDefinition = {
         }),
         evokeTrigger("Endurance"),
     ],
-};
+}));
 
 export {};

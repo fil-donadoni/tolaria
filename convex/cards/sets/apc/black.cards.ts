@@ -2,7 +2,7 @@
 // `import * as apc from "./sets/apc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Dead Ringers — {4}{B} Sorcery. "Destroy two target nonblack creatures unless
@@ -33,7 +33,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // happen".
 //
 // hand-tail: "Destroy two target nonblack creatures unless either one is a color the other isn't. They can't be regenerated." (#4326)
-export const deadRingers: CardDefinition = {
+export const deadRingers = defineCard(() => ({
     id: "9b78028c-3ebd-432d-b628-e1fa284f08f3", // APC 37
     name: "Dead Ringers",
     rarity: "common",
@@ -60,7 +60,7 @@ export const deadRingers: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Mind Extraction — {2}{B} Sorcery. "As an additional cost to cast this spell,
 // sacrifice a creature. Target player reveals their hand and discards all cards
@@ -85,7 +85,7 @@ export const deadRingers: CardDefinition = {
 // happens, the discard finds no matches.
 //
 // hand-tail: "Target player reveals their hand and discards all cards of each of the sacrificed creature's colors." (#4338)
-export const mindExtraction: CardDefinition = {
+export const mindExtraction = defineCard(() => ({
     id: "7d77ddcc-e66b-4036-8a55-ec42953918d1", // APC 42
     name: "Mind Extraction",
     rarity: "common",
@@ -105,7 +105,7 @@ export const mindExtraction: CardDefinition = {
             filter: { color: { sacrificed: { read: "colors" } } },
         },
     ],
-};
+}));
 
 // Zombie Boa — {4}{B} 3/3 Creature — Zombie Snake (issue #3809). "{1}{B}:
 // Choose a color. Whenever this creature becomes blocked by a creature of that
@@ -123,7 +123,7 @@ export const mindExtraction: CardDefinition = {
 // destroy a blocker twice over — harmlessly — exactly as two instances would.
 //
 // hand-tail: {1}{B}: Choose a color. Whenever this creature becomes blocked by a creature of that color this turn, destroy that creature. Activate only as a sorcery. (#4388)
-export const zombieBoa: CardDefinition = {
+export const zombieBoa = defineCard(() => ({
     id: "1fb8c277-3154-47c9-835f-327cac297a5e", // APC 54
     name: "Zombie Boa",
     rarity: "common",
@@ -166,7 +166,7 @@ export const zombieBoa: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Suppress — {2}{B} Sorcery (issue #3812). "Target player exiles all cards
 // from their hand face down. At the beginning of the end step of that player's
@@ -185,7 +185,7 @@ export const zombieBoa: CardDefinition = {
 // An empty hand exiles nothing and the trigger still fires, returning nothing.
 //
 // hand-tail: "Target player exiles all cards from their hand face down. At the beginning of the end step of that player's next turn, that player returns those cards to their hand." (#4342)
-export const suppress: CardDefinition = {
+export const suppress = defineCard(() => ({
     id: "642eefde-8727-44ff-9e04-373abfcd0679", // APC 52
     name: "Suppress",
     rarity: "uncommon",
@@ -224,4 +224,4 @@ export const suppress: CardDefinition = {
             ],
         },
     ],
-};
+}));

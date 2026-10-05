@@ -63,14 +63,14 @@ const BEARS_2 = "bears2";
  *  top of the spell's own). */
 function board(breaches: number, creatures = 1): GameState {
     const hand = [
-        makeInstance(lavaSpike.id, {
+        makeInstance(lavaSpike().id, {
             id: SPIKE,
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         }),
         ...[BEARS, BEARS_2].slice(0, creatures).map((id) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -78,7 +78,7 @@ function board(breaches: number, creatures = 1): GameState {
             })
         ),
         ...[BREACH, BREACH_2].slice(0, breaches).map((id) =>
-            makeInstance(throughTheBreach.id, {
+            makeInstance(throughTheBreach().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -155,7 +155,7 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         const p1 = getPlayer(state, "p1");
         const options = enumerateSpliceOptions(
             p1.hand,
-            lavaSpike.subtypes ?? [],
+            lavaSpike().subtypes ?? [],
             SPIKE
         );
         expect(options.map((o) => o.handCardInstanceId)).toEqual([BREACH]);
@@ -164,7 +164,7 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         expect(options[0].entry.keyword).toBe("splice");
         // CR 702.47c — the entry names the PRINTED card whose text the spell
         // gains, so the reveal survives the card leaving the hand.
-        expect(options[0].entry.splicedCardId).toBe(throughTheBreach.id);
+        expect(options[0].entry.splicedCardId).toBe(throughTheBreach().id);
     });
 
     it("offers nothing when the spell does not have the named subtype", () => {
@@ -172,7 +172,11 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         const p1 = getPlayer(state, "p1");
         // Grizzly Bears is a Bear, not an Arcane spell.
         expect(
-            enumerateSpliceOptions(p1.hand, grizzlyBears.subtypes ?? [], BEARS)
+            enumerateSpliceOptions(
+                p1.hand,
+                grizzlyBears().subtypes ?? [],
+                BEARS
+            )
         ).toEqual([]);
     });
 
@@ -184,7 +188,7 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         expect(
             enumerateSpliceOptions(
                 p1.hand,
-                throughTheBreach.subtypes ?? [],
+                throughTheBreach().subtypes ?? [],
                 BREACH
             )
         ).toEqual([]);
@@ -193,10 +197,10 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
     it("augments the cast definition so the whole additional-cost path prices the reveal", () => {
         const state = board(1);
         const p1 = getPlayer(state, "p1");
-        const augmented = spliceAugmentedDefinition(lavaSpike, p1, SPIKE);
+        const augmented = spliceAugmentedDefinition(lavaSpike(), p1, SPIKE);
         const id = spliceCostId(BREACH);
         // The declared entry list is untouched; the synthesized one is appended.
-        expect(lavaSpike.kickers).toBeUndefined();
+        expect(lavaSpike().kickers).toBeUndefined();
         expect(augmented.kickers?.map((k) => k.id)).toEqual([id]);
         // The validator `announceCast` uses accepts it…
         expect(resolveKickerPayments(augmented, { [id]: 1 })).toEqual({
@@ -204,7 +208,7 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
         });
         // …and rejects it on the PRINTED definition, so a client that names a
         // reveal the board does not offer is refused.
-        expect(() => resolveKickerPayments(lavaSpike, { [id]: 1 })).toThrow();
+        expect(() => resolveKickerPayments(lavaSpike(), { [id]: 1 })).toThrow();
         // CR 702.47a — "you pay [cost] as an additional cost": {R} + {2}{R}{R}.
         const cost = { R: 1 };
         foldKickerCosts(cost, augmented, { [id]: 1 }, undefined);
@@ -214,7 +218,9 @@ describe("splice — the reveal is offered off the SPELL's subtype (CR 702.47a)"
     it("leaves a cast with no splice option identity-stable", () => {
         const state = board(0);
         const p1 = getPlayer(state, "p1");
-        expect(spliceAugmentedDefinition(lavaSpike, p1, SPIKE)).toBe(lavaSpike);
+        expect(spliceAugmentedDefinition(lavaSpike(), p1, SPIKE)).toBe(
+            lavaSpike()
+        );
     });
 });
 
@@ -222,20 +228,20 @@ describe("splice — a spliced spell is not KICKED, and the reveal is recorded (
     it("routes the payment to the unkicked record and snapshots the printed card id", () => {
         const state = board(1);
         const p1 = getPlayer(state, "p1");
-        const augmented = spliceAugmentedDefinition(lavaSpike, p1, SPIKE);
+        const augmented = spliceAugmentedDefinition(lavaSpike(), p1, SPIKE);
         const id = spliceCostId(BREACH);
         const snapshot = additionalCostPaymentSnapshot(augmented, { [id]: 1 });
         // CR 702.33d defines "kicked" over KICKER costs alone.
         expect(snapshot.kickerPayments).toBeUndefined();
         expect(totalKickerCount(snapshot.kickerPayments)).toBe(0);
         expect(snapshot.unkickedCostPayments).toEqual({ [id]: 1 });
-        expect(snapshot.splicedCardIds).toEqual([throughTheBreach.id]);
+        expect(snapshot.splicedCardIds).toEqual([throughTheBreach().id]);
     });
 
     it("stamps the record onto the stack item through the real commit path", () => {
         const state = board(1);
         const item = castSpikeSplicing(state, [BREACH]);
-        expect(item.splicedCardIds).toEqual([throughTheBreach.id]);
+        expect(item.splicedCardIds).toEqual([throughTheBreach().id]);
         expect(item.kickerPayments).toBeUndefined();
         // CR 702.47a — the printed {R} and the splice {2}{R}{R} both came out
         // of the pool the board was given exactly enough of.
@@ -253,7 +259,7 @@ describe("splice — a spliced spell is not KICKED, and the reveal is recorded (
     it("CR 702.47b — one card can never be revealed twice onto the same spell", () => {
         const state = board(1);
         const p1 = getPlayer(state, "p1");
-        const augmented = spliceAugmentedDefinition(lavaSpike, p1, SPIKE);
+        const augmented = spliceAugmentedDefinition(lavaSpike(), p1, SPIKE);
         expect(() =>
             resolveKickerPayments(augmented, { [spliceCostId(BREACH)]: 2 })
         ).toThrow();
@@ -317,16 +323,16 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
             [spliceCostId(BREACH_2)]: 1,
         });
         expect(item.splicedCardIds).toEqual([
-            throughTheBreach.id,
-            throughTheBreach.id,
+            throughTheBreach().id,
+            throughTheBreach().id,
         ]);
-        const merged = spliceMergedEffects(lavaSpike, item.splicedCardIds)!;
+        const merged = spliceMergedEffects(lavaSpike(), item.splicedCardIds)!;
         expect(merged).toHaveLength(
-            (lavaSpike.effects?.length ?? 0) +
-                2 * (throughTheBreach.effects?.length ?? 0)
+            (lavaSpike().effects?.length ?? 0) +
+                2 * (throughTheBreach().effects?.length ?? 0)
         );
         // The main spell's op is still first (CR 702.47b).
-        expect(merged[0]).toEqual(lavaSpike.effects![0]);
+        expect(merged[0]).toEqual(lavaSpike().effects![0]);
         // THE REGRESSION. A binding is not an in-memory variable: `recallChoice`
         // scans the persisted `collectedChoices` keys and returns the FIRST
         // whose name matches, so two copies of one splice card sharing `$picked`
@@ -381,14 +387,14 @@ describe("splice — the spell gains the TEXT and the card stays in hand (CR 702
 
 describe("splice — the added text's targets are the one shape that fails CLOSED (CR 702.47d)", () => {
     it("accepts only a script-bodied spell and an untargeted, script-bodied splice card", () => {
-        expect(spliceAcceptsSpell(lavaSpike)).toBe(true);
-        expect(spliceCardIsSupported(throughTheBreach)).toBe(true);
+        expect(spliceAcceptsSpell(lavaSpike())).toBe(true);
+        expect(spliceCardIsSupported(throughTheBreach())).toBe(true);
         // CR 702.47d puts the added text's targets in the main spell's own
         // CR 601.2c announcement, which carries ONE requirement — so a
         // targeting splice card is not offered rather than offered untargeted.
         expect(
             spliceCardIsSupported({
-                ...throughTheBreach,
+                ...throughTheBreach(),
                 targetRequirement: { type: ["Creature"], count: 1 },
             })
         ).toBe(false);
@@ -398,7 +404,7 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
         // or activated ability would be paid for and deliver half its text.
         expect(
             spliceCardIsSupported({
-                ...throughTheBreach,
+                ...throughTheBreach(),
                 triggeredAbilities: [
                     {
                         id: "probe",
@@ -407,17 +413,17 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
                         effects: [],
                     },
                 ],
-            } as unknown as typeof throughTheBreach)
+            } as unknown as ReturnType<typeof throughTheBreach>)
         ).toBe(false);
         expect(
             spliceCardIsSupported({
-                ...throughTheBreach,
+                ...throughTheBreach(),
                 staticAbilities: ["flying"],
             })
         ).toBe(false);
         expect(
             spliceCardIsSupported({
-                ...throughTheBreach,
+                ...throughTheBreach(),
                 activatedAbilities: [
                     {
                         id: "probe",
@@ -426,13 +432,13 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
                         effects: [],
                     },
                 ],
-            } as unknown as typeof throughTheBreach)
+            } as unknown as ReturnType<typeof throughTheBreach>)
         ).toBe(false);
         // An imperative body has no interpreter resume cursor for the merge to
         // extend, so it is not a splice target either.
         expect(
             spliceAcceptsSpell({
-                ...lavaSpike,
+                ...lavaSpike(),
                 effects: undefined,
                 resolve: () => {},
             })
@@ -444,7 +450,7 @@ describe("splice — the added text's targets are the one shape that fails CLOSE
         const p1 = getPlayer(state, "p1");
         // The same board, asked about a spell whose body is imperative.
         const imperative = {
-            ...lavaSpike,
+            ...lavaSpike(),
             effects: undefined,
             resolve: () => {},
         };
@@ -491,7 +497,7 @@ describe("splice — the reveal survives the PARKED cast commit (CR 601.2h)", ()
         expect(
             item.splicedCardIds,
             "the splice cost was charged and the text was not gained"
-        ).toEqual([throughTheBreach.id]);
+        ).toEqual([throughTheBreach().id]);
         resolveAnswering(state, [BEARS]);
         expect(
             getPlayer(state, "p1").battlefield.some((c) => c.id === BEARS)
@@ -528,9 +534,9 @@ describe("splice — the gained text is not copied and does not outlive the stac
         // unlike `kickerPayments`, which a copy does inherit.
         const state = board(1);
         const spliced = castSpikeSplicing(state, [BREACH]);
-        expect(spliced.splicedCardIds).toEqual([throughTheBreach.id]);
+        expect(spliced.splicedCardIds).toEqual([throughTheBreach().id]);
         // The real copy path: Fork, resolving on top of the spliced spell.
-        pushSpell(state, fork.id, "p1", [{ type: "spell", id: SPIKE }]);
+        pushSpell(state, fork().id, "p1", [{ type: "spell", id: SPIKE }]);
         resolveTopOfStack(state);
         // CR 707.10 — Fork offers the copy new targets; keep the originals.
         delete state.pendingTarget;
@@ -555,7 +561,7 @@ describe("splice — the changes ride the stack item and leave with it (CR 702.4
         castSpikeSplicing(state, [BREACH]);
         const reloaded = expandState(compactState(state));
         const item = reloaded.stack.find((s) => s.id === SPIKE)!;
-        expect(item.splicedCardIds).toEqual([throughTheBreach.id]);
+        expect(item.splicedCardIds).toEqual([throughTheBreach().id]);
         // …and the reloaded spell still resolves its gained text.
         resolveAnswering(reloaded, [BEARS]);
         expect(
@@ -574,7 +580,7 @@ describe("splice — the changes ride the stack item and leave with it (CR 702.4
             "the revealed card left the caster's hand on the wire"
         ).toContain(BREACH);
         const slimItem = projected.stack.find((s) => s.id === SPIKE)!;
-        expect(slimItem.splicedCardIds).toEqual([throughTheBreach.id]);
+        expect(slimItem.splicedCardIds).toEqual([throughTheBreach().id]);
         // The projection must not fabricate a kick out of a splice payment.
         expect(slimItem.kickerPayments).toBeUndefined();
     });

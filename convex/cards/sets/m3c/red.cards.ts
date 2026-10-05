@@ -4,14 +4,13 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type {
-    CardDefinition,
     GameEvent,
     PermanentEnteredEvent,
     PermanentView,
     SpellContext,
     TriggerStateView,
 } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 
 // Pyrogoyf — {3}{R} Creature — Lhurgoyf, printed */1+* (Vintage Cube FREE
 // wave 3, issue #1528, parent PRD #1525). "Pyrogoyf's power is equal to the
@@ -48,7 +47,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 // deathtouch (CR 702.2b), lifelink (CR 702.15b), "damage from a red source",
 // protection-by-colour (CR 702.16e) — is then evaluated against THAT creature.
 // For Pyrogoyf's own ETB the two coincide and the same call is still correct.
-export const pyrogoyf: CardDefinition = {
+export const pyrogoyf = defineCard(() => ({
     id: "f60be310-4461-4b84-95f0-b2095108bd79",
     name: "Pyrogoyf",
     rarity: "rare",
@@ -140,4 +139,4 @@ export const pyrogoyf: CardDefinition = {
             aiEffects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
         },
     ],
-};
+}));

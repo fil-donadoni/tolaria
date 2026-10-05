@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Craterhoof Behemoth — {5}{G}{G}{G} Creature — Beast, 5/5 (AVR 172, Vintage
@@ -36,7 +36,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // canned smoke sweep can't cover this script; a hand-written test lives in
 // `convex/cards/sets/avr/__tests__/green.test.ts` per that fallback
 // (`.claude/rules/gre-development.md` § Per-Op test regime).
-export const craterhoofBehemoth: CardDefinition = {
+export const craterhoofBehemoth = defineCard(() => ({
     id: "a249be17-73ed-4108-89c0-f7e87939beb8", // AVR 172
     rarity: "mythic",
     name: "Craterhoof Behemoth",
@@ -94,4 +94,4 @@ export const craterhoofBehemoth: CardDefinition = {
             ],
         }),
     ],
-};
+}));

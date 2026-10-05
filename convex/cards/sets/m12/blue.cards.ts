@@ -7,7 +7,7 @@
 // 2011-07-15, scryfallId 98e7bf8f-dba7-4005-8cee-634c9153931d; its most
 // recent printing is Arena Cube "afc", which is where a bare Scryfall lookup
 // with no set filter lands).
-import type { CardDefinition, TriggeredAbility } from "../../types";
+import { defineCard, type TriggeredAbility } from "../../types";
 
 // Phantasmal Image — {1}{U} 0/0 Creature — Illusion (M12). "You may have
 // this creature enter as a copy of any creature on the battlefield, except
@@ -57,7 +57,7 @@ const phantasmalImageSacrifice: TriggeredAbility = {
     effects: [{ op: "sacrifice", target: { ref: "$source" } }],
 };
 
-export const phantasmalImage: CardDefinition = {
+export const phantasmalImage = defineCard(() => ({
     id: "98e7bf8f-dba7-4005-8cee-634c9153931d", // M12 72
     rarity: "rare",
     name: "Phantasmal Image",
@@ -129,4 +129,4 @@ export const phantasmalImage: CardDefinition = {
             },
         ],
     },
-};
+}));

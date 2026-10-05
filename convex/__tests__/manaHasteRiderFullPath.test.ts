@@ -93,7 +93,7 @@ const runUntapForPayment = (
  *  printed cost is irrelevant here and overridden, exactly as the issue #1559
  *  payment-path tests do — what is under test is WHICH mana pays). */
 function arenaCastState(castCardId: string, generic: number): GameState {
-    const arena = makeInstance(arenaOfGlory.id, {
+    const arena = makeInstance(arenaOfGlory().id, {
         id: "arena",
         controllerId: "p1",
         ownerId: "p1",
@@ -129,7 +129,7 @@ function arenaCastState(castCardId: string, generic: number): GameState {
 describe("Arena of Glory's haste rider — payment (CR 106.6, issue #3354)", () => {
     it("a CREATURE spell paid with the exert mana commits the cast and stamps dynamicHasteFromMana", async () => {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaCastState(grizzlyBears.id, 2)),
+            gameStateSeed(arenaCastState(grizzlyBears().id, 2)),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "arena", manaChoiceIndex: EXERT_OPTION_INDEX },
@@ -150,7 +150,7 @@ describe("Arena of Glory's haste rider — payment (CR 106.6, issue #3354)", () 
 
     it("a NONCREATURE spell paid with the same mana gains nothing (the oracle's own condition)", async () => {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaCastState(lightningBolt.id, 2)),
+            gameStateSeed(arenaCastState(lightningBolt().id, 2)),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "arena", manaChoiceIndex: EXERT_OPTION_INDEX },
@@ -170,7 +170,7 @@ describe("Arena of Glory's haste rider — payment (CR 106.6, issue #3354)", () 
         // A cost {R}{R} alone cannot cover, so the cast stays pending and the
         // land is still reversible.
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaCastState(grizzlyBears.id, 5)),
+            gameStateSeed(arenaCastState(grizzlyBears().id, 5)),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "arena", manaChoiceIndex: EXERT_OPTION_INDEX },
@@ -200,7 +200,7 @@ describe("Arena of Glory's haste rider — the spell to permanent hand-off (CR 6
     /** Casts Grizzly Bears off the exert mana and resolves it. */
     async function castAndResolve(): Promise<GameState> {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaCastState(grizzlyBears.id, 2)),
+            gameStateSeed(arenaCastState(grizzlyBears().id, 2)),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "arena", manaChoiceIndex: EXERT_OPTION_INDEX },
@@ -296,12 +296,12 @@ describe("floating rider mana is spendable OUTSIDE a spell cast (CR 106.6, issue
         state: GameState;
         second: ReturnType<typeof makeInstance>;
     } {
-        const first = makeInstance(arenaOfGlory.id, {
+        const first = makeInstance(arenaOfGlory().id, {
             id: "arena-1",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const second = makeInstance(arenaOfGlory.id, {
+        const second = makeInstance(arenaOfGlory().id, {
             id: "arena-2",
             controllerId: "p1",
             ownerId: "p1",

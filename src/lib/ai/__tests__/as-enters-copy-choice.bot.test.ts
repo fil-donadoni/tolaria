@@ -67,7 +67,7 @@ function cloneEntering(board: CardInstanceState[]): GameState {
         activePlayerId: BOT,
         priorityPlayerId: BOT,
     });
-    const cloneCard = makeInstance(clone.id, {
+    const cloneCard = makeInstance(clone().id, {
         id: "clone",
         controllerId: BOT,
         ownerId: BOT,
@@ -110,15 +110,15 @@ function submit(state: GameState, ids: string[]): void {
 describe("bot answers the as-enters copy choice (CR 707.5, issue #2451)", () => {
     it("row C — the window IS owed and the bot produces a submission for it (ADR 0047)", () => {
         const state = cloneEntering([
-            opponentCreature(grizzlyBears.id, "bears"),
+            opponentCreature(grizzlyBears().id, "bears"),
         ]);
         expect(rungTwo(state).kind).toBe("resolution-choice");
     });
 
     it("copies the BEST body on the board rather than declining", () => {
         const state = cloneEntering([
-            opponentCreature(grizzlyBears.id, "bears"),
-            opponentCreature(serraAngel.id, "serra"),
+            opponentCreature(grizzlyBears().id, "bears"),
+            opponentCreature(serraAngel().id, "serra"),
         ]);
 
         // The shipped `min`-first default would have submitted `[]` here.
@@ -128,7 +128,7 @@ describe("bot answers the as-enters copy choice (CR 707.5, issue #2451)", () => 
         const copy = state.players[1].battlefield.find(
             (c) => c.id === "clone"
         )!;
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(getEffectivePower(state, copy)).toBe(4);
     });
 
@@ -145,8 +145,8 @@ describe("bot answers the as-enters copy choice (CR 707.5, issue #2451)", () => 
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        opponentCreature(serraAngel.id, "serra"),
-                        opponentCreature(grizzlyBears.id, "bears"),
+                        opponentCreature(serraAngel().id, "serra"),
+                        opponentCreature(grizzlyBears().id, "bears"),
                     ],
                 }),
                 makePlayer(BOT),

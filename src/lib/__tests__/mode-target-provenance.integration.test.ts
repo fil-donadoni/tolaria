@@ -58,7 +58,7 @@ const DRAW: SpellMode = {
 
 function probe(modeSelection: ModeSelection): CardDefinition {
     return {
-        ...hullBreach,
+        ...hullBreach(),
         manaCost: {},
         modes: [PING, SHOCK, DRAW],
         modeSelection,
@@ -66,7 +66,7 @@ function probe(modeSelection: ModeSelection): CardDefinition {
 }
 
 function board(): GameState {
-    const battlefield = [grizzlyBears.id, hillGiant.id].map((cardId, i) =>
+    const battlefield = [grizzlyBears().id, hillGiant().id].map((cardId, i) =>
         makeInstance(cardId, {
             id: `c${i}`,
             controllerId: "p2",
@@ -78,7 +78,7 @@ function board(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(hullBreach.id, {
+                    makeInstance(hullBreach().id, {
                         id: "spell",
                         controllerId: "p1",
                         ownerId: "p1",

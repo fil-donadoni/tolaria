@@ -1,6 +1,6 @@
 // wth — white cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Abeyance — {1}{W} Instant. "Until end of turn, target player can't cast
 // instant or sorcery spells, and that player can't activate abilities that
@@ -16,7 +16,7 @@ import type { CardDefinition } from "../../types";
 // needed. Both Ops reuse already-exercised structural constructs (a plain
 // player-ref, no bind/if/forEach) — no hand-written per-card test required
 // beyond each Op's own interpreter coverage (per-Op regime, ADR 0045/0046).
-export const abeyance: CardDefinition = {
+export const abeyance = defineCard(() => ({
     id: "125a355d-bfcf-4125-aa6c-35e7dea6f63e",
     name: "Abeyance",
     rarity: "rare",
@@ -34,7 +34,7 @@ export const abeyance: CardDefinition = {
         { op: "restrictActivation", player: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Aura of Silence — {1}{W}{W} Enchantment. "Artifact and enchantment spells
 // your opponents cast cost {2} more to cast. Sacrifice this enchantment:
@@ -46,7 +46,7 @@ export const abeyance: CardDefinition = {
 // Haywire Mite sac-ability shape, DESTROY instead of exile). Both the
 // cost-modifier and `destroy` are already exercised — no hand-written test
 // required (per-Op regime, ADR 0046).
-export const auraOfSilence: CardDefinition = {
+export const auraOfSilence = defineCard(() => ({
     id: "57e6c366-b8c7-4f66-b8e1-82dc69c0081c",
     rarity: "uncommon",
     name: "Aura of Silence",
@@ -79,4 +79,4 @@ export const auraOfSilence: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));

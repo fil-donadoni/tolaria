@@ -1,5 +1,5 @@
 // mh1 — green cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { levelBandStatics, levelUpAbility } from "../../abilities/levelUp";
 
 // Force of Vigor — {2}{G}{G} Instant. "If it's not your turn, you may exile a
@@ -14,7 +14,7 @@ import { levelBandStatics, levelUpAbility } from "../../abilities/levelUp";
 // targets ({ target: 0 } / { target: 1 }); an unchosen second target resolves
 // to nothing and its Op is skipped (CR 608.2b), so 0/1/2 targets all work
 // (ADR 0045, DSL-first).
-export const forceOfVigor: CardDefinition = {
+export const forceOfVigor = defineCard(() => ({
     id: "017c415b-d635-43c6-92b8-8c95d1c4ff8d", // MH1 164
     rarity: "rare",
     name: "Force of Vigor",
@@ -41,7 +41,7 @@ export const forceOfVigor: CardDefinition = {
         { op: "destroy", target: { target: 0 } },
         { op: "destroy", target: { target: 1 } },
     ],
-};
+}));
 
 // Hexdrinker — {G} Creature — Snake 2/1. "Level up {1} ({1}: Put a level
 // counter on this. Level up only as a sorcery.) LEVEL 3-7 4/4 Protection from
@@ -65,7 +65,7 @@ export const forceOfVigor: CardDefinition = {
 // compiler-gap: "Level up {1}" (#2693)
 // compiler-gap: "LEVEL 3-7 4/4 Protection from instants" (#2693)
 // compiler-gap: "LEVEL 8+ 6/6 Protection from everything" (#2693)
-export const hexdrinker: CardDefinition = {
+export const hexdrinker = defineCard(() => ({
     id: "89f5cc05-5d9d-4709-b3c5-a6249c294acc", // MH1 168
     rarity: "mythic",
     name: "Hexdrinker",
@@ -94,4 +94,4 @@ export const hexdrinker: CardDefinition = {
             abilities: ["protection from everything"],
         },
     ]),
-};
+}));

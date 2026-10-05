@@ -164,7 +164,7 @@ function boardWith(
         ownerId: "p1",
         zone: "hand",
     });
-    const library = (opts.library ?? [grizzlyBears.id]).map((id, i) =>
+    const library = (opts.library ?? [grizzlyBears().id]).map((id, i) =>
         makeInstance(id, {
             id: `lib-${i}`,
             controllerId: "p1",
@@ -179,7 +179,7 @@ function boardWith(
                 library,
                 battlefield: opts.mako
                     ? [
-                          makeInstance(maraudingMako.id, {
+                          makeInstance(maraudingMako().id, {
                               id: "mako",
                               controllerId: "p1",
                               ownerId: "p1",
@@ -309,7 +309,7 @@ describe('"When you cycle this card" (CR 702.29c)', () => {
     });
 
     it("fires on a TYPEcycling cost payment too (CR 702.29f)", () => {
-        const state = boardWith(TYPECYCLER_ID, { library: [forest.id] });
+        const state = boardWith(TYPECYCLER_ID, { library: [forest().id] });
         expect(
             activateFromHand(state, TYPECYCLER_ID, "cycling")
         ).not.toBeNull();
@@ -387,7 +387,7 @@ describe("CR 702.29d — one event, so a cycled card triggers each ability once"
         // Marauding Mako itself discarded: its "whenever you discard" ability
         // functions only on the battlefield (CR 603.6), and the new own-discard
         // pass is fail-closed (no `functionsFromOwnDiscard`), so nothing fires.
-        const mako = makeInstance(maraudingMako.id, {
+        const mako = makeInstance(maraudingMako().id, {
             id: "mako",
             controllerId: "p1",
             ownerId: "p1",
@@ -463,7 +463,7 @@ describe("CR 702.29c — an ordinary discard is NOT a cycling discard", () => {
             zone: "hand",
         });
         const filler = Array.from({ length: 7 }, (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `f${i}`,
                 controllerId: "p1",
                 ownerId: "p1",

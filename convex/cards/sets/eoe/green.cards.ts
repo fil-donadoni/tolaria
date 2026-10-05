@@ -2,7 +2,7 @@
 // `import * as eoe from "./sets/eoe/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 
@@ -15,7 +15,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // `forEach` over the controller's battlefield creatures (a frozen SET, not a
 // player choice), so no trigger-targeting bridge is needed (contrast
 // Luminarch Aspirant in `sets/znr/white.cards.ts`).
-export const ouroboroid: CardDefinition = {
+export const ouroboroid = defineCard(() => ({
     id: "209c591a-4ab2-4e89-9523-a7b766cf4e51",
     name: "Ouroboroid",
     rarity: "mythic",
@@ -55,7 +55,7 @@ export const ouroboroid: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Icetill Explorer — {2}{G}{G} Creature — Insect Scout, 2/4 (issue #1190,
 // Landfall CAP #694). "You may play an additional land on each of your
@@ -75,7 +75,7 @@ export const ouroboroid: CardDefinition = {
 //     `PERMANENT_ENTERED` trigger gated to lands you control, CR 603.6a /
 //     109.2) with a pure DSL `mill` Op on the controller — no target, no
 //     choice, so no `resolve` escape hatch is needed.
-export const icetillExplorer: CardDefinition = {
+export const icetillExplorer = defineCard(() => ({
     id: "d9482aab-6ddf-48e1-84fa-b13d5ff81e69",
     name: "Icetill Explorer",
     rarity: "rare",
@@ -96,4 +96,4 @@ export const icetillExplorer: CardDefinition = {
             effects: [{ op: "mill", player: "controller", count: 1 }],
         }),
     ],
-};
+}));

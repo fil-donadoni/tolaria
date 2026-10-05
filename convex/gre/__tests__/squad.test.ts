@@ -45,7 +45,7 @@ const SQUADRON_ID = "sq1";
  *  real commit path, and resolves the creature spell. Returns the state with
  *  the Squadron on the battlefield and its ETB triggers pending. */
 function castSquadron(times: number): GameState {
-    const card = makeInstance(securitronSquadron.id, {
+    const card = makeInstance(securitronSquadron().id, {
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
@@ -112,10 +112,10 @@ describe("Squad — the cost half (CR 702.157a / 702.33c)", () => {
         // CR 702.157a's "any number of times" is the SAME repeatability axis
         // Multikicker rides, so `resolveKickerPayments` — the single
         // announcement-time validator — accepts an arbitrary count.
-        expect(resolveKickerPayments(securitronSquadron, { squad: 3 })).toEqual(
-            { squad: 3 }
-        );
-        expect(resolveKickerPayments(securitronSquadron, { squad: 0 })).toBe(
+        expect(
+            resolveKickerPayments(securitronSquadron(), { squad: 3 })
+        ).toEqual({ squad: 3 });
+        expect(resolveKickerPayments(securitronSquadron(), { squad: 0 })).toBe(
             undefined
         );
     });
@@ -172,7 +172,7 @@ describe("Squad — the trigger half (CR 702.157a / 603.4)", () => {
             ).toHaveLength(times);
             for (const token of tokensOf(state)) {
                 // CR 707.2 — the copy presents the SOURCE's definition.
-                expect(token.card.id).toBe(securitronSquadron.id);
+                expect(token.card.id).toBe(securitronSquadron().id);
                 expect(token.controllerId).toBe("p1");
             }
         }

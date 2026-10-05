@@ -2,7 +2,7 @@
 // colour per ADR 0043. The registry's `import * as tsp from "./sets/tsp/index.cards"`
 // resolves through tsp/index.cards.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n`.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
 // Chromatic Star — {1} Artifact. A colour-fixing sac outlet that replaces itself
@@ -10,7 +10,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // 603.6c leaves-the-battlefield-to-graveyard trigger draws). The death trigger
 // fires whether the star is sacrificed for mana or dies any other way, since it
 // keys off entering a graveyard from the battlefield.
-export const chromaticStar: CardDefinition = {
+export const chromaticStar = defineCard(() => ({
     id: "1d7a1357-debd-49b0-9fd5-560d5b3f589e",
     name: "Chromatic Star",
     rarity: "common",
@@ -41,4 +41,4 @@ export const chromaticStar: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
-};
+}));

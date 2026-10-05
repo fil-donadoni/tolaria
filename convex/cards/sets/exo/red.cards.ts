@@ -1,6 +1,5 @@
 // exo — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
 // Price of Progress — "Price of Progress deals damage to each player equal to
 // twice the number of nonbasic lands that player controls." (CR 120.1 damage
@@ -10,7 +9,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 // (`excludeSupertype: "Basic"` — the nonbasic selector), scaled `times: 2`
 // ("twice the number of …"). Each player's amount is a single damage event, so
 // prevention/replacement see one 2N packet, not two N packets.
-export const priceOfProgress: CardDefinition = {
+export const priceOfProgress = defineCard(() => ({
     id: "8e5283db-3e22-4862-9d95-56d03d09c2ae",
     rarity: "uncommon",
     name: "Price of Progress",
@@ -38,7 +37,7 @@ export const priceOfProgress: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Maniacal Rage — {1}{R} Enchantment — Aura, enchant creature. "Enchanted
 // creature gets +2/+2 and can't block." (CR 303.4 Aura via `AURA_AFFECTS_HOST`
@@ -50,7 +49,7 @@ export const priceOfProgress: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/red.cards.ts`.
-export const maniacalRage: CardDefinition = {
+export const maniacalRage = defineCard(() => ({
     id: "f3aa840f-6a70-4674-acb7-ded0ea4397d8", // EXO 87
     rarity: "common",
     name: "Maniacal Rage",
@@ -70,4 +69,4 @@ export const maniacalRage: CardDefinition = {
             oracleText: "Enchanted creature can't block.",
         },
     ],
-};
+}));

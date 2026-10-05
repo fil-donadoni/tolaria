@@ -94,7 +94,7 @@ const sacrificeTwoMountains: AlternativeCost = {
 
 function islandsFor(playerId: string, n: number) {
     return Array.from({ length: n }, (_, i) =>
-        makeInstance(island.id, {
+        makeInstance(island().id, {
             id: `${playerId}-island-${i}`,
             controllerId: playerId,
             ownerId: playerId,
@@ -104,7 +104,7 @@ function islandsFor(playerId: string, n: number) {
 
 function mountainsFor(playerId: string, n: number) {
     return Array.from({ length: n }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `${playerId}-mountain-${i}`,
             controllerId: playerId,
             ownerId: playerId,
@@ -203,7 +203,7 @@ describe("buildAlternativeCostChoice — real choice parks (CR 118.9 / 701.21a)"
                 makePlayer("p1", {
                     battlefield: [
                         ...mountainsFor("p1", 2),
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             id: "p1-mtn-tapped",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -296,12 +296,12 @@ describe("merged cost legs must agree on their terminal action (CR 601.2f, issue
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(island.id, {
+                        makeInstance(island().id, {
                             controllerId: "p1",
                             ownerId: "p1",
                             id: "i1",
                         }),
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             controllerId: "p1",
                             ownerId: "p1",
                             id: "m1",
@@ -367,23 +367,23 @@ describe("Alternative cost — the board-wide additional-cost sacrifice survives
     // is the shipped repro: the Swamp used to survive the alt-cost cast and
     // the spell still reached the stack unpaid.
     function snuffOutUnderDrought(useAltCost: boolean) {
-        const snuff = makeInstance(snuffOut.id, {
+        const snuff = makeInstance(snuffOut().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
             id: "snuffD",
         });
-        const droughtInst = makeInstance(drought.id, {
+        const droughtInst = makeInstance(drought().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "drought2",
         });
-        const swampInst = makeInstance(swamp.id, {
+        const swampInst = makeInstance(swamp().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "swamp2",
         });
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             controllerId: "p2",
             ownerId: "p2",
             id: "victimSnuff",
@@ -498,15 +498,15 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             cardInHand,
             player,
             undefined,
-            onceUponATime.name ?? "Sacrifice",
+            onceUponATime().name ?? "Sacrifice",
             "hand"
         );
         const chosenAltCost = getAlternativeCost(
-            onceUponATime,
+            onceUponATime(),
             "free-first-spell"
         );
         assertKickerPermanentSlotFree(
-            onceUponATime,
+            onceUponATime(),
             undefined,
             ownSac,
             chosenAltCost
@@ -515,7 +515,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             state,
             "p1",
             chosenAltCost,
-            onceUponATime,
+            onceUponATime(),
             undefined,
             "Alternative cost"
         );
@@ -523,7 +523,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
     }
 
     it("builds and applies the board-wide Forest sacrifice for a leg-free alt-cost cast", () => {
-        const onceInst = makeInstance(onceUponATime.id, {
+        const onceInst = makeInstance(onceUponATime().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -534,7 +534,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
             ownerId: "p1",
             id: "probe1",
         });
-        const forestInst = makeInstance(forest.id, {
+        const forestInst = makeInstance(forest().id, {
             controllerId: "p1",
             ownerId: "p1",
             id: "forest1",
@@ -566,7 +566,7 @@ describe("Alternative cost — the no-target commit branch pays the board-wide s
     });
 
     it("rejects announcement when the board-wide sacrifice is unaffordable (no Forest)", () => {
-        const onceInst = makeInstance(onceUponATime.id, {
+        const onceInst = makeInstance(onceUponATime().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
@@ -644,7 +644,7 @@ describe("announceCast — the no-target alt-cost branch, driven through the rea
         forestCount: number,
         tapSecond = false
     ): GameState {
-        const onceInst = makeInstance(onceUponATime.id, {
+        const onceInst = makeInstance(onceUponATime().id, {
             id: "onceH",
             zone: "hand",
             controllerId: "p1",
@@ -656,7 +656,7 @@ describe("announceCast — the no-target alt-cost branch, driven through the rea
             ownerId: "p1",
         });
         const forests = Array.from({ length: forestCount }, (_, i) =>
-            makeInstance(forest.id, {
+            makeInstance(forest().id, {
                 id: `forestH-${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -839,7 +839,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         p2Battlefield?: CardInstanceState[];
     }): GameState {
         const zone = opts.gushZone ?? "hand";
-        const gushInst = makeInstance(gush.id, {
+        const gushInst = makeInstance(gush().id, {
             id: "gushH",
             zone,
             controllerId: "p1",
@@ -861,7 +861,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // indistinguishable, so the pick auto-resolves and what parks or
         // commits is purely the MANA half.
         const islands = [0, 1].map((i) =>
-            makeInstance(island.id, {
+            makeInstance(island().id, {
                 id: `islandG-${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -900,7 +900,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // Gush's alt cost carries NO mana leg, so the {1} IS the whole total:
         // before the fix the branch parked `manaCost: {}` and spent nothing.
         const thalia = () =>
-            makeInstance(thaliaGuardianOfThraben.id, {
+            makeInstance(thaliaGuardianOfThraben().id, {
                 id: "thaliaG",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -952,7 +952,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // reach the alt cost through the ONE collector (`getCostModifiers`),
         // so the total is {3}.
         const thalia = () =>
-            makeInstance(thaliaGuardianOfThraben.id, {
+            makeInstance(thaliaGuardianOfThraben().id, {
                 id: "thaliaG",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -1002,13 +1002,13 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // {1}{R} — and it announces no targets, so it is the same no-target
         // branch. Planar Gate ("Creature spells you cast cost {2} less")
         // shaves the generic {1} to nothing, leaving {R}.
-        const ragavan = makeInstance(ragavanNimblePilferer.id, {
+        const ragavan = makeInstance(ragavanNimblePilferer().id, {
             id: "ragH",
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const gate = makeInstance(planarGate.id, {
+        const gate = makeInstance(planarGate().id, {
             id: "gateH",
             controllerId: "p1",
             ownerId: "p1",
@@ -1047,7 +1047,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         pool: number,
         modifier: { def: CardDefinition; controller: "p1" | "p2" }
     ): GameState {
-        const angel = makeInstance(exaltedAngel.id, {
+        const angel = makeInstance(exaltedAngel().id, {
             id: "angelH",
             zone: "hand",
             controllerId: "p1",
@@ -1083,7 +1083,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // {3} morph cost stays {3}, never {6}. Exalted Angel's printed
         // {4}{W}{W} is 6 before Gloom's {3}, so "cast" at three mana can only
         // be the alternative-cost branch speaking.
-        const state = morphBoard(3, { def: gloom, controller: "p2" });
+        const state = morphBoard(3, { def: gloom(), controller: "p2" });
         expect(
             getLegalActions(state, getPlayer(state, "p1"), angelIn(state))
         ).toContain("cast");
@@ -1113,7 +1113,7 @@ describe("announceCast — cost modifiers reach the UNTARGETED alternative-cost 
         // still 4, while the {3} morph cast less the same {2} is 1. Planar
         // Gate keys on "creature spell", which a face-down spell still is, so
         // the face-down view above does not exempt it.
-        const state = morphBoard(1, { def: planarGate, controller: "p1" });
+        const state = morphBoard(1, { def: planarGate(), controller: "p1" });
         expect(
             getLegalActions(state, getPlayer(state, "p1"), angelIn(state))
         ).toContain("cast");

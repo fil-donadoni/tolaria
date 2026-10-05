@@ -2,11 +2,11 @@
 // `import * as rtr from "./sets/rtr/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    CardDefinition,
-    GameEvent,
-    PermanentView,
-    TriggeredAbility,
+import {
+    defineCard,
+    type GameEvent,
+    type PermanentView,
+    type TriggeredAbility,
 } from "../../types";
 
 const WORLDSPINE_WURM_ID = "543d55cb-3a6b-4620-af25-10ae74ed32c4";
@@ -153,7 +153,7 @@ function worldspineWurmShuffleFromGraveyard(): TriggeredAbility {
     };
 }
 
-export const worldspineWurm: CardDefinition = {
+export const worldspineWurm = defineCard(() => ({
     id: WORLDSPINE_WURM_ID,
     rarity: "mythic",
     name: "Worldspine Wurm",
@@ -169,4 +169,4 @@ export const worldspineWurm: CardDefinition = {
         worldspineWurmDiesCreateTokens(),
         worldspineWurmShuffleFromGraveyard(),
     ],
-};
+}));

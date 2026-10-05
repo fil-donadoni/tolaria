@@ -4,19 +4,14 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type {
-    CardDefinition,
-    SpellContext,
-    PermanentView,
-    TargetSelection,
-} from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { SpellContext, PermanentView, TargetSelection } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 
 // Gravity Sphere — World enchantment, "All creatures lose flying."
 // (CR 702.9, 613.1a layer 6 — keyword-remove on every creature, any controller.)
-export const gravitySphere: CardDefinition = {
+export const gravitySphere = defineCard(() => ({
     id: "a2749332-e99a-4a0c-b3a3-5578b552fa11",
     rarity: "rare",
     name: "Gravity Sphere",
@@ -32,7 +27,7 @@ export const gravitySphere: CardDefinition = {
             keyword: "flying",
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Red free tranche (#374) — every mono-red Legends card expressible with
@@ -116,7 +111,7 @@ export const gravitySphere: CardDefinition = {
 // permanent's controller. The copy is OPTIONAL and uses the stack, so it does
 // not auto-resolve — paying {R}{R} is a genuine tactical choice (per the
 // auto-resolve rule, a real branch keeps its prompt).
-export const chainLightning: CardDefinition = {
+export const chainLightning = defineCard(() => ({
     id: "b5883762-ca0a-4932-8d2a-41a45796a5f8",
     rarity: "common",
     name: "Chain Lightning",
@@ -173,10 +168,10 @@ export const chainLightning: CardDefinition = {
             if (copyId) ctx.requestCopyRetarget(copyId);
         },
     ],
-};
+}));
 
 // Raging Bull — vanilla 2/2 Ox (CR 110.1).
-export const ragingBull: CardDefinition = {
+export const ragingBull = defineCard(() => ({
     id: "ec10a51c-d2c3-4d14-9a71-9e59155bf980",
     rarity: "common",
     name: "Raging Bull",
@@ -186,11 +181,11 @@ export const ragingBull: CardDefinition = {
     subtypes: ["Ox"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Mountain Yeti — mountainwalk (CR 702.19 landwalk variant) + protection from
 // white (CR 702.16).
-export const mountainYeti: CardDefinition = {
+export const mountainYeti = defineCard(() => ({
     id: "09242f08-3bfc-4082-b32f-703c7fed62a0",
     rarity: "uncommon",
     name: "Mountain Yeti",
@@ -202,10 +197,10 @@ export const mountainYeti: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["mountainwalk", "protection from white"],
-};
+}));
 
 // Wall of Earth — Defender (CR 702.3).
-export const wallOfEarth: CardDefinition = {
+export const wallOfEarth = defineCard(() => ({
     id: "c12e97c1-ca28-432a-8140-3f08bb4485a3",
     rarity: "common",
     name: "Wall of Earth",
@@ -216,10 +211,10 @@ export const wallOfEarth: CardDefinition = {
     power: 0,
     toughness: 6,
     staticAbilities: ["defender"],
-};
+}));
 
 // Wall of Heat — Defender (CR 702.3).
-export const wallOfHeat: CardDefinition = {
+export const wallOfHeat = defineCard(() => ({
     id: "a38059a8-be69-4cc1-969b-951c610f2f11",
     rarity: "common",
     name: "Wall of Heat",
@@ -230,13 +225,13 @@ export const wallOfHeat: CardDefinition = {
     power: 2,
     toughness: 6,
     staticAbilities: ["defender"],
-};
+}));
 
 // --- Lord / anthem creatures (CR 611 layer 7c + keyword grant) ------------
 
 // Kobold Taskmaster — "Other Kobold creatures you control get +1/+0."
 // (CR 611 filtered anthem excluding self.)
-export const koboldTaskmaster: CardDefinition = {
+export const koboldTaskmaster = defineCard(() => ({
     id: "1b9c63eb-8d4e-4d8b-8637-308459ef036b",
     rarity: "uncommon",
     name: "Kobold Taskmaster",
@@ -257,11 +252,11 @@ export const koboldTaskmaster: CardDefinition = {
             toughness: 0,
         },
     ],
-};
+}));
 
 // Kobold Drill Sergeant — "Other Kobold creatures you control get +0/+1 and
 // have trample." (CR 611 filtered anthem + keyword grant, excluding self.)
-export const koboldDrillSergeant: CardDefinition = {
+export const koboldDrillSergeant = defineCard(() => ({
     id: "741b14f8-625d-41be-a734-0efe042a6ee8",
     rarity: "uncommon",
     name: "Kobold Drill Sergeant",
@@ -291,11 +286,11 @@ export const koboldDrillSergeant: CardDefinition = {
             keyword: "trample",
         },
     ],
-};
+}));
 
 // Kobold Overlord — first strike (CR 702.7) + "Other Kobold creatures you
 // control have first strike." (CR 611 keyword grant, excluding self.)
-export const koboldOverlord: CardDefinition = {
+export const koboldOverlord = defineCard(() => ({
     id: "490eeedb-9c03-4dc7-81fd-ae54a7932e4d",
     rarity: "rare",
     name: "Kobold Overlord",
@@ -317,14 +312,14 @@ export const koboldOverlord: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));
 
 // Beasts of Bogardan — protection from red (CR 702.16) + "gets +1/+1 as long as
 // an opponent controls a nontoken white permanent." (CR 611.2c conditional
 // self-anthem.)
 const BEASTS_OF_BOGARDAN_ID = "f885d776-2953-4ed4-b63f-91dc2b42783b";
 
-export const beastsOfBogardan: CardDefinition = {
+export const beastsOfBogardan = defineCard(() => ({
     id: BEASTS_OF_BOGARDAN_ID,
     rarity: "uncommon",
     name: "Beasts of Bogardan",
@@ -354,14 +349,14 @@ export const beastsOfBogardan: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Hyperion Blacksmith — "{T}: You may tap or untap target artifact an opponent
 // controls." (CR 701.26 tap/untap; the optional + the tap-or-untap pick are a
 // single option choice — choose tap, untap, or decline.)
-export const hyperionBlacksmith: CardDefinition = {
+export const hyperionBlacksmith = defineCard(() => ({
     id: "44d499a9-fe7c-4a1a-9eb3-a7fd9f85ae08",
     rarity: "uncommon",
     name: "Hyperion Blacksmith",
@@ -423,11 +418,11 @@ export const hyperionBlacksmith: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Wall of Opposition — Defender (CR 702.3) + "{1}: This creature gets +1/+0
 // until end of turn." (CR 611.1 repeatable temporary pump.)
-export const wallOfOpposition: CardDefinition = {
+export const wallOfOpposition = defineCard(() => ({
     id: "2b3d1430-9978-4983-a4fd-d1fa8dea2169",
     rarity: "rare",
     name: "Wall of Opposition",
@@ -458,12 +453,12 @@ export const wallOfOpposition: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Auras (CR 303 — Enchant creature) ------------------------------------
 
 // Giant Strength — Enchanted creature gets +2/+2 (CR 303.4, 611).
-export const giantStrength: CardDefinition = {
+export const giantStrength = defineCard(() => ({
     id: "a86190bb-1f41-4128-b9fb-dfb1d178359d",
     rarity: "common",
     name: "Giant Strength",
@@ -480,10 +475,10 @@ export const giantStrength: CardDefinition = {
             toughness: 2,
         },
     ],
-};
+}));
 
 // Immolation — Enchanted creature gets +2/-2 (CR 303.4, 611).
-export const immolation: CardDefinition = {
+export const immolation = defineCard(() => ({
     id: "9b3d34fa-398c-4ea0-a392-6690bd3a615c",
     rarity: "common",
     name: "Immolation",
@@ -500,11 +495,11 @@ export const immolation: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 
 // Eternal Warrior — Enchanted creature has vigilance (CR 303.4 keyword grant,
 // CR 702.21).
-export const eternalWarrior: CardDefinition = {
+export const eternalWarrior = defineCard(() => ({
     id: "97cdc38e-1d96-4de2-98e2-713f5d4d2180",
     rarity: "uncommon",
     name: "Eternal Warrior",
@@ -520,12 +515,12 @@ export const eternalWarrior: CardDefinition = {
             keyword: "vigilance",
         },
     ],
-};
+}));
 
 // The Brute — "Enchanted creature gets +1/+0." + "{R}{R}{R}: Regenerate
 // enchanted creature." (CR 303.4 pt-buff + a host-aware regeneration ability,
 // CR 701.19a.)
-export const theBrute: CardDefinition = {
+export const theBrute = defineCard(() => ({
     id: "f9ffb265-872f-47b3-974c-92bcbebd557e",
     rarity: "common",
     name: "The Brute",
@@ -565,14 +560,14 @@ export const theBrute: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Pump / colour-change spells (CR 611.1, end-of-turn duration) ----------
 
 // Dwarven Song — "One or more target creatures become red until end of turn."
 // (CR 305.7 layer-5 colour override, end-of-turn duration; variable count,
 // CR 601.2c.)
-export const dwarvenSong: CardDefinition = {
+export const dwarvenSong = defineCard(() => ({
     id: "29a50f72-9524-4440-9380-9d3e0b693351",
     rarity: "uncommon",
     name: "Dwarven Song",
@@ -602,14 +597,14 @@ export const dwarvenSong: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Blood Lust — "If target creature has toughness 5 or greater, it gets +4/-4
 // until end of turn. Otherwise, it gets +4/-X until end of turn, where X is its
 // toughness minus 1." (CR 611.1 temporary P/T; the toughness branch snapshots
 // effective toughness at resolution. The -X case always leaves toughness 1 —
 // +4/-(T-1) makes the new toughness T - (T-1) = 1.)
-export const bloodLust: CardDefinition = {
+export const bloodLust = defineCard(() => ({
     id: "fbbf1a9c-8b94-4ee7-92db-65b531149990",
     rarity: "uncommon",
     name: "Blood Lust",
@@ -631,13 +626,13 @@ export const bloodLust: CardDefinition = {
             phase: "end-of-turn",
         });
     },
-};
+}));
 
 // Glyph of Destruction — "Target blocking Wall you control gets +10/+0 until
 // end of combat. Prevent all damage that would be dealt to it this turn.
 // Destroy it at the beginning of the next end step." (CR 611.1 pump until end
 // of combat + CR 615 prevention shield + CR 603.7a delayed destroy.)
-export const glyphOfDestruction: CardDefinition = {
+export const glyphOfDestruction = defineCard(() => ({
     id: "8e9c153c-9224-491b-bc84-8a9f0a83ee5a",
     rarity: "common",
     name: "Glyph of Destruction",
@@ -682,13 +677,13 @@ export const glyphOfDestruction: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$it" } }],
         },
     ],
-};
+}));
 
 // --- Removal / modal spells (CR 700.2, 701.7) ------------------------------
 
 // Active Volcano — modal: "Destroy target blue permanent." OR "Return target
 // Island to its owner's hand." (CR 700.2 modal spell.)
-export const activeVolcano: CardDefinition = {
+export const activeVolcano = defineCard(() => ({
     id: "ad402e65-6fac-4005-a2d4-592983df0c30",
     rarity: "common",
     name: "Active Volcano",
@@ -723,7 +718,7 @@ export const activeVolcano: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // --- Hand / library disruption (CR 121, 701.20) ----------------------------
 
@@ -735,7 +730,7 @@ export const activeVolcano: CardDefinition = {
 // empty hand. The same three Ops under `forEach { set: "players" }` as
 // Whirlpool Warrior's activated half (apc/blue.cards.ts): a body binding is scoped
 // to its iteration, so each player draws back their OWN hand size.
-export const windsOfChange: CardDefinition = {
+export const windsOfChange = defineCard(() => ({
     id: "186fd917-8d65-4de5-8546-a32a5f6d3bab",
     rarity: "uncommon",
     name: "Winds of Change",
@@ -768,10 +763,10 @@ export const windsOfChange: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Aerathi Berserker — {2}{R}{R}{R} 2/4, Rampage 3.
-export const aerathiBerserker: CardDefinition = {
+export const aerathiBerserker = defineCard(() => ({
     id: "06673800-22a7-4ee3-92fa-7c7cd4865d30",
     rarity: "uncommon",
     name: "Aerathi Berserker",
@@ -784,10 +779,10 @@ export const aerathiBerserker: CardDefinition = {
     toughness: 4,
     staticAbilities: ["rampage 3"],
     triggeredAbilities: [rampageTrigger(3)],
-};
+}));
 
 // Frost Giant — {3}{R}{R}{R} 4/4, Rampage 2.
-export const frostGiant: CardDefinition = {
+export const frostGiant = defineCard(() => ({
     id: "6955d54f-7b37-4e43-8183-51677fb1ee11",
     rarity: "uncommon",
     name: "Frost Giant",
@@ -800,14 +795,14 @@ export const frostGiant: CardDefinition = {
     toughness: 4,
     staticAbilities: ["rampage 2"],
     triggeredAbilities: [rampageTrigger(2)],
-};
+}));
 
 // Primordial Ooze — {R} 1/1 Ooze that must attack. Each upkeep it grows a +1/+1
 // counter; then its controller may pay {X} (X = its +1/+1 counter count) or it
 // taps and deals X damage to its controller. CR 122 +1/+1 counters, CR 508.1d
 // must-attack, CR 603.6a upkeep, CR 117.3a optional pay-or-else with a power-
 // scaled {X} cost (X read from the live counter count).
-export const primordialOoze: CardDefinition = {
+export const primordialOoze = defineCard(() => ({
     id: "a46e47e1-8639-48f7-94c4-5f9e9666839a",
     rarity: "uncommon",
     name: "Primordial Ooze",
@@ -870,7 +865,7 @@ export const primordialOoze: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C9 — Global combat caps + conditional attack restriction (#386)
@@ -908,7 +903,7 @@ export const primordialOoze: CardDefinition = {
 // can attack each combat. No more than two creatures can block each combat."
 // (CR 508.1a / 509.1a — global declaration caps, one `combat-declaration-cap`
 // static effect per side.)
-export const cavernsOfDespair: CardDefinition = {
+export const cavernsOfDespair = defineCard(() => ({
     id: "209f7479-b3a0-4c27-9602-78babb8d2e99",
     rarity: "rare",
     name: "Caverns of Despair",
@@ -933,4 +928,4 @@ export const cavernsOfDespair: CardDefinition = {
             oracleText: "No more than two creatures can block each combat.",
         },
     ],
-};
+}));

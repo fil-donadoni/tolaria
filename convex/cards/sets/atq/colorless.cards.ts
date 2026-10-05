@@ -13,7 +13,6 @@
 
 import type {
     ActivatedAbilityContext,
-    CardDefinition,
     EffectMode,
     ManaCost,
     PermanentView,
@@ -22,7 +21,7 @@ import type {
     TokenSpec,
     TriggeredAbility,
 } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -38,7 +37,7 @@ import { untapTrigger } from "../../abilities/triggers/untapTrigger";
 
 // Ornithopter — {0} Artifact Creature — Thopter, 0/2 with flying (CR 702.9).
 // The classic free flyer; a zero-cost evasive blocker/chump.
-export const ornithopter: CardDefinition = {
+export const ornithopter = defineCard(() => ({
     id: "59cc9bdb-7cf2-4795-bac7-ffff605c9eb0",
     rarity: "common",
     name: "Ornithopter",
@@ -49,11 +48,11 @@ export const ornithopter: CardDefinition = {
     power: 0,
     toughness: 2,
     staticAbilities: ["flying"],
-};
+}));
 
 // Yotian Soldier — {3} Artifact Creature — Soldier, 1/4 with vigilance
 // (CR 702.20). A durable attacker that stays back to block.
-export const yotianSoldier: CardDefinition = {
+export const yotianSoldier = defineCard(() => ({
     id: "27cf53e3-76f6-4831-800e-1259394d779d",
     rarity: "common",
     name: "Yotian Soldier",
@@ -64,12 +63,12 @@ export const yotianSoldier: CardDefinition = {
     power: 1,
     toughness: 4,
     staticAbilities: ["vigilance"],
-};
+}));
 
 // Wall of Spears — {3} Artifact Creature — Wall, 2/3 with defender + first
 // strike (CR 702.3 defender — can't attack; CR 702.7 first strike — deals
 // combat damage in the first-strike step). Pure keyword mapping, no resolve().
-export const wallOfSpears: CardDefinition = {
+export const wallOfSpears = defineCard(() => ({
     id: "b1dda179-c49a-4995-ba5a-db93ac43dbe7",
     rarity: "uncommon",
     name: "Wall of Spears",
@@ -80,7 +79,7 @@ export const wallOfSpears: CardDefinition = {
     power: 2,
     toughness: 3,
     staticAbilities: ["defender", "first strike"],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Artifact creatures with activated abilities (CR 605 — activated abilities;
@@ -93,7 +92,7 @@ export const wallOfSpears: CardDefinition = {
 // untap restriction via the `does-not-untap` keyword read by `untapStep` in
 // phases.ts; CR 602.5b activation timing — `activationPhaseRestriction:
 // ["UPKEEP"]` + `controllerTurnOnly` enforces "during your upkeep").
-export const colossusOfSardia: CardDefinition = {
+export const colossusOfSardia = defineCard(() => ({
     id: "067c44e9-1b23-42fd-9acb-daafb62c32a2",
     rarity: "rare",
     name: "Colossus of Sardia",
@@ -121,7 +120,7 @@ export const colossusOfSardia: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Simple non-creature permanents (CR 305 lands, CR 301 artifacts)
@@ -132,7 +131,7 @@ export const colossusOfSardia: CardDefinition = {
 // 701.8 destroy via a sacrifice-cost activated ability that uses the stack so
 // it can be responded to). The sac cost is paid at activation; the destroy
 // resolves later from the stack.
-export const stripMine: CardDefinition = {
+export const stripMine = defineCard(() => ({
     id: "e7880157-7f27-4f1b-9cdc-ab36a6252376",
     rarity: "uncommon",
     name: "Strip Mine",
@@ -159,7 +158,7 @@ export const stripMine: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Obelisk of Undoing — Artifact with "{6}, {T}: Return target permanent you
 // both own and control to your hand." (CR 400.7 return to hand; CR 605
@@ -170,7 +169,7 @@ export const stripMine: CardDefinition = {
 // types (CR 115.4 — creature/planeswalker/battle), so the target uses the full
 // CR 300.1 permanent-type set (incl. Land) to honor "target permanent" of any
 // type. Mana cost {1} per MTGJSON ATQ.json (ADR 0004 authoritative).
-export const obeliskOfUndoing: CardDefinition = {
+export const obeliskOfUndoing = defineCard(() => ({
     id: "1ba61ccd-4429-4f7c-b9f3-30867878d88e",
     rarity: "rare",
     name: "Obelisk of Undoing",
@@ -195,7 +194,7 @@ export const obeliskOfUndoing: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Feldon's Cane — {1} Artifact. "{T}, Exile this artifact: Shuffle your
 // graveyard into your library." (CR 400.7 zone change + CR 701.24 shuffle.)
@@ -209,7 +208,7 @@ export const obeliskOfUndoing: CardDefinition = {
 // the ability is on the stack, so an opponent cannot destroy it in response and
 // it can never end up in the graveyard instead. Being gone by resolution also
 // means it is not among the cards this ability shuffles back in.
-export const feldonsCane: CardDefinition = {
+export const feldonsCane = defineCard(() => ({
     id: "bb6af436-bcfd-4d47-a1aa-e84b587a725a",
     rarity: "uncommon",
     name: "Feldon's Cane",
@@ -235,7 +234,7 @@ export const feldonsCane: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Millstone — {2} Artifact. "{2}, {T}: Target player mills two cards." (CR
 // 701.17 mill — put the top N cards of a library into its owner's graveyard.)
@@ -243,7 +242,7 @@ export const feldonsCane: CardDefinition = {
 // activated ability's `mill` Op mills the announced target player two cards
 // (re-reading the live top id each pass; stops naturally when the library
 // empties, CR 701.17a).
-export const millstone: CardDefinition = {
+export const millstone = defineCard(() => ({
     id: "107646bc-2181-49f4-8821-1eaa46291855",
     rarity: "uncommon",
     name: "Millstone",
@@ -260,14 +259,14 @@ export const millstone: CardDefinition = {
             effects: [{ op: "mill", player: { target: 0 }, count: 2 }],
         },
     ],
-};
+}));
 
 // Jalum Tome — {3} Artifact — Book. "{2}, {T}: Draw a card, then discard a
 // card." (CR 121.1 draw, CR 701.9 discard; loot.) Composition: drawCards(1)
 // then a `choose-hand-card` choice to pick which card to discard (modern oracle
 // text: the player chooses). The discard happens "then" — sequenced via a
 // two-step resolve so the drawn card is in hand before the discard pick.
-export const jalumTome: CardDefinition = {
+export const jalumTome = defineCard(() => ({
     id: "5a5b7c5a-ee63-4a1b-9a0f-fb0a309168df",
     rarity: "uncommon",
     name: "Jalum Tome",
@@ -300,14 +299,14 @@ export const jalumTome: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Candelabra of Tawnos — {1} Artifact. "{X}, {T}: Untap X target lands." (CR
 // 107.3 X chosen at activation, CR 601.2c X-bound target count, CR 701.26b
 // untap.) `count: "X"` resolves the number of land targets against the chosen
 // value of X at activation; a 0-X activation skips target selection and
 // untaps nothing.
-export const candelabraOfTawnos: CardDefinition = {
+export const candelabraOfTawnos = defineCard(() => ({
     id: "35a335bf-7358-460f-b7c9-1e8bc4300f64",
     rarity: "rare",
     name: "Candelabra of Tawnos",
@@ -342,13 +341,13 @@ export const candelabraOfTawnos: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Urza's Chalice — {1} Artifact. "Whenever a player casts an artifact spell,
 // you may pay {1}. If you do, you gain 1 life." (CR 603.2 SPELL_CAST trigger,
 // scope "any"; CR 117.3a optional may-pay → gainLife.) Same shape as the LEA
 // color-sphere cycle, filtered to artifact spells instead of a color.
-export const urzasChalice: CardDefinition = {
+export const urzasChalice = defineCard(() => ({
     id: "f3728537-86d3-42be-9046-90bba1bfafc1",
     rarity: "common",
     name: "Urza's Chalice",
@@ -383,12 +382,12 @@ export const urzasChalice: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Onulet — {3} Artifact Creature — Construct, 2/2. "When this creature dies,
 // you gain 2 life." (CR 700.4 death = battlefield→graveyard; CR 603.2 death
 // trigger scoped to self.)
-export const onulet: CardDefinition = {
+export const onulet = defineCard(() => ({
     id: "d77fe8e2-8438-473e-ace5-01baddd2c4ed",
     rarity: "uncommon",
     name: "Onulet",
@@ -415,13 +414,13 @@ export const onulet: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Su-Chi — {4} Artifact Creature — Construct, 4/4. "When this creature dies,
 // add {C}{C}{C}{C}." (CR 603.2 death trigger scoped to self; CR 106.1 the
 // added mana goes to the trigger's controller's pool via addManaTo.) The mana
 // is added on resolution — it empties at end of the step/phase like any mana.
-export const suChi: CardDefinition = {
+export const suChi = defineCard(() => ({
     id: "a64d4f93-0c04-4078-aec0-7e9de92f260f",
     rarity: "uncommon",
     name: "Su-Chi",
@@ -446,13 +445,13 @@ export const suChi: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Tablet of Epityr — {1} Artifact. "Whenever an artifact you control is put
 // into a graveyard from the battlefield, you may pay {1}. If you do, you gain
 // 1 life." (CR 603.2 PERMANENT_LEFT trigger, toZone graveyard + scope "yours"
 // + Artifact filter; CR 117.3a optional may-pay.)
-export const tabletOfEpityr: CardDefinition = {
+export const tabletOfEpityr = defineCard(() => ({
     id: "6d7a2718-301f-4191-b348-0c44c7c07d43",
     rarity: "common",
     name: "Tablet of Epityr",
@@ -487,13 +486,13 @@ export const tabletOfEpityr: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Ivory Tower — {1} Artifact. "At the beginning of your upkeep, you gain X
 // life, where X is the number of cards in your hand minus 4." (CR 603.6a
 // upkeep trigger scoped to "your"; gain is clamped at 0 — you never lose life
 // when hand < 4.)
-export const ivoryTower: CardDefinition = {
+export const ivoryTower = defineCard(() => ({
     id: "a5f23039-45ca-4c15-af50-bfd40ea26453",
     rarity: "uncommon",
     name: "Ivory Tower",
@@ -521,7 +520,7 @@ export const ivoryTower: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Armageddon Clock — {6} Artifact. Doom-counter time bomb:
 //  • "At the beginning of your upkeep, put a doom counter on this artifact."
@@ -533,7 +532,7 @@ export const ivoryTower: CardDefinition = {
 // any-player activation via activatableByAnyPlayer + UPKEEP phase
 // restriction.) The draw-step ping reads the live counter count and damages
 // each player in APNAP order.
-export const armageddonClock: CardDefinition = {
+export const armageddonClock = defineCard(() => ({
     id: "44a31889-6a8d-450c-a73d-381a7ff28bf9",
     rarity: "uncommon",
     name: "Armageddon Clock",
@@ -601,13 +600,13 @@ export const armageddonClock: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Triskelion — {6} Artifact Creature — Construct, 1/1, enters with three +1/+1
 // counters. "Remove a +1/+1 counter from this creature: It deals 1 damage to
 // any target." (CR 122.1 ETB counters via entersWith; CR 122.6 counter-removal
 // cost; CR 115.4 "any target" = damageable permanent or player.)
-export const triskelion: CardDefinition = {
+export const triskelion = defineCard(() => ({
     id: "a79c99e1-722a-44b6-8fa3-2be3f0c193d8",
     rarity: "rare",
     name: "Triskelion",
@@ -630,7 +629,7 @@ export const triskelion: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Clockwork Avian — {5} Artifact Creature — Bird, 0/4 with flying, enters with
 // four +1/+0 counters. (Twin of Clockwork Beast in lea.ts, capped at four
@@ -642,7 +641,7 @@ export const triskelion: CardDefinition = {
 //    can't cause the total ... to be greater than four. Activate only during
 //    your upkeep." (CR 122.1; the {X} pipeline + add-capped-to-four resolve +
 //    UPKEEP/your-turn activation restriction.)
-export const clockworkAvian: CardDefinition = {
+export const clockworkAvian = defineCard(() => ({
     id: "1dea8c2f-4aea-478d-aee7-cba1f74edd6c",
     rarity: "rare",
     name: "Clockwork Avian",
@@ -707,7 +706,7 @@ export const clockworkAvian: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // P/T statics, combat & one-shot prevention shields (free tranche, #277) —
@@ -727,7 +726,7 @@ export const clockworkAvian: CardDefinition = {
 // 7c anthem; CR 508.1 attacking — gated on `isAttacking`.) Affects EVERY
 // attacking creature regardless of controller (no controller clause, unlike
 // Orcish Oriflamme's "you control"). Same `pt-buff` + `isAttacking` shape.
-export const mightstone: CardDefinition = {
+export const mightstone = defineCard(() => ({
     id: "b28ba599-5299-4831-a118-1712ada10ef6",
     rarity: "uncommon",
     name: "Mightstone",
@@ -743,13 +742,13 @@ export const mightstone: CardDefinition = {
             toughness: 0,
         },
     ],
-};
+}));
 
 // Weakstone — {4} Artifact. "Attacking creatures get -1/-0." (CR 611 layer 7c;
 // CR 508.1.) Mirror of Mightstone with a negative power buff. Effective power
 // is floored at 0 by the layer reader (CR 107.1b — P/T can't be negative for
 // rules purposes, but combat damage uses the floored value).
-export const weakstone: CardDefinition = {
+export const weakstone = defineCard(() => ({
     id: "46adf48f-99d2-440e-9129-794584c1ea21",
     rarity: "uncommon",
     name: "Weakstone",
@@ -765,7 +764,7 @@ export const weakstone: CardDefinition = {
             toughness: 0,
         },
     ],
-};
+}));
 
 // Mishra's Factory — Land (the "manland"). Three abilities:
 //  • "{T}: Add {C}." (CR 605.1a/605.3a mana ability, useStack:false.)
@@ -776,7 +775,7 @@ export const weakstone: CardDefinition = {
 //    types/subtypes/P-T at end of turn.)
 //  • "{T}: Target Assembly-Worker creature gets +1/+1 until end of turn."
 //    (CR 611.1 temp buff, restricted to Assembly-Workers via subtypeFilter.)
-export const mishrasFactory: CardDefinition = {
+export const mishrasFactory = defineCard(() => ({
     id: "a696c5b6-f216-454d-8029-74e84bbd1428",
     rarity: "uncommon",
     name: "Mishra's Factory",
@@ -843,7 +842,7 @@ export const mishrasFactory: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Battering Ram — {2} Artifact Creature — Construct, 1/1. Two combat clauses:
 //  • "At the beginning of combat on your turn, this creature gains banding
@@ -889,7 +888,7 @@ function batteringRamWallTrigger(): TriggeredAbility {
     };
 }
 
-export const batteringRam: CardDefinition = {
+export const batteringRam = defineCard(() => ({
     id: BATTERING_RAM_ID,
     rarity: "common",
     name: "Battering Ram",
@@ -922,7 +921,7 @@ export const batteringRam: CardDefinition = {
         }),
         batteringRamWallTrigger(),
     ],
-};
+}));
 
 // Urza's Avenger — {6} Artifact Creature — Shapeshifter, 4/4. "{0}: This
 // creature gets -1/-1 and gains your choice of banding, flying, first strike,
@@ -965,7 +964,7 @@ function urzasAvengerKeywordModes(): EffectMode[] {
     }));
 }
 
-export const urzasAvenger: CardDefinition = {
+export const urzasAvenger = defineCard(() => ({
     id: "448e1811-fb16-4390-ac22-b7066a4a019c",
     rarity: "rare",
     name: "Urza's Avenger",
@@ -1005,12 +1004,12 @@ export const urzasAvenger: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Amulet of Kroog — {2} Artifact. "{2}, {T}: Prevent the next 1 damage that
 // would be dealt to any target this turn." (CR 615.1/615.6 one-shot
 // prevention shield via `preventNextNDamageToTarget`, purged end-of-turn.)
-export const amuletOfKroog: CardDefinition = {
+export const amuletOfKroog = defineCard(() => ({
     id: "b094f8dd-0184-41a2-9767-e848a6e4eac1",
     rarity: "common",
     name: "Amulet of Kroog",
@@ -1040,7 +1039,7 @@ export const amuletOfKroog: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Rakalite — {6} Artifact. "{2}: Prevent the next 1 damage that would be dealt
 // to any target this turn. Return this artifact to its owner's hand at the
@@ -1049,7 +1048,7 @@ export const amuletOfKroog: CardDefinition = {
 // and each activation schedules the next-end-step return.
 const RAKALITE_ID = "0fd7c711-3ff4-4691-914f-242e6737066c";
 
-export const rakalite: CardDefinition = {
+export const rakalite = defineCard(() => ({
     id: RAKALITE_ID,
     rarity: "uncommon",
     name: "Rakalite",
@@ -1096,7 +1095,7 @@ export const rakalite: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ashnod's Transmogrant — {1} Artifact. "{T}, Sacrifice this artifact: Put a
 // +1/+1 counter on target nonartifact creature. That creature becomes an
@@ -1116,7 +1115,7 @@ export const rakalite: CardDefinition = {
 // this creature's P/T must not change. Cf. #2086 (a layer-4 type add surviving
 // the TARGET leaving the battlefield, CR 400.7) — same layer, adjacent bug.
 // The card ships the +1/+1 counter (the board-dominant, fully testable half).
-export const ashnodsTransmogrant: CardDefinition = {
+export const ashnodsTransmogrant = defineCard(() => ({
     id: "2aa5b289-36ba-49b1-a5ac-f23bf71f8241",
     rarity: "uncommon",
     name: "Ashnod's Transmogrant",
@@ -1149,14 +1148,14 @@ export const ashnodsTransmogrant: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Mishra's War Machine — {7} Artifact Creature — Juggernaut, 5/5 with banding.
 // "At the beginning of your upkeep, this creature deals 3 damage to you unless
 // you discard a card. If it deals damage to you this way, tap it." (CR 702.22 banding;
 // CR 603.6a upkeep trigger; CR 117.3a pay-or-else with a discard
 // cost.) Declining the discard runs the else-branch: 3 damage + tap self.
-export const mishrasWarMachine: CardDefinition = {
+export const mishrasWarMachine = defineCard(() => ({
     id: "8f6b4652-a1d4-418f-a89b-6a977a920a9e",
     rarity: "rare",
     name: "Mishra's War Machine",
@@ -1222,7 +1221,7 @@ export const mishrasWarMachine: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Ashnod's Altar — {3} Artifact. "Sacrifice a creature: Add {C}{C}." A
 // creature-to-colorless mana converter. CR 605.1a — no target, adds mana, no
@@ -1230,7 +1229,7 @@ export const mishrasWarMachine: CardDefinition = {
 // (CR 605.3b) and is activatable mid-cast (CR 605.3a). The filtered sacrifice
 // parks on the shared cost-pick window and commits inline (issue #3455); the
 // fixed output rides the `manaProduced` descriptor the mana authority reads.
-export const ashnodsAltar: CardDefinition = {
+export const ashnodsAltar = defineCard(() => ({
     id: "cdcccb0f-ce96-453b-9e82-41d87f52e58b",
     rarity: "uncommon",
     name: "Ashnod's Altar",
@@ -1246,7 +1245,7 @@ export const ashnodsAltar: CardDefinition = {
             manaProduced: { C: 2 },
         },
     ],
-};
+}));
 
 // Mishra's Workshop — Land. "{T}: Add {C}{C}{C}. Spend this mana only to cast
 // artifact spells." (ATQ rare, modern oracle.)
@@ -1259,7 +1258,7 @@ export const ashnodsAltar: CardDefinition = {
 // (restrictionAllowsSpell). It can never pay for an activated ability or a
 // non-artifact spell. Per ADR 0022 this reuses the restricted-mana storage,
 // serialization, emptying, and settlement machinery as-is — no new subsystem.
-export const mishrasWorkshop: CardDefinition = {
+export const mishrasWorkshop = defineCard(() => ({
     id: "135de5c7-6ac9-4b68-8f1a-97f120a4b125",
     rarity: "rare",
     name: "Mishra's Workshop",
@@ -1281,7 +1280,7 @@ export const mishrasWorkshop: CardDefinition = {
             manaRestriction: "artifact-spell",
         },
     ],
-};
+}));
 
 // Urza land trio — board-conditional mana (CR 106.1, 605.1a). Each taps for
 // {C}, but adds extra colorless when the controller also controls the other
@@ -1340,7 +1339,7 @@ function urzaManaAmount(
             : ({ C: 1 } as ManaCost);
 }
 
-export const urzasMine: CardDefinition = {
+export const urzasMine = defineCard(() => ({
     id: "ddf85792-470b-4b42-99ac-9cb43a575523",
     rarity: "uncommon",
     name: "Urza's Mine",
@@ -1363,9 +1362,9 @@ export const urzasMine: CardDefinition = {
             manaAmount: urzaManaAmount([URZA_POWER_PLANT, URZA_TOWER], 2),
         },
     ],
-};
+}));
 
-export const urzasPowerPlant: CardDefinition = {
+export const urzasPowerPlant = defineCard(() => ({
     id: "94896e0b-859c-47e4-bf27-35ed37b841e0",
     rarity: "common",
     name: "Urza's Power Plant",
@@ -1388,9 +1387,9 @@ export const urzasPowerPlant: CardDefinition = {
             manaAmount: urzaManaAmount([URZA_MINE, URZA_TOWER], 2),
         },
     ],
-};
+}));
 
-export const urzasTower: CardDefinition = {
+export const urzasTower = defineCard(() => ({
     id: "8ed85655-fc59-4a57-bcf9-75e1899dff78",
     rarity: "common",
     name: "Urza's Tower",
@@ -1413,7 +1412,7 @@ export const urzasTower: CardDefinition = {
             manaAmount: urzaManaAmount([URZA_MINE, URZA_POWER_PLANT], 3),
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster E (#286) — "for as long as this remains tapped" duration + tap-lock.
@@ -1432,7 +1431,7 @@ export const urzasTower: CardDefinition = {
 // duration via `addSourceTappedPTBuff`; CR 502.1 optional untap via the
 // `may-choose-not-to-untap` keyword.) The buff is read live at layer 7d while
 // the Battle Gear stays tapped and disappears the moment it untaps.
-export const ashnodsBattleGear: CardDefinition = {
+export const ashnodsBattleGear = defineCard(() => ({
     id: "aeeec853-dd3f-4ac3-8b20-c07fada8888f",
     rarity: "uncommon",
     name: "Ashnod's Battle Gear",
@@ -1461,13 +1460,13 @@ export const ashnodsBattleGear: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Tawnos's Weaponry — {2} Artifact. "{2}, {T}: Target creature gets +1/+1 for
 // as long as this artifact remains tapped." (CR 611.2 state-tied duration; CR
 // 502.1 optional untap.) Same shape as Battle Gear but any creature and a
 // +1/+1 buff.
-export const tawnossWeaponry: CardDefinition = {
+export const tawnossWeaponry = defineCard(() => ({
     id: "3035cead-a501-4204-9154-5fd648577d32",
     rarity: "uncommon",
     name: "Tawnos's Weaponry",
@@ -1492,7 +1491,7 @@ export const tawnossWeaponry: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Choose-body-on-entry creatures (ATQ cluster G, issue #289). These pick their
@@ -1521,7 +1520,7 @@ export const tawnossWeaponry: CardDefinition = {
 // applier OVERWRITES `card.subtypes` from the chosen option rather than
 // appending, so "in addition to its other types" has to be spelled out in
 // full, not as a delta.)
-export const primalClay: CardDefinition = {
+export const primalClay = defineCard(() => ({
     id: "ab9d0e3f-cf7c-41f8-bcd7-bb08ea8cc2f8",
     rarity: "uncommon",
     name: "Primal Clay",
@@ -1557,7 +1556,7 @@ export const primalClay: CardDefinition = {
             },
         ],
     },
-};
+}));
 
 // Shapeshifter — {6} Artifact Creature — Shapeshifter, */7-*. "As this creature
 // enters, choose a number between 0 and 7. At the beginning of your upkeep, you
@@ -1585,7 +1584,7 @@ const SHAPESHIFTER_BODY_OPTIONS = SHAPESHIFTER_NUMBER_OPTIONS.map(
     })
 );
 
-export const shapeshifter: CardDefinition = {
+export const shapeshifter = defineCard(() => ({
     id: "cc278af4-b60d-41b7-b9d7-36c8aefca1a7",
     rarity: "rare",
     name: "Shapeshifter",
@@ -1635,7 +1634,7 @@ export const shapeshifter: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster O — minor isolated extensions (PRD #269, issue #292)
@@ -1668,7 +1667,7 @@ function singleOpponentId(ctx: SpellContext): string | undefined {
 // `effectiveMaxHandSize` through the `appliesTo: "chosen-player"`
 // `hand-size-override` static effect — the cap is applied at the chosen
 // player's CLEANUP.)
-export const cursedRack: CardDefinition = {
+export const cursedRack = defineCard(() => ({
     id: "720d871d-1e7b-482e-bd1e-8ec79519fb86",
     rarity: "uncommon",
     name: "Cursed Rack",
@@ -1697,7 +1696,7 @@ export const cursedRack: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // The Rack — {1} Artifact. "As this artifact enters, choose an opponent. At the
 // beginning of the chosen player's upkeep, this artifact deals X damage to that
@@ -1705,7 +1704,7 @@ export const cursedRack: CardDefinition = {
 // on-entry choice; CR 603.6a upkeep trigger. `scope: "each"` fires on every
 // player's upkeep; the `condition` narrows it to the stored chosen player so
 // the trigger only enters the stack on their upkeep — CR 603.4.)
-export const theRack: CardDefinition = {
+export const theRack = defineCard(() => ({
     id: "ec0686ba-1277-4412-a397-7a6227808311",
     rarity: "uncommon",
     name: "The Rack",
@@ -1754,7 +1753,7 @@ export const theRack: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Urza's Miter — {3} Artifact. "Whenever an artifact you control is put into a
 // graveyard from the battlefield, if it wasn't sacrificed, you may pay {3}. If
@@ -1762,7 +1761,7 @@ export const theRack: CardDefinition = {
 // `PERMANENT_LEFT` distinguishes sacrifice from every other departure — the
 // trigger fires only when `event.cause !== "sacrifice"`. CR 117.3a optional
 // payment via `requestMayPay`.)
-export const urzasMiter: CardDefinition = {
+export const urzasMiter = defineCard(() => ({
     id: "438f0c61-a61d-4a9e-b21f-4e86420c7913",
     rarity: "rare",
     name: "Urza's Miter",
@@ -1800,7 +1799,7 @@ export const urzasMiter: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Golgothian Sylex — {4} Artifact. "{1}, {T}: Each nontoken permanent with a
 // name originally printed in the Antiquities expansion is sacrificed by its
@@ -1808,7 +1807,7 @@ export const urzasMiter: CardDefinition = {
 // filter is `isPrintedInSet(cardId, "atq")` — keyed off the home set of each
 // permanent's card definition. Golgothian Sylex itself is an ATQ card, so it
 // sacrifices itself too.)
-export const golgothianSylex: CardDefinition = {
+export const golgothianSylex = defineCard(() => ({
     id: "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
     rarity: "rare",
     name: "Golgothian Sylex",
@@ -1852,7 +1851,7 @@ export const golgothianSylex: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Rocket Launcher — {4} Artifact. "{2}: This artifact deals 1 damage to any
 // target. Destroy this artifact at the beginning of the next end step. Activate
@@ -1863,7 +1862,7 @@ export const golgothianSylex: CardDefinition = {
 // or changes control and clears at the controller's untap step, so
 // `!isSummoningSick` on the controller's own turn means "controlled since my
 // most recent turn began".)
-export const rocketLauncher: CardDefinition = {
+export const rocketLauncher = defineCard(() => ({
     id: "d5bb2093-78a8-4a6c-abe7-9a5afc181ec5",
     rarity: "uncommon",
     name: "Rocket Launcher",
@@ -1902,13 +1901,13 @@ export const rocketLauncher: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Tawnos's Wand — {4} Artifact. "{2}, {T}: Target creature with power 2 or less
 // can't be blocked this turn." (CR 509.1b can't-be-blocked, set on the attacker
 // via `setCantBeBlockedThisTurn` and cleared at CLEANUP; the
 // `powerFilter: { max: 2 }` restricts legal targets — CR 613 effective power.)
-export const tawnossWand: CardDefinition = {
+export const tawnossWand = defineCard(() => ({
     id: "978f09dd-121a-4da5-ba16-5c03fbdce084",
     rarity: "uncommon",
     name: "Tawnos's Wand",
@@ -1940,7 +1939,7 @@ export const tawnossWand: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster L (#293) — token provenance link. CR 111 / 707.1: a token records
@@ -1980,7 +1979,7 @@ const TETRAVITE_TOKEN: TokenSpec = {
 // +1/+1 counters. Two optional upkeep abilities convert between counters and
 // linked Tetravite tokens in either direction (modern Scryfall oracle, ADR
 // 0004).
-export const tetravus: CardDefinition = {
+export const tetravus = defineCard(() => ({
     id: "23eb19f9-2e8f-4bf0-9bf8-868e6da70e2d",
     rarity: "rare",
     name: "Tetravus",
@@ -2096,7 +2095,7 @@ export const tetravus: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Exile-with-attachments + return (ATQ cluster K, ADR 0028)
@@ -2126,7 +2125,7 @@ const tawnossCoffinHoldsSomething = (
     state?: { exileHeld?: ReadonlyArray<{ sourceId: string }> }
 ): boolean => !!state?.exileHeld?.some((b) => b.sourceId === self.id);
 
-export const tawnossCoffin: CardDefinition = {
+export const tawnossCoffin = defineCard(() => ({
     id: "c27bc1de-8246-4dc8-af51-ec21def9e226",
     rarity: "rare",
     name: "Tawnos's Coffin",
@@ -2181,4 +2180,4 @@ export const tawnossCoffin: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));

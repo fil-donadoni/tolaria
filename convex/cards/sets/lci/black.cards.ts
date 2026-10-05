@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -24,7 +24,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
  *  itself is never eligible (CR 601.2a — it is on the stack by then). With an
  *  empty hand AND 3 or less life NEITHER leg is payable, so the spell is not
  *  castable at all (CR 601.2h). */
-export const bitterTriumph: CardDefinition = {
+export const bitterTriumph = defineCard(() => ({
     id: "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
     name: "Bitter Triumph",
     rarity: "uncommon",
@@ -47,7 +47,7 @@ export const bitterTriumph: CardDefinition = {
         count: 1,
     },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Deep-Cavern Bat — {1}{B} Creature — Bat, 1/1 (LCI, issue #2523).
 //
@@ -116,7 +116,7 @@ export const bitterTriumph: CardDefinition = {
 // (PRD #2693).
 // compiler-gap: When this creature enters, look at target opponent's hand. You may exile a nonland card from it until this creature leaves the battlefield. (#2693)
 // compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
-export const deepCavernBat: CardDefinition = {
+export const deepCavernBat = defineCard(() => ({
     id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
     name: "Deep-Cavern Bat",
     rarity: "uncommon",
@@ -176,4 +176,4 @@ export const deepCavernBat: CardDefinition = {
             ],
         }),
     ],
-};
+}));

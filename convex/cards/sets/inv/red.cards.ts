@@ -5,7 +5,6 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
 import type {
-    CardDefinition,
     ManaCost,
     SpellContext,
     PermanentView,
@@ -60,7 +59,7 @@ function colorsFromManaCost(cost?: ManaCost): readonly string[] {
 // `kickedTargetRequirement`: the spell always targets an artifact and the
 // `manaValue` value member (CR 202.3) gates the destroy at resolution.
 // Vintage Cube Kicker cluster (issue #692, ADR 0041).
-export const overload: CardDefinition = {
+export const overload = defineCard(() => ({
     id: "c91fca91-7296-422e-b251-d571b710ff71",
     rarity: "common",
     name: "Overload",
@@ -104,7 +103,7 @@ export const overload: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Obliterate — "This spell can't be countered. Destroy all artifacts,
 // creatures, and lands. They can't be regenerated." (CR 113.6g can't-be-
@@ -118,7 +117,7 @@ export const overload: CardDefinition = {
 // a permanent (unlike this card). The fix is the existing shared primitive
 // `SpellContext.destroyAll`, not a new one. Blocked on: a `cantBeRegenerated`
 // option on the `destroy` Op.
-export const obliterate: CardDefinition = {
+export const obliterate = defineCard(() => ({
     id: "cdabde40-2143-4677-b7b4-ea8fbf9b1f25",
     rarity: "rare",
     name: "Obliterate",
@@ -132,7 +131,7 @@ export const obliterate: CardDefinition = {
             cantBeRegenerated: true,
         });
     },
-};
+}));
 
 // Urza's Rage — "Kicker {8}{R}. This spell can't be countered. Urza's Rage
 // deals 3 damage to any target. If this spell was kicked, instead it deals
@@ -142,7 +141,7 @@ export const obliterate: CardDefinition = {
 // prevention shields only, generalizing `dealDamage`'s existing preventable
 // path — CR 614 replacement/redirection and CR 702.16 protection are
 // untouched, same as every other `dealDamage` card.)
-export const urzasRage: CardDefinition = {
+export const urzasRage = defineCard(() => ({
     id: "61a25a35-3ae4-471e-adcd-d8baf2f77b68",
     rarity: "rare",
     name: "Urza's Rage",
@@ -174,7 +173,7 @@ export const urzasRage: CardDefinition = {
             else: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -186,7 +185,7 @@ export const urzasRage: CardDefinition = {
 // ability word, issue #1066.) The ninth EffectValue grammar member
 // `{ domain: { of } }` skins the amount directly — no arithmetic, a straight
 // `dealDamage` reuse.
-export const tribalFlames: CardDefinition = {
+export const tribalFlames = defineCard(() => ({
     id: "9b32531e-c759-4603-abd0-1724e8df70db",
     rarity: "common",
     name: "Tribal Flames",
@@ -202,7 +201,7 @@ export const tribalFlames: CardDefinition = {
             to: { target: 0 },
         },
     ],
-};
+}));
 
 // Kavu Scout — {2}{R} Creature — Kavu Scout, printed 0/2. "Domain — This
 // creature gets +1/+0 for each basic land type among lands you control."
@@ -210,7 +209,7 @@ export const tribalFlames: CardDefinition = {
 // Wayfaring Giant's self-scoped `pt-cda` shape (`inv/white.cards.ts`) — only the
 // toughness half of the delta is zero (a +1/+0-per-Domain scaling, not
 // +1/+1).
-export const kavuScout: CardDefinition = {
+export const kavuScout = defineCard(() => ({
     id: "cbc2670d-a3f4-47c2-b424-01fd379ff186",
     name: "Kavu Scout",
     rarity: "common",
@@ -231,7 +230,7 @@ export const kavuScout: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Collapsing Borders — {3}{R} Enchantment. "Domain — At the beginning of
 // each player's upkeep, that player gains 1 life for each basic land type
@@ -247,7 +246,7 @@ export const kavuScout: CardDefinition = {
 // triggered ability DSL-first (`phaseTrigger`'s own doc note: a plain
 // `"controller"` selector only works for `scope: "your"`; this ref
 // bypasses `ctx.controller` entirely).
-export const collapsingBorders: CardDefinition = {
+export const collapsingBorders = defineCard(() => ({
     id: "cc019633-788e-4095-9610-6c0a432f7656",
     name: "Collapsing Borders",
     rarity: "rare",
@@ -278,7 +277,7 @@ export const collapsingBorders: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1072, parent PRD #1063) — reuse-only, DSL-first.
@@ -294,7 +293,7 @@ export const collapsingBorders: CardDefinition = {
 // replacement effect — the exact Divine Presence clamp template, inv/white.cards.ts,
 // generalized from "reduce to 3" to "prevent entirely" via `{kind:"consumed"}`
 // instead of `{kind:"modified"}`.)
-export const callousGiant: CardDefinition = {
+export const callousGiant = defineCard(() => ({
     id: "330028c4-8e91-4fe3-a87d-1660dfd2507e",
     rarity: "rare",
     name: "Callous Giant",
@@ -320,7 +319,7 @@ export const callousGiant: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 
 // Chaotic Strike — {1}{R} Instant. "Cast this spell only during combat after
 // blockers are declared. Flip a coin. If you win the flip, target creature
@@ -329,7 +328,7 @@ export const callousGiant: CardDefinition = {
 // END_OF_COMBAT — "after blockers are declared" is not just the one step;
 // CR 705.2 coin flip via the shipped `coinFlip` Op; the draw is unconditional,
 // outside both branches.)
-export const chaoticStrike: CardDefinition = {
+export const chaoticStrike = defineCard(() => ({
     id: "061df8e4-6947-4bbb-9fe7-52ca4fd95d65",
     rarity: "uncommon",
     name: "Chaotic Strike",
@@ -371,7 +370,7 @@ export const chaoticStrike: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Halam Djinn — {5}{R} Creature — Djinn, 6/5. "Haste. This creature gets
 // -2/-2 as long as red is the most common color among all permanents or is
@@ -391,7 +390,7 @@ function redIsMostCommonOrTied(
     const red = tally.R;
     return HALAM_DJINN_COLORS.every((c) => tally[c] <= red);
 }
-export const halamDjinn: CardDefinition = {
+export const halamDjinn = defineCard(() => ({
     id: "369ade1f-e909-47ae-bb01-19588269ad8f",
     rarity: "uncommon",
     name: "Halam Djinn",
@@ -417,14 +416,14 @@ export const halamDjinn: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 
 // Kavu Aggressor — {2}{R} Creature — Kavu, 3/2. "Kicker {4}. This creature
 // can't block. If this creature was kicked, it enters with a +1/+1 counter on
 // it." (CR 702.33 Kicker, CR 509.1b block restriction — the Foul Familiar
 // "can't block" template, ice/black.ts — CR 122.1/614.1c ETB counter via
 // `entersWith.counters` `count: "kicker"`.)
-export const kavuAggressor: CardDefinition = {
+export const kavuAggressor = defineCard(() => ({
     id: "a2832ad3-ce7f-44d2-beb2-c95d982905a6",
     rarity: "common",
     name: "Kavu Aggressor",
@@ -452,7 +451,7 @@ export const kavuAggressor: CardDefinition = {
             oracleText: "Kavu Aggressor can't block.",
         },
     ],
-};
+}));
 
 // Kavu Monarch — {2}{R}{R} Creature — Kavu, 3/3. "Kavu creatures have
 // trample. Whenever another Kavu enters, put a +1/+1 counter on this
@@ -465,7 +464,7 @@ export const kavuAggressor: CardDefinition = {
 // `state` — the sanctioned "arbitrary domain logic the scope/filter can't
 // express" escape hatch documented on `EnteredTriggerArgs.condition`, not
 // `resolve()`.)
-export const kavuMonarch: CardDefinition = {
+export const kavuMonarch = defineCard(() => ({
     id: "ea63dfd5-d8d7-45b8-8219-1cc2b3de5666",
     rarity: "rare",
     name: "Kavu Monarch",
@@ -507,7 +506,7 @@ export const kavuMonarch: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Pouncing Kavu — {1}{R} Creature — Kavu, 1/1. "Kicker {2}{R}. First strike.
 // If this creature was kicked, it enters with two +1/+1 counters on it and
@@ -521,7 +520,7 @@ export const kavuMonarch: CardDefinition = {
 // which is safe ONLY at the instant of ETB — see the counter-gated statics
 // guard, cards/__tests__/counterGatedStatics.test.ts, for the two failure
 // modes that made it a proxy and not a live condition.)
-export const pouncingKavu: CardDefinition = {
+export const pouncingKavu = defineCard(() => ({
     id: "7e6e2e49-7bde-43c1-8caf-43d237dfc052",
     rarity: "common",
     name: "Pouncing Kavu",
@@ -565,12 +564,12 @@ export const pouncingKavu: CardDefinition = {
             keyword: "haste",
         },
     ],
-};
+}));
 
 // Rage Weaver — {1}{R} Creature — Human Wizard, 2/1. "{2}: Target black or
 // green creature gains haste until end of turn." (CR 702.10 haste grant via
 // the shipped `grantAbility` Op; `colorFilterAny` restricts legal targets.)
-export const rageWeaver: CardDefinition = {
+export const rageWeaver = defineCard(() => ({
     id: "a654295d-b63c-4025-bf36-899023a8ba1d",
     rarity: "uncommon",
     name: "Rage Weaver",
@@ -603,7 +602,7 @@ export const rageWeaver: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Rogue Kavu — {1}{R} Creature — Kavu, 1/1. "Whenever this creature attacks
 // alone, it gets +2/+0 until end of turn." (CR 508.1 attack declaration —
@@ -611,7 +610,7 @@ export const rageWeaver: CardDefinition = {
 // alone" is a plain custom `matches` predicate checking the declared set is
 // exactly this creature; CR 611.2 until-end-of-turn pump via the shipped
 // `pump` Op.)
-export const rogueKavu: CardDefinition = {
+export const rogueKavu = defineCard(() => ({
     id: "61e1a445-129d-4bb9-a8b0-3f55e3e0bc58",
     rarity: "common",
     name: "Rogue Kavu",
@@ -643,13 +642,13 @@ export const rogueKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ruby Leech — {1}{R} Creature — Leech, 2/2. "First strike. Red spells you
 // cast cost {R} more to cast." (CR 702.7 first strike + CR 601.2f cost
 // increase — the exact Sapphire Leech / Derelor `cost-modifier` template,
 // inv/blue.cards.ts / fem/black.cards.ts, colour swapped to red.)
-export const rubyLeech: CardDefinition = {
+export const rubyLeech = defineCard(() => ({
     id: "be621b12-4f4e-43a6-b65e-da4223e742b5",
     rarity: "rare",
     name: "Ruby Leech",
@@ -670,7 +669,7 @@ export const rubyLeech: CardDefinition = {
             costIncrease: { R: 1 },
         },
     ],
-};
+}));
 
 // Scarred Puma — {R} Creature — Cat, 2/1. "This creature can't attack unless
 // a black or green creature also attacks." (CR 508.1c declared-attack
@@ -679,7 +678,7 @@ export const rubyLeech: CardDefinition = {
 // `ctx`, so colour is derived directly off each attacker's raw card via the
 // local `colorsFromManaCost` helper above — the same mana-cost-derivation
 // `ctx.getColors` itself wraps, just without needing a StaticEffectContext.)
-export const scarredPuma: CardDefinition = {
+export const scarredPuma = defineCard(() => ({
     id: "067ff95e-c4dc-41bb-9677-67f51a09b05a",
     rarity: "common",
     name: "Scarred Puma",
@@ -706,7 +705,7 @@ export const scarredPuma: CardDefinition = {
                 "Scarred Puma can't attack unless a black or green creature also attacks.",
         },
     ],
-};
+}));
 
 // Searing Rays — {2}{R} Sorcery. "Choose a color. Searing Rays deals damage
 // to each player equal to the number of creatures of that color that player
@@ -738,7 +737,7 @@ function searingRaysMode(color: "W" | "U" | "B" | "R" | "G", label: string) {
         ],
     };
 }
-export const searingRays: CardDefinition = {
+export const searingRays = defineCard(() => ({
     id: "4f66ff2d-f2d2-4a6b-bf26-b510de60c0b6",
     rarity: "uncommon",
     name: "Searing Rays",
@@ -760,7 +759,7 @@ export const searingRays: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Skittish Kavu — {1}{R} Creature — Kavu, 1/1. "This creature gets +1/+1 as
 // long as no opponent controls a white or blue creature." (CR 611.2c
@@ -768,7 +767,7 @@ export const searingRays: CardDefinition = {
 // the same board-state-aware slot Zanam Djinn / Halam Djinn use for their
 // "most common color" gate, here scanning every OTHER controller's
 // battlefield for a white/blue creature.)
-export const skittishKavu: CardDefinition = {
+export const skittishKavu = defineCard(() => ({
     id: "be806378-50a7-4416-9d99-1ea2c1f2b7cb",
     rarity: "uncommon",
     name: "Skittish Kavu",
@@ -788,7 +787,7 @@ export const skittishKavu: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Skizzik — {3}{R} Creature — Elemental, 5/3. "Kicker {R}. Trample, haste. At
 // the beginning of the end step, if this creature wasn't kicked, sacrifice
@@ -802,7 +801,7 @@ export const skittishKavu: CardDefinition = {
 // idiom) that schedules a `delayedTrigger` sacrifice — the Kjeldoran Elite
 // Guard / Kjeldoran Guard `capture: { ref: "$source" }` + `sacrifice: {
 // target: { ref } }` template, ice/white.cards.ts.)
-export const skizzik: CardDefinition = {
+export const skizzik = defineCard(() => ({
     id: "dc7732bc-e168-44d9-923a-db7e985bd6db",
     rarity: "rare",
     name: "Skizzik",
@@ -851,7 +850,7 @@ export const skizzik: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Slimy Kavu — {2}{R} Creature — Kavu, 2/2. "{T}: Target land becomes a
 // Swamp until end of turn." (CR 305.7 land-type change, layer 4 — CR 613.1d.)
@@ -865,7 +864,7 @@ export const skizzik: CardDefinition = {
 // primitive — but the closure kept the card out of the gold harness's
 // structural comparison, where it now sits as the Oracle compiler's land-type
 // rule reads the printed line into this very script.
-export const slimyKavu: CardDefinition = {
+export const slimyKavu = defineCard(() => ({
     id: "8e82044d-88cd-4ee4-8ec9-e71a0a85ed46",
     rarity: "common",
     name: "Slimy Kavu",
@@ -892,7 +891,7 @@ export const slimyKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Tectonic Instability — {2}{R} Enchantment. "Whenever a land enters, tap
 // all lands its controller controls." (CR 603.6a ETB trigger for ANY land,
@@ -901,7 +900,7 @@ export const slimyKavu: CardDefinition = {
 // on `PERMANENT_ENTERED` — the exact `EVENT_FIELD_REGISTRY` growth pattern
 // Collapsing Borders used for `PHASE_BEGIN.activePlayerId` above, issue
 // #1066 — then taps every land that player controls via `tapUntap`.)
-export const tectonicInstability: CardDefinition = {
+export const tectonicInstability = defineCard(() => ({
     id: "0476cc6b-ecc6-44d6-9f44-a90d4ee85daa",
     rarity: "rare",
     name: "Tectonic Instability",
@@ -939,11 +938,11 @@ export const tectonicInstability: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Zap — {2}{R} Instant. "Zap deals 1 damage to any target. Draw a card." (CR
 // 115.4 any target, CR 120.1 damage, CR 121.1 draw.)
-export const zap: CardDefinition = {
+export const zap = defineCard(() => ({
     id: "7502ce01-b762-40fe-a064-c7b20b08a722",
     rarity: "common",
     name: "Zap",
@@ -955,7 +954,7 @@ export const zap: CardDefinition = {
         { op: "dealDamage", amount: 1, to: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Breath of Darigaaz — {1}{R} Sorcery. "Kicker {2}. Breath of Darigaaz deals
 // 1 damage to each creature without flying and each player. If this spell was
@@ -1000,7 +999,7 @@ export const breathOfDarigaaz = defineCard(() => ({
 // here instead of a +1/+1 buff. Re-evaluated every SBA pass by
 // `recomputeContinuousEffects` (`gre/state.ts`) so haste appears/disappears
 // as the opponent's board changes, not just once at ETB.)
-export const kavuRunner: CardDefinition = {
+export const kavuRunner = defineCard(() => ({
     id: "2bc1b462-4e3c-47cc-87c5-f6e29dd70c01",
     rarity: "uncommon",
     name: "Kavu Runner",
@@ -1019,7 +1018,7 @@ export const kavuRunner: CardDefinition = {
             keyword: "haste",
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // The former #1095 parking lot. Cards here were stubbed because the capability
@@ -1052,7 +1051,7 @@ export const kavuRunner: CardDefinition = {
 // Seer / Metathran Transport / Sway of Illusion), so this is now a pure
 // reuse: `$source` self-target, the same `{ phase: "end-of-turn" }` duration
 // Metathran Transport uses.
-export const ancientKavu: CardDefinition = {
+export const ancientKavu = defineCard(() => ({
     id: "c8ccb5d0-735b-443f-addd-8b70f5f2c60d",
     name: "Ancient Kavu",
     rarity: "common",
@@ -1079,7 +1078,7 @@ export const ancientKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ghitu Fire — the CR 601.3c conditional-flash rider (issue #2146), shipped
 // as `flashSurcharge`. The only member of the Invasion cycle with an {X} in
@@ -1088,7 +1087,7 @@ export const ancientKavu: CardDefinition = {
 // so casting for X=3 on the opponent's turn costs {5}{R} and the same cast in
 // your own main phase costs {3}{R}. The damage half is Lava Burst's body
 // (`ice/red.cards.ts`).
-export const ghituFire: CardDefinition = {
+export const ghituFire = defineCard(() => ({
     id: "78827acd-a526-411b-bd22-ab9b538c75dd",
     name: "Ghitu Fire",
     rarity: "rare",
@@ -1099,7 +1098,7 @@ export const ghituFire: CardDefinition = {
     flashSurcharge: { X: 2 },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: { X: true }, to: { target: 0 } }],
-};
+}));
 
 // Goblin Spy — CR 401.5 continuous library-top reveal (issue #1095 gap 7).
 // "Play with the top card of your library revealed" is a static ability whose
@@ -1114,7 +1113,7 @@ export const ghituFire: CardDefinition = {
 // may see), not any object's characteristics, so it is deliberately not a
 // layered `StaticEffect`. CR 400.2 — the library stays a hidden zone; exactly
 // one card's identity is exposed, symmetrically, to both players.
-export const goblinSpy: CardDefinition = {
+export const goblinSpy = defineCard(() => ({
     id: "2a89a099-8805-4b26-babd-5d9f48ee406a",
     name: "Goblin Spy",
     rarity: "uncommon",
@@ -1125,7 +1124,7 @@ export const goblinSpy: CardDefinition = {
     toughness: 1,
     oracleText: "Play with the top card of your library revealed.",
     revealsLibraryTop: "controller",
-};
+}));
 
 // Lightning Dart — {1}{R} Instant. "Lightning Dart deals 1 damage to target
 // creature. If that creature is white or blue, Lightning Dart deals 4 damage
@@ -1144,7 +1143,7 @@ export const goblinSpy: CardDefinition = {
 // damage event — a 1-then-4 sequence would double-trigger every "whenever
 // damage is dealt" watcher and blow through a 1-damage prevention shield
 // twice (CR 615.1).
-export const lightningDart: CardDefinition = {
+export const lightningDart = defineCard(() => ({
     id: "54d05157-d154-4203-bf3e-add110cb1cee",
     name: "Lightning Dart",
     rarity: "uncommon",
@@ -1164,7 +1163,7 @@ export const lightningDart: CardDefinition = {
             else: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Loafing Giant — {4}{R} Creature — Giant, 4/6. "Whenever this creature
 // attacks or blocks, mill a card. If a land card was milled this way, prevent
@@ -1193,7 +1192,7 @@ export const lightningDart: CardDefinition = {
 // The two-event `event: [...]` + `matches` shape is the standing "one Oracle
 // line = ONE TriggeredAbility" multi-event form (CR 603.2), same as
 // Smuggler's Copter (`kld/colorless.cards.ts`).
-export const loafingGiant: CardDefinition = {
+export const loafingGiant = defineCard(() => ({
     id: "fab5f738-04d0-44c9-88ec-28469b668040",
     name: "Loafing Giant",
     rarity: "rare",
@@ -1240,7 +1239,7 @@ export const loafingGiant: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Mages' Contest — {1}{R}{R} Instant. "You and target spell's controller bid
 // life. You start the bidding with a bid of 1. In turn order, each player may
@@ -1287,7 +1286,7 @@ export const loafingGiant: CardDefinition = {
 // "that creature" means. Neither is scoped by `dealDamage`'s outcome either:
 // the Oracle applies them on a kicked resolution regardless of whether the 2
 // damage was lethal, prevented, or replaced.
-export const scorchingLava: CardDefinition = {
+export const scorchingLava = defineCard(() => ({
     id: "2a85437f-052e-494c-a9ee-265c4624a409",
     name: "Scorching Lava",
     rarity: "common",
@@ -1314,7 +1313,7 @@ export const scorchingLava: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Turf Wound — {2}{R} Instant. "Target player can't play lands this turn.
 // Draw a card." The only existing land-play lock (`landPlayLockActive` /
@@ -1348,7 +1347,7 @@ export const scorchingLava: CardDefinition = {
 // this sidesteps nesting a per-pile `forEach` inside a `forEach { set:
 // "players" }` body (the validator's one-construct-level-per-script ban).
 // Each Op has each player as their OWN divider, the other as chooser.
-export const bendOrBreak: CardDefinition = {
+export const bendOrBreak = defineCard(() => ({
     id: "b76b6660-d4b2-44de-a1a7-8d00811f90f6",
     name: "Bend or Break",
     rarity: "rare",
@@ -1432,7 +1431,7 @@ export const bendOrBreak: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Stand or Fall — {3}{R} Enchantment. "At the beginning of combat on your
 // turn, for each defending player, separate all creatures that player
@@ -1447,7 +1446,7 @@ export const bendOrBreak: CardDefinition = {
 // opponent, "that player chooses one"). The chosen pile has no restriction
 // (may block, the default) — `chosenEffect: []`; the other pile can't block
 // this turn via `restrictCombat`.
-export const standOrFall: CardDefinition = {
+export const standOrFall = defineCard(() => ({
     id: "60c34970-a106-490c-ac37-6156eb7f34ce",
     name: "Stand or Fall",
     rarity: "rare",
@@ -1497,4 +1496,4 @@ export const standOrFall: CardDefinition = {
             ],
         }),
     ],
-};
+}));

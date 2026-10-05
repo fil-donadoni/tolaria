@@ -2,7 +2,7 @@
 // `import * as roe from "./sets/roe/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Inquisition of Kozilek — {B} Sorcery (Vintage Cube FREE: edict/discard/hand
 // disruption, issue #682). "Target player reveals their hand. You choose a
@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // (`convex/cards/sets/lrw/black.cards.ts`), with the additional `manaValueAtMost: 3`
 // filter field (issue #677) ANDed onto the existing `excludeType: "Land"`
 // (issue #682) — no life loss, unlike Thoughtseize.
-export const inquisitionOfKozilek: CardDefinition = {
+export const inquisitionOfKozilek = defineCard(() => ({
     id: "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
     name: "Inquisition of Kozilek",
     rarity: "uncommon",
@@ -40,4 +40,4 @@ export const inquisitionOfKozilek: CardDefinition = {
             cards: { ref: "$picked" },
         },
     ],
-};
+}));

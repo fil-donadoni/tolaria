@@ -2,15 +2,14 @@
 // `import * as apc from "./sets/apc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST, PERMANENT_TYPES } from "../../types";
 import { defineSplitCard } from "../../splitCard";
 
 // Vindicate — "Destroy target permanent." (CR 701.8 destroy.) `type: "any"`
 // matches only the CR 115.4 damageable types (creature/planeswalker/battle/
 // player); "target permanent" of any type uses the full CR 300.1 permanent-type
 // set (incl. Land) instead.
-export const vindicate: CardDefinition = {
+export const vindicate = defineCard(() => ({
     id: "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b",
     rarity: "rare",
     name: "Vindicate",
@@ -19,7 +18,7 @@ export const vindicate: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Gerrard's Verdict. CR 701.9a — the discard moves a card from its owner's
 // hand to that player's graveyard, and the affected player chooses which: the
@@ -31,7 +30,7 @@ export const vindicate: CardDefinition = {
 // A player holding fewer than two cards discards what they have, and the
 // count follows (CR 101.3 — the impossible part of an instruction is ignored).
 // hand-tail: Target player discards two cards. You gain 3 life for each land card discarded this way. (#4332)
-export const gerrardsVerdict: CardDefinition = {
+export const gerrardsVerdict = defineCard(() => ({
     id: "583740c0-68cf-4205-b682-2f97c0880d42",
     rarity: "uncommon",
     name: "Gerrard's Verdict",
@@ -65,7 +64,7 @@ export const gerrardsVerdict: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Guided Passage — the first CATEGORISED PICK an OPPONENT makes out of a
 // REVEALED library (issue #3808).
@@ -91,7 +90,7 @@ export const gerrardsVerdict: CardDefinition = {
 // LAND (Dryad Arbor) answers "a creature card" or "a land card", never both,
 // because three distinct cards are chosen and put into a hand.
 // hand-tail: "Reveal the cards in your library. An opponent chooses from among them a creature card, a land card, and a noncreature, nonland card. You put the chosen cards into your hand. Then shuffle." (#4333)
-export const guidedPassage: CardDefinition = {
+export const guidedPassage = defineCard(() => ({
     id: "0b2e8e58-aee1-4882-943a-17a6af2f8410",
     rarity: "rare",
     name: "Guided Passage",
@@ -134,7 +133,7 @@ export const guidedPassage: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Split card (CR 709.1–709.4, ADR 0121 §6 slice 2, issue #3308)
@@ -179,67 +178,69 @@ export const guidedPassage: CardDefinition = {
 // mana value BEFORE the zone change (CR 608.2h last-known information), since
 // "its mana value" is the card's, read off the object that just left the
 // graveyard.
-export const lifeDeath: CardDefinition = defineSplitCard({
-    id: "7ab75cdb-93a1-4f78-b404-37566295c321",
-    rarity: "uncommon",
-    oracleText:
-        "All lands you control become 1/1 creatures until end of turn. They're still lands.\nReturn target creature card from your graveyard to the battlefield. You lose life equal to its mana value.",
-    halves: [
-        {
-            name: "Life",
-            manaCost: { G: 1 },
-            types: ["Sorcery"],
-            oracleText:
-                "All lands you control become 1/1 creatures until end of turn. They're still lands.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        controller: "controller",
-                        filter: { type: "Land" },
-                    },
-                    effects: [
-                        {
-                            op: "animate",
-                            target: { ref: "$each" },
-                            power: 1,
-                            toughness: 1,
-                            duration: { phase: "end-of-turn" },
+export const lifeDeath = defineCard(() =>
+    defineSplitCard({
+        id: "7ab75cdb-93a1-4f78-b404-37566295c321",
+        rarity: "uncommon",
+        oracleText:
+            "All lands you control become 1/1 creatures until end of turn. They're still lands.\nReturn target creature card from your graveyard to the battlefield. You lose life equal to its mana value.",
+        halves: [
+            {
+                name: "Life",
+                manaCost: { G: 1 },
+                types: ["Sorcery"],
+                oracleText:
+                    "All lands you control become 1/1 creatures until end of turn. They're still lands.",
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            controller: "controller",
+                            filter: { type: "Land" },
                         },
-                    ],
-                },
-            ],
-        },
-        {
-            name: "Death",
-            manaCost: { X: 1, B: 1 },
-            types: ["Sorcery"],
-            oracleText:
-                "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value.",
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                zone: "graveyard",
-                controller: "you",
+                        effects: [
+                            {
+                                op: "animate",
+                                target: { ref: "$each" },
+                                power: 1,
+                                toughness: 1,
+                                duration: { phase: "end-of-turn" },
+                            },
+                        ],
+                    },
+                ],
             },
-            effects: [
-                {
-                    op: "moveZone",
-                    target: { target: 0 },
-                    to: "battlefield",
-                    bind: "$reanimated",
+            {
+                name: "Death",
+                manaCost: { X: 1, B: 1 },
+                types: ["Sorcery"],
+                oracleText:
+                    "Return target creature card from your graveyard to the battlefield. You lose life equal to its mana value.",
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    zone: "graveyard",
+                    controller: "you",
                 },
-                {
-                    op: "loseLife",
-                    player: "controller",
-                    amount: { ref: "$reanimated.manaValue" },
-                },
-            ],
-        },
-    ],
-});
+                effects: [
+                    {
+                        op: "moveZone",
+                        target: { target: 0 },
+                        to: "battlefield",
+                        bind: "$reanimated",
+                    },
+                    {
+                        op: "loseLife",
+                        player: "controller",
+                        amount: { ref: "$reanimated.manaValue" },
+                    },
+                ],
+            },
+        ],
+    })
+);
 
 // Captain's Maneuver — {X}{R}{W} Instant. "The next X damage that would be
 // dealt to target creature, planeswalker, or player this turn is dealt to
@@ -262,7 +263,7 @@ export const lifeDeath: CardDefinition = defineSplitCard({
 // CR 115.4 — "creature, planeswalker, or player" is the pre-errata spelling of
 // "any target"; battles postdate every card that prints it, so the two denote
 // the same set and the card announces the same `type: "any"` requirement.
-export const captainsManeuver: CardDefinition = {
+export const captainsManeuver = defineCard(() => ({
     id: "fb50813c-72df-49e7-bac5-e6e247649241", // APC 92
     rarity: "uncommon",
     name: "Captain's Maneuver",
@@ -280,7 +281,7 @@ export const captainsManeuver: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Squee's Revenge — a bounded coin-flip SERIES (issue #3813, ADR 0144).
 // CR 107.1c — "Choose a number": any non-negative number is legal; zero flips
@@ -291,7 +292,7 @@ export const captainsManeuver: CardDefinition = {
 // (`lt 1`: a literal comparand is a positive integer)
 // — so choosing 0 is a vacuous win of nothing — and "two cards for each flip"
 // is twice the flips made.
-export const squeesRevenge: CardDefinition = {
+export const squeesRevenge = defineCard(() => ({
     id: "2b391ee3-c1cd-47bc-9540-977cbc32913e", // APC 123
     rarity: "uncommon",
     name: "Squee's Revenge",
@@ -325,7 +326,7 @@ export const squeesRevenge: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Temporal Spring — "Put target permanent on top of its owner's library."
 // CR 300.1 — "target permanent" of any type uses the full permanent-type set
@@ -333,7 +334,7 @@ export const squeesRevenge: CardDefinition = {
 // library, not the controller's: `moveZone` to `"library"` with no `position`
 // puts it on TOP (issue #1726), the same shape as Hunting Drake.
 // hand-tail: Put target permanent on top of its owner's library. (#4323)
-export const temporalSpring: CardDefinition = {
+export const temporalSpring = defineCard(() => ({
     id: "b584dfd1-a56c-406e-8504-47ea136dc102", // APC 125
     rarity: "common",
     name: "Temporal Spring",
@@ -342,7 +343,7 @@ export const temporalSpring: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     effects: [{ op: "moveZone", target: { target: 0 }, to: "library" }],
-};
+}));
 
 // Putrid Warrior — {W}{B} 2/2 Zombie Soldier Warrior. "Whenever this creature
 // deals damage, choose one — • Each player loses 1 life. • Each player gains
@@ -354,7 +355,7 @@ export const temporalSpring: CardDefinition = {
 // (CR 700.2b), not chosen at resolution. Any damage — combat or not, to any
 // recipient — fires it, so `matches` gates on the source alone.
 // hand-tail: Whenever this creature deals damage, choose one — • Each player loses 1 life. • Each player gains 1 life. (#4339)
-export const putridWarrior: CardDefinition = {
+export const putridWarrior = defineCard(() => ({
     id: "17fce298-3338-4f41-8156-ab6322951a76", // APC 117
     rarity: "common",
     name: "Putrid Warrior",
@@ -414,7 +415,7 @@ export const putridWarrior: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Quicksilver Dagger — {1}{U}{R} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has '{T}: This creature deals 1 damage to target player
@@ -427,7 +428,7 @@ export const putridWarrior: CardDefinition = {
 // static pushes it onto the host (the Mystic Might shape). Built by hand: the
 // grammar has no rule for a granted quoted ability that damages and draws.
 // hand-tail: Enchanted creature has "{T}: This creature deals 1 damage to target player or planeswalker. You draw a card." (#4340)
-export const quicksilverDagger: CardDefinition = {
+export const quicksilverDagger = defineCard(() => ({
     id: "83c74012-6060-4fad-aa73-6e6afd33c482", // APC 118
     rarity: "common",
     name: "Quicksilver Dagger",
@@ -463,7 +464,7 @@ export const quicksilverDagger: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Suffocating Blast — {1}{U}{U}{R} Instant. "Counter target spell and
 // Suffocating Blast deals 3 damage to target creature." (CR 701.6a counter,
@@ -472,7 +473,7 @@ export const quicksilverDagger: CardDefinition = {
 // 608.2b a target that became illegal is skipped while the other still
 // resolves.) Damage source defaults to the resolving spell itself.
 // hand-tail: Counter target spell and {self} deals 3 damage to target creature. (#4341)
-export const suffocatingBlast: CardDefinition = {
+export const suffocatingBlast = defineCard(() => ({
     id: "c2a70297-2a7b-4a0c-ace5-cd61bfe6dafd", // APC 124
     rarity: "rare",
     name: "Suffocating Blast",
@@ -486,7 +487,7 @@ export const suffocatingBlast: CardDefinition = {
         { op: "counter", target: { target: 0 } },
         { op: "dealDamage", amount: 3, to: { target: 1 } },
     ],
-};
+}));
 
 // Order // Chaos — {3}{W} // {2}{R}, Instant // Instant. "Exile target
 // attacking creature." // "Creatures can't block this turn." CR 709.4b makes
@@ -506,49 +507,51 @@ export const suffocatingBlast: CardDefinition = {
 // resolution, so a creature with flash that enters before blockers can still
 // block.
 // hand-tail: Creatures can't block this turn. (#4473)
-export const orderChaos: CardDefinition = defineSplitCard({
-    id: "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
-    rarity: "uncommon",
-    oracleText:
-        "Exile target attacking creature.\nCreatures can't block this turn.",
-    halves: [
-        {
-            name: "Order",
-            manaCost: { X: 3, W: 1 },
-            types: ["Instant"],
-            oracleText: "Exile target attacking creature.",
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                combatRoleFilter: "attacking",
-            },
-            effects: [{ op: "exile", target: { target: 0 } }],
-        },
-        {
-            name: "Chaos",
-            manaCost: { X: 2, R: 1 },
-            types: ["Instant"],
-            oracleText: "Creatures can't block this turn.",
-            effects: [
-                {
-                    op: "forEach",
-                    select: {
-                        set: "permanents",
-                        zone: "battlefield",
-                        filter: { type: "Creature" },
-                    },
-                    effects: [
-                        {
-                            op: "restrictCombat",
-                            restriction: "cant-block",
-                            target: { ref: "$each" },
-                        },
-                    ],
+export const orderChaos = defineCard(() =>
+    defineSplitCard({
+        id: "14e4f5a4-b1ea-4816-b2d7-cf148468a388",
+        rarity: "uncommon",
+        oracleText:
+            "Exile target attacking creature.\nCreatures can't block this turn.",
+        halves: [
+            {
+                name: "Order",
+                manaCost: { X: 3, W: 1 },
+                types: ["Instant"],
+                oracleText: "Exile target attacking creature.",
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    combatRoleFilter: "attacking",
                 },
-            ],
-        },
-    ],
-});
+                effects: [{ op: "exile", target: { target: 0 } }],
+            },
+            {
+                name: "Chaos",
+                manaCost: { X: 2, R: 1 },
+                types: ["Instant"],
+                oracleText: "Creatures can't block this turn.",
+                effects: [
+                    {
+                        op: "forEach",
+                        select: {
+                            set: "permanents",
+                            zone: "battlefield",
+                            filter: { type: "Creature" },
+                        },
+                        effects: [
+                            {
+                                op: "restrictCombat",
+                                restriction: "cant-block",
+                                target: { ref: "$each" },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    })
+);
 
 // Last Stand — {W}{U}{B}{R}{G} Sorcery. Five independent clauses, each scaled
 // by one basic land type the caster controls (CR 205.3i land subtypes), every
@@ -568,7 +571,7 @@ export const orderChaos: CardDefinition = defineSplitCard({
 //   choosing each card (CR 701.9b); a hand smaller than N runs out of cards
 //   and the remaining picks skip.
 // hand-tail: Target opponent loses 2 life for each Swamp you control. {self} deals damage to target creature equal to the number of Mountains you control. Create a 1/1 green Saproling creature token for each Forest you control. You gain 2 life for each Plains you control. Draw a card for each Island you control, then discard that many cards. (#4504)
-export const lastStand: CardDefinition = {
+export const lastStand = defineCard(() => ({
     id: "7dc3d054-6266-4ce0-89ed-f8b170794f2e", // APC 107
     rarity: "rare",
     name: "Last Stand",
@@ -670,7 +673,7 @@ export const lastStand: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Cromat — {W}{U}{B}{R}{G} Legendary Creature — Illusion 5/5, five two-colour
 // activated abilities.
@@ -684,7 +687,7 @@ export const lastStand: CardDefinition = {
 // CR 108.3 — "on top of its owner's library": `moveZone` to `"library"` with
 // no `position` puts it on top of its OWNER's library, as Temporal Spring.
 // hand-tail: {G}{U}: Put {self} on top of its owner's library. (#4320)
-export const cromat: CardDefinition = {
+export const cromat = defineCard(() => ({
     id: "7d9e0a23-d2a8-40a6-9076-ed6fb539141b", // APC 94
     rarity: "rare",
     name: "Cromat",
@@ -756,4 +759,4 @@ export const cromat: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -6,10 +6,10 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
-export const dancingScimitar: CardDefinition = {
+export const dancingScimitar = defineCard(() => ({
     id: "1eb2e494-1414-4d1f-91d2-7cb20acdb128",
     rarity: "rare",
     name: "Dancing Scimitar",
@@ -20,9 +20,9 @@ export const dancingScimitar: CardDefinition = {
     power: 1,
     toughness: 5,
     staticAbilities: ["flying"],
-};
+}));
 
-export const jandorsRing: CardDefinition = {
+export const jandorsRing = defineCard(() => ({
     id: "71504078-a16f-4dc4-9626-0ecc42b1e93b",
     rarity: "rare",
     name: "Jandor's Ring",
@@ -44,9 +44,9 @@ export const jandorsRing: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
-export const brassMan: CardDefinition = {
+export const brassMan = defineCard(() => ({
     id: "1a364362-e42b-415c-9d95-b6ec7139f5e7",
     rarity: "uncommon",
     name: "Brass Man",
@@ -91,9 +91,9 @@ export const brassMan: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const cityOfBrass: CardDefinition = {
+export const cityOfBrass = defineCard(() => ({
     id: "f4e32327-380d-471e-813b-4c27477787ce",
     rarity: "uncommon",
     name: "City of Brass",
@@ -124,9 +124,9 @@ export const cityOfBrass: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
-export const elephantGraveyard: CardDefinition = {
+export const elephantGraveyard = defineCard(() => ({
     id: "18348df2-9037-4db4-bddb-76dc933229bf",
     rarity: "rare",
     name: "Elephant Graveyard",
@@ -156,9 +156,9 @@ export const elephantGraveyard: CardDefinition = {
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const libraryOfAlexandria: CardDefinition = {
+export const libraryOfAlexandria = defineCard(() => ({
     id: "ee266113-34ce-4189-84e7-ee2c86a2722c",
     rarity: "uncommon",
     name: "Library of Alexandria",
@@ -189,7 +189,7 @@ export const libraryOfAlexandria: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Bazaar of Baghdad — "{T}: Draw two cards, then discard three cards." (CR 305
 // land, CR 121.6 draw, CR 701.9 discard.) A nonbasic land with no mana ability.
@@ -207,7 +207,7 @@ export const libraryOfAlexandria: CardDefinition = {
 // `resolve()`-era literal `PendingChoice.choiceId` the pre-existing per-card
 // test pins, byte-for-byte — the migration-equivalence invariant this card
 // was blocked on.
-export const bazaarOfBaghdad: CardDefinition = {
+export const bazaarOfBaghdad = defineCard(() => ({
     id: "ff37b863-f8c4-4584-8cc2-ac0e096e583f",
     rarity: "uncommon",
     name: "Bazaar of Baghdad",
@@ -239,11 +239,11 @@ export const bazaarOfBaghdad: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Oasis — reuses the existing target-keyed prevention shield (CR 615.1). A
 // nonbasic land with no mana ability, only the prevent activation.
-export const oasis: CardDefinition = {
+export const oasis = defineCard(() => ({
     id: "6f38565e-88b9-433d-b0e9-a3b9734f183f",
     rarity: "uncommon",
     name: "Oasis",
@@ -271,11 +271,11 @@ export const oasis: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ebony Horse — untaps a controlled attacker and shields it from all combat
 // damage both ways this turn (CR 615, per-instance transient shield).
-export const ebonyHorse: CardDefinition = {
+export const ebonyHorse = defineCard(() => ({
     id: "9ae81ec7-2b7d-4301-8114-032be5e6b663",
     rarity: "rare",
     name: "Ebony Horse",
@@ -310,13 +310,13 @@ export const ebonyHorse: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Pyramids — modal. The engine models `modes` only on spells, so the "Choose
 // one —" is expressed as two equally-priced ({2}) single-mode activated
 // abilities: behaviorally identical to picking one mode (ADR 0125). Mode 1
 // destroys an Aura; mode 2 records a one-shot destroy replacement on a land.
-export const pyramids: CardDefinition = {
+export const pyramids = defineCard(() => ({
     id: "d2e9decf-47b7-44e0-b380-8055b6011021",
     rarity: "rare",
     name: "Pyramids",
@@ -367,9 +367,9 @@ export const pyramids: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const islandOfWakWak: CardDefinition = {
+export const islandOfWakWak = defineCard(() => ({
     id: "f09cbd18-79f1-49a0-a3bd-b380ff5ecf03",
     rarity: "rare",
     name: "Island of Wak-Wak",
@@ -401,12 +401,12 @@ export const islandOfWakWak: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Desert — a nonbasic Desert land: taps for {C}, or (only at end of combat)
 // pings an attacking creature. The ping's source is a Desert, so Camel /
 // Desert Nomads' "prevent damage Deserts would deal" replacements catch it.
-export const desert: CardDefinition = {
+export const desert = defineCard(() => ({
     id: "201155ea-f474-4e13-acda-cb071a6ca977",
     rarity: "common",
     name: "Desert",
@@ -438,9 +438,9 @@ export const desert: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const bottleOfSuleiman: CardDefinition = {
+export const bottleOfSuleiman = defineCard(() => ({
     id: "c474cd6b-5610-49eb-ac98-918d900efe8b",
     rarity: "rare",
     name: "Bottle of Suleiman",
@@ -501,9 +501,9 @@ export const bottleOfSuleiman: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const aladdinsLamp: CardDefinition = {
+export const aladdinsLamp = defineCard(() => ({
     id: "8fecc5d2-5298-4d47-b085-f160603f220e",
     rarity: "rare",
     name: "Aladdin's Lamp",
@@ -526,7 +526,7 @@ export const aladdinsLamp: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Diamond Valley — "{T}, Sacrifice a creature: You gain life equal to the
 // sacrificed creature's toughness." (CR 602.1 / 118.8 the sacrifice-a-creature
@@ -535,7 +535,7 @@ export const aladdinsLamp: CardDefinition = {
 // `read: "toughness"` — the creature is in the graveyard before the ability
 // is on the stack.)
 // compiler-gap: "{T}, Sacrifice a creature: You gain life equal to the sacrificed creature's toughness." (#2693)
-export const diamondValley: CardDefinition = {
+export const diamondValley = defineCard(() => ({
     id: "e85f6f21-15a0-4a36-be95-5a0299cd01a5",
     rarity: "rare",
     name: "Diamond Valley",
@@ -558,7 +558,7 @@ export const diamondValley: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sandals of Abdallah — "{2}, {T}: Target creature gains islandwalk until end
 // of turn. When that creature dies this turn, destroy this artifact." (CR
@@ -568,7 +568,7 @@ export const diamondValley: CardDefinition = {
 // of the creature never fires it; CR 603.7c the captured artifact is only
 // destroyed if it is still that same object on the battlefield.)
 // compiler-gap: "{2}, {T}: Target creature gains islandwalk until end of turn. When that creature dies this turn, destroy this artifact." (#2693)
-export const sandalsOfAbdallah: CardDefinition = {
+export const sandalsOfAbdallah = defineCard(() => ({
     id: "8f99a520-b8a9-40b0-9854-48aac297c5ee",
     rarity: "uncommon",
     name: "Sandals of Abdallah",
@@ -603,7 +603,7 @@ export const sandalsOfAbdallah: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred (tracked-by: #2130) — Sindbad, the one ARN card still blocked:

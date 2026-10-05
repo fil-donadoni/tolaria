@@ -28,7 +28,7 @@ function boardWithExarchTrigger(): { state: GameState; trig: StackItem } {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "mine",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -38,7 +38,7 @@ function boardWithExarchTrigger(): { state: GameState; trig: StackItem } {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "theirs",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -51,7 +51,7 @@ function boardWithExarchTrigger(): { state: GameState; trig: StackItem } {
     });
     const trig: StackItem = {
         id: "exarch-trig",
-        card: { id: deceiverExarch.id },
+        card: { id: deceiverExarch().id },
         controllerId: "p1",
         ownerId: "p1",
         castById: "p1",
@@ -103,13 +103,13 @@ describe("modal trigger valuation walks the mode scripts, not a shadow sketch (P
         // shadow — its whole body is the two modes. If the ability-script
         // reader ignored `modes`, this would be 0 and the bot would price the
         // Exarch as a vanilla 1/4.
-        const etb = deceiverExarch.triggeredAbilities![0];
+        const etb = deceiverExarch().triggeredAbilities![0];
         expect(etb.effects).toBeUndefined();
         expect(etb.aiEffects).toBeUndefined();
         expect(etb.modes).toHaveLength(2);
         // The LATENT reader: the modal trigger is an ETB Ability, spent on
         // entering, so it is valued in hand and never on the battlefield
         // (issue #4758).
-        expect(dslAbilityScriptValue(deceiverExarch)).toBeGreaterThan(0);
+        expect(dslAbilityScriptValue(deceiverExarch())).toBeGreaterThan(0);
     });
 });

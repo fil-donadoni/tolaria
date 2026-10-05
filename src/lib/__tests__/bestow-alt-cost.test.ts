@@ -31,7 +31,7 @@ import type { CardInstance, Player } from "~/types/game";
 /** p1 holds Springheart Nantuko; `hosts` decides whether any creature is on
  *  the battlefield to enchant. Returns the ids the picker would offer. */
 function offeredAltCostIds(hosts: boolean): string[] {
-    const nantuko = makeInstance(springheartNantuko.id, {
+    const nantuko = makeInstance(springheartNantuko().id, {
         id: "nantuko",
         controllerId: "p1",
         ownerId: "p1",
@@ -43,7 +43,7 @@ function offeredAltCostIds(hosts: boolean): string[] {
                 hand: [nantuko],
                 battlefield: hosts
                     ? [
-                          makeInstance(grizzlyBears.id, {
+                          makeInstance(grizzlyBears().id, {
                               id: "bear",
                               controllerId: "p1",
                           }),

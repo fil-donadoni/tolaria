@@ -1,5 +1,5 @@
 // one — black cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Sheoldred's Edict — {1}{B} Instant (Vintage Cube FREE: edict/discard/hand
 // disruption, issue #682). "Choose one — • Each opponent sacrifices a
@@ -18,7 +18,7 @@ import type { CardDefinition } from "../../types";
 // resolves directly to `"opponent"` (2-player-only scope, no `forEach` needed —
 // Syphon Soul precedent, `convex/cards/sets/leg/black.cards.ts`). The nontoken/token
 // split is the `isToken` filter field (issue #920).
-export const sheoldredsEdict: CardDefinition = {
+export const sheoldredsEdict = defineCard(() => ({
     id: "a9225cc3-90f0-448f-a8d9-7c6c2796d077",
     name: "Sheoldred's Edict",
     rarity: "uncommon",
@@ -85,4 +85,4 @@ export const sheoldredsEdict: CardDefinition = {
             ],
         },
     ],
-};
+}));

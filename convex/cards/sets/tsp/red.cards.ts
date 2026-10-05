@@ -1,5 +1,5 @@
 // tsp — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { GOBLIN_TOKEN } from "../../sharedTokens";
 
 // Grapeshot — {1}{R} Sorcery. "Grapeshot deals 1 damage to any target. Storm
@@ -11,7 +11,7 @@ import { GOBLIN_TOKEN } from "../../sharedTokens";
 // card's own effect is a plain DSL `dealDamage` Op on an announced "any"
 // target — the exact shape Triskelion's ability already exercises
 // (atq/colorless.cards.ts), reused verbatim (per-Op test regime: no new Op).
-export const grapeshot: CardDefinition = {
+export const grapeshot = defineCard(() => ({
     id: "4ee33cb6-768e-44a0-b6f4-b8638aa84330",
     name: "Grapeshot",
     rarity: "common",
@@ -22,7 +22,7 @@ export const grapeshot: CardDefinition = {
     staticAbilities: ["storm"],
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-};
+}));
 
 // Empty the Warrens — {3}{R} Sorcery. "Create two 1/1 red Goblin creature
 // tokens. Storm (When you cast this spell, copy it for each spell cast
@@ -34,7 +34,7 @@ export const grapeshot: CardDefinition = {
 // `resolveCastCopyTrigger`). The card's own effect is a plain DSL `createToken`
 // Op with `count: 2` — the exact shape Lingering Souls already exercises
 // (dka/white.cards.ts), reused verbatim (per-Op test regime: no new Op).
-export const emptyTheWarrens: CardDefinition = {
+export const emptyTheWarrens = defineCard(() => ({
     id: "952bb27c-c58a-478a-b637-eb4f7e1e0ab4",
     name: "Empty the Warrens",
     rarity: "common",
@@ -51,4 +51,4 @@ export const emptyTheWarrens: CardDefinition = {
             token: GOBLIN_TOKEN,
         },
     ],
-};
+}));

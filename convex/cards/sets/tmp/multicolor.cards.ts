@@ -22,8 +22,8 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/multicolor.cards.ts`.
-import type { CardDefinition } from "../../types";
-export const lobotomy: CardDefinition = {
+import { defineCard } from "../../types";
+export const lobotomy = defineCard(() => ({
     id: "ee7ba92d-d327-4b1c-be40-708c5abb27df", // TMP 267
     name: "Lobotomy",
     rarity: "uncommon",
@@ -104,4 +104,4 @@ export const lobotomy: CardDefinition = {
             player: { target: 0 },
         },
     ],
-};
+}));

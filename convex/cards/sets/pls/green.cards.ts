@@ -5,12 +5,12 @@
 
 import type {
     ActivatedAbilityContext,
-    CardDefinition,
     EffectTokenSpec,
     PermanentView,
     StaticEffectStateView,
 } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     EFFECT_AFFECTS_SELF,
@@ -62,7 +62,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // running the CR 614 replacement loop, so only the first simultaneous
 // source's damage is redirected; the rest lands on the Treefolk. Not fixed
 // in this pass — tracked-by: #1983.
-export const mirrorwoodTreefolk: CardDefinition = {
+export const mirrorwoodTreefolk = defineCard(() => ({
     id: "ba9a1c94-2b7f-4df7-8517-a122616d9ae4", // PLS printing (scryfallId)
     name: "Mirrorwood Treefolk",
     rarity: "uncommon",
@@ -120,7 +120,7 @@ export const mirrorwoodTreefolk: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
@@ -140,7 +140,7 @@ export const mirrorwoodTreefolk: CardDefinition = {
 // (CR 605.1a mana ability — `useStack: false`, resolves immediately, never
 // uses the stack. CR 106.4 "could produce" over the OPPONENT's lands, so the
 // offered colours come from THEIR mana base, not this creature's controller's.)
-export const quirionExplorer: CardDefinition = {
+export const quirionExplorer = defineCard(() => ({
     id: "141a031d-f899-497b-adf7-4af142078085",
     rarity: "common",
     name: "Quirion Explorer",
@@ -171,7 +171,7 @@ export const quirionExplorer: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Amphibious Kavu — {2}{G} Creature — Kavu, 2/2. "Whenever this creature
 // blocks or becomes blocked by one or more blue and/or black creatures, this
@@ -208,7 +208,7 @@ export const quirionExplorer: CardDefinition = {
 //
 // Effect body is the already-shipped `pump` Op (self, +3/+3, until end of
 // turn) — no new primitive, no `resolve()`.
-export const amphibiousKavu: CardDefinition = {
+export const amphibiousKavu = defineCard(() => ({
     id: "37d94fb2-958c-487e-9f64-52d2771c6ea4", // PLS 78
     rarity: "common",
     name: "Amphibious Kavu",
@@ -250,7 +250,7 @@ export const amphibiousKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1952) — the remaining 15-card slice manifest. Modern
@@ -292,7 +292,7 @@ export const amphibiousKavu: CardDefinition = {
 // EffectValue grammar member composed directly into `pump`'s power/
 // toughness, the exact Power Armor precedent the Domain registry row
 // documents. No new construct.)
-export const gaeasMight: CardDefinition = {
+export const gaeasMight = defineCard(() => ({
     id: "67e5adce-7735-4fa5-aa14-8dce012e9fcc", // PLS 81
     name: "Gaea's Might",
     rarity: "common",
@@ -310,7 +310,7 @@ export const gaeasMight: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Does `controllerId` control a land with the basic land subtype `landType`
 // (CR 305.6)? The per-TYPE sibling of `countDomain`'s aggregate scan (same
@@ -348,7 +348,7 @@ function controllerControlsBasicLandType(
 // file without reopening the set↔registry eval-time cycle) — Traveler's
 // Cloak's own `LANDWALK_BY_TYPE` table used to be a second, hand-authored
 // copy of the same map; both now import the one export.)
-export const magnigothTreefolk: CardDefinition = {
+export const magnigothTreefolk = defineCard(() => ({
     id: "90c2869b-43cf-4d5e-8a54-9ae200f5bff9", // PLS 82
     name: "Magnigoth Treefolk",
     rarity: "rare",
@@ -370,7 +370,7 @@ export const magnigothTreefolk: CardDefinition = {
             ),
         keyword: LANDWALK_KEYWORD_BY_BASIC_TYPE[landType],
     })),
-};
+}));
 
 // Multani's Harmony — {G} Enchantment — Aura. "Enchant creature. Enchanted
 // creature has '{T}: Add one mana of any color.'" (CR 303.4 aura; CR 611.2c
@@ -386,7 +386,7 @@ export const magnigothTreefolk: CardDefinition = {
 // auto-tap solver and castability probe see this ability with no further
 // engine work). "Any color" is the Black Lotus/Treasure `manaChoices`
 // five-way picker (`sharedTokens.ts`'s `TREASURE_TOKEN`).
-export const multanisHarmony: CardDefinition = {
+export const multanisHarmony = defineCard(() => ({
     id: "c76352ea-e3d2-4221-8ebe-e953301c35ab", // PLS 84
     name: "Multani's Harmony",
     rarity: "uncommon",
@@ -413,7 +413,7 @@ export const multanisHarmony: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Shared 1/1 green Saproling token (CR 111/707.2) for Nemata, Grove
 // Guardian. Art reverse-linked from Nemata's own PLS printing via Scryfall
@@ -450,7 +450,7 @@ const NEMATA_SAPROLING_TOKEN: EffectTokenSpec = {
 // an opponent's Saproling is pumped too, same as this ability's own
 // controller's. Also includes a Saproling created by an activation of this
 // same ability, since the sweep re-scans the battlefield at resolution.)
-export const nemataGroveGuardian: CardDefinition = {
+export const nemataGroveGuardian = defineCard(() => ({
     id: "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2", // PLS 85
     name: "Nemata, Grove Guardian",
     rarity: "rare",
@@ -504,7 +504,7 @@ export const nemataGroveGuardian: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Planeswalker's Favor — {2}{G} Enchantment. "{3}{G}: Target opponent
 // reveals a card at random from their hand. Target creature gets +X/+X
@@ -539,7 +539,7 @@ export const nemataGroveGuardian: CardDefinition = {
 // legs — the Frenzied Tilling / Elvish Guidance search-put-shuffle idiom
 // (`inv/*.ts`), just with a `count: { min: 0, max: 2 }` on the kicked leg
 // instead of `max: 1`.)
-export const primalGrowth: CardDefinition = {
+export const primalGrowth = defineCard(() => ({
     id: "1d4a3c83-faaa-4dd9-9349-abcaf09cc7a8", // PLS 87
     name: "Primal Growth",
     rarity: "common",
@@ -604,7 +604,7 @@ export const primalGrowth: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Pygmy Kavu — {3}{G} Creature — Kavu, 1/2. "When this creature enters,
 // draw a card for each black creature your opponents control." (CR 603.6a
@@ -612,7 +612,7 @@ export const primalGrowth: CardDefinition = {
 // (`chk/blue.cards.ts`'s Shrine-count precedent) — `count: { count: { zone:
 // "battlefield", controller: "opponent", filter: { type: "Creature", color:
 // "B" } } }` — no new construct.)
-export const pygmyKavu: CardDefinition = {
+export const pygmyKavu = defineCard(() => ({
     id: "b31c69ec-feb5-430a-a3e9-3a6f3fb8ee1c", // PLS 88
     name: "Pygmy Kavu",
     rarity: "common",
@@ -644,7 +644,7 @@ export const pygmyKavu: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Quirion Dryad — {1}{G} Creature — Dryad, 1/1. "Whenever you cast a spell
 // that's white, blue, black, or red, put a +1/+1 counter on this creature."
@@ -654,7 +654,7 @@ export const pygmyKavu: CardDefinition = {
 // SPELL's color off `SpellCastEvent.spellColors` — never this permanent's
 // own color, and never a lookup. `scope: "you"` — only the controller's own
 // casts. The counter is the censused `counters` Op targeting `$source`.)
-export const quirionDryad: CardDefinition = {
+export const quirionDryad = defineCard(() => ({
     id: "f6841ae6-b15f-488e-9cae-2cc5ec668278", // PLS 89
     name: "Quirion Dryad",
     rarity: "rare",
@@ -683,7 +683,7 @@ export const quirionDryad: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Root Greevil — {3}{G} Creature — Beast, 2/3. "{2}{G}, {T}, Sacrifice this
 // creature: Destroy all enchantments of the color of your choice." (CR
@@ -693,7 +693,7 @@ export const quirionDryad: CardDefinition = {
 // per-mode `forEach { filter: { type: "Enchantment", color } }` + `destroy`
 // sweep body instead of `setColor` — the builder's documented multi-target
 // composition point, ADR 0045 "generalize, don't add".)
-export const rootGreevil: CardDefinition = {
+export const rootGreevil = defineCard(() => ({
     id: "306e3429-b3b4-4186-935b-18cfc308d22c", // PLS 91
     name: "Root Greevil",
     rarity: "common",
@@ -732,7 +732,7 @@ export const rootGreevil: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Skyshroud Blessing — {1}{G} Instant. "All lands gain shroud until end of
 // turn. Draw a card." (CR 702.18 shroud grant — `forEach { set:
@@ -754,7 +754,7 @@ export const rootGreevil: CardDefinition = {
 // `jud/green.cards.ts`, Blurred Mongoose's activated ability `inv/green.cards.ts`, the
 // `usg/green.cards.ts` grant) plus this card, with one engine-level fix rather than
 // a per-card `permanent-guard` staticEffect.)
-export const skyshroudBlessing: CardDefinition = {
+export const skyshroudBlessing = defineCard(() => ({
     id: "c0c10b16-97b1-4a36-b2b4-f0c28ead3eb4", // PLS 92
     name: "Skyshroud Blessing",
     rarity: "uncommon",
@@ -780,7 +780,7 @@ export const skyshroudBlessing: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Thornscape Battlemage — {2}{G} Creature — Elf Wizard, 2/2. "Kicker {R}
 // and/or {W}\nWhen this creature enters, if it was kicked with its {R}
@@ -806,7 +806,7 @@ export const skyshroudBlessing: CardDefinition = {
 // snapshot `resolveTopOfStackInner` prefers over the live permanent, CR
 // 608.2h); what survives is that only the `if { additionalCostPaid }` branch inside
 // `effects[]` also gates a CR 707.10 ability copy.
-export const thornscapeBattlemage: CardDefinition = {
+export const thornscapeBattlemage = defineCard(() => ({
     id: "13f24f89-3996-4740-a6c9-d26b8869554b", // PLS 94
     rarity: "uncommon",
     name: "Thornscape Battlemage",
@@ -869,13 +869,13 @@ export const thornscapeBattlemage: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Thornscape Familiar — {1}{G} Creature — Insect, 2/1. "Red spells and
 // white spells you cast cost {1} less to cast." (CR 601.2f `cost-modifier`
 // static effect, two-colour `appliesToSpell` filter — Nightscape Familiar's
 // own two-colour shape (`pls/black.cards.ts`) with R/W in place of U/R.)
-export const thornscapeFamiliar: CardDefinition = {
+export const thornscapeFamiliar = defineCard(() => ({
     id: "76c6e426-6165-4f8e-8766-de768ae13452", // PLS 95
     name: "Thornscape Familiar",
     rarity: "common",
@@ -896,7 +896,7 @@ export const thornscapeFamiliar: CardDefinition = {
             costReduction: { X: 1 },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS C4 — source-scoped prevention shields (#1955, parent PRD #1935).
@@ -921,7 +921,7 @@ export const thornscapeFamiliar: CardDefinition = {
 // target creature" is the engine's distinct-targets invariant on the kicked
 // requirement, not a card-level filter. The second shield is gated on
 // `{ kickerCount: true } >= 1`, the standard kicker branch idiom.
-export const fallingTimber: CardDefinition = {
+export const fallingTimber = defineCard(() => ({
     id: "6e54c84d-ccc9-4c52-b02c-e0392e8fe447", // PLS 79
     rarity: "common",
     name: "Falling Timber",
@@ -962,4 +962,4 @@ export const fallingTimber: CardDefinition = {
             ],
         },
     ],
-};
+}));

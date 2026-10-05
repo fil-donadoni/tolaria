@@ -68,8 +68,11 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // that had become a Rukh Egg. `revertCopy` puts the printed Bears in
         // the graveyard, so the pre-fix scan found a vanilla 2/2 and no
         // trigger ever reached the stack.
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
-        const clone = makeInstance(grizzlyBears.id, {
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
+        const clone = makeInstance(grizzlyBears().id, {
             id: "clone",
             controllerId: "p1",
         });
@@ -83,7 +86,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
             presentedDefId(
                 state.players[0].graveyard.find((c) => c.id === "clone")!
             )
-        ).toBe(grizzlyBears.id);
+        ).toBe(grizzlyBears().id);
 
         expect(firedIds(state)).toContain("rukh-egg-death");
     });
@@ -92,8 +95,11 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // A trigger whose stack item presents the reverted printed card is
         // indistinguishable from no trigger at all: `findTriggeredAbility`
         // reads the item's own `card.id` at resolution and finds nothing.
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
-        const clone = makeInstance(grizzlyBears.id, {
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
+        const clone = makeInstance(grizzlyBears().id, {
             id: "clone",
             controllerId: "p1",
         });
@@ -105,7 +111,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
             (i) => i.triggerSourceId === "clone"
         );
         expect(item).toBeDefined();
-        expect(presentedDefId(item!)).toBe(rukhEgg.id);
+        expect(presentedDefId(item!)).toBe(rukhEgg().id);
         expect(
             findTriggeredAbility(item!, item!.triggeredAbilityId!)
         ).toBeDefined();
@@ -121,7 +127,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
             subtypes: string[];
         }> = [];
         const watcher: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             id: "look-back-watcher",
             name: "Look-Back Watcher",
             subtypes: ["Dragon"],
@@ -156,7 +162,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
                 id: "orig",
                 controllerId: "p1",
             });
-            const clone = makeInstance(grizzlyBears.id, {
+            const clone = makeInstance(grizzlyBears().id, {
                 id: "clone",
                 controllerId: "p1",
             });
@@ -176,10 +182,13 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // 2/2 body, so it has no abilities at all. CR 708.9's reveal runs at
         // the same funnel, BEFORE the scan, which is how the printed trigger
         // used to fire for an object that never had it.
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
         // Super Shredder watches ANOTHER permanent leaving, so it fires off the
         // same batch from the battlefield — the positive control below.
-        const witness = makeInstance(superShredder.id, {
+        const witness = makeInstance(superShredder().id, {
             id: "witness",
             controllerId: "p1",
         });
@@ -203,7 +212,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // card's CR 707.9d retained triggers onto an object CR 708.2 gives no
         // abilities at all.
         const hidden: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             id: "look-back-hidden",
             name: "Look-Back Hidden",
             triggeredAbilities: [
@@ -225,7 +234,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
                 id: "hidden",
                 controllerId: "p1",
             });
-            const witness = makeInstance(superShredder.id, {
+            const witness = makeInstance(superShredder().id, {
                 id: "witness",
                 controllerId: "p1",
             });
@@ -244,7 +253,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // the battlefield, so the destination-zone read saw a front face the
         // permanent had not presented since it transformed.
         const flipper: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             id: "look-back-flipper",
             name: "Look-Back Flipper",
             triggeredAbilities: [
@@ -280,7 +289,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
                 id: "flip",
                 controllerId: "p1",
             });
-            const witness = makeInstance(superShredder.id, {
+            const witness = makeInstance(superShredder().id, {
                 id: "witness",
                 controllerId: "p1",
             });
@@ -296,7 +305,10 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
     });
 
     it("leaves an ordinary permanent's printed dies trigger untouched (CR 603.10a)", () => {
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
         const state = boardWith([egg]);
 
         removePermanentTo(state, "egg", "graveyard");
@@ -352,7 +364,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // of a destination zone instead, and a returned permanent is not one.
         const entered: string[] = [];
         const blinker: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             id: "look-back-blinker",
             name: "Look-Back Blinker",
             triggeredAbilities: [
@@ -406,8 +418,11 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // spread of a live `CardInstanceState` handed to the same layer rebuild
         // the three identity-swap sites use. A nested in-place write there
         // would corrupt the real card in the graveyard.
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
-        const clone = makeInstance(grizzlyBears.id, {
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
+        const clone = makeInstance(grizzlyBears().id, {
             id: "clone",
             controllerId: "p1",
         });
@@ -431,7 +446,7 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // today; the modal twin is a real `CardDefinition`, and the trigger is
         // stamped onto it here to exercise the resolution path end to end.
         const front: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             id: "look-back-modal",
             name: "Look-Back Modal",
             backFace: {
@@ -481,8 +496,11 @@ describe("CR 603.10 look-back — a departed permanent's leave triggers", () => 
         // self-return (CR 400.7 — the card in the graveyard is a new object,
         // and it is the printed Master of Death). The two authorities must not
         // be swapped for each other.
-        const egg = makeInstance(rukhEgg.id, { id: "egg", controllerId: "p1" });
-        const master = makeInstance(masterOfDeath.id, {
+        const egg = makeInstance(rukhEgg().id, {
+            id: "egg",
+            controllerId: "p1",
+        });
+        const master = makeInstance(masterOfDeath().id, {
             id: "master",
             controllerId: "p1",
         });

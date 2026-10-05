@@ -10,7 +10,7 @@
 // no counter-placement meta-trigger, nothing beyond the keyword action
 // itself.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { adaptAbility } from "../../abilities/adapt";
 
 // Skitter Eel — {3}{U} Creature — Fish Crab, 3/3. "{2}{U}: Adapt 2." (CR
@@ -21,7 +21,7 @@ import { adaptAbility } from "../../abilities/adapt";
 // ALREADY-exercised primitives (the `if` comparison predicate over the
 // `counters` value grammar, and the `counters` add Op) — no new Op, per-Op
 // test regime applies (no hand-written interpreter/wire test required).
-export const skitterEel: CardDefinition = {
+export const skitterEel = defineCard(() => ({
     id: "db328f03-7dae-445b-8e71-99dd88f26a9e",
     name: "Skitter Eel",
     rarity: "common",
@@ -40,4 +40,4 @@ export const skitterEel: CardDefinition = {
             costLabel: "{2}{U}",
         }),
     ],
-};
+}));

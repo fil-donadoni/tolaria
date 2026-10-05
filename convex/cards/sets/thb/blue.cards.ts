@@ -1,6 +1,6 @@
 // thb — blue cards (ADR 0043 colour split).
 
-import type { CardDefinition, EffectOp } from "../../types";
+import { defineCard, type EffectOp } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Thassa's Oracle's ETB (CR 401.4 look/distribute + CR 700.5 Devotion +
@@ -48,7 +48,7 @@ const thassasOracleValue: EffectOp[] = [
 //  and the rest on the bottom of your library in a random order. If X is
 //  greater than or equal to the number of cards in your library, you win the
 //  game." (CR 401.4 / CR 700.5 / CR 104.2a.)
-export const thassasOracle: CardDefinition = {
+export const thassasOracle = defineCard(() => ({
     id: "726e8b29-13e9-4138-b6a9-d2a0d8188d1c",
     name: "Thassa's Oracle",
     rarity: "rare",
@@ -68,4 +68,4 @@ export const thassasOracle: CardDefinition = {
             effects: thassasOracleValue,
         }),
     ],
-};
+}));

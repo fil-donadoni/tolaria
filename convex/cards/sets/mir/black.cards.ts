@@ -1,5 +1,5 @@
 // mir — black cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Shallow Grave — {1}{B} Instant. "Return the top creature card of your
 // graveyard to the battlefield. That creature gains haste until end of turn.
@@ -25,7 +25,7 @@ import type { CardDefinition } from "../../types";
 // An empty graveyard — or one holding no creature card — is a clean CR 608.2b
 // no-op: the interpreter finds nothing, the moveZone is skipped, and the
 // follow-up Ops read an unbound `$revived` and skip in turn.
-export const shallowGrave: CardDefinition = {
+export const shallowGrave = defineCard(() => ({
     id: "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
     name: "Shallow Grave",
     rarity: "rare",
@@ -59,4 +59,4 @@ export const shallowGrave: CardDefinition = {
             effects: [{ op: "exile", target: { ref: "$captured" } }],
         },
     ],
-};
+}));

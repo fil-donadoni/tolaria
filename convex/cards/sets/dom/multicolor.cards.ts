@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID } from "../../emblems";
 
 // Teferi, Hero of Dominaria — {3}{W}{U} Legendary Planeswalker — Teferi,
@@ -24,7 +23,7 @@ import { TEFERI_HERO_OF_DOMINARIA_EMBLEM_ID } from "../../emblems";
 //   −8: emblem "Whenever you draw a card, exile target permanent an opponent
 //       controls." → emblem Op + the targeted-trigger EmblemDefinition
 //       (#1221 / #1726 — same seam as Chandra, Torch of Defiance's).
-export const teferiHeroOfDominaria: CardDefinition = {
+export const teferiHeroOfDominaria = defineCard(() => ({
     id: "5d10b752-d9cb-419d-a5c4-d4ee1acb655e",
     name: "Teferi, Hero of Dominaria",
     rarity: "mythic",
@@ -125,4 +124,4 @@ export const teferiHeroOfDominaria: CardDefinition = {
             ],
         },
     ],
-};
+}));

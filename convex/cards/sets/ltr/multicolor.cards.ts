@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // TODO(stub — the "choose one. If you control a Wizard as you cast this
 // spell, you may choose two instead" clause is a conditional modal count
@@ -63,7 +63,7 @@ import type { CardDefinition } from "../../types";
 // staticEffects[] predicate that needs to condition a layer-6 grant on a
 // permanent's counters (a non-exact-name-match case #1194 doesn't cover);
 // Arwen doesn't consume it directly, for the reason above.
-export const arwenMortalQueen: CardDefinition = {
+export const arwenMortalQueen = defineCard(() => ({
     id: "547f92d4-cd1d-4ca7-a6e2-6473b4d3c832",
     name: "Arwen, Mortal Queen",
     rarity: "mythic",
@@ -147,4 +147,4 @@ export const arwenMortalQueen: CardDefinition = {
             ],
         },
     ],
-};
+}));

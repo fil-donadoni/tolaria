@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { PEST_TOKEN } from "../../sharedTokens";
 
 // Pest Infestation — {X}{X}{G} Sorcery (Cube FREE residue token-maker, issue
@@ -31,7 +31,7 @@ import { PEST_TOKEN } from "../../sharedTokens";
 //   `EffectTokenSpec.triggeredAbilities` entry (issue #2364) — converted
 //   into a real self-scoped `TriggeredAbility` by
 //   `resolveTokenTriggeredAbilities` at the `createToken` Op executor.
-export const pestInfestation: CardDefinition = {
+export const pestInfestation = defineCard(() => ({
     id: "4720b4f2-e6af-4223-9250-a0ed21ed5693",
     name: "Pest Infestation",
     rarity: "rare",
@@ -56,4 +56,4 @@ export const pestInfestation: CardDefinition = {
             count: { scaled: { value: { X: true }, times: 2 } },
         },
     ],
-};
+}));

@@ -4,7 +4,6 @@
 // generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
-    CardDefinition,
     GameEvent,
     PermanentFilter,
     PermanentView,
@@ -13,7 +12,11 @@ import type {
 } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { legalTargetSlots } from "../../types";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -85,7 +88,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // damage trigger, CR 701.9 discard.) The damaged player chooses which card to
 // discard (modern oracle — not at random), modelled with a `discard-hand`
 // requestChoice scoped to the damaged player's hand.
-export const abyssalSpecter: CardDefinition = {
+export const abyssalSpecter = defineCard(() => ({
     id: "fc26f19c-bcf7-4bd8-af42-4757dbe47fb1",
     name: "Abyssal Specter",
     rarity: "uncommon",
@@ -130,7 +133,7 @@ export const abyssalSpecter: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Ashen Ghoul — {3}{B} 3/1 Zombie. "Haste\n{B}: Return this card from your
 // graveyard to the battlefield. Activate only during your upkeep and only if
 // three or more creature cards are above this card." (CR 702.10 haste; CR 113.6
@@ -143,7 +146,7 @@ export const abyssalSpecter: CardDefinition = {
 // `creatureCardsAboveInGraveyard` helper (the same predicate Nether Shadow
 // uses). The effect is the censused `moveZone` Op reanimating the DSL `$source`
 // (graveyard → battlefield).
-export const ashenGhoul: CardDefinition = {
+export const ashenGhoul = defineCard(() => ({
     id: "6bb83301-5662-4628-b536-6a3ee0296f2e",
     name: "Ashen Ghoul",
     rarity: "uncommon",
@@ -176,13 +179,13 @@ export const ashenGhoul: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Brine Shaman — sacrifice-a-creature engine (CR 602.1 / 118.5 sacrifice cost).
 // "{T}, Sacrifice a creature: Target creature gets +2/+2 until end of turn."
 // and "{1}{U}{U}, Sacrifice a creature: Counter target creature spell."
 // (CR 611.2a temporary buff; CR 701.6 counter.) The sacrifice cost uses
 // `sacrificeFilter` (a Creature the activator controls).
-export const brineShaman: CardDefinition = {
+export const brineShaman = defineCard(() => ({
     id: "f445962c-44a1-4f3f-88d4-17048f8ca9dc",
     name: "Brine Shaman",
     rarity: "common",
@@ -234,7 +237,7 @@ export const brineShaman: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Burnt Offering — "As an additional cost to cast this spell, sacrifice a
 // creature. Add X mana in any combination of {B} and/or {R}, where X is the
 // sacrificed creature's mana value." (CR 118.3 additional cost, CR 202.3 mana
@@ -242,7 +245,7 @@ export const brineShaman: CardDefinition = {
 // paid at cast; the sacrificed creature's mana value is snapshotted on the
 // stack item and read at resolution via `getAdditionalSacrificeMv()` (as with
 // Sacrifice / Metamorphosis).
-export const burntOffering: CardDefinition = {
+export const burntOffering = defineCard(() => ({
     id: "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
     name: "Burnt Offering",
     rarity: "common",
@@ -282,7 +285,7 @@ export const burntOffering: CardDefinition = {
         const black = Number(choice.slice("split-".length));
         ctx.addMana({ B: black, R: mv - black });
     },
-};
+}));
 // Cloak of Confusion — {1}{B} Aura, enchant creature you control. "Whenever
 // enchanted creature attacks and isn't blocked, you may have it assign no
 // combat damage this turn. If you do, defending player discards a card at
@@ -291,7 +294,7 @@ export const burntOffering: CardDefinition = {
 // (`markAssignsNoCombatDamage`, CR 510.1c) — the DSL cannot yet reference the
 // trigger event's attacker (`$event.<field>`, gap #865), the same reason the
 // twin Farrel's Mantle stays a resolve() trigger. Payload = `discardAtRandom`.
-export const cloakOfConfusion: CardDefinition = {
+export const cloakOfConfusion = defineCard(() => ({
     id: "dc45d103-0fca-4431-a5c0-869f0f9be93e",
     name: "Cloak of Confusion",
     rarity: "common",
@@ -341,7 +344,7 @@ export const cloakOfConfusion: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Dance of the Dead — graveyard-reanimation Aura (CR 303.4i, the Animate Dead
 // family). Composes shipped primitives:
 //   - targetRequirement zone:"graveyard" → caster picks a Creature card in any
@@ -361,7 +364,7 @@ export const cloakOfConfusion: CardDefinition = {
 // handles by attaching to the reanimated permanent. The observable behavior
 // (reanimate tapped, +1/+1, untap-lock with pay-to-untap, sacrifice on leave) is
 // faithful.
-export const danceOfTheDead: CardDefinition = {
+export const danceOfTheDead = defineCard(() => ({
     id: "e7c53ba4-9956-4cd6-85ca-2d6b61a5127c",
     name: "Dance of the Dead",
     rarity: "uncommon",
@@ -456,12 +459,12 @@ export const danceOfTheDead: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Dark Banishing — "Destroy target nonblack creature. It can't be regenerated."
 // (CR 701.8 destroy, CR 701.19 regeneration suppression, CR 202.2 colour
 // restriction.) The colour gate is enforced at target selection via the
 // `excludeColors` TargetRequirement filter.
-export const darkBanishing: CardDefinition = {
+export const darkBanishing = defineCard(() => ({
     id: "f7dc2716-ed62-4797-ad2b-227eca5408d0",
     name: "Dark Banishing",
     rarity: "common",
@@ -476,7 +479,7 @@ export const darkBanishing: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 // Demonic Consultation — "Choose a card name. Exile the top six cards of your
 // library, then reveal cards from the top of your library until you reveal a
 // card with the chosen name. Put that card into your hand and exile all other
@@ -486,7 +489,7 @@ export const darkBanishing: CardDefinition = {
 // the first six → continue revealing one at a time, exiling each until one
 // matches the named card (then hand). Empty-library mid-loop is a silent stop
 // (CR 608.2b).
-export const demonicConsultation: CardDefinition = {
+export const demonicConsultation = defineCard(() => ({
     id: "8d727b9b-6114-414d-9172-16b6e1db41cc",
     name: "Demonic Consultation",
     rarity: "uncommon",
@@ -528,7 +531,7 @@ export const demonicConsultation: CardDefinition = {
             ctx.moveCardById(me, id, "library", "exile");
         }
     },
-};
+}));
 // Dread Wight — "At end of combat, put a paralyzation counter on each creature
 // blocking or blocked by this creature and tap those creatures. Each of those
 // creatures doesn't untap during its controller's untap step for as long as it
@@ -568,7 +571,7 @@ export const demonicConsultation: CardDefinition = {
  *  left the battlefield (CR 611.2c). */
 const DREAD_WIGHT_ID = "65d332e2-4b2d-4131-84f7-862cb138c477";
 
-export const dreadWight: CardDefinition = {
+export const dreadWight = defineCard(() => ({
     id: DREAD_WIGHT_ID,
     name: "Dread Wight",
     rarity: "rare",
@@ -713,13 +716,13 @@ export const dreadWight: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Drift of the Dead — Defender Wall whose P/T is a characteristic-defining
 // ability (CR 604.3, layer 7b) equal to the number of SNOW lands its controller
 // controls (CR 205.4a). Base 0/0; the `pt-cda` counts live snow lands via
 // `ctx.hasSupertype` (Melting / Arcum's Weathervane honored). Mirrors
 // Nightmare's Swamp-count CDA.
-export const driftOfTheDead: CardDefinition = {
+export const driftOfTheDead = defineCard(() => ({
     id: "d8b65656-9f8c-4179-81aa-4b15d8280baa",
     name: "Drift of the Dead",
     rarity: "uncommon",
@@ -752,14 +755,14 @@ export const driftOfTheDead: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Flow of Maggots — "Cumulative upkeep {1}. This creature can't be blocked by
 // non-Wall creatures." (CR 702.24 cumulative upkeep via the shipped
 // `cumulativeUpkeepTrigger` template + CR 509.1b block-restriction.) The block
 // clause is a `block-restriction` static on the attacker side: a blocker
 // qualifies only if it is a Wall. CU core has shipped (ADR 0042), so this is
 // buildable today.
-export const flowOfMaggots: CardDefinition = {
+export const flowOfMaggots = defineCard(() => ({
     id: "6880a4d3-5cbc-4a01-9190-3565617efcc9",
     name: "Flow of Maggots",
     rarity: "rare",
@@ -789,11 +792,11 @@ export const flowOfMaggots: CardDefinition = {
                 "Flow of Maggots can't be blocked by non-Wall creatures.",
         },
     ],
-};
+}));
 // Foul Familiar — 3/1 that can't block (CR 509.1b block-restriction, ADR 0006)
 // with a "{B}, Pay 1 life: Return this creature to its owner's hand." dodge
 // (CR 119.4 life cost, CR 701.14 move-to-hand).
-export const foulFamiliar: CardDefinition = {
+export const foulFamiliar = defineCard(() => ({
     id: "8bad3541-8e40-4a2f-ac9d-f7b61f3d75a1",
     name: "Foul Familiar",
     rarity: "common",
@@ -828,14 +831,14 @@ export const foulFamiliar: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Gangrenous Zombies — {T}, Sacrifice this creature: deal 1 (or 2 if you
 // control a snow Swamp — CR 205.4a) damage to each creature and each player
 // (`dealDamageToEach`). The sacrifice is a COST, so the snow-Swamp check reads
 // the controller's battlefield at resolution via `controlsSnowSubtype` (live
 // snow status). The dealing source is gone by resolve, so the damage is dealt
 // without a source-creature reference — `dealDamageToEach` handles this.
-export const gangrenousZombies: CardDefinition = {
+export const gangrenousZombies = defineCard(() => ({
     id: "08be4d83-99be-4360-90f1-104dee1c3c2f",
     name: "Gangrenous Zombies",
     rarity: "common",
@@ -936,7 +939,7 @@ export const gangrenousZombies: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Gaze of Pain — {1}{B} Sorcery. "Until end of turn, whenever a creature you
 // control attacks and isn't blocked, you may choose to have it deal damage
 // equal to its power to a target creature. If you do, it assigns no combat
@@ -950,7 +953,7 @@ export const gangrenousZombies: CardDefinition = {
 // (`$event.<field>`, gap #865), the same reason the twin Farrel's Zealot stays
 // a resolve() trigger; the "until end of turn" wrapper is a combat-state seam,
 // not a one-shot Op.
-export const gazeOfPain: CardDefinition = {
+export const gazeOfPain = defineCard(() => ({
     id: "48401643-ec4b-444a-8f9a-1a5ea471ff4a",
     name: "Gaze of Pain",
     rarity: "common",
@@ -1007,7 +1010,7 @@ export const gazeOfPain: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Gravebind — {B} Instant. "Target creature can't be regenerated this turn"
 // (CR 701.19c regeneration lock, `preventRegeneration` Op) plus the
 // next-upkeep cantrip rider (`delayedTrigger` Op, ADR 0048).
@@ -1021,7 +1024,7 @@ export const gazeOfPain: CardDefinition = {
 // expressible; this was a migration, not a blocker. The shared
 // `scheduleNextUpkeepDraw` / `nextUpkeepDrawTrigger` helper this card was the
 // last consumer of is deleted along with it.
-export const gravebind: CardDefinition = {
+export const gravebind = defineCard(() => ({
     id: "4782fd4f-2474-4d0d-8301-e0b52af93746",
     name: "Gravebind",
     rarity: "rare",
@@ -1040,7 +1043,7 @@ export const gravebind: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Hecatomb — ETB "sacrifice this enchantment unless you sacrifice four
 // creatures" (CR 603.6a ETB + CR 117.3a unless-cost + CR 701.21 sacrifice,
 // same shape as Mold Demon) plus an activated "Tap an untapped Swamp you
@@ -1049,7 +1052,7 @@ export const gravebind: CardDefinition = {
 // tap-another-permanent cost Hand of Justice / Vodalian War Machine use, here
 // pointed at a LAND subtype rather than a creature. The damage is a standard
 // `type: "any"` targeted ability (CR 115.4).
-export const hecatomb: CardDefinition = {
+export const hecatomb = defineCard(() => ({
     id: "8f59620f-ff9e-44d8-9c4e-be9de1a919e8",
     name: "Hecatomb",
     rarity: "rare",
@@ -1141,11 +1144,11 @@ export const hecatomb: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 // Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
 // end of turn." (CR 611.2a negative pump + CR 702.9 flying grant.) Pay {0} to
 // trade power for evasion.
-export const hyalopterousLemure: CardDefinition = {
+export const hyalopterousLemure = defineCard(() => ({
     id: "d2c9e037-f4d5-46fd-b439-56bee6fb2ad3",
     name: "Hyalopterous Lemure",
     rarity: "uncommon",
@@ -1182,13 +1185,13 @@ export const hyalopterousLemure: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Icequake — destroy target land; if that land WAS a snow land (CR 205.4a),
 // deal 1 damage to its controller. The snow status and controller are captured
 // BEFORE the destroy (CR 608.2g — last-known information): the target is
 // matched against its controller's live snow lands via the snow-aware
 // `getBattlefieldIds` supertype filter while still on the battlefield.
-export const icequake: CardDefinition = {
+export const icequake = defineCard(() => ({
     id: "14b4dd4d-c617-4603-8a87-761ec6fc6883",
     name: "Icequake",
     rarity: "uncommon",
@@ -1224,7 +1227,7 @@ export const icequake: CardDefinition = {
             ctx.dealDamage({ type: "player", id: controller }, 1);
         }
     },
-};
+}));
 // Infernal Darkness — cumulative upkeep {B} and 1 life (CR 702.24, ADR 0042,
 // mixed mana+life cost so the scaled total repeats the {B} and sums the life)
 // plus a continuous land-mana colour substitution (CR 614): "If a land is
@@ -1232,7 +1235,7 @@ export const icequake: CardDefinition = {
 // substitution is GLOBAL (every player's lands) and unconditional (any land),
 // so it's a single-`color` `landManaSubstitution` read live from the
 // battlefield by the `applyLandManaReplacement` mana funnel.
-export const infernalDarkness: CardDefinition = {
+export const infernalDarkness = defineCard(() => ({
     id: "f3475eb3-909d-450b-9597-b241b259b425",
     name: "Infernal Darkness",
     rarity: "rare",
@@ -1248,7 +1251,7 @@ export const infernalDarkness: CardDefinition = {
             costLabel: "{B} and 1 life",
         }),
     ],
-};
+}));
 // Infernal Denizen — "At the beginning of your upkeep, sacrifice two Swamps. If
 // you can't, tap this creature, and an opponent may gain control of a creature
 // you control of their choice for as long as this creature remains on the
@@ -1263,7 +1266,7 @@ export const infernalDarkness: CardDefinition = {
 // "for as long as [the source] remains under its controller" semantics; the
 // control reverts when the Denizen leaves or changes controller.
 const INFERNAL_DENIZEN_ID = "b63ac9a6-aaa5-4659-97d1-c5f6b0d5ccfe";
-export const infernalDenizen: CardDefinition = {
+export const infernalDenizen = defineCard(() => ({
     id: INFERNAL_DENIZEN_ID,
     name: "Infernal Denizen",
     rarity: "rare",
@@ -1363,12 +1366,12 @@ export const infernalDenizen: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Kjeldoran Dead — "When this creature enters, sacrifice a creature." (CR 603.6
 // ETB trigger + CR 701.21 sacrifice; the controller chooses which Creature they
 // control, and may choose Kjeldoran Dead itself.) Plus "{B}: Regenerate this
 // creature." (CR 701.19 regeneration shield.)
-export const kjeldoranDead: CardDefinition = {
+export const kjeldoranDead = defineCard(() => ({
     id: "d3f7b614-6075-4b7c-acc7-ab63185b570b",
     name: "Kjeldoran Dead",
     rarity: "common",
@@ -1415,10 +1418,10 @@ export const kjeldoranDead: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 // Knight of Stromgald — the black "Order" cycle shape: protection from white
 // (CR 702.16) plus a first-strike grant and a power pump (CR 611.2a).
-export const knightOfStromgald: CardDefinition = {
+export const knightOfStromgald = defineCard(() => ({
     id: "2b87069b-ebaf-4705-b5da-446932af9b73",
     name: "Knight of Stromgald",
     rarity: "uncommon",
@@ -1466,7 +1469,7 @@ export const knightOfStromgald: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Krovikan Elementalist — "{2}{R}: Target creature gets +1/+0 until end of turn.
 // {U}{U}: Target creature you control gains flying until end of turn. Sacrifice
 // it at the beginning of the next end step." (CR 611.2a temp buff + CR 702.9
@@ -1474,7 +1477,7 @@ export const knightOfStromgald: CardDefinition = {
 // "sacrifice it at the next end step" is a delayed trigger carrying the buffed
 // creature's id.
 const KROVIKAN_ELEMENTALIST_ID = "bbedca18-a074-4441-b0a9-7b14fdb07412";
-export const krovikanElementalist: CardDefinition = {
+export const krovikanElementalist = defineCard(() => ({
     id: KROVIKAN_ELEMENTALIST_ID,
     name: "Krovikan Elementalist",
     rarity: "uncommon",
@@ -1565,12 +1568,12 @@ export const krovikanElementalist: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$targetId" } }],
         },
     ],
-};
+}));
 // Krovikan Fetish — {2}{B} Aura. Static +1/+1 on the host (CR 611.2c layer 7c)
 // plus a self-ETB trigger (CR 603.6a) that arms the next-upkeep cantrip rider.
 // Unlike the instant cantrips the schedule rides an ENTERS trigger, not a spell
 // resolve — but the delayed-trigger template is identical.
-export const krovikanFetish: CardDefinition = {
+export const krovikanFetish = defineCard(() => ({
     id: "844e73e6-b201-4b2e-b46a-b719484fba0e",
     name: "Krovikan Fetish",
     rarity: "common",
@@ -1603,7 +1606,7 @@ export const krovikanFetish: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Krovikan Vampire — "At the beginning of each end step, if a creature dealt
 // damage by this creature this turn died, put that card onto the battlefield
 // under your control. Sacrifice it when you lose control of this creature."
@@ -1620,7 +1623,7 @@ export const krovikanFetish: CardDefinition = {
 // via a control-change effect on the Vampire, which the current pool barely
 // exercises — is documented as deferred.
 const KROVIKAN_VAMPIRE_ID = "717c5dda-8e38-4c76-b241-685198402284";
-export const krovikanVampire: CardDefinition = {
+export const krovikanVampire = defineCard(() => ({
     id: KROVIKAN_VAMPIRE_ID,
     name: "Krovikan Vampire",
     rarity: "uncommon",
@@ -1697,12 +1700,12 @@ export const krovikanVampire: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Legions of Lim-Dûl — snow swampwalk (CR 702.14 / 205.4a): can't be blocked
 // while the defending player controls a snow Swamp. Modeled as the
 // `snow swampwalk` keyword in `staticAbilities`; the combat registry's
 // `LANDWALK_SNOW_RULES` enforces it (`controlsSnowSubtype(..., "Swamp")`).
-export const legionsOfLimDL: CardDefinition = {
+export const legionsOfLimDL = defineCard(() => ({
     id: "75b67eb2-b60e-46b4-9d48-11c284957bec",
     name: "Legions of Lim-Dûl",
     rarity: "common",
@@ -1714,10 +1717,10 @@ export const legionsOfLimDL: CardDefinition = {
     power: 2,
     toughness: 3,
     staticAbilities: ["snow swampwalk"],
-};
+}));
 // Leshrac's Rite — Aura that grants swampwalk to its host (CR 702.14 landwalk,
 // CR 611 keyword grant via `keyword-grant` staticEffect on the host).
-export const leshracsRite: CardDefinition = {
+export const leshracsRite = defineCard(() => ({
     id: "4e0a6b4e-95b4-40f6-bb19-568dbd908a2b",
     name: "Leshrac's Rite",
     rarity: "uncommon",
@@ -1734,7 +1737,7 @@ export const leshracsRite: CardDefinition = {
             keyword: "swampwalk",
         },
     ],
-};
+}));
 // Leshrac's Sigil — "Whenever an opponent casts a green spell, you may pay
 // {B}{B}. If you do, look at that player's hand and choose a card from it. The
 // player discards that card. {B}{B}: Return this enchantment to its owner's
@@ -1742,7 +1745,7 @@ export const leshracsRite: CardDefinition = {
 // CR 117.3a may-pay + CR 701.9 discard chosen by the Sigil's controller.) The
 // chosen discard is a `discard-hand` requestChoice scoped to the caster's hand
 // (Mind Warp pattern); the Sigil's controller is the chooser.
-export const leshracsSigil: CardDefinition = {
+export const leshracsSigil = defineCard(() => ({
     id: "ad5ba7ee-d6df-4b62-a8a1-c81e6fca392a",
     name: "Leshrac's Sigil",
     rarity: "uncommon",
@@ -1805,7 +1808,7 @@ export const leshracsSigil: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Lim-Dûl's Cohort — "Whenever this creature blocks or becomes blocked by a
 // creature, that creature can't be regenerated this turn." (CR 509.1h
 // blocks-or-becomes-blocked + CR 701.19c regeneration suppression.) The
@@ -1816,7 +1819,7 @@ export const leshracsSigil: CardDefinition = {
 // the `preventRegeneration` Op (CR 701.19c) acting on the censused
 // `$event.otherCombatant` pair complement (CR 509.1h).
 const LIM_DULS_COHORT_ID = "3d0006f6-2f96-453d-9145-eaefa588efbc";
-export const limDLsCohort: CardDefinition = {
+export const limDLsCohort = defineCard(() => ({
     id: LIM_DULS_COHORT_ID,
     name: "Lim-Dûl's Cohort",
     rarity: "common",
@@ -1854,7 +1857,7 @@ export const limDLsCohort: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Lim-Dûl's Hex — "At the beginning of your upkeep, for each player, this
 // enchantment deals 1 damage to that player unless they pay {B} or {3}."
 // (CR 603.6a upkeep trigger + CR 117.3a may-pay, once per player.) The "{B} or
@@ -1863,7 +1866,7 @@ export const limDLsCohort: CardDefinition = {
 // may-pays per player: offer {B} first; if declined, offer {3}; only if BOTH
 // are declined does the player take 1 damage. Each player's two prompts are
 // keyed by distinct choiceIds so stepped resolution (CR 608.2) keeps them apart.
-export const limDLsHex: CardDefinition = {
+export const limDLsHex = defineCard(() => ({
     id: "af976f42-3d56-4e32-8294-970a276a4bf3",
     name: "Lim-Dûl's Hex",
     rarity: "uncommon",
@@ -1912,12 +1915,12 @@ export const limDLsHex: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Mind Ravel — {2}{B} Sorcery. "Target player discards a card" (CR 701.9 —
 // chosen by the discarding player; Zuran Enchanter pattern) plus the next-upkeep
 // cantrip rider. The discard choice and the schedule live in separate resolve
 // steps so a suspension on the discard never double-schedules.
-export const mindRavel: CardDefinition = {
+export const mindRavel = defineCard(() => ({
     id: "61cf3ac5-985d-4b48-b230-d5ae4ab1ace8",
     name: "Mind Ravel",
     rarity: "common",
@@ -1949,7 +1952,7 @@ export const mindRavel: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Mind Warp — "Look at target player's hand and choose X cards from it. That
 // player discards those cards." (CR 702.x reveal-to-caster + CR 701.9 discard.)
 // The caster (not the target) chooses which X cards via a `discard-hand`
@@ -1957,7 +1960,7 @@ export const mindRavel: CardDefinition = {
 // Mana cost is {X}{3}{B} (MTGJSON ICE.json) — the fixed {3} generic pip
 // alongside the variable {X} uses `generic` (Soul Burn's `{X}{2}{B}` shape
 // just above), found missing by the widened data/json conformance guard.
-export const mindWarp: CardDefinition = {
+export const mindWarp = defineCard(() => ({
     id: "de150cd6-0bbc-47f7-a781-cd1aa10eabc6",
     name: "Mind Warp",
     rarity: "uncommon",
@@ -1991,14 +1994,14 @@ export const mindWarp: CardDefinition = {
         if (picks === undefined) return; // suspended for the choice
         for (const id of picks) ctx.discardCard(target.id, id);
     },
-};
+}));
 // Mind Whip — "Enchant creature. At the beginning of the upkeep of enchanted
 // creature's controller, that player may pay {3}. If they don't, this Aura deals
 // 2 damage to that player and you tap that creature." (CR 303.4 aura, CR 603.6a
 // host-controller upkeep trigger, CR 117.3a may-pay — the Paralyze/Power Leak
 // host-controller pattern.) Decline → 2 damage to the host's controller + tap
 // the host.
-export const mindWhip: CardDefinition = {
+export const mindWhip = defineCard(() => ({
     id: "3f3ff5fb-4126-4a18-b540-2beaae382e59",
     name: "Mind Whip",
     rarity: "rare",
@@ -2037,7 +2040,7 @@ export const mindWhip: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Minion of Leshrac — "Protection from black. At the beginning of your upkeep,
 // this creature deals 5 damage to you unless you sacrifice a creature other than
 // this creature. If this creature deals damage to you this way, tap it. {T}:
@@ -2047,7 +2050,7 @@ export const mindWhip: CardDefinition = {
 // (CR 701.21) filtered to creatures the controller controls; decline → 5 damage
 // to controller + tap self.
 const MINION_OF_LESHRAC_ID = "61278908-a1b4-4b4c-84f5-498ca41fc6b6";
-export const minionOfLeshrac: CardDefinition = {
+export const minionOfLeshrac = defineCard(() => ({
     id: MINION_OF_LESHRAC_ID,
     name: "Minion of Leshrac",
     rarity: "rare",
@@ -2119,12 +2122,12 @@ export const minionOfLeshrac: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Minion of Tevesh Szat — "At the beginning of your upkeep, this creature deals
 // 2 damage to you unless you pay {B}{B}." (CR 603.6a upkeep trigger + CR 117.3a
 // may-pay; on decline it deals 2 to its controller.) Plus "{T}: Target creature
 // gets +3/-2 until end of turn." (CR 611.2a — pump power, drop toughness.)
-export const minionOfTeveshSzat: CardDefinition = {
+export const minionOfTeveshSzat = defineCard(() => ({
     id: "ea9f3ab5-6a31-47db-b8bf-4c56a7ff19d1",
     name: "Minion of Tevesh Szat",
     rarity: "rare",
@@ -2190,13 +2193,13 @@ export const minionOfTeveshSzat: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Mole Worms — land-locking twin of Phyrexian Gremlins (CR 611.2 untap-lock
 // tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.3
 // untap step, whose "effects can keep one or more of a player's permanents
 // from untapping" is the clause this rides). "{T}: Tap target land. It doesn't untap ... for as long as
 // this creature remains tapped."
-export const moleWorms: CardDefinition = {
+export const moleWorms = defineCard(() => ({
     id: "4914f6fc-e3e7-426b-8688-12157c7df9e7",
     name: "Mole Worms",
     rarity: "uncommon",
@@ -2231,9 +2234,9 @@ export const moleWorms: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Moor Fiend — 3/3 swampwalk (CR 702.14b landwalk evasion).
-export const moorFiend: CardDefinition = {
+export const moorFiend = defineCard(() => ({
     id: "57089dd4-e30d-498d-9341-43c104c6f3f9",
     name: "Moor Fiend",
     rarity: "common",
@@ -2245,7 +2248,7 @@ export const moorFiend: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["swampwalk"],
-};
+}));
 // Necropotence (#667) — the Ice Age card-advantage engine, composed from
 // shipped primitives plus the CARD_DISCARDED seam this slice added:
 //   1. "Skip your draw step." — CR 504 / 614 draw-step skip via the
@@ -2267,7 +2270,7 @@ export const moorFiend: CardDefinition = {
 //      so any number of cards exiled this turn all return at the same next end
 //      step.
 const NECROPOTENCE_ID = "54d7a0c1-efb4-4a8d-ad92-a96d43835052";
-export const necropotence: CardDefinition = {
+export const necropotence = defineCard(() => ({
     id: NECROPOTENCE_ID,
     name: "Necropotence",
     rarity: "rare",
@@ -2376,7 +2379,7 @@ export const necropotence: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Norritt — "{T}: Untap target blue creature. {T}: Choose target non-Wall
 // creature the active player has controlled continuously since the beginning of
 // the turn. That creature attacks this turn if able. Destroy it at the beginning
@@ -2390,7 +2393,7 @@ export const necropotence: CardDefinition = {
 // `hasControlledSinceTurnStart`). `activationPhaseRestriction` enforces
 // "before attackers are declared".
 const NORRITT_ID = "35abefe6-c39b-4fe5-b2e3-d213f0c4f447";
-export const norritt: CardDefinition = {
+export const norritt = defineCard(() => ({
     id: NORRITT_ID,
     name: "Norritt",
     rarity: "common",
@@ -2480,7 +2483,7 @@ export const norritt: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Oath of Lim-Dûl (#668) — the demonstration card for the LIFE_LOST seam.
 //   "Whenever you lose life, for each 1 life you lost, sacrifice a permanent
 //    other than this enchantment unless you discard a card. {B}{B}: Draw a
@@ -2496,7 +2499,7 @@ export const norritt: CardDefinition = {
 //    on resume the answered iterations fast-forward to the next open point.
 // 2. CR 605 — the {B}{B} draw activated ability is plain.
 const OATH_OF_LIM_DUL_ID = "f16df768-06de-43a0-b548-44fb0887490b";
-export const oathOfLimDul: CardDefinition = {
+export const oathOfLimDul = defineCard(() => ({
     id: OATH_OF_LIM_DUL_ID,
     name: "Oath of Lim-Dûl",
     rarity: "rare",
@@ -2589,12 +2592,12 @@ export const oathOfLimDul: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Pestilence Rats — "Pestilence Rats's power is equal to the number of other
 // Rats on the battlefield." (CR 604.3 characteristic-defining ability; */3 with
 // the */ power supplied by a `pt-cda` that counts other Rats across both
 // battlefields — base power 0.)
-export const pestilenceRats: CardDefinition = {
+export const pestilenceRats = defineCard(() => ({
     id: "bff7f6a6-0e90-4eb4-b76e-d98454975fb6",
     name: "Pestilence Rats",
     rarity: "common",
@@ -2622,7 +2625,7 @@ export const pestilenceRats: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Pox — "Each player loses a third of their life, rounds up, then discards a
 // third of the cards in their hand, rounds up, then sacrifices a third of the
 // creatures they control, rounds up, then sacrifices a third of the lands they
@@ -2685,7 +2688,7 @@ function poxSacrificeThird(
     }
 }
 
-export const pox: CardDefinition = {
+export const pox = defineCard(() => ({
     id: "a914138c-a593-414c-bbcb-83d3c1bc4f6f",
     name: "Pox",
     rarity: "rare",
@@ -2755,7 +2758,7 @@ export const pox: CardDefinition = {
             );
         },
     ],
-};
+}));
 // Seizures (#668) — Aura demonstrating the host-scoped "becomes tapped"
 // trigger seam.
 //   "Enchant creature. Whenever enchanted creature becomes tapped, this Aura
@@ -2765,7 +2768,7 @@ export const pox: CardDefinition = {
 // PermanentScope variant matching the Aura's `attachedTo` host), so it fires
 // only when the ENCHANTED creature becomes tapped. CR 117.3a — the host's
 // controller may pay {3} to avoid the 3 damage (CR 120.1).
-export const seizures: CardDefinition = {
+export const seizures = defineCard(() => ({
     id: "da369c86-7e17-43d8-b626-b6842e3d2d50",
     name: "Seizures",
     rarity: "common",
@@ -2809,11 +2812,11 @@ export const seizures: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Songs of the Damned — "Add {B} for each creature card in your graveyard."
 // (CR 605/606 mana spell; counts Creature cards in the caster's graveyard at
 // resolution and adds that many {B}.)
-export const songsOfTheDamned: CardDefinition = {
+export const songsOfTheDamned = defineCard(() => ({
     id: "6cff3547-8c72-439a-91fe-ebe729dab748",
     name: "Songs of the Damned",
     rarity: "common",
@@ -2831,7 +2834,7 @@ export const songsOfTheDamned: CardDefinition = {
             .filter((c) => c.types.includes("Creature")).length;
         if (creatures > 0) ctx.addMana({ B: creatures });
     },
-};
+}));
 // Soul Burn — "{X}{2}{B}: Soul Burn deals X damage to any target. You gain life
 // equal to the damage dealt, but not more than the amount of {B} spent on X …"
 // (CR 107.3 X, CR 120 damage, CR 119 lifegain). The lifegain is capped by the
@@ -2851,7 +2854,7 @@ export const songsOfTheDamned: CardDefinition = {
 // {B}-spent cap and X bound the gain. Needs the same damage-DEALT readback
 // Drain Life's identical clause waits on.
 const SOUL_BURN_FIXED_BLACK_PIPS = 1;
-export const soulBurn: CardDefinition = {
+export const soulBurn = defineCard(() => ({
     id: "eb8e00d2-2381-4d45-bed8-c9bf738a9419",
     name: "Soul Burn",
     rarity: "common",
@@ -2884,7 +2887,7 @@ export const soulBurn: CardDefinition = {
         );
         if (blackOnX > 0) ctx.gainLife(ctx.caster, blackOnX);
     },
-};
+}));
 // Soul Kiss — "Enchant creature. {B}, Pay 1 life: Enchanted creature gets +2/+2
 // until end of turn. Activate no more than three times each turn." (CR 303.4
 // aura, CR 611.2a temp buff on the host, CR 602.5 hard per-turn activation cap.)
@@ -2893,7 +2896,7 @@ export const soulBurn: CardDefinition = {
 // PermanentView) and rejects the 4th activation. NOTE: this is exactly the
 // `getActivationCount`+`canActivate` cap the issue (#655) confirmed ships today —
 // the old "needs `maxActivationsPerTurn`" stub comment was stale.
-export const soulKiss: CardDefinition = {
+export const soulKiss = defineCard(() => ({
     id: "42fbf6a5-86fe-41a3-891e-f72f11ad0aee",
     name: "Soul Kiss",
     rarity: "common",
@@ -2927,12 +2930,12 @@ export const soulKiss: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Spoils of Evil — "For each artifact or creature card in target opponent's
 // graveyard, add {C} and you gain 1 life." (CR 606 mana + CR 119 lifegain.)
 // Counts Artifact/Creature cards in the targeted opponent's graveyard; adds
 // that many {C} and gains that much life.
-export const spoilsOfEvil: CardDefinition = {
+export const spoilsOfEvil = defineCard(() => ({
     id: "fd368eb6-72f0-42d4-afa5-3daa7de949ff",
     name: "Spoils of Evil",
     rarity: "rare",
@@ -2961,7 +2964,7 @@ export const spoilsOfEvil: CardDefinition = {
             ctx.gainLife(ctx.controller, n);
         }
     },
-};
+}));
 // Spoils of War is implemented below (divide-as-you-choose cluster, #664).
 // Stench of Evil — {2}{B} Sorcery. "Destroy all Plains. For each land destroyed
 // this way, Stench of Evil deals 1 damage to that land's controller unless they
@@ -2976,7 +2979,7 @@ export const spoilsOfEvil: CardDefinition = {
 //     damage applied in a single final pass (CR 608.2 — the idempotent
 //     "collect then apply" pattern shared with Lim-Dûl's Hex), so a suspension
 //     on a later entry never re-fires an earlier entry's damage.
-export const stenchOfEvil: CardDefinition = {
+export const stenchOfEvil = defineCard(() => ({
     id: "4c7065a2-f819-4cbe-b453-a55e904f0461",
     name: "Stench of Evil",
     rarity: "uncommon",
@@ -3024,11 +3027,11 @@ export const stenchOfEvil: CardDefinition = {
             }
         },
     ],
-};
+}));
 // Stromgald Cabal — "{T}, Pay 1 life: Counter target white spell." (CR 602.1
 // tap + CR 119.4 life cost; CR 701.6 counter restricted to white spells via the
 // spell-target `colorFilter`.)
-export const stromgaldCabal: CardDefinition = {
+export const stromgaldCabal = defineCard(() => ({
     id: "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
     name: "Stromgald Cabal",
     rarity: "rare",
@@ -3051,11 +3054,11 @@ export const stromgaldCabal: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Touch of Death — {2}{B} Sorcery. "Touch of Death deals 1 damage to target
 // player or planeswalker. You gain 1 life." (CR 120.1 damage, CR 119.3
 // lifegain) plus the next-upkeep cantrip rider.
-export const touchOfDeath: CardDefinition = {
+export const touchOfDeath = defineCard(() => ({
     id: "a49c658f-e657-490b-af1f-e67e48d0046e",
     name: "Touch of Death",
     rarity: "common",
@@ -3079,13 +3082,13 @@ export const touchOfDeath: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Withering Wisps — end-step self-sacrifice when no creatures are on the
 // battlefield (CR 603.6a phase trigger), plus "{B}: deal 1 to each creature and
 // each player" with a per-turn activation cap equal to the number of snow
 // Swamps you control (CR 205.4a / 602.5). The cap is enforced in `canActivate`
 // by counting the controller's snow Swamps and comparing to this turn's tally.
-export const witheringWisps: CardDefinition = {
+export const witheringWisps = defineCard(() => ({
     id: "ad1e6ae5-c972-42c0-ae78-f203873aeeb1",
     name: "Withering Wisps",
     rarity: "uncommon",
@@ -3162,7 +3165,7 @@ export const witheringWisps: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Spoils of War — {X}{B} Sorcery. "X is the number of artifact and/or creature
 // cards in an opponent's graveyard as you cast this spell. Distribute X +1/+1
@@ -3172,7 +3175,7 @@ export const witheringWisps: CardDefinition = {
 // is NOT chosen or paid — and snapshots it so `getX()` returns it at resolve.
 // The {X} in the mana cost is the same derived value (it folds into generic at
 // cast). Counters are distributed ≥1-each among the chosen creatures.
-export const spoilsOfWar: CardDefinition = {
+export const spoilsOfWar = defineCard(() => ({
     id: "b38af8bd-d927-46d0-a1b1-fb437ea9ea66",
     name: "Spoils of War",
     rarity: "rare",
@@ -3197,4 +3200,4 @@ export const spoilsOfWar: CardDefinition = {
             "+1/+1"
         );
     },
-};
+}));

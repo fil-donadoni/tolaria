@@ -227,8 +227,8 @@ describe("layer 7 reads the Continuous Effects Registry (CR 613.4, ADR 0082)", (
         // games, so the entry's own record of the card it was written against
         // is what decides whether it still describes this permanent.
         const anthem = creature("crusade", 0, 0, {
-            types: crusade.types,
-            card: { id: crusade.id },
+            types: crusade().types,
+            card: { id: crusade().id },
         });
         const bear = creature("bear", 2, 2, {
             card: { id: "synth-bear", manaCost: { W: 1 } },
@@ -288,8 +288,8 @@ describe("the bot-eval filter keys off expiry, not provenance (ADR 0020 §2)", (
         // static buff and an indefinite registry entry all are.
         const anthem = {
             id: "crusade",
-            card: { id: crusade.id },
-            types: crusade.types,
+            card: { id: crusade().id },
+            types: crusade().types,
             subtypes: [],
             staticAbilities: [],
             controllerId: "p1",
@@ -602,7 +602,7 @@ describe("CR 400.7 — a permanent that leaves takes its registry residue with i
  *  Crusade so every non-static field is a real definition's. */
 function ptSetProbe(id: string, power: number, toughness: number) {
     return {
-        ...getDefinition(crusade.id),
+        ...getDefinition(crusade().id),
         id,
         name: `Probe ${id}`,
         staticEffects: [
@@ -684,8 +684,8 @@ describe("a static `pt-set` derives a sublayer-7b entry from its source (CR 613.
             card: { id: "synth-bear", manaCost: { W: 1 } },
         });
         const anthem = creature("crusade", 0, 0, {
-            types: crusade.types,
-            card: { id: crusade.id },
+            types: crusade().types,
+            card: { id: crusade().id },
             staticSeq: 10,
         } as Partial<CardInstanceState>);
         withTemporaryDefinition(ptSetProbe("s7-ptset-a", 1, 1), () => {
@@ -728,7 +728,7 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
         for (const kind of Object.keys(LAYER_7_STATIC_EFFECT_KINDS)) {
             const id = `s7-layer7-precheck-${kind}`;
             const probe: CardDefinition = {
-                ...getDefinition(crusade.id),
+                ...getDefinition(crusade().id),
                 id,
                 name: `Precheck ${kind}`,
                 staticEffects: [
@@ -784,7 +784,7 @@ describe("the registry precheck names exactly the kinds the derivation owns", ()
         // the precheck it is a property of.
         const id = "s7-layer7-precheck-compiled";
         const probe: CardDefinition = {
-            ...getDefinition(crusade.id),
+            ...getDefinition(crusade().id),
             id,
             name: "Compiled Anthem",
             staticEffects: undefined,

@@ -2,8 +2,8 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import { AURA_AFFECTS_HOST } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
+import type { SpellContext } from "../../types";
 import { constructArtifactsYouControlToken } from "../../sharedTokens";
 import { equipAbility, livingWeapon } from "../../abilities/equipment";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
@@ -15,7 +15,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // full rationale. No explicit `activatedAbilities` needed: Yavimaya's own
 // effect adds "Forest" to its own live `subtypes`, and the engine's
 // basic-land-type mana inference grants the {T}: Add {G} ability for free.
-export const yavimayaCradleOfGrowth: CardDefinition = {
+export const yavimayaCradleOfGrowth = defineCard(() => ({
     id: "4e4b6e22-93b2-4896-bba5-0ceaa5d8ea3c",
     rarity: "rare",
     name: "Yavimaya, Cradle of Growth",
@@ -37,7 +37,7 @@ export const yavimayaCradleOfGrowth: CardDefinition = {
             subtypes: ["Forest"],
         },
     ],
-};
+}));
 
 // ───────────────────────────────────────────────────────────────────────────
 // Urza's Saga (issue #1884, parent PRD #1878, design record ADR 0078) — the
@@ -100,7 +100,7 @@ function createUrzasSagaConstruct(ctx: SpellContext): void {
 // after the rule became "as a player's precombat main phase begins"
 // (CR 714.3c). Reminder text has no rules meaning (CR 207.2) and the engine
 // follows the rule, not the reminder (ADR 0078 context §2).
-export const urzasSaga: CardDefinition = {
+export const urzasSaga = defineCard(() => ({
     id: "c1e0f201-42cb-46a1-901a-65bb4fc18f6c",
     rarity: "rare",
     name: "Urza's Saga",
@@ -219,7 +219,7 @@ export const urzasSaga: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Kaldra Compleat (issue #1340, parent PRD #620; closes the #679 Living
 // Weapon stub) — Living weapon on the biggest possible statline.
@@ -241,7 +241,7 @@ export const urzasSaga: CardDefinition = {
 //    equipped creature dealt the damage", and `$event.damagedPermanent`
 //    (ADR 0049) names the creature it damaged. Same shape as Voracious
 //    Cobra's destroy trigger (`inv/multicolor.cards.ts`), with `exile` instead.
-export const kaldraCompleat: CardDefinition = {
+export const kaldraCompleat = defineCard(() => ({
     id: "87cc2855-6b14-44dd-a398-7dc2bbae081f",
     name: "Kaldra Compleat",
     rarity: "mythic",
@@ -310,7 +310,7 @@ export const kaldraCompleat: CardDefinition = {
             oracleText: "Equip {7}",
         }),
     ],
-};
+}));
 
 // Nettlecyst (issue #1340, parent PRD #620) — Living weapon with a
 // board-scaling buff. The buff is a characteristic-defining `pt-cda`
@@ -321,7 +321,7 @@ export const kaldraCompleat: CardDefinition = {
 // attached, CR 301.5c). Nettlecyst counts ITSELF (it is an artifact you
 // control), so a lone Nettlecyst on an otherwise empty board makes its Germ
 // a 1/1 — CR 604.3's "each" is a live board count with no self-exclusion.
-export const nettlecyst: CardDefinition = {
+export const nettlecyst = defineCard(() => ({
     id: "4a0bb5dc-75a6-4bd6-81f8-611197fb0fba",
     name: "Nettlecyst",
     rarity: "rare",
@@ -355,4 +355,4 @@ export const nettlecyst: CardDefinition = {
             oracleText: "Equip {2}",
         }),
     ],
-};
+}));

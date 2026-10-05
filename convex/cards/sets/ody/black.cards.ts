@@ -1,7 +1,7 @@
 // ody — black cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { ZOMBIE_TOKEN } from "../../sharedTokens";
 
 // Innocent Blood — "Each player sacrifices a creature of their choice."
@@ -17,7 +17,7 @@ import { ZOMBIE_TOKEN } from "../../sharedTokens";
 // sacrifices, so a later chooser decides against the board the earlier
 // choosers saw — CR 101.4's "Then the actions happen simultaneously", whose
 // worked example in the rules text is this card's own line.
-export const innocentBlood: CardDefinition = {
+export const innocentBlood = defineCard(() => ({
     id: "d26af8f6-df64-4027-880c-f2fae2d8103f",
     name: "Innocent Blood",
     rarity: "common",
@@ -47,13 +47,13 @@ export const innocentBlood: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Entomb — {B} Instant. "Search your library for a card, put that card into
 // your graveyard, then shuffle." (CR 701.23 search / 400.7 / 701.24 shuffle.) An unrestricted
 // tutor straight to the graveyard — `moveZone`'s `to: "graveyard"` branch,
 // issue #677.
-export const entomb: CardDefinition = {
+export const entomb = defineCard(() => ({
     id: "f60a2091-fb97-4f04-911b-fce9b6351044",
     name: "Entomb",
     rarity: "rare",
@@ -80,7 +80,7 @@ export const entomb: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Haunting Echoes — {3}{B}{B} Sorcery. "Exile all cards from target player's
 // graveyard other than basic land cards. For each card exiled this way, search
@@ -132,7 +132,7 @@ export const entomb: CardDefinition = {
 //
 // hand-tail: "Exile all cards from target player's graveyard other than basic land cards." (#4195)
 // hand-tail: "For each card exiled this way, search that player's library for all cards with the same name as that card and exile them." (#4195)
-export const hauntingEchoes: CardDefinition = {
+export const hauntingEchoes = defineCard(() => ({
     id: "aca4c571-48b8-4150-93f8-4cb5c8e797c4", // ODY 142 (first printing)
     name: "Haunting Echoes",
     rarity: "rare",
@@ -194,7 +194,7 @@ export const hauntingEchoes: CardDefinition = {
         // shuffle instruction are one search).
         { op: "libraryLook", action: "shuffle", player: { target: 0 } },
     ],
-};
+}));
 
 // Zombie Infestation — {1}{B} Enchantment. "Discard two cards: Create a 2/2
 // black Zombie creature token." (CR 701.9a discard as a cost, CR 111.1
@@ -203,7 +203,7 @@ export const hauntingEchoes: CardDefinition = {
 // not apply and it waits for priority. The empty filter constrains nothing
 // ("two cards"), and the pair is paid at activation, never at resolution —
 // so a responding removal spell does not refund the cards (CR 602.2b).
-export const zombieInfestation: CardDefinition = {
+export const zombieInfestation = defineCard(() => ({
     id: "ccd5f98a-7ab5-44b3-850c-b50963dace66",
     rarity: "uncommon",
     name: "Zombie Infestation",
@@ -227,4 +227,4 @@ export const zombieInfestation: CardDefinition = {
             ],
         },
     ],
-};
+}));

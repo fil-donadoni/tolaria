@@ -72,8 +72,8 @@ import {
     wireCharacteristicsOf,
 } from "../../cards/__tests__/setup.helper";
 
-const NANTUKO = springheartNantuko.id;
-const BEARS = grizzlyBears.id;
+const NANTUKO = springheartNantuko().id;
+const BEARS = grizzlyBears().id;
 
 /** p1 holds Springheart Nantuko in hand with enough floating mana to bestow
  *  it; `hostController` controls a Grizzly Bears to enchant. */
@@ -270,7 +270,7 @@ describe("Bestow — the keyword expands into layer-4 static effects (ADR 0054 /
         // restate it could ship the cost with nothing enforcing the rest (the
         // Guard A inertness shape).
         expect(
-            (springheartNantuko.staticEffects ?? []).map((e) => e.kind)
+            (springheartNantuko().staticEffects ?? []).map((e) => e.kind)
         ).toEqual(["pt-buff"]);
         // `expandBestow` injects them at the `getDefinition` seam.
         expect(
@@ -316,8 +316,10 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         delete item.bestowed;
         syncLayers2to5(state);
 
-        expect(item.types).toEqual([...springheartNantuko.types]);
-        expect(item.subtypes).toEqual([...(springheartNantuko.subtypes ?? [])]);
+        expect(item.types).toEqual([...springheartNantuko().types]);
+        expect(item.subtypes).toEqual([
+            ...(springheartNantuko().subtypes ?? []),
+        ]);
     });
 
     it('is illegal for "target creature spell" while bestowed, and legal again the moment it is not (CR 702.103b / 608.2b)', () => {
@@ -326,7 +328,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         // is an Aura spell, so `spellTypeFilter: "Creature"` must not see it.
         const { state } = boardWithHost();
         const item = castBestowed(state, "host");
-        const requirement = exclude.targetRequirement!;
+        const requirement = exclude().targetRequirement!;
         const source = {
             playerId: "p2",
             cardInstanceId: "counter-source",
@@ -358,7 +360,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         // THE BATTLEFIELD — so Opalescence's "each other non-Aura enchantment
         // is a creature" must not turn an enchantment SPELL into a creature
         // spell (which `spellTypeFilter: "Creature"` would then counter).
-        const opal = makeInstance(opalescence.id, {
+        const opal = makeInstance(opalescence().id, {
             id: "opal",
             controllerId: "p1",
             ownerId: "p1",
@@ -369,7 +371,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
                 makePlayer("p2"),
             ],
         });
-        const spell = makeInstance(conversion.id, {
+        const spell = makeInstance(conversion().id, {
             id: "conversion-spell",
             controllerId: "p1",
             ownerId: "p1",
@@ -384,7 +386,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         expect(
             getLegalTargets(
                 state,
-                exclude.targetRequirement!,
+                exclude().targetRequirement!,
                 {
                     playerId: "p2",
                     cardInstanceId: "counter-source",
@@ -403,7 +405,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
         // could play the card" is exactly such a clause. Conversion's is not:
         // its "All Mountains are Plains" (CR 305.7) must do nothing while the
         // spell is still on the stack.
-        const mountain = makeInstance(mountainCard.id, {
+        const mountain = makeInstance(mountainCard().id, {
             id: "mtn",
             controllerId: "p1",
             ownerId: "p1",
@@ -414,7 +416,7 @@ describe("Bestow — the layer pipeline applies to objects on the STACK (CR 613.
                 makePlayer("p2"),
             ],
         });
-        const spell = makeInstance(conversion.id, {
+        const spell = makeInstance(conversion().id, {
             id: "conversion-spell",
             controllerId: "p1",
             ownerId: "p1",
@@ -451,9 +453,9 @@ describe("Bestow — a pre-ADR-0084 stamped type line is re-seated at load (issu
             (c) => c.id === "nantuko"
         )!;
         // The base is the printed line again ...
-        expect(permanent.baseTypes).toEqual([...springheartNantuko.types]);
+        expect(permanent.baseTypes).toEqual([...springheartNantuko().types]);
         expect(permanent.baseSubtypes).toEqual([
-            ...(springheartNantuko.subtypes ?? []),
+            ...(springheartNantuko().subtypes ?? []),
         ]);
         // ... while the object, still bestowed, reads exactly as it did before.
         expect(permanent.types).toEqual(["Enchantment"]);
@@ -469,11 +471,11 @@ describe("Bestow — a pre-ADR-0084 stamped type line is re-seated at load (issu
             (c) => c.id === "nantuko"
         )!;
         expect(reverted.bestowed).toBeUndefined();
-        expect(reverted.types).toEqual([...springheartNantuko.types]);
+        expect(reverted.types).toEqual([...springheartNantuko().types]);
         expect(reverted.subtypes).toEqual([
-            ...(springheartNantuko.subtypes ?? []),
+            ...(springheartNantuko().subtypes ?? []),
         ]);
-        expect(reverted.power).toBe(springheartNantuko.power);
+        expect(reverted.power).toBe(springheartNantuko().power);
     });
 });
 
@@ -643,7 +645,7 @@ describe("Bestow — unattached reverts in place (CR 702.103f)", () => {
     it("CONTROL — an ordinary Aura with no host is still put into its owner's graveyard (CR 704.5m)", () => {
         // Unstable Mutation is a printed Aura, not a bestowed one. If the
         // bestow exception ever widened to every Aura, this goes red.
-        const aura = makeInstance(unstableMutation.id, {
+        const aura = makeInstance(unstableMutation().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -722,7 +724,7 @@ describe("Bestow — an illegal target resolves as a creature spell (CR 702.103e
 
     it("CONTROL — an ordinary Aura spell whose target left IS countered (CR 608.2b)", () => {
         const bear = makeInstance(BEARS, { id: "bear", controllerId: "p1" });
-        const aura = makeInstance(unstableMutation.id, {
+        const aura = makeInstance(unstableMutation().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -823,7 +825,7 @@ describe("Bestow — CR 400.7 zone-change reverts", () => {
         const { state } = boardWithHost();
         castBestowed(state, "host");
         // CR 701.5a — counter it while it is an Aura spell on the stack.
-        const bolt = makeInstance(counterspell.id, {
+        const bolt = makeInstance(counterspell().id, {
             id: "cs",
             controllerId: "p2",
             ownerId: "p2",

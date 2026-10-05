@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { KNIGHT_TOKEN } from "../../sharedTokens";
 
 // History of Benalia — {1}{W}{W} Enchantment — Saga (CR 714), the reference
@@ -26,7 +26,7 @@ import { KNIGHT_TOKEN } from "../../sharedTokens";
 // (CR 714.3c). Reminder text carries no rules meaning (CR 207.2) and the
 // catalogue's provenance convention is to ship Oracle text unedited — the
 // engine follows 714.3c regardless.
-export const historyOfBenalia: CardDefinition = {
+export const historyOfBenalia = defineCard(() => ({
     id: "d134385d-b01c-41c7-bb2d-30722b44dc5a",
     name: "History of Benalia",
     rarity: "mythic",
@@ -74,4 +74,4 @@ export const historyOfBenalia: CardDefinition = {
             ],
         },
     ],
-};
+}));

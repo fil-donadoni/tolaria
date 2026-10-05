@@ -80,13 +80,13 @@ function arenaBoard(
     funders: number,
     spell?: { cardId: string; pendingCast: PendingCast }
 ): GameState {
-    const arena = makeInstance(arenaOfGlory.id, {
+    const arena = makeInstance(arenaOfGlory().id, {
         id: "arena",
         controllerId: "p1",
         ownerId: "p1",
     });
     const lands = Array.from({ length: funders }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `mountain-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -241,7 +241,7 @@ describe("tapUntap pre-funds the CHOSEN option, not the first (CR 601.2g, issue 
 describe("auto-tap reaches the costed option for a CREATURE spell (CR 106.6, issue #3384)", () => {
     it("prefers it over the free option and the creature resolves with haste", async () => {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaBoard(1, castOf(grizzlyBears.id, 2))),
+            gameStateSeed(arenaBoard(1, castOf(grizzlyBears().id, 2))),
         ]);
 
         await runAutoTap(stub.ctx);
@@ -271,7 +271,7 @@ describe("auto-tap reaches the costed option for a CREATURE spell (CR 106.6, iss
 
     it("a NONCREATURE spell still takes the free option — no exert, no rider", async () => {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(arenaBoard(1, castOf(lightningBolt.id, 2))),
+            gameStateSeed(arenaBoard(1, castOf(lightningBolt().id, 2))),
         ]);
 
         await runAutoTap(stub.ctx);
@@ -292,7 +292,7 @@ describe("auto-tap reaches the costed option for a CREATURE spell (CR 106.6, iss
 // PLAN rather than about the option.
 describe("the plan refuses a costed option the payment would not reward", () => {
     it("a BESTOWED cast is an Aura spell, so the rider never fires (CR 702.103b)", async () => {
-        const spell = castOf(springheartNantuko.id, 2);
+        const spell = castOf(springheartNantuko().id, 2);
         spell.pendingCast.bestowed = true;
         const stub = makeMutationCtx("p1", [
             gameStateSeed(arenaBoard(1, spell)),
@@ -327,12 +327,12 @@ describe("the plan refuses a costed option the payment would not reward", () => 
         // `applyManaAbilityManaCost` will NOT see it — `getAbilityManaSubstitutions`
         // names no cast — so a plan that leant on it to fund Arena's "{R}" leg
         // would throw mid-execution and roll the whole mutation back.
-        const forest = makeInstance(forestCard.id, {
+        const forest = makeInstance(forestCard().id, {
             id: "forest-0",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const arena = makeInstance(arenaOfGlory.id, {
+        const arena = makeInstance(arenaOfGlory().id, {
             id: "arena",
             controllerId: "p1",
             ownerId: "p1",

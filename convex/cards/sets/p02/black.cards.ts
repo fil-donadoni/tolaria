@@ -16,9 +16,9 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/black.cards.ts`.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-export const ravenousRats: CardDefinition = {
+export const ravenousRats = defineCard(() => ({
     id: "8899244b-737a-43a9-9241-15a650b47bed", // P02 87
     rarity: "common",
     name: "Ravenous Rats",
@@ -57,4 +57,4 @@ export const ravenousRats: CardDefinition = {
             ],
         }),
     ],
-};
+}));

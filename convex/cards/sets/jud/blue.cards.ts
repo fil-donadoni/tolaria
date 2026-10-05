@@ -1,5 +1,5 @@
 // jud — blue cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Flash of Insight — {X}{1}{U} Instant. "Look at the top X cards of your
 // library. Put one of them into your hand and the rest on the bottom of your
@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../types";
 // (`additionalCosts.flashbackExileFromGraveyard`): it applies ONLY when the
 // spell is cast from the graveyard, exiles exactly chosenX blue cards from the
 // caster's own graveyard, and never the flashback card itself (CR 601.2a).
-export const flashOfInsight: CardDefinition = {
+export const flashOfInsight = defineCard(() => ({
     id: "ffaab905-0b97-42c2-a1a3-1e72275caa82", // JUD 40
     rarity: "uncommon",
     name: "Flash of Insight",
@@ -44,4 +44,4 @@ export const flashOfInsight: CardDefinition = {
     additionalCosts: {
         flashbackExileFromGraveyard: { color: "U" },
     },
-};
+}));

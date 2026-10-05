@@ -1,6 +1,6 @@
 // war — green cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../emblems";
 
@@ -52,7 +52,7 @@ import { NISSA_WHO_SHAKES_THE_WORLD_EMBLEM_ID } from "../../emblems";
 // compiler-gap: "Whenever you tap a Forest for mana, add an additional {G}." (#2693)
 // compiler-gap: "+1: Put three +1/+1 counters on up to one target noncreature land you control. Untap it. It becomes a 0/0 Elemental creature with vigilance and haste that's still a land." (#2693)
 // compiler-gap: "-8: You get an emblem with "Lands you control have indestructible." Search your library for any number of Forest cards, put them onto the battlefield tapped, then shuffle." (#2693)
-export const nissaWhoShakesTheWorld: CardDefinition = {
+export const nissaWhoShakesTheWorld = defineCard(() => ({
     id: "f857bbe4-5619-4733-a0c7-69700f2ef4f3",
     name: "Nissa, Who Shakes the World",
     rarity: "rare",
@@ -150,4 +150,4 @@ export const nissaWhoShakesTheWorld: CardDefinition = {
             ],
         },
     ],
-};
+}));

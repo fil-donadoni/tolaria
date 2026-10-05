@@ -91,8 +91,8 @@ describe("Mask of Intolerance — 'that player' is the player whose upkeep it is
         processPendingActionTriggers(state);
     }
 
-    const FOUR = [plains, island, swamp, mountain];
-    const THREE = [plains, island, swamp];
+    const FOUR = [plains(), island(), swamp(), mountain()];
+    const THREE = [plains(), island(), swamp()];
 
     it("deals 3 damage to the ACTIVE player when THEIR lands show four basic types", () => {
         withTemporaryDefinition(mask, () => {
@@ -117,7 +117,7 @@ describe("Mask of Intolerance — 'that player' is the player whose upkeep it is
 
     it("re-checks the domain on resolution and does nothing once it drops (CR 603.4)", () => {
         withTemporaryDefinition(mask, () => {
-            const state = board(THREE, [...THREE, forest]);
+            const state = board(THREE, [...THREE, forest()]);
             upkeepOf(state, "p2");
             expect(state.stack).toHaveLength(1);
             removePermanentTo(state, "p2-land-3", "graveyard");
@@ -135,13 +135,13 @@ describe("Squee's Embrace — 'that card' is the host in its owner's graveyard (
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "host",
                             controllerId: "p1",
                             ownerId: "p1",
                             ...(hostIsToken ? { isToken: true } : {}),
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "bystander",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -163,7 +163,7 @@ describe("Squee's Embrace — 'that card' is the host in its owner's graveyard (
      *  scanned as the resolution ends (`resolveTopOfStack`), the path the
      *  hand-written Creature Bond is tested through. */
     function killWithTerror(state: GameState, id: string): void {
-        pushSpell(state, terror.id, "p2", [{ type: "permanent", id }]);
+        pushSpell(state, terror().id, "p2", [{ type: "permanent", id }]);
         resolveTopOfStack(state);
     }
 

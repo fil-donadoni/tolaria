@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -24,7 +24,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //       new `addSubtype` Op / `SpellContext.addSubtype` primitive.
 // The fixed `{E}{E}{E}` pay + reflexive "When you do" is `mayPay` (cost.energy,
 // issue #1194's third leg) + `if $paid`.
-export const guideOfSouls: CardDefinition = {
+export const guideOfSouls = defineCard(() => ({
     id: "76c3cad2-1e25-4abe-878d-9194de6fcc27",
     rarity: "rare",
     name: "Guide of Souls",
@@ -104,7 +104,7 @@ export const guideOfSouls: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 const PHELIA_ID = "55707746-da6e-46e5-a5ca-7ac843fdc38e";
 
@@ -149,7 +149,7 @@ const PHELIA_ID = "55707746-da6e-46e5-a5ca-7ac843fdc38e";
 // passes an explicit `controllerId` override to `returnToBattlefield` (a
 // "steal" flicker) still branches correctly, because the check reads
 // control AFTER the return, not ownership captured before it.
-export const phelia: CardDefinition = {
+export const phelia = defineCard(() => ({
     id: PHELIA_ID,
     name: "Phelia, Exuberant Shepherd",
     rarity: "rare",
@@ -245,7 +245,7 @@ export const phelia: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ocelot Pride — {W} Creature — Cat, 1/1 (MH3, issue #1461).
@@ -295,7 +295,7 @@ export const phelia: CardDefinition = {
 // No `resolve()` anywhere: the whole card is an Effect Script (ADR 0045).
 export const OCELOT_PRIDE_ID = "89cf6f57-230f-497e-a14e-ad1e8737fd42";
 
-export const ocelotPride: CardDefinition = {
+export const ocelotPride = defineCard(() => ({
     id: OCELOT_PRIDE_ID,
     name: "Ocelot Pride",
     rarity: "mythic",
@@ -368,4 +368,4 @@ export const ocelotPride: CardDefinition = {
             ],
         }),
     ],
-};
+}));

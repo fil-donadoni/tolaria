@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Blastoderm — "Shroud (This creature can't be the target of spells or
@@ -23,7 +23,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // generically from the bare keyword string, so the static effect above and
 // the keyword string agree redundantly rather than the string being inert
 // decoration.
-export const blastoderm: CardDefinition = {
+export const blastoderm = defineCard(() => ({
     id: "9db5d6c2-b11f-442a-b172-c0c99c9bec07",
     rarity: "common",
     name: "Blastoderm",
@@ -43,7 +43,7 @@ export const blastoderm: CardDefinition = {
             applies: (target, source) => target.id === source.id,
         },
     ],
-};
+}));
 
 // Deep Forest Hermit — "Vanishing 3 (…) When this creature enters, create four
 // 1/1 green Squirrel creature tokens. Squirrels you control get +1/+1."
@@ -60,7 +60,7 @@ export const blastoderm: CardDefinition = {
 // four tokens (and any other Squirrels the controller owns) but not the Hermit
 // itself, an Elf Druid.
 const DEEP_FOREST_HERMIT_ID = "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8";
-export const deepForestHermit: CardDefinition = {
+export const deepForestHermit = defineCard(() => ({
     id: DEEP_FOREST_HERMIT_ID,
     rarity: "rare",
     name: "Deep Forest Hermit",
@@ -107,4 +107,4 @@ export const deepForestHermit: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));

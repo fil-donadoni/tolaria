@@ -3,7 +3,7 @@
 // soi/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { investigateOp } from "../../abilities/tokens/clueToken";
 
@@ -13,7 +13,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 // Investigate — Cube FREE wave 3, issue #1531/#1525.) Fully free: exactly the
 // Tireless Tracker precedent (`sets/soi/green.cards.ts`) — `investigateOp()` is a
 // `createToken` Op with the shared `CLUE_TOKEN_SPEC`, no new capability.
-export const thrabenInspector: CardDefinition = {
+export const thrabenInspector = defineCard(() => ({
     id: "d140c3b7-ca78-483d-baeb-307b624fea8b",
     rarity: "common",
     name: "Thraben Inspector",
@@ -32,6 +32,6 @@ export const thrabenInspector: CardDefinition = {
             effects: [investigateOp()],
         }),
     ],
-};
+}));
 
 export {};

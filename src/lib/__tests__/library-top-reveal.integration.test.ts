@@ -123,7 +123,7 @@ function spyBoard(libraryIds: string[], withSpy = true): GameState {
             makePlayer("p1", {
                 battlefield: withSpy
                     ? [
-                          makeInstance(goblinSpy.id, {
+                          makeInstance(goblinSpy().id, {
                               controllerId: "p1",
                               ownerId: "p1",
                               id: "spy",
@@ -146,14 +146,14 @@ function spyBoard(libraryIds: string[], withSpy = true): GameState {
 
 describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () => {
     it("renders the revealed top card face-up — and every other slot as a BACK — on BOTH seats' pile", async () => {
-        const state = spyBoard([mountain.id, forest.id, island.id]);
+        const state = spyBoard([mountain().id, forest().id, island().id]);
 
         // The whole rendered pile, for each seat: exactly one face-up slot at
         // the top, two backs below it. Asserting the FULL pile (not just index
         // 0) is what proves the reveal does not leak the rest of the library
         // into the UI.
         const expected: [string | null, boolean][] = [
-            [mountain.id, true],
+            [mountain().id, true],
             [null, false],
             [null, false],
         ];
@@ -168,32 +168,32 @@ describe("continuous library-top reveal end-to-end (CR 401.5, issue #1095)", () 
     });
 
     it("renders a card BACK when no Goblin Spy is on the battlefield", async () => {
-        const state = spyBoard([mountain.id, forest.id], false);
+        const state = spyBoard([mountain().id, forest().id], false);
         await expect(renderedTopFor(state, "p1", "p1")).resolves.toBeNull();
         await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
     });
 
     it("renders the NEW top card after a draw, on both seats (CR 401.6)", async () => {
-        const state = spyBoard([mountain.id, forest.id, island.id]);
+        const state = spyBoard([mountain().id, forest().id, island().id]);
         drawCard(state.players[0]);
         await expect(renderedTopFor(state, "p1", "p1")).resolves.toBe(
-            forest.id
+            forest().id
         );
         await expect(renderedTopFor(state, "p2", "p1")).resolves.toBe(
-            forest.id
+            forest().id
         );
     });
 
     it("renders a card back again once the Spy leaves the battlefield (CR 604.2)", async () => {
-        const state = spyBoard([mountain.id, forest.id]);
+        const state = spyBoard([mountain().id, forest().id]);
         state.players[0].battlefield = [];
         await expect(renderedTopFor(state, "p2", "p1")).resolves.toBeNull();
     });
 
     it('never renders the opponent\'s library top — the reveal is scoped to "your library"', async () => {
-        const state = spyBoard([mountain.id, forest.id]);
+        const state = spyBoard([mountain().id, forest().id]);
         state.players[1].library = [
-            makeInstance(island.id, {
+            makeInstance(island().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 id: "p2-lib-0",

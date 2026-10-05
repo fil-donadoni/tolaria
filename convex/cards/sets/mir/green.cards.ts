@@ -1,7 +1,7 @@
 // mir — green cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition, Color, ManaCost } from "../../types";
+import { defineCard, type Color, type ManaCost } from "../../types";
 
 // Quirion Elves — {1}{G} Creature — Elf Druid, 1/1. "As this creature
 // enters, choose a color.\n{T}: Add {G}.\n{T}: Add one mana of the chosen
@@ -65,7 +65,7 @@ const QUIRION_ELVES_COLOR_MANA: Record<Color, ManaCost> = {
     C: { G: 1 },
 };
 
-export const quirionElves: CardDefinition = {
+export const quirionElves = defineCard(() => ({
     id: "be9a64fb-1e8d-4ed8-b4c5-3d44db9c1d3b",
     name: "Quirion Elves",
     rarity: "common",
@@ -121,4 +121,4 @@ export const quirionElves: CardDefinition = {
             ],
         },
     ],
-};
+}));

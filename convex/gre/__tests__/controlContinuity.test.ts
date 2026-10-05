@@ -86,13 +86,13 @@ describe("control-continuity ledger maintenance", () => {
     });
 
     it("applyControlChange records the break for BOTH controllers", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: "p1",
             ownerId: "p1",
         });
         bears.enteredOnTurn = 1;
-        const magic = makeInstance(controlMagic.id, {
+        const magic = makeInstance(controlMagic().id, {
             id: "magic",
             controllerId: "p2",
             ownerId: "p2",
@@ -115,13 +115,13 @@ describe("control-continuity ledger maintenance", () => {
     });
 
     it("revertControlChange also records the break — a round trip within one turn is NOT continuous control", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: "p1",
             ownerId: "p1",
         });
         bears.enteredOnTurn = 1;
-        const magic = makeInstance(controlMagic.id, {
+        const magic = makeInstance(controlMagic().id, {
             id: "magic",
             controllerId: "p2",
             ownerId: "p2",
@@ -167,7 +167,7 @@ describe("control-continuity ledger maintenance", () => {
 
 describe("creatureAttackedThisTurn (CR 506.3 / 506.4, issue #1944)", () => {
     function combatState() {
-        const attacker = makeInstance(grizzlyBears.id, {
+        const attacker = makeInstance(grizzlyBears().id, {
             id: "attacker",
             controllerId: "p1",
             ownerId: "p1",

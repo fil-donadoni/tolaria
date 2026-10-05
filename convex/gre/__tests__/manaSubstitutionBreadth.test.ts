@@ -44,7 +44,7 @@ const NORTH_STAR_ABILITY = "north-star-any-type-mana";
 /** North Star on p1's battlefield, untapped and not summoning-sick. */
 function stateWithNorthStar(): GameState {
     const state = makeState();
-    const artifact = makeInstance(northStar.id, {
+    const artifact = makeInstance(northStar().id, {
         id: "north-star-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -244,7 +244,7 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
     function armedWithBoltInHand(pool: Record<string, number>): GameState {
         const state = stateWithNorthStar();
         state.players[0].hand.push(
-            makeInstance(lightningBolt.id, {
+            makeInstance(lightningBolt().id, {
                 id: "bolt-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -262,7 +262,7 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
             state,
             state.players[0],
             { R: 1 },
-            lightningBolt,
+            lightningBolt(),
             "bolt-1"
         );
         expect(hasSpellManaSubstitutionGrant(state, "p1")).toBe(true);
@@ -274,7 +274,7 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
             state,
             state.players[0],
             { R: 1 },
-            lightningBolt,
+            lightningBolt(),
             "bolt-1"
         );
         expect(hasSpellManaSubstitutionGrant(state, "p1")).toBe(false);
@@ -288,7 +288,7 @@ describe("settleSpellManaSubstitutionGrant — spent only when it did the work",
             state,
             state.players[0],
             { R: 1, X: 2 },
-            lightningBolt,
+            lightningBolt(),
             "bolt-1"
         );
         expect(hasSpellManaSubstitutionGrant(state, "p1")).toBe(true);
@@ -307,7 +307,7 @@ describe("auto-tap reaches the grant through getManaSubstitutions (CR 605.1a)", 
             })
         );
         state.players[0].hand.push(
-            makeInstance(lightningBolt.id, {
+            makeInstance(lightningBolt().id, {
                 id: "bolt-1",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -326,7 +326,7 @@ describe("auto-tap reaches the grant through getManaSubstitutions (CR 605.1a)", 
                 state,
                 state.players[0],
                 "bolt-1",
-                lightningBolt,
+                lightningBolt(),
                 { R: 1 }
             );
 

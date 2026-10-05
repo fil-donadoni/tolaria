@@ -9,11 +9,16 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
+import {
+    defineCard,
+    type CardDefinition,
+    type SpellContext,
+    type TokenSpec,
+} from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
-export const vodalianSoldiers: CardDefinition = {
+export const vodalianSoldiers = defineCard(() => ({
     id: "7eb50256-9113-4b03-bcef-9aea24be8493", // FEM 31a (canonical art)
     rarity: "common",
     name: "Vodalian Soldiers",
@@ -23,7 +28,7 @@ export const vodalianSoldiers: CardDefinition = {
     subtypes: ["Merfolk", "Soldier"],
     power: 1,
     toughness: 2,
-};
+}));
 
 // No `imagePrintId` — Scryfall has no printed Camarid token for Homarid
 // Spawning Bed (`all_parts` is empty), so this stays a placeholder-rendered
@@ -93,7 +98,7 @@ function tideSheddingTrigger(id: string) {
     });
 }
 
-export const homarid: CardDefinition = {
+export const homarid = defineCard(() => ({
     id: "d6ffeab4-83b1-4414-ae72-e59a2354ea15", // FEM 19a (canonical art)
     rarity: "common",
     name: "Homarid",
@@ -125,9 +130,9 @@ export const homarid: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
-export const tidalInfluence: CardDefinition = {
+export const tidalInfluence = defineCard(() => ({
     id: "b2192c7b-ef6f-4ff6-9017-b1a125340517", // FEM 28
     rarity: "rare",
     name: "Tidal Influence",
@@ -159,9 +164,9 @@ export const tidalInfluence: CardDefinition = {
             toughness: 0,
         },
     ],
-};
+}));
 
-export const homaridWarrior: CardDefinition = {
+export const homaridWarrior = defineCard(() => ({
     id: "627ca588-917f-4768-a69d-3d93c1210390", // FEM 22a (canonical art)
     rarity: "common",
     name: "Homarid Warrior",
@@ -195,9 +200,9 @@ export const homaridWarrior: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const homaridSpawningBed: CardDefinition = {
+export const homaridSpawningBed = defineCard(() => ({
     id: "2cbb62fc-3cd9-41a6-804a-4ff9a766897f", // FEM 21
     rarity: "uncommon",
     name: "Homarid Spawning Bed",
@@ -232,9 +237,9 @@ export const homaridSpawningBed: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const deepSpawn: CardDefinition = {
+export const deepSpawn = defineCard(() => ({
     id: "69c9e4a5-735f-471c-ab1a-6e6d50ba5724", // FEM 17
     rarity: "rare",
     name: "Deep Spawn",
@@ -317,9 +322,9 @@ export const deepSpawn: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const highTide: CardDefinition = {
+export const highTide = defineCard(() => ({
     id: "4686bbb9-517f-4cce-aa7a-5db41e22c02b", // FEM 18a (canonical art)
     rarity: "common",
     name: "High Tide",
@@ -330,9 +335,9 @@ export const highTide: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         ctx.addHighTide(ctx.controller);
     },
-};
+}));
 
-export const riverMerfolk: CardDefinition = {
+export const riverMerfolk = defineCard(() => ({
     id: "27d7fa54-4b89-4a9a-b088-4b89c525c1ea", // FEM 24
     rarity: "common",
     name: "River Merfolk",
@@ -361,9 +366,9 @@ export const riverMerfolk: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const vodalianMage: CardDefinition = {
+export const vodalianMage = defineCard(() => ({
     id: "c107e82b-134a-4f2b-98c2-6537fae6a50d", // FEM 30a (canonical art)
     rarity: "common",
     name: "Vodalian Mage",
@@ -400,9 +405,9 @@ export const vodalianMage: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const vodalianKnights: CardDefinition = {
+export const vodalianKnights = defineCard(() => ({
     id: "68d97e1b-2526-4740-b354-f158734d1f72", // FEM 29
     rarity: "uncommon",
     name: "Vodalian Knights",
@@ -459,9 +464,9 @@ export const vodalianKnights: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const vodalianWarMachine: CardDefinition = {
+export const vodalianWarMachine = defineCard(() => ({
     id: "cd962ff0-4aa6-453e-931e-bd36fc034273", // FEM 32
     rarity: "rare",
     name: "Vodalian War Machine",
@@ -531,9 +536,9 @@ export const vodalianWarMachine: CardDefinition = {
     // criterion) is fully implemented above; the death-destroy rider is
     // deferred and flagged rather than silently dropped (tracked #974; the
     // originally-cited #571 is closed).
-};
+}));
 
-export const seasinger: CardDefinition = {
+export const seasinger = defineCard(() => ({
     id: "c5266aa1-e2ea-46b9-91ab-b94a7bb7e9f9", // FEM 25
     rarity: "uncommon",
     name: "Seasinger",
@@ -602,9 +607,9 @@ export const seasinger: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const merseine: CardDefinition = {
+export const merseine = defineCard(() => ({
     id: "b1e96895-ef1d-44fa-b263-bce833fc3109", // FEM 23a (canonical art)
     rarity: "common",
     name: "Merseine",
@@ -669,9 +674,9 @@ export const merseine: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const tidalFlats: CardDefinition = {
+export const tidalFlats = defineCard(() => ({
     id: "2e820f3f-434e-4d09-91b9-0ebd6966b393", // FEM 27a (canonical art)
     rarity: "common",
     name: "Tidal Flats",
@@ -734,4 +739,4 @@ export const tidalFlats: CardDefinition = {
             },
         },
     ],
-};
+}));

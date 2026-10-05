@@ -14,18 +14,20 @@
 // points at a not-yet-implemented LEA stub is uncommented once that LEA def
 // lands.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeCircleOfProtection } from "../../abilities";
 
 // Circle of Protection: Black — Beta-original (no Alpha printing). Completes
 // the CoP cycle; same factory as the LEA CoPs (CR 615). Single printing, so
 // the def id is its own LEB Scryfall id — no separate CardPrint needed.
-export const circleOfProtectionBlack: CardDefinition = makeCircleOfProtection({
-    id: "fa47b4cd-8da4-4544-b011-ba92b7009203",
-    rarity: "common", // matches the LEA Circle of Protection cycle
-    name: "Circle of Protection: Black",
-    oracleText:
-        "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
-    color: "B",
-    colorWord: "Black",
-});
+export const circleOfProtectionBlack = defineCard(() =>
+    makeCircleOfProtection({
+        id: "fa47b4cd-8da4-4544-b011-ba92b7009203",
+        rarity: "common", // matches the LEA Circle of Protection cycle
+        name: "Circle of Protection: Black",
+        oracleText:
+            "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
+        color: "B",
+        colorWord: "Black",
+    })
+);

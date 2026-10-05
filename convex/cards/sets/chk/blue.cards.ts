@@ -1,7 +1,7 @@
 // chk — blue cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Honden of Seeing Winds — "At the beginning of your upkeep, draw a card for
@@ -13,7 +13,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Op's count (CR 121.1). `scope: "your"` makes the trigger's controller the
 // upkeep player, so the script's `player: "controller"` is exactly "you"
 // (CR 603.6a).
-export const hondenOfSeeingWinds: CardDefinition = {
+export const hondenOfSeeingWinds = defineCard(() => ({
     id: "ad732186-eeb9-4edb-a17a-51f8bac71802",
     rarity: "uncommon",
     name: "Honden of Seeing Winds",
@@ -45,4 +45,4 @@ export const hondenOfSeeingWinds: CardDefinition = {
             ],
         }),
     ],
-};
+}));

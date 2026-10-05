@@ -59,7 +59,7 @@ import { lurrus } from "../../cards/sets/iko/multicolor.cards";
 function withLurrusOnBattlefield(
     overrides: Parameters<typeof makePlayer>[1] = {}
 ) {
-    const onBattlefield = makeInstance(lurrus.id, {
+    const onBattlefield = makeInstance(lurrus().id, {
         id: "lurrus-p1",
         controllerId: "p1",
         ownerId: "p1",
@@ -74,7 +74,7 @@ function withLurrusOnBattlefield(
 describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€” Lurrus)", () => {
     describe("permission lookup (convex/gre/rules.ts)", () => {
         it("is false with no graveyard play permission grantor on the battlefield", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -96,7 +96,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
         it("is true for a PERMANENT card at or under the grantor's maxManaValue while Lurrus is on the battlefield", () => {
             // Savannah Lions is MV 1.
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -118,7 +118,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
         it("is false for a PERMANENT card above the grantor's maxManaValue", () => {
             // Serra Angel is well above mana value 2.
-            const gyAngel = makeInstance(serraAngel.id, {
+            const gyAngel = makeInstance(serraAngel().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -139,7 +139,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("is false for a LAND (never a castable permanent, CR 305.1)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -160,7 +160,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("is false for a non-permanent (Instant/Sorcery, CR 300.1) even at mana value <= 2", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -181,7 +181,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("is false once the once-per-turn use has already been spent", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -205,7 +205,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("the opponent's own use tracking doesn't block the other player", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -229,7 +229,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("ends the instant Lurrus leaves the battlefield â€” no stale flag", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -267,7 +267,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         // `hasInstantSpeed` keys off `card.staticAbilities`, not a real
         // printed Flash card.
         function flashLionInGraveyard(id = "gy-flash-lions") {
-            return makeInstance(savannahLions.id, {
+            return makeInstance(savannahLions().id, {
                 id,
                 zone: "graveyard",
                 controllerId: "p1",
@@ -399,7 +399,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
     describe("markGraveyardPlayPermissionUsed (ADR 0093 â€” keyed by source)", () => {
         const lurrusPermission = {
-            ...lurrus.graveyardPlayPermission!,
+            ...lurrus().graveyardPlayPermission!,
             sourceId: "lurrus-p1",
         };
 
@@ -434,7 +434,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
     describe("cast affordance (getLegalActions)", () => {
         it('an eligible PERMANENT in the OWN graveyard HAS the "cast" action while Lurrus is on the battlefield', () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -457,7 +457,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it('does NOT offer "cast" without a grantor on the battlefield', () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -474,7 +474,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it('does NOT offer "cast" for a permanent above mana value 2', () => {
-            const gyAngel = makeInstance(serraAngel.id, {
+            const gyAngel = makeInstance(serraAngel().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -491,7 +491,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it('does NOT offer "cast" for an instant even while Lurrus is on the battlefield', () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -510,7 +510,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
     describe("cast-commit seam (game.ts) â€” pays the normal printed mana cost", () => {
         it("locateCastSource routes an eligible card to the graveyard zone carrying the selected permission, at its printed cost", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -537,7 +537,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("graveyardCastStackFlags marks castFromGraveyard only â€” NOT exileOnResolve or escaped", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
             });
             const state = makeState({
@@ -553,7 +553,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("casts Savannah Lions from the graveyard via Lurrus's permission, resolves onto the battlefield, and debits the once-per-turn use", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -609,7 +609,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
             // The once-per-turn cap now blocks a second eligible card this
             // turn, even with Lurrus (now on a fresh battlefield instance)
             // still present.
-            const secondLions = makeInstance(savannahLions.id, {
+            const secondLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -638,7 +638,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("the once-per-turn use is available again after CLEANUP resets it", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -666,7 +666,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
 
     describe("frontend wiring â€” projectPublicState tags the affordance", () => {
         it('attaches legalActions + castKind: "graveyard-permission" to the viewer\'s OWN eligible graveyard permanent', () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -691,7 +691,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("does NOT tag the OPPONENT's view of the same card", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -716,7 +716,7 @@ describe("Static graveyard-permanent-cast permission (CR 702.139, issue #1392 â€
         });
 
         it("does NOT tag the card at all without a grantor on the battlefield", () => {
-            const gyLions = makeInstance(savannahLions.id, {
+            const gyLions = makeInstance(savannahLions().id, {
                 id: "gy-lions",
                 zone: "graveyard",
                 controllerId: "p1",

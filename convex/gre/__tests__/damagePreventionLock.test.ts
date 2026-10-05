@@ -37,7 +37,7 @@ import { compactState, expandState } from "../serialize";
  *  up (Stomp resolved earlier this turn). `setup` seeds whatever prevention
  *  effect the case is about. */
 function lockedGame(setup: (state: GameState) => void = () => {}): GameState {
-    const bear = makeInstance(crawWurm.id, {
+    const bear = makeInstance(crawWurm().id, {
         id: "bear",
         controllerId: "p2",
         ownerId: "p2",
@@ -55,7 +55,7 @@ function castBolt(
     state: GameState,
     target: { type: "permanent" | "player"; id: string }
 ): void {
-    pushSpell(state, lightningBolt.id, "p1", [target]);
+    pushSpell(state, lightningBolt().id, "p1", [target]);
     resolveTopOfStack(state);
 }
 
@@ -235,7 +235,7 @@ describe("game-scoped damage lock — the four sinks (CR 615.12)", () => {
 
 /** p1's 6/4 attacking UNBLOCKED into p2, the shape Forcefield caps. */
 function unblockedBoard(setup: (state: GameState) => void): GameState {
-    const atk = makeInstance(crawWurm.id, {
+    const atk = makeInstance(crawWurm().id, {
         id: "atk",
         controllerId: "p1",
         ownerId: "p1",
@@ -259,13 +259,13 @@ function unblockedBoard(setup: (state: GameState) => void): GameState {
 /** An attacker for p1 blocked by a p2 creature, ready for a combat-damage
  *  step. `setup` arms whatever this case is about. */
 function combatBoard(setup: (state: GameState) => void): GameState {
-    const atk = makeInstance(crawWurm.id, {
+    const atk = makeInstance(crawWurm().id, {
         id: "atk",
         controllerId: "p1",
         ownerId: "p1",
         isAttacking: true,
     });
-    const blocker = makeInstance(crawWurm.id, {
+    const blocker = makeInstance(crawWurm().id, {
         id: "blocker",
         controllerId: "p2",
         ownerId: "p2",
@@ -303,7 +303,7 @@ describe("game-scoped damage lock — what it deliberately does NOT do", () => {
         // Stomp's must not.
         const state = lockedGame((s) => {
             s.players[1].battlefield.push(
-                makeInstance(harshJudgment.id, {
+                makeInstance(harshJudgment().id, {
                     id: "hj",
                     controllerId: "p2",
                     ownerId: "p2",

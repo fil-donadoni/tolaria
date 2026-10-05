@@ -111,7 +111,7 @@ describe("Exalted keyword expansion (CR 702.83)", () => {
 
     it("pumps the lone attacker +1/+1 until end of turn, surviving the wire", () => {
         // Noble Hierarch (exalted) + a lone Grizzly Bears (2/2) attacking alone.
-        const hierarch = makeInstance(nobleHierarch.id, {
+        const hierarch = makeInstance(nobleHierarch().id, {
             id: "hierarch",
             controllerId: "p1",
             ownerId: "p1",
@@ -426,7 +426,7 @@ describe("Battle cry keyword expansion (CR 702.91)", () => {
 
 describe("Hierarch definitions carry the exalted keyword (issue #699)", () => {
     it("Noble Hierarch is a green 0/1 with exalted + a colour-choice mana ability", () => {
-        const def = getDefinition(nobleHierarch.id);
+        const def = getDefinition(nobleHierarch().id);
         expect(def.staticAbilities).toContain("exalted");
         expect(def.power).toBe(0);
         expect(def.toughness).toBe(1);

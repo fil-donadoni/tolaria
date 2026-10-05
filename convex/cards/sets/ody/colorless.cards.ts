@@ -1,12 +1,12 @@
 // ody — colorless cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Barbarian Ring — "{T}: Add {R}. Barbarian Ring deals 1 damage to you.
 // Threshold — {R}, {T}, Sacrifice Barbarian Ring: It deals 2 damage to any
 // target. Activate only if seven or more cards are in your graveyard."
 // Premodern Burn staple (PRD #979, issue #992).
-export const barbarianRing: CardDefinition = {
+export const barbarianRing = defineCard(() => ({
     id: "1809361e-ae1a-4c47-8464-e6496e94d962",
     name: "Barbarian Ring",
     rarity: "uncommon",
@@ -41,7 +41,7 @@ export const barbarianRing: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Cephalid Coliseum — "{T}: Add {U}. This land deals 1 damage to you.
 // Threshold — {U}, {T}, Sacrifice this land: Target player draws three cards,
@@ -62,7 +62,7 @@ export const barbarianRing: CardDefinition = {
 // events — a player who draws into a full hand still discards three of it.
 //
 // compiler-gap: "Threshold — {U}, {T}, Sacrifice this land: Target player draws three cards, then discards three cards. Activate only if there are seven or more cards in your graveyard." (#2693)
-export const cephalidColiseum: CardDefinition = {
+export const cephalidColiseum = defineCard(() => ({
     id: "d5d74112-7244-4c3f-a5eb-b6be671aefe8",
     name: "Cephalid Coliseum",
     rarity: "uncommon",
@@ -119,4 +119,4 @@ export const cephalidColiseum: CardDefinition = {
             ],
         },
     ],
-};
+}));

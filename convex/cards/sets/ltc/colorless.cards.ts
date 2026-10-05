@@ -2,14 +2,14 @@
 // mana cost, split by colour per ADR 0043. The registry's
 // `import * as ltc from "./sets/ltc/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004); generic mana is `X: n`.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Relic of Sauron — {4} Artifact. A Grixis mana rock with a card-advantage
 // outlet (CR 605.1a mana ability resolves immediately; CR 605 activated
 // draw-then-discard goes on the stack and uses stepped resolution so the
 // irreversible two-card draw is not re-run when the discard choice suspends,
 // CR 608.2).
-export const relicOfSauron: CardDefinition = {
+export const relicOfSauron = defineCard(() => ({
     id: "175b3d28-5c74-4972-9b5c-5e39762c78f4",
     name: "Relic of Sauron",
     rarity: "rare",
@@ -63,4 +63,4 @@ export const relicOfSauron: CardDefinition = {
             ],
         },
     ],
-};
+}));

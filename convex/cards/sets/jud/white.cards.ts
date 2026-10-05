@@ -1,5 +1,5 @@
 // jud — white cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { upkeepDiscardOrElseTrigger } from "../../abilities/upkeepDiscardOrElse";
 
 // Ray of Revelation — {1}{W} Instant. "Destroy target enchantment." with
@@ -9,7 +9,7 @@ import { upkeepDiscardOrElseTrigger } from "../../abilities/upkeepDiscardOrElse"
 // (convex/gre/flashback.ts); the `flashback` field carries the alternative
 // (off-colour green) cost so the ray can be cast twice, once from hand and
 // once from the graveyard. Mirrors ody/red.cards.ts Firebolt's flashback shape.
-export const rayOfRevelation: CardDefinition = {
+export const rayOfRevelation = defineCard(() => ({
     id: "6d762c8c-6172-4dc0-8fcc-d0f6dd8ca013",
     rarity: "common",
     name: "Ray of Revelation",
@@ -19,7 +19,7 @@ export const rayOfRevelation: CardDefinition = {
     flashback: { G: 1 },
     targetRequirement: { type: "Enchantment", count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Solitary Confinement (issue #1130, parent PRD #1058) — {2}{W} Enchantment.
 // Four clauses, each composed from an already-shipped primitive — no new
@@ -45,7 +45,7 @@ export const rayOfRevelation: CardDefinition = {
 //      inv/white.cards.ts, ice/white.cards.ts): `appliesTo` filters the event to a
 //      player-target matching `self.controllerId`; `replace` consumes it
 //      (CR 615 — the damage is never dealt).
-export const solitaryConfinement: CardDefinition = {
+export const solitaryConfinement = defineCard(() => ({
     id: "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386",
     rarity: "rare",
     name: "Solitary Confinement",
@@ -83,4 +83,4 @@ export const solitaryConfinement: CardDefinition = {
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));

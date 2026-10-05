@@ -2,7 +2,7 @@
 // `import * as mbs from "./sets/mbs/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { shuffleFromAnywhereReplacement } from "../../abilities/shuffleFromAnywhereReplacement";
 
 const BLIGHTSTEEL_COLOSSUS_ID = "7928bb14-7631-4830-a756-26d1ea832ba2";
@@ -29,7 +29,7 @@ const BLIGHTSTEEL_COLOSSUS_ID = "7928bb14-7631-4830-a756-26d1ea832ba2";
 // graveyard from anywhere...", no "would"/"instead") is a genuine CR 603
 // trigger, not a replacement — verified against Scryfall's current oracle
 // text.
-export const blightsteelColossus: CardDefinition = {
+export const blightsteelColossus = defineCard(() => ({
     id: BLIGHTSTEEL_COLOSSUS_ID,
     rarity: "mythic",
     name: "Blightsteel Colossus",
@@ -48,4 +48,4 @@ export const blightsteelColossus: CardDefinition = {
                 "If Blightsteel Colossus would be put into a graveyard from anywhere, reveal Blightsteel Colossus and shuffle it into its owner's library instead.",
         }),
     ],
-};
+}));

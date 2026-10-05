@@ -41,7 +41,7 @@ function registerScript(id: string, effects: EffectOp[]): string {
 
 function library(owner: string, n: number) {
     return Array.from({ length: n }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `${owner}-lib-${i}`,
             controllerId: owner,
             ownerId: owner,
@@ -183,7 +183,7 @@ describe("Effect Script Op: coinFlipSeries (CR 705, issue #3813)", () => {
 describe("Squee's Revenge — the series payoff (CR 705.2, issue #3813)", () => {
     function castAndChoose(seed: number, amount: number): GameState {
         const state = stateWithSeed(seed);
-        pushSpell(state, squeesRevenge.id, "p1");
+        pushSpell(state, squeesRevenge().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices![0].kind).toBe("number-pick");
         applyNumberChoiceSubmit(state, { playerId: "p1", amount });
@@ -230,7 +230,7 @@ describe("coinFlipSeries validation (ADR 0144)", () => {
         });
 
     it("accepts the shipped card", () => {
-        expect(validateEffectScript(squeesRevenge)).toEqual([]);
+        expect(validateEffectScript(squeesRevenge())).toEqual([]);
     });
 
     it("rejects a series with neither a count nor untilLoss — it has no end", () => {

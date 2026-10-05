@@ -1,5 +1,5 @@
 // dka — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Faithless Looting — {R} Sorcery. "Draw two cards, then discard two cards."
 // with Flashback {2}{R} (CR 702.34 — cast from the graveyard for the flashback
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // any free card; the `flashback` field carries the alternative cost. The
 // discard pick is a `choose-hand-card` choice, the encoding the other looters
 // and the Oracle compiler's loot sentence share (issue #4126).
-export const faithlessLooting: CardDefinition = {
+export const faithlessLooting = defineCard(() => ({
     id: "a1b0da17-d595-441d-811c-a2d28d2bb232",
     rarity: "common",
     name: "Faithless Looting",
@@ -32,4 +32,4 @@ export const faithlessLooting: CardDefinition = {
         },
         { op: "discard", player: "controller", cards: { ref: "$discards" } },
     ],
-};
+}));

@@ -516,13 +516,13 @@ function registered(card: OracleCard, id: string): CardDefinition {
  * half, which is the one that reds when the host scope widens to a set.
  */
 function enchantBear(auraDef: CardDefinition, bearController = "p1") {
-    const bear = makeInstance(grizzlyBears.id, {
+    const bear = makeInstance(grizzlyBears().id, {
         id: "bear",
         controllerId: bearController,
         ownerId: bearController,
         isSummoningSick: false,
     });
-    const bystander = makeInstance(grizzlyBears.id, {
+    const bystander = makeInstance(grizzlyBears().id, {
         id: "bystander",
         controllerId: "p1",
         ownerId: "p1",
@@ -613,7 +613,7 @@ describe("Aura statics in the real engine (CR 303.4b)", () => {
             expect(validateAttackerEligibility(other, [], state)).toEqual({
                 eligible: true,
             });
-            const attacker = makeInstance(grizzlyBears.id, {
+            const attacker = makeInstance(grizzlyBears().id, {
                 id: "attacker",
                 controllerId: "p2",
                 ownerId: "p2",

@@ -428,7 +428,7 @@ describe("SpellContext.dealDamage — infect/wither non-combat damage", () => {
 
     it("infect source deals non-combat damage to a creature as -1/-1 counters", () => {
         const { state, item } = withSource(["infect"]);
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -450,7 +450,7 @@ describe("SpellContext.dealDamage — infect/wither non-combat damage", () => {
 
     it("wither source deals non-combat damage to a creature as -1/-1 counters", () => {
         const { state, item } = withSource(["wither"]);
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -577,7 +577,7 @@ describe("permanent-source damage sinks — infect and wither (CR 702.90b/c, CR 
 
     it("dealDamageFromPermanent — a wither PERMANENT damages a creature as -1/-1 counters", () => {
         const { state, item } = boardWith(["wither"]);
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -605,7 +605,7 @@ describe("permanent-source damage sinks — infect and wither (CR 702.90b/c, CR 
     // CR 701.14 — the fight itself; the counters leg is CR 702.80a wither.
     it("resolveFight — a withering combatant deals its half as -1/-1 counters", () => {
         const { state } = boardWith(["wither"]);
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",

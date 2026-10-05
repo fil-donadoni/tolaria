@@ -2,8 +2,12 @@
 // `import * as inv from "./sets/inv/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, EffectOp, StaticKeywordGrant } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import type { EffectOp, StaticKeywordGrant } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -36,7 +40,7 @@ import { protectionColorModes } from "../../abilities";
 // `fem/blue.cards.ts`, Sylvan Safekeeper `jud/green.cards.ts`, Skyshroud Blessing
 // `pls/green.cards.ts`) — this card's own printed shroud was never part of that
 // gap, since it always carried the explicit static effect above.
-export const blurredMongoose: CardDefinition = {
+export const blurredMongoose = defineCard(() => ({
     id: "4b073e3f-6a6f-495a-ab16-39d906b660f1",
     rarity: "uncommon",
     name: "Blurred Mongoose",
@@ -57,7 +61,7 @@ export const blurredMongoose: CardDefinition = {
             applies: (target, source) => target.id === source.id,
         },
     ],
-};
+}));
 
 // Kavu Chameleon — "This spell can't be countered. {G}: This creature
 // becomes the color of your choice until end of turn." (CR 113.6g can't-be-
@@ -70,7 +74,7 @@ export const blurredMongoose: CardDefinition = {
 // colour, each a single-Op `setColor` body with `duration: { phase:
 // "end-of-turn" }` so the change reverts at CLEANUP (CR 514.2) instead of
 // riding indefinitely like Shyft's own no-duration grant.
-export const kavuChameleon: CardDefinition = {
+export const kavuChameleon = defineCard(() => ({
     id: "f726437b-a41a-4ee9-b0ee-e09327508615",
     rarity: "uncommon",
     name: "Kavu Chameleon",
@@ -106,7 +110,7 @@ export const kavuChameleon: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -117,7 +121,7 @@ export const kavuChameleon: CardDefinition = {
 // preamble Domain ability word, issue #1066.) `times: 2` is the Domain
 // value's fixed scaling-factor field (mirrors `EffectCountSpec.times`,
 // issue #999) — "gain TWO life for each…", not one.
-export const wanderingStream: CardDefinition = {
+export const wanderingStream = defineCard(() => ({
     id: "6da5cb6c-253b-44f0-98f9-d75f42c6e14b",
     rarity: "common",
     name: "Wandering Stream",
@@ -132,7 +136,7 @@ export const wanderingStream: CardDefinition = {
             amount: { domain: { of: "controller", times: 2 } },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (parent PRD #1063, issue #1073) — reuse-only cards, every
@@ -141,7 +145,7 @@ export const wanderingStream: CardDefinition = {
 
 // Aggressive Urge — {1}{G} Instant. "Target creature gets +1/+1 until end of
 // turn. Draw a card." (CR 613.4c pump; CR 121.1 draw.)
-export const aggressiveUrge: CardDefinition = {
+export const aggressiveUrge = defineCard(() => ({
     id: "37e3154d-9b1c-4f93-9bc3-a39e68d59d23",
     rarity: "common",
     name: "Aggressive Urge",
@@ -159,7 +163,7 @@ export const aggressiveUrge: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Bind — {1}{G} Instant. "Counter target activated ability. (Mana abilities
 // can't be targeted.) Draw a card." (CR 701.6a counter; CR 605.3a mana
@@ -167,7 +171,7 @@ export const aggressiveUrge: CardDefinition = {
 // 121.1 draw.) `spellStackKind: "activated-ability"` with no source-type
 // restriction (unlike Brown Ouphe's artifact-only variant, `ice/green.cards.ts`)
 // keeps every activated ability on the stack a legal target.
-export const bind: CardDefinition = {
+export const bind = defineCard(() => ({
     id: "cfa51783-9ef8-4e51-ba0d-ce8439d83bdf",
     rarity: "rare",
     name: "Bind",
@@ -184,7 +188,7 @@ export const bind: CardDefinition = {
         { op: "counter", target: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Elvish Champion — {1}{G}{G} Creature — Elf, 2/2. "Other Elf creatures get
 // +1/+1 and have forestwalk." (CR 611.2c continuous anthem, layer 7c power/
@@ -200,7 +204,7 @@ const ELVISH_CHAMPION_AFFECTS_OTHER_ELVES: StaticKeywordGrant["applies"] = (
     target.id !== source.id &&
     ctx.isCreature(target) &&
     target.subtypes.includes("Elf");
-export const elvishChampion: CardDefinition = {
+export const elvishChampion = defineCard(() => ({
     id: "c19bb473-03b0-4e6d-a7da-0ec1e7707a68",
     rarity: "rare",
     name: "Elvish Champion",
@@ -224,12 +228,12 @@ export const elvishChampion: CardDefinition = {
             keyword: "forestwalk",
         },
     ],
-};
+}));
 
 // Explosive Growth — {G} Instant. "Kicker {5}. Target creature gets +2/+2
 // until end of turn. If this spell was kicked, that creature gets +5/+5
 // until end of turn instead." (CR 702.33 Kicker; CR 613.4c pump.)
-export const explosiveGrowth: CardDefinition = {
+export const explosiveGrowth = defineCard(() => ({
     id: "eabc1e77-404c-436b-bde1-be1b21d00584",
     rarity: "common",
     name: "Explosive Growth",
@@ -269,14 +273,14 @@ export const explosiveGrowth: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Jade Leech — {2}{G}{G} Creature — Leech, 5/5. "Green spells you cast cost
 // {G} more to cast." (CR 601.2f cost increase.) Scoped to the controller's
 // own spells via `card.controllerId === effectSource.controllerId`, mirroring
 // Stone Calendar's cost-modifier idiom (`drk/colorless.cards.ts`), narrowed to
 // green spells via `ctx.getColors(card).includes("G")`.
-export const jadeLeech: CardDefinition = {
+export const jadeLeech = defineCard(() => ({
     id: "3392171d-ed25-46a1-91cc-a4f24537617d",
     rarity: "rare",
     name: "Jade Leech",
@@ -296,11 +300,11 @@ export const jadeLeech: CardDefinition = {
             costIncrease: { G: 1 },
         },
     ],
-};
+}));
 
 // Kavu Climber — {3}{G} Creature — Kavu, 3/3. "When this creature enters,
 // draw a card." (CR 603.6a ETB; CR 121.1 draw.)
-export const kavuClimber: CardDefinition = {
+export const kavuClimber = defineCard(() => ({
     id: "2063f31e-d972-411e-a265-1d409153b49c",
     rarity: "common",
     name: "Kavu Climber",
@@ -318,7 +322,7 @@ export const kavuClimber: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
-};
+}));
 
 // Kavu Lair — {2}{G} Enchantment. "Whenever a creature with power 4 or
 // greater enters, its controller draws a card." (CR 603.6a ETB, any
@@ -337,7 +341,7 @@ export const kavuClimber: CardDefinition = {
 // already does at this SAME `enteredTrigger` `effects[]` site. Power is
 // still read from the trigger's `TriggerStateView` snapshot in `condition`
 // (printed/base power — the event payload itself carries no power field).
-export const kavuLair: CardDefinition = {
+export const kavuLair = defineCard(() => ({
     id: "f4581b53-23a0-4ca6-a77c-97d79e7a6570",
     rarity: "rare",
     name: "Kavu Lair",
@@ -367,7 +371,7 @@ export const kavuLair: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Llanowar Elite — {G} Creature — Elf, 1/1. "Kicker {8}. Trample\nIf this
 // creature was kicked, it enters with five +1/+1 counters on it." (CR 702.33
@@ -377,7 +381,7 @@ export const kavuLair: CardDefinition = {
 // 0-or-1 paid count and sum — 0 unkicked, 5 kicked — reusing the existing
 // per-kick counter primitive five times rather than adding a multiplier field
 // (ADR 0045 "generalize, don't add" via repetition, not a new shape).
-export const llanowarElite: CardDefinition = {
+export const llanowarElite = defineCard(() => ({
     id: "3e207863-de68-47e1-8c63-413b5fa48943",
     rarity: "common",
     name: "Llanowar Elite",
@@ -405,12 +409,12 @@ export const llanowarElite: CardDefinition = {
             { type: "+1/+1", count: "kicker" },
         ],
     },
-};
+}));
 
 // Might Weaver — {1}{G} Creature — Human Wizard, 2/1. "{2}: Target red or
 // white creature gains trample until end of turn." (CR 613.1f keyword grant;
 // `colorFilterAny` OR-matches the two colors.)
-export const mightWeaver: CardDefinition = {
+export const mightWeaver = defineCard(() => ({
     id: "032a4ec7-82ce-4ea0-b0dd-ebc40823a014",
     rarity: "uncommon",
     name: "Might Weaver",
@@ -443,14 +447,14 @@ export const mightWeaver: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Molimo, Maro-Sorcerer — {4}{G}{G}{G} Legendary Creature — Elemental
 // Sorcerer, */*. "Trample. Molimo's power and toughness are each equal to the
 // number of lands you control." (CR 702.19e trample; CR 613.4b layer 7b
 // characteristic-defining P/T.) `pt-cda` compute mirrors the ICE snow-land
 // counting CDA (`ice/black.cards.ts`), generalized to every land (no snow filter).
-export const molimoMaroSorcerer: CardDefinition = {
+export const molimoMaroSorcerer = defineCard(() => ({
     id: "750d3475-ae72-42c1-ae4d-638f8e7c6d1a",
     rarity: "rare",
     name: "Molimo, Maro-Sorcerer",
@@ -483,13 +487,13 @@ export const molimoMaroSorcerer: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Nomadic Elf — {1}{G} Creature — Elf Nomad, 2/2. "{1}{G}: Add one mana of
 // any color." (CR 605.1a mana ability, `useStack: false`.) Runtime colour
 // choice via `manaChoices`, the established mana-ability idiom (Standing
 // Stones, `drk/colorless.cards.ts`; Celestial Prism, `lea/colorless.cards.ts`).
-export const nomadicElf: CardDefinition = {
+export const nomadicElf = defineCard(() => ({
     id: "3b69e57a-5b19-450c-9cf5-c189e8505781",
     rarity: "common",
     name: "Nomadic Elf",
@@ -509,13 +513,13 @@ export const nomadicElf: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Pincer Spider — {2}{G} Creature — Spider, 2/3. "Kicker {3}. Reach\nIf this
 // creature was kicked, it enters with a +1/+1 counter on it." (CR 702.33
 // Kicker; CR 702.17b reach; CR 122.1 ETB counter via `entersWith.counters`,
 // CR 702.33e "kicker" count.)
-export const pincerSpider: CardDefinition = {
+export const pincerSpider = defineCard(() => ({
     id: "23271658-19ae-420d-beeb-4bed4fdbb891",
     rarity: "common",
     name: "Pincer Spider",
@@ -535,7 +539,7 @@ export const pincerSpider: CardDefinition = {
     ],
     staticAbilities: ["reach"],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
-};
+}));
 
 // The five colours a "choose a color" mana-ability picker offers, mirroring
 // Kavu Chameleon's `KAVU_CHAMELEON_COLOR_OPTIONS` above and Fertile Ground's
@@ -572,7 +576,7 @@ const QUIRION_SENTINEL_COLOR_MODES: NonNullable<
 // enters, add one mana of any color." (CR 603.6a ETB; CR 106.1 mana; CR 700.2
 // modal "choose one" skinning the runtime colour pick — `optionChoice` +
 // `addMana`, both already-exercised Ops composed as designed, no new Op.)
-export const quirionSentinel: CardDefinition = {
+export const quirionSentinel = defineCard(() => ({
     id: "2fc639ea-a925-4f1e-879f-b8fcb12bf257",
     rarity: "common",
     name: "Quirion Sentinel",
@@ -597,13 +601,13 @@ export const quirionSentinel: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Quirion Trailblazer — {3}{G} Creature — Elf Scout, 1/2. "When this creature
 // enters, you may search your library for a basic land card, put that card
 // onto the battlefield tapped, then shuffle." (CR 603.6a ETB; CR 401.4
 // search, `min: 0` = "you may"; CR 701.24 shuffle.)
-export const quirionTrailblazer: CardDefinition = {
+export const quirionTrailblazer = defineCard(() => ({
     id: "c2b258c1-5fb4-4072-bb32-ad364df1874a",
     rarity: "common",
     name: "Quirion Trailblazer",
@@ -643,7 +647,7 @@ export const quirionTrailblazer: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Sulam Djinn — {5}{G} Creature — Djinn, 6/6. "Trample. This creature gets
 // -2/-2 as long as green is the most common color among all permanents or is
@@ -663,7 +667,7 @@ function greenIsMostCommonOrTied(
     const green = tally.G;
     return SULAM_DJINN_COLORS.every((c) => tally[c] <= green);
 }
-export const sulamDjinn: CardDefinition = {
+export const sulamDjinn = defineCard(() => ({
     id: "7aeab16f-e104-47e7-81c7-b6e0123120d7",
     rarity: "uncommon",
     name: "Sulam Djinn",
@@ -689,7 +693,7 @@ export const sulamDjinn: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 
 // The five "protection from <color>" modes a runtime colour choice offers —
 // routed through the shared `protectionColorModes` helper (`abilities/index.ts`,
@@ -708,7 +712,7 @@ const THORNSCAPE_MASTER_PROTECTION_MODES = protectionColorModes([
 // creature gains protection from the color of your choice until end of
 // turn." (CR 120.1 damage; CR 613.1f keyword grant; CR 700.2 modal colour
 // pick.)
-export const thornscapeMaster: CardDefinition = {
+export const thornscapeMaster = defineCard(() => ({
     id: "7e8f164d-3782-4eaa-a4db-ab7082d45ee7",
     rarity: "rare",
     name: "Thornscape Master",
@@ -746,12 +750,12 @@ export const thornscapeMaster: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Treefolk Healer — {4}{G} Creature — Treefolk Cleric, 2/3. "{2}{W}, {T}:
 // Prevent the next 2 damage that would be dealt to any target this turn."
 // (CR 615.1 prevention shield.)
-export const treefolkHealer: CardDefinition = {
+export const treefolkHealer = defineCard(() => ({
     id: "73c6f5c0-686d-4b3a-add7-487f9fff5faa",
     rarity: "uncommon",
     name: "Treefolk Healer",
@@ -781,12 +785,12 @@ export const treefolkHealer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Utopia Tree — {1}{G} Creature — Plant, 0/2. "{T}: Add one mana of any
 // color." (CR 605.1a mana ability, `useStack: false`.) Same `manaChoices`
 // idiom as Nomadic Elf above.
-export const utopiaTree: CardDefinition = {
+export const utopiaTree = defineCard(() => ({
     id: "720452e9-3245-4b0e-94b6-843cbcb641a5",
     rarity: "rare",
     name: "Utopia Tree",
@@ -806,12 +810,12 @@ export const utopiaTree: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Wallop — {1}{G} Sorcery. "Destroy target blue or black creature with
 // flying." (CR 701.8 destroy; `colorFilterAny` OR-matches the two colors,
 // `requireAbility` ANDs the flying requirement.)
-export const wallop: CardDefinition = {
+export const wallop = defineCard(() => ({
     id: "45ce5126-e7b1-41ab-9e56-1e12927c4d27",
     rarity: "uncommon",
     name: "Wallop",
@@ -825,13 +829,13 @@ export const wallop: CardDefinition = {
         requireAbility: "flying",
     },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Whip Silk — {G} Enchantment — Aura, enchant creature. "Enchanted creature
 // has reach. {G}: Return this Aura to its owner's hand." (CR 702.17b reach
 // keyword grant; CR 400.7 self-bounce via `moveZone`'s `$source` snapshot
 // shape.)
-export const whipSilk: CardDefinition = {
+export const whipSilk = defineCard(() => ({
     id: "10566804-fd15-4ef0-ad7d-cc979f4cc8c5",
     rarity: "common",
     name: "Whip Silk",
@@ -859,7 +863,7 @@ export const whipSilk: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Kavu Titan — {1}{G} Creature — Kavu, 2/2. "Kicker {2}{G}. If this creature
 // was kicked, it enters with three +1/+1 counters on it and with trample."
@@ -883,7 +887,7 @@ export const whipSilk: CardDefinition = {
 // ETB replacement time, materialized into `staticAbilities` continuously, no
 // stack window. Same correction applies to Faerie Squadron (`inv/blue.cards.ts`),
 // which carried the identical wrong claim.
-export const kavuTitan: CardDefinition = {
+export const kavuTitan = defineCard(() => ({
     id: "2c5fb86d-1d9a-4da2-bb5b-4266faa20197",
     name: "Kavu Titan",
     rarity: "rare",
@@ -916,7 +920,7 @@ export const kavuTitan: CardDefinition = {
             keyword: "trample",
         },
     ],
-};
+}));
 
 // Rooting Kavu — {2}{G}{G} Creature — Kavu, 4/3. "When this creature dies,
 // you may exile it. If you do, shuffle all creature cards from your graveyard
@@ -944,7 +948,7 @@ export const kavuTitan: CardDefinition = {
 // Exiling Rooting Kavu FIRST (before scanning the graveyard) matters: it must
 // not sweep itself into "all creature cards from your graveyard" a second
 // time.
-export const rootingKavu: CardDefinition = {
+export const rootingKavu = defineCard(() => ({
     id: "12c25a4c-d93a-402b-999f-0b9919123cc5",
     name: "Rooting Kavu",
     rarity: "uncommon",
@@ -999,7 +1003,7 @@ export const rootingKavu: CardDefinition = {
             aiEffects: [{ op: "exileSelf" }],
         }),
     ],
-};
+}));
 
 // Saproling Symbiosis — the CR 601.3c conditional-flash rider (issue #2146),
 // shipped as `flashSurcharge`: legal to ANNOUNCE at any priority, with the {2}
@@ -1012,7 +1016,7 @@ export const rootingKavu: CardDefinition = {
 // (the Card Prints table's Token Prints) keyed by this card's id + "Saproling", the
 // same 1/1 green Saproling the other INV producers use; no `imagePrintId` is
 // hand-pinned.
-export const saprolingSymbiosis: CardDefinition = {
+export const saprolingSymbiosis = defineCard(() => ({
     id: "2bb63748-5c84-43a0-8f17-a2a17f658337",
     name: "Saproling Symbiosis",
     rarity: "rare",
@@ -1042,7 +1046,7 @@ export const saprolingSymbiosis: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Thicket Elemental — "Kicker {1}{G}. When this creature enters, if it was
 // kicked, you may reveal cards from the top of your library until you
@@ -1094,7 +1098,7 @@ export const saprolingSymbiosis: CardDefinition = {
 // direct Op passthrough for "It can't be regenerated" — the second half of
 // the original blocker (no Op option existed) closed alongside Obliterate
 // (`inv/red.cards.ts`, issue #831).
-export const verduranEmissary: CardDefinition = {
+export const verduranEmissary = defineCard(() => ({
     id: "55f3361b-e2e7-4297-85c2-94323f90cc90", // INV 221
     rarity: "uncommon",
     name: "Verduran Emissary",
@@ -1140,7 +1144,7 @@ export const verduranEmissary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Canopy Surge — "Kicker {2}. Canopy Surge deals 1 damage to each creature
 // with flying and each player. If this spell was kicked, it deals 4 damage
@@ -1158,7 +1162,7 @@ export const verduranEmissary: CardDefinition = {
 // each branch pairs a creature-flying sweep with a `forEach { set: "players"
 // }` sweep, both feeding the SAME already-exercised `dealDamage` Op — no new
 // Op, just the new filter field.
-export const canopySurge: CardDefinition = {
+export const canopySurge = defineCard(() => ({
     id: "2e19d68e-7554-4627-a316-beb1f75fa494",
     rarity: "uncommon",
     name: "Canopy Surge",
@@ -1227,7 +1231,7 @@ export const canopySurge: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Elfhame Sanctuary — "At the beginning of your upkeep, you may search your
 // library for a basic land card, reveal that card, put it into your hand,
@@ -1263,7 +1267,7 @@ export const canopySurge: CardDefinition = {
 // contorting a different mechanic to fit. A plain armed flag consumed
 // directly is the honest shape for "if you do [something earlier], you skip
 // [a later step] — no further decision".
-export const elfhameSanctuary: CardDefinition = {
+export const elfhameSanctuary = defineCard(() => ({
     id: "6ab9a90c-5fd8-4f8c-b692-f98a2974810c",
     name: "Elfhame Sanctuary",
     rarity: "uncommon",
@@ -1322,7 +1326,7 @@ export const elfhameSanctuary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Pulse of Llanowar — "If a basic land you control is tapped for mana, it
 // produces mana of a color of your choice instead of any other type." A
@@ -1369,7 +1373,7 @@ export const elfhameSanctuary: CardDefinition = {
 // `SpellContext.exileSelf()` primitive (Recall, `leg/blue.cards.ts`, `resolve()`),
 // now wired into the interpreter so a DSL card can redirect its own
 // resolution destination from the graveyard to exile.
-export const restock: CardDefinition = {
+export const restock = defineCard(() => ({
     id: "11a013ff-7c99-445a-b9e0-0fc45036f068",
     rarity: "rare",
     name: "Restock",
@@ -1388,7 +1392,7 @@ export const restock: CardDefinition = {
         { op: "moveZone", target: { target: 1 }, to: "hand" },
         { op: "exileSelf" },
     ],
-};
+}));
 
 // Saproling Infestation — {1}{G} Enchantment. "Whenever a player kicks a
 // spell, you create a 1/1 green Saproling creature token."
@@ -1419,7 +1423,7 @@ export const restock: CardDefinition = {
 // (a 1/1 green Saproling from a modern printing) — the token/emblem art rule's
 // documented fallback, and the same print the other INV Saproling producers
 // (`inv/multicolor.cards.ts`) already resolve to. Spec matches theirs.
-export const saprolingInfestation: CardDefinition = {
+export const saprolingInfestation = defineCard(() => ({
     id: "8642e530-914c-4149-944a-c4966ee27299",
     name: "Saproling Infestation",
     rarity: "rare",
@@ -1454,7 +1458,7 @@ export const saprolingInfestation: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Scouting Trek — "Search your library for any number of basic land cards,
 // reveal those cards, then shuffle and put them on top." The capability gap
@@ -1500,7 +1504,7 @@ export const saprolingInfestation: CardDefinition = {
 // `convex/cards/filters.ts`, already read by combat-scoped choice pickers),
 // not a new Op — `forEach` selects the live attacking set, and each member
 // feeds the SAME already-exercised `skipNextUntap` Op via `{ ref: "$each" }`.
-export const tangle: CardDefinition = {
+export const tangle = defineCard(() => ({
     id: "6b37e39c-8aa4-4938-a492-7dac5de98dfb",
     name: "Tangle",
     rarity: "uncommon",
@@ -1520,7 +1524,7 @@ export const tangle: CardDefinition = {
             effects: [{ op: "skipNextUntap", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Verdeloth the Ancient — {4}{G}{G} Legendary Creature — Treefolk, 4/7.
 // "Kicker {X}. Saproling creatures and other Treefolk creatures get +1/+1.
@@ -1539,7 +1543,7 @@ export const tangle: CardDefinition = {
 // Token art: the Card Prints table's Token Prints keyed by this card's id.
 // compiler-gap: "Saproling creatures and other Treefolk creatures get +1/+1." (#2693)
 // compiler-gap: "When Verdeloth enters, if it was kicked, create X 1/1 green Saproling creature tokens." (#2693)
-export const verdelothTheAncient: CardDefinition = {
+export const verdelothTheAncient = defineCard(() => ({
     id: "72d5fab1-fa20-4006-b19d-179d36238c9b",
     name: "Verdeloth the Ancient",
     rarity: "rare",
@@ -1605,7 +1609,7 @@ export const verdelothTheAncient: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Vigorous Charge — "Kicker {W}. Target creature gains trample until end of
 // turn. Whenever that creature deals combat damage this turn, if this spell

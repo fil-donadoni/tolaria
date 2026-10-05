@@ -73,7 +73,7 @@ function halflingCastState(
     castCardId: string,
     manaCost: PendingCast["manaCost"]
 ): GameState {
-    const halfling = makeInstance(delightedHalfling.id, {
+    const halfling = makeInstance(delightedHalfling().id, {
         id: "halfling",
         controllerId: "p1",
         ownerId: "p1",
@@ -107,7 +107,7 @@ describe("tapForPayment — Delighted Halfling's restricted mana on the PAYMENT 
         // covers it (mirrors theOneRing's real printed {X}{4} shape, just
         // smaller for the test).
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(halflingCastState(theOneRing.id, { X: 1 })),
+            gameStateSeed(halflingCastState(theOneRing().id, { X: 1 })),
         ]);
         // manaChoiceIndex 5 = {G}, the legendary-spell ability's LAST choice
         // (index 0 = the first ability's fixed {C}; 1-5 = the manaChoices
@@ -131,7 +131,7 @@ describe("tapForPayment — Delighted Halfling's restricted mana on the PAYMENT 
 
     it("the SAME tap cannot pay for a NON-legendary spell — restriction is enforced on the payment path, cast stays pending", async () => {
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(halflingCastState(grizzlyBears.id, { X: 1 })),
+            gameStateSeed(halflingCastState(grizzlyBears().id, { X: 1 })),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "halfling", manaChoiceIndex: 5 },
@@ -159,7 +159,7 @@ describe("tapForPayment — Delighted Halfling's restricted mana on the PAYMENT 
         // A cost the {G} alone can't fully cover, so the cast stays pending
         // after ONE tap and the source is still reversible.
         const stub = makeMutationCtx("p1", [
-            gameStateSeed(halflingCastState(theOneRing.id, { X: 2 })),
+            gameStateSeed(halflingCastState(theOneRing().id, { X: 2 })),
         ]);
         await runTapForPayment(stub.ctx, [
             { cardInstanceId: "halfling", manaChoiceIndex: 5 },
@@ -182,7 +182,7 @@ describe("tapForPayment — Delighted Halfling's restricted mana on the PAYMENT 
 
 describe("auto-tap solver — per-OPTION restriction filtering (issue #1559 review, Blocking 3)", () => {
     it("Delighted Halfling offers its free {C} ability but NOT its legendary-spell-restricted one", () => {
-        const halfling = makeInstance(delightedHalfling.id, {
+        const halfling = makeInstance(delightedHalfling().id, {
             id: "halfling",
             controllerId: "p1",
         });
@@ -200,7 +200,7 @@ describe("auto-tap solver — per-OPTION restriction filtering (issue #1559 revi
     });
 
     it("Mishra's Workshop (wholly restricted, single ability) is excluded entirely", () => {
-        const workshop = makeInstance(mishrasWorkshop.id, {
+        const workshop = makeInstance(mishrasWorkshop().id, {
             id: "workshop",
             controllerId: "p1",
         });

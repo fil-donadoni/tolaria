@@ -109,7 +109,7 @@ describe("library pile model through projectPublicState (#1696)", () => {
         const p1 = makePlayer("p1");
         const p2 = makePlayer("p2", {
             library: [
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     id: "lib-a",
                     controllerId: "p2",
                     ownerId: "p2",
@@ -118,9 +118,9 @@ describe("library pile model through projectPublicState (#1696)", () => {
             ],
         });
         const state = makeState({ players: [p1, p2] });
-        const bears = pushSpell(state, grizzlyBears.id, "p2");
+        const bears = pushSpell(state, grizzlyBears().id, "p2");
         bears.id = "bears-spell";
-        pushSpell(state, memoryLapse.id, "p1", [
+        pushSpell(state, memoryLapse().id, "p1", [
             { type: "spell", id: "bears-spell" },
         ]);
         resolveTopOfStack(state);

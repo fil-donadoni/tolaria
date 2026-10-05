@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -39,7 +39,7 @@ const aangsIcebergHoldsSomething = (
 
 const AANGS_ICEBERG_ID = "720fbd87-b1c1-4b3b-97a1-46b943b115e3";
 
-export const aangsIceberg: CardDefinition = {
+export const aangsIceberg = defineCard(() => ({
     id: AANGS_ICEBERG_ID,
     name: "Aang's Iceberg",
     rarity: "rare",
@@ -144,4 +144,4 @@ export const aangsIceberg: CardDefinition = {
             ],
         },
     ],
-};
+}));

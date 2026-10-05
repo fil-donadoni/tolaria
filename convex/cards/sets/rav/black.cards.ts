@@ -1,5 +1,5 @@
 // rav — black cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Dark Confidant — {1}{B} Creature, Vintage Cube residue (issue #1302, parent
@@ -23,7 +23,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Both Ops are exercised by the interpreter suite (digMatchingToHand reveal +
 // bind; loseLife+manaValue-of-ref, Reanimate) — the per-Op test regime plus
 // this card's reveal-dialog interpreter test cover it (gre-development.md).
-export const darkConfidant: CardDefinition = {
+export const darkConfidant = defineCard(() => ({
     id: "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9", // RAV 81
     name: "Dark Confidant",
     rarity: "rare",
@@ -62,4 +62,4 @@ export const darkConfidant: CardDefinition = {
             ],
         }),
     ],
-};
+}));

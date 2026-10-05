@@ -127,7 +127,7 @@ const runAssignBlockerTarget = (h: MutationStub, attackerId: string) =>
     });
 
 function bears(id: string, controllerId: string): CardInstanceState {
-    return makeInstance(grizzlyBears.id, {
+    return makeInstance(grizzlyBears().id, {
         id,
         controllerId,
         ownerId: controllerId,
@@ -357,7 +357,7 @@ describe("combat declaration version cost (issue #3475)", () => {
         // rest exactly as `toggleAttacker` does — and still cost one version.
         const state = declareAttackersState(3);
         state.players[1].battlefield = [
-            makeInstance(duelingGrounds.id, { id: "dg", controllerId: "p2" }),
+            makeInstance(duelingGrounds().id, { id: "dg", controllerId: "p2" }),
         ];
         const h = makeMutationCtx("p1", [gameStateSeed(state, SEED_SEQ)]);
 
@@ -377,7 +377,7 @@ describe("combat declaration version cost (issue #3475)", () => {
         // legal blocks never reach the row (the per-click path persisted
         // assignments 1..N-1 before throwing on N).
         const state = declareBlockersState(2, 2);
-        state.players[0].battlefield[1] = makeInstance(serraAngel.id, {
+        state.players[0].battlefield[1] = makeInstance(serraAngel().id, {
             id: "a2",
             controllerId: "p1",
             ownerId: "p1",

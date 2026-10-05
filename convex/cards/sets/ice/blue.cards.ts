@@ -16,6 +16,7 @@ import type {
     TriggeredAbility,
 } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     PERMANENT_TYPES,
@@ -170,7 +171,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 // Arnjlot's Ascent — {U}{U} Enchantment with cumulative upkeep {U} (CR 702.24)
 // and "{1}: Target creature gains flying until end of turn." The CU keyword is
 // the ADR 0042 template; the activated grant mirrors Flying Carpet (arn.ts).
-export const arnjlotsAscent: CardDefinition = {
+export const arnjlotsAscent = defineCard(() => ({
     id: "2307fb16-8b77-45b5-8a02-51a13214791d",
     name: "Arnjlot's Ascent",
     rarity: "common",
@@ -204,12 +205,12 @@ export const arnjlotsAscent: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Balduvian Conjurer — {T}: animate a target SNOW land into a 2/2 creature
 // until end of turn (CR 208.2 / 611.1 — `animateAsCreature`; "it's still a
 // land" since animate ADDS the Creature type without removing Land). The target
 // is gated to snow lands via the live `supertypeFilter` (CR 205.4a).
-export const balduvianConjurer: CardDefinition = {
+export const balduvianConjurer = defineCard(() => ({
     id: "5b616963-fac0-451c-8df4-2cacc9466b17",
     name: "Balduvian Conjurer",
     rarity: "uncommon",
@@ -248,7 +249,7 @@ export const balduvianConjurer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Balduvian Shaman — {T}: target a white enchantment you control without
 // cumulative upkeep, (a) replace one color word in its text with another
 // (CR 612 / 613 layer-3 text change — Sleight of Mind's primitive), and (b)
@@ -261,7 +262,7 @@ export const balduvianConjurer: CardDefinition = {
 // differs (matching Sleight of Mind's auto-pick). `useStack: true` — it goes on
 // the stack and can be responded to.
 const BALDUVIAN_SHAMAN_ID = "74859723-8ddf-4ee6-a0a7-87192c84e8ad";
-export const balduvianShaman: CardDefinition = {
+export const balduvianShaman = defineCard(() => ({
     id: BALDUVIAN_SHAMAN_ID,
     name: "Balduvian Shaman",
     rarity: "common",
@@ -338,12 +339,12 @@ export const balduvianShaman: CardDefinition = {
             costLabel: "{1}",
         }),
     ],
-};
+}));
 // Binding Grasp — Aura granting control of the enchanted creature (CR 613.1b,
 // layer 2 control-change) plus a static +0/+1 (layer 7c) and an upkeep
 // pay-{1}{U}-or-sacrifice tax (CR 603.6a / 117.3a). The Control-Magic shape
 // with an upkeep cost rider.
-export const bindingGrasp: CardDefinition = {
+export const bindingGrasp = defineCard(() => ({
     id: "6b086186-5fbf-4ba7-af0d-ee3ad61d27bb",
     name: "Binding Grasp",
     rarity: "uncommon",
@@ -367,7 +368,7 @@ export const bindingGrasp: CardDefinition = {
             onDeclineEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 // Brainstorm — "Draw three cards, then put two cards from your hand on top of
 // your library in any order." (CR 121.1 draw, CR 401.4 library top.) DSL
 // script (issue #1046): `draw` 3 then `putBack` 2 — `putBack` raises a
@@ -379,7 +380,7 @@ export const bindingGrasp: CardDefinition = {
 // position on a resume, so the `draw` Op here never re-runs when the
 // `putBack` choice suspends and resumes (CR 608.3) — no hand-rolled step
 // isolation needed anymore.
-export const brainstorm: CardDefinition = {
+export const brainstorm = defineCard(() => ({
     id: "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
     name: "Brainstorm",
     rarity: "common",
@@ -396,7 +397,7 @@ export const brainstorm: CardDefinition = {
             prompt: "Choose two cards to put on top of your library (last picked ends up on top).",
         },
     ],
-};
+}));
 // Breath of Dreams — {2}{U}{U} Enchantment with cumulative upkeep {U} on itself,
 // plus a GROUP GRANT of "Cumulative upkeep {1}" to every green creature
 // (CR 702.24, CR 611 continuous triggered-ability grant — ADR 0042). Modeled
@@ -414,7 +415,7 @@ const IS_GREEN_CREATURE = (
     _source: PermanentView,
     ctx: import("../../types").StaticEffectContext
 ): boolean => ctx.isCreature(target) && ctx.getColors(target).includes("G");
-export const breathOfDreams: CardDefinition = {
+export const breathOfDreams = defineCard(() => ({
     id: "e40c9657-fab4-489d-8eb0-960ba2605add",
     name: "Breath of Dreams",
     rarity: "uncommon",
@@ -446,10 +447,10 @@ export const breathOfDreams: CardDefinition = {
             costLabel: "{1}",
         }),
     ],
-};
+}));
 // Clairvoyance — {U} Instant. "Look at target player's hand" (CR 401.4 look,
 // via the `revealHand` display-only choice) plus the next-upkeep cantrip rider.
-export const clairvoyance: CardDefinition = {
+export const clairvoyance = defineCard(() => ({
     id: "46740353-e2ba-4d80-a97d-1368bc67bf30",
     name: "Clairvoyance",
     rarity: "common",
@@ -472,11 +473,11 @@ export const clairvoyance: CardDefinition = {
                 // step suspends until the controller dismisses it.
                 if (ctx.revealHand(t.id) === undefined) return;
             }
-            scheduleNextUpkeepDraw(ctx, clairvoyance.id);
+            scheduleNextUpkeepDraw(ctx, clairvoyance().id);
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
-};
+}));
 // Deflection — "Change the target of target spell with a single target."
 // (CR 115.7 — change a spell's target.) Targets a spell on the stack; on
 // resolution it enters a `retarget` phase via `requestRetarget`, asking the
@@ -488,7 +489,7 @@ export const clairvoyance: CardDefinition = {
 // multi-target spell only one target would be re-chosen, which is a minor
 // deviation from the printed "single target" restriction. Acceptable for the
 // current pool, where targeted spells are overwhelmingly single-target.
-export const deflection: CardDefinition = {
+export const deflection = defineCard(() => ({
     id: "1005a00a-6a0e-44cb-abea-37e2e53125e2",
     name: "Deflection",
     rarity: "rare",
@@ -507,7 +508,7 @@ export const deflection: CardDefinition = {
         // requirement at selection time (CR 115.7).
         ctx.requestRetarget(t.id, { type: "any", count: 1 });
     },
-};
+}));
 // Dreams of the Dead — {3}{U} Enchantment with a {1}{U} reanimation ability:
 // "Return target white or black creature card from your graveyard to the
 // battlefield. That creature gains 'Cumulative upkeep {2}.' If the creature
@@ -519,7 +520,7 @@ export const deflection: CardDefinition = {
 // / destroy) to exile, so the creature can't be re-reanimated. The {1}{U} cost
 // is paid at activation; the reanimation resolves from the stack (useStack: true).
 const DREAMS_OF_THE_DEAD_ID = "93372854-57e7-4db7-a1a6-376c9f49a514";
-export const dreamsOfTheDead: CardDefinition = {
+export const dreamsOfTheDead = defineCard(() => ({
     id: DREAMS_OF_THE_DEAD_ID,
     name: "Dreams of the Dead",
     rarity: "uncommon",
@@ -580,10 +581,10 @@ export const dreamsOfTheDead: CardDefinition = {
             costLabel: "{2}",
         }),
     ],
-};
+}));
 // Enervate — {1}{U} Instant. "Tap target artifact, creature, or land"
 // (CR 701.26 tap) plus the next-upkeep cantrip rider.
-export const enervate: CardDefinition = {
+export const enervate = defineCard(() => ({
     id: "c4fdfc5b-c2ab-4c4d-b120-301e17f3d9c6",
     name: "Enervate",
     rarity: "common",
@@ -605,7 +606,7 @@ export const enervate: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // DEFERRED — re-verified against the current engine for issue #728 (2026-07).
 // Errant Minion — "Enchant creature. At the beginning of the upkeep of
 // enchanted creature's controller, that player may pay any amount of mana. This
@@ -617,7 +618,7 @@ export const enervate: CardDefinition = {
 //
 // compiler-gap: "Enchant creature" (#2693)
 // compiler-gap: "At the beginning of the upkeep of enchanted creature's controller, that player may pay any amount of mana. This Aura deals 2 damage to that player. Prevent X of that damage, where X is the amount of mana that player paid this way." (#2693)
-export const errantMinion: CardDefinition = {
+export const errantMinion = defineCard(() => ({
     id: "61648ddb-6efb-43d0-b2b1-418cc957854c",
     name: "Errant Minion",
     rarity: "common",
@@ -698,12 +699,12 @@ export const errantMinion: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Essence Flare — Aura: static +2/+0 (layer 7c) plus an upkeep trigger on the
 // enchanted creature's controller that puts a -0/-1 counter on the host
 // (CR 603.6a phase trigger, CR 122 counters, layer 7d). The host wastes away one
 // toughness per upkeep.
-export const essenceFlare: CardDefinition = {
+export const essenceFlare = defineCard(() => ({
     id: "13ebb5dd-d7f1-4b06-8585-7004045be542",
     name: "Essence Flare",
     rarity: "common",
@@ -736,7 +737,7 @@ export const essenceFlare: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Force Void — {2}{U} Instant. "Counter target spell unless its controller
 // pays {1}" (CR 701.6a counter-unless-pay; CR 117.3a may-pay billed to the
 // spell's controller) plus the next-upkeep cantrip rider.
@@ -749,7 +750,7 @@ export const essenceFlare: CardDefinition = {
 // shape). The interpreter's own per-Op checkpoint (`runOpList`) means the
 // `delayedTrigger` Op never re-runs when the earlier `mayPay` suspends and
 // resumes (CR 608.3) — the old resolveSteps split's job for free.
-export const forceVoid: CardDefinition = {
+export const forceVoid = defineCard(() => ({
     id: "226555ba-22af-45f1-a3f4-d265f8685dd5",
     name: "Force Void",
     rarity: "uncommon",
@@ -781,9 +782,9 @@ export const forceVoid: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Glacial Wall — 0/7 Wall with Defender (CR 702.3).
-export const glacialWall: CardDefinition = {
+export const glacialWall = defineCard(() => ({
     id: "07b71bc1-d9a2-4e99-a8fa-cd696925328d",
     name: "Glacial Wall",
     rarity: "uncommon",
@@ -794,13 +795,13 @@ export const glacialWall: CardDefinition = {
     power: 0,
     toughness: 7,
     staticAbilities: ["defender"],
-};
+}));
 // Hydroblast — modal "choose one" (CR 700.2): counter a red spell OR destroy a
 // red permanent. Each mode restricts its target to red via `colorFilter: "R"`
 // (the "if it's red" clause is enforced as a target restriction in the current
 // pool, which is equivalent for these single-target modes). Functionally the
 // Blue Elemental Blast shape.
-export const hydroblast: CardDefinition = {
+export const hydroblast = defineCard(() => ({
     id: "f62716f0-fde2-49ef-b8a4-c1b03f451194",
     name: "Hydroblast",
     rarity: "common",
@@ -830,12 +831,12 @@ export const hydroblast: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Iceberg — counters-as-mana battery (CR 122 counters, CR 605 mana ability).
 // Enters with X ice counters; "{3}: Put an ice counter on this" stores mana,
 // and "Remove an ice counter: Add {C}" spends it. The removal ability is a mana
 // ability (`useStack: false`, CR 605.1a) so it resolves immediately.
-export const iceberg: CardDefinition = {
+export const iceberg = defineCard(() => ({
     id: "a2f70e49-17fa-4033-bd45-63374f7f5ec5",
     name: "Iceberg",
     rarity: "uncommon",
@@ -870,7 +871,7 @@ export const iceberg: CardDefinition = {
             manaProduced: { C: 1 },
         },
     ],
-};
+}));
 // Icy Prison — ETB-targeted exile-and-return holding bundle (CR 603.7a /
 // ADR 0028) plus an upkeep sacrifice tax. On entry it exiles a target creature
 // (keyed to itself); each upkeep it is sacrificed unless {3} is paid; when it
@@ -880,7 +881,7 @@ export const iceberg: CardDefinition = {
 // player pays {3}" — political. `makeUpkeepPayOrElse` prompts the controller
 // (the player who wants to keep it). In a duel the controller is the only
 // player with an incentive to pay, so this matches play in practice.
-export const icyPrison: CardDefinition = {
+export const icyPrison = defineCard(() => ({
     id: "39a7e496-8d2e-49db-b298-475d9017537a",
     name: "Icy Prison",
     rarity: "rare",
@@ -926,10 +927,10 @@ export const icyPrison: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));
 // Illusionary Forces — {3}{U} 4/4 flier with cumulative upkeep {U} (CR 702.24,
 // ADR 0042). Flying is a plain keyword static; the CU keyword is the template.
-export const illusionaryForces: CardDefinition = {
+export const illusionaryForces = defineCard(() => ({
     id: "ab02268e-01cf-4729-95ca-5773afd40b56",
     name: "Illusionary Forces",
     rarity: "common",
@@ -948,7 +949,7 @@ export const illusionaryForces: CardDefinition = {
             costLabel: "{U}",
         }),
     ],
-};
+}));
 // Illusionary Presence — cumulative upkeep {U} (CR 702.24, ADR 0042) plus an
 // "at the beginning of your upkeep, choose a land type" trigger that grants
 // THIS creature the matching landwalk until end of turn (CR 603.6a /
@@ -958,7 +959,7 @@ export const illusionaryForces: CardDefinition = {
 // of turn via `grantStaticAbility`, so a fresh choice is made each upkeep. The
 // grant is self-scoped (`$source`), and the prior turn's keyword has already
 // expired at the CLEANUP boundary by the time this re-fires.
-export const illusionaryPresence: CardDefinition = {
+export const illusionaryPresence = defineCard(() => ({
     id: "aa31efed-4a11-4f59-a623-bac45d20091d",
     name: "Illusionary Presence",
     rarity: "rare",
@@ -1056,7 +1057,7 @@ export const illusionaryPresence: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Illusionary Terrain — {U}{U} Enchantment. Cumulative upkeep {2} (ADR 0042
 // template) plus a continuous layer-4 subtype swap driven by an ordered pair of
 // basic land types chosen as it enters (CR 305.7, 611, 613; ADR 0050).
@@ -1074,7 +1075,7 @@ export const illusionaryPresence: CardDefinition = {
 // static below treat the pair as ordered (FIRST → SECOND) rather than a set.
 // Because intrinsic basic-land mana is derived from subtype at read time
 // (CR 305.6), the mana each swapped land produces follows for free.
-export const illusionaryTerrain: CardDefinition = {
+export const illusionaryTerrain = defineCard(() => ({
     id: "691f4a1b-4706-41aa-82da-ae920739f036",
     name: "Illusionary Terrain",
     rarity: "uncommon",
@@ -1114,10 +1115,10 @@ export const illusionaryTerrain: CardDefinition = {
             costLabel: "{2}",
         }),
     ],
-};
+}));
 // Illusionary Wall — {4}{U} 7/4 with defender, flying, first strike and
 // cumulative upkeep {U} (CR 702.24, ADR 0042). All keywords are plain statics.
-export const illusionaryWall: CardDefinition = {
+export const illusionaryWall = defineCard(() => ({
     id: "6430e8e2-fee3-4744-820e-d6e16cb992bd",
     name: "Illusionary Wall",
     rarity: "common",
@@ -1136,12 +1137,12 @@ export const illusionaryWall: CardDefinition = {
             costLabel: "{U}",
         }),
     ],
-};
+}));
 // Illusions of Grandeur — {3}{U} Enchantment with cumulative upkeep {2}
 // (CR 702.24), an ETB "gain 20 life" and an LTB "lose 20 life" (the classic
 // Donate combo half). CU is the ADR 0042 template; the life swings are self-
 // scoped enter/left triggers (CR 603.6).
-export const illusionsOfGrandeur: CardDefinition = {
+export const illusionsOfGrandeur = defineCard(() => ({
     id: "17eeeef2-2ced-42b8-a5e0-1095c9e13b02",
     name: "Illusions of Grandeur",
     rarity: "rare",
@@ -1182,10 +1183,10 @@ export const illusionsOfGrandeur: CardDefinition = {
                 ctx.loseLife(leaving.controllerId, 20),
         }),
     ],
-};
+}));
 // Infuse — {2}{U} Instant. "Untap target artifact, creature, or land"
 // (CR 701.26 untap) plus the next-upkeep cantrip rider.
-export const infuse: CardDefinition = {
+export const infuse = defineCard(() => ({
     id: "223287b6-224c-4e00-946c-e7ac5539bd45",
     name: "Infuse",
     rarity: "common",
@@ -1207,7 +1208,7 @@ export const infuse: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Krovikan Sorcerer — two looters whose discard cost is colour-filtered
 // (CR 601.2h convention — the chosen-discard is paid in-effect, Mesmeric
 // Trance pattern). DSL (ADR 0045, issue #1287): the colour filter reads
@@ -1220,7 +1221,7 @@ export const infuse: CardDefinition = {
 // goes on the stack (`useStack: true`). The black branch is a
 // draw-2-then-discard-1 (CR 121.1 draw, CR 701.9 discard) sequenced inside
 // the `if`'s `then` list.
-export const krovikanSorcerer: CardDefinition = {
+export const krovikanSorcerer = defineCard(() => ({
     id: "9c5fc053-7b0b-4e76-bf87-ccdb1e8752ed",
     name: "Krovikan Sorcerer",
     rarity: "common",
@@ -1318,7 +1319,7 @@ export const krovikanSorcerer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Shared "gain control until end of turn" body for Ray of Command (steals a
 // creature) and Magus of the Unseen (steals an artifact), issue #730. The three
 // clauses — untap (CR 701.26a), gain control until end of turn (CR 611.2b /
@@ -1339,7 +1340,7 @@ function gainControlUntilEndOfTurnBody(ctx: SpellContext): void {
     ctx.gainControlUntilEndOfTurn(target, ctx.controller, { tapOnLoss: true });
     ctx.grantStaticAbility(target, "haste", { phase: "end-of-turn" });
 }
-export const magusOfTheUnseen: CardDefinition = {
+export const magusOfTheUnseen = defineCard(() => ({
     id: "86da04e9-b94d-42af-add3-02baf772bd33",
     name: "Magus of the Unseen",
     rarity: "rare",
@@ -1367,12 +1368,12 @@ export const magusOfTheUnseen: CardDefinition = {
             resolve: gainControlUntilEndOfTurnBody,
         },
     ],
-};
+}));
 // Mesmeric Trance — {1}{U}{U} Enchantment with cumulative upkeep {1}
 // (CR 702.24 cumulative upkeep) and "{U}, Discard a card: Draw a card." The chosen-discard cost
 // is paid in-resolve (CR 601.2h convention, Dwarven Armorer pattern): step 0
 // discards a chosen card, step 1 draws only if the discard was paid.
-export const mesmericTrance: CardDefinition = {
+export const mesmericTrance = defineCard(() => ({
     id: "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
     name: "Mesmeric Trance",
     rarity: "rare",
@@ -1424,14 +1425,14 @@ export const mesmericTrance: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Mistfolk — {U}{U} 1/2 Illusion with "{U}: Counter target spell that targets
 // this creature." (CR 701.6a counter, CR 114.1 spell targeting.) The filtered
 // counter reuses the shipped `counter` Op; the "targets this creature" clause
 // is a stack-SPELL filter (`spellTargetsInstanceIds`) injected at activation
 // time via a dynamic `getTargetRequirement` carrying the source's own instance
 // id — the Sorceress Queen `excludeInstanceIds` injection pattern.
-export const mistfolk: CardDefinition = {
+export const mistfolk = defineCard(() => ({
     id: "4f3f4d4e-ca4a-4fba-b9fd-cd1d9457cfa1",
     name: "Mistfolk",
     rarity: "common",
@@ -1459,7 +1460,7 @@ export const mistfolk: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Musician — {2}{U} 1/3 with cumulative upkeep {1} (CR 702.24, ADR 0042) and an
 // activated ability that loads a target creature with a "music" counter and, if
 // it lacks the music-upkeep ability, GRANTS it: "At the beginning of your
@@ -1474,7 +1475,7 @@ export const mistfolk: CardDefinition = {
 // rather than stacking a duplicate ability — matching the "if it doesn't have it"
 // clause for free.
 const MUSICIAN_ID = "9f8d2247-a10e-413a-b497-2add3918f991";
-export const musician: CardDefinition = {
+export const musician = defineCard(() => ({
     id: MUSICIAN_ID,
     name: "Musician",
     rarity: "rare",
@@ -1558,7 +1559,7 @@ export const musician: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Mystic Might — {U} Aura "Enchant land you control" with cumulative upkeep
 // {1}{U} (CR 702.24 cumulative upkeep, ADR 0042) granting the enchanted land "{T}: Target creature
 // gets +2/+2 until end of turn." (CR 611 activated-grant — the Earthlore shape:
@@ -1566,7 +1567,7 @@ export const musician: CardDefinition = {
 // static pushes it onto the host land. The cost is the LAND's own tap
 // (`cost.tap`), so the land must be untapped to activate — a tapped permanent
 // can't pay a tap cost (CR 602.2 / 118.12).)
-export const mysticMight: CardDefinition = {
+export const mysticMight = defineCard(() => ({
     id: "e35d7f08-0687-41bd-8c53-31a49adabb11",
     name: "Mystic Might",
     rarity: "rare",
@@ -1610,7 +1611,7 @@ export const mysticMight: CardDefinition = {
             costLabel: "{1}{U}",
         }),
     ],
-};
+}));
 // Mystic Remora — {U} Enchantment with cumulative upkeep {1} (CR 702.24, ADR
 // 0042) plus a "draw tax" cast trigger: "Whenever an opponent casts a noncreature
 // spell, you may draw a card unless that player pays {4}." (CR 603.2 spell-cast
@@ -1618,7 +1619,7 @@ export const mysticMight: CardDefinition = {
 // inverse of Freyalise's Charm — here the CASTER (the opponent) may pay {4} to
 // stop the controller's draw, so the may-pay's payer is `spell.casterId`, not the
 // source's controller. Declining or being unable to pay lets the controller draw.
-export const mysticRemora: CardDefinition = {
+export const mysticRemora = defineCard(() => ({
     id: "58e93dff-b774-4765-b7bd-d3957e42ff4a",
     name: "Mystic Remora",
     rarity: "common",
@@ -1662,7 +1663,7 @@ export const mysticRemora: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Phantasmal Mount — BIDIRECTIONAL instance leave-watch (CR 603.7a / 603.10,
 // issue #731). "{T}: Target creature you control with toughness 2 or less gets
 // +1/+1 and gains flying until end of turn. When this creature leaves the
@@ -1676,76 +1677,82 @@ export const mysticRemora: CardDefinition = {
 // CLEANUP if unfired (the "this turn" bound). If both leave in the same event
 // batch, each fires and its sacrifice is a no-op on the already-gone other
 // (CR 608.2b).
-export const phantasmalMount: CardDefinition = {
-    id: "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
-    name: "Phantasmal Mount",
-    rarity: "uncommon",
-    oracleText:
-        "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
-    manaCost: { X: 1, U: 1 },
-    types: ["Creature"],
-    subtypes: ["Illusion", "Horse"],
-    power: 1,
-    toughness: 1,
-    staticAbilities: ["flying"],
-    activatedAbilities: [
-        {
-            id: "phantasmal-mount-pump",
-            oracleText:
-                "{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
-            cost: { tap: true },
-            useStack: true,
-            targetRequirement: {
-                type: "Creature",
-                count: 1,
-                controller: "you",
-                toughnessFilter: { max: 2 },
+export const phantasmalMount = defineCard(
+    (): CardDefinition => ({
+        id: "75afdbe6-a3f9-49cf-b4ef-f370e518e960",
+        name: "Phantasmal Mount",
+        rarity: "uncommon",
+        oracleText:
+            "Flying\n{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
+        manaCost: { X: 1, U: 1 },
+        types: ["Creature"],
+        subtypes: ["Illusion", "Horse"],
+        power: 1,
+        toughness: 1,
+        staticAbilities: ["flying"],
+        activatedAbilities: [
+            {
+                id: "phantasmal-mount-pump",
+                oracleText:
+                    "{T}: Target creature you control with toughness 2 or less gets +1/+1 and gains flying until end of turn. When this creature leaves the battlefield this turn, sacrifice that creature. When the creature leaves the battlefield this turn, sacrifice this creature.",
+                cost: { tap: true },
+                useStack: true,
+                targetRequirement: {
+                    type: "Creature",
+                    count: 1,
+                    controller: "you",
+                    toughnessFilter: { max: 2 },
+                },
+                effects: [
+                    {
+                        op: "pump",
+                        target: { target: 0 },
+                        power: 1,
+                        toughness: 1,
+                        duration: { phase: "end-of-turn" },
+                    },
+                    {
+                        op: "grantAbility",
+                        ability: "flying",
+                        target: { target: 0 },
+                        duration: { phase: "end-of-turn" },
+                    },
+                    // "When this creature [Mount] leaves the battlefield this turn,
+                    // sacrifice that creature [the buffed one]."
+                    {
+                        op: "delayedTrigger",
+                        timing: "leaves-battlefield",
+                        oracleText:
+                            "When Phantasmal Mount leaves the battlefield this turn, sacrifice that creature.",
+                        watch: { ref: "$source" },
+                        capture: { $mounted: { target: 0 } },
+                        effects: [
+                            { op: "sacrifice", target: { ref: "$mounted" } },
+                        ],
+                    },
+                    // "When that creature [the buffed one] leaves the battlefield
+                    // this turn, sacrifice this creature [Mount]."
+                    {
+                        op: "delayedTrigger",
+                        timing: "leaves-battlefield",
+                        oracleText:
+                            "When that creature leaves the battlefield this turn, sacrifice Phantasmal Mount.",
+                        watch: { target: 0 },
+                        capture: { $mount: { ref: "$source" } },
+                        effects: [
+                            { op: "sacrifice", target: { ref: "$mount" } },
+                        ],
+                    },
+                ],
             },
-            effects: [
-                {
-                    op: "pump",
-                    target: { target: 0 },
-                    power: 1,
-                    toughness: 1,
-                    duration: { phase: "end-of-turn" },
-                },
-                {
-                    op: "grantAbility",
-                    ability: "flying",
-                    target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
-                },
-                // "When this creature [Mount] leaves the battlefield this turn,
-                // sacrifice that creature [the buffed one]."
-                {
-                    op: "delayedTrigger",
-                    timing: "leaves-battlefield",
-                    oracleText:
-                        "When Phantasmal Mount leaves the battlefield this turn, sacrifice that creature.",
-                    watch: { ref: "$source" },
-                    capture: { $mounted: { target: 0 } },
-                    effects: [{ op: "sacrifice", target: { ref: "$mounted" } }],
-                },
-                // "When that creature [the buffed one] leaves the battlefield
-                // this turn, sacrifice this creature [Mount]."
-                {
-                    op: "delayedTrigger",
-                    timing: "leaves-battlefield",
-                    oracleText:
-                        "When that creature leaves the battlefield this turn, sacrifice Phantasmal Mount.",
-                    watch: { target: 0 },
-                    capture: { $mount: { ref: "$source" } },
-                    effects: [{ op: "sacrifice", target: { ref: "$mount" } }],
-                },
-            ],
-        },
-    ],
-};
+        ],
+    })
+);
 // Polar Kraken — {8}{U}{U}{U} 11/11 with trample, enters tapped, and the only
 // SACRIFICE-cost cumulative upkeep in the set: "Cumulative upkeep—Sacrifice a
 // land." (CR 702.24, ADR 0042). At N age counters the controller sacrifices N
 // lands or sacrifices the Kraken.
-export const polarKraken: CardDefinition = {
+export const polarKraken = defineCard(() => ({
     id: "aee01e9c-0445-4228-a73a-3e5744844ed3",
     name: "Polar Kraken",
     rarity: "rare",
@@ -1771,7 +1778,7 @@ export const polarKraken: CardDefinition = {
             costLabel: "Sacrifice a land",
         }),
     ],
-};
+}));
 // Portent — {U} Sorcery. "Look at the top three cards of target player's
 // library, then put them back in any order. You may have that player shuffle."
 // (CR 401.4 look, CR 401 reorder, CR 701.24 shuffle.) Composed from existing
@@ -1789,7 +1796,7 @@ export const polarKraken: CardDefinition = {
 // difference, not equivalent), so migrating would change observable behavior
 // — the pure-refactor invariant forbids it. Blocked on: `scryReorder`
 // adopting (or a new Op wrapping) the `reorder-library` choice kind.
-export const portent: CardDefinition = {
+export const portent = defineCard(() => ({
     id: "e040be83-3fb5-4da5-ba7a-4923b8854b74",
     name: "Portent",
     rarity: "common",
@@ -1834,12 +1841,12 @@ export const portent: CardDefinition = {
                 if (shuffle === undefined) return; // suspended on the may
                 if (shuffle) ctx.shuffleLibrary(t.id);
             }
-            scheduleNextUpkeepDraw(ctx, portent.id);
+            scheduleNextUpkeepDraw(ctx, portent().id);
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
-};
-export const rayOfCommand: CardDefinition = {
+}));
+export const rayOfCommand = defineCard(() => ({
     id: "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
     name: "Ray of Command",
     rarity: "common",
@@ -1851,7 +1858,7 @@ export const rayOfCommand: CardDefinition = {
     // protocol: see gainControlUntilEndOfTurnBody — EOT control change +
     // tap-on-loss rider has no ControlChangeCondition variant (#848).
     resolve: gainControlUntilEndOfTurnBody,
-};
+}));
 // Ray of Erasure — {U} Instant. "Target player mills a card" (CR 701.17a mill)
 // plus the next-upkeep cantrip rider.
 //
@@ -1859,7 +1866,7 @@ export const rayOfCommand: CardDefinition = {
 // `millCards`) covers the mill clause directly; the next-upkeep cantrip is an
 // inline `delayedTrigger` Op (ADR 0048, CR 603.7d, the Enervate/Infuse/Updraft
 // shape).
-export const rayOfErasure: CardDefinition = {
+export const rayOfErasure = defineCard(() => ({
     id: "5a09fc0b-7b9c-4283-8336-f2607f5ffaf5",
     name: "Ray of Erasure",
     rarity: "common",
@@ -1878,7 +1885,7 @@ export const rayOfErasure: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Reality Twist — {U}{U}{U} Enchantment with cumulative upkeep {1}{U}{U}
 // (CR 702.24, ADR 0042) plus a continuous per-basic-subtype land-mana
 // permutation (CR 614): "If tapped for mana, Plains produce {R}, Swamps produce
@@ -1887,7 +1894,7 @@ export const rayOfErasure: CardDefinition = {
 // Singularity shape), read live from the battlefield by the
 // `applyLandManaReplacement` mana funnel. Islands are absent from the map, so an
 // Island is unaffected (matching the oracle text, which omits Islands).
-export const realityTwist: CardDefinition = {
+export const realityTwist = defineCard(() => ({
     id: "1b7e955c-3de2-430c-93b9-0b39ccea5420",
     name: "Reality Twist",
     rarity: "rare",
@@ -1910,7 +1917,7 @@ export const realityTwist: CardDefinition = {
             costLabel: "{1}{U}{U}",
         }),
     ],
-};
+}));
 // Shyft — at the controller's upkeep (CR 603.6a, `phaseTrigger` scope "your"),
 // the controller MAY (CR 117.3a, `requestMayPay` cost-less) set Shyft's colour
 // via a layer-5 colour override (CR 305.7 / 613.1d — `setColorOverride`). The
@@ -1926,7 +1933,7 @@ export const realityTwist: CardDefinition = {
 // mono-colour pick covers the tactical use (becoming a colour to dodge a
 // "protection from" / colour-hate effect). Full power-set picking lands when a
 // multi-colour choice primitive exists.
-export const shyft: CardDefinition = {
+export const shyft = defineCard(() => ({
     id: "99a60c33-b641-42c4-870d-95d07bc975dc",
     name: "Shyft",
     rarity: "rare",
@@ -1978,11 +1985,11 @@ export const shyft: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Sibilant Spirit — 5/6 flier whose attack hands the defending player an
 // optional card draw (CR 508.1 attack trigger, CR 117.3a may-draw). The
 // defending player is the single opponent in a duel.
-export const sibilantSpirit: CardDefinition = {
+export const sibilantSpirit = defineCard(() => ({
     id: "47364ad2-5ce9-4b19-a9d2-f6a33188b882",
     name: "Sibilant Spirit",
     rarity: "rare",
@@ -2023,9 +2030,9 @@ export const sibilantSpirit: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Silver Erne — 2/2 flying + trample keyword creature (CR 702.9, 702.19).
-export const silverErne: CardDefinition = {
+export const silverErne = defineCard(() => ({
     id: "685076cc-098c-4f98-918c-0ad825eda10f",
     name: "Silver Erne",
     rarity: "uncommon",
@@ -2036,7 +2043,7 @@ export const silverErne: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying", "trample"],
-};
+}));
 // "It's blocking and you control a snow land" gate for Snow Devil's
 // conditional first-strike grant (CR 611.2c board-state-conditional
 // keyword-grant, the Kavu Runner `condition` shape — `inv/red.cards.ts`). `source`
@@ -2076,7 +2083,7 @@ function snowDevilFirstStrikeCondition(
 // a conditional first-strike grant while the host is blocking and the Aura's
 // controller controls a snow land (see `snowDevilFirstStrikeCondition`
 // above). Flying is unconditional, same shape as LEA's Flight.
-export const snowDevil: CardDefinition = {
+export const snowDevil = defineCard(() => ({
     id: "2be3a9a5-2ac5-4ea4-915d-8cff35c0e72f",
     name: "Snow Devil",
     rarity: "common",
@@ -2099,7 +2106,7 @@ export const snowDevil: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));
 // Snowfall — {2}{U} Enchantment with cumulative upkeep {U} (CR 702.24, ADR 0042)
 // plus a CU-mana engine: "Whenever an Island is tapped for mana, its controller
 // may add an additional {U}. … Spend this mana only to pay cumulative upkeep
@@ -2113,7 +2120,7 @@ export const snowDevil: CardDefinition = {
 // covered basics ship (#661), a tapped snow Island doubles the bonus. The
 // tapped view carries no supertype, so the resolve resolves the tapped land's
 // live snow status by id via the snow-aware battlefield filter.
-export const snowfall: CardDefinition = {
+export const snowfall = defineCard(() => ({
     id: "788ed793-3993-4a63-b9f9-9ac3947c3108",
     name: "Snowfall",
     rarity: "common",
@@ -2170,7 +2177,7 @@ export const snowfall: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Soldevi Machinist — "{T}: Add {C}{C}. Spend this mana only to activate
 // abilities of artifacts." (CR 605.1a mana ability, `useStack: false`;
 // CR 106.6 spend restriction.) The stub's old note is stale: issue #728 shipped
@@ -2184,7 +2191,7 @@ export const snowfall: CardDefinition = {
 // wherever an artifact's ability can be activated — and nowhere else: every
 // pre-existing restriction returns false at the ability path, and
 // `artifact-ability` returns false at every spell-cast site.
-export const soldeviMachinist: CardDefinition = {
+export const soldeviMachinist = defineCard(() => ({
     id: "1f0999df-2f94-499e-b9af-fe377d515400",
     name: "Soldevi Machinist",
     rarity: "uncommon",
@@ -2209,7 +2216,7 @@ export const soldeviMachinist: CardDefinition = {
             manaRestriction: "artifact-ability",
         },
     ],
-};
+}));
 // Soul Barrier — punisher enchantment: whenever an opponent casts a creature
 // spell, it deals 2 to that player unless they pay {2} (CR 603.2 cast trigger,
 // CR 117.3a may-pay, CR 120.1 damage).
@@ -2219,7 +2226,7 @@ export const soldeviMachinist: CardDefinition = {
 // relative `"opponent"` player ref names the same player as `spell.casterId`
 // without needing the event payload — `mayPay` offers {2}, `if` on the unpaid
 // outcome deals 2 damage to that player via `dealDamage`'s `{ player }` form.
-export const soulBarrier: CardDefinition = {
+export const soulBarrier = defineCard(() => ({
     id: "9ad7fac7-db4d-45b2-aba6-16f4fd1a586f",
     name: "Soul Barrier",
     rarity: "uncommon",
@@ -2256,10 +2263,10 @@ export const soulBarrier: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Thunder Wall — 0/2 flying Wall with Defender and a {U} self-pump
 // (CR 702.3, 702.9, 611.2a).
-export const thunderWall: CardDefinition = {
+export const thunderWall = defineCard(() => ({
     id: "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
     name: "Thunder Wall",
     rarity: "uncommon",
@@ -2290,10 +2297,10 @@ export const thunderWall: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Updraft — {1}{U} Instant. "Target creature gains flying until end of turn"
 // (CR 702.9 keyword grant via layer 6) plus the next-upkeep cantrip rider.
-export const updraft: CardDefinition = {
+export const updraft = defineCard(() => ({
     id: "d1bd4e16-27fe-4c7b-ae25-78ed77d8e8e7",
     name: "Updraft",
     rarity: "uncommon",
@@ -2321,9 +2328,9 @@ export const updraft: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Wind Spirit — 3/2 flying + menace keyword creature (CR 702.9, 702.111).
-export const windSpirit: CardDefinition = {
+export const windSpirit = defineCard(() => ({
     id: "4d882447-9594-4aab-b1a7-8bb275f250cf",
     name: "Wind Spirit",
     rarity: "uncommon",
@@ -2334,7 +2341,7 @@ export const windSpirit: CardDefinition = {
     power: 3,
     toughness: 2,
     staticAbilities: ["flying", "menace"],
-};
+}));
 // Winter's Chill — {X}{U} Instant (issue #738). "Cast only during combat before
 // blockers are declared. X can't be greater than the number of snow lands you
 // control. Choose X target attacking creatures. For each, its controller may
@@ -2374,7 +2381,7 @@ export const windSpirit: CardDefinition = {
 // Blocked on: a forEach + delayedTrigger($each capture) interpreter-suite
 // precedent test.
 const WINTERS_CHILL_ID = "a779aca7-ff2c-48d8-9484-6ad04b2c6bcb";
-export const wintersChill: CardDefinition = {
+export const wintersChill = defineCard(() => ({
     id: WINTERS_CHILL_ID,
     name: "Winter's Chill",
     rarity: "rare",
@@ -2452,7 +2459,7 @@ export const wintersChill: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Word of Undoing — "Return target creature and all white Auras you own
 // attached to it to their owners' hands." (CR 400.7 return to hand.) Before
 // bouncing the creature (which would otherwise drop its Auras to the
@@ -2465,7 +2472,7 @@ export const wintersChill: CardDefinition = {
 // `ref` path reaches `.attachedTo` (the same gap Feedback's own note
 // documents, `lea/blue.cards.ts`). Blocked on: an attached-to-target
 // selector/filter.
-export const wordOfUndoing: CardDefinition = {
+export const wordOfUndoing = defineCard(() => ({
     id: "22b04476-5a5d-4843-a948-82db209c4218",
     name: "Word of Undoing",
     rarity: "common",
@@ -2490,11 +2497,11 @@ export const wordOfUndoing: CardDefinition = {
         }
         ctx.returnToHand(t);
     },
-};
+}));
 // Wrath of Marit Lage — ETB taps every red creature (CR 603.6b enters trigger,
 // CR 701.26a tap) and a static untap-lock on red creatures (CR 611 — the
 // Meekstone pattern with a colour filter).
-export const wrathOfMaritLage: CardDefinition = {
+export const wrathOfMaritLage = defineCard(() => ({
     id: "1d512f5c-0327-4d49-8a26-672574a49102",
     name: "Wrath of Marit Lage",
     rarity: "rare",
@@ -2542,7 +2549,7 @@ export const wrathOfMaritLage: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Zur's Weirding — {3}{U} Enchantment (issue #735). Two clauses over the shipped
 // draw-reveal / hand-reveal engine:
 //   • "Players play with their hands revealed" — the continuous hand-reveal
@@ -2557,7 +2564,7 @@ export const wrathOfMaritLage: CardDefinition = {
 //     `reveal-others-may-pay-life`. Now honored at the turn-based DRAW STEP AND
 //     at DSL `draw` Op effect draws (the unified suspend-capable seam) — the
 //     `drawRevealReplacement`/`draw-reveal-pay` divergence (tracked-by: #2785) is retired.
-export const zursWeirding: CardDefinition = {
+export const zursWeirding = defineCard(() => ({
     id: "e1f8531f-19ca-48a2-baf2-c5dc6f18d79c",
     name: "Zur's Weirding",
     rarity: "rare",
@@ -2574,14 +2581,14 @@ export const zursWeirding: CardDefinition = {
         applies: () => true,
         outcome: { kind: "reveal-others-may-pay-life", life: 2 },
     },
-};
+}));
 // Zuran Enchanter — "{2}{B}, {T}: Target player discards a card. Activate only
 // during your turn." (CR 605 activated ability, CR 701.9 discard chosen by the
 // targeted player, CR 602.5b "only during your turn" via `controllerTurnOnly`.)
 // The discarding player picks via a `discard-hand` requestChoice scoped to their
 // own hand (Abyssal Specter pattern). Cast cost is {1}{U} (a blue creature whose
 // black-flavored discard ability costs {2}{B}); verified against Scryfall.
-export const zuranEnchanter: CardDefinition = {
+export const zuranEnchanter = defineCard(() => ({
     id: "721edcef-f40a-4d43-9d80-26161dc425cb",
     name: "Zuran Enchanter",
     rarity: "common",
@@ -2624,4 +2631,4 @@ export const zuranEnchanter: CardDefinition = {
             ],
         },
     ],
-};
+}));

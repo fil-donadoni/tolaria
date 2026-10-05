@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { adaptAbility } from "../../abilities/adapt";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigger";
@@ -19,7 +18,7 @@ import { counterAddedTrigger } from "../../abilities/triggers/counterAddedTrigge
 //  infra; the variable "any number … with N+ card types" exile cost is the
 //  `minCardTypes` picker mode. No on-resolution DSL effect — the card simply
 //  enters as a creature.)
-export const nethergoyf: CardDefinition = {
+export const nethergoyf = defineCard(() => ({
     id: "3ee3945e-5089-4751-b7b3-5961c39d2a33",
     name: "Nethergoyf",
     rarity: "mythic",
@@ -57,7 +56,7 @@ export const nethergoyf: CardDefinition = {
     // CR 702.138 — Escape. Variable exile cost: any number of OTHER graveyard
     // cards with 4+ card types among them (the `minCardTypes` picker mode).
     escape: { mana: { X: 2, B: 1 }, exile: { minCardTypes: 4 } },
-};
+}));
 
 // Emperor of Bones — {1}{B} Creature — Skeleton Noble, 2/2 (MH3 90, issue
 // #1323, parent #917). "At the beginning of combat on your turn, exile up to
@@ -100,7 +99,7 @@ export const nethergoyf: CardDefinition = {
 // NOT a player choice" precedent for its positional graveyard pick, extended
 // here to the (CR-unordered) exile zone as a documented scope decision for
 // this ticket. A `docs/findings/` entry flags this as a candidate follow-up.
-export const emperorOfBones: CardDefinition = {
+export const emperorOfBones = defineCard(() => ({
     id: "df9d9075-2d1e-4848-b661-816d539e05eb", // MH3 90
     name: "Emperor of Bones",
     rarity: "rare",
@@ -199,4 +198,4 @@ export const emperorOfBones: CardDefinition = {
             costLabel: "{1}{B}",
         }),
     ],
-};
+}));

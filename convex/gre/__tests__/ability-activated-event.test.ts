@@ -84,18 +84,18 @@ function activateStackAbility(
 
 function setup() {
     // p1 (Haunting Wind controller) vs p2 (artifact controller).
-    const hw = makeInstance(hauntingWind.id, {
+    const hw = makeInstance(hauntingWind().id, {
         id: "hw",
         controllerId: "p1",
         ownerId: "p1",
     });
-    const trisk = makeInstance(triskelion.id, {
+    const trisk = makeInstance(triskelion().id, {
         id: "trisk",
         controllerId: "p2",
         ownerId: "p2",
         counters: { "+1/+1": 3 },
     });
-    const cane = makeInstance(feldonsCane.id, {
+    const cane = makeInstance(feldonsCane().id, {
         id: "cane",
         controllerId: "p2",
         ownerId: "p2",

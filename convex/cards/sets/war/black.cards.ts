@@ -1,6 +1,6 @@
 // war — black cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Bolas's Citadel — {3}{B}{B}{B} Legendary Artifact (Vintage Cube, issue
 // #2398). Three orthogonal engine primitives, each shipped GENERAL rather than
@@ -36,7 +36,7 @@ import type { CardDefinition } from "../../types";
 // generalizing the single-permanent `sacrificeFilter` to N (CR 602.1 / 118.5).
 // Citadel itself is a legal victim — it is a nonland permanent, and CR 701.21
 // puts no restriction on sacrificing the source of the ability being paid for.
-export const bolassCitadel: CardDefinition = {
+export const bolassCitadel = defineCard(() => ({
     id: "d2124603-d20e-40eb-97f0-a66323397ac2",
     name: "Bolas's Citadel",
     rarity: "rare",
@@ -72,4 +72,4 @@ export const bolassCitadel: CardDefinition = {
             effects: [{ op: "loseLife", player: "opponent", amount: 10 }],
         },
     ],
-};
+}));

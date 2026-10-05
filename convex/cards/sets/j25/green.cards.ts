@@ -3,7 +3,7 @@
 // j25/index.cards.ts. Cards are classified by the colour identity of their mana cost
 // (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 
 // Scythecat Cub — {X}{G} Creature — Cat, 2/2, Trample. "Landfall — Whenever a
@@ -29,7 +29,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // announced target into the doubling logic (an `abilityResolutionCount`-gated
 // `getCounterCount` → `addCounter`), so the counter half stays an imperative
 // resolve (`.claude/rules/gre-development.md` § DSL-first authoring).
-export const scythecatCub: CardDefinition = {
+export const scythecatCub = defineCard(() => ({
     id: "b3dd3c7d-4685-4579-b483-14ddaaaddf5b",
     name: "Scythecat Cub",
     rarity: "common",
@@ -75,4 +75,4 @@ export const scythecatCub: CardDefinition = {
             },
         },
     ],
-};
+}));

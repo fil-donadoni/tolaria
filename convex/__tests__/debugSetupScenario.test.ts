@@ -94,9 +94,9 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
     // mapping without that impossible combination.
     const spec: ScenarioSpec = {
         cards: [
-            { name: grizzlyBears.name, owner: "me" },
-            { name: shivanDragon.name, owner: "opp" },
-            { name: forest.name, owner: "me", zone: "hand" },
+            { name: grizzlyBears().name, owner: "me" },
+            { name: shivanDragon().name, owner: "opp" },
+            { name: forest().name, owner: "me", zone: "hand" },
         ],
         life: { me: 5, opp: 12 },
         activePlayer: "me",
@@ -123,12 +123,12 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
         const human = state.players.find((p) => p.id === HUMAN_SEAT)!;
         const bot = state.players.find((p) => p.id === BOT_SEAT)!;
         expect(
-            human.battlefield.some((c) => c.card.id === grizzlyBears.id)
+            human.battlefield.some((c) => c.card.id === grizzlyBears().id)
         ).toBe(true);
-        expect(bot.battlefield.some((c) => c.card.id === shivanDragon.id)).toBe(
-            true
-        );
-        expect(human.hand.some((c) => c.card.id === forest.id)).toBe(true);
+        expect(
+            bot.battlefield.some((c) => c.card.id === shivanDragon().id)
+        ).toBe(true);
+        expect(human.hand.some((c) => c.card.id === forest().id)).toBe(true);
         expect(human.life).toBe(5);
         expect(bot.life).toBe(12);
         expect(state.activePlayerId).toBe(HUMAN_SEAT);
@@ -151,12 +151,12 @@ describe("debugSetupScenario — a scenario renders from the human's point of vi
         const human = state.players.find((p) => p.id === HUMAN_SEAT)!;
         const bot = state.players.find((p) => p.id === BOT_SEAT)!;
         expect(
-            human.battlefield.some((c) => c.card.id === grizzlyBears.id)
+            human.battlefield.some((c) => c.card.id === grizzlyBears().id)
         ).toBe(true);
-        expect(bot.battlefield.some((c) => c.card.id === shivanDragon.id)).toBe(
-            true
-        );
-        expect(human.hand.some((c) => c.card.id === forest.id)).toBe(true);
+        expect(
+            bot.battlefield.some((c) => c.card.id === shivanDragon().id)
+        ).toBe(true);
+        expect(human.hand.some((c) => c.card.id === forest().id)).toBe(true);
         expect(human.life).toBe(5);
         expect(bot.life).toBe(12);
         expect(state.activePlayerId).toBe(HUMAN_SEAT);
@@ -206,20 +206,20 @@ describe("debugSetupScenario — combat, the stack and continuous effects also r
         });
         const spec: ScenarioSpec = {
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: grizzlyBears().name, owner: "me" },
+                { name: shivanDragon().name, owner: "opp" },
             ],
             phase: "PRECOMBAT_MAIN",
             activePlayer: "me",
             // `seedDeclaredCombat`'s CR 508.4 "attacked" per-seat tally,
             // applied independently of a declared attack: "opp"'s Shivan Dragon
             // attacked THIS turn, searched on "opp"'s own battlefield.
-            combat: { attackedThisTurn: { opp: [shivanDragon.name] } },
+            combat: { attackedThisTurn: { opp: [shivanDragon().name] } },
             // `seedDeclaredStack`: the controller/owner of a declared item.
             stack: [
                 {
                     kind: "spell",
-                    name: lightningBolt.name,
+                    name: lightningBolt().name,
                     controller: "opp",
                     targets: [{ kind: "player", seat: "me" }],
                 },
@@ -231,7 +231,7 @@ describe("debugSetupScenario — combat, the stack and continuous effects also r
                 {
                     layer: 6,
                     controller: "opp",
-                    affected: { opp: [shivanDragon.name] },
+                    affected: { opp: [shivanDragon().name] },
                     payload: { kind: "keyword-grant", keyword: "flying" },
                     duration: { phase: "upkeep", player: "opp" },
                 },
@@ -254,7 +254,7 @@ describe("debugSetupScenario — combat, the stack and continuous effects also r
 
         const shivan = state.players
             .find((p) => p.id === BOT_SEAT)!
-            .battlefield.find((c) => c.card.id === shivanDragon.id)!;
+            .battlefield.find((c) => c.card.id === shivanDragon().id)!;
         expect(shivan.card).toBeDefined();
         expect(shivan.hasAttackedThisTurn).toBe(true);
         const effect = state.continuousEffects?.find(

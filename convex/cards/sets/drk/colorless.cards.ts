@@ -7,7 +7,7 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
@@ -28,7 +28,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // untap step." (CR 605 activated ability; CR 302.6 / 502.1 one-shot
 // untap-prevention via the `skipNextUntap` Op, cleared after exactly one untap
 // step. DSL-first, ADR 0045 — announced-slot skin over SpellContext.skipNextUntap.)
-export const barlsCage: CardDefinition = {
+export const barlsCage = defineCard(() => ({
     id: "6768a307-da2e-435e-8efd-72d82b4d4a2b",
     rarity: "rare",
     name: "Barl's Cage",
@@ -47,12 +47,12 @@ export const barlsCage: CardDefinition = {
             effects: [{ op: "skipNextUntap", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Bone Flute — "{2}, {T}: All creatures get -1/-0 until end of turn." (CR 605
 // activated ability; CR 611.2 / 613 layer 7c temporary P/T mod on every
 // creature, scoped to end of turn. Mirrors Marsh Gas' all-creatures pump.)
-export const boneFlute: CardDefinition = {
+export const boneFlute = defineCard(() => ({
     id: "63a31de0-d764-4ff6-a85f-027e1e58d86c",
     rarity: "uncommon",
     name: "Bone Flute",
@@ -89,7 +89,7 @@ export const boneFlute: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Dark Sphere — "{T}, Sacrifice this artifact: The next time a source of your
 // choice would deal damage to you this turn, prevent half that damage, rounded
@@ -97,7 +97,7 @@ export const boneFlute: CardDefinition = {
 // prevent-half shield via the new `addPlayerDamagePreventionShield`. The "source
 // of your choice" is a permanent target — typically the attacker/burn source —
 // scoped to the activating player.)
-export const darkSphere: CardDefinition = {
+export const darkSphere = defineCard(() => ({
     id: "72cfe9b9-677d-4ecb-83ab-67fb6481371d",
     rarity: "uncommon",
     name: "Dark Sphere",
@@ -132,13 +132,13 @@ export const darkSphere: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Living Armor — "{T}, Sacrifice this artifact: Put X +0/+1 counters on target
 // creature, where X is that creature's mana value." (CR 605 activated ability;
 // CR 122.1 counters; CR 202.3 mana value of the targeted permanent. +0/+1 is a
 // layer-7d P/T-modifying counter.)
-export const livingArmor: CardDefinition = {
+export const livingArmor = defineCard(() => ({
     id: "3c31a957-ad1e-40cc-b3c4-2f4caa492b77",
     rarity: "uncommon",
     name: "Living Armor",
@@ -167,7 +167,7 @@ export const livingArmor: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Necropolis — "Defender\nExile a creature card from your graveyard: Put X +0/+1
 // counters on this creature, where X is the exiled card's mana value." (CR 702.3 defender;
@@ -181,7 +181,7 @@ export const livingArmor: CardDefinition = {
 // (`exileCostSnapshot` → `StackItem.additionalSacrificeSnapshot`, CR 608.2h
 // last-known information), because the card is already in exile by the time
 // this ability resolves.
-export const necropolis: CardDefinition = {
+export const necropolis = defineCard(() => ({
     id: "893e8e9c-983e-4db1-8d93-10637025a559",
     rarity: "uncommon",
     name: "Necropolis",
@@ -226,7 +226,7 @@ export const necropolis: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Reflecting Mirror — "{X}, {T}: Change the target of target spell with a single
 // target if that target is you. The new target must be a player. X is twice the
@@ -237,7 +237,7 @@ export const necropolis: CardDefinition = {
 // to twice the targeted spell's mana value via `xFromTargetSpellMv` rather than
 // player-chosen (CR 107.3). On resolution the new player target is chosen and
 // written onto the original stack item via `requestRetarget`.)
-export const reflectingMirror: CardDefinition = {
+export const reflectingMirror = defineCard(() => ({
     id: "d551ff93-d8da-4c21-bc3c-6451c0dde07e",
     rarity: "uncommon",
     name: "Reflecting Mirror",
@@ -270,14 +270,14 @@ export const reflectingMirror: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Scarecrow — "{6}, {T}: Prevent all damage that would be dealt to you this turn
 // by creatures with flying." (CR 605 activated ability; CR 615.1 per-player,
 // source-keyword-matched prevent-all shield via `addPlayerDamagePreventionShield`
 // matching the "flying" static ability, lasting the rest of the turn — high
 // `remaining` so it prevents every flyer's hit, not just the first.)
-export const scarecrow: CardDefinition = {
+export const scarecrow = defineCard(() => ({
     id: "93850e74-744c-4261-a84e-01eaced6e49a",
     rarity: "uncommon",
     name: "Scarecrow",
@@ -307,12 +307,12 @@ export const scarecrow: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Skull of Orm — "{5}, {T}: Return target enchantment card from your graveyard
 // to your hand." (CR 605 activated ability; CR 400.7 graveyard→hand zone move.
 // Same shape as Raise Dead, filtered to Enchantment cards in your graveyard.)
-export const skullOfOrm: CardDefinition = {
+export const skullOfOrm = defineCard(() => ({
     id: "aa1d9bb5-972a-4705-bf22-0fa1e974dd26",
     rarity: "uncommon",
     name: "Skull of Orm",
@@ -339,12 +339,12 @@ export const skullOfOrm: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Standing Stones — "{1}, {T}, Pay 1 life: Add one mana of any color." (CR 605.1
 // mana ability — resolves immediately, useStack: false, CR 605.3a; CR 106.1 mana
 // of any color via `manaChoices`; CR 119.4 life payment as part of the cost.)
-export const standingStones: CardDefinition = {
+export const standingStones = defineCard(() => ({
     id: "6d4c853e-2231-4af2-bcb0-1781c18ec3be",
     rarity: "uncommon",
     name: "Standing Stones",
@@ -361,12 +361,12 @@ export const standingStones: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Stone Calendar — "Spells you cast cost {1} less to cast." (CR 601.2f cost
 // reduction; CR 118.7 generic-only reduction. A `cost-modifier` static scoped to
 // the controller's own spells via `card.controllerId === effectSource.controllerId`.)
-export const stoneCalendar: CardDefinition = {
+export const stoneCalendar = defineCard(() => ({
     id: "a49ba1a5-33b1-40f2-9780-26139ed829d7",
     rarity: "rare",
     name: "Stone Calendar",
@@ -385,7 +385,7 @@ export const stoneCalendar: CardDefinition = {
             costReduction: { X: 1 },
         },
     ],
-};
+}));
 
 // Tormod's Crypt — "{T}, Sacrifice this artifact: Exile target player's
 // graveyard." (CR 605 activated ability; CR 406 / 400.7 — move the whole target
@@ -393,7 +393,7 @@ export const stoneCalendar: CardDefinition = {
 // shape (issue #1279), a skin over the same `ctx.moveZone(player,
 // "graveyard", "exile")` the old closure called; `{ target: 0 }` skips a
 // target that is no longer a player (CR 608.2b), as the closure's guard did.
-export const tormodsCrypt: CardDefinition = {
+export const tormodsCrypt = defineCard(() => ({
     id: "0f9668ba-d26d-4484-b4b8-6fb91fbfb617",
     rarity: "uncommon",
     name: "Tormod's Crypt",
@@ -419,13 +419,13 @@ export const tormodsCrypt: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Tower of Coireall — "{T}: Target creature can't be blocked by Walls this turn."
 // (CR 605 activated ability; CR 509.1b block restriction. The shipped
 // `cant-be-blocked-by-subtype` until-EOT marker — same family as Tawnos's Wand's
 // can't-be-blocked. Scoped to the Wall subtype.)
-export const towerOfCoireall: CardDefinition = {
+export const towerOfCoireall = defineCard(() => ({
     id: "64c19977-ac7d-4ce7-925c-33a7503420f5",
     rarity: "uncommon",
     name: "Tower of Coireall",
@@ -448,7 +448,7 @@ export const towerOfCoireall: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Wand of Ith — DEFERRED (TODO(#417)). "{3}, {T}: Target player reveals a card
 // at random from their hand. If it's a land card, that player discards it unless
@@ -470,7 +470,7 @@ export const towerOfCoireall: CardDefinition = {
 // union has no exile-a-permanent cost). The second is a mana ability whose
 // colorless output is computed from the source's storage counters via
 // `manaAmount`, CR 106.1 / 605.1a.)
-export const cityOfShadows: CardDefinition = {
+export const cityOfShadows = defineCard(() => ({
     id: "76e5ee8a-34e5-4a2e-a04e-9fcdc7e53dda",
     rarity: "rare",
     name: "City of Shadows",
@@ -517,14 +517,14 @@ export const cityOfShadows: CardDefinition = {
             }),
         },
     ],
-};
+}));
 
 // Maze of Ith — "{T}: Untap target attacking creature. Prevent all combat damage
 // that would be dealt to and dealt by that creature this turn." (CR 605 activated
 // ability; CR 701.26b untap; CR 615.1 / Ebony Horse-style
 // `preventAllCombatDamageToAndBy`. Untapping an attacker does NOT remove it from
 // combat, CR 506.4c — the prevention is what neutralizes it.)
-export const mazeOfIth: CardDefinition = {
+export const mazeOfIth = defineCard(() => ({
     id: "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
     rarity: "uncommon",
     name: "Maze of Ith",
@@ -558,7 +558,7 @@ export const mazeOfIth: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Safe Haven — "{2}, {T}: Exile target creature you control.\nAt the beginning of
 // your upkeep, you may sacrifice this land. If you do, return each card exiled
@@ -566,7 +566,7 @@ export const mazeOfIth: CardDefinition = {
 // ability that exiles a creature you control with an exile-and-return bundle
 // keyed to the source via `exileForSource`; CR 603 upkeep trigger that, on
 // sacrifice, returns the bundled cards via `returnExiledForSource`.)
-export const safeHaven: CardDefinition = {
+export const safeHaven = defineCard(() => ({
     id: "0d48fb47-1bed-4791-a014-504515f3d36f",
     rarity: "rare",
     name: "Safe Haven",
@@ -622,7 +622,7 @@ export const safeHaven: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deferred (tracked-by: #2785) — these four DRK White cards each need a genuinely new engine
@@ -710,7 +710,7 @@ export const safeHaven: CardDefinition = {
 // activation against every opponent's lands. The static `manaChoices` is the
 // representative / fallback list for best-effort callers without a board
 // snapshot (affordability, autoTap).)
-export const fellwarStone: CardDefinition = {
+export const fellwarStone = defineCard(() => ({
     id: "dc47e322-f8b8-4685-b035-fda0cc433e6b",
     rarity: "uncommon",
     name: "Fellwar Stone",
@@ -741,12 +741,12 @@ export const fellwarStone: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Coal Golem — "{3}, Sacrifice this creature: Add {R}{R}{R}." (CR 605.1a mana
 // ability with a {3} + self-sacrifice cost — the Gaea's Touch sacrifice-for-mana
 // shape, resolves immediately.)
-export const coalGolem: CardDefinition = {
+export const coalGolem = defineCard(() => ({
     id: "1ad7692d-5a51-493f-a322-7b615446ea8e",
     rarity: "uncommon",
     name: "Coal Golem",
@@ -766,7 +766,7 @@ export const coalGolem: CardDefinition = {
             manaProduced: { R: 3 },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C9 — Swap blockers (Sorrow's Path, PRD #409 / issue #426)
@@ -802,7 +802,7 @@ export const coalGolem: CardDefinition = {
 //      replacement effects apply. NB: tapping for the activated ability ALSO
 //      fires this trigger (the cost taps the land → PERMANENT_TAPPED), which is
 //      exactly the printed self-punishing interaction.
-export const sorrowsPath: CardDefinition = {
+export const sorrowsPath = defineCard(() => ({
     id: "6f75946b-1690-43cc-993c-d4e451a1a41c",
     rarity: "rare",
     name: "Sorrow's Path",
@@ -860,4 +860,4 @@ export const sorrowsPath: CardDefinition = {
             },
         }),
     ],
-};
+}));

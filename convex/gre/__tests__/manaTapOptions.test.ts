@@ -30,7 +30,7 @@ function withUrborg(lands: ReturnType<typeof makeInstance>[]): {
     state: GameState;
     lands: ReturnType<typeof makeInstance>[];
 } {
-    const urborg = makeInstance(urborgTombOfYawgmoth.id, {
+    const urborg = makeInstance(urborgTombOfYawgmoth().id, {
         id: "urborg-1",
         controllerId: "p1",
         zone: "battlefield",
@@ -46,24 +46,24 @@ const bf = (state: GameState) =>
 
 describe("getManaTapOptions — baseline (no type-granting effect)", () => {
     it("a basic Mountain exposes exactly {R}", () => {
-        const m = makeInstance(mountain.id, { controllerId: "p1" });
+        const m = makeInstance(mountain().id, { controllerId: "p1" });
         expect(getManaTapOptions(m)).toEqual([{ R: 1 }]);
     });
 
     it("City of Traitors exposes exactly {C}{C} from its own ability", () => {
-        const c = makeInstance(cityOfTraitors.id, { controllerId: "p1" });
+        const c = makeInstance(cityOfTraitors().id, { controllerId: "p1" });
         expect(getManaTapOptions(c)).toEqual([{ C: 2 }]);
     });
 
     it("a dual land (Tropical Island) exposes {G} or {U}, no duplicate from its basic subtypes", () => {
-        const d = makeInstance(tropicalIsland.id, { controllerId: "p1" });
+        const d = makeInstance(tropicalIsland().id, { controllerId: "p1" });
         expect(getManaTapOptions(d)).toEqual([{ G: 1 }, { U: 1 }]);
     });
 });
 
 describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities)", () => {
     it("a Mountain can tap for {R} OR {B} (basic + granted Swamp)", () => {
-        const m = makeInstance(mountain.id, {
+        const m = makeInstance(mountain().id, {
             id: "mtn-1",
             controllerId: "p1",
         });
@@ -75,7 +75,7 @@ describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities
     });
 
     it("City of Traitors KEEPS {C}{C} and additionally offers {B}", () => {
-        const c = makeInstance(cityOfTraitors.id, {
+        const c = makeInstance(cityOfTraitors().id, {
             id: "cot-1",
             controllerId: "p1",
         });
@@ -87,7 +87,7 @@ describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities
     });
 
     it("a dual land offers {U}, {G} AND {B}", () => {
-        const d = makeInstance(tropicalIsland.id, {
+        const d = makeInstance(tropicalIsland().id, {
             id: "dual-1",
             controllerId: "p1",
         });
@@ -100,7 +100,10 @@ describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities
     });
 
     it("a real Swamp is not doubled — Urborg adds nothing new", () => {
-        const f = makeInstance(forest.id, { id: "for-1", controllerId: "p1" });
+        const f = makeInstance(forest().id, {
+            id: "for-1",
+            controllerId: "p1",
+        });
         const { state } = withUrborg([f]);
         // Forest → {G}, plus granted Swamp → {B}. Two distinct options.
         expect(getManaTapOptions(f, "p1", bf(state))).toEqual([
@@ -110,7 +113,7 @@ describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities
     });
 
     it("tags provenance: {C}{C} is activated, {B} is the intrinsic Swamp", () => {
-        const c = makeInstance(cityOfTraitors.id, {
+        const c = makeInstance(cityOfTraitors().id, {
             id: "cot-2",
             controllerId: "p1",
         });
@@ -123,7 +126,7 @@ describe("getManaTapOptions — under Urborg (CR 305.6 stacks with own abilities
 
 describe("production path — tapSourceIntoPayment routes the chosen option (CR 605.1a)", () => {
     it("City of Traitors under Urborg: index 0 pays {C}{C}", () => {
-        const c = makeInstance(cityOfTraitors.id, {
+        const c = makeInstance(cityOfTraitors().id, {
             id: "cot-3",
             controllerId: "p1",
         });
@@ -135,7 +138,7 @@ describe("production path — tapSourceIntoPayment routes the chosen option (CR 
     });
 
     it("City of Traitors under Urborg: index 1 pays {B} (its own {C}{C} not forced)", () => {
-        const c = makeInstance(cityOfTraitors.id, {
+        const c = makeInstance(cityOfTraitors().id, {
             id: "cot-4",
             controllerId: "p1",
         });
@@ -147,7 +150,7 @@ describe("production path — tapSourceIntoPayment routes the chosen option (CR 
     });
 
     it("Mountain under Urborg: index 1 pays {B}", () => {
-        const m = makeInstance(mountain.id, {
+        const m = makeInstance(mountain().id, {
             id: "mtn-2",
             controllerId: "p1",
         });
@@ -161,7 +164,7 @@ describe("production path — tapSourceIntoPayment routes the chosen option (CR 
 
 describe("riders fire per provenance (CR 605.1a / 120)", () => {
     it("Ancient Tomb under Urborg: tapping for {C}{C} deals 2 to controller", () => {
-        const a = makeInstance(ancientTomb.id, {
+        const a = makeInstance(ancientTomb().id, {
             id: "at-1",
             controllerId: "p1",
         });
@@ -174,7 +177,7 @@ describe("riders fire per provenance (CR 605.1a / 120)", () => {
     });
 
     it("Ancient Tomb under Urborg: tapping for {B} (the Swamp ability) deals NO damage", () => {
-        const a = makeInstance(ancientTomb.id, {
+        const a = makeInstance(ancientTomb().id, {
             id: "at-2",
             controllerId: "p1",
         });

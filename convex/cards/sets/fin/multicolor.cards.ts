@@ -3,14 +3,13 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import type {
-    CardDefinition,
     CardType,
     GameEvent,
     ManaCost,
     PermanentView,
     SpellContext,
 } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 
 // Vivi Ornitier — {1}{U}{R} Legendary Creature — Wizard. "{0}: Add X mana in
 // any combination of {U} and/or {R}, where X is Vivi Ornitier's power.
@@ -41,7 +40,7 @@ import { PERMANENT_TYPES } from "../../types";
 // — this ability is reached ONLY through the activated-ability menu.
 const VIVI_ORNITIER_ID = "ecc1027a-8c07-44a0-bdde-fa2844cff694";
 
-export const viviOrnitier: CardDefinition = {
+export const viviOrnitier = defineCard(() => ({
     id: VIVI_ORNITIER_ID,
     name: "Vivi Ornitier",
     rarity: "mythic",
@@ -112,7 +111,7 @@ export const viviOrnitier: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 const SIN_SPIRAS_PUNISHMENT_ID = "659be746-bd31-4a70-8cec-7798da78b0b5";
 
@@ -207,7 +206,7 @@ function sinExileCopyLoop(ctx: SpellContext): void {
     }
 }
 
-export const sinSpirasPunishment: CardDefinition = {
+export const sinSpirasPunishment = defineCard(() => ({
     id: SIN_SPIRAS_PUNISHMENT_ID,
     name: "Sin, Spira's Punishment",
     rarity: "rare",
@@ -259,4 +258,4 @@ export const sinSpirasPunishment: CardDefinition = {
             ],
         },
     ],
-};
+}));

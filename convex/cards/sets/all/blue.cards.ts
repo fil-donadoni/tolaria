@@ -1,6 +1,6 @@
 // ALL (Alliances) — blue cards, split by colour per ADR 0043. The registry's
 // `import * as all from "./sets/all/index.cards"` re-exports this module.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Force of Will — {3}{U}{U} Instant. "You may pay 1 life and exile a blue card
 // from your hand rather than pay this spell's mana cost. Counter target spell."
@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // concept (no keyword name) built from two legs — pay 1 life + exile a blue
 // card from hand — paid at cast commit; the on-resolution effect is a single
 // already-censused `counter` Op (ADR 0045, DSL-first).
-export const forceOfWill: CardDefinition = {
+export const forceOfWill = defineCard(() => ({
     id: "9a879b60-4381-447d-8a5a-8e0b6a1d49ca", // ALL 28
     rarity: "uncommon",
     name: "Force of Will",
@@ -30,4 +30,4 @@ export const forceOfWill: CardDefinition = {
         },
     ],
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
