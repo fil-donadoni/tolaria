@@ -4,6 +4,7 @@
 import { modalLandBackFace } from "../../abilities";
 import { incubateOp } from "../../abilities/tokens/incubatorToken";
 import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Witch Enchanter // Witch-Blessed Meadow — {3}{W} Creature — Human Warlock
 // 2/2, with a Land back face (CR 712.3, ADR 0122). "When this creature enters,
@@ -21,7 +22,7 @@ import type { CardDefinition } from "../../types";
 // — which is why Sink into Stupor is the clause's live subject and this one is
 // its control.
 // compiler-gap: "As this land enters, you may pay 3 life. If you don't, it enters tapped." (#2693)
-export const witchEnchanter: CardDefinition = {
+export const witchEnchanter = defineCard(() => ({
     id: "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
     name: "Witch Enchanter",
     rarity: "uncommon",
@@ -55,7 +56,7 @@ export const witchEnchanter: CardDefinition = {
         color: "W",
         life: 3,
     }),
-};
+}));
 
 // Sunfall — {3}{W}{W} Sorcery. "Exile all creatures. Incubate X, where X is
 // the number of creatures exiled this way." (CR 701.13 exile; CR 701.53 incubate

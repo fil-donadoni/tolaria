@@ -7,8 +7,9 @@
  * The proof is a load with every definition made untouchable: the catalogue is
  * bundled by esbuild with
  *
- *   - every hand-written definition export (`sets/<code>/<colour>.cards.ts`)
- *     replaced by a Proxy whose every trap throws — the module is still
+ *   - every hand-written definition export (`sets/<code>/<colour>.cards.ts`),
+ *     eager object or `defineCard` factory (issue #4857), replaced by a Proxy
+ *     whose every trap throws — the module is still
  *     evaluated, its non-definition exports pass through, but reading so much
  *     as `"id" in def` names the definition and fails;
  *   - every row of the compiled pool (`data/oracle-compiled-pool.json`)
@@ -43,7 +44,8 @@ const stub = (what) => new Proxy({}, new Proxy({}, {
     },
 }));
 const isDefinition = (v) =>
-    typeof v === "object" && v !== null && "id" in v && "name" in v && "types" in v;
+    (typeof v === "object" && v !== null && "id" in v && "name" in v && "types" in v) ||
+    (typeof v === "function" && v[Symbol.for("tolaria.cardFactory")] === true);
 `;
 
 /** Counts what the plugin substituted, so a test can refuse a vacuous load. */

@@ -10,6 +10,11 @@ import type {
     LookDistributeKeepTo,
 } from "../gre/types";
 
+// A hand-written Card Definition as a memoised factory (issue #4857): Set
+// modules author `export const fooBar = defineCard(() => ({ … }))` beside the
+// type they build. Its own module, so this one stays free of runtime imports.
+export { defineCard, isCardFactory, type CardFactory } from "./defineCard";
+
 type CardId = string;
 
 /** Zones addressable by `SpellContext.moveZone`. Excludes `battlefield`
