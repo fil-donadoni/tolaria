@@ -74,7 +74,8 @@ describe("where the refresh runs", () => {
 
     it("is wired into the health batch, after the gates and only on a Bot-touching diff", () => {
         const src = read("scripts/health-main.ts");
-        expect(src).toContain("batchTouchesBot(batchChangedFiles(root, tip))");
+        expect(src).toContain("batchChangedFiles(root, tip)");
+        expect(src).toContain("batchTouchesBot(batch)");
         expect(src).toContain("botRefreshSteps(steps.length, root)");
         // A failed gate skips the refresh: the loop sits under `failedStep === undefined`.
         expect(src).toMatch(
