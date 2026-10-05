@@ -227,6 +227,30 @@ describe("health-cadence detach — the batch decides the walk (issue #5076)", (
         expect(fs.existsSync(path.join(healthDir(), UI_WALK_FILE))).toBe(false);
     }, 120_000);
 
+    it("release's --ui-all walks a tip batch health proved without a full walk", async () => {
+        land("docs/notes.md");
+        const first = await detach({ exit: 0 });
+        expect(first.code, first.out).toBe(0);
+        expect(walkArgv()).toBe("");
+        const r = spawnSync("bun", [HEALTH_MAIN, "--ui-all"], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 90_000,
+            env: {
+                ...process.env,
+                TOLARIA_GATE_LOCK_ROOT: lockRoot,
+                VITE_CONVEX_URL: convexUrl,
+                WHO_WALK: path.join(tmp, "who-walk.txt"),
+                WALK_ARGV: path.join(tmp, "walk-argv.txt"),
+                FAKE_UI_EXIT: "0",
+            },
+        });
+        expect(r.status, r.stdout + r.stderr).toBe(0);
+        expect(walkArgv().trim()).toBe("--all");
+        expect(lastJson()).toMatchObject({ status: "green", ui: "green" });
+        expect(lastJson().walk).toMatch(/^full — /);
+    }, 180_000);
+
     it("a batch the scoper places on one surface walks SCOPED, diffed from the last GREEN tip", async () => {
         land("src/components/Thing.tsx");
         const r = await detach({

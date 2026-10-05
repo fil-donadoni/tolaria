@@ -116,3 +116,16 @@ export function walkEntriesFor(
         entry === FULL_WALK_ENTRY ? `check:ui --base=${greenSha}` : entry
     );
 }
+
+/**
+ * Did this GREEN record walk the whole app? `release` (`--ui-all`) trusts
+ * only a full walk: a tip batch health proved with a skipped or scoped walk
+ * still owes the backstop. A record from before the batch rule (no `walk`
+ * field) was walked full.
+ */
+export function walkWasFull(record: { ui?: string; walk?: string }): boolean {
+    return (
+        record.ui === "green" &&
+        (record.walk === undefined || record.walk.startsWith("full"))
+    );
+}

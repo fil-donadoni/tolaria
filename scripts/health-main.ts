@@ -145,6 +145,7 @@ import {
     describeWalkPlan,
     planHealthWalk,
     walkEntriesFor,
+    walkWasFull,
     type WalkPlan,
 } from "./lib/health-walk-plan";
 import {
@@ -689,6 +690,39 @@ async function main(): Promise<void> {
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
     const last = readLast(dir);
+    // `release` and an explicit `--ui-all` keep the full walk (issue #5076).
+    const forceAll = process.argv.includes("--ui-all");
+    // A tip batch health already proved with a skipped or scoped walk owes
+    // the full one: the offline half stands, only the walk runs.
+    if (
+        forceAll &&
+        last !== null &&
+        last.sha === tip &&
+        last.status === "green" &&
+        !walkWasFull(last)
+    ) {
+        console.log(
+            `health-main: tip ${tip.slice(0, 8)} is green without a full walk — walking it in full`
+        );
+        await runWalk(
+            {
+                root,
+                dir,
+                branch,
+                tip,
+                startedAt: new Date().toISOString(),
+                logPath: join(dir, `${tip.slice(0, 12)}.log`),
+                previous: last,
+                walkPlan: {
+                    kind: "full",
+                    reason: "forced (--ui-all, release)",
+                },
+                walkBase: null,
+            },
+            splitHealthGates(HEALTH_SCRIPTS).walk
+        );
+        return;
+    }
     // Only the cadence's waiter runs `--under-lock`; by hand, a RED or INFRA
     // tip is re-gated on purpose (issue #4960).
     const skip = gateSkipReason({
@@ -735,8 +769,6 @@ async function main(): Promise<void> {
 
     const batch = batchChangedFiles(root, tip);
     const greenBase = readGreenSha(root);
-    // `release` and an explicit `--ui-all` keep the full walk (issue #5076).
-    const forceAll = process.argv.includes("--ui-all");
     const refreshBot = batchTouchesBot(batch);
     // A Bot batch also owes the Bot-only gates (issue #4875), after the rest.
     const scripts = HEALTH_SCRIPTS;
@@ -965,7 +997,12 @@ async function main(): Promise<void> {
         );
         return;
     }
-    await runWalk(ctx, walk);
+    await runWalk(
+        ctx,
+        ctx.walkPlan
+            ? walkEntriesFor(walk, ctx.walkPlan, ctx.walkBase ?? null)
+            : walk
+    );
 }
 
 main().catch((err: unknown) => {
