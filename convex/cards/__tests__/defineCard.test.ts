@@ -29,8 +29,6 @@ import { auraBlast } from "../sets/pls/white.cards";
 import { witchEnchanter } from "../sets/mom/white.cards";
 import { lightningBolt } from "../sets/lea/red.cards";
 
-const FACTORIES = { breathOfDarigaaz, auraBlast, witchEnchanter };
-
 describe("defineCard", () => {
     it("builds on the first call, never before, and returns the same object after", () => {
         let calls = 0;
@@ -110,7 +108,10 @@ describe("a factory card is built only when requested — a fresh module graph (
     // FRESH, because in this worker the setup's freeze walk asked for every
     // hand-written card, and so built every factory.
     let fresh: typeof import("../index");
-    let factories: Record<keyof typeof FACTORIES, CardFactory>;
+    let factories: Record<
+        "breathOfDarigaaz" | "auraBlast" | "witchEnchanter",
+        CardFactory
+    >;
     beforeAll(async () => {
         vi.resetModules();
         try {

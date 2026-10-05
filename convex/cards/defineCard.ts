@@ -5,10 +5,11 @@
 // evaluates no object literal when it is imported: the definition is built the
 // first time someone asks for it — the catalogue, resolving a Card ID through
 // the Definition Index (`./catalogue` § `handWrittenDefinition`), or a test
-// calling `fooBar()` — and every later request returns that SAME object. One
-// call of a Convex function re-evaluates its modules, so "built once" means
-// once per call, and identity is stable within it: engine code and tests that
-// compare definitions by identity keep working.
+// calling `fooBar()` — and every later request returns that SAME object for
+// as long as the module instance lives: at least the whole of one Convex call
+// (an isolate may keep it across calls, which a built, immutable definition
+// does not mind). Identity is stable, so engine code and tests that compare
+// definitions by identity keep working.
 //
 // An eagerly built definition (`export const fooBar: CardDefinition = { … }`)
 // keeps working unchanged; `resolveCardExport` is the one place that tells the

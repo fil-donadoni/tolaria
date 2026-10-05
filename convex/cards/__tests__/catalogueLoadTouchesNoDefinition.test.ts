@@ -35,6 +35,8 @@ const SET_CARD_MODULE = /convex\/cards\/sets\/[^/]+\/[^/]+\.cards\.ts$/;
 const COMPILED_POOL = /data\/oracle-compiled-pool\.json$/;
 const REAL = "?real";
 const TOUCHED = "definition touched at load";
+/** A card declared with `defineCard` (issue #4857). */
+const FACTORY_CARD = "Aura Blast";
 
 /** A Proxy every one of whose traps throws, naming `what`. */
 const THROWING_STUB = `
@@ -118,13 +120,23 @@ try {
     console.log("LOAD-FAILED " + String(error?.stack ?? error).split("\\n").slice(0, 6).join(" | "));
     process.exit(0);
 }
-try {
-    catalogue.getAllCards();
-    console.log("STUBS-NOT-LIVE");
-} catch (error) {
-    const message = String(error?.message ?? error);
-    console.log(message.includes(${JSON.stringify(TOUCHED)}) ? "LOADED" : "CONTROL-FAILED " + message);
-}
+// Two controls: the hand-written population, and one \`defineCard\` factory
+// card by name (issue #4857) — a factory the stub failed to recognise would
+// build its real definition here instead of throwing.
+const control = (what, ask) => {
+    try {
+        ask();
+        return "STUBS-NOT-LIVE " + what;
+    } catch (error) {
+        const message = String(error?.message ?? error);
+        return message.includes(${JSON.stringify(TOUCHED)}) ? null : "CONTROL-FAILED " + what + ": " + message;
+    }
+};
+console.log(
+    control("population", () => catalogue.getAllCards()) ??
+        control("factory", () => catalogue.getCardByName(${JSON.stringify(FACTORY_CARD)})) ??
+        "LOADED"
+);
 `;
 
 const dir = mkdtempSync(join(tmpdir(), "catalogue-load-"));

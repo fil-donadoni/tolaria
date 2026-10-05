@@ -511,6 +511,30 @@ describe("the compiler-gap marker format", () => {
             "Lutri, the Spellchaser",
         ]);
     });
+
+    it("anchors a defineCard factory, and its literal ends at `}));` (issue #4857)", () => {
+        const lines = [
+            "// Eta — a factory card.",
+            "// compiler-gap: some fragment (#2698)",
+            "export const eta = defineCard(() => ({",
+            '    name: "Eta",',
+            "}));",
+            "export const theta = defineCard(() => ({",
+            '    id: "theta",',
+            "}));",
+            "const helper = {",
+            '    name: "Not a card",',
+            "};",
+        ];
+        const { anchors, anchorsWithoutName } = scanCardAnchors(lines);
+        expect(anchors.map((a) => a.name)).toEqual(["Eta"]);
+        // Theta's literal ends at its own `}));`: the helper's name below it
+        // is never read as Theta's.
+        expect(anchorsWithoutName).toEqual([6]);
+        expect(scanCompilerGapMarkers(lines).map((m) => m.card)).toEqual([
+            "Eta",
+        ]);
+    });
 });
 
 describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)", () => {
