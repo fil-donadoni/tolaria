@@ -6,13 +6,7 @@ import { scanCardAnchors } from "../lib/compiler-gap-markers";
 // and under a `defineCard` factory (issue #4859) the `defineSplitCard(` call
 // sits on the line AFTER the anchor.
 describe("scanCardAnchors reads a split card under a defineCard factory (CR 709.4a)", () => {
-    it("joins the two half names, whichever line the defineSplitCard call is on", () => {
-        const eager = [
-            "export const lifeDeath: CardDefinition = defineSplitCard({",
-            '    name: "Life",',
-            '    name: "Death",',
-            "});",
-        ];
+    it("joins the two half names, the defineSplitCard call on the line after the anchor", () => {
         const factory = [
             "export const lifeDeath = defineCard(() =>",
             "    defineSplitCard({",
@@ -21,10 +15,18 @@ describe("scanCardAnchors reads a split card under a defineCard factory (CR 709.
             "    })",
             ");",
         ];
-        for (const lines of [eager, factory]) {
-            expect(scanCardAnchors(lines).anchors.map((a) => a.name)).toEqual([
-                "Life // Death",
-            ]);
-        }
+        expect(scanCardAnchors(factory).anchors.map((a) => a.name)).toEqual([
+            "Life // Death",
+        ]);
+    });
+
+    it("the eager shape is no anchor (issue #4860)", () => {
+        const eager = [
+            "export const lifeDeath: CardDefinition = defineSplitCard({",
+            '    name: "Life",',
+            '    name: "Death",',
+            "});",
+        ];
+        expect(scanCardAnchors(eager).anchors).toEqual([]);
     });
 });

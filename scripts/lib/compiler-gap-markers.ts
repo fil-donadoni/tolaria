@@ -37,16 +37,15 @@ import * as fs from "node:fs";
 import { paragraphBounds, isParagraphBreak } from "./divergence-markers";
 
 /**
- * A top-level `CardDefinition` export — the anchor a marker attaches to: an
- * eager `export const x: CardDefinition = …`, or a memoised factory
- * `export const x = defineCard(() => ({ … }))` (issue #4857), which declares
- * no type because `defineCard` gives it one.
+ * A top-level `CardDefinition` export — the anchor a marker attaches to: a
+ * memoised factory `export const x = defineCard(() => ({ … }))` (issue
+ * #4857), which declares no type because `defineCard` gives it one. The eager
+ * `: CardDefinition =` shape is refused (issue #4860).
  *
  * Deliberately narrower than "any export": a `CardPrint`, a helper, a shared
  * ability template are not cards and have no Oracle text to round-trip.
  */
-export const CARD_ANCHOR =
-    /^export const\s+[A-Za-z0-9_$]+\s*(?::\s*CardDefinition\s*=|=\s*defineCard\()/;
+export const CARD_ANCHOR = /^export const\s+[A-Za-z0-9_$]+\s*=\s*defineCard\(/;
 
 /** The card's own `name:` property, read out of the object literal below the
  *  anchor. This is the key Guard C joins the source scan to `getAllCards()`
