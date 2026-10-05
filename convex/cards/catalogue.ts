@@ -484,6 +484,7 @@ const rawCatalogueDefinition = (id: string): CardDefinition | null =>
 const compiledIds: string[] = [];
 const compiledNames: string[] = [];
 const compiledIdSet = new Set<string>();
+const compiledNameById = new Map<string, string>();
 
 /** definitionId → home Set code: a hand-written card's module, a compiled
  *  row's first printing (issue #4363). */
@@ -558,6 +559,7 @@ function addCompiled(
     compiledIdSet.add(id);
     compiledIds.push(id);
     compiledNames.push(name);
+    compiledNameById.set(id, name);
     if (setCode && !definitionSetCode.has(id))
         definitionSetCode.set(id, setCode);
     addName([name.toLowerCase(), id]);
@@ -711,6 +713,47 @@ export const getAllCardNames = (): string[] => [
     ...handWrittenIndex.entries.map(([, name]) => name),
     ...compiledNames,
 ];
+
+/** What the Definition Index alone says about a NAME (issue #4166):
+ *  - `unknown` — no catalogue name carries it;
+ *  - `twin` — it names a derived twin (an inset spell, a split half, a modal
+ *    back face), whose characteristics only the definition holds;
+ *  - `printed` — it names a printed card: its id, its printed name (the
+ *    canonical casing) and whether the SUBMITTED spelling is one a player may
+ *    CHOOSE (CR 709.4a — a split card's combined `left // right` key is a
+ *    lookup, never a choice; CR 712.19 — either face of a modal card, not
+ *    both). */
+export type IndexedCardName =
+    | { readonly kind: "unknown" }
+    | { readonly kind: "twin" }
+    | {
+          readonly kind: "printed";
+          readonly id: string;
+          readonly name: string;
+          readonly chooseable: boolean;
+      };
+
+/** Name-a-card validation's lookup: resolves a name through the name index
+ *  and the index's choosable names, building no definition and so opening no
+ *  packed block (CR 201.3). The same verdict `tryGetCardByName` plus
+ *  `hasName(def, def.name)` give, for a printed card. */
+export const lookupCardNameInIndex = (name: string): IndexedCardName => {
+    const id = nameIndex.get(name.toLowerCase());
+    if (id === undefined) return { kind: "unknown" };
+    if (isTwinDefinitionId(id)) return { kind: "twin" };
+    const printed =
+        handWrittenEntryById.get(id)?.[1] ?? compiledNameById.get(id);
+    if (printed === undefined) return { kind: "unknown" };
+    const choosable = chooseableById.get(id) ?? [printed];
+    return {
+        kind: "printed",
+        id,
+        name: printed,
+        chooseable:
+            name.toLowerCase() === printed.toLowerCase() &&
+            choosable.includes(printed),
+    };
+};
 
 /** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
  *  PLACED as a card: a printed catalogue card, never an inset spell's twin.

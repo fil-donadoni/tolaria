@@ -27,7 +27,7 @@ import { hasName as isChooseableName } from "../cards/cardNames";
 import type { CardDefinition, EffectCardFilter } from "../cards/types";
 import { finalizeAsEnters } from "./asEnters";
 import { checkStateBasedActions } from "./sba";
-import { tryGetCardByName } from "../cards";
+import { lookupCardNameInIndex, tryGetCardByName } from "../cards";
 import { finalizeLandEntry } from "./playLand";
 import {
     commitChoiceAnswer,
@@ -370,15 +370,85 @@ export function isLegalNamedCard(
     head: PendingChoice,
     name: string
 ): boolean {
-    const def = tryGetCardByName(name.trim());
-    if (!def) return false;
-    if (!namesOneFace(def, name.trim())) return false;
-    if (violatesNameRestriction(head, def)) return false;
+    return !("error" in resolveNameChoice(state, head, name.trim()));
+}
+
+/** CR 201.3 / 201.4a / 614.1c — the ONE resolution of a submitted name against
+ *  a `name-card` head: the canonical name to commit, or the user-facing reason
+ *  it is illegal. Both doors ({@link isLegalNamedCard}, {@link
+ *  applyNameCardSubmit}) read it, so picker and check cannot drift.
+ *
+ *  Resolved through the Definition Index (`lookupCardNameInIndex`), which
+ *  builds no definition and opens no packed block (issue #4166). The
+ *  definition is read only when the answer genuinely depends on it: a twin
+ *  name, a `nameRestriction` (land-ness / supertype) or an as-enters filter. */
+function resolveNameChoice(
+    state: Pick<GameState, "stagedEntries">,
+    head: PendingChoice,
+    name: string
+): { canonical: string } | { error: string } {
+    const indexed = lookupCardNameInIndex(name);
+    if (indexed.kind === "unknown") {
+        return { error: "Not a recognized card name" };
+    }
     const filter = asEntersNameFilter(state, head);
-    return (
-        filter === undefined ||
-        handCardMatchesFilter({ card: { id: def.id } }, filter)
-    );
+    let def: CardDefinition | null = null;
+    if (
+        indexed.kind === "twin" ||
+        head.nameRestriction !== undefined ||
+        filter !== undefined
+    ) {
+        def = tryGetCardByName(name);
+        if (!def) return { error: "Not a recognized card name" };
+    }
+    // CR 709.4a (ADR 0121) — "if an effect instructs a player to choose a card
+    // name and the player wants to choose a split card's name, the player must
+    // choose one of those names and NOT BOTH." `tryGetCardByName` resolves the
+    // combined string to the parent definition — it is a lookup key, and deck
+    // lists, cubes and banlists need it — but it is not a name anyone may
+    // CHOOSE. Rejected here so the gate and the client's candidate list
+    // (`getChooseableCardNames`) agree; a server that accepted a name the
+    // button never offered is the asymmetry PR #3302 review finding 4 closed
+    // for Adventure, in the other direction.
+    const chooseable =
+        def !== null
+            ? namesOneFace(def, name)
+            : indexed.kind === "printed" && indexed.chooseable;
+    if (!chooseable) {
+        return {
+            error: "Choose one of the card's two names, not both (CR 709.4a / 712.19)",
+        };
+    }
+    // CR 201.4a (issue #1085 / #2713) — "a card name with certain
+    // characteristics". Routed through the shared predicate so the bot's
+    // default picker cannot disagree with this check (#2497); the message
+    // is derived from the head's own restriction, so Cabal Therapy does not
+    // tell the player the basic-land rule it is not enforcing.
+    if (def !== null && violatesNameRestriction(head, def)) {
+        return {
+            error:
+                head.nameRestriction === "no-land"
+                    ? "Choose a nonland card name"
+                    : "Choose a card name other than a basic land card name",
+        };
+    }
+    // CR 614.1c — the as-enters `name` kind may DECLARE a filter narrowing the
+    // legal name space (Meddling Mage's "choose a nonland card name"); a name
+    // it rejects is refused before anything is committed. The shared matcher
+    // reads 10 of `EffectCardFilter`'s fields and fails open on the rest, so
+    // picker and check agree by failing open together.
+    if (
+        filter !== undefined &&
+        def !== null &&
+        !handCardMatchesFilter({ card: { id: def.id } }, filter)
+    ) {
+        return { error: "Not a legal card name for this choice" };
+    }
+    // The registry's canonical casing, so the resolve step's name comparison
+    // is exact.
+    return {
+        canonical: def !== null ? def.name : (indexed as { name: string }).name,
+    };
 }
 
 /** Validates and applies a `name-card` submission (CR 202.3 / 701.x "chooses a
@@ -407,39 +477,11 @@ export function applyNameCardSubmit(
 
     const name = args.cardName.trim();
     if (name.length === 0) throw new Error("Name a card");
-    // CR 201.2 — the named card must exist (here: be in the registry). The
-    // registry is the canonical card name set; an unregistered name is illegal.
-    const def = tryGetCardByName(name);
-    if (!def) throw new Error("Not a recognized card name");
-    // Normalize to the registry's canonical casing so the resolve step's name
-    // comparison is exact.
-    const canonical = def.name;
-    // CR 709.4a (ADR 0121) — "if an effect instructs a player to choose a card
-    // name and the player wants to choose a split card's name, the player must
-    // choose one of those names and NOT BOTH." `tryGetCardByName` resolves the
-    // combined string to the parent definition — it is a lookup key, and deck
-    // lists, cubes and banlists need it — but it is not a name anyone may
-    // CHOOSE. Rejected here and in `isLegalNamedCard` above so the gate and
-    // the client's candidate list (`getChooseableCardNames`) agree; a server
-    // that accepted a name the button never offered is the asymmetry PR #3302
-    // review finding 4 closed for Adventure, in the other direction.
-    if (!namesOneFace(def, name)) {
-        throw new Error(
-            "Choose one of the card's two names, not both (CR 709.4a / 712.19)"
-        );
-    }
-    // CR 201.4a (issue #1085 / #2713) — "a card name with certain
-    // characteristics". Routed through the shared predicate so the bot's
-    // default picker cannot disagree with this check (#2497); the message
-    // is derived from the head's own restriction, so Cabal Therapy does not
-    // tell the player the basic-land rule it is not enforcing.
-    if (violatesNameRestriction(head, def)) {
-        throw new Error(
-            head.nameRestriction === "no-land"
-                ? "Choose a nonland card name"
-                : "Choose a card name other than a basic land card name"
-        );
-    }
+    // CR 201.2 — the named card must exist; the catalogue is the canonical
+    // card name set. Every rule on the name lives in `resolveNameChoice`.
+    const resolved = resolveNameChoice(state, head, name);
+    if ("error" in resolved) throw new Error(resolved.error);
+    const canonical = resolved.canonical;
 
     // CR 614.1c (ADR 0100 D3/D5) — the as-enters `name` kind REUSES this same
     // `name-card` shape, but its prompt is STACKLESS (`stackItemId: ""`): there
@@ -452,31 +494,6 @@ export function applyNameCardSubmit(
     // over there would leave both throwing `Stack item not found` on a choice
     // nobody can answer: the ADR 0047 / #2283 freeze shape.
     if (head.stackItemId === "" && head.asEntersCardId !== undefined) {
-        // CR 614.1c — the as-enters `name` kind may DECLARE a filter narrowing
-        // the legal name space (Meddling Mage's "choose a nonland card name").
-        // `asEntersNameFilter` reads it off the staged entry's own owed head,
-        // so the card definition stays the single source and no copy of the
-        // filter has to ride the prompt. A name the filter rejects throws here
-        // — beside the `nameRestriction` check above and before anything is
-        // committed — so the chooser is asked again rather than the filter
-        // being ignored. `handCardMatchesFilter` is the shared
-        // registry-definition matcher (it is typed on the definition id it
-        // reads, not on a hand card), so this is the same matcher the alt-cost
-        // hand leg and `discardFilter` use rather than a third copy — which
-        // also bounds what this check enforces: the matcher reads 10 of
-        // `EffectCardFilter`'s fields and returns `true` for the rest, so a
-        // filter declaring only `excludeSupertype` / `excludeColor` /
-        // `manaValueEquals` / `hasAbility` is inert here. Widening the shared
-        // matcher is out of scope for this seam (it has other callers); #2467,
-        // which ships the first filtered card, is where those fields earn
-        // their handling.
-        const filter = asEntersNameFilter(state, head);
-        if (
-            filter !== undefined &&
-            !handCardMatchesFilter({ card: { id: def.id } }, filter)
-        ) {
-            throw new Error("Not a legal card name for this choice");
-        }
         finalizeAsEnters(state, [canonical]);
         return;
     }
