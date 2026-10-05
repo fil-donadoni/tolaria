@@ -1,5 +1,5 @@
 // Name-a-card validation over the packed corpus (issue #4166, PRD #4161):
-// CR 201.3 — a named card must exist. The server answers that from the
+// A named card must exist. The server answers that from the
 // Definition Index's name index, so validating a name opens no packed block;
 // only a restriction that reads the card's characteristics (CR 201.4a) builds
 // the one named definition.
