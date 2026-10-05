@@ -30,7 +30,7 @@ import {
     VERDICT_STORE_WRITE_KEY_ENV,
     verdictStoreWriterFromDeploymentEnv,
 } from "./verdictStoreGcsWriter";
-import { verdictsFromRegistry } from "./gre/ai/verdicts/registrySource";
+import type { Verdict } from "./gre/ai/verdicts/types";
 import { verdictDeploymentOf, type OutboxRow } from "./verdictsOutbox";
 import type { ResolutionOutboxRow } from "./verdictResolutionsOutbox";
 import {
@@ -46,6 +46,11 @@ import {
 } from "./verdictReview";
 
 const refs = {
+    registryVerdicts: makeFunctionReference<
+        "query",
+        Record<string, never>,
+        Verdict[]
+    >("verdictRegistryRead:registryVerdicts"),
     reviewOutbox: makeFunctionReference<
         "query",
         { access?: "admin" | "tester" },
@@ -161,7 +166,10 @@ export const pairList = action({
     returns: v.any(),
     handler: async (ctx) => {
         const { sources } = await loadReview(ctx);
-        return pairListOf(sources, verdictsFromRegistry().verdicts);
+        return pairListOf(
+            sources,
+            await ctx.runQuery(refs.registryVerdicts, {})
+        );
     },
 });
 
