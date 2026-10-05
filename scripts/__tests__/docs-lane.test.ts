@@ -155,7 +155,7 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
      * `DOC_GATE_TESTS_EXCLUDED` with the reason it guards no document.
      */
     const READS_DOCS =
-        /"docs\/|docs\/adr|CONTEXT\.md|\.claude\/|\.md"|README\.md/;
+        /"docs\/|docs\/adr|GLOSSARY\.md|\.claude\/|\.md"|README\.md/;
 
     it("classifies every doc-reading guard as covered or excluded-with-a-reason", () => {
         const unclassified: string[] = [];
