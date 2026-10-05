@@ -28,6 +28,7 @@ const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const UI_ADMISSION = path.join(REPO_ROOT, "scripts", "lib", "ui-admission.ts");
 
+let baseSha: string;
 let tmp: string;
 let primary: string;
 let lockRoot: string;
@@ -42,6 +43,31 @@ const git = (args: string[], cwd: string): string => {
     });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
     return r.stdout.trim();
+};
+
+const commit = (message: string): void =>
+    void git(
+        [
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "-m",
+            message,
+        ],
+        primary
+    );
+
+/** The batch since the last GREEN tip (`baseSha`): exactly one new file. */
+const land = (file: string): void => {
+    git(["reset", "-q", "--hard", baseSha], primary);
+    fs.mkdirSync(path.dirname(path.join(primary, file)), { recursive: true });
+    fs.writeFileSync(path.join(primary, file), `${file}\n`);
+    git(["add", file], primary);
+    commit("tip");
+    git(["push", "-q", "-f", "origin", BASE_BRANCH], primary);
 };
 
 const WHO = `const r = require("child_process").spawnSync("bun", [${JSON.stringify(GATE)}, "who"], { encoding: "utf8" });`;
@@ -77,6 +103,11 @@ beforeEach(async () => {
     fs.writeFileSync(
         path.join(primary, "fake-ui.ts"),
         `import { acquireUiLane, gateLockRoot } from ${JSON.stringify(UI_ADMISSION)};
+if (process.argv.includes("--scope-only")) {
+    process.stdout.write(process.env.FAKE_SCOPE_OUTPUT ?? "scope (diff base x): FULL — fixture global input\\n");
+    process.exit(0);
+}
+if (process.env.WALK_ARGV) require("fs").appendFileSync(process.env.WALK_ARGV, process.argv.slice(2).join(" ") + "\\n");
 const hold = await acquireUiLane({ root: gateLockRoot(), label: "check:ui --all", announce: () => {} });
 ${WHO}
 require("fs").writeFileSync(process.env.WHO_WALK, r.stdout);
@@ -86,29 +117,21 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
 `
     );
     git(["add", "-A"], primary);
-    git(
-        [
-            "-c",
-            "user.email=t@t",
-            "-c",
-            "user.name=t",
-            "commit",
-            "-q",
-            "-m",
-            "tip",
-        ],
-        primary
-    );
+    commit("base");
+    baseSha = git(["rev-parse", "HEAD"], primary);
     git(["remote", "add", "origin", bare], primary);
     git(["push", "-q", "origin", BASE_BRANCH], primary);
-    const tip = git(["rev-parse", "HEAD"], primary);
+    // The batch since the last GREEN tip reaches a global input by default:
+    // the full walk, so the walk-phase tests below keep their walk.
+    land("src/index.css");
+    const tip = baseSha;
 
     const health = path.join(primary, ".claude", "telemetry", "health");
     fs.mkdirSync(health, { recursive: true });
     // No Bot batch: the diff from the last green to the tip is empty.
     fs.writeFileSync(
         path.join(primary, ".claude", "telemetry", "green-sha"),
-        `${tip}\n`
+        `${baseSha}\n`
     );
     // Five landings: the batch fires.
     const now = Date.now();
@@ -137,7 +160,11 @@ afterEach(async () => {
 
 const healthDir = () => path.join(primary, ".claude", "telemetry", "health");
 
-async function detach(ui: { exit: number; output?: string }): Promise<{
+async function detach(ui: {
+    exit: number;
+    output?: string;
+    scope?: string;
+}): Promise<{
     code: number | null;
     out: string;
 }> {
@@ -147,6 +174,8 @@ async function detach(ui: { exit: number; output?: string }): Promise<{
         VITE_CONVEX_URL: convexUrl,
         WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
         WHO_WALK: path.join(tmp, "who-walk.txt"),
+        WALK_ARGV: path.join(tmp, "walk-argv.txt"),
+        ...(ui.scope ? { FAKE_SCOPE_OUTPUT: ui.scope } : {}),
         FAKE_UI_EXIT: String(ui.exit),
         FAKE_UI_OUTPUT: ui.output ?? "",
     };
@@ -177,6 +206,57 @@ const ASSERT_FAIL_RECEIPT = [
     "PASS     lobby                1440x900x2   every floor at zero",
     "assert   lobby                1440x900x2   FAIL Create table",
 ].join("\n");
+
+describe("health-cadence detach — the batch decides the walk (issue #5076)", () => {
+    const walkArgv = () =>
+        fs.existsSync(path.join(tmp, "walk-argv.txt"))
+            ? fs.readFileSync(path.join(tmp, "walk-argv.txt"), "utf8")
+            : "";
+
+    it("a prose-only batch runs no walk: GREEN on the offline half, ui skipped, ledger untouched", async () => {
+        land("docs/notes.md");
+        const r = await detach({ exit: 1 });
+        expect(r.code, r.out).toBe(0);
+        expect(walkArgv()).toBe("");
+        expect(lastJson()).toMatchObject({
+            status: "green",
+            offline: "green",
+            ui: "skipped",
+            walk: expect.stringContaining("skipped"),
+        });
+        expect(fs.existsSync(path.join(healthDir(), UI_WALK_FILE))).toBe(false);
+    }, 120_000);
+
+    it("a batch the scoper places on one surface walks SCOPED, diffed from the last GREEN tip", async () => {
+        land("src/components/Thing.tsx");
+        const r = await detach({
+            exit: 0,
+            scope: `scope (diff base ${baseSha}): SCOPED — 1 surface(s)\n  · lobby\n`,
+        });
+        expect(r.code, r.out).toBe(0);
+        expect(walkArgv().trim()).toBe(`--base=${baseSha}`);
+        expect(lastJson()).toMatchObject({
+            status: "green",
+            ui: "green",
+            walk: expect.stringContaining("scoped — 1 surface(s): lobby"),
+        });
+    }, 120_000);
+
+    it("a batch with a global input walks FULL (--all)", async () => {
+        const r = await detach({ exit: 0 });
+        expect(r.code, r.out).toBe(0);
+        expect(walkArgv().trim()).toBe("--all");
+        expect(lastJson().walk).toMatch(/^full — /);
+    }, 120_000);
+
+    it("an unknown last-GREEN tip walks FULL, fail-closed", async () => {
+        fs.rmSync(path.join(primary, ".claude", "telemetry", "green-sha"));
+        const r = await detach({ exit: 0 });
+        expect(r.code, r.out).toBe(0);
+        expect(walkArgv().trim()).toBe("--all");
+        expect(lastJson().walk).toMatch(/unknown or unreadable/);
+    }, 120_000);
+});
 
 describe("health-cadence detach — the walk runs off the heavy mutex (issue #4962)", () => {
     it("holds the heavy mutex for the offline gates, then walks with it free and the check:ui lane held — and a green walk is GREEN", async () => {
