@@ -270,4 +270,10 @@ export type VerdictGap = {
         | "not-deciding"
         | "unconstraining";
     detail: string;
+    /** The Discriminant of a registry entry classified `conditional` that
+     *  yields no verdict (issue #4797). It has no pair to complete, so it is
+     *  debt exactly as an incomplete Conditional Verdict is, and the report
+     *  lists it under the same heading — a `must` entry reclassified
+     *  conditional is never demoted, only listed (ADR 0148). */
+    conditional?: Discriminant;
 };

@@ -32,12 +32,23 @@ import {
     withWeight,
     type ReportScore,
     type Verdict,
+    testPositionKeysOf,
 } from "../verdicts";
 
 const PASS_KEY = JSON.stringify({ kind: "pass" });
 
 const STONE_RAIN_LABEL =
     "board-aware removal: casts Stone Rain on a land when there is nothing better to do";
+
+/** `verdict` as it read before ADR 0148: no classification. Every registry
+ *  entry is classified (issue #4797), and an unpaired conditional one is out
+ *  of the fit — so a test about the fit's arithmetic, not about Minimal Pair
+ *  standing, reads its registry positions this way. */
+function unclassified(verdict: Verdict): Verdict {
+    const out = { ...verdict };
+    delete out.classification;
+    return out;
+}
 
 function stoneRainVerdict(): Verdict {
     const scenario = BLADE_SCENARIOS.find((s) => s.label === STONE_RAIN_LABEL);
@@ -220,7 +231,7 @@ describe("the violation / contradiction report", () => {
         expect(cast).toBeDefined();
         const two = [pass!, cast!];
         const authored = (id: string, rightIndex: number): Verdict => ({
-            ...base,
+            ...unclassified(base),
             id,
             candidates: two,
             answer: { kind: "right", rightIndexes: [rightIndex] },
@@ -291,8 +302,20 @@ describe("the violation / contradiction report", () => {
     });
 
     it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
+        // Read unclassified: every timing entry but a paired anchor is an
+        // unpaired Conditional Verdict (issue #4797), out of the fit before
+        // timing routing sees it — so both directions are exercised on the
+        // pre-ADR 0148 reading, and the classified corpus is checked below.
         const { verdicts, gaps } = verdictsFromRegistry();
-        const report = collectVerdictReport(verdicts, {
+        const classified = collectVerdictReport(verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+            gaps,
+        });
+        const classifiedTiming = new Set(classified.timing);
+        expect(classified.pairs.filter((p) => classifiedTiming.has(p))).toEqual(
+            []
+        );
+        const report = collectVerdictReport(verdicts.map(unclassified), {
             testPositions: new Set(),
             gaps,
         });

@@ -25,7 +25,8 @@
  */
 
 /** The array the entries live in. */
-const ARRAY_HEAD = /\bBLADE_SCENARIOS\s*:\s*BladeScenario\[\]\s*=\s*\[/;
+const ARRAY_HEAD =
+    /\bBLADE_SCENARIOS\s*:\s*(?:Registry)?BladeScenario\[\]\s*=\s*\[/;
 
 export interface RegistryEntries {
     /** Entry label → the entry's source block: its leading comments and the

@@ -81,7 +81,15 @@ export function verdictFromScenario(
         reason: VerdictGap["reason"],
         detail: string
     ): { gap: VerdictGap } => ({
-        gap: { label: scenario.label, tier: scenario.tier, reason, detail },
+        gap: {
+            label: scenario.label,
+            tier: scenario.tier,
+            reason,
+            detail,
+            ...(scenario.classification?.kind === "conditional"
+                ? { conditional: scenario.classification.discriminant }
+                : {}),
+        },
     });
 
     if (scenario.expect.predicate) {
@@ -139,8 +147,9 @@ export function verdictFromScenario(
         createdAt: REGISTRY_VERDICT_TIMESTAMP,
         source: "registry" as const,
         ...(scenario.note ? { note: scenario.note } : {}),
-        // Issue #4796 — the entry's own classification, when it declares one.
-        // A half carries none: its link classifies it (`derivePairs`).
+        // Issue #4796 — the entry's own classification. Every registry entry
+        // but a `pairOf` half declares one (issue #4797); a half carries
+        // none: its link classifies it (`derivePairs`).
         ...(scenario.classification && !scenario.pairOf
             ? { classification: scenario.classification }
             : {}),

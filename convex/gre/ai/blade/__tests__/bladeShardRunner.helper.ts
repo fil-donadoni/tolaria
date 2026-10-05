@@ -193,17 +193,23 @@ export function registerBladeShard(shard: number): void {
                 // casts passes the forbidden half, one that always casts passes the
                 // expected half. Naming the partner in the note makes deleting one
                 // half obvious in the diff instead of silently gutting the other.
+                // A pair declared in data (`pairOf`, issue #4797) names its
+                // partner by the link, in either direction.
                 const pair = BLADE_SCENARIOS.filter((s) =>
                     s.label.startsWith("discriminating pair:")
                 );
                 expect(pair.length).toBeGreaterThanOrEqual(2);
                 for (const s of pair) {
                     const partner = pair.find(
-                        (o) => o !== s && s.note?.includes(o.label)
+                        (o) =>
+                            o !== s &&
+                            (s.note?.includes(o.label) ||
+                                s.pairOf?.anchor === o.label ||
+                                o.pairOf?.anchor === s.label)
                     );
                     expect(
                         partner,
-                        `${s.label}: its note must quote its partner entry's label`
+                        `${s.label}: its note must quote its partner entry's label, or a \`pairOf\` must link the two`
                     ).toBeDefined();
                 }
             });

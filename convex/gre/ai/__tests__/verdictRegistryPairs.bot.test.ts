@@ -114,6 +114,46 @@ describe("the registry's declared Minimal Pairs (ADR 0148)", () => {
         );
     });
 
+    it("every conditional unpaired entry is debt, verdict or not — no `must` demoted (issue #4797)", () => {
+        // A `predicate` entry lowers to no verdict, so it can never be an
+        // incomplete verdict; it owes its pair all the same and is listed.
+        const predicate = BLADE_SCENARIOS.find(
+            (s) =>
+                s.tier === "must" &&
+                s.expect.predicate !== undefined &&
+                s.classification?.kind === "conditional"
+        )!;
+        expect(predicate).toBeDefined();
+        const slice = verdictsFromRegistry([predicate]);
+        expect(slice.verdicts).toEqual([]);
+        const text = formatVerdictReport(
+            collectVerdictReport(slice.verdicts, {
+                gaps: slice.gaps,
+                testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+            }),
+            0
+        );
+        expect(text).toContain("INCOMPLETE pairs — debt (1)");
+        expect(text).toContain(`registry:${predicate.label}: Conditional`);
+
+        // The whole registry: the debt heading counts every conditional entry
+        // no declared half completes, whatever it lowers to.
+        const unpaired = BLADE_SCENARIOS.filter(
+            (s) =>
+                s.classification?.kind === "conditional" &&
+                !declared.some((d) => d.pairOf!.anchor === s.label)
+        );
+        expect(
+            formatVerdictReport(
+                collectVerdictReport(derived.verdicts, {
+                    gaps: derived.gaps,
+                    testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+                }),
+                0
+            )
+        ).toContain(`INCOMPLETE pairs — debt (${unpaired.length})`);
+    });
+
     it("no PAIRED WITH prose is left for a converted pair", () => {
         const source = readFileSync(
             new URL("../blade/registry.ts", import.meta.url),

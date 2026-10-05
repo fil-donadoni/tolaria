@@ -527,8 +527,9 @@ export type BladeScenario = {
     expect: BladeExpectation;
     /** Which wrong the entry means (ADR 0148, issue #4796): `absolute` — wrong
      *  whatever else changes — or `conditional` — wrong NOW, naming the
-     *  Discriminant whose change makes it right. Optional in this expand step:
-     *  an entry with none reads as it always did. A conditional entry no
+     *  Discriminant whose change makes it right. Optional on this shape so a
+     *  test can build an ad-hoc scenario; MANDATORY on a registry entry
+     *  (`RegistryBladeScenario`, issue #4797). A conditional entry no
      *  `pairOf` half completes stays a Test Position (the blade suite still
      *  runs it) but is out of the fit corpus, and the derivation report lists
      *  it as debt (`verdicts/minimalPair.ts`). Never set beside `pairOf`: a
@@ -545,3 +546,22 @@ export type BladeScenario = {
      *  wrong, which issue it guards. */
     note?: string;
 };
+
+/**
+ * A blade REGISTRY entry (issue #4797, ADR 0148): every Test Position says
+ * which wrong it means. Either it carries its own `classification` —
+ * `absolute`, or `conditional` with the Discriminant whose change makes it
+ * right — or it is the right-hand half of a Minimal Pair, classified by its
+ * `pairOf` link and never by its own field. An entry with neither does not
+ * typecheck: an unclassified Test Position is ambiguous about what it claims,
+ * and `BLADE_SCENARIOS` is typed with this shape so the omission reds
+ * `check:ts` rather than silently reading as unclassified.
+ */
+export type RegistryBladeScenario = BladeScenario &
+    (
+        | { classification: VerdictClassification; pairOf?: undefined }
+        | {
+              pairOf: { anchor: string; discriminant: Discriminant };
+              classification?: undefined;
+          }
+    );
