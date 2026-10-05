@@ -8,7 +8,7 @@
  * same precedence) and run here against the live definitions: the reference
  * the index-backed catalogue is compared with, pointwise.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
     getAllCardNames,
     getAllCards,
@@ -173,13 +173,34 @@ describe("the Definition Index answers what the eager walk answered (issue #4856
         expect(getChooseableCardNames()).toEqual(eager.chooseable);
     });
 
-    it("decodes a printed back face's token id with the declaring card's own triggers (CR 712.8e)", () => {
+    it("decodes a printed back face's token id with the declaring card's own triggers (CR 712.8e)", async () => {
         expect(eager.backFaceOwner.size).toBeGreaterThan(0);
+        // A FRESH module graph: in this worker the setup's freeze walk made
+        // every hand-written card resident, and the registry's scan of
+        // resident cards would answer without the index. Fresh, the owner is
+        // resident only if the index's lookup resolves it.
+        vi.resetModules();
+        let fresh: typeof import("../index");
+        try {
+            fresh = await import("../index");
+        } finally {
+            // The next file in this worker (`isolate: false`) must not
+            // inherit this graph from the module cache.
+            vi.resetModules();
+        }
+        const rawOwners = new Map(
+            [
+                ...fresh.walkHandWrittenDefinitions().map((e) => e.definition),
+                ...compiledReadyDefinitions,
+            ].map((def) => [def.id, def])
+        );
         for (const [tokenId, owner] of eager.backFaceOwner) {
-            const decoded = tryGetDefinition(tokenId);
+            const resident = new Set(fresh.residentDefinitionIds());
+            expect(resident.has(owner.id)).toBe(false);
+            const decoded = fresh.tryGetDefinition(tokenId);
             expect(decoded?.triggeredAbilities?.[0]).toBe(
-                owner.backFace!.triggeredAbilities![0]
+                rawOwners.get(owner.id)!.backFace!.triggeredAbilities![0]
             );
         }
-    });
+    }, 120_000);
 });
