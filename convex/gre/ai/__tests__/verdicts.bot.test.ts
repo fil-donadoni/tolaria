@@ -235,7 +235,9 @@ describe("the violation / contradiction report", () => {
 
     it("finds two verdicts on one position that no weight vector can satisfy", () => {
         const [a, b] = contradictoryPair();
-        const report = collectVerdictReport([a, b]);
+        const report = collectVerdictReport([a, b], {
+            testPositions: new Set(),
+        });
         expect(report.errors).toEqual([]);
         expect(report.pairs).toHaveLength(2);
         expect(report.contradictions).toHaveLength(1);
@@ -252,7 +254,10 @@ describe("the violation / contradiction report", () => {
 
     it("separates BLINDNESS from contradiction over the whole registry corpus", () => {
         const { verdicts, gaps } = verdictsFromRegistry();
-        const report = collectVerdictReport(verdicts, { gaps });
+        const report = collectVerdictReport(verdicts, {
+            testPositions: new Set(),
+            gaps,
+        });
         expect(report.errors).toEqual([]);
         expect(report.satisfied.length + report.violated.length).toBe(
             report.pairs.length
@@ -287,7 +292,10 @@ describe("the violation / contradiction report", () => {
 
     it("routes TIMING pairs out of the fit over the whole registry corpus (issue #4764)", () => {
         const { verdicts, gaps } = verdictsFromRegistry();
-        const report = collectVerdictReport(verdicts, { gaps });
+        const report = collectVerdictReport(verdicts, {
+            testPositions: new Set(),
+            gaps,
+        });
         // The registry holds BOTH directions (issue #4757's discriminating
         // pairs): pass over a deferrable action in an earlier window, and the
         // deferrable action over pass at the opponent's end step.
@@ -389,13 +397,17 @@ describe("the violation / contradiction report", () => {
     it("reports no contradiction when the two verdicts agree", () => {
         const [a] = contradictoryPair();
         const twin: Verdict = { ...a, id: "authored:passing-is-right-twin" };
-        const report = collectVerdictReport([a, twin]);
+        const report = collectVerdictReport([a, twin], {
+            testPositions: new Set(),
+        });
         expect(report.contradictions).toEqual([]);
     });
 
     it("classifies each verdict by whether the evaluation already orders it", () => {
         const [a, b] = contradictoryPair();
-        const report = collectVerdictReport([a, b]);
+        const report = collectVerdictReport([a, b], {
+            testPositions: new Set(),
+        });
         const rows = Object.fromEntries(
             report.rows.map((r) => [r.verdictId, r])
         );
@@ -426,7 +438,11 @@ describe("the incumbent is defended on the ORDERING, not the loss (issue #3406)"
         const { verdicts, gaps } = await committedVerdictCorpus();
         const at = (weights: EvalWeights) =>
             scoreVerdictReport(
-                collectVerdictReport(verdicts, { gaps, weights })
+                collectVerdictReport(verdicts, {
+                    testPositions: new Set(),
+                    gaps,
+                    weights,
+                })
             );
         committed = at(DEFAULT_EVAL_WEIGHTS);
         prior = at(FIT_BASE_EVAL_WEIGHTS);

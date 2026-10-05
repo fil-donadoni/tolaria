@@ -23,6 +23,7 @@ import {
     verdictIdOf,
     verdictsFromRegistry,
     type Discriminant,
+    testPositionKeysOf,
 } from "../verdicts";
 
 const byLabel = (label: string): BladeScenario => {
@@ -101,7 +102,9 @@ describe("the registry's declared Minimal Pairs (ADR 0148)", () => {
         );
         const slice = verdictsFromRegistry([stifle]);
         expect(slice.verdicts).toHaveLength(1);
-        const report = collectVerdictReport(slice.verdicts);
+        const report = collectVerdictReport(slice.verdicts, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
+        });
         expect(report.incomplete.map((r) => r.verdictId)).toEqual([
             `registry:${stifle.label}`,
         ]);
@@ -464,7 +467,11 @@ describe("registry pairs reach the Minimal Pair report (issue #4796 review)", ()
         const labels = BLADE_SCENARIOS.map((s) => s.label);
         expect(new Set(labels).size).toBe(labels.length);
         const { verdicts } = verdictsFromRegistry();
-        const rows = minimalPairFitOutcomes(verdicts, []);
+        const rows = minimalPairFitOutcomes(
+            verdicts,
+            [],
+            testPositionKeysOf(BLADE_SCENARIOS)
+        );
         const declared = BLADE_SCENARIOS.filter((s) => s.pairOf !== undefined);
         expect(rows.map((r) => r.halfId).sort()).toEqual(
             declared.map((s) => `registry:${s.label}`).sort()

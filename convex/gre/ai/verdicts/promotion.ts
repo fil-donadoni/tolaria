@@ -59,6 +59,7 @@ import {
     type MinimalPairFitOutcome,
 } from "./fit";
 import { withoutLaneFixtures } from "./laneFixture";
+import { judgementSplitRefusals } from "./heldOut";
 import { minimalPairStandings } from "./minimalPair";
 import { encodeVerdictPack } from "./pack";
 import {
@@ -361,11 +362,16 @@ export function validateStoreObjects(
     // promotable, so a half that is unattested, contested or already in the
     // registry is ABSENT here and leaves its anchor incomplete — "a contested
     // half keeps both out" is this set, not a second rule.
+    // The held-out split's refusal (ADR 0148 § Split): a half whose derived
+    // board is already judged on the other side forms no pair, so neither it
+    // nor its anchor enters the lock.
+    const refusals = judgementSplitRefusals(eligible, registry);
     const standings = minimalPairStandings(
         eligible.map((v) => ({
             verdictId: v.verdictId,
             judgement: v.judgement,
             stored: true,
+            splitRefusal: refusals.get(v.verdictId),
         }))
     );
     const promotable: typeof quarantine.promotable = [];

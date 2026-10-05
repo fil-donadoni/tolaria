@@ -875,7 +875,7 @@ function verdictOutcomes(
 export function minimalPairFitOutcomes(
     verdicts: readonly Verdict[],
     pairs: readonly Pick<EvalPair, "verdictId" | "delta">[],
-    testPositions: ReadonlySet<string> = new Set()
+    testPositions: ReadonlySet<string>
 ): MinimalPairFitOutcome[] {
     const outcomeOf = verdictOutcomes(pairs);
     // Standings speak CONTENT hashes (`verdictIdOf` — a half's link names its

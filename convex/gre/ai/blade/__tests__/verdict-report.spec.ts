@@ -37,6 +37,7 @@ const ENV: Record<string, string | undefined> =
 describe("verdict report formatting (issue #3400)", () => {
     it("prints the headline counts, the violated pairs and the gaps", () => {
         const report = collectVerdictReport([], {
+            testPositions: new Set(),
             gaps: [
                 {
                     label: "some predicate entry",
@@ -80,6 +81,7 @@ describe.runIf(RUN)("verdict report (runner)", () => {
         // Lock — the same reader the reproducibility guard fits over.
         const { verdicts, gaps } = await committedVerdictCorpus(scenarios);
         const report = collectVerdictReport(verdicts, {
+            testPositions: new Set(),
             gaps,
             onRow: (row) => console.log(formatVerdictRow(row)),
         });

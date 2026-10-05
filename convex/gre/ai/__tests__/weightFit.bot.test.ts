@@ -73,6 +73,7 @@ const REPO = resolve(__dirname, "../../../..");
  *  the held-out split (issue #3981), fit from it. */
 function guardFit(corpus: RegistryVerdicts) {
     const report = collectVerdictReport(corpus.verdicts, {
+        testPositions: testPositionKeysOf(BLADE_SCENARIOS),
         gaps: corpus.gaps,
         weights: FIT_BASE_EVAL_WEIGHTS,
     });
@@ -455,6 +456,7 @@ describe("widening the lock and moving the weights are ONE change (issue #3583, 
         // pairs the fit would have to answer…
         const corpus = [...registry.verdicts, ...locked];
         const widened = collectVerdictReport(corpus, {
+            testPositions: testPositionKeysOf(BLADE_SCENARIOS),
             gaps: registry.gaps,
             weights: FIT_BASE_EVAL_WEIGHTS,
         });

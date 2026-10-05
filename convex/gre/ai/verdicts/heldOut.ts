@@ -54,6 +54,7 @@ import {
     verdictIdOf,
     VERDICT_CANONICALISATION,
 } from "./identity";
+import type { VerdictJudgement } from "./identity";
 import type { Verdict } from "./types";
 
 /** One Verdict in `HELD_OUT_SPLIT_MODULUS` is held out — 5, i.e. 20%. */
@@ -209,6 +210,32 @@ export function pairSplitRefusals(
         );
     }
     return out;
+}
+
+/**
+ * `pairSplitRefusals` for Promotion, which holds judgements rather than
+ * Verdicts: the store's judgements beside the blade registry's Verdicts, which
+ * are Test Positions by rule. Keyed by the judgement's verdict id (its content
+ * hash, `verdictIdOf`). The side logic reads a scenario and a source, never an
+ * author or a date, so the provenance filled in here is inert.
+ */
+export function judgementSplitRefusals(
+    members: readonly { verdictId: string; judgement: VerdictJudgement }[],
+    registry: readonly Verdict[],
+    modulus: number = HELD_OUT_SPLIT_MODULUS
+): Map<string, string> {
+    const stored: Verdict[] = members.map((m) => ({
+        ...m.judgement,
+        id: m.verdictId,
+        author: "",
+        createdAt: "",
+        source: "store",
+    }));
+    return pairSplitRefusals(
+        [...registry, ...stored],
+        new Set(registry.map(scenarioKeyOf)),
+        modulus
+    );
 }
 
 const otherSide = (side: VerdictSide): VerdictSide =>

@@ -217,8 +217,8 @@ export function collectVerdictReport(
         onRow?: (row: VerdictRow) => void;
         /** `testPositionKeysOf(<the registry>)`: the held-out split's
          *  refusal of a pair needs the sides (ADR 0148 § Split). */
-        testPositions?: ReadonlySet<string>;
-    } = {}
+        testPositions: ReadonlySet<string>;
+    }
 ): VerdictReport {
     const weights = options.weights ?? DEFAULT_EVAL_WEIGHTS;
     const rows: VerdictRow[] = [];
@@ -231,10 +231,7 @@ export function collectVerdictReport(
     // a verdict read from the store is upcast: a registry one is code, and an
     // authored one says exactly what its author wrote.
     const ids = verdicts.map(verdictIdOf);
-    const refusals = pairSplitRefusals(
-        verdicts,
-        options.testPositions ?? new Set()
-    );
+    const refusals = pairSplitRefusals(verdicts, options.testPositions);
     const standings = minimalPairStandings(
         verdicts.map((verdict, i) => ({
             verdictId: ids[i],
