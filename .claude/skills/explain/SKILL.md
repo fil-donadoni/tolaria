@@ -31,7 +31,7 @@ Infer which from the phrasing ("non ho mai visto…" vs "ripassiamo…",
 "remind me…"). If you genuinely can't tell and it changes the opening, ask
 **one** question — otherwise start teaching.
 
-This is not `/teach`: no mission file, no curriculum, no workspace, nothing
+This is not a tutoring course: no mission file, no curriculum, no workspace, nothing
 written to the repo. A session starts from one concept with a deliberately
 narrow scope and widens only as far as the learner pulls it.
 

@@ -90,6 +90,160 @@ describe("project skills live in the repo (PRD #2180)", () => {
     }
 });
 
+/**
+ * "In Tolaria the only skills are project skills" (PRD #5096, ADR 0150).
+ *
+ * Boundary = committed configuration (`.claude/settings.json`) + this guard.
+ * The guard derives, never lists: every skill directory found at machine level
+ * must be hidden by `skillOverrides`, and every skill name the repo instructs a
+ * session to run must resolve to a tracked project skill.
+ */
+describe("Tolaria is project-skills-only (ADR 0150, issue #5098)", () => {
+    const SKILLS_DIR = path.join(REPO_ROOT, ".claude", "skills");
+    const MACHINE_DIR = path.join(os.homedir(), ".claude", "skills");
+
+    /** Slash commands of the harness itself — not skills, never hidden. */
+    const HARNESS_COMMANDS = new Set(["clear", "compact"]);
+
+    const settings = JSON.parse(
+        fs.readFileSync(
+            path.join(REPO_ROOT, ".claude", "settings.json"),
+            "utf8"
+        )
+    ) as {
+        enabledPlugins?: Record<string, boolean>;
+        skillOverrides?: Record<string, string>;
+    };
+
+    const projectSkills = (): string[] =>
+        fs
+            .readdirSync(SKILLS_DIR, { withFileTypes: true })
+            .filter(
+                (e) =>
+                    e.isDirectory() &&
+                    fs.existsSync(path.join(SKILLS_DIR, e.name, "SKILL.md"))
+            )
+            .map((e) => e.name)
+            .sort();
+
+    /** Skill directories on the machine running the test. `synced` holds the
+     *  owner's claude.ai skills: not switchable from committed settings. */
+    const machineSkills = (): string[] =>
+        !fs.existsSync(MACHINE_DIR)
+            ? []
+            : fs
+                  .readdirSync(MACHINE_DIR, { withFileTypes: true })
+                  .filter(
+                      (e) =>
+                          e.name !== "synced" &&
+                          fs.existsSync(
+                              path.join(MACHINE_DIR, e.name, "SKILL.md")
+                          )
+                  )
+                  .map((e) => e.name)
+                  .sort();
+
+    const tracked = (...globs: string[]): string[] =>
+        execFileSync("git", ["ls-files", "-z", "--", ...globs], {
+            cwd: REPO_ROOT,
+            encoding: "utf8",
+        })
+            .split("\0")
+            .filter(Boolean);
+
+    /** Skill names that prose or a driver script tells a session to run. */
+    const instructedSkills = (): Map<string, string[]> => {
+        const found = new Map<string, string[]>();
+        const note = (name: string, file: string) => {
+            if (HARNESS_COMMANDS.has(name)) return;
+            found.set(name, [...(found.get(name) ?? []), file]);
+        };
+        const prose = tracked(
+            "CLAUDE.md",
+            "*/CLAUDE.md",
+            ".claude/rules/*.md",
+            ".claude/hooks/*",
+            ".claude/skills/*"
+        ).filter((f) => !fs.statSync(path.join(REPO_ROOT, f)).isDirectory());
+        for (const file of prose) {
+            const text = fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
+            for (const m of text.matchAll(/`\/([a-z][a-z0-9-]*)(?=[ `])/g)) {
+                note(m[1], file);
+            }
+        }
+        const drivers = tracked(
+            "scripts/*.sh",
+            "scripts/*.ts",
+            "scripts/lib/*.ts"
+        ).filter((f) => !f.includes("__tests__/"));
+        for (const file of drivers) {
+            const text = fs.readFileSync(path.join(REPO_ROOT, file), "utf8");
+            for (const m of text.matchAll(
+                /claude\s+-p\s+["']\/([a-z][a-z0-9-]*)/g
+            )) {
+                note(m[1], file);
+            }
+        }
+        return found;
+    };
+
+    it("the committed settings disable the superpowers plugin", () => {
+        expect(
+            settings.enabledPlugins?.["superpowers@claude-plugins-official"]
+        ).toBe(false);
+    });
+
+    it("hides every machine-level skill that is not a project skill", () => {
+        const project = new Set(projectSkills());
+        const unhidden = machineSkills().filter(
+            (name) =>
+                !project.has(name) && settings.skillOverrides?.[name] !== "off"
+        );
+        expect(
+            unhidden,
+            `machine-level skill(s) ${unhidden.join(", ")} neither hidden nor a project skill — add "<name>": "off" to skillOverrides in .claude/settings.json, or adopt it into .claude/skills/ (ADR 0150)`
+        ).toEqual([]);
+    });
+
+    it("no project skill is also present at machine level", () => {
+        const shadowed = projectSkills().filter((name) =>
+            fs.existsSync(path.join(MACHINE_DIR, name, "SKILL.md"))
+        );
+        expect(
+            shadowed,
+            `${shadowed.join(", ")} also exist(s) under ${MACHINE_DIR} — delete the machine copy; the repo copy is authoritative`
+        ).toEqual([]);
+    });
+
+    it("never hides a project skill", () => {
+        const project = new Set(projectSkills());
+        const hidden = Object.keys(settings.skillOverrides ?? {}).filter((n) =>
+            project.has(n)
+        );
+        expect(hidden).toEqual([]);
+    });
+
+    it("every skill a project skill, script or CLAUDE.md tells a session to run is a tracked project skill", () => {
+        const project = new Set(projectSkills());
+        const dead = [...instructedSkills()].filter(
+            ([name]) => !project.has(name)
+        );
+        expect(
+            dead.map(
+                ([name, files]) =>
+                    `/${name} (${[...new Set(files)].join(", ")})`
+            ),
+            "name(s) resolve to no project skill — re-point at the project skill or docs/agents/ that replaced it, or delete the sentence (ADR 0150)"
+        ).toEqual([]);
+    });
+
+    it("finds a real corpus of instructed skills", () => {
+        const names = new Set(instructedSkills().keys());
+        expect(names.has("next-issue")).toBe(true);
+        expect(names.has("grill")).toBe(true);
+    });
+});
+
 describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", () => {
     const rel = path.join(".claude", "skills", "next-issue", "SKILL.md");
     const body = (): string =>
