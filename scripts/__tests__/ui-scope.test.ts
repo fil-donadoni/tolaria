@@ -227,10 +227,12 @@ describe("computeUiScope — staff-only routes (issue #5075)", () => {
     });
 
     it("a module shared by a staff-only page and a product surface selects the product surface", () => {
-        expect(scopeOf("src/components/deck-shelf.tsx")).toEqual({
-            kind: "scoped",
-            surfaces: ["lobby"],
-        });
+        expect(
+            scopeOf(
+                "src/components/deck-shelf.tsx",
+                "src/routes/admin/admin-panel.route.tsx"
+            )
+        ).toEqual({ kind: "scoped", surfaces: ["lobby"] });
     });
 
     it("a staff-only module beside a product component selects exactly the product surfaces", () => {
