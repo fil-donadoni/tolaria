@@ -1383,13 +1383,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Charter scenario 2 (the fetch target). Fetching the Island instead of the Swamp loses the Hill Giant kill BY FORCE: the bot's only other land is a Mountain, so Terror ({1}{B}) is uncastable without the Swamp and the 3/3 survives with the removal stranded in hand. The root decision is the live search-library choice (CR 701.23), reached by really activating and resolving the fetchland.",
     },
     {
-        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1487).
-        // PAIRED WITH: "discriminating pair: casts Phyrexian Dreadnought WITH
-        // an out (Stifle)". NEITHER ENTRY PROVES ANYTHING ALONE — a bot that
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #1487) — the ANCHOR of a
+        // Minimal Pair declared in data (issue #4797): the right-hand half
+        // names this entry in its `pairOf`. NEITHER ENTRY PROVES ANYTHING ALONE — a bot that
         // never casts Dreadnought passes this one, and a bot that always casts
         // it passes the other. Only the pair distinguishes a bot that reads
         // the consequence. Deleting either half silently guts the other, which
-        // is why each note names its partner.
+        // is why the half's `pairOf` names this one.
         //
         // No Stifle, no other creature: casting the Dreadnought puts a trigger
         // on the stack whose punisher cost can only be paid by sacrificing the
@@ -1405,7 +1405,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             // #4882): the pair still differs by the out alone.
             phase: "POSTCOMBAT_MAIN",
             turn: 3,
-            landCount: 1,
+            // Two Islands, matched to the partner (issue #4797): the declared
+            // Minimal Pair differs by Stifle alone, so the second Island that
+            // would pay for it sits here too — idle, as no out needs it.
+            landCount: 2,
             libraryCount: 20,
         },
         bot: "me",
@@ -1420,7 +1423,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             forbidden: [{ kind: "cast-spell", card: "Phyrexian Dreadnought" }],
         },
-        note: 'Half 1 of the discriminating pair — PAIRED WITH "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)". Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.',
+        note: "Half 1 of the discriminating pair — the anchor of the Minimal Pair its right-hand half declares by `pairOf`. Neither half is meaningful alone. Both halves pass at 400 iterations across 3 seeds.",
     },
     {
         // FODDER BOARD, NO OUT (issue #4825) — the refusal Test Position that
@@ -1472,15 +1475,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: 'Refusal entry for issue #4825, beside the empty-board refusal of the discriminating pair. Four Hill Giants (12 power) can pay the punisher cost, so the cast is legal and affordable — and a loss: four bodies for one 12/12. Casting it here is a Bot bug, never a reason to move the position. See "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)" for the play the pair exists to show.',
     },
     {
-        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1487).
-        // PAIRED WITH: "discriminating pair: does NOT cast Phyrexian
-        // Dreadnought with no out". Same position plus one card (Stifle) and
-        // the mana for it: now the trigger can be countered, so casting the
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #1487) — the right-hand half
+        // of the Minimal Pair its `pairOf` declares (issue #4797). Same
+        // position plus one card (Stifle), whose mana the anchor holds idle: now the trigger can be countered, so casting the
         // Dreadnought is a free 12/12 and IS expected.
         label: "discriminating pair: casts Phyrexian Dreadnought WITH an out (Stifle)",
-        classification: {
-            kind: "conditional",
-            discriminant: { kind: "card", detail: "no Stifle in hand" },
+        pairOf: {
+            anchor: "discriminating pair: does NOT cast Phyrexian Dreadnought with no out",
+            discriminant: STIFLE_BACKUP,
         },
         spec: {
             cards: [
@@ -1529,7 +1531,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "cast-spell", card: "Phyrexian Dreadnought" }],
         },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: does NOT cast Phyrexian Dreadnought with no out". Neither half is meaningful alone.',
+        note: "Half 2 of the discriminating pair — the right-hand half of the Minimal Pair its `pairOf` declares. Neither half is meaningful alone.",
     },
     {
         // CHARTER SCENARIO 2, TIMING HALF (issue #1488, PRD #1423, charter
