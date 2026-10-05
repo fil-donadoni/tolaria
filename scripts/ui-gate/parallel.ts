@@ -116,8 +116,8 @@ export function parseParallelOverride(raw: string): number {
  * in ITEM order however they finished.
  *
  * `limit` may be a callback (issue #5023): it is consulted at the start and
- * each time a lane finishes an item, and a larger answer spawns the extra lanes
- * at once. The pool only GROWS — a lane already running is never stopped, so a
+ * each time a lane finishes an item, with the count of items finished so far,
+ * and a larger answer spawns the extra lanes at once. The pool only GROWS — a lane already running is never stopped, so a
  * callback that later answers lower changes nothing. Lane indices are handed
  * out in order (0, 1, 2, …) and never reused, so `lane < max answer` holds.
  *
@@ -133,15 +133,19 @@ export function parseParallelOverride(raw: string): number {
  */
 export function runPool<T, R>(
     items: readonly T[],
-    limit: number | (() => number),
+    limit: number | ((finished: number) => number),
     worker: (item: T, index: number, lane: number) => Promise<R>
 ): Promise<R[]> {
     const results = new Array<R>(items.length);
     if (items.length === 0) return Promise.resolve(results);
+    let finished = 0;
     const wanted = () =>
         Math.max(
             1,
-            Math.min(typeof limit === "number" ? limit : limit(), items.length)
+            Math.min(
+                typeof limit === "number" ? limit : limit(finished),
+                items.length
+            )
         );
     return new Promise<R[]>((resolve, reject) => {
         let next = 0;
@@ -158,6 +162,7 @@ export function runPool<T, R>(
             try {
                 for (let i = next++; i < items.length; i = next++) {
                     results[i] = await worker(items[i], i, lane);
+                    finished += 1;
                     if (next < items.length) grow();
                 }
             } catch (err) {
@@ -184,7 +189,10 @@ export interface PoolGrowth {
  * The pool's size as a function of the heavy holder's presence (issue #5023).
  *
  * A run that STARTED capped by a holder (issue #4941) takes the uncapped size
- * the first time `holderNow` reads no live holder; a run that started uncapped,
+ * the first time `holderNow` reads no live holder AFTER a slot frees — never on
+ * the starting call, so a start capped beside a holder that had already
+ * released (`machine.beside`, issue #4988: its load outlives it) walks its first
+ * viewport alone; a run that started uncapped,
  * or whose holder is still there, keeps its size. Grow-only both ways: a holder
  * ARRIVING mid-run never lowers the answer, and once grown the size stays.
  * Pass this as `runPool`'s `limit`; `growth()` reads back what happened.
@@ -198,12 +206,13 @@ export function growingLimit(input: {
     holderNow: () => unknown;
     now: () => number;
     startedAtMs: number;
-}): { limit: () => number; growth: () => PoolGrowth | null } {
+}): { limit: (finished: number) => number; growth: () => PoolGrowth | null } {
     let size = input.start;
     let growth: PoolGrowth | null = null;
     return {
-        limit() {
+        limit(finished) {
             if (
+                finished > 0 &&
                 growth === null &&
                 input.cappedBy !== null &&
                 input.uncapped > size &&

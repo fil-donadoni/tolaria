@@ -245,6 +245,7 @@ async function drivePool(input: {
     let finished = 0;
     let live = 0;
     let peak = 0;
+    let startedBeforeFirstFinish = 0;
     const lanes: number[] = [];
     const sized = growingLimit({
         start: input.start,
@@ -261,12 +262,19 @@ async function drivePool(input: {
             live += 1;
             peak = Math.max(peak, live);
             lanes.push(lane);
+            if (finished === 0) startedBeforeFirstFinish += 1;
             await new Promise((r) => setTimeout(r, 5));
             live -= 1;
             finished += 1;
         }
     );
-    return { peak, lanes, growth: sized.growth(), finalLimit: sized.limit() };
+    return {
+        peak,
+        lanes,
+        growth: sized.growth(),
+        finalLimit: sized.limit(finished),
+        startedBeforeFirstFinish,
+    };
 }
 
 describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
@@ -280,6 +288,20 @@ describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
         });
         expect(out.peak).toBeGreaterThan(1);
         expect(out.growth).toMatchObject({ from: 1, to: 5, released: HOLDER });
+    });
+
+    it("never grows on the starting call — only once a slot frees", async () => {
+        // Capped beside a holder that had already released when the pool was
+        // sized (`machine.beside`): the probe reads free from the start.
+        const out = await drivePool({
+            count: 5,
+            start: 1,
+            uncapped: 5,
+            cappedBy: HOLDER,
+            holderAt: () => false,
+        });
+        expect(out.startedBeforeFirstFinish).toBe(1);
+        expect(out.peak).toBeGreaterThan(1);
     });
 
     it("stays at one lane while the holder is still there", async () => {
