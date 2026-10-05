@@ -40,13 +40,17 @@ const PASS_KEY = JSON.stringify({ kind: "pass" });
 const STONE_RAIN_LABEL =
     "board-aware removal: casts Stone Rain on a land when there is nothing better to do";
 
-/** `verdict` as it read before ADR 0148: no classification. Every registry
+/** `verdict` as it read before ADR 0148: no classification and no pair link
+ *  (a declared half whose anchor is read unclassified would leave the fit,
+ *  and the keep-mana-open halves are the timing pairs this reads for, issue
+ *  #5108). Every registry
  *  entry is classified (issue #4797), and an unpaired conditional one is out
  *  of the fit — so a test about the fit's arithmetic, not about Minimal Pair
  *  standing, reads its registry positions this way. */
 function unclassified(verdict: Verdict): Verdict {
     const out = { ...verdict };
     delete out.classification;
+    delete out.pairOf;
     return out;
 }
 
