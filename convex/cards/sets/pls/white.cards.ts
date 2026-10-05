@@ -12,6 +12,7 @@ import type {
 } from "../../types";
 import {
     AURA_AFFECTS_HOST,
+    defineCard,
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
     mostCommonColors,
@@ -209,7 +210,7 @@ export const heroicDefiance: CardDefinition = {
 
 // Aura Blast — {1}{W} Instant. "Destroy target enchantment.\nDraw a card."
 // (CR 701.8 destroy, CR 121.1 draw.)
-export const auraBlast: CardDefinition = {
+export const auraBlast = defineCard(() => ({
     id: "090f5ad6-e10e-49b3-8643-51a4e792517c", // PLS 1
     name: "Aura Blast",
     rarity: "common",
@@ -221,7 +222,7 @@ export const auraBlast: CardDefinition = {
         { op: "destroy", target: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Aurora Griffin — {3}{W} Creature — Griffin, 2/2. "Flying\n{W}: Target
 // permanent becomes white until end of turn." (CR 702.9 flying; CR 613.1e

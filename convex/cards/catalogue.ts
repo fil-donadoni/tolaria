@@ -162,6 +162,9 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
+// A hand-written export is an eager definition or a `defineCard` factory
+// (issue #4857); this is the one reader that tells them apart.
+import { resolveCardExport } from "./defineCard";
 import { chooseableNamesOf } from "./cardNames";
 import { modalBackFaceParentId } from "./modalDfc";
 import { isTwinDefinitionId } from "./twinId";
@@ -190,16 +193,6 @@ import {
     packedCorpusLookup,
     packedServerCorpus,
 } from "./compiledPool";
-
-function isCardDefinition(value: unknown): value is CardDefinition {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        "id" in value &&
-        "name" in value &&
-        "types" in value
-    );
-}
 
 // Set modules paired with their lowercase set code.
 const setModules: { code: string; exports: Record<string, unknown> }[] = [
@@ -361,9 +354,10 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
 // block. Pinned by `__tests__/catalogueLoadTouchesNoDefinition.test.ts`, which
 // loads this module with every definition replaced by a throwing stub.
 //
-// The definitions are still BUILT eagerly — every Set module evaluates its
-// object literals when imported. What changed is that nothing here needs them
-// at load; making them factories is the next slice of PRD #4849.
+// A definition declared with `defineCard` (issue #4857) is not even BUILT at
+// load: its Set module evaluates a factory, which runs on the first request
+// (`handWrittenDefinition`). An eagerly declared one still evaluates its
+// object literal when its Set module is imported, but nothing here reads it.
 
 const setModuleByCode = new Map(setModules.map((m) => [m.code, m.exports]));
 
@@ -423,13 +417,15 @@ const staleIndex = (what: string): Error =>
     );
 
 /** The hand-written definition for `id`, read from the Set module export the
- *  index locates — the module's own object, unexpanded. */
+ *  index locates — the module's own object, unexpanded. A `defineCard`
+ *  factory is called here, on this first request, and memoises what it
+ *  builds (issue #4857): the same object for every later request. */
 function handWrittenDefinition(id: string): CardDefinition | null {
     const entry = handWrittenEntryById.get(id);
     if (entry === undefined) return null;
     const [, name, setCode, exportName] = entry;
-    const value = setModuleByCode.get(setCode)?.[exportName];
-    if (!isCardDefinition(value) || value.id !== id) {
+    const value = resolveCardExport(setModuleByCode.get(setCode)?.[exportName]);
+    if (value === undefined || value.id !== id) {
         throw staleIndex(`${name} (${id}) is not ${setCode}.${exportName}`);
     }
     return value;
@@ -648,7 +644,8 @@ export function registerCompiledDefinitions(
 }
 
 /** Every hand-written definition, walked from the Set modules' exports at
- *  CALL time — never at load. The generator's input
+ *  CALL time — never at load. A `defineCard` factory is built by the walk
+ *  (issue #4857): this is the catalogue-wide reader, and it asks for them all. The generator's input
  *  (`scripts/catalogue-artifact.ts`, which writes the Definition Index from
  *  it) and the eager walk the index is proven equal to.
  *
@@ -665,8 +662,9 @@ export function walkHandWrittenDefinitions(): HandWrittenExport[] {
             a < b ? -1 : a > b ? 1 : 0
         );
         for (const [exportName, value] of exports) {
-            if (isCardDefinition(value)) {
-                walk.push({ setCode: m.code, exportName, definition: value });
+            const definition = resolveCardExport(value);
+            if (definition !== undefined) {
+                walk.push({ setCode: m.code, exportName, definition });
             }
         }
     }

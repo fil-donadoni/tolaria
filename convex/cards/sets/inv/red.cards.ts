@@ -12,7 +12,7 @@ import type {
     StaticEffectStateView,
     StaticEffectContext,
 } from "../../types";
-import { countDomain, EFFECT_AFFECTS_SELF } from "../../types";
+import { countDomain, defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -967,7 +967,7 @@ export const zap: CardDefinition = {
 // forEach ability-exclusion filter, not on the kicker branch — that's a
 // plain `ctx.getKickerCount()` read composed with the existing
 // `dealDamageToEach` primitive Earthquake already uses.)
-export const breathOfDarigaaz: CardDefinition = {
+export const breathOfDarigaaz = defineCard(() => ({
     id: "480bb7e3-df03-454d-ada0-592ef8a4a6f0",
     rarity: "uncommon",
     name: "Breath of Darigaaz",
@@ -989,7 +989,7 @@ export const breathOfDarigaaz: CardDefinition = {
             players: true,
         });
     },
-};
+}));
 
 // Kavu Runner — {3}{R} Creature — Kavu, 3/3. "This creature has haste as long
 // as no opponent controls a white or blue creature." (CR 611.2c board-state-

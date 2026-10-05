@@ -7,8 +7,9 @@
  * The proof is a load with every definition made untouchable: the catalogue is
  * bundled by esbuild with
  *
- *   - every hand-written definition export (`sets/<code>/<colour>.cards.ts`)
- *     replaced by a Proxy whose every trap throws — the module is still
+ *   - every hand-written definition export (`sets/<code>/<colour>.cards.ts`),
+ *     eager object or `defineCard` factory (issue #4857), replaced by a Proxy
+ *     whose every trap throws — the module is still
  *     evaluated, its non-definition exports pass through, but reading so much
  *     as `"id" in def` names the definition and fails;
  *   - every row of the compiled pool (`data/oracle-compiled-pool.json`)
@@ -34,16 +35,24 @@ const SET_CARD_MODULE = /convex\/cards\/sets\/[^/]+\/[^/]+\.cards\.ts$/;
 const COMPILED_POOL = /data\/oracle-compiled-pool\.json$/;
 const REAL = "?real";
 const TOUCHED = "definition touched at load";
+/** A card declared with `defineCard` (issue #4857). */
+const FACTORY_CARD = "Aura Blast";
 
 /** A Proxy every one of whose traps throws, naming `what`. */
 const THROWING_STUB = `
-const stub = (what) => new Proxy({}, new Proxy({}, {
+const stub = (what, target = {}) => new Proxy(target, new Proxy({}, {
     get: (_, trap) => () => {
         throw new Error(${JSON.stringify(TOUCHED)} + ": " + what + " (" + String(trap) + ")");
     },
 }));
 const isDefinition = (v) =>
     typeof v === "object" && v !== null && "id" in v && "name" in v && "types" in v;
+// A \`defineCard\` factory (issue #4857) is stubbed as a FUNCTION, so calling it
+// — building the definition — throws like any other touch.
+const isFactory = (v) =>
+    typeof v === "function" && v[Symbol.for("tolaria.cardFactory")] === true;
+const untouchable = (what, v) =>
+    isFactory(v) ? stub(what, function () {}) : isDefinition(v) ? stub(what) : v;
 `;
 
 /** Counts what the plugin substituted, so a test can refuse a vacuous load. */
@@ -74,7 +83,7 @@ const untouchableDefinitions: esbuild.Plugin = {
             const lines = [`import * as real from ${real};`, THROWING_STUB];
             for (const [, name] of consts) {
                 lines.push(
-                    `export const ${name} = isDefinition(real.${name}) ? stub(${JSON.stringify(name)}) : real.${name};`
+                    `export const ${name} = untouchable(${JSON.stringify(name)}, real.${name});`
                 );
             }
             for (const [, name] of functions) {
@@ -111,13 +120,23 @@ try {
     console.log("LOAD-FAILED " + String(error?.stack ?? error).split("\\n").slice(0, 6).join(" | "));
     process.exit(0);
 }
-try {
-    catalogue.getAllCards();
-    console.log("STUBS-NOT-LIVE");
-} catch (error) {
-    const message = String(error?.message ?? error);
-    console.log(message.includes(${JSON.stringify(TOUCHED)}) ? "LOADED" : "CONTROL-FAILED " + message);
-}
+// Two controls: the hand-written population, and one \`defineCard\` factory
+// card by name (issue #4857) — a factory the stub failed to recognise would
+// build its real definition here instead of throwing.
+const control = (what, ask) => {
+    try {
+        ask();
+        return "STUBS-NOT-LIVE " + what;
+    } catch (error) {
+        const message = String(error?.message ?? error);
+        return message.includes(${JSON.stringify(TOUCHED)}) ? null : "CONTROL-FAILED " + what + ": " + message;
+    }
+};
+console.log(
+    control("population", () => catalogue.getAllCards()) ??
+        control("factory", () => catalogue.getCardByName(${JSON.stringify(FACTORY_CARD)})) ??
+        "LOADED"
+);
 `;
 
 const dir = mkdtempSync(join(tmpdir(), "catalogue-load-"));

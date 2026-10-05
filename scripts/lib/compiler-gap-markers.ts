@@ -37,13 +37,16 @@ import * as fs from "node:fs";
 import { paragraphBounds, isParagraphBreak } from "./divergence-markers";
 
 /**
- * A top-level `CardDefinition` export — the anchor a marker attaches to.
+ * A top-level `CardDefinition` export — the anchor a marker attaches to: an
+ * eager `export const x: CardDefinition = …`, or a memoised factory
+ * `export const x = defineCard(() => ({ … }))` (issue #4857), which declares
+ * no type because `defineCard` gives it one.
  *
  * Deliberately narrower than "any export": a `CardPrint`, a helper, a shared
  * ability template are not cards and have no Oracle text to round-trip.
  */
 export const CARD_ANCHOR =
-    /^export const\s+[A-Za-z0-9_$]+\s*:\s*CardDefinition\s*=/;
+    /^export const\s+[A-Za-z0-9_$]+\s*(?::\s*CardDefinition\s*=|=\s*defineCard\()/;
 
 /** The card's own `name:` property, read out of the object literal below the
  *  anchor. This is the key Guard C joins the source scan to `getAllCards()`
@@ -54,8 +57,9 @@ export const CARD_ANCHOR =
 const NAME_PROPERTY = /^\s*name:\s*"((?:[^"\\]|\\.)*)"/;
 
 /** End of an anchor's object literal at column 0 — `};` for a plain object
- *  literal, `});` for one passed to a factory (`defineSplitCard`). */
-const OBJECT_END = /^\}\)?;/;
+ *  literal, `});` for one passed to a factory (`defineSplitCard`), `}));`
+ *  for one a `defineCard` factory returns. */
+const OBJECT_END = /^\}\)?\)?;/;
 
 /** CR 709.4a — the separator between a split card's two names. Duplicated
  *  from `convex/cards/splitCard.ts` on purpose: this module is a SOURCE
