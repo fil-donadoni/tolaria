@@ -260,3 +260,48 @@ overlay by WALKING the route: the route is on screen under the layer and on
 the path to it, so the route closure is the surface's closure, not an
 over-approximation. The specimen page is the one place a surface's walk
 mounts a module the page does not otherwise render.
+
+## Amendment (issue #5074) — server-only paths contribute no surface
+
+### What the fail-closed fallback cost
+
+"In no surface's closure and no rule places it → `full`" was written for a
+frontend path nobody modelled. It also caught every `convex/**` module the
+frontend never imports (mutations, queries, schema, card set files). Measured
+over the 150 PRs merged 2026-09-28 → 10-04: 16 carried a `check:ui` receipt,
+13 were FULL, 3 SCOPED; re-running the real scoper (`landingDiffScope`) on the
+ten FULL ones that carried `convex/**` files showed every one was forced by a
+server-only path. Without them those ten walk about 224 surfaces instead of
+820 (−73 %).
+
+### The argument
+
+`check:ui` never pushes Convex functions (amendment above): the walk runs the
+tree's FRONTEND against whatever functions the shared deployment serves. A
+module the frontend does not import therefore cannot move a walked screen
+from the tree — it is the same class as a test or a script. A module the
+frontend DOES import (the pure engine modules of ADR 0074) is in a surface
+closure and keeps selecting its surfaces: the closure rule runs first.
+
+### The rule
+
+After the closure and type-only rules, before the `otherwise → full`
+fallback, a path under `convex/` or `data/` that sits in no closure
+**contributes nothing** (`isServerOnlyPath`). Left unchanged:
+
+- `convex/_generated/**` is excluded from the rule — the frontend imports
+  `api` from it — so it keeps whatever placement it had (closure hit, else
+  FULL);
+- the shell, build, lane and global rules run earlier and still force FULL on
+  a `convex/**` or `data/**` file they contain;
+- a path outside `convex/**`/`data/**` that nothing places still forces FULL.
+
+A diff of server-only paths alone yields an empty `scoped` result: no browser
+time owed. `land` re-derives the scope with the same function, so receipts
+follow with no format change.
+
+### Residual
+
+A server change that alters what the deployment serves (a query's shape, a
+seeded row) can move a screen. That was already true of every SCOPED run, and
+is what the batch-health `--all` walk catches.
