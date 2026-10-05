@@ -31,6 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
+import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
@@ -224,6 +225,11 @@ export interface KindInputs {
      * Bot Gaps omits it and falls back to the lockfile's own `botReach`).
      */
     readonly botFindings?: ReadonlyMap<string, BotFindingVerdict>;
+    /**
+     * Card names a `must` blade entry covers (`mustCoveredCards`, ADR 0143): a
+     * `never-chosen` card in it carries no Bot Gap. Absent means none covered.
+     */
+    readonly mustCovered?: ReadonlySet<string>;
     /**
      * {@link rankedTargetIds} — what ranks a findings-only Bot card, which no
      * slice's `ids` holds (issue #4180). Absent: the priority slices' ids.
@@ -786,7 +792,8 @@ interface BotVerdictRow {
  */
 function botVerdictRows(
     cards: readonly CardRow[],
-    findings?: ReadonlyMap<string, BotFindingVerdict>
+    findings?: ReadonlyMap<string, BotFindingVerdict>,
+    mustCovered?: ReadonlySet<string>
 ): BotVerdictRow[] {
     const rows: BotVerdictRow[] = [];
     const seen = new Set<string>();
@@ -799,7 +806,51 @@ function botVerdictRows(
     for (const [oracleId, verdict] of findings ?? [])
         if (!seen.has(oracleId))
             rows.push({ oracleId, name: verdict.name ?? oracleId, verdict });
-    return rows;
+    return mustCovered === undefined
+        ? rows
+        : rows.filter((row) => !isMustCoveredNeverChosen(row, mustCovered));
+}
+
+/**
+ * The cards {@link botVerdictRows} drops for coverage, oracle id → the Bot Gap
+ * key each carried — what a caller holding its own per-Gap card index
+ * (`gaps:sync`'s `reached`, which lends a filing its cards and band) removes
+ * so it agrees with the filer.
+ */
+export function mustCoveredBotCards(
+    cards: readonly CardRow[],
+    findings: ReadonlyMap<string, BotFindingVerdict> | undefined,
+    mustCovered: ReadonlySet<string>
+): Map<string, string> {
+    const kept = new Set(
+        botVerdictRows(cards, findings, mustCovered).map((r) => r.oracleId)
+    );
+    const dropped = new Map<string, string>();
+    for (const row of botVerdictRows(cards, findings))
+        if (!kept.has(row.oracleId) && row.verdict.gap !== undefined)
+            dropped.set(row.oracleId, row.verdict.gap);
+    return dropped;
+}
+
+/**
+ * A `never-chosen` card a `must` Test Position covers (ADR 0143 § The v1 gate:
+ * "a Test Position closes such a card with a proof instead of a valuation
+ * change") carries no Bot Gap. `mustCovered` is `mustCoveredCards`'s set — the
+ * ONE definition of "covered", loaded by the caller so this module stays pure.
+ * Only the `never-chosen` cause is closed that way: a `frozen` card (withheld
+ * by quarantine) and a harness-bound cause keep their gap.
+ */
+function isMustCoveredNeverChosen(
+    row: BotVerdictRow,
+    mustCovered: ReadonlySet<string>
+): boolean {
+    const { outcome, gap } = row.verdict;
+    return (
+        outcome !== "frozen" &&
+        gap !== undefined &&
+        botCauseOf(gap) === "never-chosen" &&
+        isMustCovered(row.name, mustCovered)
+    );
 }
 
 /**
@@ -830,10 +881,15 @@ export function inScopeBotGapKeys(
     cards: readonly CardRow[],
     ranked: ReadonlySet<string>,
     findings?: ReadonlyMap<string, BotFindingVerdict>,
-    rankedTargets: ReadonlySet<string> = new Set()
+    rankedTargets: ReadonlySet<string> = new Set(),
+    mustCovered?: ReadonlySet<string>
 ): string[] {
     const keys = new Set<string>();
-    for (const { oracleId, verdict } of botVerdictRows(cards, findings))
+    for (const { oracleId, verdict } of botVerdictRows(
+        cards,
+        findings,
+        mustCovered
+    ))
         if (
             verdict.outcome !== "played" &&
             verdict.gap !== undefined &&
@@ -857,7 +913,11 @@ export function inScopeBotGapKeys(
  */
 export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
     const byKey = new Map<string, { ids: Set<string>; frozen: boolean }>();
-    const rows = botVerdictRows(inputs.lock.cards, inputs.botFindings);
+    const rows = botVerdictRows(
+        inputs.lock.cards,
+        inputs.botFindings,
+        inputs.mustCovered
+    );
     const verdictOf = new Map(
         rows.map((r) => [r.oracleId, r.verdict] as const)
     );
@@ -968,7 +1028,8 @@ export interface ComputedGapKeys {
  */
 export function computedGapKeys(
     lock: Pick<Lockfile, "cards" | "fragments">,
-    botFindings: ReadonlyMap<string, BotFindingVerdict> | null
+    botFindings: ReadonlyMap<string, BotFindingVerdict> | null,
+    mustCovered?: ReadonlySet<string>
 ): ComputedGapKeys {
     const byKind = {
         mechanic: new Set<string>(),
@@ -983,7 +1044,8 @@ export function computedGapKeys(
     }
     for (const { verdict } of botVerdictRows(
         lock.cards,
-        botFindings ?? undefined
+        botFindings ?? undefined,
+        mustCovered
     ))
         if (verdict.outcome !== "played" && verdict.gap !== undefined)
             byKind.bot.add(verdict.gap);
@@ -1066,4 +1128,16 @@ export function orphanCardActions(
         });
     }
     return actions;
+}
+
+/**
+ * Remove covered cards from a per-Gap reached index ({@link mustCoveredBotCards}
+ * says which, under which key), in place.
+ */
+export function pruneCoveredReached(
+    reached: Map<string, Set<string>>,
+    covered: ReadonlyMap<string, string>
+): void {
+    for (const [oracleId, key] of covered)
+        reached.get(claimId("bot", key))?.delete(oracleId);
 }

@@ -80,6 +80,7 @@
  * view` per row — this runs on every landing.
  */
 
+import { loadBladeMustCovered } from "./lib/blade-must-covered";
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { gunzipSync } from "node:zlib";
@@ -139,6 +140,8 @@ import {
 } from "./lib/coverage-context";
 import {
     buildBotGapFilings,
+    mustCoveredBotCards,
+    pruneCoveredReached,
     buildFragmentGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
@@ -684,7 +687,10 @@ export function buildAllFilings(
     botFindings?: ReadonlyMap<string, BotFindingVerdict>,
     /** Oracle id → the open issue naming the card in its `## Cards` section
      *  (issue #4515) — what a card-keyed claim adopts instead of filing. */
-    openCardIssues?: ReadonlyMap<string, readonly number[]>
+    openCardIssues?: ReadonlyMap<string, readonly number[]>,
+    /** Card names a `must` blade entry covers (ADR 0143) — a `never-chosen`
+     *  card in it files no Bot Gap. */
+    mustCovered?: ReadonlySet<string>
 ): {
     filings: GapFiling[];
     handTailHeld: readonly GapFiling[];
@@ -712,6 +718,7 @@ export function buildAllFilings(
         floorless: floorlessCardIds(registry, ctx),
         handTail: new Set(markerIssues.keys()),
         botFindings,
+        mustCovered,
         rankedTargets: rankedTargetIds(registry),
         openCardIssues,
         ...gapIndex(lock),
@@ -735,12 +742,20 @@ export function buildAllFilings(
             reached.get(claimId(filing.kind, filing.key)) ?? [],
             index
         );
+    // A `never-chosen` card a `must` Test Position covers carries no Bot Gap
+    // (ADR 0143, issue #4825): it lends neither its name nor its band.
+    const covered =
+        mustCovered === undefined
+            ? new Map<string, string>()
+            : mustCoveredBotCards(lock.cards, botFindings, mustCovered);
+    pruneCoveredReached(reached, covered);
     const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
     // Findings-only cards (hand-written, no lockfile row) reach their Bot Gap
     // and lend its band exactly like a lockfile card (issue #4180).
     const lockIds = new Set(lock.cards.map((c) => c.oracleId));
     for (const [oracleId, verdict] of botFindings ?? []) {
         if (lockIds.has(oracleId) || verdict.outcome === "played") continue;
+        if (covered.has(oracleId)) continue;
         if (verdict.gap === undefined) continue;
         nameOf.set(oracleId, verdict.name ?? oracleId);
         const id = claimId("bot", verdict.gap);
@@ -1116,7 +1131,7 @@ export function heldKindsOf(argv: readonly string[]): ReadonlySet<GapKind> {
     return new Set<GapKind>(argv.includes(NO_FILE_BOT_FLAG) ? ["bot"] : []);
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const root = resolve(".");
     const dryRun = process.argv.includes("--dry-run");
     const holdCreates = heldKindsOf(process.argv.slice(2));
@@ -1190,6 +1205,7 @@ function main(): void {
               (name) => ctx.byName.get(name)?.oracleId
           );
 
+    const mustCovered = await loadBladeMustCovered();
     const { filings, handTailHeld, filed, settledHandTail } = buildAllFilings(
         root,
         lock,
@@ -1197,7 +1213,8 @@ function main(): void {
         registry,
         ctx,
         botMerge.merged,
-        openCardIssues
+        openCardIssues,
+        mustCovered
     );
 
     // Reported whether or not filing is on — but a SUMMARY, plus one line per
@@ -1230,7 +1247,11 @@ function main(): void {
         filed,
         filings,
         settledHandTail,
-        computedGapKeys(lock, trustedBotFindings(findings, botMerge))
+        computedGapKeys(
+            lock,
+            trustedBotFindings(findings, botMerge),
+            mustCovered
+        )
     );
     const closing = new Set(closures.close.map((c) => claimId(c.kind, c.key)));
     const botSkipped = new Set(
@@ -1611,4 +1632,4 @@ function main(): void {
     }
 }
 
-if (import.meta.main) main();
+if (import.meta.main) await main();
