@@ -336,6 +336,7 @@ const TELEMETRY_INGEST_REL = "scripts/telemetry-ingest.ts";
 const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
+const REFRESH_GENERATED_API = resolve(__dirname, "refresh-generated-api.ts");
 const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
 const UMBRELLA_DETACH = resolve(__dirname, "umbrella-detach.ts");
 
@@ -573,6 +574,21 @@ export function rebaseStep(): string {
  */
 export function resolveGeneratedArtifactsStep(): string {
     return `bun ${shQuote(RESOLVE_ARTIFACTS)}`;
+}
+
+/**
+ * Bring the worktree's gitignored `convex/_generated/` in step with the
+ * REBASED tree (issue #5077). It was copied (or regenerated) when the
+ * worktree was cut; a landing that added Convex modules since then leaves it
+ * without them, and `check:lane` would red `check:ts` on modules this branch
+ * never touched. Silent and ~0.1 s when the module list already matches;
+ * regenerates offline (no deployment, no backend) when it does not. Before
+ * the lane for the same reason as the artefact step: the gate must see the
+ * tree that lands. It writes only gitignored files, so the tip's sha is
+ * unchanged.
+ */
+export function refreshGeneratedApiStep(): string {
+    return `bun ${shQuote(REFRESH_GENERATED_API)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1313,6 +1329,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
         UNSET_GITHUB_TOKEN,
         rebaseStep(),
         resolveGeneratedArtifactsStep(),
+        refreshGeneratedApiStep(),
         laneStep(opts.gatedGreen, opts.laneRecordDir),
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];

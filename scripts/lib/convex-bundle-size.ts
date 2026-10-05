@@ -63,26 +63,11 @@
  */
 import esbuild from "esbuild";
 import { deflateRawSync } from "node:zlib";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep, parse } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { join, relative, sep } from "node:path";
+import { discoverEntryPoints } from "./convex-entry-points";
 
-/** Copied verbatim from `convex/dist/esm/bundler/index.js`. */
-const ENTRY_POINT_EXTENSIONS = [
-    // ESBuild js loader
-    ".js",
-    ".mjs",
-    ".cjs",
-    // ESBuild ts loader
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    // ESBuild jsx loader
-    ".jsx",
-] as const;
-
-/** The extensions the CLI's "no import/export, not a module" filter applies to. */
-const TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"] as const;
+export { discoverEntryPoints };
 
 /** `useNodeDirectiveRegex` in the Convex bundler — what routes a file to the
  *  Node runtime, whose esbuild graph is separate from the isolate one. */
@@ -258,45 +243,6 @@ export const CONVEX_USER_MODULE_BUDGET = 3072;
  * artefact.
  */
 export const MEASURED_BYTES_PER_POOL_ROW = 1385;
-
-function* walk(dir: string): Generator<string> {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = join(dir, entry.name);
-        if (entry.isDirectory()) {
-            // A nested component definition is pushed separately.
-            if (existsSync(join(full, "convex.config.ts"))) continue;
-            yield* walk(full);
-        } else if (entry.isFile()) {
-            yield full;
-        }
-    }
-}
-
-/**
- * Reproduces `entryPoints()` from the Convex bundler, including its exclusion
- * of `_generated/**`, dotfiles, `schema.*`, multi-dot filenames, paths with a
- * space, and TypeScript files carrying neither `import` nor `export`.
- */
-export function discoverEntryPoints(convexDir: string): string[] {
-    const found: string[] = [];
-    for (const fpath of walk(convexDir)) {
-        const relPath = relative(convexDir, fpath);
-        const base = parse(fpath).base;
-        if (!ENTRY_POINT_EXTENSIONS.some((ext) => relPath.endsWith(ext)))
-            continue;
-        if (relPath.startsWith("_generated" + sep)) continue;
-        if (base.startsWith(".") || base.startsWith("#")) continue;
-        if (base === "schema.ts" || base === "schema.js") continue;
-        if ((base.match(/\./g) ?? []).length > 1) continue;
-        if (relPath.includes(" ")) continue;
-        if (TS_EXTENSIONS.some((ext) => base.endsWith(ext))) {
-            const contents = readFileSync(fpath, "utf8");
-            if (!/^\s{0,100}(import|export)/m.test(contents)) continue;
-        }
-        found.push(fpath);
-    }
-    return found.sort();
-}
 
 /**
  * Entry points in directories that hold no Convex function by construction:
