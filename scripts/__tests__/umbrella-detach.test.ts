@@ -5,10 +5,13 @@ import { describe, expect, it } from "vitest";
 import {
     censusedUmbrellas,
     describeOutcome,
+    describeSweepResult,
     detachFromUmbrella,
     makeDetachDeps,
+    sweepUmbrellas,
     type DetachDeps,
     type IssueEdge,
+    type SweepDeps,
 } from "../lib/umbrella-detach";
 
 const P0_GRAMMAR = 4091;
@@ -142,6 +145,105 @@ describe("detachFromUmbrella (issue #4235)", () => {
     });
 });
 
+/** A fake tracker of many issues, keyed by number; database id = number + 1e6. */
+function board(
+    edges: Record<number, { state: "open" | "closed"; parent: number | null }>
+) {
+    const state = new Map(
+        Object.entries(edges).map(([n, e]) => [Number(n), { ...e }])
+    );
+    const removed: Array<[number, number]> = [];
+    const deps: SweepDeps = {
+        listChildren: (umbrella) =>
+            [...state]
+                .filter(([, e]) => e.parent === umbrella)
+                .map(([number, e]) => ({ number, state: e.state })),
+        readIssue: (issue) => {
+            const e = state.get(issue)!;
+            return { id: issue + 1e6, state: e.state, parent: e.parent };
+        },
+        removeSubIssue: (parent, childId) => {
+            removed.push([parent, childId]);
+            state.get(childId - 1e6)!.parent = null;
+        },
+    };
+    return { deps, removed, state };
+}
+
+describe("sweepUmbrellas (issue #5081)", () => {
+    const census = new Set([4099, 4241]);
+
+    it("detaches every CLOSED child of every censused umbrella, leaving open ones listed", () => {
+        // The shape measured 2026-10-05: gaps:sync closed these, no branch named them.
+        const { deps, removed, state } = board({
+            4836: { state: "closed", parent: 4099 },
+            4837: { state: "closed", parent: 4099 },
+            4825: { state: "open", parent: 4099 },
+            4321: { state: "closed", parent: 4241 },
+        });
+        const results = sweepUmbrellas(deps, census);
+        expect(removed).toEqual([
+            [4099, 4836 + 1e6],
+            [4099, 4837 + 1e6],
+            [4241, 4321 + 1e6],
+        ]);
+        expect(
+            results.map((r) => ("issue" in r ? r.outcome.kind : "list"))
+        ).toEqual(["detached", "detached", "detached"]);
+        expect(state.get(4825)!.parent).toBe(4099);
+    });
+
+    it("never touches a child of a parent outside the census", () => {
+        const { deps, removed } = board({
+            100: { state: "closed", parent: 3791 },
+        });
+        expect(sweepUmbrellas(deps, census)).toEqual([]);
+        expect(removed).toEqual([]);
+    });
+
+    it("re-reads each nominee: a child listed closed but read open is not detached", () => {
+        const { deps, removed } = board({ 7: { state: "open", parent: 4099 } });
+        const lying: SweepDeps = {
+            ...deps,
+            listChildren: () => [{ number: 7, state: "closed" }],
+        };
+        const results = sweepUmbrellas(lying, new Set([4099]));
+        expect(results).toEqual([
+            {
+                umbrella: 4099,
+                issue: 7,
+                outcome: { kind: "open", parent: 4099 },
+            },
+        ]);
+        expect(removed).toEqual([]);
+    });
+
+    it("is non-gating: an umbrella whose listing throws is a result, and the sweep moves on", () => {
+        const { deps, removed } = board({
+            4321: { state: "closed", parent: 4241 },
+        });
+        const flaky: SweepDeps = {
+            ...deps,
+            listChildren: (u) => {
+                if (u === 4099) throw new Error("HTTP 502");
+                return deps.listChildren(u);
+            },
+        };
+        const results = sweepUmbrellas(flaky, census);
+        expect(describeSweepResult(results[0]!)).toMatch(/#4099.*HTTP 502/);
+        expect(removed).toEqual([[4241, 4321 + 1e6]]);
+    });
+
+    it("is idempotent: a second sweep finds nothing closed left to detach", () => {
+        const { deps, removed } = board({
+            4321: { state: "closed", parent: 4241 },
+        });
+        sweepUmbrellas(deps, census);
+        expect(sweepUmbrellas(deps, census)).toEqual([]);
+        expect(removed).toHaveLength(1);
+    });
+});
+
 describe("makeDetachDeps — the shape of the real gh calls (issue #4235)", () => {
     /** A `gh` that records its argv and answers with a canned payload. */
     function fakeGh(answer: string) {
@@ -188,6 +290,30 @@ describe("makeDetachDeps — the shape of the real gh calls (issue #4235)", () =
         const { gh } = fakeGh(JSON.stringify({ id: 1, state: "merged" }));
         expect(() => makeDetachDeps(gh).readIssue(1)).toThrow(
             /unexpected issue payload/
+        );
+    });
+
+    it("lists an umbrella's children over every page, one JSON object per line", () => {
+        const { gh, calls } = fakeGh(
+            '{"number":4836,"state":"closed"}\n{"number":4825,"state":"open"}\n'
+        );
+        expect(makeDetachDeps(gh).listChildren(4099)).toEqual([
+            { number: 4836, state: "closed" },
+            { number: 4825, state: "open" },
+        ]);
+        expect(calls[0]).toEqual([
+            "api",
+            "--paginate",
+            "repos/{owner}/{repo}/issues/4099/sub_issues?per_page=100",
+            "--jq",
+            ".[] | {number, state}",
+        ]);
+    });
+
+    it("refuses a sub-issue row it does not understand rather than skipping it", () => {
+        const { gh } = fakeGh('{"number":1,"state":"merged"}\n');
+        expect(() => makeDetachDeps(gh).listChildren(4099)).toThrow(
+            /unexpected sub-issue payload/
         );
     });
 
