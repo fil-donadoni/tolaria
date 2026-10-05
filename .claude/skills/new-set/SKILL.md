@@ -16,7 +16,7 @@ Guard C fallback for what the grammar does not reach, never the plan.
 This skill produces: an **umbrella PRD**, **one ticket per ranked Grammar Gap**
 (implemented by `/grammar-rule`), **one residue ticket** for the cards hand-
 written under Guard C, and **one acceptance ticket** carrying the set's `ready`
-percentage. It sequences `grill-with-docs` → `to-prd` → `to-tickets` and
+percentage. It sequences `grill` → `to-prd` → `to-tickets` and
 injects the settled conventions, so the user never re-explains them.
 
 `$1` (or the word after `/new-set`) is the **3-letter lowercase set code**
@@ -243,9 +243,9 @@ reach** (it needs a construct outside the frozen four, or an engine surface
 with no JSON shape) — which is not a ticket at all: the gap stays in the
 backlog and its cards fall to the residue.
 
-## Phase 1 — Grill the design (`grill-with-docs`)
+## Phase 1 — Grill the design (`grill`)
 
-Invoke **`grill-with-docs`**, seeded with the Phase 0 manifest and cut line.
+Invoke **`/grill`**, seeded with the Phase 0 manifest and cut line.
 One question per turn, recommended answer stated each time. Drive it to:
 
 - **The acceptance target.** The set's `ready` percentage the rollout commits
@@ -275,7 +275,7 @@ One question per turn, recommended answer stated each time. Drive it to:
 - **Out-of-scope** — unmodelled layouts; ante/subgame (ADR 0010); 3+ player.
   Named card by card, subtracted from the acceptance denominator explicitly.
 
-`grill-with-docs` updates `CONTEXT.md` inline as terms resolve and may create an
+`/grill` updates `CONTEXT.md` inline as terms resolve and may create an
 ADR for a hard-to-reverse decision (it offers them sparingly — a grammar rule is
 not one).
 
@@ -520,7 +520,7 @@ nothing.
   (worklist/import), ADR 0014 (prints vs defs), ADR 0010 (ante/subgame)
 - Skills: `/grammar-rule` (implements one cluster ticket), `/new-op` (inside a gap
   ticket when its rule needs an Op), `/mtg-rules-check`,
-  `{grill-with-docs,to-prd,to-tickets}`
+  `{grill,to-prd,to-tickets}`
 - Commands: `oracle:report` (`--set` / `--pool` / `--targets` / `--gap` /
   `--gaps` / `--delta`), `oracle:compile`, `oracle:index`, `catalogue:pack`,
   `check:targets`, `check:gaps`, `check:oracle`, `check:index`, `check:stubs`,
