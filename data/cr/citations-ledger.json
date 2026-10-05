@@ -14468,6 +14468,7 @@
         {"id":"500.8","line":"describe(\"Fear of Missing Out — delirium attack trigger (CR 508.1m / 603.4 / 500.8)\", () => {","sites":1,"status":"baseline"},
         {"id":"500.8","line":"describe(\"drainAutoPasses — the iteration bound (CR 500.8, issue #3086)\", () => {","sites":1,"status":"baseline"},
         {"id":"500.8","line":"describe(\"extra phases (CR 500.8)\", () => {","sites":1,"status":"baseline"},
+        {"id":"500.8","line":"detail: \"an extra combat owed after this one (CR 500.8)\",","sites":1,"status":"confirmed","ruleHash":"86b7d056728b27e2"},
         {"id":"500.8","line":"it(\"triggers on the attack when delirium is on, and untaps the announced target plus queues an additional combat phase (CR 500.8)\", () => {","sites":1,"status":"baseline"},
         {"id":"500.8","line":"label: \"extra combat: animates Mishra's Factory at end of combat when an extra combat is owed (CR 500.8)\",","sites":1,"status":"baseline"},
         {"id":"500.8","line":"label: \"extra combat: does not stall in the second combat phase (CR 500.8)\",","sites":1,"status":"baseline"},
