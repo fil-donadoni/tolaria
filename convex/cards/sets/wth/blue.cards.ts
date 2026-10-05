@@ -9,8 +9,8 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/blue.cards.ts`.
-import type { CardDefinition } from "../../types";
-export const disrupt: CardDefinition = {
+import { defineCard } from "../../types";
+export const disrupt = defineCard(() => ({
     id: "c6cc89b0-9acf-452b-ac1a-bc7e90eb32fc", // WTH 37
     name: "Disrupt",
     rarity: "common",
@@ -38,4 +38,4 @@ export const disrupt: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

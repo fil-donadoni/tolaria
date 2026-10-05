@@ -296,7 +296,7 @@ describe("Dash — CR 702.109a haste grant + next-end-step return", () => {
 // ---------------------------------------------------------------------------
 describe("Dash — battlefield-side leak: end-step self-bounce then HARD recast does not leak (CR 400.7 / issue #2412 fixup round 3)", () => {
     it("a HARD recast of Ragavan after a dashed end-step self-bounce does not gain haste or re-schedule the end-step return", () => {
-        const RAGAVAN_ID = ragavanNimblePilferer.id;
+        const RAGAVAN_ID = ragavanNimblePilferer().id;
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2")],
         });

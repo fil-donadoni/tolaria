@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Containment Priest — issue #1148, Vintage Cube FREE tranche (issue #686).
 // "Flash. If a nontoken creature would enter and it wasn't cast, exile it
@@ -20,7 +20,7 @@ import type { CardDefinition } from "../../types";
 // nontoken creature entering, either player's. A redirected creature never
 // actually touches the battlefield, so no ETB trigger observes it (matches
 // the printed ruling).
-export const containmentPriest: CardDefinition = {
+export const containmentPriest = defineCard(() => ({
     id: "c2c794b9-09da-49be-b258-b0e21f1663e3", // C14 5
     name: "Containment Priest",
     rarity: "rare",
@@ -54,4 +54,4 @@ export const containmentPriest: CardDefinition = {
             },
         },
     ],
-};
+}));

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Metallic Rebuke — {2}{U} Instant. "Improvise. Counter target spell unless
 // its controller pays {3}." (CR 702.126 Improvise + CR 701.6a counter/punisher
@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // body reuses the shipped punisher template verbatim (Disrupt, inv/blue.cards.ts /
 // Force Spike, leg/blue.cards.ts): `mayPay` + `if(!paid)` + `counter`, all
 // interpreter-suite-exercised Ops — no new Op introduced. Scryfall AER #39.
-export const metallicRebuke: CardDefinition = {
+export const metallicRebuke = defineCard(() => ({
     id: "f712ac26-dca4-459b-84c1-010597007f60",
     name: "Metallic Rebuke",
     rarity: "common",
@@ -38,4 +38,4 @@ export const metallicRebuke: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

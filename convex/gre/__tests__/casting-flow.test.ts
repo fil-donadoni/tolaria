@@ -105,10 +105,10 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
 // Card fixtures — slim refs into the registry. makeCard pulls
 // types/subtypes/power/toughness/staticAbilities and getInstanceManaCost
 // pulls the cost from the same def at read time.
-const PLAINS_CARD = { id: plains.id };
-const MOUNTAIN_CARD = { id: mountain.id };
-const SAVANNAH_LIONS_CARD = { id: savannahLions.id };
-const ARMAGEDDON_CARD = { id: armageddon.id };
+const PLAINS_CARD = { id: plains().id };
+const MOUNTAIN_CARD = { id: mountain().id };
+const SAVANNAH_LIONS_CARD = { id: savannahLions().id };
+const ARMAGEDDON_CARD = { id: armageddon().id };
 
 /** Simulates announceCast mutation logic. Returns 'committed' or 'pending'. */
 function announceCast(
@@ -315,7 +315,7 @@ describe("casting flow — tap then cast (floating mana)", () => {
         expect(result).toBe("committed");
         expect(state.pendingCast).toBeUndefined();
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card).toHaveProperty("id", savannahLions.id);
+        expect(state.stack[0].card).toHaveProperty("id", savannahLions().id);
         expect(getPlayer(state, "p1").manaPool.W).toBe(0);
         expect(getPlayer(state, "p1").hand).toHaveLength(0);
         expect(state.priorityPlayerId).toBe("p2");

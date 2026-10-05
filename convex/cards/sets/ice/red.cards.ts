@@ -3,14 +3,10 @@
 // ice/index.cards.ts. Modern Scryfall oracle text is authoritative (ADR 0004);
 // generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
-import type {
-    CardDefinition,
-    PermanentView,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
+import type { PermanentView, SpellContext, TargetSelection } from "../../types";
 import { controlsSnowSubtype } from "../../snowReads";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     EFFECT_AFFECTS_SELF,
     PERMANENT_TYPES,
@@ -87,7 +83,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // controller's end step; it reads the host via `getAttachedTo` and destroys it
 // when its `hasAttackedThisTurn` marker is false. The "non-Wall" enchant
 // restriction is enforced by the target filter (`excludeSubtype: "Wall"`).
-export const aggression: CardDefinition = {
+export const aggression = defineCard(() => ({
     id: "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
     name: "Aggression",
     rarity: "uncommon",
@@ -145,10 +141,10 @@ export const aggression: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Anarchy — "Destroy all white permanents." (CR 701.8 destroy + CR 105.2 colour
 // filter.) A one-line `destroyAll` over the white colour filter.
-export const anarchy: CardDefinition = {
+export const anarchy = defineCard(() => ({
     id: "28d941da-b5cb-4b7e-84f2-ece883f89af3",
     name: "Anarchy",
     rarity: "uncommon",
@@ -169,7 +165,7 @@ export const anarchy: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 // Avalanche — Destroy X target SNOW lands (CR 205.4a). `count: "X"` resolves the
 // number of land targets against the chosen X; the `supertypeFilter: ["Snow"]`
 // keeps only live snow lands as legal targets (snow-aware — honors Melting /
@@ -180,7 +176,7 @@ export const anarchy: CardDefinition = {
 // ice/black.cards.ts). The stale "not representable" note above predated that
 // field; the widened data/json conformance guard caught the drift (the
 // stub had shipped one generic mana cheap as {X}{R}{R}).
-export const avalanche: CardDefinition = {
+export const avalanche = defineCard(() => ({
     id: "d3a925e5-0d0a-42ec-b1c6-9793b8e11625",
     name: "Avalanche",
     rarity: "uncommon",
@@ -204,9 +200,9 @@ export const avalanche: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 // Balduvian Barbarians — {1}{R}{R} 3/2 vanilla Human Barbarian (CR 302).
-export const balduvianBarbarians: CardDefinition = {
+export const balduvianBarbarians = defineCard(() => ({
     id: "efeabe8e-8107-4d19-8a43-362aa79cdd92",
     name: "Balduvian Barbarians",
     rarity: "common",
@@ -216,7 +212,7 @@ export const balduvianBarbarians: CardDefinition = {
     subtypes: ["Human", "Barbarian"],
     power: 3,
     toughness: 2,
-};
+}));
 // Balduvian Hydra — {X}{R}{R} 0/1 Hydra. Enters with X +1/+0 counters (CR 122.1 /
 // 614.1c `entersWith` with `count: "X"`, the Iceberg pattern). "Remove a +1/+0
 // counter: Prevent the next 1 damage to it this turn" is a counter-removal-cost
@@ -224,7 +220,7 @@ export const balduvianBarbarians: CardDefinition = {
 // Fylgja pattern). "{R}{R}{R}: Put a +1/+0 counter on this. Activate only during
 // your upkeep" reuses `activationPhaseRestriction: ["UPKEEP"]` + `controllerTurnOnly`
 // (the Clockwork Avian timing).
-export const balduvianHydra: CardDefinition = {
+export const balduvianHydra = defineCard(() => ({
     id: "c3a3b37f-daa6-4502-bb12-c72afe3df035",
     name: "Balduvian Hydra",
     rarity: "rare",
@@ -275,7 +271,7 @@ export const balduvianHydra: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Barbarian Guides — "{2}{R}, {T}: Choose a land type. Target creature you
 // control gains snow landwalk of the chosen type until end of turn. Return that
 // creature to its owner's hand at the beginning of the next end step."
@@ -292,7 +288,7 @@ const SNOW_LANDWALK_BY_TYPE: Record<string, string> = {
     Mountain: "snow mountainwalk",
     Forest: "snow forestwalk",
 };
-export const barbarianGuides: CardDefinition = {
+export const barbarianGuides = defineCard(() => ({
     id: BARBARIAN_GUIDES_ID,
     name: "Barbarian Guides",
     rarity: "common",
@@ -383,13 +379,13 @@ export const barbarianGuides: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Battle Frenzy — {2}{R} Instant. One-shot batch pump (CR 611.1): a fixed
 // snapshot at resolution of the creatures you control, green ones get +1/+1 and
 // the rest +1/+0, both until end of turn. Composes `getBattlefieldIds` +
 // `getColors` + `addTemporaryPTBuff` — no anthem static (the buff is a one-time
 // instant, not a continuous effect; new creatures entering later aren't pumped).
-export const battleFrenzy: CardDefinition = {
+export const battleFrenzy = defineCard(() => ({
     id: "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
     name: "Battle Frenzy",
     rarity: "common",
@@ -409,7 +405,7 @@ export const battleFrenzy: CardDefinition = {
             });
         }
     },
-};
+}));
 // Bone Shaman — {2}{R}{R} 3/3 Giant Shaman. "{B}: Until end of turn, this
 // creature gains 'Creatures dealt damage by this creature this turn can't be
 // regenerated this turn.'" The activated ability grants a DAMAGE-DEALT triggered
@@ -418,7 +414,7 @@ export const battleFrenzy: CardDefinition = {
 // `triggeredGrantTemplates[]`) fires whenever self deals damage to a creature and
 // applies a regen-lock to that creature (CR 701.19c, the Lim-Dûl's Cohort leg).
 const BONE_SHAMAN_ID = "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c";
-export const boneShaman: CardDefinition = {
+export const boneShaman = defineCard(() => ({
     id: BONE_SHAMAN_ID,
     name: "Bone Shaman",
     rarity: "common",
@@ -461,7 +457,7 @@ export const boneShaman: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Brand of Ill Omen — {3}{R} Aura. "Enchant creature / Cumulative upkeep {R} /
 // Enchanted creature's controller can't cast creature spells." The cast clause
 // is a player-scoped `cast-restriction` static (CR 601.3a, #669): scanned at the
@@ -470,7 +466,7 @@ export const boneShaman: CardDefinition = {
 // read-time only — it never mutates a permanent and auto-reverts when the Aura
 // leaves play (the host loses its host, or the Aura is sacrificed to cumulative
 // upkeep). Cumulative upkeep {R} reuses `cumulativeUpkeepTrigger` (ADR 0042).
-export const brandOfIllOmen: CardDefinition = {
+export const brandOfIllOmen = defineCard(() => ({
     id: "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
     name: "Brand of Ill Omen",
     rarity: "rare",
@@ -511,7 +507,7 @@ export const brandOfIllOmen: CardDefinition = {
                 "Enchanted creature's controller can't cast creature spells.",
         },
     ],
-};
+}));
 // Chaos Lord — {4}{R}{R}{R} 7/7 Human with first strike. "At the beginning of
 // your upkeep, target opponent gains control of this creature if the number of
 // permanents is even" — an upkeep trigger (CR 603.6a, scope "your") that counts
@@ -565,7 +561,7 @@ export const brandOfIllOmen: CardDefinition = {
 // as though it had haste": Instill Energy, `lea/green.cards.ts`, does the same. The
 // difference — real haste also lifts the CR 302.6 {T}-ability lock — is
 // unobservable here: Chaos Lord has no activated abilities.)
-export const chaosLord: CardDefinition = {
+export const chaosLord = defineCard(() => ({
     id: "ee245922-b380-4b2e-a43f-ab1ba8078943",
     name: "Chaos Lord",
     rarity: "rare",
@@ -649,7 +645,7 @@ export const chaosLord: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Chaos Moon — "At the beginning of each upkeep, count the number of
 // permanents. If the number is odd, until end of turn, red creatures get +1/+1
 // and whenever a player taps a Mountain for mana, that player adds an
@@ -660,7 +656,7 @@ export const chaosLord: CardDefinition = {
 // land-mana riders.) The parity-dependent Mountain rider is armed via the
 // generalized `addLandManaRider` turn-scoped primitive (the High Tide funnel):
 // odd → an "additional" {R} per Mountain tap; even → an "override" to {C}.
-export const chaosMoon: CardDefinition = {
+export const chaosMoon = defineCard(() => ({
     id: "aae0543f-7f8b-4327-b735-ac21244e9936",
     name: "Chaos Moon",
     rarity: "rare",
@@ -710,11 +706,11 @@ export const chaosMoon: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Conquer — Aura granting control of the enchanted LAND (CR 613.1b, layer 2
 // control-change). The Control-Magic shape pointed at a land instead of a
 // creature; no upkeep tax, no P/T.
-export const conquer: CardDefinition = {
+export const conquer = defineCard(() => ({
     id: "ae610e66-7bcb-40ec-bed5-86dcfd098654",
     name: "Conquer",
     rarity: "uncommon",
@@ -724,11 +720,11 @@ export const conquer: CardDefinition = {
     subtypes: ["Aura"],
     targetRequirement: { type: "Land", count: 1 },
     staticEffects: [{ kind: "control-change", applies: AURA_AFFECTS_HOST }],
-};
+}));
 // Curse of Marit Lage — ETB taps every Island (CR 603.6b enters trigger, CR
 // 701.26a tap) and a static untap-lock on Islands (CR 611). The mirror of
 // Wrath of Marit Lage (Blue tranche), swapping red creatures → Islands.
-export const curseOfMaritLage: CardDefinition = {
+export const curseOfMaritLage = defineCard(() => ({
     id: "69b381c1-aa71-4d40-a320-70f58a440d51",
     name: "Curse of Marit Lage",
     rarity: "rare",
@@ -769,14 +765,14 @@ export const curseOfMaritLage: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Dwarven Armory — {2}{R}{R} Enchantment. "{2}, Sacrifice a land: Put a +2/+2
 // counter on target creature. Activate only during any upkeep step." A land
 // sacrifice cost (`sacrificeFilter: { types: "Land" }`, the Orcish Lumberjack
 // shape) gated to the upkeep step via `activationPhaseRestriction: ["UPKEEP"]`
 // (NO `controllerTurnOnly` — "any upkeep step", CR 602.5). The +2/+2 counter is
 // a layer-7d P/T counter (CR 122.1).
-export const dwarvenArmory: CardDefinition = {
+export const dwarvenArmory = defineCard(() => ({
     id: "7d14a430-6e08-40cf-970a-cae84bba6ef7",
     name: "Dwarven Armory",
     rarity: "rare",
@@ -805,14 +801,14 @@ export const dwarvenArmory: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Errantry — Aura. "Enchant creature\nEnchanted creature gets +3/+0 and can
 // only attack alone." (CR 303.4 Aura on a creature; CR 613 layer 7c +3/+0
 // `pt-buff` applied to the host; CR 508.1c "can only attack alone" as a
 // `declared-attack-restriction` — collected from the Aura and applied to its
 // host, legal only when no OTHER creature is also declared as an attacker. The
 // engine evaluates it over the complete declared-attacker set at confirm.)
-export const errantry: CardDefinition = {
+export const errantry = defineCard(() => ({
     id: "8346e741-61f8-4283-be51-f5f80e9595a5",
     name: "Errantry",
     rarity: "common",
@@ -841,10 +837,10 @@ export const errantry: CardDefinition = {
             oracleText: "Enchanted creature can only attack alone.",
         },
     ],
-};
+}));
 // Flare — {2}{R} Instant. "Flare deals 1 damage to any target" (CR 120.1
 // damage) plus the next-upkeep cantrip rider (CR 502.2 / 603.7d).
-export const flare: CardDefinition = {
+export const flare = defineCard(() => ({
     id: "d5350236-7bd2-462d-9768-50087626c764",
     name: "Flare",
     rarity: "common",
@@ -868,7 +864,7 @@ export const flare: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Game of Chaos — {R}{R}{R} Sorcery. A coin-flip doubling loop (CR 705.2 reveal
 // + CR 119/118 life swing). Each round the caster flips: on a WIN the caster
 // gains `stake` life and the opponent loses `stake`, then the CASTER decides
@@ -883,7 +879,7 @@ export const flare: CardDefinition = {
 // resolution can't terminate deterministically across replays); 64 rounds is far
 // beyond any realistic game (stake 2^63).
 const GAME_OF_CHAOS_MAX_ROUNDS = 64;
-export const gameOfChaos: CardDefinition = {
+export const gameOfChaos = defineCard(() => ({
     id: "08265332-2c0e-4c42-8c51-83ac20462eed",
     name: "Game of Chaos",
     rarity: "rare",
@@ -947,13 +943,13 @@ export const gameOfChaos: CardDefinition = {
             stake *= 2; // CR 107 — double the stakes each flip.
         }
     },
-};
+}));
 // Glacial Crevasses — "Sacrifice a snow Mountain: Prevent all combat damage
 // that would be dealt this turn." The cost is a snow-typed sacrifice
 // (CR 118.5 / 205.4a) via `sacrificeFilter` with `subtypes: "Mountain"` +
 // `supertypes: ["Snow"]` (resolved live). The effect is `preventAllCombatDamage`
 // (CR 615). Mana ability? No — it has no mana and uses the stack (CR 605.1a).
-export const glacialCrevasses: CardDefinition = {
+export const glacialCrevasses = defineCard(() => ({
     id: "2726b192-f239-470b-8ad6-69887405e7f9",
     name: "Glacial Crevasses",
     rarity: "rare",
@@ -985,14 +981,14 @@ export const glacialCrevasses: CardDefinition = {
             effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
-};
+}));
 // Goblin Mutant — {2}{R}{R} 5/3 Goblin Mutant with trample. Two combat
 // restrictions, both `staticEffects`: an `attack-restriction` (CR 508.1c) whose
 // predicate scans the defending player's battlefield for an untapped creature of
 // power 3+, and a `block-restriction` on side "blocker" (CR 509.1b) rejecting
 // attackers of power 3+. Power is read from the live `PermanentView.power`
 // (effective P/T, mirroring leg.ts's power-gated combat predicates).
-export const goblinMutant: CardDefinition = {
+export const goblinMutant = defineCard(() => ({
     id: "6db54f95-6652-45a3-b960-c2fc118beca1",
     name: "Goblin Mutant",
     rarity: "uncommon",
@@ -1031,7 +1027,7 @@ export const goblinMutant: CardDefinition = {
                 "This creature can't block creatures with power 3 or greater.",
         },
     ],
-};
+}));
 // Goblin Sappers — {1}{R} 1/1 Goblin. Two activated abilities (CR 605); both
 // make a creature you control unblockable this turn (`setCantBeBlockedThisTurn`)
 // and schedule an end-of-combat destroy via `scheduleDelayedTrigger`
@@ -1039,7 +1035,7 @@ export const goblinMutant: CardDefinition = {
 // itself; the {R}{R}{R}{R} leg destroys only the chosen creature. The delayed
 // trigger reads the target / self ids from its serialized payload.
 const GOBLIN_SAPPERS_ID = "de839540-a7b9-4f91-91df-3fd4f5c0bc4e";
-export const goblinSappers: CardDefinition = {
+export const goblinSappers = defineCard(() => ({
     id: GOBLIN_SAPPERS_ID,
     name: "Goblin Sappers",
     rarity: "common",
@@ -1153,7 +1149,7 @@ export const goblinSappers: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Goblin Ski Patrol — "{1}{R}: +2/+0 and gains flying. Sacrifice it at the
 // beginning of the next end step. Activate only once and only if you control a
 // snow Mountain." (CR 205.4a snow gate.) The pump/flying ride until end of turn
@@ -1162,7 +1158,7 @@ export const goblinSappers: CardDefinition = {
 // it self-destructs the same turn). The snow-Mountain gate is read in
 // `canActivate` via a snow-aware battlefield scan.
 const GOBLIN_SKI_PATROL_ID = "fde1c8b5-1e01-4920-8d02-bf80d5b238c5";
-export const goblinSkiPatrol: CardDefinition = {
+export const goblinSkiPatrol = defineCard(() => ({
     id: GOBLIN_SKI_PATROL_ID,
     name: "Goblin Ski Patrol",
     rarity: "common",
@@ -1222,13 +1218,13 @@ export const goblinSkiPatrol: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Goblin Snowman — "Whenever this creature blocks, prevent all combat damage to
 // and dealt by it this turn" (CR 509.4 block trigger, fired off
 // BLOCKERS_CONFIRMED matching self; CR 615 two-way prevention) plus "{T}: deals
 // 1 damage to target creature it's blocking" (the "it's blocking" restriction is
 // enforced at resolve via the live block graph, CR 509.1).
-export const goblinSnowman: CardDefinition = {
+export const goblinSnowman = defineCard(() => ({
     id: "5bbb260a-6763-4d1c-a009-4e34cd572519",
     name: "Goblin Snowman",
     rarity: "uncommon",
@@ -1289,7 +1285,7 @@ export const goblinSnowman: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Grizzled Wolverine — {1}{R}{R} 2/2 Wolverine. "{R}: +2/+0 until end of turn.
 // Activate only during the declare blockers step, only if at least one creature
 // is blocking this creature, and only once each turn." Three activation gates,
@@ -1297,7 +1293,7 @@ export const goblinSnowman: CardDefinition = {
 // `oncePerTurn` (engine tracks `activationsThisTurn`), and a `canActivate` predicate
 // that reads the live block graph (`state.combat.blockerAssignments`, CR 509.2)
 // to confirm some blocker is assigned to this creature.
-export const grizzledWolverine: CardDefinition = {
+export const grizzledWolverine = defineCard(() => ({
     id: "95bb17b9-55c4-4cc1-83f6-75490b9a97d0",
     name: "Grizzled Wolverine",
     rarity: "common",
@@ -1338,10 +1334,10 @@ export const grizzledWolverine: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Imposing Visage — Aura granting menace (CR 702.111, layer 6 keyword-grant on
 // the host).
-export const imposingVisage: CardDefinition = {
+export const imposingVisage = defineCard(() => ({
     id: "cca42b74-9b42-482b-b12a-79cafdcd087e",
     name: "Imposing Visage",
     rarity: "common",
@@ -1358,11 +1354,11 @@ export const imposingVisage: CardDefinition = {
             keyword: "menace",
         },
     ],
-};
+}));
 // Incinerate — 3 damage to any target; a creature dealt damage this way can't be
 // regenerated this turn (CR 120.1 damage, CR 701.19c regen-lock). The damage is
 // dealt first, then the target-scoped regen-lock is applied to a creature.
-export const incinerate: CardDefinition = {
+export const incinerate = defineCard(() => ({
     id: "9c3f00af-010d-4485-b8b7-47400d99c496",
     name: "Incinerate",
     rarity: "common",
@@ -1375,10 +1371,10 @@ export const incinerate: CardDefinition = {
         { op: "dealDamage", amount: 3, to: { target: 0 } },
         { op: "preventRegeneration", target: { target: 0 } },
     ],
-};
+}));
 // Jokulhaups — "Destroy all artifacts, creatures, and lands. They can't be
 // regenerated." (CR 701.8 destroy + CR 701.19c regen suppression.)
-export const jokulhaups: CardDefinition = {
+export const jokulhaups = defineCard(() => ({
     id: "3bf0d325-5928-4593-8faa-64ffa414cb48",
     name: "Jokulhaups",
     rarity: "rare",
@@ -1407,12 +1403,12 @@ export const jokulhaups: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Karplusan Giant — "Tap an untapped snow land you control: +1/+1 until end of
 // turn." The cost is a `tapOtherFilter` over snow lands (CR 118.8 / 205.4a),
 // resolved live so Melting / Arcum's Weathervane mutations gate the cost. The
 // effect is a +1/+1 self-pump until end of turn.
-export const karplusanGiant: CardDefinition = {
+export const karplusanGiant = defineCard(() => ({
     id: "c524ac2a-294c-4b19-b00b-999e370a3b95",
     name: "Karplusan Giant",
     rarity: "uncommon",
@@ -1455,12 +1451,12 @@ export const karplusanGiant: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Karplusan Yeti — "{T}: This creature deals damage equal to its power to target
 // creature. That creature deals damage equal to its power to this creature." —
 // the mutual-damage "fight" shape (CR 701.14-style), expressed with the `fight`
 // primitive which snapshots both powers and deals simultaneously.
-export const karplusanYeti: CardDefinition = {
+export const karplusanYeti = defineCard(() => ({
     id: "7dd9b214-d9fe-4c2e-b45b-7145ad98c408",
     name: "Karplusan Yeti",
     rarity: "rare",
@@ -1485,7 +1481,7 @@ export const karplusanYeti: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Lava Burst — "Lava Burst deals X damage to any target. If Lava Burst would
 // deal damage to a creature, that damage can't be prevented or dealt instead to
 // another permanent or player." (CR 120.1, X folded from the cost.)
@@ -1497,7 +1493,7 @@ export const karplusanYeti: CardDefinition = {
 // It is CONDITIONAL on the target being a creature, hence the `if` construct:
 // aimed at a player or a planeswalker, Lava Burst is ordinary preventable,
 // redirectable damage, and a Circle of Protection: Red still stops it.
-export const lavaBurst: CardDefinition = {
+export const lavaBurst = defineCard(() => ({
     id: "79dc0e20-5790-4927-8432-cf0e9b7381d4",
     name: "Lava Burst",
     rarity: "common",
@@ -1533,7 +1529,7 @@ export const lavaBurst: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Márton Stromgald — {2}{R}{R} 1/1 Legendary Human Knight. Two combat triggers
 // (CR 603.6 — "whenever ~ attacks/blocks"), each pumping the OTHER attackers /
 // blockers by +N/+N where N is the number of attacking / blocking creatures
@@ -1541,7 +1537,7 @@ export const lavaBurst: CardDefinition = {
 // role of every battlefield creature: attackers via `getIsAttacking`, blockers
 // via the block graph (`getBlockersByAttacker`). The stale "needs primitive"
 // comment was wrong — `getIsAttacking` + `addTemporaryPTBuff` suffice (#656).
-export const mRtonStromgald: CardDefinition = {
+export const mRtonStromgald = defineCard(() => ({
     id: "7880e815-53e7-43e0-befd-e368f00a75d8",
     name: "Márton Stromgald",
     rarity: "rare",
@@ -1611,7 +1607,7 @@ export const mRtonStromgald: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Melee — {4}{R} Instant. "Cast this spell only during combat on your turn
 // before blockers are declared. You choose which creatures block this combat
 // and how those creatures block. Whenever a creature attacks and isn't blocked
@@ -1627,7 +1623,7 @@ export const mRtonStromgald: CardDefinition = {
 // untap-unblocked rider is applied by `applyMeleeUnblockedRider` at blocker
 // confirmation (CR 509.1) — every attacker left unblocked is untapped and
 // removed from combat.
-export const melee: CardDefinition = {
+export const melee = defineCard(() => ({
     id: "b13a064d-bff4-4a48-a158-1b61951b0ac3",
     name: "Melee",
     rarity: "uncommon",
@@ -1642,13 +1638,13 @@ export const melee: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         ctx.enableAttackerChoosesBlocks();
     },
-};
+}));
 // Melting — "All lands are no longer snow." A board-wide continuous
 // supertype-set static (CR 205.4a, layer-4-adjacent) that REMOVES the Snow
 // supertype from every Land while Melting is in play; `hasSupertype` reads the
 // removal so snow-matters effects (Drift of the Dead, Cold Snap, snow landwalk,
 // snow targets) see no snow lands. Restored when Melting leaves play.
-export const melting: CardDefinition = {
+export const melting = defineCard(() => ({
     id: "8d90065e-2c7e-44e5-9f59-015d468214bf",
     name: "Melting",
     rarity: "uncommon",
@@ -1662,11 +1658,11 @@ export const melting: CardDefinition = {
             remove: ["Snow"],
         },
     ],
-};
+}));
 // Meteor Shower is implemented below (divide-as-you-choose cluster, #664).
 // Mountain Goat — 1/1 with mountainwalk (CR 702.14 landwalk; unblockable while
 // the defender controls a Mountain).
-export const mountainGoat: CardDefinition = {
+export const mountainGoat = defineCard(() => ({
     id: "ccf70276-a40c-4d25-b584-4c8a07a00602",
     name: "Mountain Goat",
     rarity: "common",
@@ -1678,13 +1674,13 @@ export const mountainGoat: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["mountainwalk"],
-};
+}));
 // Mudslide — {2}{R} Enchantment. Symmetric untap-lock on non-flying creatures
 // (CR 611 — `untapRestriction` with `excludeAbility: "flying"`, maxUntap 0) plus
 // a per-upkeep pay-{2}-to-untap escape for each player (the Thelon's Curse / FEM
 // shape: `phaseTrigger("UPKEEP", scope "each")` + a per-candidate `requestMayPay`
 // of {2}, untapping each one whose cost is paid, CR 117.3a).
-export const mudslide: CardDefinition = {
+export const mudslide = defineCard(() => ({
     id: "65acce56-8674-471e-9d5e-91b7e3f672c1",
     name: "Mudslide",
     rarity: "rare",
@@ -1739,11 +1735,11 @@ export const mudslide: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Orcish Cannoneers — "{T}: This creature deals 2 damage to any target and 3
 // damage to you." (CR 605 activated ability, CR 120.1 damage — both legs are
 // real damage, the self-damage hits the controller as a player.)
-export const orcishCannoneers: CardDefinition = {
+export const orcishCannoneers = defineCard(() => ({
     id: "a4309a2f-27f5-4652-b0b4-6a6119436f75",
     name: "Orcish Cannoneers",
     rarity: "uncommon",
@@ -1771,13 +1767,13 @@ export const orcishCannoneers: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Orcish Conscripts — "This creature can't attack unless at least two other
 // creatures attack.\nThis creature can't block unless at least two other
 // creatures block." (CR 508.1c / 509.1b — count-aware combat restrictions read
 // over the COMPLETE declared-attacker / declared-blocker set, evaluated at
 // confirm via `declared-attack-restriction` / `declared-block-restriction`.)
-export const orcishConscripts: CardDefinition = {
+export const orcishConscripts = defineCard(() => ({
     id: "e71394f8-3038-4cad-adea-a704f004777f",
     name: "Orcish Conscripts",
     rarity: "common",
@@ -1814,7 +1810,7 @@ export const orcishConscripts: CardDefinition = {
                 "This creature can't block unless at least two other creatures block.",
         },
     ],
-};
+}));
 // Orcish Farmer — "{T}: Target land becomes a Swamp until its controller's next
 // untap step." (CR 305.7 land-type change, CR 502.1 / 611.2 timed duration.)
 // Making the land a Swamp overwrites its subtypes, so it sheds its old basic
@@ -1822,7 +1818,7 @@ export const orcishConscripts: CardDefinition = {
 // 605.1a — the engine derives mana from `subtypes`). `setSubtypesUntil` with
 // `{ phase: "untap", player: "controller" }` reverts it at the affected
 // controller's next untap step. Modern Oracle: just `{T}` (no sacrifice).
-export const orcishFarmer: CardDefinition = {
+export const orcishFarmer = defineCard(() => ({
     id: "efa5beef-d609-4809-a813-621b0b4cff7f",
     name: "Orcish Farmer",
     rarity: "common",
@@ -1857,12 +1853,12 @@ export const orcishFarmer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Orcish Healer — three activated abilities (CR 605, CR 701.19c regen-lock /
 // CR 701.19a regeneration shield): a regen-lock on any creature, and two
 // regenerate-a-black-or-green-creature legs differing only in their mana cost
 // (the black/green target restriction uses `colorFilterAny`).
-export const orcishHealer: CardDefinition = {
+export const orcishHealer = defineCard(() => ({
     id: "7ff511f3-416e-4919-acd6-fd8183bf5c60",
     name: "Orcish Healer",
     rarity: "uncommon",
@@ -1914,7 +1910,7 @@ export const orcishHealer: CardDefinition = {
             effects: [{ op: "regenerate", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Orcish Librarian — DEFERRED, re-verified against the current engine for
 // issue #728 (2026-07). `peekLibraryTop(8)` + `orderTop`/`reorderLibraryTop`
 // cover the "look at top eight / put the rest on top in any order" legs (and
@@ -1940,7 +1936,7 @@ export const orcishHealer: CardDefinition = {
 // combination of {R} and/or {G}." A mana ability (CR 605.1a, `useStack: false`)
 // whose Forest sacrifice cost uses `sacrificeFilter`; "any combination of R/G"
 // (3 mana) is enumerated as the four discrete `manaChoices` RRR/RRG/RGG/GGG.
-export const orcishLumberjack: CardDefinition = {
+export const orcishLumberjack = defineCard(() => ({
     id: "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
     name: "Orcish Lumberjack",
     rarity: "common",
@@ -1966,7 +1962,7 @@ export const orcishLumberjack: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Orcish Squatters — {4}{R} 2/3 Orc. "Whenever this creature attacks and isn't
 // blocked, you may gain control of target land defending player controls for as
 // long as you control this creature. If you do, this creature assigns no combat
@@ -1991,7 +1987,7 @@ export const orcishLumberjack: CardDefinition = {
 // Squatters to assign no combat damage this turn (`markAssignsNoCombatDamage`);
 // declining keeps combat damage.
 const ORCISH_SQUATTERS_ID = "f3ee7bd5-612b-4916-a914-1294805b8f64";
-export const orcishSquatters: CardDefinition = {
+export const orcishSquatters = defineCard(() => ({
     id: ORCISH_SQUATTERS_ID,
     name: "Orcish Squatters",
     rarity: "rare",
@@ -2051,13 +2047,13 @@ export const orcishSquatters: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Panic — {R} Instant. "Cast this spell only during combat before blockers are
 // declared" (CR 601.3 cast restriction, via `castPhaseRestriction` —
 // BEGINNING_OF_COMBAT + DECLARE_ATTACKERS, Blaze of Glory pattern); "Target
 // creature can't block this turn" (CR 509.1b, via `setCantBlockThisTurn`) plus
 // the next-upkeep cantrip rider.
-export const panic: CardDefinition = {
+export const panic = defineCard(() => ({
     id: "a9ab85ac-311c-4e36-943a-817e43a3c8a8",
     name: "Panic",
     rarity: "common",
@@ -2084,11 +2080,11 @@ export const panic: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Pyroblast — modal "choose one" (CR 700.2): counter a blue spell OR destroy a
 // blue permanent. The colour-mirror of Hydroblast, gating each mode's target on
 // blue via `colorFilter: "U"`.
-export const pyroblast: CardDefinition = {
+export const pyroblast = defineCard(() => ({
     id: "c342cac5-08ae-4428-9c2c-f6c5904e54d2",
     name: "Pyroblast",
     rarity: "common",
@@ -2118,10 +2114,10 @@ export const pyroblast: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Pyroclasm — "Pyroclasm deals 2 damage to each creature." (CR 120.3 — a
 // symmetric sweep over every creature.)
-export const pyroclasm: CardDefinition = {
+export const pyroclasm = defineCard(() => ({
     id: "88040748-ad76-4b9a-bd4e-87e5980e9816",
     name: "Pyroclasm",
     rarity: "uncommon",
@@ -2142,9 +2138,9 @@ export const pyroclasm: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { ref: "$each" } }],
         },
     ],
-};
+}));
 // Sabretooth Tiger — 2/1 with first strike (CR 702.7).
-export const sabretoothTiger: CardDefinition = {
+export const sabretoothTiger = defineCard(() => ({
     id: "6914c5a8-2114-41c5-a471-ca97524d622f",
     name: "Sabretooth Tiger",
     rarity: "common",
@@ -2155,12 +2151,12 @@ export const sabretoothTiger: CardDefinition = {
     power: 2,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
+}));
 // Stone Rain — ICE reprint of the LEA sorcery ("Destroy target land").
 // Stone Spirit — 4/3 "can't be blocked by creatures with flying" (CR 509.1b
 // block restriction; the predicate rejects candidate blockers whose
 // `staticAbilities` include flying).
-export const stoneSpirit: CardDefinition = {
+export const stoneSpirit = defineCard(() => ({
     id: "789dfae7-fe23-4e2e-9f5f-304535d22a78",
     name: "Stone Spirit",
     rarity: "uncommon",
@@ -2187,11 +2183,11 @@ export const stoneSpirit: CardDefinition = {
                 "This creature can't be blocked by creatures with flying.",
         },
     ],
-};
+}));
 // Stonehands — Aura: static +0/+2 (layer 7c) plus an activated "{R}: Enchanted
 // creature gets +1/+0 until end of turn" pump (CR 605 / CR 611.1) that resolves
 // the host via `getAttachedTo`.
-export const stonehands: CardDefinition = {
+export const stonehands = defineCard(() => ({
     id: "d23fa1af-78e5-4d23-bbf6-cd62bc54b4e9",
     name: "Stonehands",
     rarity: "common",
@@ -2223,9 +2219,9 @@ export const stonehands: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Tor Giant — {3}{R} 3/3 vanilla Giant (CR 302).
-export const torGiant: CardDefinition = {
+export const torGiant = defineCard(() => ({
     id: "7ef8f279-1a10-4685-99d6-bc971a7f922b",
     name: "Tor Giant",
     rarity: "common",
@@ -2235,7 +2231,7 @@ export const torGiant: CardDefinition = {
     subtypes: ["Giant"],
     power: 3,
     toughness: 3,
-};
+}));
 // Total War — {3}{R} Enchantment. "Whenever a player attacks with one or more
 // creatures, destroy all untapped non-Wall creatures that player controls that
 // didn't attack, except for creatures the player hasn't controlled continuously
@@ -2249,7 +2245,7 @@ export const torGiant: CardDefinition = {
 // iterates the attacking player's creatures and destroys each that is untapped,
 // non-Wall, not attacking, and not summoning-sick (composable `ctx.destroy`
 // rather than `destroyAll`, which can't express the "didn't attack" exclusion).
-export const totalWar: CardDefinition = {
+export const totalWar = defineCard(() => ({
     id: "6107388b-ec1e-401e-a407-a821c908ed8d",
     name: "Total War",
     rarity: "rare",
@@ -2295,12 +2291,12 @@ export const totalWar: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Vertigo — "2 damage to target creature with flying. That creature loses
 // flying until end of turn." (CR 120.1 damage + CR 611.2a layer-6 keyword
 // removal.) The flying-target restriction uses `requireAbility: "flying"`; the
 // loss is `removeStaticAbilities` scoped to flying, until end of turn.
-export const vertigo: CardDefinition = {
+export const vertigo = defineCard(() => ({
     id: "3067e7af-7bbd-48c1-9f1d-df2a91a0ec54",
     name: "Vertigo",
     rarity: "uncommon",
@@ -2317,10 +2313,10 @@ export const vertigo: CardDefinition = {
             phase: "end-of-turn",
         });
     },
-};
+}));
 // Wall of Lava — 1/3 Wall with defender and firebreathing "{R}: +1/+1 until end
 // of turn" (CR 702.3 defender, CR 605 / CR 611.1 pump).
-export const wallOfLava: CardDefinition = {
+export const wallOfLava = defineCard(() => ({
     id: "b99d6d11-b3f7-4d73-967c-3049af82a9d8",
     name: "Wall of Lava",
     rarity: "uncommon",
@@ -2351,12 +2347,12 @@ export const wallOfLava: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Word of Blasting — "Destroy target Wall. It can't be regenerated. Deals damage
 // equal to that Wall's mana value to the Wall's controller." (CR 701.8 destroy +
 // CR 701.19c regen-lock + CR 120.1 damage.) The Wall's mana value and controller
 // are read BEFORE the destroy; the target uses a Wall subtype restriction.
-export const wordOfBlasting: CardDefinition = {
+export const wordOfBlasting = defineCard(() => ({
     id: "46b383c8-d604-4131-a869-9e9d13e30b94",
     name: "Word of Blasting",
     rarity: "uncommon",
@@ -2382,7 +2378,7 @@ export const wordOfBlasting: CardDefinition = {
         },
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));
 
 // Meteor Shower — {X}{X}{R} Sorcery. "Meteor Shower deals X plus 1 damage
 // divided as you choose among any number of targets." (CR 107.3 doubled-X cost
@@ -2390,7 +2386,7 @@ export const wordOfBlasting: CardDefinition = {
 // (`divideAsChosen: { total: "X+1" }`); the `dealDamageDividedAsChosen` Op
 // (DSL-first ADR 0045) resolves `total: "X+1"` as `getX()+1` and reads the
 // announced per-target split off the stack item.
-export const meteorShower: CardDefinition = {
+export const meteorShower = defineCard(() => ({
     id: "50b4851e-677b-468e-9baa-e47a3b4b8339",
     name: "Meteor Shower",
     rarity: "common",
@@ -2404,4 +2400,4 @@ export const meteorShower: CardDefinition = {
         divideAsChosen: { total: "X+1" },
     },
     effects: [{ op: "dealDamageDividedAsChosen", total: "X+1" }],
-};
+}));

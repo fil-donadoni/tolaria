@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -23,7 +23,7 @@ import { GOLEM_TOKEN } from "../../sharedTokens";
 // canned-scenario smoke sweep (`scenarioGenerator.ts` skips every forEach
 // script — "covered by the card's own tests") so it gets a hand-written test
 // in `sets/big/__tests__/green.test.ts` per gre-development.md's own carve-out.
-export const sandstormSalvager: CardDefinition = {
+export const sandstormSalvager = defineCard(() => ({
     id: "13b0f27c-a359-4702-833a-82fec161eeec",
     rarity: "mythic",
     name: "Sandstorm Salvager",
@@ -87,7 +87,7 @@ export const sandstormSalvager: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Vaultborn Tyrant — {5}{G}{G} Creature — Dinosaur, 6/6 (Cube FREE wave 3,
 // issue #1531/#1525, unblocked by #2364). "Trample\nWhenever this creature or
@@ -228,7 +228,7 @@ const vaultbornTyrantDiesTrigger = diedTrigger({
     ],
 });
 
-export const vaultbornTyrant: CardDefinition = {
+export const vaultbornTyrant = defineCard(() => ({
     id: "62b3f560-262b-4bc3-9aef-535fd7082c28",
     name: "Vaultborn Tyrant",
     rarity: "mythic",
@@ -241,7 +241,7 @@ export const vaultbornTyrant: CardDefinition = {
     toughness: 6,
     staticAbilities: ["trample"],
     triggeredAbilities: [vaultbornTyrantEtbTrigger, vaultbornTyrantDiesTrigger],
-};
+}));
 
 // Ancient Cornucopia — "Whenever you cast a spell that's one or more colors,
 // you may gain 1 life for each of that spell's colors. Do this only once
@@ -274,7 +274,7 @@ export const vaultbornTyrant: CardDefinition = {
 // "action taken" flag distinct from "ability triggered" (that would be new
 // `convex/gre/**` state); `maxTriggersPerTurn` is the nearest already-shipped
 // primitive and the one this ticket named.
-export const ancientCornucopia: CardDefinition = {
+export const ancientCornucopia = defineCard(() => ({
     id: "f977975d-0439-4731-b129-270cc4cdbb23",
     name: "Ancient Cornucopia",
     rarity: "mythic",
@@ -330,6 +330,6 @@ export const ancientCornucopia: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 export {};

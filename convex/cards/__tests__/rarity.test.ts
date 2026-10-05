@@ -45,8 +45,8 @@ describe("per-card rarity (CR 206, issue #511)", () => {
     it("definitions built via a factory carry their rarity (duals are rare)", () => {
         // Volcanic Island (Beta-original dual) and the Alpha duals are rare;
         // verifies the factory-forwarded path, not just plain literals.
-        expect(getDefinition(volcanicIsland.id).rarity).toBe("rare");
-        expect(getDefinition(badlands.id).rarity).toBe("rare");
+        expect(getDefinition(volcanicIsland().id).rarity).toBe("rare");
+        expect(getDefinition(badlands().id).rarity).toBe("rare");
     });
 
     it("every card definition in the pool declares a valid rarity", () => {

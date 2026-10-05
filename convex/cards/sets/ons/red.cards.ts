@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -23,7 +23,7 @@ import { untapRestriction } from "../../abilities/static/untapRestriction";
 // folded into the cast-time sacrifice selection in `convex/game.ts`
 // `buildCastSacrificeSelection`) shipped with #1035/#1037 — this card is its
 // first consumer.
-export const lavaDart: CardDefinition = {
+export const lavaDart = defineCard(() => ({
     id: "865bb1d3-5b7d-40e9-87cc-96be9524a105",
     rarity: "common",
     name: "Lava Dart",
@@ -36,7 +36,7 @@ export const lavaDart: CardDefinition = {
     flashback: { sacrifice: { subtypes: "Mountain" } },
     targetRequirement: { type: "any", count: 1 },
     effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
-};
+}));
 
 // Goblin Piledriver — {1}{R} 1/2 Goblin Warrior. "Protection from blue"
 // (CR 702.16a — the COLOUR family of `parseProtectionQuality`, the shipped
@@ -56,7 +56,7 @@ export const lavaDart: CardDefinition = {
 // Oracle line scopes the count to permanents you control).
 //
 // compiler-gap: Whenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin. (#2693)
-export const goblinPiledriver: CardDefinition = {
+export const goblinPiledriver = defineCard(() => ({
     id: "f6c4df1f-f148-42ec-8e22-e7114216927d", // ONS 205
     rarity: "rare",
     name: "Goblin Piledriver",
@@ -97,7 +97,7 @@ export const goblinPiledriver: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Goblin Pyromancer — {3}{R} 2/2 Goblin Wizard. Two independent triggered
 // abilities, one Oracle line each (CR 603.2):
@@ -117,7 +117,7 @@ export const goblinPiledriver: CardDefinition = {
 //      to its own trigger.)
 //
 // compiler-gap: At the beginning of the end step, destroy all Goblins. (#2693)
-export const goblinPyromancer: CardDefinition = {
+export const goblinPyromancer = defineCard(() => ({
     id: "bb4815b7-fc20-44a4-ad1c-66d92993557f", // ONS 206
     rarity: "rare",
     name: "Goblin Pyromancer",
@@ -176,7 +176,7 @@ export const goblinPyromancer: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Goblin Sharpshooter — {2}{R} 1/1 Goblin, three Oracle lines that compose
 // into the deck's sweeper:
@@ -203,7 +203,7 @@ export const goblinPyromancer: CardDefinition = {
 // `tapUntap` untapping a permanent the generator already seeds untapped — and
 // that reason is answered by this card's own untap-step test
 // (`gre/__tests__/untap-restriction.test.ts`).
-export const goblinSharpshooter: CardDefinition = {
+export const goblinSharpshooter = defineCard(() => ({
     id: "7e689df7-b85d-4346-bee8-5e978b5cbbbc", // ONS 207
     rarity: "rare",
     name: "Goblin Sharpshooter",
@@ -244,4 +244,4 @@ export const goblinSharpshooter: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));

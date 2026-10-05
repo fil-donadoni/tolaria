@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/loyalty are from Scryfall (id = first paper printing, LRW).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Planeswalker / loyalty framework tracer (issue #700, ADR 0058)
@@ -25,7 +25,7 @@ import type { CardDefinition } from "../../types";
 //   • −4 — creatures you control get +3/+3 and gain trample until end of turn:
 //     forEach{permanents, controller:"controller", Creature} → pump + grant
 //     trample, both until end of turn (CR 611.2a / 514.2 expiry).
-export const garrukWildspeaker: CardDefinition = {
+export const garrukWildspeaker = defineCard(() => ({
     id: "ca6f13a2-9243-4ce9-9f71-bed74355b781",
     name: "Garruk Wildspeaker",
     rarity: "rare",
@@ -103,4 +103,4 @@ export const garrukWildspeaker: CardDefinition = {
             ],
         },
     ],
-};
+}));

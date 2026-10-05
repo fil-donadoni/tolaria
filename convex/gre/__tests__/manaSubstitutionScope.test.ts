@@ -58,7 +58,7 @@ describe("CR 609.4b — an UNSCOPED mana-substitution static is untouched", () =
     it("Sunglasses of Urza still reaches every cost, named activation or not", () => {
         const state = makeState();
         state.players[0].battlefield.push(
-            makeInstance(sunglassesOfUrza.id, { id: "sunglasses-1" })
+            makeInstance(sunglassesOfUrza().id, { id: "sunglasses-1" })
         );
         const creature = makeInstance(CREATURE_ID, { id: "creature-1" });
         state.players[0].battlefield.push(creature);
@@ -132,7 +132,7 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
         // land before the (correctly scoped) commit settles anyway. Same end
         // state on the stack, one land burned for nothing.
         getPlayer(state, "p1").battlefield.push(
-            makeInstance(forest.id, { id: "forest-1" })
+            makeInstance(forest().id, { id: "forest-1" })
         );
 
         // The affordability probe agrees ...
@@ -195,7 +195,7 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
     it("auto-taps a Forest for a {R} ability cost under the permission", () => {
         const { state, creature } = board();
         const player = getPlayer(state, "p1");
-        const land = makeInstance(forest.id, { id: "forest-1" });
+        const land = makeInstance(forest().id, { id: "forest-1" });
         player.battlefield.push(land);
 
         const ability = {
@@ -223,7 +223,7 @@ describe("CR 602.1 — probe, auto-tap and payment agree (issue #2944)", () => {
     it("leaves the auto-tap alone when the source is not a creature", () => {
         const { state, artifact } = board();
         const player = getPlayer(state, "p1");
-        player.battlefield.push(makeInstance(forest.id, { id: "forest-1" }));
+        player.battlefield.push(makeInstance(forest().id, { id: "forest-1" }));
         autoTapForManaAbilityCost(state, player, artifact, {
             id: "red-gain",
             oracleText: "{R}: You gain 1 life.",
@@ -247,7 +247,7 @@ describe("CR 605.1a — a mana ability's OWN cost goes through the same seam", (
         const player = getPlayer(state, "p1");
         const sprites = makeInstance(MANA_CREATURE_ID, { id: "sprites-1" });
         player.battlefield.push(sprites);
-        player.battlefield.push(makeInstance(forest.id, { id: "forest-1" }));
+        player.battlefield.push(makeInstance(forest().id, { id: "forest-1" }));
         const ability = {
             id: "red-for-white",
             oracleText: "{R}, {T}: Add {W}.",

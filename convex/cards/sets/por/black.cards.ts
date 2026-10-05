@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mind Rot — "Target player discards two cards." (CR 701.9 discard.) The
 // first DSL card with a MID-RESOLUTION choice (ADR 0045, issue #805): the
@@ -19,7 +19,7 @@ import type { CardDefinition } from "../../types";
 // first implemented against the M11 reprint, which filed it under the wrong
 // home set and rendered the wrong art. That printing now rides along as a
 // `CardPrint` in `m11/black.cards.ts`.
-export const mindRot: CardDefinition = {
+export const mindRot = defineCard(() => ({
     id: "b91d355d-8409-4f0b-87ce-7590a8b9ebc0", // POR 19
     name: "Mind Rot",
     rarity: "common",
@@ -39,4 +39,4 @@ export const mindRot: CardDefinition = {
         },
         { op: "discard", player: { target: 0 }, cards: { ref: "$discards" } },
     ],
-};
+}));

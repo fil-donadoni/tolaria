@@ -11,7 +11,11 @@ import type {
     SpellContext,
 } from "../../types";
 import { countSnowLands } from "../../snowReads";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
 import { payOrSacrificeUpkeepTrigger } from "../leg/index.cards";
@@ -195,7 +199,7 @@ function makeScarab(args: {
 // produced mana lands in the controller's `restrictedMana` tagged
 // "cumulative-upkeep", so it pays CU upkeeps (Breath of Dreams, Illusionary
 // Forces, …) but nothing else. `useStack: false` resolves it immediately.
-export const adarkarUnicorn: CardDefinition = {
+export const adarkarUnicorn = defineCard(() => ({
     id: "0ba7526f-dba8-4483-b925-946164fc0ae9",
     name: "Adarkar Unicorn",
     rarity: "common",
@@ -222,13 +226,13 @@ export const adarkarUnicorn: CardDefinition = {
             effect: (ctx) => ctx.addMana({ U: 1 }),
         },
     ],
-};
+}));
 // Arctic Foxes — CR 509.1b block-restriction (side "attacker") gated on the
 // defending player's snow lands (CR 205.4a). A would-be blocker of power 2+ is
 // illegal only while the blocker's controller (the defending player) controls a
 // snow land — `countSnowLands` reads live snow status so Melting / Arcum's
 // Weathervane mutations are honored.
-export const arcticFoxes: CardDefinition = {
+export const arcticFoxes = defineCard(() => ({
     id: "98f99c3e-dddc-492f-aab6-1d899346a385",
     name: "Arctic Foxes",
     rarity: "common",
@@ -262,7 +266,7 @@ export const arcticFoxes: CardDefinition = {
                 "Arctic Foxes can't be blocked by creatures with power 2 or greater as long as defending player controls a snow land.",
         },
     ],
-};
+}));
 // Arenson's Aura — {2}{W} Enchantment with two activated abilities:
 //   • "{W}, Sacrifice an enchantment: Destroy target enchantment." — the
 //     `destroy` Op with a typed sacrifice activation cost (CR 602.1 / 118.5,
@@ -272,7 +276,7 @@ export const arcticFoxes: CardDefinition = {
 //     701.5a).
 // Both effects reuse already-shipped Ops; the sacrifice cost is fully supported
 // via `cost.sacrificeFilter`.
-export const arensonsAura: CardDefinition = {
+export const arensonsAura = defineCard(() => ({
     id: "f94f3e87-1b39-49a8-ad0d-f18c854e298a",
     name: "Arenson's Aura",
     rarity: "common",
@@ -303,11 +307,11 @@ export const arensonsAura: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Armor of Faith — Aura: static +1/+1 (layer 7c, CR 613) plus a repeatable
 // {W}: +0/+1 until end of turn pump on the host (CR 611.1). Same shape as
 // LEA's Holy Armor.
-export const armorOfFaith: CardDefinition = {
+export const armorOfFaith = defineCard(() => ({
     id: "fccbbc47-99c6-4ba9-95c2-992d5d2a67b2",
     name: "Armor of Faith",
     rarity: "common",
@@ -344,7 +348,7 @@ export const armorOfFaith: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Battle Cry — {2}{W} Instant (issue #884, split out of #739). Two clauses:
 //  • "Untap all white creatures you control." — a forEach over your
 //    battlefield creatures filtered to white (CR 701.26b untap).
@@ -356,7 +360,7 @@ export const armorOfFaith: CardDefinition = {
 //    event is still live at fire time (triggers.ts threads it onto the
 //    delayed StackItem exactly like a normal trigger), the body reads
 //    `$event.blockerId` directly — no `capture` map needed.
-export const battleCry: CardDefinition = {
+export const battleCry = defineCard(() => ({
     id: "c558a8c4-035c-464e-9ff8-c188c1bb619e",
     name: "Battle Cry",
     rarity: "uncommon",
@@ -393,16 +397,18 @@ export const battleCry: CardDefinition = {
             ],
         },
     ],
-};
-export const blackScarab: CardDefinition = makeScarab({
-    id: "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
-    name: "Black Scarab",
-    rarity: "uncommon",
-    color: "B",
-});
+}));
+export const blackScarab = defineCard(() =>
+    makeScarab({
+        id: "5bfd4ee1-05f9-45ae-a31d-1225b271dbe6",
+        name: "Black Scarab",
+        rarity: "uncommon",
+        color: "B",
+    })
+);
 // Blessed Wine — {1}{W} Instant. "You gain 1 life." plus the next-upkeep
 // cantrip rider (CR 119.3 lifegain; CR 502.2 / 603.7d delayed draw).
-export const blessedWine: CardDefinition = {
+export const blessedWine = defineCard(() => ({
     id: "6b9a92f9-9bbc-4887-9fbc-0f7212fd5e66",
     name: "Blessed Wine",
     rarity: "common",
@@ -423,10 +429,10 @@ export const blessedWine: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Blinking Spirit — {0}: Return this creature to its owner's hand (CR 701.14
 // move-to-hand). A repeatable bounce that dodges targeted removal.
-export const blinkingSpirit: CardDefinition = {
+export const blinkingSpirit = defineCard(() => ({
     id: "14fc0683-9cfa-4439-a533-8773e7747ec4",
     name: "Blinking Spirit",
     rarity: "rare",
@@ -450,13 +456,15 @@ export const blinkingSpirit: CardDefinition = {
             ],
         },
     ],
-};
-export const blueScarab: CardDefinition = makeScarab({
-    id: "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
-    name: "Blue Scarab",
-    rarity: "uncommon",
-    color: "U",
-});
+}));
+export const blueScarab = defineCard(() =>
+    makeScarab({
+        id: "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
+        name: "Blue Scarab",
+        rarity: "uncommon",
+        color: "U",
+    })
+);
 // Call to Arms — {1}{W} Enchantment. "As this enchantment enters, choose a
 // color and an opponent. White creatures get +1/+1 as long as the chosen color
 // is the most common color among nontoken permanents the chosen player controls
@@ -511,7 +519,7 @@ function chosenColorIsStrictPlurality<T extends ColorCountablePerm>(
     return CALL_TO_ARMS_COLORS.every((c) => c === color || tally[c] < mine);
 }
 
-export const callToArms: CardDefinition = {
+export const callToArms = defineCard(() => ({
     id: "a92f0d4a-23d8-47d4-b910-d142e0eefd3d",
     name: "Call to Arms",
     rarity: "rare",
@@ -575,14 +583,14 @@ export const callToArms: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 // Caribou Range — {2}{W}{W} Aura on a land you control. Grants the enchanted
 // land an activated token-maker ("{W}{W}, {T}: Create a 0/1 white Caribou")
 // via `activated-grant` (CR 113.1, 611 — the granted ability resolves with the
 // HOST land as `sourceInstanceId`, so {T} taps the land and the token is
 // controlled by the land's controller), plus a card-level lifegain ability that
 // uses a Caribou token as its sacrifice cost (CR 602.1, 118.5 sacrificeFilter).
-export const caribouRange: CardDefinition = {
+export const caribouRange = defineCard(() => ({
     id: "1e5f8041-67fc-4e00-b119-d216e5cc5a3a",
     name: "Caribou Range",
     rarity: "rare",
@@ -637,13 +645,13 @@ export const caribouRange: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         },
     ],
-};
+}));
 // Cold Snap — cumulative upkeep {2} (CR 702.24, ADR 0042) plus a phase trigger
 // at the beginning of EACH player's upkeep (scope "each", CR 603.6a) that deals
 // damage to that player equal to the number of snow lands they control
 // (CR 205.4a snow read). The snow-land count is read live via a `supertypes`
 // filter on `getBattlefieldIds`.
-export const coldSnap: CardDefinition = {
+export const coldSnap = defineCard(() => ({
     id: "81b87a58-b20c-4f38-afa3-59d398195740",
     name: "Cold Snap",
     rarity: "uncommon",
@@ -686,10 +694,10 @@ export const coldSnap: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Cooperation — Aura that grants the enchanted creature banding (CR 702.22,
 // 611 keyword-grant on the host). Same shape as LEA's Flight.
-export const cooperation: CardDefinition = {
+export const cooperation = defineCard(() => ({
     id: "21a815ed-c8b4-4414-8b27-ea612e2977e2",
     name: "Cooperation",
     rarity: "common",
@@ -705,7 +713,7 @@ export const cooperation: CardDefinition = {
             keyword: "banding",
         },
     ],
-};
+}));
 // Disenchant — ICE reprint of the LEA instant (destroy target artifact or
 // Drought — the upkeep "sacrifice unless you pay {W}{W}" clause reuses the leg
 // `payOrSacrificeUpkeepTrigger` (CR 117.3a). Its board-wide, static,
@@ -714,7 +722,7 @@ export const cooperation: CardDefinition = {
 // `additional-cost` static-effect kind (CR 601.2f / 118.5), scanned at
 // announcement (affordability gate, unpayable → illegal) and paid at commit
 // alongside the mana cost (#907, unblocked from #739's stop-and-issue seam).
-export const drought: CardDefinition = {
+export const drought = defineCard(() => ({
     id: "97736696-3de3-416d-94cf-4fac792f23f0",
     name: "Drought",
     rarity: "uncommon",
@@ -742,11 +750,11 @@ export const drought: CardDefinition = {
             sacrificeFilter: { subtypes: ["Swamp"] },
         },
     ],
-};
+}));
 // Elvish Healer — {T}: prevent the next 1 damage to any target this turn; if
 // that target is a green creature, prevent 2 instead (CR 615 prevention). The
 // amount is target-dependent, resolved from the chosen target's color/type.
-export const elvishHealer: CardDefinition = {
+export const elvishHealer = defineCard(() => ({
     id: "00bd8485-d63a-4077-a3d1-4d0f2f4d8035",
     name: "Elvish Healer",
     rarity: "common",
@@ -787,7 +795,7 @@ export const elvishHealer: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Enduring Renewal — {2}{W}{W} Enchantment (issue #735). Three clauses over the
 // shipped draw-reveal / hand-reveal engine:
 //   • "Play with your hand revealed" — the continuous hand-reveal projection
@@ -813,7 +821,7 @@ export const elvishHealer: CardDefinition = {
 //     EVENT_FIELD_REGISTRY, `mechanicsRegistry.ts`), and `moveCardById` needs
 //     that captured id. Blocked on: dead-creature LKI reachable from a
 //     script (the `$event.<field>` grammar gap, issue #865).
-export const enduringRenewal: CardDefinition = {
+export const enduringRenewal = defineCard(() => ({
     id: "be77edac-9a8b-4b7f-a859-27df76b10aa6",
     name: "Enduring Renewal",
     rarity: "rare",
@@ -854,7 +862,7 @@ export const enduringRenewal: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Energy Storm — {1}{W} Enchantment. Three data-only clauses over shipped
 // seams (issue #727):
 //   • Cumulative upkeep {1} — the ADR 0042 template (`cumulativeUpkeepTrigger`).
@@ -867,7 +875,7 @@ export const enduringRenewal: CardDefinition = {
 //     `untapRestriction` over `{ types: "Creature", requireAbility: "flying" }`,
 //     maxUntap 0. Symmetric (each-player scope), matched against the active
 //     player's flyers at untap time.
-export const energyStorm: CardDefinition = {
+export const energyStorm = defineCard(() => ({
     id: "3955e358-4285-44e2-9e24-9804346a6e58",
     name: "Energy Storm",
     rarity: "rare",
@@ -911,11 +919,11 @@ export const energyStorm: CardDefinition = {
             costLabel: "{1}",
         }),
     ],
-};
+}));
 // Formation — {1}{W} Instant. "Target creature gains banding until end of turn"
 // (CR 702.22 banding granted via layer 6 for the turn) plus the next-upkeep
 // cantrip rider.
-export const formation: CardDefinition = {
+export const formation = defineCard(() => ({
     id: "78446ead-61b0-485f-a5a9-b3e72d8075a7",
     name: "Formation",
     rarity: "rare",
@@ -943,13 +951,13 @@ export const formation: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Fylgja — {W} Aura. Enters with four healing counters (CR 122.1, 614.1c
 // `entersWith`); "Remove a healing counter: prevent the next 1 damage to the
 // enchanted creature this turn" (CR 602.1 counter-removal cost + CR 615
 // prevention shield on the host); "{2}{W}: put a healing counter on this Aura"
 // (replenishes the pool). The prevention targets the host via `getAttachedTo`.
-export const fylgja: CardDefinition = {
+export const fylgja = defineCard(() => ({
     id: "3c6358a1-37f0-4b40-93d4-4f1652c38404",
     name: "Fylgja",
     rarity: "common",
@@ -1001,7 +1009,7 @@ export const fylgja: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // General Jarkeld — {3}{W} Legendary 1/2. Attacker-side blocker reassignment
 // (CR 509.1). The {T} ability targets two BLOCKED attacking creatures and, if
 // each could legally be blocked by all of the other's blockers, moves every
@@ -1021,7 +1029,7 @@ export const fylgja: CardDefinition = {
 // primitive's own CR 509.1 gate no-ops on an unblocked attacker, so targeting
 // one is legal-but-inert. Tightening the filter to "blocked attackers only"
 // would need a new combat target-filter value — deferred.
-export const generalJarkeld: CardDefinition = {
+export const generalJarkeld = defineCard(() => ({
     id: "6a4f5a28-0bd2-4cc4-b67f-324e89193caa",
     name: "General Jarkeld",
     rarity: "rare",
@@ -1063,13 +1071,15 @@ export const generalJarkeld: CardDefinition = {
             },
         },
     ],
-};
-export const greenScarab: CardDefinition = makeScarab({
-    id: "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
-    name: "Green Scarab",
-    rarity: "uncommon",
-    color: "G",
-});
+}));
+export const greenScarab = defineCard(() =>
+    makeScarab({
+        id: "0fbf9266-c97e-4666-b0fa-1802a69a62cc",
+        name: "Green Scarab",
+        rarity: "uncommon",
+        color: "G",
+    })
+);
 // Hallowed Ground — {W}{W}: Return target nonsnow land you control to its
 // owner's hand (CR 400.7). A blink/protection engine for your own lands.
 //
@@ -1082,7 +1092,7 @@ export const greenScarab: CardDefinition = makeScarab({
 // `gre/targetFilters.ts`), so this field is honored on both sides of the
 // target-legality seam by construction — see the "Hallowed Ground" describe
 // block in `__tests__/white.test.ts` for the end-to-end proof.
-export const hallowedGround: CardDefinition = {
+export const hallowedGround = defineCard(() => ({
     id: "4b35c0f4-5633-4ea9-9bda-daaf787aebdd",
     name: "Hallowed Ground",
     rarity: "uncommon",
@@ -1111,11 +1121,11 @@ export const hallowedGround: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 // Heal — {W} Instant. "Prevent the next 1 damage that would be dealt to any
 // target this turn" (CR 615.1 prevention shield, Samite Healer pattern) plus
 // the next-upkeep cantrip rider.
-export const heal: CardDefinition = {
+export const heal = defineCard(() => ({
     id: "9e6b2704-685e-4c74-875a-25846175e5e4",
     name: "Heal",
     rarity: "common",
@@ -1146,7 +1156,7 @@ export const heal: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Hipparion — "This creature can't block creatures with power 3 or greater
 // unless you pay {1}." (CR 509.1b — a pay-to-bypass block restriction.) Modelled
 // as a blocker-side `block-restriction` whose predicate forbids blocking an
@@ -1154,7 +1164,7 @@ export const heal: CardDefinition = {
 // enriches `power` to its effective value), with a `bypassCost` of {1}. The
 // engine permits the block at assignment and auto-pays the {1} from the
 // blocker's controller at block confirmation (`collectBlockBypassCharges`).
-export const hipparion: CardDefinition = {
+export const hipparion = defineCard(() => ({
     id: "5969875a-f647-4daf-b76c-d1514d45c312",
     name: "Hipparion",
     rarity: "uncommon",
@@ -1179,7 +1189,7 @@ export const hipparion: CardDefinition = {
                 "This creature can't block creatures with power 3 or greater unless you pay {1}.",
         },
     ],
-};
+}));
 // Justice — {2}{W}{W} Enchantment. Upkeep pay-{W}{W}-or-sacrifice (CR 603.6a +
 // 117.3a, inline `mayPay`/`if` on `phaseTrigger`) + a damage-watch trigger
 // (CR 603.4): whenever a red creature or spell deals damage, Justice deals that
@@ -1194,7 +1204,7 @@ export const hipparion: CardDefinition = {
 // `sourceControllerId` (player) row for DAMAGE_DEALT — planned-migratable
 // (a missing censused field, not protocol behaviour), no tracking issue
 // filed yet.
-export const justice: CardDefinition = {
+export const justice = defineCard(() => ({
     id: "9a6e0c8d-0fc1-4f52-8357-e550b0ac579a",
     name: "Justice",
     rarity: "uncommon",
@@ -1255,7 +1265,7 @@ export const justice: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Kjeldoran Elite Guard — instance leave-watch (CR 603.7a / 603.10, issue
 // #731). "{T}: Target creature gets +2/+2 until end of turn. When that creature
 // leaves the battlefield this turn, sacrifice this creature. Activate only
@@ -1265,7 +1275,7 @@ export const justice: CardDefinition = {
 // sacrifices this Guard (`$guard` = `$source`) when that creature leaves — a
 // pending watch expires at CLEANUP (the "this turn" bound). Activation is
 // restricted to the combat phases via `activationPhaseRestriction` (CR 602.5b).
-export const kjeldoranEliteGuard: CardDefinition = {
+export const kjeldoranEliteGuard = defineCard(() => ({
     id: "a73bc4b6-f7d0-494c-9e60-48279c11b7b6",
     name: "Kjeldoran Elite Guard",
     rarity: "uncommon",
@@ -1311,13 +1321,13 @@ export const kjeldoranEliteGuard: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Kjeldoran Guard — Elite Guard's +1/+1 sibling with the snow activation gate
 // (CR 205.4a, issue #661). Same instance leave-watch (issue #731); additionally
 // "Activate only during combat and only if defending player controls no snow
 // lands" — `canActivate` rejects when the non-active (defending, 2-player)
 // player controls any snow land.
-export const kjeldoranGuard: CardDefinition = {
+export const kjeldoranGuard = defineCard(() => ({
     id: "bdf41f17-8f82-4a8c-adec-0f3804faff3b",
     name: "Kjeldoran Guard",
     rarity: "common",
@@ -1372,9 +1382,9 @@ export const kjeldoranGuard: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Kjeldoran Knight — banding plus two repeatable self-pumps (CR 611.1, 702.22).
-export const kjeldoranKnight: CardDefinition = {
+export const kjeldoranKnight = defineCard(() => ({
     id: "d5b9db8f-93b5-44e3-9e2b-728c80dfbb37",
     name: "Kjeldoran Knight",
     rarity: "rare",
@@ -1422,10 +1432,10 @@ export const kjeldoranKnight: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Kjeldoran Phalanx — first strike + banding keyword creature (CR 702.7,
 // 702.22).
-export const kjeldoranPhalanx: CardDefinition = {
+export const kjeldoranPhalanx = defineCard(() => ({
     id: "b6e91ba0-b229-4ab1-84f3-2a490dfa5051",
     name: "Kjeldoran Phalanx",
     rarity: "rare",
@@ -1436,7 +1446,7 @@ export const kjeldoranPhalanx: CardDefinition = {
     power: 2,
     toughness: 5,
     staticAbilities: ["first strike", "banding"],
-};
+}));
 // Kjeldoran Royal Guard — {3}{W}{W} 2/5. "{T}: All combat damage that would be
 // dealt to you by unblocked creatures this turn is dealt to this creature
 // instead." A turn-scoped all-unblocked combat-damage redirect (CR 614.6),
@@ -1445,7 +1455,7 @@ export const kjeldoranPhalanx: CardDefinition = {
 // combat-damage step), not an Effect-Script Op — there is no Op that installs
 // a combat-damage redirect, so the activation body reads/writes combat state
 // directly (same shape as Farrel's Mantle's `markAssignsNoCombatDamage`).
-export const kjeldoranRoyalGuard: CardDefinition = {
+export const kjeldoranRoyalGuard = defineCard(() => ({
     id: "66343008-c38a-48a9-b767-fd2243103690",
     name: "Kjeldoran Royal Guard",
     rarity: "rare",
@@ -1473,10 +1483,10 @@ export const kjeldoranRoyalGuard: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Kjeldoran Skycaptain — flying + first strike + banding (CR 702.9, 702.7,
 // 702.22).
-export const kjeldoranSkycaptain: CardDefinition = {
+export const kjeldoranSkycaptain = defineCard(() => ({
     id: "cf0115e0-6192-48a9-9e58-f3ef77ef77c2",
     name: "Kjeldoran Skycaptain",
     rarity: "uncommon",
@@ -1487,10 +1497,10 @@ export const kjeldoranSkycaptain: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying", "first strike", "banding"],
-};
+}));
 // Kjeldoran Skyknight — flying + first strike + banding (CR 702.9, 702.7,
 // 702.22).
-export const kjeldoranSkyknight: CardDefinition = {
+export const kjeldoranSkyknight = defineCard(() => ({
     id: "f794665a-8353-482a-b065-2a0777a8acda",
     name: "Kjeldoran Skyknight",
     rarity: "common",
@@ -1501,9 +1511,9 @@ export const kjeldoranSkyknight: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying", "first strike", "banding"],
-};
+}));
 // Kjeldoran Warrior — banding keyword creature (CR 702.22).
-export const kjeldoranWarrior: CardDefinition = {
+export const kjeldoranWarrior = defineCard(() => ({
     id: "ce76f38f-566e-49ff-b197-510cfa1cb51c",
     name: "Kjeldoran Warrior",
     rarity: "common",
@@ -1514,11 +1524,11 @@ export const kjeldoranWarrior: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["banding"],
-};
+}));
 // Lightning Blow — {1}{W} Instant. "Target creature gains first strike until
 // end of turn" (CR 702.7 keyword grant via layer 6) plus the next-upkeep
 // cantrip rider.
-export const lightningBlow: CardDefinition = {
+export const lightningBlow = defineCard(() => ({
     id: "d1a4ed99-f38c-4e0f-9ff2-2e1e9126e6ef",
     name: "Lightning Blow",
     rarity: "rare",
@@ -1546,12 +1556,12 @@ export const lightningBlow: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 // Lost Order of Jarkeld — as it enters, choose an opponent (CR 603.6b); its P/T
 // is a characteristic-defining ability (CR 604.3, layer 7a) equal to 1 plus the
 // number of creatures the chosen player controls. The pt-cda reads the stored
 // `chosenPlayerId` and counts that player's creatures live from game state.
-export const lostOrderOfJarkeld: CardDefinition = {
+export const lostOrderOfJarkeld = defineCard(() => ({
     id: "0f8fe1e5-69d2-401f-97cb-3cc01064bad3",
     name: "Lost Order of Jarkeld",
     rarity: "rare",
@@ -1605,12 +1615,12 @@ export const lostOrderOfJarkeld: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Mercenaries — {3}: The next time this creature would deal damage to you this
 // turn, prevent that damage. Any player may activate (CR 615 prevention,
 // 602.1 / 113.3c open activation). The shield is keyed to this creature as the
 // damage source and to the activating player as the protected recipient.
-export const mercenaries: CardDefinition = {
+export const mercenaries = defineCard(() => ({
     id: "7b28762d-1ab7-460e-b433-27f5fa858959",
     name: "Mercenaries",
     rarity: "rare",
@@ -1640,11 +1650,11 @@ export const mercenaries: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Order of the Sacred Torch — {T}, Pay 1 life: Counter target black spell
 // (CR 701.6 counter, CR 119.4 life cost). Target restricted to black spells on
 // the stack via the spell color filter.
-export const orderOfTheSacredTorch: CardDefinition = {
+export const orderOfTheSacredTorch = defineCard(() => ({
     id: "ccc5cb36-c43d-4c71-8019-9b683e160a0a",
     name: "Order of the Sacred Torch",
     rarity: "rare",
@@ -1668,10 +1678,10 @@ export const orderOfTheSacredTorch: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 // Order of the White Shield — protection from black (CR 702.16) plus a first
 // strike grant and a power pump (CR 611.2a), the classic "Order" cycle shape.
-export const orderOfTheWhiteShield: CardDefinition = {
+export const orderOfTheWhiteShield = defineCard(() => ({
     id: "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
     name: "Order of the White Shield",
     rarity: "uncommon",
@@ -1719,7 +1729,7 @@ export const orderOfTheWhiteShield: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Prismatic Ward — {1}{W} Aura. "As this Aura enters, choose a color. Prevent
 // all damage that would be dealt to enchanted creature by sources of the chosen
 // color." (CR 614.12a the colour is an as-enters pick stored as `chosenModeId`;
@@ -1732,7 +1742,7 @@ export const orderOfTheWhiteShield: CardDefinition = {
 // event whose target is the Aura's host (`self.attachedTo`) and whose source
 // colours include the chosen colour; `replace` consumes the event (CR 615 —
 // the damage is not dealt).
-export const prismaticWard: CardDefinition = {
+export const prismaticWard = defineCard(() => ({
     id: "6f8b50fd-3d1d-4ea8-a3c7-98ca7a8a455e",
     name: "Prismatic Ward",
     rarity: "common",
@@ -1778,11 +1788,11 @@ export const prismaticWard: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 // Rally — "Blocking creatures get +1/+1 until end of turn." (CR 611.2a, 509.1)
 // A combat trick that pumps every creature currently blocking. Blocking
 // creatures are read from the live block graph (attacker → blocker ids).
-export const rally: CardDefinition = {
+export const rally = defineCard(() => ({
     id: "e1e9f80e-5d75-45b7-9c66-c0f30996f4dc",
     name: "Rally",
     rarity: "common",
@@ -1804,13 +1814,15 @@ export const rally: CardDefinition = {
             });
         }
     },
-};
-export const redScarab: CardDefinition = makeScarab({
-    id: "9a734154-5944-42f4-a02e-c426a45847f3",
-    name: "Red Scarab",
-    rarity: "uncommon",
-    color: "R",
-});
+}));
+export const redScarab = defineCard(() =>
+    makeScarab({
+        id: "9a734154-5944-42f4-a02e-c426a45847f3",
+        name: "Red Scarab",
+        rarity: "uncommon",
+        color: "R",
+    })
+);
 // Sacred Boon — {1}{W} Instant. "Prevent the next 3 damage that would be dealt
 // to target creature this turn. At the beginning of the next end step, put a
 // +0/+1 counter on that creature for each 1 damage prevented this way." (CR
@@ -1823,7 +1835,7 @@ export const redScarab: CardDefinition = makeScarab({
 // prevents accumulates in `state.preventionTallies`, and the delayed trigger
 // reads it back via `consumePreventionTally` to size the +0/+1 counter grant.
 const SACRED_BOON_ID = "d721569d-9cf2-4c3c-b11c-4c46c258a0d2";
-export const sacredBoon: CardDefinition = {
+export const sacredBoon = defineCard(() => ({
     id: SACRED_BOON_ID,
     name: "Sacred Boon",
     rarity: "uncommon",
@@ -1875,7 +1887,7 @@ export const sacredBoon: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Seraph — {6}{W} 4/4 flying Angel. "Whenever a creature dealt damage by this
 // creature this turn dies, put that card onto the battlefield under your control
 // at the beginning of the next end step." (CR 603.2 death trigger keyed on
@@ -1889,7 +1901,7 @@ export const sacredBoon: CardDefinition = {
 // sacrifice-on-loss-of-control clause — only reachable via a control-change
 // effect on Seraph, which the current pool barely exercises — is deferred.
 const SERAPH_ID = "ab675291-3189-43f3-b11b-0724eca8b941";
-export const seraph: CardDefinition = {
+export const seraph = defineCard(() => ({
     id: SERAPH_ID,
     name: "Seraph",
     rarity: "rare",
@@ -1960,9 +1972,9 @@ export const seraph: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Shield Bearer — 0/3 banding wall-style creature (CR 702.22).
-export const shieldBearer: CardDefinition = {
+export const shieldBearer = defineCard(() => ({
     id: "318ff2da-d309-469c-8e2f-fa3c7517a15a",
     name: "Shield Bearer",
     rarity: "common",
@@ -1973,11 +1985,11 @@ export const shieldBearer: CardDefinition = {
     power: 0,
     toughness: 3,
     staticAbilities: ["banding"],
-};
+}));
 // Snow Hound — {1}, {T}: Return this creature and target green or blue creature
 // you control to their owner's hand (CR 701.14). A self-bounce that also
 // rescues another of your green/blue creatures.
-export const snowHound: CardDefinition = {
+export const snowHound = defineCard(() => ({
     id: "084437ba-26d4-4af6-ab00-dcb145dd2cd0",
     name: "Snow Hound",
     rarity: "uncommon",
@@ -2010,7 +2022,7 @@ export const snowHound: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Warning — "Prevent all combat damage that would be dealt by target attacking
 // creature this turn." (CR 615) — a genuine source-scoped combat-damage
 // PREVENTION shield, via the `preventDamage` Op's `"all-from-source"` mode
@@ -2024,7 +2036,7 @@ export const snowHound: CardDefinition = {
 // by it, an ASSIGNMENT restriction is not, because a creature that assigns no
 // combat damage never produces a damage event to protect. Warning says
 // "prevent" (CR 615.1a), so it is the shield.
-export const warning: CardDefinition = {
+export const warning = defineCard(() => ({
     id: "cca5b4a7-df11-4635-a147-df12cd13a67c",
     name: "Warning",
     rarity: "common",
@@ -2046,10 +2058,12 @@ export const warning: CardDefinition = {
             combatOnly: true,
         },
     ],
-};
-export const whiteScarab: CardDefinition = makeScarab({
-    id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
-    name: "White Scarab",
-    rarity: "uncommon",
-    color: "W",
-});
+}));
+export const whiteScarab = defineCard(() =>
+    makeScarab({
+        id: "c57726b5-dfdd-4e47-bc52-ebf6eedbf3bd",
+        name: "White Scarab",
+        rarity: "uncommon",
+        color: "W",
+    })
+);

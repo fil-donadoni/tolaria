@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Agatha's Soul Cauldron — {2} Legendary Artifact (WOE 242, issue #2945,
 // parent PRD #1324). "You may spend mana as though it were mana of any color
@@ -60,7 +60,7 @@ import type { CardDefinition } from "../../types";
 // hand-tail: "You may spend mana as though it were mana of any color to activate abilities of creatures you control." (#4195)
 // hand-tail: "Creatures you control with +1/+1 counters on them have all activated abilities of all creature cards exiled with {self}." (#4195)
 // hand-tail: "{T}: Exile target card from a graveyard. When a creature card is exiled this way, put a +1/+1 counter on target creature you control." (#4195)
-export const agathasSoulCauldron: CardDefinition = {
+export const agathasSoulCauldron = defineCard(() => ({
     id: "019b51b0-e5c6-4208-922b-7736686dddcd", // WOE 242
     name: "Agatha's Soul Cauldron",
     rarity: "mythic",
@@ -160,4 +160,4 @@ export const agathasSoulCauldron: CardDefinition = {
             ],
         },
     ],
-};
+}));

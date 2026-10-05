@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
 // Exalted Angel — {4}{W}{W} Creature — Angel, 4/5. "Flying / Whenever this
@@ -26,7 +26,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // documented gap applies: `event.amount` has no `EffectValue` grammar member
 // / `$event` field row, so the trigger cannot be written as an Effect Script.
 // Not an invented shortcut and not a new primitive.
-export const exaltedAngel: CardDefinition = {
+export const exaltedAngel = defineCard(() => ({
     id: "c2213eac-cea4-4dfd-90c4-c1f466967e2e",
     rarity: "rare",
     name: "Exalted Angel",
@@ -62,4 +62,4 @@ export const exaltedAngel: CardDefinition = {
             aiEffects: [{ op: "gainLife", player: "controller", amount: 4 }],
         },
     ],
-};
+}));

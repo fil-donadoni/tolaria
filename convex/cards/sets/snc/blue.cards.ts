@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import {
     nthSpellThisTurn,
     spellCastTrigger,
@@ -37,7 +37,7 @@ import {
 // `picksMatchFilter` `if` predicate (issue #1343): true iff at least one
 // picked card, resolved via the discarding player's graveyard (CR 701.9 —
 // every discard lands there), matches `{ excludeType: "Land" }`.
-export const ledgerShredder: CardDefinition = {
+export const ledgerShredder = defineCard(() => ({
     id: "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d",
     name: "Ledger Shredder",
     rarity: "rare",
@@ -103,4 +103,4 @@ export const ledgerShredder: CardDefinition = {
             ],
         }),
     ],
-};
+}));

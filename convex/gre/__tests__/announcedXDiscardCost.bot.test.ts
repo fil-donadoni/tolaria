@@ -37,14 +37,14 @@ const SWAMP = "6176936d-72e2-4205-8871-4c5a4f1cb2d8";
 /** p1 holds Sickening Dreams plus `spare` other cards, with two untapped
  *  Swamps and `{B}{B}` floating; p2 fields a Grizzly Bears. */
 function board(spare: number): GameState {
-    const spell = makeInstance(sickeningDreams.id, {
+    const spell = makeInstance(sickeningDreams().id, {
         id: "sd",
         zone: "hand",
         controllerId: "p1",
         ownerId: "p1",
     });
     const spares = Array.from({ length: spare }, (_, i) =>
-        makeInstance(lightningBolt.id, {
+        makeInstance(lightningBolt().id, {
             id: `spare${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -59,7 +59,7 @@ function board(spare: number): GameState {
             ownerId: "p1",
         })
     );
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears",
         zone: "battlefield",
         controllerId: "p2",

@@ -1,7 +1,7 @@
 // Aetherdrift (DFT) — red cards, split by colour per ADR 0043. The registry's
 // `import * as dft from "./sets/dft/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
 import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 
@@ -16,7 +16,7 @@ import { discardTrigger } from "../../abilities/triggers/discardTrigger";
 // a simultaneous "discard N cards" fires this trigger N times (one +1/+1 counter
 // each) rather than once with a count of N. The net counter total is identical;
 // only single-card discards occur in this batch (Cycling always discards one).
-export const maraudingMako: CardDefinition = {
+export const maraudingMako = defineCard(() => ({
     id: "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
     name: "Marauding Mako",
     rarity: "common",
@@ -48,4 +48,4 @@ export const maraudingMako: CardDefinition = {
     ],
     // CR 702.29 — Cycling {1}. Usable only from hand at instant speed.
     activatedAbilities: [cyclingAbility({ generic: 1 })],
-};
+}));

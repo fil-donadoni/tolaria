@@ -35,7 +35,7 @@ function player(id: string, battlefield: CardInstance[]): Player {
 }
 
 // A creature spell and a noncreature spell as the would-be cast.
-const creatureSpell = inst(balduvianBears.id, {
+const creatureSpell = inst(balduvianBears().id, {
     id: "bears",
     controllerId: "p2",
     types: ["Creature"],
@@ -50,10 +50,10 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
     it("Brand of Ill Omen: host's controller can't cast a creature spell", () => {
         const board = [
             player("p1", [
-                inst(brandOfIllOmen.id, { id: "brand", attachedTo: "host" }),
+                inst(brandOfIllOmen().id, { id: "brand", attachedTo: "host" }),
             ]),
             player("p2", [
-                inst(balduvianBears.id, {
+                inst(balduvianBears().id, {
                     id: "host",
                     controllerId: "p2",
                     types: ["Creature"],
@@ -70,10 +70,10 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
     it("the same player can still cast a noncreature spell", () => {
         const board = [
             player("p1", [
-                inst(brandOfIllOmen.id, { id: "brand", attachedTo: "host" }),
+                inst(brandOfIllOmen().id, { id: "brand", attachedTo: "host" }),
             ]),
             player("p2", [
-                inst(balduvianBears.id, {
+                inst(balduvianBears().id, {
                     id: "host",
                     controllerId: "p2",
                     types: ["Creature"],
@@ -90,10 +90,10 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
     it("does not restrict a player who doesn't control the host", () => {
         const board = [
             player("p1", [
-                inst(brandOfIllOmen.id, { id: "brand", attachedTo: "host" }),
+                inst(brandOfIllOmen().id, { id: "brand", attachedTo: "host" }),
             ]),
             player("p2", [
-                inst(balduvianBears.id, {
+                inst(balduvianBears().id, {
                     id: "host",
                     controllerId: "p2",
                     types: ["Creature"],
@@ -110,7 +110,7 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
 
     it("an unattached Brand (no host) restricts no one", () => {
         const board = [
-            player("p1", [inst(brandOfIllOmen.id, { id: "brand" })]),
+            player("p1", [inst(brandOfIllOmen().id, { id: "brand" })]),
             player("p2", []),
         ];
         expect(
@@ -183,7 +183,7 @@ describe("castProhibitionReason (client-side cast gate, CR 601.3a)", () => {
 // helper itself also evaluates correctly against the slim CLIENT shape, where
 // `card` is `{ id }` only and permanents carry no `staticAbilities`.
 describe("castCondition (client-side self cast condition, CR 601.3a)", () => {
-    const blizzardSpell = inst(blizzard.id, {
+    const blizzardSpell = inst(blizzard().id, {
         id: "blizzard-hand",
         controllerId: "p1",
         types: ["Enchantment"],
@@ -201,7 +201,10 @@ describe("castCondition (client-side self cast condition, CR 601.3a)", () => {
     it("Blizzard: a non-snow land does not satisfy it (CR 205.4a)", () => {
         const board = [
             player("p1", [
-                inst(balduvianBears.id, { id: "not-a-land", types: ["Land"] }),
+                inst(balduvianBears().id, {
+                    id: "not-a-land",
+                    types: ["Land"],
+                }),
             ]),
             player("p2", []),
         ];
@@ -215,7 +218,7 @@ describe("castCondition (client-side self cast condition, CR 601.3a)", () => {
     it("Blizzard: castable once a snow land is controlled", () => {
         const board = [
             player("p1", [
-                inst(snowCoveredForest.id, {
+                inst(snowCoveredForest().id, {
                     id: "snow",
                     types: ["Land"],
                 }),
@@ -233,7 +236,7 @@ describe("castCondition (client-side self cast condition, CR 601.3a)", () => {
         const board = [
             player("p1", []),
             player("p2", [
-                inst(snowCoveredForest.id, {
+                inst(snowCoveredForest().id, {
                     id: "their-snow",
                     controllerId: "p2",
                     types: ["Land"],

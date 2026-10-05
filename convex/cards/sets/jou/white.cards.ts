@@ -1,5 +1,4 @@
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
@@ -20,7 +19,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // The return half is an armed delayed trigger: its condition (`holdsExileBundle`,
 // shared with the Parallax cycle) gates on the bundle's existence so it never
 // fires with nothing held.
-export const banishingLight: CardDefinition = {
+export const banishingLight = defineCard(() => ({
     id: "fbaa4800-30cc-4a80-a6cc-9a24ada9eb40",
     rarity: "uncommon",
     name: "Banishing Light",
@@ -68,4 +67,4 @@ export const banishingLight: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));

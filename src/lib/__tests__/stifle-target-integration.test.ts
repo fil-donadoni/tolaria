@@ -35,7 +35,7 @@ function pt(filters: Record<string, unknown>): PendingTarget {
 
 describe("Stifle target integration (server build → client eligibility, CR 701.6a)", () => {
     const filters = pendingTargetFiltersFromRequirement(
-        stifle.targetRequirement!,
+        stifle().targetRequirement!,
         undefined
     );
     const ctx = { playerId: "p1", activePlayerId: "p1", players: [] };
@@ -52,7 +52,7 @@ describe("Stifle target integration (server build → client eligibility, CR 701
             triggeredAbilityId: "dread-etb",
             types: [],
         };
-        expect(wantsSpellTarget(stifle.targetRequirement!.type)).toBe(true);
+        expect(wantsSpellTarget(stifle().targetRequirement!.type)).toBe(true);
         expect(
             matchesSpellPendingTarget(
                 trigger,

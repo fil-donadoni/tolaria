@@ -26,7 +26,7 @@ import { NO_BOARD_LAYER_VIEW } from "../layers";
 describe("face-down characteristics (CR 708.2)", () => {
     it("reads as a 2/2 colourless creature with no abilities on fat state", () => {
         // Mahamoti Djinn — a blue 5/6 flyer — turned face down.
-        const card = makeInstance(mahamotiDjinn.id, {
+        const card = makeInstance(mahamotiDjinn().id, {
             id: "fd",
             controllerId: "p1",
             ownerId: "p1",
@@ -42,7 +42,7 @@ describe("face-down characteristics (CR 708.2)", () => {
         });
 
         expect(card.faceDown).toBe(true);
-        expect(card.faceDownOf).toBe(mahamotiDjinn.id);
+        expect(card.faceDownOf).toBe(mahamotiDjinn().id);
         expect((card.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
         expect(getEffectivePower(state, card)).toBe(2);
         expect(getEffectiveToughness(state, card)).toBe(2);
@@ -56,12 +56,12 @@ describe("face-down characteristics (CR 708.2)", () => {
 
 describe("face-down hidden identity in projection (ADR 0013)", () => {
     function faceDownState() {
-        const mine = makeInstance(mahamotiDjinn.id, {
+        const mine = makeInstance(mahamotiDjinn().id, {
             id: "mine",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const theirs = makeInstance(mahamotiDjinn.id, {
+        const theirs = makeInstance(mahamotiDjinn().id, {
             id: "theirs",
             controllerId: "p2",
             ownerId: "p2",
@@ -92,7 +92,7 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
             (c) => c.id === "theirs"
         )!;
         expect(p1Own.card.id).toBe(FACE_DOWN_CARD_ID);
-        expect(p1Own.knownCardId).toBe(mahamotiDjinn.id);
+        expect(p1Own.knownCardId).toBe(mahamotiDjinn().id);
         expect(p1Opp.card.id).toBe(FACE_DOWN_CARD_ID);
         expect(p1Opp.knownCardId).toBeUndefined();
         // The real id must NOT leak through faceDownOf on the opponent's card.
@@ -107,7 +107,7 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
             (c) => c.id === "mine"
         )!;
         expect(p2Own.card.id).toBe(FACE_DOWN_CARD_ID);
-        expect(p2Own.knownCardId).toBe(mahamotiDjinn.id);
+        expect(p2Own.knownCardId).toBe(mahamotiDjinn().id);
         expect(p2Opp.card.id).toBe(FACE_DOWN_CARD_ID);
         expect(p2Opp.knownCardId).toBeUndefined();
         expect((p2Opp as { faceDownOf?: string }).faceDownOf).toBeUndefined();
@@ -130,7 +130,7 @@ describe("face-down hidden identity in projection (ADR 0013)", () => {
 
 describe("face-down serialize round-trip", () => {
     it("preserves faceDown, faceDownOf and the sentinel id", () => {
-        const card = makeInstance(mahamotiDjinn.id, {
+        const card = makeInstance(mahamotiDjinn().id, {
             id: "fd",
             controllerId: "p1",
             ownerId: "p1",
@@ -146,7 +146,7 @@ describe("face-down serialize round-trip", () => {
         const restored = expandState(compactState(state));
         const got = restored.players[0].battlefield.find((c) => c.id === "fd")!;
         expect(got.faceDown).toBe(true);
-        expect(got.faceDownOf).toBe(mahamotiDjinn.id);
+        expect(got.faceDownOf).toBe(mahamotiDjinn().id);
         expect((got.card as { id: string }).id).toBe(FACE_DOWN_CARD_ID);
         expect(got.power).toBe(2);
         expect(got.toughness).toBe(2);
@@ -155,7 +155,7 @@ describe("face-down serialize round-trip", () => {
 
 describe("face-down producer census (issue #2904)", () => {
     it("stamps the producer on the way down and clears it on the way up", () => {
-        const card = makeInstance(mahamotiDjinn.id, {
+        const card = makeInstance(mahamotiDjinn().id, {
             id: "fd-producer",
             controllerId: "p1",
             ownerId: "p1",
@@ -173,12 +173,12 @@ describe("face-down producer census (issue #2904)", () => {
     });
 
     it("records the mechanic, not the card — the SAME card takes a different producer per path", () => {
-        const morphed = makeInstance(mahamotiDjinn.id, {
+        const morphed = makeInstance(mahamotiDjinn().id, {
             id: "fd-a",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const masked = makeInstance(mahamotiDjinn.id, {
+        const masked = makeInstance(mahamotiDjinn().id, {
             id: "fd-b",
             controllerId: "p1",
             ownerId: "p1",

@@ -271,11 +271,6 @@
     },
     {
         "file": "convex/gre/__tests__/continuousEffects.test.ts",
-        "test": "entry-shape invariants are type errors > a predicate entry cannot have a non-source expiry (CR 611.2c)",
-        "reason": "Type-level invariant: predicate entries cannot have a non-source expiry."
-    },
-    {
-        "file": "convex/gre/__tests__/continuousEffects.test.ts",
         "test": "entry-shape invariants are type errors > a source-expiry entry cannot snapshot a controllerId",
         "reason": "Type-level invariant: source-expiry entries cannot snapshot a controllerId."
     },

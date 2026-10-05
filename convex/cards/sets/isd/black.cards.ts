@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/loyalty are from Scryfall (id = first paper printing, ISD).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Planeswalker / loyalty framework tracer (issue #700, ADR 0058)
@@ -27,7 +27,7 @@ import type { CardDefinition } from "../../types";
 //     with divider = controller, chooser = the target player, chosen pile
 //     sacrificed via forEach{bound} → sacrifice (the Do or Die shape,
 //     inv/black.cards.ts, destroy→sacrifice and no type filter).
-export const lilianaOfTheVeil: CardDefinition = {
+export const lilianaOfTheVeil = defineCard(() => ({
     id: "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
     name: "Liliana of the Veil",
     rarity: "mythic",
@@ -134,4 +134,4 @@ export const lilianaOfTheVeil: CardDefinition = {
             ],
         },
     ],
-};
+}));

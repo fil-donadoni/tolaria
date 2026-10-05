@@ -1,7 +1,7 @@
 // CNS (Conspiracy) — multicolor cards, split by colour per ADR 0043. The
 // registry's `import * as cns from "./sets/cns/index.cards"` re-exports this module.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 
 // Dack Fayden — {1}{U}{R} Legendary Planeswalker — Dack, loyalty 3
@@ -20,7 +20,7 @@ import { DACK_FAYDEN_EMBLEM_ID } from "../../emblems";
 //     reasoning and the deliberate divergence (tracked-by: #2785) are documented in full on the
 //     emblem definition itself (`convex/cards/emblems.ts`,
 //     `DACK_FAYDEN_EMBLEM_ID`).
-export const dackFayden: CardDefinition = {
+export const dackFayden = defineCard(() => ({
     id: "3fcb7810-1054-4001-855c-6e17939b3d3f", // CNS printing (scryfallId)
     name: "Dack Fayden",
     rarity: "mythic",
@@ -90,4 +90,4 @@ export const dackFayden: CardDefinition = {
             effects: [{ op: "emblem", emblem: DACK_FAYDEN_EMBLEM_ID }],
         },
     ],
-};
+}));

@@ -95,7 +95,7 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
          *  cost-modifier static (Thalia) taxing the cast under test. */
         p2Battlefield?: CardInstanceState[];
     }): GameState {
-        const exiled = makeInstance(firebolt.id, {
+        const exiled = makeInstance(firebolt().id, {
             id: "exiledBolt",
             zone: "exile",
             controllerId: opts.zoneOwner,
@@ -108,7 +108,7 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
                 ...(opts.zoneOwner === id ? { exile: [exiled] } : {}),
                 battlefield:
                     id === "p1"
-                        ? lands(mountain, opts.mountains, "p1")
+                        ? lands(mountain(), opts.mountains, "p1")
                         : (opts.p2Battlefield ?? []),
             });
         return makeState({ players: [mk("p1"), mk("p2")] });
@@ -174,7 +174,7 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
         // tap plan must cover the {1} or the Bot announces a cast it cannot pay
         // — the announce-then-park shape, whose only exit is `abort-announcement`.
         const thalia = () =>
-            makeInstance(thaliaGuardianOfThraben.id, {
+            makeInstance(thaliaGuardianOfThraben().id, {
                 id: "thaliaX",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -247,7 +247,7 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
         // `castableFromExileIncludesLand` rider — so the card is legal for
         // neither action. A zone-blind widening of the candidate set would
         // offer a `cast-spell` the commit path then refuses to locate.
-        const exiledLand = makeInstance(mountain.id, {
+        const exiledLand = makeInstance(mountain().id, {
             id: "exiledLand",
             zone: "exile",
             controllerId: "p1",
@@ -258,7 +258,7 @@ describe("enumerateMoves — a cast from EXILE (CR 601.3, issue #2971)", () => {
             players: [
                 makePlayer("p1", {
                     exile: [exiledLand],
-                    battlefield: lands(mountain, 2, "p1"),
+                    battlefield: lands(mountain(), 2, "p1"),
                 }),
                 makePlayer("p2"),
             ],
@@ -299,13 +299,13 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // Firebolt: printed {R}, Flashback {4}{R}. Five Mountains is exactly
         // the flashback cost — pricing it at the PRINTED cost would plan a
         // one-land tap and announce a cast the server charges five for.
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = graveyardBoard(bolt, [{ def: mountain, count: 5 }]);
+        const state = graveyardBoard(bolt, [{ def: mountain(), count: 5 }]);
         const cast = castOf(state, "p1", "gyBolt");
         expect(cast).toBeDefined();
         expect(cast!.castFromZone).toBe("graveyard");
@@ -313,13 +313,13 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
     });
 
     it("does not offer a flashback cast the caster cannot pay for", () => {
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = graveyardBoard(bolt, [{ def: mountain, count: 4 }]);
+        const state = graveyardBoard(bolt, [{ def: mountain(), count: 4 }]);
         expect(castOf(state, "p1", "gyBolt")).toBeUndefined();
     });
 
@@ -350,7 +350,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const state = graveyardBoard(card, [{ def: forest, count: 1 }]);
+            const state = graveyardBoard(card, [{ def: forest(), count: 1 }]);
             // Guard the premise: a vacuous pass if the gate ever stops
             // permitting this.
             expect(
@@ -367,27 +367,27 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // this issue's responsibility: the census says "intrinsic", so the loop
         // reaches it. Whether `planManaPayment` can build a tap plan for a
         // convoke+delve-only cost is a separate, pre-existing enumerator gap.
-        const hogaak = makeInstance(hogaakArisenNecropolis.id, {
+        const hogaak = makeInstance(hogaakArisenNecropolis().id, {
             id: "gyHogaak",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = graveyardBoard(hogaak, [{ def: forest, count: 2 }]);
+        const state = graveyardBoard(hogaak, [{ def: forest(), count: 2 }]);
         expect(
             graveyardCastMechanism(state, getPlayer(state, "p1"), hogaak, "p1")
         ).toBe("intrinsic");
     });
 
     it("offers the PER-CARD grant (CR 601.3 — Malcolm / Emry)", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "gyBears",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
             castableFromGraveyardBy: "p1",
         });
-        const state = graveyardBoard(bears, [{ def: forest, count: 2 }]);
+        const state = graveyardBoard(bears, [{ def: forest(), count: 2 }]);
         expect(castOf(state, "p1", "gyBears")?.castFromZone).toBe("graveyard");
     });
 
@@ -396,24 +396,24 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // non-land cards" fallback is zone-BLIND, so a candidate loop that
         // consulted only the gate would offer this cast and `locateCastSource`
         // would then refuse to locate it.
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "gyPlain",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = graveyardBoard(bears, [{ def: forest, count: 4 }]);
+        const state = graveyardBoard(bears, [{ def: forest(), count: 4 }]);
         expect(castOf(state, "p1", "gyPlain")).toBeUndefined();
     });
 
     it("offers the BROAD player-wide permission (CR 601.3 — Yawgmoth's Will)", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "gyBroad",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const state = graveyardBoard(bears, [{ def: forest, count: 2 }]);
+        const state = graveyardBoard(bears, [{ def: forest(), count: 2 }]);
         // Before the grant: no mechanism, so no candidate — the fail-closed
         // baseline this half of the test needs in order to mean anything.
         expect(castOf(state, "p1", "gyBroad")).toBeUndefined();
@@ -429,14 +429,14 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // recasts the same permanent every turn for free — a line that does not
         // exist. Two permanents in the graveyard, so the SECOND one disappearing
         // from the next enumeration is what proves the charge landed.
-        const lurrusPerm = makeInstance(lurrus.id, {
+        const lurrusPerm = makeInstance(lurrus().id, {
             id: "lurrus",
             controllerId: "p1",
             ownerId: "p1",
             isSummoningSick: false,
         });
         const gy = [0, 1].map((i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `gyPerm-${i}`,
                 zone: "graveyard",
                 controllerId: "p1",
@@ -447,7 +447,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
             players: [
                 makePlayer("p1", {
                     graveyard: gy,
-                    battlefield: [lurrusPerm, ...lands(forest, 4, "p1")],
+                    battlefield: [lurrusPerm, ...lands(forest(), 4, "p1")],
                 }),
                 makePlayer("p2"),
             ],
@@ -482,7 +482,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // waiver is that split: the waived cost is `{}` and carries no X, so
         // every Move must name the one legal value rather than omitting the
         // field and letting the mutation refuse it — the #2283/#2284 shape.
-        const fb = makeInstance(fireball.id, {
+        const fb = makeInstance(fireball().id, {
             id: "exiledFireball",
             zone: "exile",
             controllerId: "p2",
@@ -492,7 +492,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: lands(mountain, 3, "p1") }),
+                makePlayer("p1", { battlefield: lands(mountain(), 3, "p1") }),
                 makePlayer("p2", { exile: [fb] }),
             ],
         });
@@ -513,7 +513,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // the Move `castCostPicks.exileCostCardIds`, so the cast is now offered
         // — one variant per announceable X, each carrying exactly the blue
         // cards it will exile.
-        const flash = makeInstance(flashOfInsight.id, {
+        const flash = makeInstance(flashOfInsight().id, {
             id: "gyFlash",
             zone: "graveyard",
             controllerId: "p1",
@@ -522,7 +522,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // CR 202.2 / 105.2 — real BLUE cards, not Islands: a land has no mana
         // cost and so no colour, and the cost demands blue CARDS.
         const blueFodder = Array.from({ length: 4 }, (_, i) =>
-            makeInstance(ancestralRecall.id, {
+            makeInstance(ancestralRecall().id, {
                 id: `blue-${i}`,
                 zone: "graveyard",
                 controllerId: "p1",
@@ -533,7 +533,7 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
             players: [
                 makePlayer("p1", {
                     graveyard: [flash, ...blueFodder],
-                    battlefield: lands(island, 4, "p1"),
+                    battlefield: lands(island(), 4, "p1"),
                 }),
                 makePlayer("p2"),
             ],
@@ -565,14 +565,14 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
         // priced as if the exile were free and parked unpayable at the real
         // mutation. Both are now carried, and — the part that BOUNDS the line —
         // charged in both search sandboxes.
-        const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+        const uro = makeInstance(uroTitanOfNaturesWrath().id, {
             id: "gyUro",
             zone: "graveyard",
             controllerId: "p1",
             ownerId: "p1",
         });
         const fodder = Array.from({ length: 6 }, (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `fodder-${i}`,
                 zone: "graveyard",
                 controllerId: "p1",
@@ -584,8 +584,8 @@ describe("enumerateMoves — a cast from the GRAVEYARD (issue #2971)", () => {
                 makePlayer("p1", {
                     graveyard: [uro, ...fodder],
                     battlefield: [
-                        ...lands(forest, 3, "p1"),
-                        ...lands(island, 3, "p1"),
+                        ...lands(forest(), 3, "p1"),
+                        ...lands(island(), 3, "p1"),
                     ],
                 }),
                 makePlayer("p2"),
@@ -634,7 +634,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         s.stack.find((it) => it.id === id);
 
     it("FLASHBACK (CR 702.34a): leaves the graveyard and is stamped exileOnResolve + castFromGraveyard", () => {
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
             controllerId: "p1",
@@ -644,7 +644,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             players: [
                 makePlayer("p1", {
                     graveyard: [bolt],
-                    battlefield: lands(mountain, 5, "p1"),
+                    battlefield: lands(mountain(), 5, "p1"),
                 }),
                 makePlayer("p2"),
             ],
@@ -674,7 +674,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
     });
 
     it("PER-CARD GRANT (CR 601.3): castFromGraveyard, and NOT exileOnResolve", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "gyBears",
             zone: "graveyard",
             controllerId: "p1",
@@ -685,7 +685,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             players: [
                 makePlayer("p1", {
                     graveyard: [bears],
-                    battlefield: lands(forest, 2, "p1"),
+                    battlefield: lands(forest(), 2, "p1"),
                 }),
                 makePlayer("p2"),
             ],
@@ -702,7 +702,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         // The shape a hard-coded `removeFromZone(state, player, …)` cannot express at
         // all: before the shared resolver both sandboxes threw
         // `Card <id> not found in hand` here.
-        const exiled = makeInstance(firebolt.id, {
+        const exiled = makeInstance(firebolt().id, {
             id: "exiledBolt",
             zone: "exile",
             controllerId: "p2",
@@ -711,7 +711,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         });
         const state = makeState({
             players: [
-                makePlayer("p1", { battlefield: lands(mountain, 1, "p1") }),
+                makePlayer("p1", { battlefield: lands(mountain(), 1, "p1") }),
                 makePlayer("p2", { exile: [exiled] }),
             ],
         });
@@ -737,13 +737,13 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
         // back at the next upkeep — which it always did on the real path. The
         // flag is gated on the zone being the hand, which is what makes CR
         // 702.88a's "only once" free.
-        const eph = makeInstance(ephemerate.id, {
+        const eph = makeInstance(ephemerate().id, {
             id: "handEph",
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "myBear",
             controllerId: "p1",
             ownerId: "p1",
@@ -753,7 +753,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             players: [
                 makePlayer("p1", {
                     hand: [eph],
-                    battlefield: [bear, ...lands(plains, 1, "p1")],
+                    battlefield: [bear, ...lands(plains(), 1, "p1")],
                 }),
                 makePlayer("p2"),
             ],
@@ -769,7 +769,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
     });
 
     it("a stale Move whose card no permitted source holds is SKIPPED, never thrown", () => {
-        const exiled = makeInstance(firebolt.id, {
+        const exiled = makeInstance(firebolt().id, {
             id: "exiledBolt",
             zone: "exile",
             controllerId: "p1",
@@ -780,7 +780,7 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
             players: [
                 makePlayer("p1", {
                     exile: [exiled],
-                    battlefield: lands(mountain, 1, "p1"),
+                    battlefield: lands(mountain(), 1, "p1"),
                 }),
                 makePlayer("p2"),
             ],
@@ -802,14 +802,14 @@ describe("search sandboxes apply a non-hand cast with the mutation's stack flags
 
 describe("enumeration is deterministic (issue #2971)", () => {
     it("produces byte-identical Moves across repeated calls on the same state", () => {
-        const exiled = makeInstance(firebolt.id, {
+        const exiled = makeInstance(firebolt().id, {
             id: "exiledBolt",
             zone: "exile",
             controllerId: "p2",
             ownerId: "p2",
             castableFromExileBy: "p1",
         });
-        const bolt = makeInstance(firebolt.id, {
+        const bolt = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
             controllerId: "p1",
@@ -819,7 +819,7 @@ describe("enumeration is deterministic (issue #2971)", () => {
             players: [
                 makePlayer("p1", {
                     graveyard: [bolt],
-                    battlefield: lands(mountain, 6, "p1"),
+                    battlefield: lands(mountain(), 6, "p1"),
                 }),
                 makePlayer("p2", { exile: [exiled] }),
             ],

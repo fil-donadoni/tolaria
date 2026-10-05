@@ -287,7 +287,7 @@ describe("ADR 0085 — a non-kicker additional cost is not a kick, at every cons
                 makePlayer("p1"),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "bear",
                             controllerId: "p2",
                             ownerId: "p2",

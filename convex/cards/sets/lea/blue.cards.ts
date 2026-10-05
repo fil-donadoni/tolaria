@@ -16,6 +16,7 @@ import type {
     SpellMode,
 } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     PERMANENT_TYPES,
@@ -29,7 +30,7 @@ import { untapRestriction } from "../../abilities/static/untapRestriction";
 import { makeLace } from "./white.cards";
 import { makeUpkeepPayOrElse } from "./white.cards";
 
-export const airElemental: CardDefinition = {
+export const airElemental = defineCard(() => ({
     id: "69c3b2a3-0daa-4d42-832d-fcdfda6555ea",
     rarity: "uncommon",
     name: "Air Elemental",
@@ -40,10 +41,10 @@ export const airElemental: CardDefinition = {
     power: 4,
     toughness: 4,
     staticAbilities: ["flying"],
-};
+}));
 
 // Ancestral Recall — "Target player draws three cards." (CR 121.1)
-export const ancestralRecall: CardDefinition = {
+export const ancestralRecall = defineCard(() => ({
     id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
     rarity: "rare",
     name: "Ancestral Recall",
@@ -52,7 +53,7 @@ export const ancestralRecall: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
     effects: [{ op: "draw", player: { target: 0 }, count: 3 }],
-};
+}));
 
 // Animate Artifact — "Enchant artifact. As long as enchanted artifact
 // isn't a creature, it's an artifact creature with power and toughness
@@ -61,7 +62,7 @@ export const ancestralRecall: CardDefinition = {
 // from the host's printed mana value.) Predicate gates on the host not
 // already being a Creature at apply-time (CR 205 layer-4 — close enough
 // for LEA scope; full layer-1-through-7 recompute is out of scope).
-export const animateArtifact: CardDefinition = {
+export const animateArtifact = defineCard(() => ({
     id: "664b46f5-0424-4f4e-9f26-6bd2cf5e0357",
     rarity: "uncommon",
     name: "Animate Artifact",
@@ -89,7 +90,7 @@ export const animateArtifact: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Helper for the {U}/{R} "elemental blast" pair (CR 700.2 modal — counter
 // target X spell OR destroy target X permanent). Both modes use the
@@ -146,18 +147,20 @@ export function makeElementalBlast(args: {
     };
 }
 
-export const blueElementalBlast: CardDefinition = makeElementalBlast({
-    id: "20d666ef-39bf-4fbf-8201-5f1056539da2",
-    rarity: "common",
-    name: "Blue Elemental Blast",
-    oracleColor: "red",
-    castColor: "U",
-    targetColor: "R",
-});
+export const blueElementalBlast = defineCard(() =>
+    makeElementalBlast({
+        id: "20d666ef-39bf-4fbf-8201-5f1056539da2",
+        rarity: "common",
+        name: "Blue Elemental Blast",
+        oracleColor: "red",
+        castColor: "U",
+        targetColor: "R",
+    })
+);
 
 // Braingeyser — "Target player draws X cards." (CR 107.3 X cost, 121.1 draw,
 // 601.2b X chosen on cast, 608.3 sorcery resolution).
-export const braingeyser: CardDefinition = {
+export const braingeyser = defineCard(() => ({
     id: "62b19a12-6914-430e-81ce-dcfca47884df",
     rarity: "rare",
     name: "Braingeyser",
@@ -169,7 +172,7 @@ export const braingeyser: CardDefinition = {
     // cards (CR 121.1) via the chosen-cost `{ X: true }` count. A non-player
     // target is skipped by the executor (CR 608.2b).
     effects: [{ op: "draw", player: { target: 0 }, count: { X: true } }],
-};
+}));
 
 // Clone — "You may have Clone enter the battlefield as a copy of any creature
 // on the battlefield." (CR 707.2 copy effect, 614.12 as-enters replacement.)
@@ -177,7 +180,7 @@ export const braingeyser: CardDefinition = {
 // `becomeCopyOf` overwrites its copiable characteristics before it enters.
 // Declining (or no creatures present) leaves it a 0/0 that dies to SBA
 // (CR 704.5f).
-export const clone: CardDefinition = {
+export const clone = defineCard(() => ({
     id: "f00d33dd-4eb2-4446-9813-1923d8e2d2f3",
     rarity: "uncommon",
     name: "Clone",
@@ -199,12 +202,12 @@ export const clone: CardDefinition = {
     // the stack, so a reanimated Clone entered as its printed 0/0 and the next
     // sweep binned it (CR 704.5f).
     entersWith: { asEnters: [{ kind: "copy", filter: { types: "Creature" } }] },
-};
+}));
 
 // Control Magic — "Enchant creature. You control enchanted creature."
 // (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
 // control-changing effect, 702.10c summoning sickness reset on control change)
-export const controlMagic: CardDefinition = {
+export const controlMagic = defineCard(() => ({
     id: "7b52f459-c703-4a0b-9114-ff69eec61287",
     rarity: "uncommon",
     name: "Control Magic",
@@ -219,14 +222,14 @@ export const controlMagic: CardDefinition = {
             applies: AURA_AFFECTS_HOST,
         },
     ],
-};
+}));
 
 // Copy Artifact — "You may have Copy Artifact enter the battlefield as a copy
 // of any artifact on the battlefield, except it's an enchantment in addition
 // to its other types." (CR 707.2 copy effect with a type-adding exception,
 // CR 707.9d.) The copy keeps the Enchantment type via `additionalTypes`.
 // Declining (or no artifacts present) leaves it a do-nothing enchantment.
-export const copyArtifact: CardDefinition = {
+export const copyArtifact = defineCard(() => ({
     id: "fd5ed955-1193-4e6a-a3e2-f54c1f9bf063",
     rarity: "rare",
     name: "Copy Artifact",
@@ -249,10 +252,10 @@ export const copyArtifact: CardDefinition = {
             },
         ],
     },
-};
+}));
 
 // Counterspell — "Counter target spell." (CR 701.6a)
-export const counterspell: CardDefinition = {
+export const counterspell = defineCard(() => ({
     id: "0df55e3f-14de-46ef-b6b1-616618724d9e",
     rarity: "uncommon",
     name: "Counterspell",
@@ -261,7 +264,7 @@ export const counterspell: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell", count: 1 },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Creature Bond — "Enchant creature. When enchanted creature dies, this Aura
 // deals damage equal to that creature's toughness to the creature's
@@ -269,7 +272,7 @@ export const counterspell: CardDefinition = {
 // known information for the host's toughness). The trigger fires before SBA
 // orphan-aura cleanup so `self.attachedTo` is still set when matched; the
 // resolve reads the host's toughness from the event snapshot.
-export const creatureBond: CardDefinition = {
+export const creatureBond = defineCard(() => ({
     id: "ee4bd7d1-77e5-46e5-a594-c24469e88c4c",
     rarity: "common",
     name: "Creature Bond",
@@ -302,13 +305,13 @@ export const creatureBond: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Feedback — "Enchant enchantment. At the beginning of the upkeep of enchanted
 // enchantment's controller, Feedback deals 1 damage to that player." (CR 303.4
 // aura attachment to a non-creature host, 603.6a phase trigger). Trigger fires
 // only on the host's controller's upkeep — same lookup pattern as Farmstead.
-export const feedback: CardDefinition = {
+export const feedback = defineCard(() => ({
     id: "0eb8f591-d763-49bf-8ef9-86265aaa72f7",
     rarity: "uncommon",
     name: "Feedback",
@@ -342,11 +345,11 @@ export const feedback: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Flight — "Enchant creature. Enchanted creature has flying." (CR 303.4 aura
 // attachment, 702.9 flying, 611.2 keyword grant via static effect).
-export const flight: CardDefinition = {
+export const flight = defineCard(() => ({
     id: "67c7784b-6b79-4268-a714-895c82809aff",
     rarity: "common",
     name: "Flight",
@@ -362,13 +365,13 @@ export const flight: CardDefinition = {
             keyword: "flying",
         },
     ],
-};
+}));
 
 // Invisibility — "Enchant creature. Enchanted creature can't be blocked
 // except by Walls." (CR 303.4 aura, 509.1b block restriction). The
 // block-restriction is on the aura's staticEffects; the combat validator
 // discovers it by scanning permanents attached to the attacker.
-export const invisibility: CardDefinition = {
+export const invisibility = defineCard(() => ({
     id: "1858ac51-e6a7-48d7-8759-166070ca13d8",
     rarity: "common",
     name: "Invisibility",
@@ -388,11 +391,11 @@ export const invisibility: CardDefinition = {
             oracleText: "Enchanted creature can't be blocked except by Walls.",
         },
     ],
-};
+}));
 
 // Jump — "Target creature gains flying until end of turn." (CR 702.9 flying,
 // 611.2a temporary keyword grant with end-of-turn duration).
-export const jump: CardDefinition = {
+export const jump = defineCard(() => ({
     id: "cb3f4b11-ad1b-48e2-a500-787d351b0174",
     rarity: "common",
     name: "Jump",
@@ -410,12 +413,12 @@ export const jump: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Lifetap — "Whenever a Forest an opponent controls becomes tapped, you gain
 // 1 life." (CR 603.2 PERMANENT_TAPPED trigger). Fires for any tap of an
 // opponent-controlled Forest, not just for-mana taps — `forMana` is omitted.
-export const lifetap: CardDefinition = {
+export const lifetap = defineCard(() => ({
     id: "11add837-7ee4-4104-b031-c161bce459ae",
     rarity: "uncommon",
     name: "Lifetap",
@@ -437,13 +440,13 @@ export const lifetap: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
-};
+}));
 
 // Lord of Atlantis — "Other Merfolk creatures get +1/+1 and have islandwalk."
 // (CR 611 layer 7c, 702.13c landwalk). Lord-style static effects: pt-buff at
 // stat-read time, keyword-grant applied imperatively at battlefield
 // entry/exit.
-export const lordOfAtlantis: CardDefinition = {
+export const lordOfAtlantis = defineCard(() => ({
     id: "210c4a90-fc7a-4c76-aeaa-20a005e45386",
     rarity: "rare",
     name: "Lord of Atlantis",
@@ -473,7 +476,7 @@ export const lordOfAtlantis: CardDefinition = {
             keyword: "islandwalk",
         },
     ],
-};
+}));
 
 // Magical Hack — "Change the text of target spell or permanent by replacing
 // all instances of one basic land type with another." (CR 612 text-changing
@@ -505,7 +508,7 @@ function magicalHackMode(toType: string): SpellMode {
     };
 }
 
-export const magicalHack: CardDefinition = {
+export const magicalHack = defineCard(() => ({
     id: "2bd4202c-0477-45aa-82fd-83c85d6d4bef",
     rarity: "rare",
     name: "Magical Hack",
@@ -515,9 +518,9 @@ export const magicalHack: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell-or-permanent", count: 1 },
     modes: BASIC_LAND_SUBTYPES.map(magicalHackMode),
-};
+}));
 
-export const mahamotiDjinn: CardDefinition = {
+export const mahamotiDjinn = defineCard(() => ({
     id: "36204ddd-ddf7-4b44-ae3c-b4a5a41ac9cb",
     rarity: "rare",
     name: "Mahamoti Djinn",
@@ -529,9 +532,9 @@ export const mahamotiDjinn: CardDefinition = {
     power: 5,
     toughness: 6,
     staticAbilities: ["flying"],
-};
+}));
 
-export const merfolkOfThePearlTrident: CardDefinition = {
+export const merfolkOfThePearlTrident = defineCard(() => ({
     id: "2b871039-6a66-4ac3-95e7-24759c1f2f92",
     rarity: "common",
     name: "Merfolk of the Pearl Trident",
@@ -541,12 +544,12 @@ export const merfolkOfThePearlTrident: CardDefinition = {
     subtypes: ["Merfolk"],
     power: 1,
     toughness: 1,
-};
+}));
 
 // Phantasmal Forces — "Flying. At the beginning of your upkeep, sacrifice
 // this creature unless you pay {U}." (CR 702.9 flying, CR 603.6a phase
 // trigger, CR 117.3a may-pay with hard sacrifice on decline.)
-export const phantasmalForces: CardDefinition = {
+export const phantasmalForces = defineCard(() => ({
     id: "0631c7c8-9aa5-4333-8e20-20247fc47033",
     rarity: "uncommon",
     name: "Phantasmal Forces",
@@ -568,7 +571,7 @@ export const phantasmalForces: CardDefinition = {
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Phantasmal Terrain — "Enchant land. As this enters, choose a basic land
 // type. Enchanted land is the chosen type." (CR 305.7 subtype replacement,
@@ -577,7 +580,7 @@ export const phantasmalForces: CardDefinition = {
 // `entersWith.asEnters` (ADR 0100 D3) and raised at the single CR 614
 // chokepoint on every entry path rather than at cast announcement. Each mode
 // applies a subtype-set with a single subtype.
-export const phantasmalTerrain: CardDefinition = {
+export const phantasmalTerrain = defineCard(() => ({
     id: "1c371aa1-1619-41e3-8364-7bc9b8cf5d14",
     rarity: "common",
     name: "Phantasmal Terrain",
@@ -650,9 +653,9 @@ export const phantasmalTerrain: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const phantomMonster: CardDefinition = {
+export const phantomMonster = defineCard(() => ({
     id: "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
     rarity: "uncommon",
     name: "Phantom Monster",
@@ -663,7 +666,7 @@ export const phantomMonster: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["flying"],
-};
+}));
 
 // Pirate Ship — "Pirate Ship can't attack unless defender controls an Island.
 // {T}: Pirate Ship deals 1 damage to any target.
@@ -673,7 +676,7 @@ export const phantomMonster: CardDefinition = {
 // `staticEffects[attack-restriction]` (same pattern as Sea Serpent); the
 // no-Islands sacrifice reuses the `stateTrigger` "control no Islands" pattern
 // shipped by Seasinger (fem/blue).
-export const pirateShip: CardDefinition = {
+export const pirateShip = defineCard(() => ({
     id: "d0a7cb23-d229-43c5-addd-dcf423984b0c",
     rarity: "rare",
     name: "Pirate Ship",
@@ -730,7 +733,7 @@ export const pirateShip: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 
 // Power Leak — "Enchant enchantment\nAt the beginning of the upkeep of
 // enchanted enchantment's controller, that player may pay any amount of mana.
@@ -745,7 +748,7 @@ export const pirateShip: CardDefinition = {
 // the value of X at the appropriate time (either as it's put on the stack or as
 // it resolves)". The `payVariableMana` Op (issue #1701) raises exactly that
 // prompt and binds the amount paid; the prevention then reads it as a value.
-export const powerLeak: CardDefinition = {
+export const powerLeak = defineCard(() => ({
     id: "ccc982b6-35b2-4e33-ace2-86cb79123e4f",
     rarity: "common",
     name: "Power Leak",
@@ -826,12 +829,12 @@ export const powerLeak: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Power Sink — "Counter target spell unless its controller pays {X}. If that
 // player doesn't, they tap all lands with mana abilities they control and
 // lose all unspent mana." (CR 701.6a counter-unless-pay, CR 117.3a may-pay).
-export const powerSink: CardDefinition = {
+export const powerSink = defineCard(() => ({
     id: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
     rarity: "common",
     name: "Power Sink",
@@ -858,13 +861,13 @@ export const powerSink: CardDefinition = {
             ctx.counter(target);
         }
     },
-};
+}));
 
 // Psionic Blast — deals 4 damage to any target and 2 damage to you.
 // CR 115.4: "any target" = creature/player/planeswalker. CR 120.3: damage
 // to self is a normal damage event (can be prevented/redirected), not life
 // loss — resolved via dealDamage on a player target pointing at the caster.
-export const psionicBlast: CardDefinition = {
+export const psionicBlast = defineCard(() => ({
     id: "a6a86e6e-bfff-46af-9d36-c912901fea92",
     rarity: "uncommon",
     name: "Psionic Blast",
@@ -877,13 +880,13 @@ export const psionicBlast: CardDefinition = {
         { op: "dealDamage", amount: 4, to: { target: 0 } },
         { op: "dealDamage", amount: 2, to: { player: "controller" } },
     ],
-};
+}));
 
 // Psychic Venom — "Enchant land. Whenever enchanted land becomes tapped,
 // Psychic Venom deals 2 damage to that land's controller." (CR 303.4 aura,
 // 603.2 PERMANENT_TAPPED trigger, 120.1 damage). Fires on every tap of the
 // host land — `forMana` is ignored, mana taps and Twiddle taps both count.
-export const psychicVenom: CardDefinition = {
+export const psychicVenom = defineCard(() => ({
     id: "f3f5b68a-6b0e-431e-89f0-ff60f17687a5",
     rarity: "common",
     name: "Psychic Venom",
@@ -916,7 +919,7 @@ export const psychicVenom: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // CR 508.1c — "can't attack unless defending player controls an Island" is
 // encoded as a data-driven `staticEffects[attack-restriction]` so the same
@@ -927,7 +930,7 @@ export const psychicVenom: CardDefinition = {
 // true, then doesn't trigger again until it has resolved or otherwise left
 // the stack. The engine scans for state triggers as part of every stable
 // checkpoint after SBA evaluation (CR 117.5).
-export const seaSerpent: CardDefinition = {
+export const seaSerpent = defineCard(() => ({
     id: "d0b333b7-db4d-4439-b0de-60414cbf8d7b",
     rarity: "common",
     name: "Sea Serpent",
@@ -974,14 +977,14 @@ export const seaSerpent: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 
 // Siren's Call — "Cast only during an opponent's turn, before attackers are
 // declared. Creatures the active player controls attack this turn if able.
 // At the beginning of the next end step, destroy all non-Wall creatures that
 // player controls that didn't attack this turn." (CR 508.1d mass forced
 // attack + delayed end-step destroy).
-export const sirensCall: CardDefinition = {
+export const sirensCall = defineCard(() => ({
     id: "d992b336-3b6e-43e1-8662-d85664349b44",
     rarity: "uncommon",
     name: "Siren's Call",
@@ -1006,7 +1009,7 @@ export const sirensCall: CardDefinition = {
         if (!activePlayerId) return;
         ctx.setAllCreaturesMustAttack(activePlayerId);
         ctx.scheduleDelayedTrigger(
-            sirensCall.id,
+            sirensCall().id,
             "sirens-call-destroy",
             "next-end-step",
             { targetPlayerId: activePlayerId }
@@ -1037,7 +1040,7 @@ export const sirensCall: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Sleight of Mind — "Change the text of target spell or permanent by replacing
 // all instances of one color word with another." (CR 612 text-changing effect,
@@ -1083,7 +1086,7 @@ function sleightOfMindMode(
     };
 }
 
-export const sleightOfMind: CardDefinition = {
+export const sleightOfMind = defineCard(() => ({
     id: "d427790c-e322-446e-8d7d-a6b48ad41a42",
     rarity: "rare",
     name: "Sleight of Mind",
@@ -1093,13 +1096,13 @@ export const sleightOfMind: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: "spell-or-permanent", count: 1 },
     modes: COLOR_WORD_LIST.map(sleightOfMindMode),
-};
+}));
 
 // Spell Blast — "Counter target spell with mana value X." (CR 107.3 X cost,
 // CR 202.3 mana value, CR 701.6a counter.) Target selection uses the new
 // `mvFilter: { equals: "X" }` which resolves X at announcement against the
 // chosen value and filters the stack to spells whose mana value equals X.
-export const spellBlast: CardDefinition = {
+export const spellBlast = defineCard(() => ({
     id: "845734da-ab03-4dbc-bb5f-96481d3b8e88",
     rarity: "common",
     name: "Spell Blast",
@@ -1117,7 +1120,7 @@ export const spellBlast: CardDefinition = {
     // `target.type === "spell"` internally (same behavior as the closure's
     // explicit check), same shape as Counterspell above.
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Stasis — "Players skip their untap steps. At the beginning of your upkeep,
 // sacrifice this enchantment unless you pay {U}." (CR 502.1 skip, 603.6a
@@ -1126,7 +1129,7 @@ export const spellBlast: CardDefinition = {
 // any-permanent filter — the dispatcher in `untapStep` recognises a hard skip
 // and clears cleanup flags without enqueueing a prompt. The upkeep trigger
 // fires only on the controller's upkeep — same pattern as Pestilence.
-export const stasis: CardDefinition = {
+export const stasis = defineCard(() => ({
     id: "b6cef408-5b4b-49f6-9531-be544815b93f",
     rarity: "rare",
     name: "Stasis",
@@ -1161,14 +1164,14 @@ export const stasis: CardDefinition = {
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Steal Artifact — "Enchant artifact. You control enchanted artifact."
 // (CR 303.4 aura attachment, 611.2 continuous static ability, 613.1b layer 2
 // control-changing effect). Mirrors Control Magic but targets an artifact
 // instead of a creature — artifacts don't get summoning sickness on a
 // control flip, so 702.10c doesn't fire.
-export const stealArtifact: CardDefinition = {
+export const stealArtifact = defineCard(() => ({
     id: "83316930-d6ad-46ce-9b40-48eea856d95b",
     rarity: "uncommon",
     name: "Steal Artifact",
@@ -1183,19 +1186,21 @@ export const stealArtifact: CardDefinition = {
             applies: AURA_AFFECTS_HOST,
         },
     ],
-};
+}));
 
-export const thoughtlace: CardDefinition = makeLace({
-    id: "23749375-1416-47a4-9251-52f41fe2fae9",
-    rarity: "rare",
-    name: "Thoughtlace",
-    oracleText:
-        "Target spell or permanent becomes blue. (Mana symbols on that permanent remain unchanged.)",
-    manaCost: { U: 1 },
-    color: "U",
-});
+export const thoughtlace = defineCard(() =>
+    makeLace({
+        id: "23749375-1416-47a4-9251-52f41fe2fae9",
+        rarity: "rare",
+        name: "Thoughtlace",
+        oracleText:
+            "Target spell or permanent becomes blue. (Mana symbols on that permanent remain unchanged.)",
+        manaCost: { U: 1 },
+        color: "U",
+    })
+);
 
-export const timeWalk: CardDefinition = {
+export const timeWalk = defineCard(() => ({
     id: "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
     rarity: "rare",
     name: "Time Walk",
@@ -1208,13 +1213,13 @@ export const timeWalk: CardDefinition = {
     // Time Walk has no announced target, so `player: "controller"` names the
     // caster directly.
     effects: [{ op: "extraTurn", player: "controller" }],
-};
+}));
 
 // Timetwister — "Each player shuffles their hand and graveyard into their
 // library, then draws seven cards." (CR 121.1, 701.20)
 // Timetwister itself is on the stack during resolution, so it's unaffected
 // by the shuffle; after resolve() it goes to its owner's graveyard normally.
-export const timetwister: CardDefinition = {
+export const timetwister = defineCard(() => ({
     id: "9a49dc44-616e-4bdd-8220-0bb71eccc512",
     rarity: "rare",
     name: "Timetwister",
@@ -1255,13 +1260,13 @@ export const timetwister: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // CR 701.26: oracle reads "you may tap or untap target ~". Modal-spell
 // infrastructure (CR 700.2) is not implemented (tracked-by: #2785) yet, so the resolve toggles
 // the target's tap state — the only mode-with-effect for any board state.
 // Replace with explicit mode selection once modal cast UI lands.
-export const twiddle: CardDefinition = {
+export const twiddle = defineCard(() => ({
     id: "576e811f-26a3-4a7c-bd13-3b1cc3e184eb",
     rarity: "common",
     name: "Twiddle",
@@ -1306,9 +1311,9 @@ export const twiddle: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const unsummon: CardDefinition = {
+export const unsummon = defineCard(() => ({
     id: "8512f2c1-6361-4b79-843f-80b6bceeeb99",
     rarity: "common",
     name: "Unsummon",
@@ -1319,7 +1324,7 @@ export const unsummon: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the announced
     // creature to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
+}));
 
 // Vesuvan Doppelganger — enters as a copy of any creature, "except it doesn't
 // copy that creature's color and it has [an upkeep re-copy ability]" (CR
@@ -1330,7 +1335,7 @@ export const unsummon: CardDefinition = {
 // with the same two exceptions.
 const VESUVAN_OWN_COLORS: Color[] = ["U"];
 
-export const vesuvanDoppelganger: CardDefinition = {
+export const vesuvanDoppelganger = defineCard(() => ({
     id: "768f3a05-bd06-4a23-b9f2-94f6e618fd9f",
     rarity: "rare",
     name: "Vesuvan Doppelganger",
@@ -1402,7 +1407,7 @@ export const vesuvanDoppelganger: CardDefinition = {
             retainedThroughCopy: true,
         },
     ],
-};
+}));
 
 // Volcanic Eruption — "Destroy X target Mountains. Volcanic Eruption deals
 // damage to each creature and each player equal to the number of Mountains
@@ -1412,7 +1417,7 @@ export const vesuvanDoppelganger: CardDefinition = {
 // returns false if a regen shield saves the land, so the damage count only
 // reflects lands actually moved to graveyards / 120.3 — second-clause damage
 // to each creature and each player.)
-export const volcanicEruption: CardDefinition = {
+export const volcanicEruption = defineCard(() => ({
     id: "a80582b1-09db-45f8-b362-0e5207a5a8e6",
     rarity: "rare",
     name: "Volcanic Eruption",
@@ -1450,9 +1455,9 @@ export const volcanicEruption: CardDefinition = {
             players: true,
         });
     },
-};
+}));
 
-export const wallOfAir: CardDefinition = {
+export const wallOfAir = defineCard(() => ({
     id: "da56fdf3-6a8f-4833-a5c3-197650cc4889",
     rarity: "uncommon",
     name: "Wall of Air",
@@ -1464,11 +1469,11 @@ export const wallOfAir: CardDefinition = {
     power: 1,
     toughness: 5,
     staticAbilities: ["defender", "flying"],
-};
+}));
 
 // Wall of Water — defender + "{U}: This creature gets +1/+0 until end of turn."
 // (CR 702.3 defender, 611.1 temp P/T mod).
-export const wallOfWater: CardDefinition = {
+export const wallOfWater = defineCard(() => ({
     id: "41faed1a-ded8-49ee-8e2a-c60d377775d7",
     rarity: "uncommon",
     name: "Wall of Water",
@@ -1497,9 +1502,9 @@ export const wallOfWater: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const waterElemental: CardDefinition = {
+export const waterElemental = defineCard(() => ({
     id: "8de940d6-98c0-46a9-b5fd-e2b0899ea19e",
     rarity: "uncommon",
     name: "Water Elemental",
@@ -1509,7 +1514,7 @@ export const waterElemental: CardDefinition = {
     subtypes: ["Elemental"],
     power: 5,
     toughness: 4,
-};
+}));
 
 // Camouflage — pile combat (CR 509 variant, the RANDOM twin of Raging River,
 // ADR 0012). Cast only during the controller's declare-attackers step (the
@@ -1527,7 +1532,7 @@ export const waterElemental: CardDefinition = {
 // assignment + forced legal blocks are applied by
 // `ctx.applyCamouflagePileBlocks` once every pile has been chosen. Single
 // defending player, matching the rest of combat.
-export const camouflage: CardDefinition = {
+export const camouflage = defineCard(() => ({
     id: "3838c2a3-7fab-4976-9c1b-2891aee24e52",
     rarity: "uncommon",
     name: "Camouflage",
@@ -1582,11 +1587,11 @@ export const camouflage: CardDefinition = {
         // Random pile→attacker assignment + forced legal blocks (CR 509.1).
         ctx.applyCamouflagePileBlocks(defenderId, piles);
     },
-};
+}));
 
 // Mana Short — {2}{U} Instant. "Tap all lands target player controls. That
 // player loses all unspent mana." (CR 106.4)
-export const manaShort: CardDefinition = {
+export const manaShort = defineCard(() => ({
     id: "73e3e0b3-5284-464f-8c62-0f7801c966f5",
     rarity: "rare",
     name: "Mana Short",
@@ -1601,13 +1606,13 @@ export const manaShort: CardDefinition = {
         ctx.tapAllLands(targetPlayerId);
         ctx.drainManaPool(targetPlayerId);
     },
-};
+}));
 
 // Drain Power — {U}{U} Sorcery. "Target player activates a mana ability of
 // each land they control. Then that player loses all unspent mana and you add
 // the mana lost this way." Simplified (tracked-by: #2785) model: tap all target's lands, drain
 // their pool, add drained mana to caster. (CR 106.4)
-export const drainPower: CardDefinition = {
+export const drainPower = defineCard(() => ({
     id: "ea3830c5-cc66-453e-9e53-0636e00ee0ee",
     rarity: "rare",
     name: "Drain Power",
@@ -1623,4 +1628,4 @@ export const drainPower: CardDefinition = {
         const drained = ctx.drainManaPool(targetPlayerId);
         ctx.addManaTo(ctx.controller, drained);
     },
-};
+}));

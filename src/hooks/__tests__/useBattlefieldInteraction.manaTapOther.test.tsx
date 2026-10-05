@@ -89,7 +89,7 @@ const MANA_ABILITY_ID = "urza-lha-mana";
 function urza(): CardInstance {
     return {
         id: "urza1",
-        card: { id: urzaLordHighArtificer.id },
+        card: { id: urzaLordHighArtificer().id },
         controllerId: "me",
         ownerId: "me",
         zone: "battlefield",
@@ -107,7 +107,7 @@ function urza(): CardInstance {
 function artifact(id: string, isTapped = false): CardInstance {
     return {
         id,
-        card: { id: ornithopter.id },
+        card: { id: ornithopter().id },
         controllerId: "me",
         ownerId: "me",
         zone: "battlefield",
@@ -129,7 +129,7 @@ function artifact(id: string, isTapped = false): CardInstance {
 function millstoneCard(id: string, isTapped = false): CardInstance {
     return {
         id,
-        card: { id: millstone.id },
+        card: { id: millstone().id },
         controllerId: "me",
         ownerId: "me",
         zone: "battlefield",
@@ -144,7 +144,7 @@ function millstoneCard(id: string, isTapped = false): CardInstance {
 function bear(): CardInstance {
     return {
         id: "bear1",
-        card: { id: grizzlyBears.id },
+        card: { id: grizzlyBears().id },
         controllerId: "me",
         ownerId: "me",
         zone: "battlefield",

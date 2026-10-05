@@ -56,7 +56,7 @@ const runTapUntap = (
 
 /** Mana Cylix on the battlefield with `pool` floating for its controller. */
 function cylixState(pool: Partial<GameState["players"][0]["manaPool"]>) {
-    const cylix = makeInstance(manaCylix.id, {
+    const cylix = makeInstance(manaCylix().id, {
         id: "cylix",
         controllerId: "p1",
         ownerId: "p1",
@@ -117,12 +117,12 @@ describe("tapUntap — a mana ability's own mana cost (CR 605.1a / 601.2f)", () 
         // float the {1} first (the legal sequence — a mana ability can be
         // activated to pay for another, CR 605.3a), then pays it.
         it("auto-taps a land to fund the {1} instead of rejecting", async () => {
-            const cylix = makeInstance(manaCylix.id, {
+            const cylix = makeInstance(manaCylix().id, {
                 id: "cylix",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const forest = makeInstance(mountain.id, {
+            const forest = makeInstance(mountain().id, {
                 id: "mtn",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -182,7 +182,7 @@ describe("tapUntap — a mana ability's own mana cost (CR 605.1a / 601.2f)", () 
 
     describe("fixed-output branch — Fire Sprites ({G}, {T}: Add {R})", () => {
         function spritesState(g: number): GameState {
-            const sprites = makeInstance(fireSprites.id, {
+            const sprites = makeInstance(fireSprites().id, {
                 id: "sprites",
                 controllerId: "p1",
                 ownerId: "p1",

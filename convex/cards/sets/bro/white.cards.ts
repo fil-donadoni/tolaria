@@ -2,7 +2,7 @@
 // registry's `import * as bro from "./sets/bro/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Loran of the Third Path — {2}{W} Legendary Creature 2/1 with vigilance.
@@ -17,7 +17,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // which the old choice-as-target workaround silently skipped. The {T} ability
 // draws for the controller and the chosen opponent (CR 605 activated ability,
 // CR 121.1 draw).
-export const loranOfTheThirdPath: CardDefinition = {
+export const loranOfTheThirdPath = defineCard(() => ({
     id: "59faa45d-868b-4bc7-934c-0e077642e129",
     rarity: "rare",
     name: "Loran of the Third Path",
@@ -75,4 +75,4 @@ export const loranOfTheThirdPath: CardDefinition = {
             ],
         },
     ],
-};
+}));

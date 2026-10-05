@@ -2,7 +2,7 @@
 // `import * as mkm from "./sets/mkm/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -31,7 +31,7 @@ import { investigateOp } from "../../abilities/tokens/clueToken";
 //
 // compiler-gap: "Whenever you cast an artifact spell, investigate." (#2693)
 // compiler-gap: "Activated abilities of artifacts you control cost {1} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
-export const forensicGadgeteer: CardDefinition = {
+export const forensicGadgeteer = defineCard(() => ({
     id: "97d08a15-e61c-4421-a541-c68a4f87cb74",
     name: "Forensic Gadgeteer",
     rarity: "rare",
@@ -62,7 +62,7 @@ export const forensicGadgeteer: CardDefinition = {
             minTotalMana: 1,
         },
     ],
-};
+}));
 
 // Proft's Eidetic Memory — {1}{U} Legendary Enchantment. "When Proft's
 // Eidetic Memory enters, draw a card.\nYou have no maximum hand size.\nAt the
@@ -90,7 +90,7 @@ export const forensicGadgeteer: CardDefinition = {
 // (CR 608.2b); X is bound at resolution, not announcement (CR 608.2h).
 //
 // compiler-gap: "At the beginning of combat on your turn, if you've drawn more than one card this turn, put X +1/+1 counters on target creature you control, where X is the number of cards you've drawn this turn minus one." (#2693)
-export const proftsEideticMemory: CardDefinition = {
+export const proftsEideticMemory = defineCard(() => ({
     id: "af5b29b3-974c-4200-8df8-b072c11e1600",
     name: "Proft's Eidetic Memory",
     rarity: "rare",
@@ -152,6 +152,6 @@ export const proftsEideticMemory: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 export {};

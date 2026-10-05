@@ -37,7 +37,7 @@ const FIXTURE_PATH = fileURLToPath(
 /** A state whose three card seams — a battlefield permanent, a bestowed Aura
  *  and a stack item — each carry every optional field the seam can emit. */
 function cardFieldLifecycleFixtureState(): GameState {
-    const every = makeInstance(grizzlyBears.id, {
+    const every = makeInstance(grizzlyBears().id, {
         id: "cf-every",
         controllerId: "p1",
         ownerId: "p1",
@@ -46,7 +46,7 @@ function cardFieldLifecycleFixtureState(): GameState {
     });
     // CR 702.103b / 208.3 — a bestowed object is an Aura with no P/T; the
     // marker is the one field the "every field" instance cannot carry.
-    const bestowed = makeInstance(grizzlyBears.id, {
+    const bestowed = makeInstance(grizzlyBears().id, {
         id: "cf-bestowed",
         controllerId: "p2",
         ownerId: "p2",
@@ -59,7 +59,7 @@ function cardFieldLifecycleFixtureState(): GameState {
         attachedTo: "cf-every",
     });
     const spell: StackItem = {
-        ...makeInstance(grizzlyBears.id, {
+        ...makeInstance(grizzlyBears().id, {
             id: "cf-stack",
             controllerId: "p2",
             ownerId: "p1",
@@ -240,13 +240,13 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
         card: CardInstanceState;
         state: GameState;
     } {
-        const host = makeInstance(grizzlyBears.id, {
+        const host = makeInstance(grizzlyBears().id, {
             id: "cf-host",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
-        const card = makeInstance(grizzlyBears.id, {
+        const card = makeInstance(grizzlyBears().id, {
             id: "cf-turn",
             controllerId: "p1",
             ownerId: "p1",
@@ -296,7 +296,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
 
     it("`zone-change` rows clear on the battlefield reset; the others survive it", () => {
         const every = everyFieldSurvivingDurations();
-        const card = makeInstance(grizzlyBears.id, {
+        const card = makeInstance(grizzlyBears().id, {
             id: "cf-zone",
             controllerId: "p1",
             ownerId: "p1",
@@ -322,7 +322,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
     it("`stack` rows clear on the stack exit; the others survive it", () => {
         const every = everyFieldSurvivingDurations();
         const item: StackItem = {
-            ...makeInstance(grizzlyBears.id, {
+            ...makeInstance(grizzlyBears().id, {
                 id: "cf-stack-reset",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -342,7 +342,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
     // hand-written ladder's order) — or a `subtypeAddHolds` row would be
     // replayed onto the object that leaves.
     it("a bestowed permanent leaves un-bestowed, its ledgers gone and not replayed", () => {
-        const card = makeInstance(grizzlyBears.id, {
+        const card = makeInstance(grizzlyBears().id, {
             id: "cf-bestowed-zone",
             controllerId: "p1",
             ownerId: "p1",

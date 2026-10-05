@@ -2,10 +2,10 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type {
-    ActivatedAbilityContext,
-    CardDefinition,
-    PermanentView,
+import {
+    defineCard,
+    type ActivatedAbilityContext,
+    type PermanentView,
 } from "../../types";
 
 // Gaea's Cradle — "{T}: Add {G} for each creature you control." (CR 605.1a
@@ -15,7 +15,7 @@ import type {
 // than a binary on/off. `manaProduced` is the representative fallback (one
 // creature) for best-effort callers without a board snapshot. Vintage Cube
 // free tranche (issue #675, ADR 0041).
-export const gaeasCradle: CardDefinition = {
+export const gaeasCradle = defineCard(() => ({
     id: "25b0b816-0583-44aa-9dc5-f3ff48993a51",
     rarity: "rare",
     name: "Gaea's Cradle",
@@ -39,13 +39,13 @@ export const gaeasCradle: CardDefinition = {
             }),
         },
     ],
-};
+}));
 
 // Tolarian Academy — "{T}: Add {U} for each artifact you control." (CR
 // 605.1a mana ability, `useStack: false`.) Same `manaAmount` shape as
 // Gaea's Cradle, counting artifacts instead of creatures. Vintage Cube free
 // tranche (issue #675, ADR 0041).
-export const tolarianAcademy: CardDefinition = {
+export const tolarianAcademy = defineCard(() => ({
     id: "ad7ac9a5-340f-4509-826c-7b9416d47887",
     rarity: "rare",
     name: "Tolarian Academy",
@@ -69,13 +69,13 @@ export const tolarianAcademy: CardDefinition = {
             }),
         },
     ],
-};
+}));
 
 // Serra's Sanctum — "{T}: Add {W} for each enchantment you control." (CR
 // 605.1a mana ability, `useStack: false`.) Same `manaAmount` shape as Gaea's
 // Cradle / Tolarian Academy, counting enchantments instead of creatures /
 // artifacts. Vintage Cube free tranche (issue #675, ADR 0041).
-export const serrasSanctum: CardDefinition = {
+export const serrasSanctum = defineCard(() => ({
     id: "f7a18130-dbaa-4657-a885-3a96a985935a",
     rarity: "rare",
     name: "Serra's Sanctum",
@@ -100,4 +100,4 @@ export const serrasSanctum: CardDefinition = {
             }),
         },
     ],
-};
+}));

@@ -1,7 +1,7 @@
 // C18 (Commander 2018) — colorless cards, split by colour per ADR 0043. The
 // registry's `import * as c18 from "./sets/c18/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Retrofitter Foundry — {1} Artifact (Vintage Cube token maker, issue #678).
@@ -13,7 +13,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // — none inspects a firing event, so no `resolve()` closure is required.
 const RETROFITTER_FOUNDRY_ID = "5da578b8-19e6-4068-9336-e7cd33c585f1";
 
-export const retrofitterFoundry: CardDefinition = {
+export const retrofitterFoundry = defineCard(() => ({
     id: RETROFITTER_FOUNDRY_ID,
     name: "Retrofitter Foundry",
     rarity: "rare",
@@ -100,7 +100,7 @@ export const retrofitterFoundry: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Coveted Jewel — {6} Artifact (Cube FREE residue, issue #1308). Three
 // clauses, all DSL-first (ADR 0045):
@@ -126,7 +126,7 @@ export const retrofitterFoundry: CardDefinition = {
 //     players), `gainControl` (indefinite reassignment, CR 613.1b — no
 //     duration, matching "gains control of this artifact" with no revert
 //     condition printed), then `tapUntap` (untap) of `$source`.
-export const covetedJewel: CardDefinition = {
+export const covetedJewel = defineCard(() => ({
     id: "f83ed433-fae3-4fa5-acad-bb8a5b535ce3", // C18 54
     rarity: "rare",
     name: "Coveted Jewel",
@@ -170,4 +170,4 @@ export const covetedJewel: CardDefinition = {
             manaChoices: [{ W: 3 }, { U: 3 }, { B: 3 }, { R: 3 }, { G: 3 }],
         },
     ],
-};
+}));

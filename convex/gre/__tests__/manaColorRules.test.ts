@@ -62,7 +62,7 @@ const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
 
 function board(): GameState {
     const library = Array.from({ length: 3 }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `lib${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -74,7 +74,7 @@ function board(): GameState {
             makePlayer("p1", {
                 library,
                 hand: [
-                    makeInstance(lightningBolt.id, {
+                    makeInstance(lightningBolt().id, {
                         id: "bolt",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -82,12 +82,12 @@ function board(): GameState {
                     }),
                 ],
                 battlefield: [
-                    makeInstance(mountain.id, {
+                    makeInstance(mountain().id, {
                         id: "mtn",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(solRing.id, {
+                    makeInstance(solRing().id, {
                         id: "ring",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -97,7 +97,7 @@ function board(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(mountain.id, {
+                    makeInstance(mountain().id, {
                         id: "opp-mtn",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -114,7 +114,7 @@ function board(): GameState {
 /** `board()` with False Dawn cast by p1 and resolved. */
 function afterFalseDawn(): GameState {
     const state = board();
-    pushSpell(state, falseDawn.id, "p1");
+    pushSpell(state, falseDawn().id, "p1");
     resolveTopOfStack(state);
     return state;
 }
@@ -126,12 +126,12 @@ describe("grammar — the two sentence forms compile to the two Ops (CR 614.1a /
                 name: "False Dawn",
                 manaCost: "{1}{W}",
                 typeLine: "Sorcery",
-                oracleText: falseDawn.oracleText!,
+                oracleText: falseDawn().oracleText!,
             })
         );
         expect(outcome.state).toBe("ready");
         if (outcome.state === "unparsed") return;
-        expect(outcome.definition.effects).toEqual(falseDawn.effects);
+        expect(outcome.definition.effects).toEqual(falseDawn().effects);
     });
 
     it("refuses a spend permission with a trailing scope rather than widening it", () => {
@@ -190,7 +190,7 @@ describe("production — coloured mana becomes white for the controller only (CR
 
     it("a ritual's addMana Op (SpellContext.addManaTo) is replaced too: Dark Ritual adds {W}{W}{W}", () => {
         const state = afterFalseDawn();
-        pushSpell(state, darkRitual.id, "p1");
+        pushSpell(state, darkRitual().id, "p1");
         resolveTopOfStack(state);
         const pool = getPlayer(state, "p1").manaPool;
         expect(pool.W).toBe(3);
@@ -200,7 +200,7 @@ describe("production — coloured mana becomes white for the controller only (CR
 
 describe("bonus mana from ANOTHER player's effect is keyed on that effect's controller (CR 106.3)", () => {
     const islandOf = (state: GameState, pid: string) => {
-        const card = makeInstance(island.id, {
+        const card = makeInstance(island().id, {
             id: `isl-${pid}`,
             controllerId: pid,
             ownerId: pid,
@@ -316,7 +316,7 @@ describe("full path — a Mountain taps for {W} and the {W} pays Lightning Bolt"
         );
         const state = harness.state();
         expect(state.pendingCast).toBeUndefined();
-        expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt.id]);
+        expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt().id]);
         expect(getPlayer(state, "p1").manaPool.W).toBe(0);
     });
 });
@@ -328,7 +328,7 @@ describe("full path — the other production sites", () => {
         const state = afterFalseDawn();
         const p1 = getPlayer(state, "p1");
         p1.battlefield.push(
-            makeInstance(coalGolem.id, {
+            makeInstance(coalGolem().id, {
                 id: "golem",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -379,7 +379,7 @@ describe("full path — the other production sites", () => {
         }
         const state = harness.state();
         expect(state.pendingCast).toBeUndefined();
-        expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt.id]);
+        expect(state.stack.map((i) => i.card.id)).toEqual([lightningBolt().id]);
         const mtn = getPlayer(state, "p1").battlefield.find(
             (c) => c.id === "mtn"
         );

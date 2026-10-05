@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { cardsPutIntoLibraryTrigger } from "../../abilities/triggers/cardsPutIntoLibraryTrigger";
 import { SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN } from "../../sharedTokens";
@@ -54,7 +53,7 @@ import { SPIRIT_SPIRITS_ONLY_COMBAT_TOKEN } from "../../sharedTokens";
 //
 // hand-tail: "When Wan Shi Tong enters, target nonland permanent's owner puts it into their library second from the top or on the bottom." (#4195)
 // hand-tail: "Whenever one or more cards are put into a library from anywhere, create two 1/1 colorless Spirit creature tokens" (#4195)
-export const wanShiTongAllKnowing: CardDefinition = {
+export const wanShiTongAllKnowing = defineCard(() => ({
     id: "777fcc21-2856-4181-8ecd-c272f9769e36",
     name: "Wan Shi Tong, All-Knowing",
     rarity: "mythic",
@@ -128,4 +127,4 @@ export const wanShiTongAllKnowing: CardDefinition = {
             ],
         }),
     ],
-};
+}));

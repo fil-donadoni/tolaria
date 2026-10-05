@@ -1,6 +1,6 @@
 // usg — blue cards (ADR 0043 colour split).
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Annul — {U} Instant. "Counter target artifact or enchantment spell."
 // (CR 701.6a counter; CR 114.1 spell targeting.) A conditional Counterspell
@@ -15,7 +15,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // First Premodern-legal printing in Tolaria's pool is Urza's Saga (usg); Annul
 // was NOT printed in Nemesis despite the umbrella issue's file hint, so it
 // lives here to keep the print id (`id`) consistent with its set.
-export const annul: CardDefinition = {
+export const annul = defineCard(() => ({
     id: "3f8c73ff-be92-41ca-93a7-76f9823adb38",
     rarity: "common",
     name: "Annul",
@@ -28,7 +28,7 @@ export const annul: CardDefinition = {
         spellTypeFilter: ["Artifact", "Enchantment"],
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Hibernation — {2}{U} Instant. "Return all green permanents to their owners'
 // hands." (CR 400.7 zone change; CR 105 / 202.2 colour; CR 111.7 a bounced
@@ -48,7 +48,7 @@ export const annul: CardDefinition = {
 // First printing is Urza's Saga (usg), 1998 — Hibernation was NOT printed in
 // Nemesis despite the umbrella issue's nem/blue.cards.ts file hint, so it lives here
 // to keep the print id (`id`) consistent with its set (cf. Annul above).
-export const hibernation: CardDefinition = {
+export const hibernation = defineCard(() => ({
     id: "68b7444c-fabb-4437-8db9-a1008ea09415", // USG 79
     rarity: "uncommon",
     name: "Hibernation",
@@ -66,7 +66,7 @@ export const hibernation: CardDefinition = {
             effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Show and Tell — {2}{U} Sorcery (Cube FREE residue, issue #1308). "Each
 // player may put an artifact, creature, enchantment, or land card from their
@@ -80,7 +80,7 @@ export const hibernation: CardDefinition = {
 // is an OR-within-field array, issue #677), then moves the pick from hand to
 // the battlefield via the SAME `moveZone` shape Sneak Attack uses (no `bind`
 // needed here — nothing acts on the entered permanent afterward).
-export const showAndTell: CardDefinition = {
+export const showAndTell = defineCard(() => ({
     id: "4b851c17-55ed-4671-b471-dc7b34944432", // USG 96
     rarity: "rare",
     name: "Show and Tell",
@@ -115,7 +115,7 @@ export const showAndTell: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Time Spiral — {4}{U}{U} Sorcery (Cube FREE residue, issue #1308). "Exile
 // Time Spiral. Each player shuffles their hand and graveyard into their
@@ -145,7 +145,7 @@ export const showAndTell: CardDefinition = {
 //     (`allControllers: true`, the Farrel's Mantle `choose-permanents`
 //     shape, fem/white.cards.ts); a ranged 0..6 pick, then `ctx.untap` each pick —
 //     step 1, suspends on the choice and resumes without re-running step 0.
-export const timeSpiral: CardDefinition = {
+export const timeSpiral = defineCard(() => ({
     id: "f3d62dbd-63db-4ac9-950f-9852627f23f2", // USG 103
     rarity: "rare",
     name: "Time Spiral",
@@ -187,7 +187,7 @@ export const timeSpiral: CardDefinition = {
             }
         },
     ],
-};
+}));
 
 // Attunement — {2}{U} Enchantment. "Return this enchantment to its owner's
 // hand: Draw three cards, then discard four cards."
@@ -236,7 +236,7 @@ export const timeSpiral: CardDefinition = {
 // The cost round-trips through the grammar's `return-self` atom
 // (`oracle/grammar/shared/cost.ts`), the body through the loot sentence
 // (issue #4126).
-export const attunement: CardDefinition = {
+export const attunement = defineCard(() => ({
     id: "f6723528-8b2c-4beb-a465-800300faf158",
     rarity: "rare",
     name: "Attunement",
@@ -270,4 +270,4 @@ export const attunement: CardDefinition = {
             ],
         },
     ],
-};
+}));

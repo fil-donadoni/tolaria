@@ -108,7 +108,7 @@ describe("sacrifice-only mana abilities ignore the tap gates (CR 302.6)", () => 
     });
 
     it("CONTROL — a {T}+Sacrifice mana ability is still refused while summoning sick", () => {
-        const thrull = makeInstance(basalThrull.id, {
+        const thrull = makeInstance(basalThrull().id, {
             id: "thrull",
             controllerId: "p1",
             ownerId: "p1",

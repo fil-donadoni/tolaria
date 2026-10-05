@@ -53,9 +53,9 @@ const runTapForPayment = (
  *  a pendingCast costing `count` generic mana ({X} = count). */
 function mountainState(count: number): GameState {
     const battlefield = Array.from({ length: count }, (_, i) =>
-        makeInstance(mountain.id, { id: `m${i + 1}`, controllerId: "p1" })
+        makeInstance(mountain().id, { id: `m${i + 1}`, controllerId: "p1" })
     );
-    const cast = makeInstance(grizzlyBears.id, {
+    const cast = makeInstance(grizzlyBears().id, {
         id: "spell",
         controllerId: "p1",
         ownerId: "p1",
@@ -115,7 +115,7 @@ describe("tapForPayment batch — single seq bump (issue #1779 review findings 2
         // stale client plan and must be silently ignored WITHIN this one
         // atomic submission, not error the already-successful cast.
         const seedState = mountainState(2);
-        const extraLand = makeInstance(mountain.id, {
+        const extraLand = makeInstance(mountain().id, {
             id: "m3",
             controllerId: "p1",
         });
@@ -193,7 +193,7 @@ describe("tapForPayment — batch vs. separate-call over-supply is an INTENTIONA
     // ignored" decision is pinned regardless of which gate ends up firing.
     it("a THIRD, separate tapForPayment call right after the cast committed is rejected — priority already moved to the opponent", async () => {
         const seedState = mountainState(2);
-        const extraLand = makeInstance(mountain.id, {
+        const extraLand = makeInstance(mountain().id, {
             id: "m3",
             controllerId: "p1",
         });
@@ -245,12 +245,12 @@ describe("tapForPayment batch — routes through the shared tap primitive (issue
         // pre-fix batched path cost 0 life; through the shared primitive
         // (`tapForActivationPayment` / `autoTapForPayment`) it costs 2. This
         // test proves the batched path now converges on the SAME primitive.
-        const tomb = makeInstance(ancientTomb.id, {
+        const tomb = makeInstance(ancientTomb().id, {
             id: "tomb",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const cast = makeInstance(grizzlyBears.id, {
+        const cast = makeInstance(grizzlyBears().id, {
             id: "spell",
             controllerId: "p1",
             ownerId: "p1",

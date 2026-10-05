@@ -2,7 +2,7 @@
 // `import * as apc from "./sets/apc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Goblin Ringleader — {3}{R} 2/2 Goblin with haste (CR 702.10) whose ETB
@@ -19,7 +19,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `destination: "library-bottom"` is the "rest on the bottom ... in any
 // order" clause: the bottom ORDER stays the controller's pick (ADR 0026 — no
 // `randomBottom`, which is the Narset "in a RANDOM order" template instead).
-export const goblinRingleader: CardDefinition = {
+export const goblinRingleader = defineCard(() => ({
     id: "b6b2cd77-9552-48b1-80cb-26966323c1ea", // APC 62
     rarity: "uncommon",
     name: "Goblin Ringleader",
@@ -52,7 +52,7 @@ export const goblinRingleader: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Bloodfire Infusion — {2}{R} Aura. "Enchant creature you control / {R},
 // Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed
@@ -66,7 +66,7 @@ export const goblinRingleader: CardDefinition = {
 // leaves as an SBA once its host is gone, CR 704.5m, but the ability on the
 // stack keeps its last-known identity).
 // hand-tail: {R}, Sacrifice enchanted creature: This Aura deals damage equal to the sacrificed creature's power to each creature. (#4319)
-export const bloodfireInfusion: CardDefinition = {
+export const bloodfireInfusion = defineCard(() => ({
     id: "2639e9b7-ed8c-48fd-a8b7-b99d8dad4bc0", // APC 57
     rarity: "common",
     name: "Bloodfire Infusion",
@@ -107,7 +107,7 @@ export const bloodfireInfusion: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Bloodfire Kavu — {2}{R}{R} 2/2 Kavu. "{R}, Sacrifice this creature: It deals
 // 2 damage to each creature."
@@ -117,7 +117,7 @@ export const bloodfireInfusion: CardDefinition = {
 // (CR 608.2h) — the source of the damage. The sweep is `forEach` over
 // battlefield creatures dealing 2 to each, the Pyroclasm shape (CR 120.3).
 // hand-tail: {R}, Sacrifice this creature: It deals 2 damage to each creature. (#4324)
-export const bloodfireKavu: CardDefinition = {
+export const bloodfireKavu = defineCard(() => ({
     id: "1442b1f3-8c2c-4553-906f-c864fcdc6ae5", // APC 58
     rarity: "uncommon",
     name: "Bloodfire Kavu",
@@ -150,7 +150,7 @@ export const bloodfireKavu: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Wild Research — {2}{R} Enchantment. Two activated abilities, each a tutor:
 // "Search your library for an <enchantment|instant> card and reveal that card.
@@ -161,7 +161,7 @@ export const bloodfireKavu: CardDefinition = {
 // discard → shuffle in the printed order, so a card discarded at random is in
 // the graveyard before the shuffle.
 // hand-tail: {1}{U}: Search your library for an instant card and reveal that card. Put it into your hand, then discard a card at random. Then shuffle. (#4343)
-export const wildResearch: CardDefinition = {
+export const wildResearch = defineCard(() => ({
     id: "8f00e6f1-e854-40b0-855d-7e0d7d233850", // APC 72
     rarity: "rare",
     name: "Wild Research",
@@ -237,7 +237,7 @@ export const wildResearch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Illuminate — {X}{R} Sorcery. "Kicker {2}{R} and/or {3}{U}. Illuminate deals X
 // damage to target creature. If this spell was kicked with its {2}{R} kicker,
@@ -257,7 +257,7 @@ export const wildResearch: CardDefinition = {
 // fizzles the whole spell (CR 608.2b), rider clauses included.
 //
 // hand-tail: {self} deals X damage to target creature. If this spell was kicked with its {2}{R} kicker, it deals X damage to that creature's controller. If this spell was kicked with its {3}{U} kicker, you draw X cards. (#4500)
-export const illuminate: CardDefinition = {
+export const illuminate = defineCard(() => ({
     id: "ceef2761-7301-42de-8f54-49b8cd1e457b", // APC 63
     rarity: "uncommon",
     name: "Illuminate",
@@ -311,4 +311,4 @@ export const illuminate: CardDefinition = {
             ],
         },
     ],
-};
+}));

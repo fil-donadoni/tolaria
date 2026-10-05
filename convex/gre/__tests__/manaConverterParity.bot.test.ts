@@ -99,25 +99,25 @@ import { urzaLordHighArtificer } from "../../cards/sets/mh1/index.cards";
  *  `docs/findings/3027-census-counts-a-coloured-cost-tap-ability-free.md`
  *  rather than absorbed here as a second exemption. */
 const POOL = [
-    urzaLordHighArtificer,
-    moxSapphire,
-    moxJet,
-    solRing,
-    ornithopter,
-    island,
-    plains,
-    farrelitePriest,
-    blackLotus,
+    urzaLordHighArtificer(),
+    moxSapphire(),
+    moxJet(),
+    solRing(),
+    ornithopter(),
+    island(),
+    plains(),
+    farrelitePriest(),
+    blackLotus(),
 ] as const;
 
 /** Untargeted spells covering a doubled coloured pip, a mixed generic +
  *  coloured cost and a pure generic cost. */
 const SPELLS = [
-    lordOfAtlantis, // {U}{U}
-    crusade, // {W}{W}
-    grizzlyBears, // {1}{G}
-    islandSanctuary, // {1}{W}
-    ankhOfMishra, // {2}
+    lordOfAtlantis(), // {U}{U}
+    crusade(), // {W}{W}
+    grizzlyBears(), // {1}{G}
+    islandSanctuary(), // {1}{W}
+    ankhOfMishra(), // {2}
 ] as const;
 
 function permanent(defId: string, id: string): CardInstanceState {
@@ -332,8 +332,8 @@ describe("mana payment authorities agree (issue #2420)", () => {
     // `[Plains, Priest]` — two permanents for one white).
     it("pays {W} off [Farrelite Priest, Plains] with the Plains alone, never by burning it to fund the Priest", () => {
         const battlefield = [
-            permanent(farrelitePriest.id, "priest"),
-            permanent(plains.id, "plains"),
+            permanent(farrelitePriest().id, "priest"),
+            permanent(plains().id, "plains"),
         ];
         const player = makePlayer("p1", { battlefield });
         const state = withTurnOf(makeState({ players: [player] }));
@@ -347,9 +347,12 @@ describe("mana payment authorities agree (issue #2420)", () => {
     it.each([
         [
             "Sapphire first",
-            [moxSapphire.id, moxJet.id, urzaLordHighArtificer.id],
+            [moxSapphire().id, moxJet().id, urzaLordHighArtificer().id],
         ],
-        ["Urza first", [urzaLordHighArtificer.id, moxSapphire.id, moxJet.id]],
+        [
+            "Urza first",
+            [urzaLordHighArtificer().id, moxSapphire().id, moxJet().id],
+        ],
     ])(
         "[Urza, Mox Sapphire, Mox Jet] pays {U}{U} with Sapphire's own tap plus Urza tapping Jet (%s)",
         (_label, defIds) => {
@@ -361,10 +364,10 @@ describe("mana payment authorities agree (issue #2420)", () => {
             const plan = planManaPayment(state, state.players[0], { U: 2 });
             expect(plan).not.toBeNull();
 
-            const sapphireId = battlefield[defIds.indexOf(moxSapphire.id)].id;
-            const jetId = battlefield[defIds.indexOf(moxJet.id)].id;
+            const sapphireId = battlefield[defIds.indexOf(moxSapphire().id)].id;
+            const jetId = battlefield[defIds.indexOf(moxJet().id)].id;
             const urzaId =
-                battlefield[defIds.indexOf(urzaLordHighArtificer.id)].id;
+                battlefield[defIds.indexOf(urzaLordHighArtificer().id)].id;
 
             // Sapphire taps for its OWN {U}; Urza taps Jet for the second.
             expect(plan).toContainEqual({ cardInstanceId: sapphireId });

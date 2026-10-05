@@ -2,12 +2,11 @@
 // `import * as roe from "./sets/roe/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
 // Flame Slash — "Flame Slash deals 4 damage to target creature." (CR 120.1
 // damage.)
-export const flameSlash: CardDefinition = {
+export const flameSlash = defineCard(() => ({
     id: "006d2bf1-20f7-4b09-8d98-8233d91682bd",
     rarity: "common",
     name: "Flame Slash",
@@ -16,13 +15,13 @@ export const flameSlash: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: 1 },
     effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
-};
+}));
 
 // Splinter Twin — {2}{R}{R} Enchantment — Aura. Enchant creature. Enchanted
 // creature has "{T}: Create a token that's a copy of this creature, except it
 // has haste. Exile that token at the beginning of the next end step."
 // Twin combo piece with Deceiver Exarch (NPH).
-export const splinterTwin: CardDefinition = {
+export const splinterTwin = defineCard(() => ({
     id: "2f8f22fb-7291-4517-9b15-e98501f2856b",
     rarity: "rare",
     name: "Splinter Twin",
@@ -83,4 +82,4 @@ export const splinterTwin: CardDefinition = {
             ],
         },
     ],
-};
+}));

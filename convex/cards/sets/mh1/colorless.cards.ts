@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeTalisman } from "../../abilities";
 
 // The Modern Horizons "Horizon land" cycle — a painland mana ability
@@ -14,7 +14,7 @@ import { makeTalisman } from "../../abilities";
 // ability mirrors Standing Stones (DRK).
 
 // Waterlogged Grove — {G}/{U} painland.
-export const waterloggedGrove: CardDefinition = {
+export const waterloggedGrove = defineCard(() => ({
     id: "0ab6bfbd-d2e1-4c4c-9f91-6f69c5b8e3bb",
     rarity: "rare",
     name: "Waterlogged Grove",
@@ -40,10 +40,10 @@ export const waterloggedGrove: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Sunbaked Canyon — {R}/{W} painland.
-export const sunbakedCanyon: CardDefinition = {
+export const sunbakedCanyon = defineCard(() => ({
     id: "c36820fa-ee86-4206-9a0d-737a67cf5208",
     rarity: "rare",
     name: "Sunbaked Canyon",
@@ -69,38 +69,44 @@ export const sunbakedCanyon: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));
 
 // Talisman of Creativity / Conviction / Curiosity — {2} artifact mana rocks
 // (Vintage Cube free tranche, issue #675, ADR 0041). See `makeTalisman` in
 // `convex/cards/abilities/index.ts` for the shared painland-shaped ability.
-export const talismanOfCreativity: CardDefinition = makeTalisman({
-    id: "4d9dbadd-c1b6-44fe-92ac-6f69d7178342",
-    name: "Talisman of Creativity",
-    rarity: "uncommon",
-    colors: ["U", "R"],
-});
+export const talismanOfCreativity = defineCard(() =>
+    makeTalisman({
+        id: "4d9dbadd-c1b6-44fe-92ac-6f69d7178342",
+        name: "Talisman of Creativity",
+        rarity: "uncommon",
+        colors: ["U", "R"],
+    })
+);
 
-export const talismanOfConviction: CardDefinition = makeTalisman({
-    id: "71148fd3-0c2c-459e-b8f5-735a0a8dd87f",
-    name: "Talisman of Conviction",
-    rarity: "uncommon",
-    colors: ["R", "W"],
-});
+export const talismanOfConviction = defineCard(() =>
+    makeTalisman({
+        id: "71148fd3-0c2c-459e-b8f5-735a0a8dd87f",
+        name: "Talisman of Conviction",
+        rarity: "uncommon",
+        colors: ["R", "W"],
+    })
+);
 
-export const talismanOfCuriosity: CardDefinition = makeTalisman({
-    id: "fd52688a-39fd-430f-b950-cb56e0004396",
-    name: "Talisman of Curiosity",
-    rarity: "uncommon",
-    colors: ["G", "U"],
-});
+export const talismanOfCuriosity = defineCard(() =>
+    makeTalisman({
+        id: "fd52688a-39fd-430f-b950-cb56e0004396",
+        name: "Talisman of Curiosity",
+        rarity: "uncommon",
+        colors: ["G", "U"],
+    })
+);
 
 // Prismatic Vista — {T}, Pay 1 life, Sacrifice this land: Search your library
 // for a basic land card, put it onto the battlefield, then shuffle. (CR 701.23
 // search / 400.7 put onto battlefield / 701.24 shuffle, issue #677.)
 // `filter.supertype: "Basic"` restricts the fetch to basic lands; the
 // `moveZone` cards-shape moves the picked id to the battlefield untapped.
-export const prismaticVista: CardDefinition = {
+export const prismaticVista = defineCard(() => ({
     id: "e37da81e-be12-45a2-9128-376f1ad7b3e8",
     name: "Prismatic Vista",
     rarity: "rare",
@@ -136,4 +142,4 @@ export const prismaticVista: CardDefinition = {
             ],
         },
     ],
-};
+}));

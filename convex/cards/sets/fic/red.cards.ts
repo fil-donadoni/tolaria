@@ -2,7 +2,7 @@
 // `import * as fic from "./sets/fic/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -40,7 +40,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // documented on Tahngarth, Talruum Hero (`pls/red.cards.ts`).
 //
 // compiler-gap: "At the beginning of each end step, if a card left your graveyard this turn, Gau deals damage equal to its power to each opponent." (#2693)
-export const gauFeralYouth: CardDefinition = {
+export const gauFeralYouth = defineCard(() => ({
     id: "89175ce1-0746-4ba1-970e-617d134b0527",
     rarity: "rare",
     name: "Gau, Feral Youth",
@@ -91,6 +91,6 @@ export const gauFeralYouth: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 export {};

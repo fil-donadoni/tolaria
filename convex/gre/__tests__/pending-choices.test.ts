@@ -30,15 +30,15 @@ function setupBalance(overrides: {
     p2Hand?: number;
 }): GameState {
     const p1Lands = Array.from({ length: overrides.p1Lands ?? 0 }, (_, i) =>
-        makeInstance(plains.id, { id: `p1-land-${i}`, controllerId: "p1" })
+        makeInstance(plains().id, { id: `p1-land-${i}`, controllerId: "p1" })
     );
     const p2Lands = Array.from({ length: overrides.p2Lands ?? 0 }, (_, i) =>
-        makeInstance(plains.id, { id: `p2-land-${i}`, controllerId: "p2" })
+        makeInstance(plains().id, { id: `p2-land-${i}`, controllerId: "p2" })
     );
     const p1Creatures = Array.from(
         { length: overrides.p1Creatures ?? 0 },
         (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `p1-bear-${i}`,
                 controllerId: "p1",
             })
@@ -46,20 +46,20 @@ function setupBalance(overrides: {
     const p2Creatures = Array.from(
         { length: overrides.p2Creatures ?? 0 },
         (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `p2-bear-${i}`,
                 controllerId: "p2",
             })
     );
     const p1Hand = Array.from({ length: overrides.p1Hand ?? 0 }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `p1-card-${i}`,
             controllerId: "p1",
             zone: "hand",
         })
     );
     const p2Hand = Array.from({ length: overrides.p2Hand ?? 0 }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `p2-card-${i}`,
             controllerId: "p2",
             zone: "hand",
@@ -78,7 +78,7 @@ function setupBalance(overrides: {
             }),
         ],
     });
-    pushSpell(state, balance.id, "p1");
+    pushSpell(state, balance().id, "p1");
     return state;
 }
 

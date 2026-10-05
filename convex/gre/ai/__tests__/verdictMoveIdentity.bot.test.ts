@@ -40,7 +40,7 @@ import type { ScenarioSpec } from "../../../debugScenarioSpec";
  *  (CR 116.2 is not involved — it is an ordinary activated ability, CR 602.1). */
 const SEAL_AT_A_PLAYER: ScenarioSpec = {
     cards: [
-        { name: sealOfFire.name, owner: "me", zone: "battlefield" },
+        { name: sealOfFire().name, owner: "me", zone: "battlefield" },
         { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
     ],
     phase: "PRECOMBAT_MAIN",
@@ -94,7 +94,7 @@ describe("canonicalMoveKey — the vocabulary two builds share (issue #3483)", (
         expect(key).not.toContain(opponent.id);
         // What it carries instead: the card's DEFINITION id and the target's
         // seat index relative to the decider.
-        expect(key).toContain(sealOfFire.id);
+        expect(key).toContain(sealOfFire().id);
         expect(key).toContain("seat#1");
 
         // And the structural key — right for a tree node, wrong across two
@@ -155,7 +155,7 @@ function attackOnPlaneswalker(
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(wrennAndSix.id, {
+                    makeInstance(wrennAndSix().id, {
                         id: walker,
                         controllerId: "p2",
                     }),
@@ -190,16 +190,16 @@ describe("canonicalMoveKey — the object-KEY cases (PR review, issue #3483)", (
         // BELOW the Bears numerically, the rebuild has it above.
         const live = attackOnPlaneswalker(
             [
-                { cardId: grizzlyBears.id, id: "47" },
-                { cardId: hillGiant.id, id: "23" },
+                { cardId: grizzlyBears().id, id: "47" },
+                { cardId: hillGiant().id, id: "23" },
             ],
             "9",
             ["47", "23"]
         );
         const rebuilt = attackOnPlaneswalker(
             [
-                { cardId: grizzlyBears.id, id: "3" },
-                { cardId: hillGiant.id, id: "5" },
+                { cardId: grizzlyBears().id, id: "3" },
+                { cardId: hillGiant().id, id: "5" },
             ],
             "7",
             ["3", "5"]
@@ -217,8 +217,8 @@ describe("canonicalMoveKey — the object-KEY cases (PR review, issue #3483)", (
         // collapsed to one key — two semantically different moves the pick
         // lookup could then confuse for each other.
         const bears = [
-            { cardId: grizzlyBears.id, id: "47" },
-            { cardId: grizzlyBears.id, id: "23" },
+            { cardId: grizzlyBears().id, id: "47" },
+            { cardId: grizzlyBears().id, id: "23" },
         ];
         const both = attackOnPlaneswalker(bears, "9", ["47", "23"]);
         const one = attackOnPlaneswalker(bears, "9", ["47"]);
@@ -242,7 +242,7 @@ describe("canonicalMoveKey — a granted ability is its TEMPLATE (PR review, iss
                         grantedAbilities: [
                             {
                                 id,
-                                sourceCardId: sealOfFire.id,
+                                sourceCardId: sealOfFire().id,
                                 abilityId: "seal-of-fire-sac",
                                 duration: { phase: "end-of-turn" },
                                 grantedAtTurn: 1,
@@ -256,7 +256,7 @@ describe("canonicalMoveKey — a granted ability is its TEMPLATE (PR review, iss
             kind: "activate-granted-ability",
             grantedAbilityInstanceId: id,
             abilityId: "seal-of-fire-sac",
-            sourceCardId: sealOfFire.id,
+            sourceCardId: sealOfFire().id,
         });
 
         expect(canonicalMoveKey(move("grant-4"), grant("grant-4"), "p1")).toBe(

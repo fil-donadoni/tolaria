@@ -1,6 +1,6 @@
 // ltc — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Forth Eorlingas! — {X}{R}{W} Sorcery (LTC, issue #1199). "Create X 2/2 red
 // Human Knight creature tokens with trample and haste. Whenever one or more
@@ -19,7 +19,7 @@ import type { CardDefinition } from "../../types";
 //      (mirrors the `this-turn-creature-blocks` shape, Battle Cry) and needs
 //      no `capture`: at fire time `ctx.controller` already IS the scheduling
 //      player (the resolving stack item's own controllerId).
-export const forthEorlingas: CardDefinition = {
+export const forthEorlingas = defineCard(() => ({
     id: "06c053d3-028e-4961-93a5-5b7bb5a8601c",
     rarity: "rare",
     name: "Forth Eorlingas!",
@@ -51,4 +51,4 @@ export const forthEorlingas: CardDefinition = {
             effects: [{ op: "becomeMonarch" }],
         },
     ],
-};
+}));

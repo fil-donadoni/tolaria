@@ -1,6 +1,6 @@
 // clb — red cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { SKELETON_TOKEN } from "../../sharedTokens";
 
 // Delayed Blast Fireball — {1}{R}{R} Instant. "Delayed Blast Fireball deals 2
@@ -101,7 +101,7 @@ import { SKELETON_TOKEN } from "../../sharedTokens";
 // defending player" is unambiguous, so "attacking that player" is satisfied
 // by construction; the planeswalker branch stays out of scope for this card,
 // tracked by the existing #1865, not a new issue.
-export const gutTrueSoulZealot: CardDefinition = {
+export const gutTrueSoulZealot = defineCard(() => ({
     id: "3d8ca18d-9099-4f1e-95c1-f04da58a26bd", // CLB 180
     rarity: "uncommon",
     name: "Gut, True Soul Zealot",
@@ -160,4 +160,4 @@ export const gutTrueSoulZealot: CardDefinition = {
             ],
         },
     ],
-};
+}));

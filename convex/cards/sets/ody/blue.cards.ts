@@ -1,6 +1,6 @@
 // ody — blue cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Upheaval — {4}{U}{U} Sorcery. "Return all permanents to their owners'
@@ -12,7 +12,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // target-shape (`to: "hand"`) — a new construct combination earning its own
 // interpreter test (`convex/gre/effects/__tests__/interpreter.test.ts`,
 // "forEach + moveZone — mass bounce").
-export const upheaval: CardDefinition = {
+export const upheaval = defineCard(() => ({
     id: "9e201229-34a6-48c8-a07c-d8aefcf5f8a7",
     name: "Upheaval",
     rarity: "rare",
@@ -26,7 +26,7 @@ export const upheaval: CardDefinition = {
             effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Standstill — {1}{U} Enchantment. "When a player casts a spell, sacrifice
 // this enchantment. If you do, each of that player's opponents draws three
@@ -75,7 +75,7 @@ export const upheaval: CardDefinition = {
 // no sacrifice sentence at all, no cross-sentence "If you do" conditional, and
 // `playerRef.ts` refuses "that player" anaphora outright by design.
 // hand-tail: "When a player casts a spell, sacrifice this enchantment. If you do, each of that player's opponents draws three cards." (#4195)
-export const standstill: CardDefinition = {
+export const standstill = defineCard(() => ({
     id: "3ede3f6f-e642-4fe4-aa37-0f01cdf4d149",
     name: "Standstill",
     rarity: "uncommon",
@@ -112,4 +112,4 @@ export const standstill: CardDefinition = {
             ],
         }),
     ],
-};
+}));

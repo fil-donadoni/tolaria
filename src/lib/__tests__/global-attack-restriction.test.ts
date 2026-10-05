@@ -38,8 +38,11 @@ describe("globalAttackProhibitionReason (client-side attacker gate, CR 508.1c)",
     it("Moat: marks a non-flying attacker as forbidden", () => {
         const board = [
             player("p1", [
-                inst(moat.id, { id: "moat" }),
-                inst(tundraWolves.id, { id: "grounded", staticAbilities: [] }),
+                inst(moat().id, { id: "moat" }),
+                inst(tundraWolves().id, {
+                    id: "grounded",
+                    staticAbilities: [],
+                }),
             ]),
             player("p2", []),
         ];
@@ -54,8 +57,8 @@ describe("globalAttackProhibitionReason (client-side attacker gate, CR 508.1c)",
     it("Moat: a flier is not forbidden", () => {
         const board = [
             player("p1", [
-                inst(moat.id, { id: "moat" }),
-                inst(azureDrake.id, {
+                inst(moat().id, { id: "moat" }),
+                inst(azureDrake().id, {
                     id: "flier",
                     staticAbilities: ["flying"],
                 }),
@@ -73,8 +76,8 @@ describe("globalAttackProhibitionReason (client-side attacker gate, CR 508.1c)",
     it("Akron: your vanilla creature is forbidden; Akron and artifact creatures are not", () => {
         const board = [
             player("p1", [
-                inst(akronLegionnaire.id, { id: "akron" }),
-                inst(tundraWolves.id, { id: "ally", staticAbilities: [] }),
+                inst(akronLegionnaire().id, { id: "akron" }),
+                inst(tundraWolves().id, { id: "ally", staticAbilities: [] }),
                 inst(CLAY_STATUE_ID, { id: "robot" }),
             ]),
             player("p2", []),
@@ -100,7 +103,7 @@ describe("globalAttackProhibitionReason (client-side attacker gate, CR 508.1c)",
     it("returns undefined on an unrestricted board", () => {
         const board = [
             player("p1", [
-                inst(tundraWolves.id, { id: "c1", staticAbilities: [] }),
+                inst(tundraWolves().id, { id: "c1", staticAbilities: [] }),
             ]),
             player("p2", []),
         ];

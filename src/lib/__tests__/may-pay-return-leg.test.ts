@@ -187,7 +187,7 @@ function fireLairEtb(state: GameState, lair: CardInstanceState): void {
         ...lair,
         zone: "stack",
         castById: lair.controllerId,
-        triggeredAbilityId: crosissCatacombs.triggeredAbilities![0].id,
+        triggeredAbilityId: crosissCatacombs().triggeredAbilities![0].id,
         triggerSourceId: lair.id,
         triggerEvent: {
             type: "PERMANENT_ENTERED",
@@ -202,7 +202,7 @@ function fireLairEtb(state: GameState, lair: CardInstanceState): void {
 
 describe("may-pay return leg — real Lair card, zero legal candidates (issue #1938 fixup)", () => {
     it("mayPaySacrificeCount / mayPayCanAfford / mayPaySacrificePower agree with the server (0 / false / 0)", () => {
-        const lair = makeInstance(crosissCatacombs.id, {
+        const lair = makeInstance(crosissCatacombs().id, {
             id: "lair",
             controllerId: "p1",
             ownerId: "p1",

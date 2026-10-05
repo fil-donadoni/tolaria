@@ -87,7 +87,7 @@ function commitCast(
 
 describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", () => {
     function position() {
-        const merchant = grantedToOpponent(vodalianMerchant.id, "merch");
+        const merchant = grantedToOpponent(vodalianMerchant().id, "merch");
         // Both players hold a card and have one in the library, so "who draws"
         // and "who discards" are answerable from the zone contents alone.
         return makeState({
@@ -95,7 +95,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
                 makePlayer("p1", {
                     exile: [merchant],
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p1-hand",
                             ownerId: "p1",
                             controllerId: "p1",
@@ -103,7 +103,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
                         }),
                     ],
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p1-lib",
                             ownerId: "p1",
                             controllerId: "p1",
@@ -113,7 +113,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
                 }),
                 makePlayer("p2", {
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p2-hand",
                             ownerId: "p2",
                             controllerId: "p2",
@@ -121,7 +121,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
                         }),
                     ],
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p2-lib",
                             ownerId: "p2",
                             controllerId: "p2",
@@ -209,7 +209,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
         // predicate reads `target.controllerId === source.controllerId`, so it
         // is a real layer-system answer to "does the caster control this?".
         getPlayer(state, "p2").battlefield.push(
-            makeInstance(castle.id, {
+            makeInstance(castle().id, {
                 id: "castle-caster",
                 ownerId: "p2",
                 controllerId: "p2",
@@ -226,7 +226,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
 
         // The OWNER's Castle does not see it at all: adding one changes nothing.
         getPlayer(state, "p1").battlefield.push(
-            makeInstance(castle.id, {
+            makeInstance(castle().id, {
                 id: "castle-owner",
                 ownerId: "p1",
                 controllerId: "p1",
@@ -295,7 +295,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
     });
 
     it("a normal cast (owner === caster) is unaffected", () => {
-        const own = makeInstance(vodalianMerchant.id, {
+        const own = makeInstance(vodalianMerchant().id, {
             id: "own-merch",
             ownerId: "p1",
             controllerId: "p1",
@@ -308,7 +308,7 @@ describe("a permanent spell cast by a non-owner (CR 110.2 / 110.2b / 112.2)", ()
                 makePlayer("p1", {
                     exile: [own],
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p1-lib",
                             ownerId: "p1",
                             controllerId: "p1",
@@ -349,7 +349,7 @@ describe("a LAND played from another player's exile (CR 110.2 / 110.2a / 305.1)"
             players: [
                 makePlayer("p1", {
                     exile: [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             id: "granted-land",
                             ownerId: "p1",
                             controllerId: "p1",

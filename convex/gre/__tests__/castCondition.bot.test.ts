@@ -32,7 +32,7 @@ function land(cardId: string, id: string): CardInstanceState {
 }
 
 function stateWith(battlefield: CardInstanceState[]) {
-    const blizzardInHand = makeInstance(blizzard.id, {
+    const blizzardInHand = makeInstance(blizzard().id, {
         id: "blizzard-hand",
         controllerId: "p1",
         ownerId: "p1",
@@ -63,10 +63,12 @@ describe("Bot move enumeration honours a card's cast condition (CR 601.3a)", () 
     it("does NOT enumerate the cast without a snow land", () => {
         expect(castsBlizzard([])).toBe(false);
         // Nor is a plain (non-snow) land enough — CR 205.4a.
-        expect(castsBlizzard([land(mountain.id, "mtn")])).toBe(false);
+        expect(castsBlizzard([land(mountain().id, "mtn")])).toBe(false);
     });
 
     it("enumerates the cast once a snow land is controlled", () => {
-        expect(castsBlizzard([land(snowCoveredForest.id, "snow")])).toBe(true);
+        expect(castsBlizzard([land(snowCoveredForest().id, "snow")])).toBe(
+            true
+        );
     });
 });

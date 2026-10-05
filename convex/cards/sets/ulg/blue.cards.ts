@@ -1,7 +1,7 @@
 // Urza's Legacy (ULG) — blue cards, split by colour per ADR 0043. The
 // registry's `import * as ulg from "./sets/ulg/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { cyclingAbility } from "../../abilities/cycling";
 import { echoTrigger } from "../../abilities/echo";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -14,7 +14,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Cycling is the shared `cyclingAbility` factory (CR 702.29a Cycling).
 // compiler-gap: "Cycling {2}" (#2693)
 // compiler-gap: "When this creature enters, untap up to two lands." (#2693)
-export const cloudOfFaeries: CardDefinition = {
+export const cloudOfFaeries = defineCard(() => ({
     id: "4e76d04a-0038-4b5b-a026-3056ee940da9", // ULG 29
     rarity: "common",
     name: "Cloud of Faeries",
@@ -58,7 +58,7 @@ export const cloudOfFaeries: CardDefinition = {
         }),
     ],
     activatedAbilities: [cyclingAbility({ generic: 2 })],
-};
+}));
 
 // Raven Familiar — {2}{U} 1/2 Bird with flying and Echo {2}{U}. "When this
 // creature enters, look at the top three cards of your library. Put one of them
@@ -69,7 +69,7 @@ export const cloudOfFaeries: CardDefinition = {
 // card shallower: look 3, keep 1 to hand, bottom the rest (CR 401.4).
 // compiler-gap: "Echo {2}{U}" (#2693)
 // compiler-gap: "When this creature enters, look at the top three cards of your library. Put one of them into your hand and the rest on the bottom of your library in any order." (#2693)
-export const ravenFamiliar: CardDefinition = {
+export const ravenFamiliar = defineCard(() => ({
     id: "b104638d-29aa-490c-8cfb-e08fc94efb59", // ULG 39
     rarity: "uncommon",
     name: "Raven Familiar",
@@ -103,7 +103,7 @@ export const ravenFamiliar: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Frantic Search — {2}{U} Instant. "Draw two cards, then discard two cards.
 // Untap up to three lands." (CR 121.1 draw, CR 701.9 discard, CR 701.26
@@ -122,7 +122,7 @@ export const ravenFamiliar: CardDefinition = {
 // LIST-family only, ADR 0049) — the runtime binding store
 // (`readBinding`/`recallChoice`) was always shape-identical for both
 // families; only the static validator was restrictive.
-export const franticSearch: CardDefinition = {
+export const franticSearch = defineCard(() => ({
     id: "1904db14-6df7-424f-afa5-e3dfab31300a",
     name: "Frantic Search",
     rarity: "common",
@@ -165,7 +165,7 @@ export const franticSearch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Tinker — {2}{U} Sorcery. "As an additional cost to cast this spell,
 // sacrifice an artifact. Search your library for an artifact card, put that
@@ -174,7 +174,7 @@ export const franticSearch: CardDefinition = {
 // `additionalCosts.sacrificeFilter` (a plain `PermanentFilter`); the search
 // is an unrestricted-by-value type filter (`type: "Artifact"`) straight to
 // the battlefield.
-export const tinker: CardDefinition = {
+export const tinker = defineCard(() => ({
     id: "7da23b15-dfb8-4267-9b33-d7a4c035c434",
     name: "Tinker",
     rarity: "uncommon",
@@ -205,14 +205,14 @@ export const tinker: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Miscalculation — {1}{U} Instant. "Counter target spell unless its controller
 // pays {2}." plus Cycling {2} (CR 702.29). Same counter-unless-pay shape as
 // Mana Leak (mayPay by the target spell's controller + if(not paid) → counter,
 // CR 701.6a counter / 117.3a); the Cycling ability is the engine/cost capability from
 // issue #689, declared via the shared `cyclingAbility` factory.
-export const miscalculation: CardDefinition = {
+export const miscalculation = defineCard(() => ({
     id: "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
     name: "Miscalculation",
     rarity: "common",
@@ -239,4 +239,4 @@ export const miscalculation: CardDefinition = {
     ],
     // CR 702.29 — Cycling {2}. Usable only from hand at instant speed.
     activatedAbilities: [cyclingAbility({ generic: 2 })],
-};
+}));

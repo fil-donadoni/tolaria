@@ -93,7 +93,7 @@ describe("CR 613.9 — the CR's own NON-dependency examples", () => {
         // to force the graph would be declaring a lie.
         const REMOVER_ID = "test-613-9-flying-remover";
         const remover: CardDefinition = {
-            ...flight,
+            ...flight(),
             id: REMOVER_ID,
             name: "Test Flight Remover",
             oracleText: "Enchant creature\nEnchanted creature loses flying.",
@@ -107,12 +107,12 @@ describe("CR 613.9 — the CR's own NON-dependency examples", () => {
         };
         withTemporaryDefinition(remover, () => {
             for (const grantFirst of [true, false]) {
-                const bears = makeInstance(grizzlyBears.id, {
+                const bears = makeInstance(grizzlyBears().id, {
                     id: "bears",
                     controllerId: "p1",
                     ownerId: "p1",
                 });
-                const grant = makeInstance(flight.id, {
+                const grant = makeInstance(flight().id, {
                     id: "grant",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -152,14 +152,14 @@ describe("CR 613.9 — the CR's own NON-dependency examples", () => {
                     },
                     characteristicDefining: false,
                 });
-                const grantEntry = entryFor(grant, flight);
+                const grantEntry = entryFor(grant, flight());
                 const stripEntry = entryFor(strip, remover);
                 const templates = new Map<string, DependencyTemplate>([
                     [
                         grantEntry.id,
                         {
                             source: asView(grant),
-                            effect: flight.staticEffects![0],
+                            effect: flight().staticEffects![0],
                         },
                     ],
                     [
@@ -229,17 +229,17 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // Urborg writes.
     for (const moonFirst of [true, false]) {
         it(`Blood Moon beats Urborg with Blood Moon stamped ${moonFirst ? "first" : "second"} (CR 613.8b over CR 613.7)`, () => {
-            const moon = makeInstance(bloodMoon.id, {
+            const moon = makeInstance(bloodMoon().id, {
                 id: "moon",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const urborg = makeInstance(urborgTombOfYawgmoth.id, {
+            const urborg = makeInstance(urborgTombOfYawgmoth().id, {
                 id: "urborg",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const island = makeInstance(tropicalIsland.id, {
+            const island = makeInstance(tropicalIsland().id, {
                 id: "island",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -267,17 +267,17 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // timestamp order, and the two orders differ.
     for (const magusFirst of [true, false]) {
         it(`Magus of the Moon and Prismatic Omen are independent — the later stamp wins (Magus ${magusFirst ? "first" : "second"})`, () => {
-            const magus = makeInstance(magusOfTheMoon.id, {
+            const magus = makeInstance(magusOfTheMoon().id, {
                 id: "magus",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const omen = makeInstance(prismaticOmen.id, {
+            const omen = makeInstance(prismaticOmen().id, {
                 id: "omen",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const island = makeInstance(tropicalIsland.id, {
+            const island = makeInstance(tropicalIsland().id, {
                 id: "island",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -309,18 +309,18 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // applied in timestamp order".
     for (const conspiracyFirst of [true, false]) {
         it(`Conspiracy and Life and Limb form a dependency LOOP, resolved in timestamp order (Conspiracy ${conspiracyFirst ? "first" : "second"})`, () => {
-            const consp = makeInstance(conspiracy.id, {
+            const consp = makeInstance(conspiracy().id, {
                 id: "conspiracy",
                 controllerId: "p1",
                 ownerId: "p1",
                 chosenSubtypes: ["Zombie"],
             });
-            const lal = makeInstance(lifeAndLimb.id, {
+            const lal = makeInstance(lifeAndLimb().id, {
                 id: "lal",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const bears = makeInstance(grizzlyBears.id, {
+            const bears = makeInstance(grizzlyBears().id, {
                 id: "bears",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -357,17 +357,17 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // order — a wrong board half the time.
     for (const urborgFirst of [true, false]) {
         it(`Urborg waits for Life and Limb and never the other way round (Urborg ${urborgFirst ? "first" : "second"})`, () => {
-            const urborg = makeInstance(urborgTombOfYawgmoth.id, {
+            const urborg = makeInstance(urborgTombOfYawgmoth().id, {
                 id: "urborg",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const lal = makeInstance(lifeAndLimb.id, {
+            const lal = makeInstance(lifeAndLimb().id, {
                 id: "lal",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const token = makeInstance(grizzlyBears.id, {
+            const token = makeInstance(grizzlyBears().id, {
                 id: "token",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -396,17 +396,17 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // that entered after Humility kept handing out islandwalk.
     for (const humilityFirst of [true, false]) {
         it(`Humility destroys Lord of Atlantis's islandwalk grant at either timestamp (Humility ${humilityFirst ? "first" : "second"})`, () => {
-            const hum = makeInstance(humility.id, {
+            const hum = makeInstance(humility().id, {
                 id: "humility",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const lord = makeInstance(lordOfAtlantis.id, {
+            const lord = makeInstance(lordOfAtlantis().id, {
                 id: "lord",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const merfolk = makeInstance(lordOfAtlantis.id, {
+            const merfolk = makeInstance(lordOfAtlantis().id, {
                 id: "merfolk",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -428,12 +428,12 @@ describe("CR 613.8a/b — the dependency cases", () => {
     // again: neither can ever be made to wait for the other.
     for (const humilityFirst of [true, false]) {
         it(`Humility and Opalescence are never grouped — different sublayers and opposite CDA status (Humility ${humilityFirst ? "first" : "second"})`, () => {
-            const hum = makeInstance(humility.id, {
+            const hum = makeInstance(humility().id, {
                 id: "humility",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const opal = makeInstance(opalescence.id, {
+            const opal = makeInstance(opalescence().id, {
                 id: "opalescence",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -618,24 +618,24 @@ describe("CR 613.8a — the oracle", () => {
         {
             name: "Blood Moon + Urborg",
             cards: [
-                { def: bloodMoon, id: "moon" },
-                { def: urborgTombOfYawgmoth, id: "urborg" },
+                { def: bloodMoon(), id: "moon" },
+                { def: urborgTombOfYawgmoth(), id: "urborg" },
             ],
             expected: [["urborg#0", "moon#1"]],
         },
         {
             name: "Magus of the Moon + Prismatic Omen",
             cards: [
-                { def: magusOfTheMoon, id: "magus" },
-                { def: prismaticOmen, id: "omen" },
+                { def: magusOfTheMoon(), id: "magus" },
+                { def: prismaticOmen(), id: "omen" },
             ],
             expected: [],
         },
         {
             name: "Conspiracy + Life and Limb",
             cards: [
-                { def: conspiracy, id: "conspiracy" },
-                { def: lifeAndLimb, id: "lal" },
+                { def: conspiracy(), id: "conspiracy" },
+                { def: lifeAndLimb(), id: "lal" },
             ],
             expected: [
                 ["conspiracy#0", "lal#0"],
@@ -662,17 +662,17 @@ describe("CR 613.8a — the oracle", () => {
                     id,
                     controllerId: "p1",
                     ownerId: "p1",
-                    ...(def.id === conspiracy.id
+                    ...(def.id === conspiracy().id
                         ? { chosenSubtypes: ["Zombie"] }
                         : {}),
                 })
             );
-            const island = makeInstance(tropicalIsland.id, {
+            const island = makeInstance(tropicalIsland().id, {
                 id: "island",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const bears = makeInstance(grizzlyBears.id, {
+            const bears = makeInstance(grizzlyBears().id, {
                 id: "bears",
                 controllerId: "p1",
                 ownerId: "p1",

@@ -34,7 +34,7 @@ describe("companion auto-declare at game init (buildInitialGameState)", () => {
                     deckCard(LIGHTNING_BOLT),
                     deckCard(SAVANNAH_LIONS),
                 ],
-                sideboard: [deckCard(lutri.id)],
+                sideboard: [deckCard(lutri().id)],
             },
         };
         const opponent: PlayerInput = {
@@ -52,7 +52,9 @@ describe("companion auto-declare at game init (buildInitialGameState)", () => {
         const state = buildInitialGameState([player, opponent]);
         const companion = state.players[0].companion;
         expect(companion).toBeDefined();
-        expect((companion!.instance.card as { id: string }).id).toBe(lutri.id);
+        expect((companion!.instance.card as { id: string }).id).toBe(
+            lutri().id
+        );
         expect(companion!.used).toBe(false);
         // The opponent declared no sideboard companion.
         expect(state.players[1].companion).toBeUndefined();
@@ -69,7 +71,7 @@ describe("companion auto-declare at game init (buildInitialGameState)", () => {
                 format: "vintage-cube",
                 // Two copies of a nonland card — fails Lutri's Singleton.
                 cards: [deckCard(LIGHTNING_BOLT), deckCard(LIGHTNING_BOLT)],
-                sideboard: [deckCard(lutri.id)],
+                sideboard: [deckCard(lutri().id)],
             },
         };
         const state = buildInitialGameState([
@@ -130,13 +132,13 @@ describe("Bo3 re-scan — sideboard threading (matches.ts buildNextGameSeats)", 
                 name: "Deck",
                 format: "vintage-cube",
                 maindeck: [deckCard(MOUNTAIN), deckCard(LIGHTNING_BOLT)],
-                sideboard: [deckCard(lutri.id)],
+                sideboard: [deckCard(lutri().id)],
             },
             score: 0,
             ready: false,
         };
         const seats = buildNextGameSeats({ players: [matchPlayer] });
-        expect(seats[0].deck.sideboard).toEqual([deckCard(lutri.id)]);
+        expect(seats[0].deck.sideboard).toEqual([deckCard(lutri().id)]);
         expect(seats[0].deck.cards).toEqual([
             deckCard(MOUNTAIN),
             deckCard(LIGHTNING_BOLT),
@@ -171,6 +173,6 @@ describe("Bo3 re-scan — sideboard threading (matches.ts buildNextGameSeats)", 
         ]);
         expect(
             (state.players[0].companion?.instance.card as { id: string })?.id
-        ).toBe(lutri.id);
+        ).toBe(lutri().id);
     });
 });

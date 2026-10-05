@@ -2,7 +2,7 @@
 // `import * as exo from "./sets/exo/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Survival of the Fittest — {1}{G} Enchantment. "{G}, Discard a creature
@@ -15,7 +15,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // search/reveal/hand/shuffle tail is the same DSL composition Stoneforge
 // Mystic's ETB uses (issue #677/#945): `choice`(kind: "search-library") +
 // `reveal` + `moveZone`(library → hand) + `libraryLook`(shuffle).
-export const survivalOfTheFittest: CardDefinition = {
+export const survivalOfTheFittest = defineCard(() => ({
     id: "c060c178-3c0e-493f-b6f0-ead5b1d6f191",
     name: "Survival of the Fittest",
     rarity: "rare",
@@ -60,7 +60,7 @@ export const survivalOfTheFittest: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Oath of Druids — {1}{G} Enchantment (issue #2707). "At the beginning of each
 // player's upkeep, that player chooses target player who controls more
@@ -119,7 +119,7 @@ export const survivalOfTheFittest: CardDefinition = {
 // state in which the two choosers could pick differently.
 //
 // hand-tail: At the beginning of each player's upkeep, that player chooses target player who controls more creatures than they do and is their opponent. The first player may reveal cards from the top of their library until they reveal a creature card. If the first player does, that player puts that card onto the battlefield and all other cards revealed this way into their graveyard. (#4195)
-export const oathOfDruids: CardDefinition = {
+export const oathOfDruids = defineCard(() => ({
     id: "cf14de50-d123-400c-862e-2c95fd2aa23f",
     name: "Oath of Druids",
     rarity: "rare",
@@ -162,4 +162,4 @@ export const oathOfDruids: CardDefinition = {
             ],
         }),
     ],
-};
+}));

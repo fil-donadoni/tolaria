@@ -2,7 +2,7 @@
 // `import * as hml from "./sets/hml/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Memory Lapse — {1}{U} Instant. "Counter target spell. If that spell is
 // countered this way, put it on top of its owner's library instead of into
@@ -10,7 +10,7 @@ import type { CardDefinition } from "../../types";
 // parameter on `SpellContext.counter` — issue #683's "put it on top of its
 // owner's library" redirect clause.) An unconditional counter — no
 // mayPay/if — so the effect is a single Op.
-export const memoryLapse: CardDefinition = {
+export const memoryLapse = defineCard(() => ({
     id: "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
     rarity: "common",
     name: "Memory Lapse",
@@ -26,4 +26,4 @@ export const memoryLapse: CardDefinition = {
             destination: "library-top",
         },
     ],
-};
+}));

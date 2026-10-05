@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import { AURA_AFFECTS_HOST } from "../../types";
-import type { CardDefinition } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import {
     leftTrigger,
     wasAttachedToLeaver,
@@ -30,7 +29,7 @@ import { equipAbility } from "../../abilities/equipment";
 //    the pre-existing `attachedToBeforeLeave`, which carries the LEAVER's own
 //    host), read via the shared `wasAttachedToLeaver` condition helper so any
 //    future "whenever equipped/enchanted creature dies" card reuses it.
-export const skullclamp: CardDefinition = {
+export const skullclamp = defineCard(() => ({
     id: "55318397-de3c-47ea-a088-72a24df5c8fa",
     name: "Skullclamp",
     rarity: "rare",
@@ -70,4 +69,4 @@ export const skullclamp: CardDefinition = {
             oracleText: "Equip {1}",
         }),
     ],
-};
+}));

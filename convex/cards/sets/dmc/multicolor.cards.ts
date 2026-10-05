@@ -4,7 +4,7 @@
 // Founder of Benalia — Vintage Cube residue, issue #1305, parent PRD #620);
 // its earliest paper printing is Dominaria United Commander (ADR 0041).
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 const TORSTEN_FOUNDER_ID = "0783b426-a527-42c1-9271-be28b229e1c6";
@@ -31,7 +31,7 @@ const TORSTEN_FOUNDER_ID = "0783b426-a527-42c1-9271-be28b229e1c6";
 // bro/colorless.cards.ts's Third Path Iconoclast) rather than the `diedTrigger`
 // factory, since that factory only exposes a `resolve` closure, not
 // `effects` — the DSL-first site.
-export const torstenFounderOfBenalia: CardDefinition = {
+export const torstenFounderOfBenalia = defineCard(() => ({
     id: TORSTEN_FOUNDER_ID,
     name: "Torsten, Founder of Benalia",
     rarity: "mythic",
@@ -96,4 +96,4 @@ export const torstenFounderOfBenalia: CardDefinition = {
             ],
         },
     ],
-};
+}));

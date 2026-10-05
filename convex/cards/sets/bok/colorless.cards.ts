@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { equipAbility } from "../../abilities/equipment";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 
@@ -31,7 +31,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // the Equipment via the `counters` Op, and an instant-speed
 // `cost.removeCounter` activation whose frontend affordability gate the
 // catalogue sweep already covers.
-export const umezawasJitte: CardDefinition = {
+export const umezawasJitte = defineCard(() => ({
     id: "3b6e5956-f795-451b-bb24-56462d1ced27",
     name: "Umezawa's Jitte",
     rarity: "rare",
@@ -131,4 +131,4 @@ export const umezawasJitte: CardDefinition = {
             oracleText: "Equip {2}",
         }),
     ],
-};
+}));

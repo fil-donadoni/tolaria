@@ -59,7 +59,7 @@ import {
 } from "./gameMutationHarness.fixture";
 
 const POOL0 = { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 };
-const golemKicker = emblazonedGolem.kickers![0].mana!;
+const golemKicker = emblazonedGolem().kickers![0].mana!;
 
 function withGolem(
     pool: Partial<typeof POOL0>,
@@ -69,7 +69,7 @@ function withGolem(
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(emblazonedGolem.id, {
+                    makeInstance(emblazonedGolem().id, {
                         id: "golem",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -164,11 +164,11 @@ describe("greedyDistinctColorMatch / maxAffordableDistinctColorX (CR 107.3a — 
     it("Emblazoned Golem's ceiling: five Plains still cap at X = 1", () => {
         const lands = Array.from({ length: 5 }, (_, i) => ({
             id: `pl${i}`,
-            def: plains.id,
+            def: plains().id,
         }));
         const state = withGolem({}, lands);
         const p1 = getPlayer(state, "p1");
-        const fixed = normalizeManaCost(emblazonedGolem.manaCost!, {
+        const fixed = normalizeManaCost(emblazonedGolem().manaCost!, {
             chosenX: 0,
         });
         expect(maxAffordableDistinctColorX(p1, p1.hand[0], fixed, state)).toBe(
@@ -178,15 +178,15 @@ describe("greedyDistinctColorMatch / maxAffordableDistinctColorX (CR 107.3a — 
 
     it("one land of each colour, but the printed {2} needs two of them too → ceiling is 3, not 5", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
         ];
         const state = withGolem({}, lands);
         const p1 = getPlayer(state, "p1");
-        const fixed = normalizeManaCost(emblazonedGolem.manaCost!, {
+        const fixed = normalizeManaCost(emblazonedGolem().manaCost!, {
             chosenX: 0,
         });
         expect(fixed).toEqual({ X: 2 });
@@ -197,17 +197,17 @@ describe("greedyDistinctColorMatch / maxAffordableDistinctColorX (CR 107.3a — 
 
     it("a sixth, colourless-irrelevant land raises the ceiling back to 5 — two lands are now free for the generic {2}", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
-            { id: "fo", def: forest.id },
-            { id: "pl2", def: plains.id },
-            { id: "is2", def: island.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
+            { id: "fo", def: forest().id },
+            { id: "pl2", def: plains().id },
+            { id: "is2", def: island().id },
         ];
         const state = withGolem({}, lands);
         const p1 = getPlayer(state, "p1");
-        const fixed = normalizeManaCost(emblazonedGolem.manaCost!, {
+        const fixed = normalizeManaCost(emblazonedGolem().manaCost!, {
             chosenX: 0,
         });
         expect(maxAffordableDistinctColorX(p1, p1.hand[0], fixed, state)).toBe(
@@ -219,10 +219,10 @@ describe("greedyDistinctColorMatch / maxAffordableDistinctColorX (CR 107.3a — 
 describe("auto-tap pays a distinct-colour X from the announced lands", () => {
     it("taps one Plains, one Island, one Swamp for X = 3 chosen {W}{U}{B}", () => {
         const lands = [
-            { id: "pl", def: plains.id },
-            { id: "is", def: island.id },
-            { id: "sw", def: swamp.id },
-            { id: "mo", def: mountain.id },
+            { id: "pl", def: plains().id },
+            { id: "is", def: island().id },
+            { id: "sw", def: swamp().id },
+            { id: "mo", def: mountain().id },
         ];
         const state = withGolem({}, lands);
         const p1 = getPlayer(state, "p1");

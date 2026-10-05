@@ -2,8 +2,8 @@
 // `import * as con from "./sets/con/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, SpellContext } from "../../types";
-import { isBasicLandCard } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, isBasicLandCard } from "../../types";
 
 // Path to Exile — "Exile target creature. Its controller may search their
 // library for a basic land card, put that card onto the battlefield tapped,
@@ -12,7 +12,7 @@ import { isBasicLandCard } from "../../types";
 // `battlefield` from a graveyard card, not a library search choice. Stays
 // `resolve()` (Nature's Lore precedent, ice/green.cards.ts).
 
-export const pathToExile: CardDefinition = {
+export const pathToExile = defineCard(() => ({
     id: "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
     rarity: "uncommon",
     name: "Path to Exile",
@@ -55,4 +55,4 @@ export const pathToExile: CardDefinition = {
         }
         ctx.shuffleLibrary(controllerId);
     },
-};
+}));

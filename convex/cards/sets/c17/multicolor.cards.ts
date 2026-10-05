@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 
 // Fractured Identity — {3}{W}{U} Sorcery. "Exile target nonland permanent.
 // Each player other than its controller creates a token that's a copy of
@@ -30,7 +29,7 @@ import { PERMANENT_TYPES } from "../../types";
 // is a copy "as [the permanent] looked immediately before it was
 // exiled" — the `createTokenCopy` Op reads the source live off the
 // battlefield, so it must run first; the target then exiles.
-export const fracturedIdentity: CardDefinition = {
+export const fracturedIdentity = defineCard(() => ({
     id: "b2f73f5d-1aad-48c2-9e74-5f7bdd87900f",
     name: "Fractured Identity",
     rarity: "rare",
@@ -55,4 +54,4 @@ export const fracturedIdentity: CardDefinition = {
         },
         { op: "exile", target: { target: 0 } },
     ],
-};
+}));

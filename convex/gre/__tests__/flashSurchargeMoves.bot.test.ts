@@ -80,7 +80,7 @@ function castMoves(state: GameState): Extract<Move, { kind: "cast-spell" }>[] {
 describe("Bot tap plan vs the conditional-flash surcharge (CR 601.3c, issue #2146)", () => {
     it("pays the SURCHARGED total off-window — {3}{W}{W} + {2} = seven lands, not five", () => {
         // Rout {3}{W}{W} = 5; the off-window cast owes {2} more.
-        const state = board(rout.id, PLAINS, 7, "off");
+        const state = board(rout().id, PLAINS, 7, "off");
         // The affordability probe offers the cast...
         expect(
             getLegalActions(state, state.players[0], state.players[0].hand[0])
@@ -93,7 +93,7 @@ describe("Bot tap plan vs the conditional-flash surcharge (CR 601.3c, issue #214
     });
 
     it("does NOT pay it inside the caster's own sorcery window — five lands", () => {
-        const state = board(rout.id, PLAINS, 7, "own");
+        const state = board(rout().id, PLAINS, 7, "own");
         const casts = castMoves(state);
         expect(casts).toHaveLength(1);
         expect(casts[0].tapPlan).toHaveLength(5);
@@ -103,13 +103,13 @@ describe("Bot tap plan vs the conditional-flash surcharge (CR 601.3c, issue #214
         // Six Plains covers {3}{W}{W} but not the surcharged seven: the probe
         // withholds "cast" and the enumerator emits nothing, so the Bot never
         // announces a cast it cannot finish paying for.
-        const state = board(rout.id, PLAINS, 6, "off");
+        const state = board(rout().id, PLAINS, 6, "off");
         expect(
             getLegalActions(state, state.players[0], state.players[0].hand[0])
         ).not.toContain("cast");
         expect(castMoves(state)).toHaveLength(0);
         // ...while the same six lands are plenty inside the own window.
-        const own = board(rout.id, PLAINS, 6, "own");
+        const own = board(rout().id, PLAINS, 6, "own");
         expect(castMoves(own)).toHaveLength(1);
     });
 
@@ -117,8 +117,8 @@ describe("Bot tap plan vs the conditional-flash surcharge (CR 601.3c, issue #214
         // Six Mountains: X ≤ 5 in the own window, X ≤ 3 off-window ({R} + {2}).
         const maxX = (s: GameState) =>
             Math.max(...castMoves(s).map((m) => m.chosenX ?? 0));
-        expect(maxX(board(ghituFire.id, MOUNTAIN, 6, "own"))).toBe(5);
-        const off = board(ghituFire.id, MOUNTAIN, 6, "off");
+        expect(maxX(board(ghituFire().id, MOUNTAIN, 6, "own"))).toBe(5);
+        const off = board(ghituFire().id, MOUNTAIN, 6, "off");
         expect(maxX(off)).toBe(3);
         // Every enumerated X pays the surcharge, not just the ceiling.
         for (const m of castMoves(off)) {

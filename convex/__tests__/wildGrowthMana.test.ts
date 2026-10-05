@@ -57,12 +57,12 @@ import {
 
 /** A Forest enchanted with Wild Growth, plus a fresh state. */
 function wildGrowthForest(overrides: Partial<PlayerState> = {}) {
-    const host = makeInstance(forest.id, {
+    const host = makeInstance(forest().id, {
         id: "host-forest",
         controllerId: "p1",
         ownerId: "p1",
     });
-    const aura = makeInstance(wildGrowth.id, {
+    const aura = makeInstance(wildGrowth().id, {
         id: "wg",
         controllerId: "p1",
         ownerId: "p1",
@@ -212,7 +212,7 @@ describe("Wild Growth — payment tap realizes the bonus (BUG 2, CR 605.4)", () 
 
 describe("Wild Growth — auto-tap covers a spell using the bonus (BUG 2)", () => {
     it("Grizzly Bears ({1}{G}) is castable off a single Wild-Growth Forest", () => {
-        const cast = makeInstance(grizzlyBears.id, {
+        const cast = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: "p1",
             ownerId: "p1",
@@ -222,7 +222,7 @@ describe("Wild Growth — auto-tap covers a spell using the bonus (BUG 2)", () =
         const pendingCast: PendingCast = {
             playerId: "p1",
             cardInstanceId: "bears",
-            manaCost: normalizeManaCost(grizzlyBears.manaCost ?? {}),
+            manaCost: normalizeManaCost(grizzlyBears().manaCost ?? {}),
             tappedLandIds: [],
         };
         state.pendingCast = pendingCast;

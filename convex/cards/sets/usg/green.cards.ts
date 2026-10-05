@@ -1,6 +1,6 @@
 // usg — green cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import type { Color } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -20,7 +20,7 @@ import { COLOR_OPTIONS } from "../../abilities/chooseColor";
 // unfiltered per CR 702.18 — so no separate staticEffect is required here.
 // See the Mechanics Registry's shroud row (issue #959) for the catalogue-
 // wide fix.
-export const argothianEnchantress: CardDefinition = {
+export const argothianEnchantress = defineCard(() => ({
     id: "9ababc1a-515e-4e20-8819-19d84d9b0af5",
     rarity: "rare",
     name: "Argothian Enchantress",
@@ -42,13 +42,13 @@ export const argothianEnchantress: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
-};
+}));
 
 // Exploration — {G} Enchantment. "You may play an additional land on each of
 // your turns." (CR 305.2 — extra land drops.) One additional land drop (total
 // 2/turn), the bounded analogue of Fastbond's `extraLandDrops: 999`
 // (lea/green.cards.ts).
-export const exploration: CardDefinition = {
+export const exploration = defineCard(() => ({
     id: "2f09e451-0246-45a2-8bfd-07d3c65ddfe6",
     rarity: "rare",
     name: "Exploration",
@@ -56,7 +56,7 @@ export const exploration: CardDefinition = {
     manaCost: { G: 1 },
     types: ["Enchantment"],
     extraLandDrops: 1,
-};
+}));
 
 // Fertile Ground — {1}{G} Enchantment — Aura, enchant land. "Whenever
 // enchanted land is tapped for mana, its controller adds an additional one
@@ -83,7 +83,7 @@ export const exploration: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/green.cards.ts`.
-export const fertileGround: CardDefinition = {
+export const fertileGround = defineCard(() => ({
     id: "091dda35-59e5-456d-8804-61513a610aed", // USG 252
     rarity: "common",
     name: "Fertile Ground",
@@ -138,4 +138,4 @@ export const fertileGround: CardDefinition = {
             aiEffects: [{ op: "addMana", mana: { C: 1 } }],
         }),
     ],
-};
+}));

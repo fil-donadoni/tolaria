@@ -80,13 +80,13 @@ const runConfirmTargets = (ctx: Parameters<typeof runMutation>[1]) =>
 
 describe("activateAbility — a min-0 'up to one' target requirement stays legal with zero legal targets (CR 601.2c, issue #2369 review round 2)", () => {
     it("Teferi, Time Raveler's -3: empty board (no artifact/creature/enchantment anywhere) still reaches the stack and draws the unconditional card", async () => {
-        const teferi = makeInstance(teferiTimeRaveler.id, {
+        const teferi = makeInstance(teferiTimeRaveler().id, {
             id: "teferi1",
             controllerId: "p1",
             ownerId: "p1",
             counters: { loyalty: 4 },
         });
-        const topCard = makeInstance(teferiTimeRaveler.id, {
+        const topCard = makeInstance(teferiTimeRaveler().id, {
             id: "top1",
             controllerId: "p1",
             ownerId: "p1",

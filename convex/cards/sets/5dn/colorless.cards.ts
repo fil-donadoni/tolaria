@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Crucible of Worlds — {3} Artifact. "You may play lands from your
 // graveyard." One declarative field, no `resolve()` and no Effect Script:
@@ -13,7 +13,7 @@ import type { CardDefinition } from "../../types";
 // leaves play. Unlimited (no `oncePerTurn`); a scoped once-per-turn
 // permission (Serra Paragon, issue #1239) is the same record with its gates
 // set, never a per-instance grant.
-export const crucibleOfWorlds: CardDefinition = {
+export const crucibleOfWorlds = defineCard(() => ({
     id: "312a6058-de08-487d-95bd-b3c56807fdd6",
     name: "Crucible of Worlds",
     rarity: "rare",
@@ -21,7 +21,7 @@ export const crucibleOfWorlds: CardDefinition = {
     manaCost: { X: 3 },
     types: ["Artifact"],
     graveyardPlayPermission: { actions: ["play-land"] },
-};
+}));
 
 // Pentad Prism — {2} Artifact, the catalogue's first Sunburst card (CR 702.44,
 // issue #2378).
@@ -58,7 +58,7 @@ export const crucibleOfWorlds: CardDefinition = {
 // opponent could respond to the mana being added, and that the mana cannot be
 // produced mid-payment of another cost — the same rules-lawyer-level deviation
 // Jeweled Amulet documents.
-export const pentadPrism: CardDefinition = {
+export const pentadPrism = defineCard(() => ({
     id: "672b9b16-daef-44e6-9a3a-cfd9f3c78bc7",
     name: "Pentad Prism",
     rarity: "common",
@@ -114,4 +114,4 @@ export const pentadPrism: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -47,7 +47,7 @@ const MOUNTAIN = getCardByName("Mountain").id;
 /** p1 holds Ragavan in hand with `untappedMountains` untapped Mountains —
  *  its printed cost is {R} (1 mana value), its dash cost {1}{R} (2). */
 function ragavanBoard(untappedMountains: number): GameState {
-    const ragavan = makeInstance(ragavanNimblePilferer.id, {
+    const ragavan = makeInstance(ragavanNimblePilferer().id, {
         id: "ragavan",
         controllerId: "p1",
         ownerId: "p1",

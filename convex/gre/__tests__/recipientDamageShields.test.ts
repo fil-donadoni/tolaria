@@ -42,12 +42,12 @@ import { compactState, expandState } from "../serialize";
 /** p1 holds `mine`, p2 holds `theirs`; both are 6/4 Craw Wurms so a lethal
  *  scan never fires mid-test and the marked damage stays readable. */
 function twoBoards(): GameState {
-    const mine = makeInstance(crawWurm.id, {
+    const mine = makeInstance(crawWurm().id, {
         id: "mine",
         controllerId: "p1",
         ownerId: "p1",
     });
-    const theirs = makeInstance(crawWurm.id, {
+    const theirs = makeInstance(crawWurm().id, {
         id: "theirs",
         controllerId: "p2",
         ownerId: "p2",
@@ -69,13 +69,13 @@ function castBolt(
     caster: string,
     target: { type: "permanent" | "player"; id: string }
 ): void {
-    pushSpell(state, lightningBolt.id, caster, [target]);
+    pushSpell(state, lightningBolt().id, caster, [target]);
     resolveTopOfStack(state);
 }
 
 /** Resolves Divine Light for `caster` (CR 615.1a). */
 function castDivineLight(state: GameState, caster: string): void {
-    pushSpell(state, divineLight.id, caster, []);
+    pushSpell(state, divineLight().id, caster, []);
     resolveTopOfStack(state);
 }
 
@@ -88,7 +88,7 @@ function castManeuver(
     from: { type: "permanent" | "player"; id: string },
     to: { type: "permanent" | "player"; id: string }
 ): void {
-    const item = pushSpell(state, captainsManeuver.id, caster, [from, to]);
+    const item = pushSpell(state, captainsManeuver().id, caster, [from, to]);
     item.chosenX = x;
     resolveTopOfStack(state);
 }
@@ -373,7 +373,7 @@ describe("CR 614.9 — the next N damage dealt to one recipient is dealt to anot
         // opportunity per event — including the modified events that replace
         // it, which is exactly what a split remainder is.
         state.players[1].battlefield.push(
-            makeInstance(lashknifeBarrier.id, {
+            makeInstance(lashknifeBarrier().id, {
                 id: "barrier",
                 controllerId: "p2",
                 ownerId: "p2",

@@ -72,7 +72,7 @@ function projectedVerdeloth() {
         players: [
             makePlayer("me", {
                 hand: [
-                    makeInstance(verdelothTheAncient.id, {
+                    makeInstance(verdelothTheAncient().id, {
                         id: "verdeloth1",
                         controllerId: "me",
                         ownerId: "me",

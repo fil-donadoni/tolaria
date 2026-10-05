@@ -123,11 +123,11 @@ function tramplerVsThreeThree(
     attackerOverrides: Partial<CardInstanceState> = {},
     blockerOverrides: Partial<CardInstanceState> = {}
 ): GameState {
-    const atk = permanent(twoHeadedGiantOfForiys.id, "atk", "p1", {
+    const atk = permanent(twoHeadedGiantOfForiys().id, "atk", "p1", {
         isAttacking: true,
         ...attackerOverrides,
     });
-    const blk = permanent(hillGiant.id, "blk", "p2", {
+    const blk = permanent(hillGiant().id, "blk", "p2", {
         isBlocking: true,
         ...blockerOverrides,
     });
@@ -210,17 +210,17 @@ describe("setDamageAssignment enforces the CR 702.19b lethal minimum (issue #244
         // creature blocks a 1/1 and a 3/3 trampler. With the 1/1's point of
         // damage already in this step's map, 1 from the trampler is lethal and
         // 2 may go to the player.
-        const small = permanent(grizzlyBears.id, "small", "p1", {
+        const small = permanent(grizzlyBears().id, "small", "p1", {
             isAttacking: true,
             power: 1,
             toughness: 1,
         });
-        const trampler = permanent(twoHeadedGiantOfForiys.id, "tramp", "p1", {
+        const trampler = permanent(twoHeadedGiantOfForiys().id, "tramp", "p1", {
             isAttacking: true,
             power: 3,
             toughness: 3,
         });
-        const wall = permanent(twoHeadedGiantOfForiys.id, "wall", "p2", {
+        const wall = permanent(twoHeadedGiantOfForiys().id, "wall", "p2", {
             isBlocking: true,
             power: 2,
             toughness: 2,
@@ -244,17 +244,17 @@ describe("setDamageAssignment enforces the CR 702.19b lethal minimum (issue #244
         // to this step's map: now 1 is short of the 2/2's threshold of 2, and
         // the pair is illegal. This is what proves the previous test's pass is
         // the same-step subtraction and not a blanket permission.
-        const small = permanent(grizzlyBears.id, "small", "p1", {
+        const small = permanent(grizzlyBears().id, "small", "p1", {
             isAttacking: true,
             power: 1,
             toughness: 1,
         });
-        const trampler = permanent(twoHeadedGiantOfForiys.id, "tramp", "p1", {
+        const trampler = permanent(twoHeadedGiantOfForiys().id, "tramp", "p1", {
             isAttacking: true,
             power: 3,
             toughness: 3,
         });
-        const wall = permanent(twoHeadedGiantOfForiys.id, "wall", "p2", {
+        const wall = permanent(twoHeadedGiantOfForiys().id, "wall", "p2", {
             isBlocking: true,
             power: 2,
             toughness: 2,
@@ -278,11 +278,13 @@ describe("setDamageAssignment excess-sink legality (CR 702.19f, issue #2444)", (
     /** The trampler is attacking a planeswalker, so per CR 702.19f the ONE
      *  object its excess may go to is that planeswalker — not the player. */
     function attackingPlaneswalker(): GameState {
-        const atk = permanent(twoHeadedGiantOfForiys.id, "atk", "p1", {
+        const atk = permanent(twoHeadedGiantOfForiys().id, "atk", "p1", {
             isAttacking: true,
         });
-        const blk = permanent(hillGiant.id, "blk", "p2", { isBlocking: true });
-        const pw = permanent(lilianaOfTheVeil.id, "pw", "p2", {
+        const blk = permanent(hillGiant().id, "blk", "p2", {
+            isBlocking: true,
+        });
+        const pw = permanent(lilianaOfTheVeil().id, "pw", "p2", {
             counters: { loyalty: 3 },
         });
         return damageStepState([atk], [blk, pw], { blk: ["atk"] }, {
@@ -324,8 +326,12 @@ describe("setDamageAssignment excess-sink legality (CR 702.19f, issue #2444)", (
     });
 
     it("still refuses sink damage from a creature WITHOUT trample (CR 702.19b applies only to tramplers)", async () => {
-        const atk = permanent(hillGiant.id, "atk", "p1", { isAttacking: true });
-        const blk = permanent(hillGiant.id, "blk", "p2", { isBlocking: true });
+        const atk = permanent(hillGiant().id, "atk", "p1", {
+            isAttacking: true,
+        });
+        const blk = permanent(hillGiant().id, "blk", "p2", {
+            isBlocking: true,
+        });
         const h = makeMutationCtx("p1", [
             gameStateSeed(damageStepState([atk], [blk], { blk: ["atk"] })),
         ]);

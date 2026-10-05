@@ -63,14 +63,14 @@ type AnnounceCastArgs = {
  *  `announceCast` take the immediate-commit branch rather than parking on
  *  mana). p2 fields a Grizzly Bears, so the damage has a creature to find. */
 function board(spare: number) {
-    const spell = makeInstance(sickeningDreams.id, {
+    const spell = makeInstance(sickeningDreams().id, {
         id: "spell",
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
     });
     const spares = Array.from({ length: spare }, (_, i) =>
-        makeInstance(lightningBolt.id, {
+        makeInstance(lightningBolt().id, {
             id: `spare${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -78,14 +78,14 @@ function board(spare: number) {
         })
     );
     const lands = Array.from({ length: 6 }, (_, i) =>
-        makeInstance(swamp.id, {
+        makeInstance(swamp().id, {
             id: `swamp-${i}`,
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         })
     );
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears",
         controllerId: "p2",
         ownerId: "p2",
@@ -124,7 +124,7 @@ describe("additionalCostDiscardXCeiling — the largest X a caster may announce 
         expect(
             additionalCostDiscardXCeiling(
                 getPlayer(state, "p1"),
-                sickeningDreams.additionalCosts,
+                sickeningDreams().additionalCosts,
                 "spell"
             )
         ).toBe(3);
@@ -135,7 +135,7 @@ describe("additionalCostDiscardXCeiling — the largest X a caster may announce 
         expect(
             additionalCostDiscardXCeiling(
                 getPlayer(state, "p1"),
-                sickeningDreams.additionalCosts,
+                sickeningDreams().additionalCosts,
                 "spell"
             )
         ).toBe(0);
@@ -148,7 +148,7 @@ describe("additionalCostDiscardXCeiling — the largest X a caster may announce 
         expect(
             additionalCostDiscardXCeiling(
                 getPlayer(state, "p1"),
-                lightningBolt.additionalCosts,
+                lightningBolt().additionalCosts,
                 "spell"
             )
         ).toBeUndefined();
@@ -158,7 +158,7 @@ describe("additionalCostDiscardXCeiling — the largest X a caster may announce 
 describe("additionalCostHandLeg — an 'X' count prices off the announced X (CR 118.4)", () => {
     it("asks for exactly X cards", () => {
         expect(
-            additionalCostHandLeg(sickeningDreams.additionalCosts, 2)
+            additionalCostHandLeg(sickeningDreams().additionalCosts, 2)
         ).toEqual({
             hand: {
                 action: "discard",
@@ -171,10 +171,10 @@ describe("additionalCostHandLeg — an 'X' count prices off the announced X (CR 
         // CR 118.3 — a cost of no cards is payable by anyone, which is what
         // keeps an announced-X leg invisible to the affordability gate.
         expect(
-            additionalCostHandLeg(sickeningDreams.additionalCosts, 0)
+            additionalCostHandLeg(sickeningDreams().additionalCosts, 0)
         ).toBeUndefined();
         expect(
-            additionalCostHandLeg(sickeningDreams.additionalCosts)
+            additionalCostHandLeg(sickeningDreams().additionalCosts)
         ).toBeUndefined();
     });
 });
@@ -199,7 +199,7 @@ describe("announceCast — 'discard X cards' is announced, paid and snapshotted 
         tryAutoCommitPendingCast(state, "p1");
         const p1 = getPlayer(state, "p1");
         expect(state.stack).toHaveLength(1);
-        expect(state.stack[0].card.id).toBe(sickeningDreams.id);
+        expect(state.stack[0].card.id).toBe(sickeningDreams().id);
         // CR 107.3 — the announced X rides the stack item, so the effect reads
         // the value that was actually paid for.
         expect(state.stack[0].chosenX).toBe(2);

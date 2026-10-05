@@ -2,8 +2,7 @@
 // `import * as ecl from "./sets/ecl/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Formidable Speaker — "When this creature enters, you may discard a card.
@@ -15,7 +14,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // search through the already-shipped boolean-binding `if` predicate — the
 // same mayPay + if($paid) shape Force Spike / No More Lies use for their
 // counter-unless-pay punisher, here paying with a card instead of mana.
-export const formidableSpeaker: CardDefinition = {
+export const formidableSpeaker = defineCard(() => ({
     id: "265522eb-4f6a-40e7-b374-3833fa63c80b",
     name: "Formidable Speaker",
     rarity: "rare",
@@ -103,4 +102,4 @@ export const formidableSpeaker: CardDefinition = {
             ],
         }),
     ],
-};
+}));

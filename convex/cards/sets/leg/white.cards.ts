@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
 import type {
-    CardDefinition,
     ManaCost,
     SpellContext,
     PermanentView,
@@ -13,7 +12,7 @@ import type {
     TargetSelection,
     TriggerStateView,
 } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -35,7 +34,7 @@ import { makeCircleOfProtection } from "../../abilities";
 // `global-attack-restriction` kind. Only OTHER players' artifacts/creatures/
 // lands are affected; the controller's own permanents and non-(artifact/
 // creature/land) permanents enter as usual.)
-export const kismet: CardDefinition = {
+export const kismet = defineCard(() => ({
     id: "7e0651ad-6901-4f9b-8807-d66e53a4ada8",
     rarity: "uncommon",
     name: "Kismet",
@@ -62,7 +61,7 @@ export const kismet: CardDefinition = {
                 "Artifacts, creatures, and lands your opponents control enter tapped (Kismet).",
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // White free tranche (#371) — every mono-white Legends card expressible with
@@ -77,7 +76,7 @@ export const kismet: CardDefinition = {
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 
 // Tundra Wolves — first strike (CR 702.7).
-export const tundraWolves: CardDefinition = {
+export const tundraWolves = defineCard(() => ({
     id: "8f649cb5-e19c-453f-b062-4fd452d92257",
     rarity: "common",
     name: "Tundra Wolves",
@@ -89,10 +88,10 @@ export const tundraWolves: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
+}));
 
 // Thunder Spirit — flying, first strike (CR 702.9, 702.7).
-export const thunderSpirit: CardDefinition = {
+export const thunderSpirit = defineCard(() => ({
     id: "61a59775-b1cd-4ed0-8abf-c2b37f7be0d5",
     rarity: "rare",
     name: "Thunder Spirit",
@@ -103,10 +102,10 @@ export const thunderSpirit: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying", "first strike"],
-};
+}));
 
 // Wall of Light — Defender, protection from black (CR 702.3, 702.16).
-export const wallOfLight: CardDefinition = {
+export const wallOfLight = defineCard(() => ({
     id: "f5758e82-f901-42b7-b705-0e68ca7ba59e",
     rarity: "uncommon",
     name: "Wall of Light",
@@ -117,10 +116,10 @@ export const wallOfLight: CardDefinition = {
     power: 1,
     toughness: 5,
     staticAbilities: ["defender", "protection from black"],
-};
+}));
 
 // Righteous Avengers — plainswalk (CR 702.14 landwalk variant).
-export const righteousAvengers: CardDefinition = {
+export const righteousAvengers = defineCard(() => ({
     id: "d96b463e-9579-4e7b-87c2-342527b91e7c",
     rarity: "uncommon",
     name: "Righteous Avengers",
@@ -132,7 +131,7 @@ export const righteousAvengers: CardDefinition = {
     power: 3,
     toughness: 1,
     staticAbilities: ["plainswalk"],
-};
+}));
 
 // Great Wall — global plainswalk negation (CR 509.1b / 702.14). The
 // `landwalk-negation` static is scanned across the defending player's
@@ -140,7 +139,7 @@ export const righteousAvengers: CardDefinition = {
 // with plainswalk can then be blocked as though it didn't have it, regardless
 // of the defender's Plains. Parametric `subtypes` shares one kind with
 // Undertow (Island) and the LEG suppression statics (Gosta Dirk et al.).
-export const greatWall: CardDefinition = {
+export const greatWall = defineCard(() => ({
     id: "cd860a1d-aa17-4579-b9b1-d101d2416387",
     rarity: "uncommon",
     name: "Great Wall",
@@ -157,10 +156,10 @@ export const greatWall: CardDefinition = {
                 "Creatures with plainswalk can be blocked as though they didn't have plainswalk.",
         },
     ],
-};
+}));
 
 // Keepers of the Faith — vanilla 2/3 (CR 208 — stats only).
-export const keepersOfTheFaith: CardDefinition = {
+export const keepersOfTheFaith = defineCard(() => ({
     id: "b63a69ae-99ce-4d26-88b7-784793c43cd4",
     rarity: "common",
     name: "Keepers of the Faith",
@@ -170,13 +169,13 @@ export const keepersOfTheFaith: CardDefinition = {
     subtypes: ["Human", "Cleric"],
     power: 2,
     toughness: 3,
-};
+}));
 
 // D'Avenant Archer — {T}: deal 1 damage to target attacking or blocking
 // creature (CR 508.1 / 509.1 combat-role-restricted target). "Attacking or
 // blocking" is the array form of `combatRoleFilter` (a single role can't
 // express the union). Standard tap-to-ping; no summoning-sickness exception.
-export const davenantArcher: CardDefinition = {
+export const davenantArcher = defineCard(() => ({
     id: "b09aee5c-8b9e-46c2-b4d4-508062f8af05",
     rarity: "common",
     name: "D'Avenant Archer",
@@ -202,7 +201,7 @@ export const davenantArcher: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // --- Continuous source-filtered combat-damage prevention (CR 615 / 611) ----
 //
@@ -216,7 +215,7 @@ export const davenantArcher: CardDefinition = {
 // Enchanted Being — {1}{W}{W} 2/2. "Prevent all combat damage that would be
 // dealt to this creature by enchanted creatures." Source filter: the attacker/
 // blocker is enchanted by any Aura (CR 303.4b).
-export const enchantedBeing: CardDefinition = {
+export const enchantedBeing = defineCard(() => ({
     id: "94c2880d-b37a-43ea-9fee-cd5a8ed75a7e",
     rarity: "common",
     name: "Enchanted Being",
@@ -237,14 +236,14 @@ export const enchantedBeing: CardDefinition = {
                 isEnchantedByAura(damageSource, state),
         },
     ],
-};
+}));
 
 // --- Block / evasion restriction creatures (CR 509.1b) --------------------
 
 // Amrou Kithkin — can't be blocked by power 3 or greater (CR 509.1b). The
 // block-restriction predicate receives the candidate blocker enriched to
 // effective power (post-layer-7c) by the combat validator.
-export const amrouKithkin: CardDefinition = {
+export const amrouKithkin = defineCard(() => ({
     id: "cbce1c55-123c-4a05-bde4-18a1601fcc5a",
     rarity: "common",
     name: "Amrou Kithkin",
@@ -266,14 +265,14 @@ export const amrouKithkin: CardDefinition = {
                 "This creature can't be blocked by creatures with power 3 or greater.",
         },
     ],
-};
+}));
 
 // --- Conditional anthems (CR 611 layer 7c, staticEffects + condition) ------
 
 // Angelic Voices — "Creatures you control get +1/+1 as long as you control no
 // nonartifact, nonwhite creatures." A source-level `condition` gates the whole
 // anthem on the board state (CR 611.2c).
-export const angelicVoices: CardDefinition = {
+export const angelicVoices = defineCard(() => ({
     id: "8068c263-e5fa-4449-8887-418e9d0a4da4",
     rarity: "rare",
     name: "Angelic Voices",
@@ -304,13 +303,13 @@ export const angelicVoices: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Ivory Guardians — protection from red (CR 702.16) + a conditional anthem
 // scoped to creatures named Ivory Guardians (CR 611.2c).
 const IVORY_GUARDIANS_ID = "9bf9cccd-fe97-4632-a90a-9eeb0d41135e";
 
-export const ivoryGuardians: CardDefinition = {
+export const ivoryGuardians = defineCard(() => ({
     id: IVORY_GUARDIANS_ID,
     rarity: "uncommon",
     name: "Ivory Guardians",
@@ -343,11 +342,11 @@ export const ivoryGuardians: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Fortified Area — "Wall creatures you control get +1/+0 and have banding."
 // (CR 611 — filtered anthem + keyword grant; plain banding is already shipped.)
-export const fortifiedArea: CardDefinition = {
+export const fortifiedArea = defineCard(() => ({
     id: "dc64f19c-5b2b-4697-b4dc-2be9c3790794",
     rarity: "uncommon",
     name: "Fortified Area",
@@ -372,12 +371,12 @@ export const fortifiedArea: CardDefinition = {
             keyword: "banding",
         },
     ],
-};
+}));
 
 // --- Auras (CR 303 — Enchant creature) ------------------------------------
 
 // Divine Transformation — Enchanted creature gets +3/+3 (CR 303.4, 611).
-export const divineTransformation: CardDefinition = {
+export const divineTransformation = defineCard(() => ({
     id: "a89ad9fd-33a6-4d31-9f4c-8bf192882f21",
     rarity: "rare",
     name: "Divine Transformation",
@@ -394,11 +393,11 @@ export const divineTransformation: CardDefinition = {
             toughness: 3,
         },
     ],
-};
+}));
 
 // Seeker — "Enchanted creature can't be blocked except by artifact creatures
 // and/or white creatures." (CR 509.1b block restriction via the aura's host.)
-export const seeker: CardDefinition = {
+export const seeker = defineCard(() => ({
     id: "df608b59-cc07-4e1d-b6d6-f15e69b15b92",
     rarity: "uncommon",
     name: "Seeker",
@@ -422,11 +421,11 @@ export const seeker: CardDefinition = {
                 "Enchanted creature can't be blocked except by artifact creatures and/or white creatures.",
         },
     ],
-};
+}));
 
 // Spirit Link — "Whenever enchanted creature deals damage, you gain that much
 // life." (CR 303.4 aura host trigger via the damage-dealt factory.)
-export const spiritLink: CardDefinition = {
+export const spiritLink = defineCard(() => ({
     id: "5e2d35f8-3cf6-4843-9030-0e9a885d836c",
     rarity: "uncommon",
     name: "Spirit Link",
@@ -457,7 +456,7 @@ export const spiritLink: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Infinite Authority — {W}{W}{W} Aura (Enchant creature). "Whenever enchanted
 // creature blocks or becomes blocked by a creature with toughness 3 or less,
@@ -504,7 +503,7 @@ const infiniteAuthorityCombatKill = combatPairKill({
     },
 });
 
-export const infiniteAuthority: CardDefinition = {
+export const infiniteAuthority = defineCard(() => ({
     id: INFINITE_AUTHORITY_ID,
     rarity: "rare",
     name: "Infinite Authority",
@@ -537,7 +536,7 @@ export const infiniteAuthority: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Sweepers / removal spells (CR 701.7) ----------------------------------
 
@@ -545,7 +544,7 @@ export const infiniteAuthority: CardDefinition = {
 // colour, CR 202.2.)
 // Migrated resolve()→effects[] (ADR 0045): `forEach` over every player's
 // battlefield creatures filtered to color B (CR 202.2) → `destroy` each.
-export const cleanse: CardDefinition = {
+export const cleanse = defineCard(() => ({
     id: "2fbd611b-ac97-4516-bad7-cc9ee4ef74f7",
     rarity: "rare",
     name: "Cleanse",
@@ -563,14 +562,14 @@ export const cleanse: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Divine Offering — "Destroy target artifact. You gain life equal to its mana
 // value." (CR 701.8 + 118.3 lifegain; snapshot the MV before the destroy.)
 // Migrated resolve()→effects[] (ADR 0045): `destroy` binds the target's
 // snapshot (captures mana value BEFORE it leaves the battlefield, CR 608.2h —
 // the Swords to Plowshares shape) → `gainLife` reads it back via `ref`.
-export const divineOffering: CardDefinition = {
+export const divineOffering = defineCard(() => ({
     id: "9c78c2f3-2f40-48ad-9dc4-55d1fa399a56",
     rarity: "common",
     name: "Divine Offering",
@@ -587,7 +586,7 @@ export const divineOffering: CardDefinition = {
             amount: { ref: "$art.manaValue" },
         },
     ],
-};
+}));
 
 // Remove Enchantments — "Return to your hand all enchantments you both own and
 // control, all Auras you own attached to permanents you control, and all Auras
@@ -606,7 +605,7 @@ export const divineOffering: CardDefinition = {
 // (CR 608.2 — sequential one-shot effect; a card that left play is untouched by
 // the later step). No target: it's a mass effect (CR 608.2 reads the board at
 // resolution).
-export const removeEnchantments: CardDefinition = {
+export const removeEnchantments = defineCard(() => ({
     id: "bf2e3a8a-b386-474d-b8e9-4c2d56a2b742",
     rarity: "common",
     name: "Remove Enchantments",
@@ -686,13 +685,13 @@ export const removeEnchantments: CardDefinition = {
             if (!returned.has(id)) ctx.destroy({ type: "permanent", id });
         }
     },
-};
+}));
 
 // --- Pump spells (CR 611.1, end-of-turn duration) --------------------------
 
 // Great Defender — "Target creature gets +0/+X until end of turn, where X is
 // its mana value." (CR 202.3 mana value snapshot + 611.1 temporary buff.)
-export const greatDefender: CardDefinition = {
+export const greatDefender = defineCard(() => ({
     id: "879a8653-1538-4f78-a3d3-a900a4d9499b",
     rarity: "uncommon",
     name: "Great Defender",
@@ -710,11 +709,11 @@ export const greatDefender: CardDefinition = {
         const mv = ctx.getManaValue(target);
         ctx.addTemporaryPTBuff(target, 0, mv, { phase: "end-of-turn" });
     },
-};
+}));
 
 // Shield Wall — "Creatures you control get +0/+2 until end of turn." (CR 611.1
 // one-shot team buff applied per matching permanent.)
-export const shieldWall: CardDefinition = {
+export const shieldWall = defineCard(() => ({
     id: "a5032bf0-f9c0-4ef0-8ec2-fe7ccea9bdf3",
     rarity: "uncommon",
     name: "Shield Wall",
@@ -744,13 +743,13 @@ export const shieldWall: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Damage prevention (CR 615) --------------------------------------------
 
 // Holy Day — "Prevent all combat damage that would be dealt this turn."
 // (CR 615 — the global combat-damage prevention used by Fog-style cards.)
-export const holyDay: CardDefinition = {
+export const holyDay = defineCard(() => ({
     id: "f6c95a2b-bf44-4ff2-9c6a-916773346edd",
     rarity: "common",
     name: "Holy Day",
@@ -760,12 +759,12 @@ export const holyDay: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #845): the "all-combat" mode of
     // preventDamage is a turn-scoped global Fog (CR 615).
     effects: [{ op: "preventDamage", mode: "all-combat" }],
-};
+}));
 
 // Indestructible Aura — "Prevent all damage that would be dealt to target
 // creature this turn." (CR 615 — a per-target shield. "All damage" is modeled
 // as a very large prevention amount consumed across the turn.)
-export const indestructibleAura: CardDefinition = {
+export const indestructibleAura = defineCard(() => ({
     id: "ed2a7333-c9ce-4011-b00e-1304e1eec25e",
     rarity: "common",
     name: "Indestructible Aura",
@@ -786,11 +785,11 @@ export const indestructibleAura: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Alabaster Potion — modal: "Target player gains X life" OR "Prevent the next X
 // damage that would be dealt to any target this turn." (CR 700.2 modal spell.)
-export const alabasterPotion: CardDefinition = {
+export const alabasterPotion = defineCard(() => ({
     id: "2806c7f6-8fdd-4e65-9c71-f2e8b0cdede2",
     rarity: "common",
     name: "Alabaster Potion",
@@ -833,13 +832,13 @@ export const alabasterPotion: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Enchantment triggers (CR 603) -----------------------------------------
 
 // Spiritual Sanctuary — "At the beginning of each player's upkeep, if that
 // player controls a Plains, they gain 1 life." (CR 603.6a + 603.4 if-clause.)
-export const spiritualSanctuary: CardDefinition = {
+export const spiritualSanctuary = defineCard(() => ({
     id: "654dd1e0-a91d-44ee-af20-c025bf360c3f",
     rarity: "rare",
     name: "Spiritual Sanctuary",
@@ -878,11 +877,11 @@ export const spiritualSanctuary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Lifeblood — "Whenever a Mountain an opponent controls becomes tapped, you
 // gain 1 life." (CR 701.26a tap trigger, scoped to opponents' Mountains.)
-export const lifeblood: CardDefinition = {
+export const lifeblood = defineCard(() => ({
     id: "4ecb1362-9a67-4d4c-8d69-9ac2ebf4d0b0",
     rarity: "rare",
     name: "Lifeblood",
@@ -910,11 +909,11 @@ export const lifeblood: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Presence of the Master — "Whenever a player casts an enchantment spell,
 // counter it." (CR 601.2i cast trigger → CR 701.6a counter.)
-export const presenceOfTheMaster: CardDefinition = {
+export const presenceOfTheMaster = defineCard(() => ({
     id: "1cb86b2f-116d-4952-b35a-1398341baaf5",
     rarity: "uncommon",
     name: "Presence of the Master",
@@ -941,14 +940,14 @@ export const presenceOfTheMaster: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // --- Library inspection (CR 401) -------------------------------------------
 
 // Visions — "Look at the top five cards of target player's library. You may
 // then have that player shuffle that library." (CR 401.4 look → markKnown to
 // the caster; optional shuffle, CR 701.24.)
-export const visions: CardDefinition = {
+export const visions = defineCard(() => ({
     id: "21d00299-e183-4b3d-b015-18808e7135b9",
     rarity: "uncommon",
     name: "Visions",
@@ -982,7 +981,7 @@ export const visions: CardDefinition = {
             if (shuffle) ctx.shuffleLibrary(target.id);
         },
     ],
-};
+}));
 
 // Equinox — {W} Aura (Enchant land). "Enchanted land has '{T}: Counter target
 // spell if it would destroy a land you control.'" (CR 303.4 aura attachment,
@@ -995,7 +994,7 @@ export const visions: CardDefinition = {
 // targeting your land, or Armageddon-style mass land destruction. Per the
 // Legends rulings, indirect/random/sacrifice destruction and damage to animated
 // lands are excluded (they aren't `destroy-target` / `destroysAllLands`).
-export const equinox: CardDefinition = {
+export const equinox = defineCard(() => ({
     id: "840c6586-a7a9-4ae8-96be-a995a0693eb6",
     rarity: "common",
     name: "Equinox",
@@ -1027,7 +1026,7 @@ export const equinox: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 /** Colour of a permanent view (CR 202.2), derived from its registered mana
  *  cost. Used by the Seeker block predicate, which receives a raw permanent
@@ -1053,7 +1052,7 @@ function colorsOf(view: { card: Record<string, unknown> }): string[] {
 // pump itself +1/+1 until end of turn (CR 611.1 temporary buff, expires at
 // CLEANUP CR 514.2). The `deathsThisTurn` tally is the shared CR 700.4 death
 // counter maintained in `removePermanentTo` and reset at turn start.
-export const osaiVultures: CardDefinition = {
+export const osaiVultures = defineCard(() => ({
     id: "f85614b3-62a3-4da9-a74a-7ea40fad1b52",
     rarity: "common",
     name: "Osai Vultures",
@@ -1116,7 +1115,7 @@ export const osaiVultures: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Glyph of Life — "Choose target Wall creature. Whenever that creature is dealt
 // damage by an attacking creature this turn, you gain that much life." A
@@ -1124,7 +1123,7 @@ export const osaiVultures: CardDefinition = {
 // at resolution and scanned in the combat damage step: only damage from an
 // attacker (CR 506.2) gains life — a blocker's or non-combat source's damage
 // does not. The watch wears off at CLEANUP (CR 514.2).
-export const glyphOfLife: CardDefinition = {
+export const glyphOfLife = defineCard(() => ({
     id: "ba1384e5-d140-4074-9548-250af09cb413",
     rarity: "common",
     name: "Glyph of Life",
@@ -1142,7 +1141,7 @@ export const glyphOfLife: CardDefinition = {
         if (target?.type !== "permanent") return;
         ctx.gainLifeWhenDamagedByAttacker(target, { phase: "end-of-turn" });
     },
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C3 — Rampage N (CR 702.23) — issue #380.
@@ -1180,7 +1179,7 @@ export const glyphOfLife: CardDefinition = {
 //     matching `rampageTrigger(2)` (carried on `triggeredGrantTemplates`) for
 //     end of turn, mirroring how the printed rampage creatures pair the keyword
 //     with the trigger (ADR 0002).
-export const rapidFire: CardDefinition = {
+export const rapidFire = defineCard(() => ({
     id: "e26e7c9c-e6de-47f4-8394-7e853408f84c",
     rarity: "common",
     name: "Rapid Fire",
@@ -1214,19 +1213,19 @@ export const rapidFire: CardDefinition = {
             ctx.grantStaticAbility(target, "rampage 2", {
                 phase: "end-of-turn",
             });
-            ctx.grantTriggeredAbility(target, rapidFire.id, "rampage-2", {
+            ctx.grantTriggeredAbility(target, rapidFire().id, "rampage-2", {
                 phase: "end-of-turn",
             });
         }
     },
-};
+}));
 
 // Divine Intervention — {6}{W}{W} Enchantment. Enters with two intervention
 // counters; each upkeep removes one; when the last is removed, the game is a
 // draw. CR 122 named counters, CR 104.4a game-draw via the new `ctx.drawGame()`
 // primitive. The "when you remove the last counter" clause is folded into the
 // upkeep resolve: removing the second counter ends the game in a draw.
-export const divineIntervention: CardDefinition = {
+export const divineIntervention = defineCard(() => ({
     id: "9eae0ba1-1383-4505-b4e7-4f17dd8f20c5",
     rarity: "rare",
     name: "Divine Intervention",
@@ -1256,7 +1255,7 @@ export const divineIntervention: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Global attack-restriction statics (#481, CR 508.1c)
@@ -1279,7 +1278,7 @@ export const divineIntervention: CardDefinition = {
 // Moat — {2}{W}{W} Enchantment. "Creatures without flying can't attack."
 // (CR 508.1c — a board-wide attack lock; flying is read from the attacker's
 // effective `staticAbilities`, so a creature granted flying by an Aura attacks.)
-export const moat: CardDefinition = {
+export const moat = defineCard(() => ({
     id: "952ba126-0915-47f0-9b6a-a0a6dcd22c6f",
     rarity: "rare",
     name: "Moat",
@@ -1299,13 +1298,13 @@ export const moat: CardDefinition = {
             oracleText: "Creatures without flying can't attack (Moat).",
         },
     ],
-};
+}));
 
 // Akron Legionnaire — {6}{W}{W} Creature — Giant Soldier, 8/4. "Except for
 // creatures named Akron Legionnaire and artifact creatures, creatures you
 // control can't attack." (CR 508.1c — the lock is scoped to the SOURCE's
 // controller; Akron-named creatures and artifact creatures are exempt.)
-export const akronLegionnaire: CardDefinition = {
+export const akronLegionnaire = defineCard(() => ({
     id: "5d074af2-8dbd-42d3-87eb-30f6e7d171ff",
     rarity: "rare",
     name: "Akron Legionnaire",
@@ -1342,7 +1341,7 @@ export const akronLegionnaire: CardDefinition = {
                 "Except for creatures named Akron Legionnaire and artifact creatures, creatures you control can't attack (Akron Legionnaire).",
         },
     ],
-};
+}));
 
 // Petra Sphinx — {2}{W}{W}{W} 3/4 Sphinx (CR 201.4 name-a-card + CR 701.20
 // reveal). "{T}: Target player chooses a card name, then reveals the top card
@@ -1354,7 +1353,7 @@ export const akronLegionnaire: CardDefinition = {
 // read the top instance → `getCardName` to compare against the named card →
 // `markKnownToAll` (CR 701.20 the card is revealed to all) → `moveCardById`
 // library → hand on a match, library → graveyard on a mismatch.
-export const petraSphinx: CardDefinition = {
+export const petraSphinx = defineCard(() => ({
     id: "5ef99f07-c987-451a-b18a-2719eea654cd",
     rarity: "rare",
     name: "Petra Sphinx",
@@ -1396,7 +1395,7 @@ export const petraSphinx: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Clergy of the Holy Nimbus — "If this creature would be destroyed, regenerate
 // it. {1}: This creature can't be regenerated this turn. Only your opponents
@@ -1412,7 +1411,7 @@ export const petraSphinx: CardDefinition = {
 // only the controller's OPPONENTS may pay {1}, which sets the source's
 // `cantBeRegeneratedThisTurn` flag (CR 701.19c) — suppressing the auto-regen
 // so the next lethal destruction kills it. The flag clears at CLEANUP.
-export const clergyOfTheHolyNimbus: CardDefinition = {
+export const clergyOfTheHolyNimbus = defineCard(() => ({
     id: "db1f578f-fa3b-4447-953b-1490852b6c80",
     rarity: "common",
     name: "Clergy of the Holy Nimbus",
@@ -1439,7 +1438,7 @@ export const clergyOfTheHolyNimbus: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Wall of Caltrops — {1}{W} 2/1 Wall, Defender. "Whenever this creature blocks
 // a creature, if at least one other Wall creature is blocking that creature and
@@ -1513,7 +1512,7 @@ function caltropsConditionHolds(
     return otherWalls >= 1 && nonWalls === 0;
 }
 
-export const wallOfCaltrops: CardDefinition = {
+export const wallOfCaltrops = defineCard(() => ({
     id: WALL_OF_CALTROPS_ID,
     rarity: "common",
     name: "Wall of Caltrops",
@@ -1560,7 +1559,7 @@ export const wallOfCaltrops: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Greater Realm of Preservation — "{1}{W}: The next time a black or red source
 // of your choice would deal damage to you this turn, prevent that damage."
@@ -1568,7 +1567,7 @@ export const wallOfCaltrops: CardDefinition = {
 // source; CR 202.2 — the choice is restricted to sources that are black OR red
 // via `colorFilterAny`.) Built from the shared `makeCircleOfProtection` factory
 // with the multi-color source variant and {1}{W} enchantment / activation costs.
-export const greaterRealmOfPreservation: CardDefinition =
+export const greaterRealmOfPreservation = defineCard(() =>
     makeCircleOfProtection({
         id: "5e236816-0c49-4b48-b18b-03add5a80d72",
         rarity: "uncommon",
@@ -1578,4 +1577,5 @@ export const greaterRealmOfPreservation: CardDefinition =
         source: { kind: "color-any", colors: ["B", "R"], word: "black or red" },
         manaCost: { X: 1, W: 1 },
         activationCost: { X: 1, W: 1 },
-    });
+    })
+);

@@ -1,5 +1,5 @@
 // mh2 — black cards (ADR 0043 colour split).
-import type { CardDefinition, EffectOp } from "../../types";
+import { defineCard, type EffectOp } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 
@@ -48,7 +48,7 @@ const archonOfCrueltyTriggerEffects: EffectOp[] = [
     { op: "gainLife", player: "controller", amount: 3 },
 ];
 
-export const archonOfCruelty: CardDefinition = {
+export const archonOfCruelty = defineCard(() => ({
     id: "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
     name: "Archon of Cruelty",
     rarity: "mythic",
@@ -93,7 +93,7 @@ export const archonOfCruelty: CardDefinition = {
             effects: archonOfCrueltyTriggerEffects,
         },
     ],
-};
+}));
 
 // Grief — {2}{B}{B} Creature Elemental Incarnation, 3/2, menace (Vintage Cube
 // edict/discard/hand-disruption, issue #682/#931; ships via #900). "Menace.
@@ -128,7 +128,7 @@ const griefTriggerEffects: EffectOp[] = [
     { op: "discard", player: { target: 0 }, cards: { ref: "$picked" } },
 ];
 
-export const grief: CardDefinition = {
+export const grief = defineCard(() => ({
     id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
     rarity: "mythic",
     name: "Grief",
@@ -163,7 +163,7 @@ export const grief: CardDefinition = {
         }),
         evokeTrigger("Grief"),
     ],
-};
+}));
 
 /** Bone Shards — {B} Sorcery. "As an additional cost to cast this spell,
  *  sacrifice a creature or discard a card. Destroy target creature or
@@ -186,7 +186,7 @@ export const grief: CardDefinition = {
  *  cast card itself is never eligible for the discard leg (it is on the stack
  *  by then); it is not a creature, so it is never a sacrifice candidate
  *  either. */
-export const boneShards: CardDefinition = {
+export const boneShards = defineCard(() => ({
     id: "1ee98955-4c47-4d45-9377-608dfa755337",
     name: "Bone Shards",
     rarity: "common",
@@ -209,7 +209,7 @@ export const boneShards: CardDefinition = {
         count: 1,
     },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Damn — {B}{B} Sorcery (MH2 80, Vintage Cube). "Destroy target creature. A
 // creature destroyed this way can't be regenerated. Overload {2}{W}{W}."
@@ -231,7 +231,7 @@ export const boneShards: CardDefinition = {
 // card's body must lower to the `forEach { set: "targets" }` shape rather than
 // a slot reference, so neither line round-trips yet (issue #3274):
 // compiler-gap: Overload {2}{W}{W} (#3274)
-export const damn: CardDefinition = {
+export const damn = defineCard(() => ({
     id: "efeae088-9ac5-4d2f-a15c-d8675a471ac5",
     name: "Damn",
     rarity: "rare",
@@ -258,7 +258,7 @@ export const damn: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Dauthi Voidwalker — {1}{B} Creature Dauthi Rogue, 3/2, shadow (MH2 81,
 // Vintage Cube FREE tranche, issue #686). "Shadow. If a card would be put
@@ -309,7 +309,7 @@ export const damn: CardDefinition = {
 // creature can't block a non-shadow attacker either — not expressible by the
 // attacker-keyed `EvasionRule` shape). See the `mechanicsRegistry.ts` "shadow"
 // row for the split.
-export const dauthiVoidwalker: CardDefinition = {
+export const dauthiVoidwalker = defineCard(() => ({
     id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3", // MH2 81
     name: "Dauthi Voidwalker",
     rarity: "rare",
@@ -384,4 +384,4 @@ export const dauthiVoidwalker: CardDefinition = {
             ],
         },
     ],
-};
+}));

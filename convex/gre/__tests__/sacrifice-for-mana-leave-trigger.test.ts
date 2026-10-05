@@ -39,7 +39,7 @@ const FOREST = getCardByName("Forest").id;
 
 describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (CR 603.6 / 700.4 / 605.3a, issue #943)", () => {
     it("Chromatic Star: sacrificing it to pay its own mana ability adds mana AND draws a card", () => {
-        const star = makeInstance(chromaticStar.id, {
+        const star = makeInstance(chromaticStar().id, {
             id: "star",
             controllerId: "p1",
             ownerId: "p1",
@@ -108,13 +108,13 @@ describe("sacrifice-for-mana fires the source's leave-the-battlefield trigger (C
         // generic sacrifice-cost application (not card-specific code), the
         // death/leave events are emitted for ANY sacrificed permanent, so an
         // unrelated trigger fires too.
-        const thrull = makeInstance(basalThrull.id, {
+        const thrull = makeInstance(basalThrull().id, {
             id: "thrull",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
-        const net = makeInstance(soulNet.id, {
+        const net = makeInstance(soulNet().id, {
             id: "net",
             controllerId: "p1",
             ownerId: "p1",

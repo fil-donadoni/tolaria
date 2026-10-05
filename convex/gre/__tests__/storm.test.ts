@@ -46,7 +46,7 @@ beforeAll(() => {
 
 function fillLibrary(count: number, controllerId: string) {
     return Array.from({ length: count }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `lib-${controllerId}-${i}`,
             controllerId,
             ownerId: controllerId,
@@ -90,7 +90,7 @@ function drainStack(state: GameState, maxIterations = 20): void {
 describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
     it("increments per cast and carries priorSpellCount on SPELL_CAST", () => {
         const state = makeState();
-        const bolt1 = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt1 = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt1);
@@ -103,7 +103,7 @@ describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
         const evt1 = casts1[casts1.length - 1];
         expect(evt1).toMatchObject({ type: "SPELL_CAST", priorSpellCount: 0 });
 
-        const bolt2 = pushSpell(state, lightningBolt.id, "p2", [
+        const bolt2 = pushSpell(state, lightningBolt().id, "p2", [
             { type: "player", id: "p1" },
         ]);
         emitSpellCastEvent(state, bolt2);
@@ -121,13 +121,13 @@ describe("Storm — spells-cast-this-turn counter (CR 702.40a, S2)", () => {
                 makePlayer("p2", { library: fillLibrary(10, "p2") }),
             ],
         });
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         expect(state.spellsCastThisTurn).toBe(1);
 
-        const bf = pushSpell(state, brainFreeze.id, "p1", [
+        const bf = pushSpell(state, brainFreeze().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bf); // priorSpellCount = 1 -> 1 copy
@@ -153,7 +153,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { battlefield: [] })],
         });
-        const gs = pushSpell(state, grapeshot.id, "p1", [
+        const gs = pushSpell(state, grapeshot().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, gs); // priorSpellCount = 0
@@ -175,7 +175,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         // Two prior spells this turn (Lightning Bolt, resolved before the
         // storm spell is cast).
         for (let i = 0; i < 2; i++) {
-            const bolt = pushSpell(state, lightningBolt.id, "p1", [
+            const bolt = pushSpell(state, lightningBolt().id, "p1", [
                 { type: "player", id: "p2" },
             ]);
             emitSpellCastEvent(state, bolt);
@@ -184,7 +184,7 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
         expect(state.players[1].life).toBe(14); // 2 * 3 damage
         expect(state.spellsCastThisTurn).toBe(2);
 
-        const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
+        const etw = pushSpell(state, emptyTheWarrens().id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount = 2
         const trigger = state.stack[state.stack.length - 1];
         expect(trigger.triggeredAbilityId).toBe("storm");
@@ -220,27 +220,27 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
 
     it("an opponent's spell cast earlier this turn counts (CR 702.40a — any player)", () => {
         const state = makeState();
-        const oppBolt = pushSpell(state, lightningBolt.id, "p2", [
+        const oppBolt = pushSpell(state, lightningBolt().id, "p2", [
             { type: "player", id: "p1" },
         ]);
         emitSpellCastEvent(state, oppBolt);
         resolveTopOfStack(state);
         expect(state.spellsCastThisTurn).toBe(1);
 
-        const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
+        const etw = pushSpell(state, emptyTheWarrens().id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount includes p2's bolt
         expect(state.stack[state.stack.length - 1].castCopiesRemaining).toBe(1);
     });
 
     it("a spell cast AFTER the storm spell (before the trigger resolves) does not count", () => {
         const state = makeState();
-        const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
+        const etw = pushSpell(state, emptyTheWarrens().id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount = 0, fixed now
         const trigger = state.stack[state.stack.length - 1];
         expect(trigger.castCopiesRemaining).toBe(0);
 
         // A second spell cast in response, before the storm trigger resolves.
-        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+        const bolt = pushSpell(state, lightningBolt().id, "p2", [
             { type: "player", id: "p1" },
         ]);
         emitSpellCastEvent(state, bolt);
@@ -253,13 +253,13 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
 
     it("copies are still created even if the original storm spell is countered in response", () => {
         const state = makeState();
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state);
 
-        const etw = pushSpell(state, emptyTheWarrens.id, "p1", []);
+        const etw = pushSpell(state, emptyTheWarrens().id, "p1", []);
         emitSpellCastEvent(state, etw); // priorSpellCount = 1
         expect(state.stack.map((s) => s.id)).toEqual([
             etw.id,
@@ -289,13 +289,13 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
             ],
         });
         for (let i = 0; i < 2; i++) {
-            const bolt = pushSpell(state, lightningBolt.id, "p1", [
+            const bolt = pushSpell(state, lightningBolt().id, "p1", [
                 { type: "player", id: "p2" },
             ]);
             emitSpellCastEvent(state, bolt);
             resolveTopOfStack(state);
         }
-        const bf = pushSpell(state, brainFreeze.id, "p1", [
+        const bf = pushSpell(state, brainFreeze().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bf); // priorSpellCount = 2
@@ -310,13 +310,13 @@ describe("Storm — cast-trigger + copy resolution (CR 702.40, S1)", () => {
 
     it("Tendrils of Agony — multi-Op (loseLife + gainLife) per copy + the original, the classic storm kill", () => {
         const state = makeState();
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state); // p2: 20 -> 17 (Lightning Bolt, unrelated to storm)
 
-        const t = pushSpell(state, tendrilsOfAgony.id, "p1", [
+        const t = pushSpell(state, tendrilsOfAgony().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, t); // priorSpellCount = 1 -> 1 copy
@@ -345,13 +345,13 @@ describe("Storm — per-copy retarget (CR 707.10b / 707.10c, S5)", () => {
                 makePlayer("p2", { library: fillLibrary(20, "p2") }),
             ],
         });
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state); // unrelated prior spell (count -> 1)
 
-        const bf = pushSpell(state, brainFreeze.id, "p1", [
+        const bf = pushSpell(state, brainFreeze().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bf); // priorSpellCount = 1 -> 1 copy
@@ -376,13 +376,13 @@ describe("Storm — per-copy retarget (CR 707.10b / 707.10c, S5)", () => {
             ],
         });
         for (let i = 0; i < 2; i++) {
-            const bolt = pushSpell(state, lightningBolt.id, "p1", [
+            const bolt = pushSpell(state, lightningBolt().id, "p1", [
                 { type: "player", id: "p2" },
             ]);
             emitSpellCastEvent(state, bolt);
             resolveTopOfStack(state);
         }
-        const bf = pushSpell(state, brainFreeze.id, "p1", [
+        const bf = pushSpell(state, brainFreeze().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bf); // priorSpellCount = 2 -> 2 copies
@@ -424,13 +424,13 @@ describe("Storm — per-copy retarget (CR 707.10b / 707.10c, S5)", () => {
 describe("Storm — wire format (projectPublicState, S4)", () => {
     it("priorSpellCount and the storm trigger stack item survive the projection", () => {
         const state = makeState();
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state);
 
-        const gs = pushSpell(state, grapeshot.id, "p1", [
+        const gs = pushSpell(state, grapeshot().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, gs); // priorSpellCount = 1
@@ -464,13 +464,13 @@ describe("Storm — serialize round-trip (S3)", () => {
 
     it("a mid-resolution storm trigger (castCopySnapshot + castCopiesRemaining) survives a save/load", () => {
         const state = makeState();
-        const bolt = pushSpell(state, lightningBolt.id, "p1", [
+        const bolt = pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, bolt);
         resolveTopOfStack(state);
 
-        const gs = pushSpell(state, grapeshot.id, "p1", [
+        const gs = pushSpell(state, grapeshot().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         emitSpellCastEvent(state, gs); // priorSpellCount = 1, trigger on stack, not yet resolved
@@ -483,7 +483,7 @@ describe("Storm — serialize round-trip (S3)", () => {
         expect(trigger!.castCopiesRemaining).toBe(1);
         expect(trigger!.castCopySnapshot).toBeDefined();
         expect((trigger!.castCopySnapshot!.card as { id: string }).id).toBe(
-            grapeshot.id
+            grapeshot().id
         );
 
         // Resolution continues correctly after the round-trip (declining the

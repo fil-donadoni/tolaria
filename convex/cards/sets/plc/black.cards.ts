@@ -1,5 +1,5 @@
 // plc — black cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Damnation — {2}{B}{B} Sorcery. "Destroy all creatures. They can't be
 // regenerated." (CR 701.8 destroy; CR 701.19c "can't be regenerated" is a
@@ -15,7 +15,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // `SpellContext.destroyAll`, not a new one (`convex/cards/types.ts` already
 // names Damnation in `destroyAll`'s own doc comment as the second consumer).
 // Blocked on: a `cantBeRegenerated` option on the `destroy` Op.
-export const damnation: CardDefinition = {
+export const damnation = defineCard(() => ({
     id: "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
     name: "Damnation",
     rarity: "rare",
@@ -25,4 +25,4 @@ export const damnation: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         ctx.destroyAll("Creature", { cantBeRegenerated: true });
     },
-};
+}));

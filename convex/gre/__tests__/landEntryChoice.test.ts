@@ -28,7 +28,7 @@ function playSteamVents(
     life = 20,
     p2Battlefield: ReturnType<typeof makeInstance>[] = []
 ) {
-    const shock = makeInstance(steamVents.id, { id: "shock", zone: "hand" });
+    const shock = makeInstance(steamVents().id, { id: "shock", zone: "hand" });
     const state = makeState({
         players: [
             makePlayer("p1", { life, hand: [shock] }),
@@ -47,11 +47,11 @@ function shockIn(
     zone: "exile" | "graveyard",
     opts: { life?: number; knownTo?: string[]; named?: boolean } = {}
 ) {
-    const shock = makeInstance(steamVents.id, {
+    const shock = makeInstance(steamVents().id, {
         id: "shock",
         zone,
         ...(opts.named
-            ? { card: { id: steamVents.id, name: steamVents.name } }
+            ? { card: { id: steamVents().id, name: steamVents().name } }
             : {}),
         ...(opts.knownTo ? { knownTo: opts.knownTo } : {}),
     });
@@ -118,7 +118,7 @@ describe("shock land entry: resolve (CR 614.12)", () => {
 
 describe("shock land entry: independence from other tapped sources (CR 616)", () => {
     it("Kismet forces tapped AND you may still pay 2 life (Arena parity)", () => {
-        const kismetInst = makeInstance(kismet.id, {
+        const kismetInst = makeInstance(kismet().id, {
             id: "kismet",
             controllerId: "p2",
         });
@@ -227,7 +227,7 @@ describe.each([
     it("Kismet still forces tapped even when the 2 life is paid", () => {
         const { state, player } = shockIn(zone);
         getPlayer(state, "p2").battlefield.push(
-            makeInstance(kismet.id, {
+            makeInstance(kismet().id, {
                 id: "kismet",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -248,7 +248,7 @@ describe.each([
 // (issue #1156). Both have to survive the detour through the pay-choice.
 describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", () => {
     it("consumes the exile play grant when the DELAYED entry settles, not at the suspend", () => {
-        const shock = makeInstance(steamVents.id, {
+        const shock = makeInstance(steamVents().id, {
             id: "shock",
             zone: "exile",
             castableFromExileBy: "p1",
@@ -280,7 +280,7 @@ describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", ()
     });
 
     it("a cross-player grant settles onto the CASTER's battlefield, not the exile owner's", () => {
-        const shock = makeInstance(steamVents.id, {
+        const shock = makeInstance(steamVents().id, {
             id: "shock",
             zone: "exile",
             controllerId: "p2",
@@ -342,13 +342,13 @@ describe("shock land entry: exile origin specifics (CR 305.1-analog, #1980)", ()
 // trigger (`returnToBattlefield` — the identical funnel a fetch land uses).
 describe("shock land entry via effect — non-play ETB (CR 614.12)", () => {
     function reanimateShock(life = 20) {
-        const shock = makeInstance(steamVents.id, {
+        const shock = makeInstance(steamVents().id, {
             id: "shock",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const seraphInst = makeInstance(seraph.id, {
+        const seraphInst = makeInstance(seraph().id, {
             id: "seraph",
             controllerId: "p1",
             ownerId: "p1",

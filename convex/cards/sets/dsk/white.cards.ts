@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/P-T are from Scryfall (id = DSK paper printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -16,7 +16,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // derivation behind it — lives in `abilities/enduringReturn.ts` (issue #2085,
 // the extract-on-the-second rule): five cards print the identical clause, so
 // the Effect Script is authored once and each card only names itself.
-export const enduringInnocence: CardDefinition = {
+export const enduringInnocence = defineCard(() => ({
     id: "08f79439-b8f8-418f-9772-26d81844749e",
     name: "Enduring Innocence",
     rarity: "rare",
@@ -55,4 +55,4 @@ export const enduringInnocence: CardDefinition = {
             cardName: "Enduring Innocence",
         }),
     ],
-};
+}));

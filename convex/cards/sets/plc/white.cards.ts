@@ -1,11 +1,11 @@
 // plc — white cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mana Tithe — "Counter target spell unless its controller pays {1}." (CR
 // 701.6a counter-unless-pay, CR 118.12a may-pay). The white Force Spike
 // (leg/blue.cards.ts) — same mayPay + if(not $paid) + counter shape, one Op
 // vocabulary, no card-specific logic (issue #683).
-export const manaTithe: CardDefinition = {
+export const manaTithe = defineCard(() => ({
     id: "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
     rarity: "common",
     name: "Mana Tithe",
@@ -29,4 +29,4 @@ export const manaTithe: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

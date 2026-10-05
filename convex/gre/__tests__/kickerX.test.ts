@@ -40,7 +40,7 @@ import { burstLightning } from "../../cards/sets/zen/red.cards";
 import { fireball } from "../../cards/sets/lea/index.cards";
 
 function verdelothInHand(id: string) {
-    return makeInstance(verdelothTheAncient.id, {
+    return makeInstance(verdelothTheAncient().id, {
         controllerId: "p1",
         ownerId: "p1",
         zone: "hand",
@@ -95,23 +95,25 @@ function saprolingsOf(state: GameState): number {
 
 describe("Kicker {X} — which casts announce X (CR 107.3a / 601.2b)", () => {
     it("a Kicker whose mana leg carries {X} announces X; a fixed one does not", () => {
-        expect(kickerAnnouncesX(verdelothTheAncient.kickers![0])).toBe(true);
-        expect(kickerAnnouncesX(burstLightning.kickers![0])).toBe(false);
+        expect(kickerAnnouncesX(verdelothTheAncient().kickers![0])).toBe(true);
+        expect(kickerAnnouncesX(burstLightning().kickers![0])).toBe(false);
     });
 
     it("only a PAID Kicker {X} owes the announcement", () => {
-        expect(paidKickersAnnounceX(verdelothTheAncient, { kicker: 1 })).toBe(
+        expect(paidKickersAnnounceX(verdelothTheAncient(), { kicker: 1 })).toBe(
             true
         );
-        expect(paidKickersAnnounceX(verdelothTheAncient, undefined)).toBe(
+        expect(paidKickersAnnounceX(verdelothTheAncient(), undefined)).toBe(
             false
         );
-        expect(paidKickersAnnounceX(burstLightning, { kicker: 1 })).toBe(false);
+        expect(paidKickersAnnounceX(burstLightning(), { kicker: 1 })).toBe(
+            false
+        );
     });
 
     it("folds the Kicker's {X} at the spell's one announced X", () => {
         const cost: Record<string, number> = { X: 4, G: 2 };
-        foldKickerCosts(cost, verdelothTheAncient, { kicker: 1 }, 5);
+        foldKickerCosts(cost, verdelothTheAncient(), { kicker: 1 }, 5);
         expect(cost).toEqual({ X: 9, G: 2 });
     });
 });
@@ -157,7 +159,7 @@ describe("mana value of a spell kicked for X (CR 202.3 / 202.3e)", () => {
     });
 
     it("an {X} in the mana cost still counts at the announced value", () => {
-        expect(mvOfStackItem({ card: { id: fireball.id }, chosenX: 3 })).toBe(
+        expect(mvOfStackItem({ card: { id: fireball().id }, chosenX: 3 })).toBe(
             4
         );
     });

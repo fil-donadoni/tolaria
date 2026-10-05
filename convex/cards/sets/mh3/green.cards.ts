@@ -3,12 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    PermanentView,
-    TriggerStateView,
-} from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { PermanentView, TriggerStateView } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { ELDRAZI_SPAWN_TOKEN, GREEN_INSECT_TOKEN } from "../../sharedTokens";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 import { eternalizeAbility } from "../../abilities/eternalize";
@@ -28,7 +24,7 @@ const FANATIC_OF_RHONAS_TOKEN_PRINT_ID = "6ef58164-4155-4e5b-8c16-f16f2ab65baa";
 // sorcery-speed activated ability whose cost exiles this card and whose script
 // creates the CR 707.2 token copy — a 4/4 black Zombie Snake Druid with no mana
 // cost, rendered as this card's own printed eternalize token (tmh3 #15).
-export const fanaticOfRhonas: CardDefinition = {
+export const fanaticOfRhonas = defineCard(() => ({
     id: "1f9fb33a-3b39-4aff-93b8-aedafe0ea694",
     rarity: "rare",
     name: "Fanatic of Rhonas",
@@ -79,7 +75,7 @@ export const fanaticOfRhonas: CardDefinition = {
             FANATIC_OF_RHONAS_TOKEN_PRINT_ID
         ),
     ],
-};
+}));
 
 // Malevolent Rumble — {1}{G} Sorcery (Cube FREE wave 3, issue #1531/#1525).
 // "Reveal the top four cards of your library. You may put a permanent card
@@ -93,7 +89,7 @@ export const fanaticOfRhonas: CardDefinition = {
 // own `graveyard` leg). The Eldrazi Spawn is the shared
 // `ELDRAZI_SPAWN_TOKEN` spec (`sharedTokens.ts`), pinned to its own printed
 // Scryfall art.
-export const malevolentRumble: CardDefinition = {
+export const malevolentRumble = defineCard(() => ({
     id: "a178cfe8-f9fa-4255-88d0-54a0bed079f5",
     rarity: "common",
     name: "Malevolent Rumble",
@@ -119,7 +115,7 @@ export const malevolentRumble: CardDefinition = {
             controller: "controller",
         },
     ],
-};
+}));
 
 // Springheart Nantuko — {1}{G} Enchantment Creature — Insect Monk, 1/1 (issue
 // #2388, the FIRST Bestow card in the catalogue). "Bestow {1}{G} (If you cast
@@ -152,7 +148,7 @@ export const malevolentRumble: CardDefinition = {
 //     seeds no `$host`, so the predicate reads false and the else-branch runs
 //     — which is exactly the printed behaviour (no payment is offered, and the
 //     plain Insect token is created).
-export const springheartNantuko: CardDefinition = {
+export const springheartNantuko = defineCard(() => ({
     id: "54a3ea87-005e-4985-b2a5-21711d0b71c0",
     rarity: "rare",
     name: "Springheart Nantuko",
@@ -243,4 +239,4 @@ export const springheartNantuko: CardDefinition = {
             ],
         }),
     ],
-};
+}));

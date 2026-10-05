@@ -49,7 +49,7 @@ const SOURCE_DEF_ID = "test-graveyard-play-permission-source";
  *  share a battlefield). */
 function permissionSource(permission: GraveyardPlayPermission): CardDefinition {
     return {
-        ...crucibleOfWorlds,
+        ...crucibleOfWorlds(),
         id: SOURCE_DEF_ID,
         name: "Test Graveyard Permission Source",
         graveyardPlayPermission: permission,
@@ -97,9 +97,9 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 const state = board(
                     ["source-a", "source-b"],
                     [
-                        [savannahLions.id, "lions-1"],
-                        [savannahLions.id, "lions-2"],
-                        [savannahLions.id, "lions-3"],
+                        [savannahLions().id, "lions-1"],
+                        [savannahLions().id, "lions-2"],
+                        [savannahLions().id, "lions-3"],
                     ]
                 );
                 const p1 = getPlayer(state, "p1");
@@ -145,7 +145,7 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
             () => {
                 const state = board(
                     ["source-a"],
-                    [[savannahLions.id, "lions-1"]]
+                    [[savannahLions().id, "lions-1"]]
                 );
                 const slim = projectPublicState(state, 1, "p1")
                     .players.find((p) => p.id === "p1")!
@@ -165,8 +165,8 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 const state = board(
                     ["source-a"],
                     [
-                        [mountain.id, "gy-mountain"],
-                        [savannahLions.id, "gy-lions"],
+                        [mountain().id, "gy-mountain"],
+                        [savannahLions().id, "gy-lions"],
                     ]
                 );
                 const p1 = getPlayer(state, "p1");
@@ -191,8 +191,8 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 const state = board(
                     ["source-a"],
                     [
-                        [mountain.id, "gy-mountain"],
-                        [savannahLions.id, "gy-lions"],
+                        [mountain().id, "gy-mountain"],
+                        [savannahLions().id, "gy-lions"],
                     ]
                 );
                 const p1 = getPlayer(state, "p1");
@@ -215,8 +215,8 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
                 const state = board(
                     ["source-a"],
                     [
-                        [wateryGrave.id, "gy-grave"],
-                        [mountain.id, "gy-mountain"],
+                        [wateryGrave().id, "gy-grave"],
+                        [mountain().id, "gy-mountain"],
                     ]
                 );
                 const p1 = getPlayer(state, "p1");
@@ -258,7 +258,7 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
             () => {
                 const state = board(
                     ["source-a"],
-                    [[mountain.id, "gy-mountain"]]
+                    [[mountain().id, "gy-mountain"]]
                 );
                 const p1 = getPlayer(state, "p1");
                 // `playLandForPlayer` (a resolving effect's own licence) goes
@@ -301,10 +301,10 @@ describe("graveyard play permission record (ADR 0093, CR 601.3)", () => {
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        p1Card(lurrus.id, "lurrus-p1", "battlefield"),
+                        p1Card(lurrus().id, "lurrus-p1", "battlefield"),
                     ],
                     graveyard: [
-                        p1Card(savannahLions.id, "gy-lions", "graveyard"),
+                        p1Card(savannahLions().id, "gy-lions", "graveyard"),
                     ],
                 }),
                 makePlayer("p2"),

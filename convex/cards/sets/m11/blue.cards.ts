@@ -1,7 +1,7 @@
 // Magic 2011 (M11) — blue cards, split by colour per ADR 0043. The registry's
 // `import * as m11 from "./sets/m11/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Preordain — {U} Sorcery. "Scry 2, then draw a card." Authored DSL-first as an
 // Effect Script (ADR 0045, issue #885): the `scryReorder` Op is the declarative
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // cards back on top in the player's chosen order and the rest on the true
 // bottom of the library. Then the draw (CR 121.1). The kept cards stay known to
 // the controller afterwards (ADR 0026 — you know your top cards).
-export const preordain: CardDefinition = {
+export const preordain = defineCard(() => ({
     id: "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
     name: "Preordain",
     rarity: "common",
@@ -29,4 +29,4 @@ export const preordain: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

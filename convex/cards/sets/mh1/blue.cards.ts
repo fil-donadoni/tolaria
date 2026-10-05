@@ -1,5 +1,5 @@
 // mh1 — blue cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { constructArtifactsYouControlToken } from "../../sharedTokens";
 
@@ -18,7 +18,7 @@ import { constructArtifactsYouControlToken } from "../../sharedTokens";
 // body to lea/2ed Timetwister's migrated `effects[]` (same composed Ops, no
 // new primitive) — `flashback` is an orthogonal cost-shape field, unaffected
 // by the resolve()→effects[] migration.
-export const echoOfEons: CardDefinition = {
+export const echoOfEons = defineCard(() => ({
     id: "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
     rarity: "mythic",
     name: "Echo of Eons",
@@ -53,7 +53,7 @@ export const echoOfEons: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Force of Negation — {1}{U}{U} Instant. "If it's not your turn, you may exile a
 // blue card from your hand rather than pay this spell's mana cost. Counter
@@ -68,7 +68,7 @@ export const echoOfEons: CardDefinition = {
 // the spell target (the Spell Pierce shape); the "exile it instead" rider is the
 // already-censused `counter` Op's `destination: "exile"` (No More Lies /
 // Memory Lapse family) — no new Op or TargetRequirement type (ADR 0045).
-export const forceOfNegation: CardDefinition = {
+export const forceOfNegation = defineCard(() => ({
     id: "e9be371c-c688-44ad-ab71-bd4c9f242d58", // MH1 52
     rarity: "rare",
     name: "Force of Negation",
@@ -93,7 +93,7 @@ export const forceOfNegation: CardDefinition = {
         },
     ],
     effects: [{ op: "counter", target: { target: 0 }, destination: "exile" }],
-};
+}));
 
 // Urza, Lord High Artificer — {2}{U}{U} Legendary Creature — Human Artificer,
 // 1/4 (MH1 75, issue #2371, parent tracker #1525). Three clauses, each a
@@ -198,7 +198,7 @@ function createUrzaConstruct(ctx: SpellContext): void {
     ctx.createToken(URZA_CONSTRUCT_TOKEN, ctx.controller, 1);
 }
 
-export const urzaLordHighArtificer: CardDefinition = {
+export const urzaLordHighArtificer = defineCard(() => ({
     id: "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567", // MH1 75
     rarity: "mythic",
     name: "Urza, Lord High Artificer",
@@ -323,4 +323,4 @@ export const urzaLordHighArtificer: CardDefinition = {
             ],
         },
     ],
-};
+}));

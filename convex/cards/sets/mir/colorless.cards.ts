@@ -2,7 +2,7 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import type { ActivatedAbilityContext, CardDefinition } from "../../types";
+import { defineCard, type ActivatedAbilityContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Lion's Eye Diamond — "Discard your hand, Sacrifice this artifact: Add
@@ -16,7 +16,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // activatable at instant speed (CR 605.3b — any time the player has
 // priority), which is the full content of that clause here. Vintage Cube
 // free tranche (issue #675, ADR 0041).
-export const lionsEyeDiamond: CardDefinition = {
+export const lionsEyeDiamond = defineCard(() => ({
     id: "63bacc32-d6ba-420c-9b49-299c08e5fb39",
     rarity: "rare",
     name: "Lion's Eye Diamond",
@@ -37,7 +37,7 @@ export const lionsEyeDiamond: CardDefinition = {
             manaChoices: [{ W: 3 }, { U: 3 }, { B: 3 }, { R: 3 }, { G: 3 }],
         },
     ],
-};
+}));
 
 // Phyrexian Dreadnought — {1} 12/12 Artifact Creature with trample and a
 // self-ETB punisher (CR 603.6a trigger; CR 118 / 701.21 sacrifice cost). Modern
@@ -53,7 +53,7 @@ export const lionsEyeDiamond: CardDefinition = {
 // its own ability. Reuses only already-exercised Ops (mayPay/if/sacrifice), but
 // the threshold count is a new sacrifice-leg shape, so it earns a hand-written
 // test (mir/__tests__/colorless.test.ts).
-export const phyrexianDreadnought: CardDefinition = {
+export const phyrexianDreadnought = defineCard(() => ({
     id: "7b8197b9-0cd1-4fa1-9668-d1b5f1759151",
     rarity: "rare",
     name: "Phyrexian Dreadnought",
@@ -95,4 +95,4 @@ export const phyrexianDreadnought: CardDefinition = {
             ],
         }),
     ],
-};
+}));

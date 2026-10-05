@@ -2,7 +2,7 @@
 // authoritative (ADR 0004). Lands and colourless artifacts (no coloured cost)
 // live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shelldock Isle (issue #783) — the Hideaway (CR 702.75) proving card.
@@ -29,7 +29,7 @@ import type { CardDefinition } from "../../types";
 // SMALLEST library size across all players compared against 20, which is
 // exactly "some library has 20 or fewer cards in it".
 // ─────────────────────────────────────────────────────────────────────────────
-export const shelldockIsle: CardDefinition = {
+export const shelldockIsle = defineCard(() => ({
     id: "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
     rarity: "rare",
     name: "Shelldock Isle",
@@ -120,4 +120,4 @@ export const shelldockIsle: CardDefinition = {
             ],
         },
     ],
-};
+}));

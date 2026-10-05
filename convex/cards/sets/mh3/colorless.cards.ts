@@ -5,7 +5,7 @@
 //
 // Reference: set code mh3, Modern Horizons 3.
 
-import type { CardDefinition, LandEntryStateView } from "../../types";
+import { defineCard, type LandEntryStateView } from "../../types";
 
 // Shifting Woodland — Land.
 // "This land enters tapped unless you control a Forest.
@@ -28,7 +28,7 @@ import type { CardDefinition, LandEntryStateView } from "../../types";
 // rather than a battlefield instance; an Op wrapping `applyCopy` at all (the
 // copy family is `resolve()`-only today, and this is an ACTIVATED ability); a
 // duration-scoped revert; and the delirium activation gate.
-export const shiftingWoodland: CardDefinition = {
+export const shiftingWoodland = defineCard(() => ({
     id: "059164e1-894d-4586-9800-e60d6fbd6eb6",
     rarity: "rare",
     name: "Shifting Woodland",
@@ -48,7 +48,7 @@ export const shiftingWoodland: CardDefinition = {
         }
         return false;
     },
-};
+}));
 
 // Arena of Glory — Land.
 // "This land enters tapped unless you control a Mountain.
@@ -78,7 +78,7 @@ export const shiftingWoodland: CardDefinition = {
 //
 // hand-tail: "This land enters tapped unless you control a Mountain." (#4195)
 // hand-tail: "{R}, {T}, Exert this land: Add {R}{R}. If that mana is spent on a creature spell, it gains haste until end of turn." (#4195)
-export const arenaOfGlory: CardDefinition = {
+export const arenaOfGlory = defineCard(() => ({
     id: "dd148edc-9e43-41aa-bb50-f912115d3e72",
     rarity: "rare",
     name: "Arena of Glory",
@@ -124,4 +124,4 @@ export const arenaOfGlory: CardDefinition = {
             manaProduced: { R: 2 },
         },
     ],
-};
+}));

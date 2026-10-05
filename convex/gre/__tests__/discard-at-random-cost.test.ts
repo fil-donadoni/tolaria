@@ -81,13 +81,13 @@ describe("Coral Helm random-discard cost (CR 118.3 / 701.8, #292)", () => {
             controllerId: "p1",
             ownerId: "p1",
         });
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
         });
         const hand = Array.from({ length: handSize }, (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `h${i}`,
                 controllerId: "p1",
                 ownerId: "p1",

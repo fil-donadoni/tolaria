@@ -1,5 +1,5 @@
 // isd — blue cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Snapcaster Mage — {1}{U} 2/1 Human Wizard with Flash. "When this creature
@@ -8,7 +8,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // — the granted card becomes castable from the graveyard for its own mana cost,
 // then exiled.) The grant is the `grantFlashback` Op — an instance-level
 // flashback (`grantedFlashback`) expiring at cleanup (CR 514.2).
-export const snapcasterMage: CardDefinition = {
+export const snapcasterMage = defineCard(() => ({
     id: "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
     rarity: "rare",
     name: "Snapcaster Mage",
@@ -47,4 +47,4 @@ export const snapcasterMage: CardDefinition = {
             effects: [{ op: "grantFlashback", card: { target: 0 } }],
         }),
     ],
-};
+}));

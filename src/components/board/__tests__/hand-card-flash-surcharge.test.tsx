@@ -82,7 +82,7 @@ function projectedRout(overrides: Partial<GameState>): CardInstance {
         players: [
             makePlayer("me", {
                 hand: [
-                    makeInstance(rout.id, {
+                    makeInstance(rout().id, {
                         id: "rout1",
                         controllerId: "me",
                         ownerId: "me",

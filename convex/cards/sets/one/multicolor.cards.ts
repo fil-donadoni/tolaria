@@ -1,5 +1,5 @@
 // one — multicolor cards (ADR 0043 colour split).
-import type { CardDefinition, CardType } from "../../types";
+import { defineCard, type CardType } from "../../types";
 
 // Atraxa, Grand Unifier — {3}{G}{W}{U}{B} Legendary Creature, 7/7. "Flying,
 // vigilance, deathtouch, lifelink. When Atraxa enters, reveal the top ten
@@ -38,7 +38,7 @@ const ATRAXA_CARD_TYPES = [
     "Sorcery",
 ] as const satisfies readonly CardType[];
 
-export const atraxaGrandUnifier: CardDefinition = {
+export const atraxaGrandUnifier = defineCard(() => ({
     id: "4a1f905f-1d55-4d02-9d24-e58070793d3f",
     name: "Atraxa, Grand Unifier",
     rarity: "mythic",
@@ -84,4 +84,4 @@ export const atraxaGrandUnifier: CardDefinition = {
             ],
         },
     ],
-};
+}));

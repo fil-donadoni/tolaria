@@ -77,9 +77,9 @@ function walker(
  *  correctly and would make the affordability assertions read the wrong reason. */
 function fodder(): CardInstance[] {
     return [
-        perm("thopter", ornithopter),
-        perm("bear", grizzlyBears),
-        perm("forest", forest),
+        perm("thopter", ornithopter()),
+        perm("bear", grizzlyBears()),
+        perm("forest", forest()),
     ];
 }
 
@@ -106,9 +106,9 @@ function offeredAbilityIds(source: CardInstance, phase = "PRECOMBAT_MAIN") {
 }
 
 const WALKERS: Array<[string, CardDefinition]> = [
-    ["Tezzeret, Cruel Captain", tezzeretCruelCaptain],
-    ["Ugin, Eye of the Storms", uginEyeOfTheStorms],
-    ["Nissa, Who Shakes the World", nissaWhoShakesTheWorld],
+    ["Tezzeret, Cruel Captain", tezzeretCruelCaptain()],
+    ["Ugin, Eye of the Storms", uginEyeOfTheStorms()],
+    ["Nissa, Who Shakes the World", nissaWhoShakesTheWorld()],
 ];
 
 describe("loyalty abilities reach the client menu (CR 606, issue #3229)", () => {
@@ -180,7 +180,7 @@ describe("loyalty abilities reach the client menu (CR 606, issue #3229)", () => 
     );
 
     it("Ugin's three abilities are offered in printed order (+2, 0, -11)", () => {
-        const source = walker("ugin", uginEyeOfTheStorms, {
+        const source = walker("ugin", uginEyeOfTheStorms(), {
             counters: { loyalty: 11 },
         });
         expect(offeredAbilityIds(source)).toEqual([
@@ -208,16 +208,16 @@ describe("the client hint reads the allowance, not a lock (CR 606.3, issue #3339
      *  (Urza, Planeswalker is meld — PRD #3227 slice 3) and the catalogue is
      *  frozen. A shallow spread of the frozen original, per its contract. */
     const uginWithTwoActivations: CardDefinition = {
-        ...uginEyeOfTheStorms,
+        ...uginEyeOfTheStorms(),
         staticEffects: [
-            ...(uginEyeOfTheStorms.staticEffects ?? []),
+            ...(uginEyeOfTheStorms().staticEffects ?? []),
             { kind: "loyalty-activation-allowance", extra: 1 },
         ],
     };
 
     it("HALF 1 — still offers the walker's abilities after ONE activation when its allowance is two", () => {
         withTemporaryDefinition(uginWithTwoActivations, () => {
-            const source = walker("ugin", uginEyeOfTheStorms, {
+            const source = walker("ugin", uginEyeOfTheStorms(), {
                 counters: { loyalty: 11 },
                 loyaltyActivationsThisTurn: 1,
             });
@@ -231,7 +231,7 @@ describe("the client hint reads the allowance, not a lock (CR 606.3, issue #3339
 
     it("HALF 2 — offers nothing once the whole allowance is spent", () => {
         withTemporaryDefinition(uginWithTwoActivations, () => {
-            const source = walker("ugin", uginEyeOfTheStorms, {
+            const source = walker("ugin", uginEyeOfTheStorms(), {
                 counters: { loyalty: 11 },
                 loyaltyActivationsThisTurn: 2,
             });

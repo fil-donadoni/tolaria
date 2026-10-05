@@ -39,7 +39,7 @@ import { island } from "../../cards/sets/lea/index.cards";
 
 function libraryFor(playerId: string): CardInstanceState[] {
     return [1, 2].map((n) =>
-        makeInstance(island.id, {
+        makeInstance(island().id, {
             id: `${playerId}-lib-${n}`,
             controllerId: playerId,
             ownerId: playerId,
@@ -65,7 +65,7 @@ function makeCombatState(): {
         controllerId: "p2",
         ownerId: "p2",
     });
-    const aura = makeInstance(snowDevil.id, {
+    const aura = makeInstance(snowDevil().id, {
         id: "devil",
         controllerId: "p2",
         ownerId: "p2",
@@ -91,7 +91,7 @@ function makeCombatState(): {
                 battlefield: [
                     blocker,
                     aura,
-                    snowLand(snowCoveredIsland.id, "snow-isle", "p2"),
+                    snowLand(snowCoveredIsland().id, "snow-isle", "p2"),
                 ],
                 library: libraryFor("p2"),
             }),

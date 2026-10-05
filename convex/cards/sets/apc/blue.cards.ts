@@ -2,7 +2,7 @@
 // `import * as apc from "./sets/apc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
@@ -20,7 +20,7 @@ import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 // rather than `simultaneous`: every iteration touches only that player's hand
 // and library, so none of them can observe another's.
 // hand-tail: {R}, Sacrifice this creature: Each player shuffles the cards from their hand into their library, then draws that many cards. (#4358)
-export const whirlpoolWarrior: CardDefinition = {
+export const whirlpoolWarrior = defineCard(() => ({
     id: "01f891ca-4e6a-4710-b1cf-5dabb5e1ad93",
     rarity: "rare",
     name: "Whirlpool Warrior",
@@ -92,7 +92,7 @@ export const whirlpoolWarrior: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Unnatural Selection — {1}{U} Enchantment (issue #3809). "{1}: Choose a
 // creature type other than Wall. Target creature becomes that type until end
@@ -109,7 +109,7 @@ export const whirlpoolWarrior: CardDefinition = {
 // types only, so a land creature keeps its land types and an artifact
 // creature its artifact types (`applyCreatureTypeReplacement`, layer 4), and
 // it reverts at end of turn (CR 611.2, `setSubtypesUntil`).
-export const unnaturalSelection: CardDefinition = {
+export const unnaturalSelection = defineCard(() => ({
     id: "c575e2cb-3990-4c73-b81c-e16311ec6bbb", // APC 32
     name: "Unnatural Selection",
     rarity: "rare",
@@ -143,7 +143,7 @@ export const unnaturalSelection: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Jaded Response — {1}{U} Instant. "Counter target spell if it shares a color
 // with a creature you control." (CR 608.2b, CR 105.2.)
@@ -156,7 +156,7 @@ export const unnaturalSelection: CardDefinition = {
 // A spell that matches several creatures is countered by the first; the later
 // `counter` calls find it gone from the stack and do nothing (CR 608.2b).
 // hand-tail: Counter target spell if it shares a color with a creature you control. (#4336)
-export const jadedResponse: CardDefinition = {
+export const jadedResponse = defineCard(() => ({
     id: "6a9ab1f0-4e75-4165-85bc-6f838c221d6a", // APC 26
     name: "Jaded Response",
     rarity: "common",
@@ -186,7 +186,7 @@ export const jadedResponse: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ice Cave — {3}{U}{U} Enchantment. "Whenever a player casts a spell, any other
 // player may pay that spell's mana cost. If a player does, counter the spell."
@@ -206,7 +206,7 @@ export const jadedResponse: CardDefinition = {
 // {0} is paid with nothing. CR 701.6a — the counter names the same spell through
 // the event, as Decree of Silence does (`scg/blue.cards.ts`).
 // hand-tail: Whenever a player casts a spell, any other player may pay that spell's mana cost. If a player does, counter the spell. (#4335)
-export const iceCave: CardDefinition = {
+export const iceCave = defineCard(() => ({
     id: "fc2877c2-4426-4c07-92a2-8ba5107d5e7e", // APC 24
     name: "Ice Cave",
     rarity: "rare",
@@ -244,4 +244,4 @@ export const iceCave: CardDefinition = {
             ],
         }),
     ],
-};
+}));

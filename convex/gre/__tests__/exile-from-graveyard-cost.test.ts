@@ -183,7 +183,7 @@ function selectActivationExileCost(
 
 /** A creature card sitting in a graveyard (the cost's eligible fuel). */
 function graveyardCreature(id: string, ownerId: string): CardInstanceState {
-    return makeInstance(grizzlyBears.id, {
+    return makeInstance(grizzlyBears().id, {
         id,
         ownerId,
         controllerId: ownerId,
@@ -193,7 +193,7 @@ function graveyardCreature(id: string, ownerId: string): CardInstanceState {
 
 describe("exile-from-graveyard as an activation cost (CR 602.1 / 118.5 / 406)", () => {
     it("rejects activation when no single graveyard has two creature cards", () => {
-        const soil = makeInstance(nightSoil.id, { id: "soil-1" });
+        const soil = makeInstance(nightSoil().id, { id: "soil-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -216,7 +216,7 @@ describe("exile-from-graveyard as an activation cost (CR 602.1 / 118.5 / 406)", 
     });
 
     it("enters pendingActivation with an exile-choice picker", () => {
-        const soil = makeInstance(nightSoil.id, { id: "soil-1" });
+        const soil = makeInstance(nightSoil().id, { id: "soil-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -249,7 +249,7 @@ describe("exile-from-graveyard as an activation cost (CR 602.1 / 118.5 / 406)", 
     });
 
     it("exiles exactly two creature cards from one graveyard and makes a Saproling", () => {
-        const soil = makeInstance(nightSoil.id, { id: "soil-1" });
+        const soil = makeInstance(nightSoil().id, { id: "soil-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -288,7 +288,7 @@ describe("exile-from-graveyard as an activation cost (CR 602.1 / 118.5 / 406)", 
     });
 
     it("can pay the cost from an OPPONENT's graveyard (CR 118.5 — any single graveyard)", () => {
-        const soil = makeInstance(nightSoil.id, { id: "soil-1" });
+        const soil = makeInstance(nightSoil().id, { id: "soil-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", {
@@ -323,7 +323,7 @@ describe("exile-from-graveyard as an activation cost (CR 602.1 / 118.5 / 406)", 
     });
 
     it("rejects splitting the cost across two graveyards (CR 118.5)", () => {
-        const soil = makeInstance(nightSoil.id, { id: "soil-1" });
+        const soil = makeInstance(nightSoil().id, { id: "soil-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", {

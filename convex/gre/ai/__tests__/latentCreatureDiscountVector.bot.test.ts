@@ -32,7 +32,7 @@ const DISCOUNTS = (w: EvalWeights) => ({
 });
 
 function heldBears(withAluren: boolean) {
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears",
         controllerId: "p1",
         ownerId: "p1",
@@ -44,7 +44,7 @@ function heldBears(withAluren: boolean) {
                 hand: [bears],
                 battlefield: withAluren
                     ? [
-                          makeInstance(aluren.id, {
+                          makeInstance(aluren().id, {
                               id: "aluren",
                               controllerId: "p1",
                               ownerId: "p1",
@@ -59,9 +59,9 @@ function heldBears(withAluren: boolean) {
 
 describe("the creature discounts follow the vector (issue #5012)", () => {
     it("cardValueById prices at the discounts it is handed", () => {
-        const committed = cardValueById(grizzlyBears.id);
+        const committed = cardValueById(grizzlyBears().id);
         const halved = cardValueById(
-            grizzlyBears.id,
+            grizzlyBears().id,
             HALVED.latent,
             "hand",
             DISCOUNTS(HALVED)
@@ -70,7 +70,7 @@ describe("the creature discounts follow the vector (issue #5012)", () => {
     });
 
     it("the graveyard reading agrees with the hand reading under a non-default vector, and the memo keys on the discounts", () => {
-        const inGraveyard = makeInstance(grizzlyBears.id, {
+        const inGraveyard = makeInstance(grizzlyBears().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",

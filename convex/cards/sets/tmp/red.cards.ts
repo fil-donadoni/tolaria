@@ -2,7 +2,7 @@
 // `import * as tmp from "./sets/tmp/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { damageTakenTrigger } from "../../abilities/triggers/damageTakenTrigger";
 import type { SpellContext } from "../../types";
 
@@ -16,7 +16,7 @@ import type { SpellContext } from "../../types";
 // single `dealDamage` Op to the announced any-target (CR 120.1); the creature
 // is removed to the graveyard at cost payment, before the ability resolves off
 // its stack-item clone.
-export const moggFanatic: CardDefinition = {
+export const moggFanatic = defineCard(() => ({
     id: "ca2ecfd4-c874-4468-8601-87aa110d5a00",
     rarity: "common",
     name: "Mogg Fanatic",
@@ -37,7 +37,7 @@ export const moggFanatic: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Jackal Pup — a 2/1 for {R} with a self-damage drawback (modern oracle,
 // Scryfall): "Whenever this creature is dealt damage, it deals that much
@@ -58,7 +58,7 @@ export const moggFanatic: CardDefinition = {
 // pending a triggering-event value ref. The redirect deals damage to the
 // controller as a player (CR 119.3) — it targets a player, not Jackal Pup, so
 // it never re-triggers itself (no loop).
-export const jackalPup: CardDefinition = {
+export const jackalPup = defineCard(() => ({
     id: "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
     rarity: "common",
     name: "Jackal Pup",
@@ -87,7 +87,7 @@ export const jackalPup: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Crown of Flames — {R} Enchantment — Aura, enchant creature. "{R}: Enchanted
 // creature gets +1/+0 until end of turn. {R}: Return this Aura to its owner's
@@ -102,7 +102,7 @@ export const jackalPup: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/red.cards.ts`.
-export const crownOfFlames: CardDefinition = {
+export const crownOfFlames = defineCard(() => ({
     id: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // TMP 169
     rarity: "common",
     name: "Crown of Flames",
@@ -139,7 +139,7 @@ export const crownOfFlames: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Stun — {1}{R} Instant. "Target creature can't block this turn. Draw a
 // card." Migrated resolve()→effects[] (ADR 0045, issue #1285): "can't block"
@@ -152,7 +152,7 @@ export const crownOfFlames: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/red.cards.ts`.
-export const stun: CardDefinition = {
+export const stun = defineCard(() => ({
     id: "c09c0da6-37a7-42ba-b264-18898ee372f0", // TMP 207
     rarity: "common",
     name: "Stun",
@@ -168,4 +168,4 @@ export const stun: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

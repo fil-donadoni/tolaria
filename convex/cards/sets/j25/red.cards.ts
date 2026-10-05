@@ -3,7 +3,7 @@
 // j25/index.cards.ts. Cards are classified by the colour identity of their mana cost
 // (CR 202.2).
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { createBloodTokenOp } from "../../abilities/tokens/bloodToken";
 import {
     isDamageDealtEvent,
@@ -54,7 +54,7 @@ const IVORA_BLOOD_TRIGGER =
 // the discard-triggered counter.
 // compiler-gap: "When this creature enters and whenever it deals combat damage to a player, create a Blood token." (#2693)
 // compiler-gap: "Whenever you discard a card, put a +1/+1 counter on this creature." (#2693)
-export const ivoraInsatiableHeir: CardDefinition = {
+export const ivoraInsatiableHeir = defineCard(() => ({
     id: "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
     name: "Ivora, Insatiable Heir",
     rarity: "uncommon",
@@ -106,4 +106,4 @@ export const ivoraInsatiableHeir: CardDefinition = {
             ],
         },
     ],
-};
+}));

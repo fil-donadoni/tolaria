@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Consider — {U} Instant. "Surveil 1. Draw a card." (Modern Scryfall oracle
 // text.) Authored DSL-first as an Effect Script (ADR 0045) reusing already-
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // of `scryReorder`: Surveil 1 (CR 701.25) is `destination: "graveyard"` —
 // look at the top card, keep it on top or put it into the graveyard — then
 // draw (CR 121.1). Surveil resolves first, then the draw.
-export const consider: CardDefinition = {
+export const consider = defineCard(() => ({
     id: "a211d505-4d40-4914-a9da-220770d6ddbc",
     name: "Consider",
     rarity: "common",
@@ -29,4 +29,4 @@ export const consider: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

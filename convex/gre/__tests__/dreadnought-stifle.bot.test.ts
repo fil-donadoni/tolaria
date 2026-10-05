@@ -40,13 +40,13 @@ const ITERATIONS = 1200;
 /** P1: Dreadnought on the battlefield with its ETB trigger ON THE STACK
  *  (unresolved), Stifle in hand, {U} in pool, P1 has priority to respond. */
 function buildResponseState(): GameState {
-    const dread = makeInstance(phyrexianDreadnought.id, {
+    const dread = makeInstance(phyrexianDreadnought().id, {
         id: "dread",
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
     });
-    const stifleCard = makeInstance(stifle.id, {
+    const stifleCard = makeInstance(stifle().id, {
         id: "stifle",
         controllerId: "p1",
         ownerId: "p1",
@@ -90,7 +90,7 @@ function buildChoiceState(): GameState {
 /** 2-ply from-hand: Dreadnought in hand (+ optionally Stifle), {1}{U} of mana,
  *  P1 main phase, empty stack. Root decision: cast Dreadnought or not. */
 function buildFromHand(withStifle: boolean): GameState {
-    const dread = makeInstance(phyrexianDreadnought.id, {
+    const dread = makeInstance(phyrexianDreadnought().id, {
         id: "dread",
         controllerId: "p1",
         ownerId: "p1",
@@ -99,7 +99,7 @@ function buildFromHand(withStifle: boolean): GameState {
     const hand = [dread];
     if (withStifle) {
         hand.push(
-            makeInstance(stifle.id, {
+            makeInstance(stifle().id, {
                 id: "stifle",
                 controllerId: "p1",
                 ownerId: "p1",

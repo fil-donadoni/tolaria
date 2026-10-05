@@ -44,15 +44,17 @@ function instanceOf(
 /** Arena of Glory with its two mana abilities in the OPPOSITE printed order,
  *  so the costed one is what `getActivatedManaAbility` finds first. */
 const costedFirst: CardDefinition = {
-    ...arenaOfGlory,
-    activatedAbilities: [...(arenaOfGlory.activatedAbilities ?? [])].reverse(),
+    ...arenaOfGlory(),
+    activatedAbilities: [
+        ...(arenaOfGlory().activatedAbilities ?? []),
+    ].reverse(),
 };
 
 /** …and one whose ONLY option is the costed one: genuinely unpayable with an
  *  empty pool and nothing else to tap. */
 const costedOnly: CardDefinition = {
-    ...arenaOfGlory,
-    activatedAbilities: (arenaOfGlory.activatedAbilities ?? []).filter(
+    ...arenaOfGlory(),
+    activatedAbilities: (arenaOfGlory().activatedAbilities ?? []).filter(
         (a) => a.cost.mana !== undefined
     ),
 };
@@ -82,7 +84,7 @@ describe("canAffordManaAbilityCost — per option (CR 605.1a, issue #3384)", () 
     it("admits the same hopeless source once ANOTHER untapped source can fund it (CR 601.2g)", () => {
         withTemporaryDefinition(costedOnly, () => {
             const arena = instanceOf(costedOnly.id, "arena");
-            const land = instanceOf(mountain.id, "mountain-0", ["Mountain"]);
+            const land = instanceOf(mountain().id, "mountain-0", ["Mountain"]);
             // The server auto-taps to fund the leg, so the client must not
             // pre-empt it — only the total absence of any way to produce mana
             // hides the source.
@@ -116,7 +118,7 @@ describe("canAffordManaAbilityCost — per option (CR 605.1a, issue #3384)", () 
     });
 
     it("leaves the shipped shape (free option first) tappable, as before", () => {
-        const arena = instanceOf(arenaOfGlory.id, "arena");
+        const arena = instanceOf(arenaOfGlory().id, "arena");
         expect(canAffordManaAbilityCost(arena, EMPTY_POOL, [arena])).toBe(true);
     });
 });

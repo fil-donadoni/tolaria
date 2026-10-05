@@ -35,13 +35,13 @@ const bearsId = getCardByName("Balduvian Bears").id;
 const plainsId = getCardByName("Plains").id;
 
 function zursInstance(controllerId: string) {
-    return makeInstance(zursWeirding.id, {
+    return makeInstance(zursWeirding().id, {
         controllerId,
         ownerId: controllerId,
     });
 }
 function enduringInstance(controllerId: string) {
-    return makeInstance(enduringRenewal.id, {
+    return makeInstance(enduringRenewal().id, {
         controllerId,
         ownerId: controllerId,
     });

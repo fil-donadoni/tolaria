@@ -1,6 +1,6 @@
 // thb — red cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Underworld Breach — {1}{R} Enchantment.
@@ -11,7 +11,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //  three other graveyard cards.)
 // "At the beginning of the end step, sacrifice this enchantment." (CR 603.6a —
 //  a phase-begin self-sacrifice trigger; DSL `sacrifice $source`.)
-export const underworldBreach: CardDefinition = {
+export const underworldBreach = defineCard(() => ({
     id: "0e51d796-7279-4c06-87f0-37adbdaa41df",
     name: "Underworld Breach",
     rarity: "rare",
@@ -35,4 +35,4 @@ export const underworldBreach: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));

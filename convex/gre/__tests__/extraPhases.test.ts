@@ -120,7 +120,7 @@ describe("extra phases (CR 500.8)", () => {
             // first: the claim is that the added phase's entry is not skipped
             // as already-done this turn, which a fixture seeded straight at
             // END_OF_COMBAT could never distinguish.
-            const ram = makeInstance(batteringRam.id, {
+            const ram = makeInstance(batteringRam().id, {
                 id: "ram",
                 controllerId: "p1",
             });

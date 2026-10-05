@@ -43,7 +43,7 @@ function board(opts: {
 }): GameState {
     const { caster, forests = 0, priorityPlayerId = caster } = opts;
     const hand = [
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: caster,
             ownerId: caster,
@@ -53,7 +53,7 @@ function board(opts: {
     const lands = (owner: "p1" | "p2") =>
         owner === caster
             ? Array.from({ length: forests }, (_, i) =>
-                  makeInstance(forest.id, {
+                  makeInstance(forest().id, {
                       id: `${owner}-forest-${i}`,
                       controllerId: owner,
                       ownerId: owner,
@@ -65,7 +65,7 @@ function board(opts: {
             makePlayer("p1", {
                 hand: caster === "p1" ? hand : [],
                 battlefield: [
-                    makeInstance(aluren.id, {
+                    makeInstance(aluren().id, {
                         id: "aluren",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -190,14 +190,14 @@ describe("the enumerated Move is one `announceCast` ACCEPTS", () => {
         // anyway — a Move rejected twice over.
         const state = board({ caster: "p1", forests: 2 });
         state.players[0].battlefield.push(
-            makeInstance(bolassCitadel.id, {
+            makeInstance(bolassCitadel().id, {
                 id: "citadel",
                 controllerId: "p1",
                 ownerId: "p1",
             })
         );
         state.players[0].library = [
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "top",
                 controllerId: "p1",
                 ownerId: "p1",

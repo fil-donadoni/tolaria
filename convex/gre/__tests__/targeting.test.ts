@@ -3647,11 +3647,11 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
             ...makeCard({
                 id: crypto.randomUUID(),
                 card: {
-                    id: counterspell.id,
-                    name: counterspell.name,
-                    types: counterspell.types,
+                    id: counterspell().id,
+                    name: counterspell().name,
+                    types: counterspell().types,
                 },
-                types: counterspell.types,
+                types: counterspell().types,
                 zone: "stack",
                 ownerId: castBy,
                 controllerId: castBy,
@@ -3666,11 +3666,11 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
             ...makeCard({
                 id: crypto.randomUUID(),
                 card: {
-                    id: lightningBolt.id,
-                    name: lightningBolt.name,
-                    types: lightningBolt.types,
+                    id: lightningBolt().id,
+                    name: lightningBolt().name,
+                    types: lightningBolt().types,
                 },
-                types: lightningBolt.types,
+                types: lightningBolt().types,
                 zone: "stack",
                 ownerId: castBy,
                 controllerId: castBy,
@@ -3698,11 +3698,11 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
         // Bolt goes to its owner's (p2) graveyard
         const p2Grave = getPlayer(state, "p2").graveyard;
         expect(p2Grave).toHaveLength(1);
-        expect((p2Grave[0].card as { id: string }).id).toBe(lightningBolt.id);
+        expect((p2Grave[0].card as { id: string }).id).toBe(lightningBolt().id);
         // Counterspell goes to its own owner's (p1) graveyard (CR 608.2k)
         const p1Grave = getPlayer(state, "p1").graveyard;
         expect(p1Grave).toHaveLength(1);
-        expect((p1Grave[0].card as { id: string }).id).toBe(counterspell.id);
+        expect((p1Grave[0].card as { id: string }).id).toBe(counterspell().id);
     });
 
     it("counters a creature spell before it enters the battlefield", () => {
@@ -3774,7 +3774,7 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
         expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
         expect(
             (getPlayer(state, "p1").graveyard[0].card as { id: string }).id
-        ).toBe(counterspell.id);
+        ).toBe(counterspell().id);
     });
 
     it("counters a targeted spell without applying its effect", () => {
@@ -3800,11 +3800,11 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
             ...makeCard({
                 id: "gg-spell",
                 card: {
-                    id: giantGrowth.id,
-                    name: giantGrowth.name,
-                    types: giantGrowth.types,
+                    id: giantGrowth().id,
+                    name: giantGrowth().name,
+                    types: giantGrowth().types,
                 },
-                types: giantGrowth.types,
+                types: giantGrowth().types,
                 zone: "stack",
                 ownerId: "p1",
                 controllerId: "p1",
@@ -3865,11 +3865,11 @@ describe("spell resolution: Counterspell (CR 701.6a)", () => {
             ...makeCard({
                 id: crypto.randomUUID(),
                 card: {
-                    id: stifle.id,
-                    name: stifle.name,
-                    types: stifle.types,
+                    id: stifle().id,
+                    name: stifle().name,
+                    types: stifle().types,
                 },
-                types: stifle.types,
+                types: stifle().types,
                 zone: "stack",
                 ownerId: "p1",
                 controllerId: "p1",

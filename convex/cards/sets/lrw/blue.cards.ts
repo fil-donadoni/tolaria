@@ -1,7 +1,7 @@
 // Lorwyn (LRW) — blue cards, split by colour per ADR 0043. The registry's
 // `import * as lrw from "./sets/lrw/index.cards"` re-exports this module. Modern
 // Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Ponder — {U} Sorcery. "Look at the top three cards of your library, then put
 // them back in any order. You may shuffle. Draw a card." Authored DSL-first as
@@ -15,7 +15,7 @@ import type { CardDefinition } from "../../types";
 // (CR 701.20, which clears that knowledge). Then the draw (CR 121.1). Each
 // suspending Op checkpoints on its own Op index so a suspension never re-runs
 // an earlier step (CR 608.3).
-export const ponder: CardDefinition = {
+export const ponder = defineCard(() => ({
     id: "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
     name: "Ponder",
     rarity: "common",
@@ -46,4 +46,4 @@ export const ponder: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

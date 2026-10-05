@@ -3,7 +3,7 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004); canonical
 // name/cost/types/loyalty are from Scryfall (id = the WAR printing).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Narset, Parter of Veils — {1}{U}{U} Legendary Planeswalker — Narset,
@@ -26,7 +26,7 @@ import type { CardDefinition } from "../../types";
 //     catalogue `validateEffectScript` sweep + the auto-generated smoke test;
 //     the NEW lookDistribute behavior itself earns its dedicated test in
 //     `convex/gre/effects/__tests__/interpreter.test.ts` (the per-Op regime).
-export const narsetParterOfVeils: CardDefinition = {
+export const narsetParterOfVeils = defineCard(() => ({
     id: "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
     name: "Narset, Parter of Veils",
     rarity: "uncommon",
@@ -76,4 +76,4 @@ export const narsetParterOfVeils: CardDefinition = {
             ],
         },
     ],
-};
+}));

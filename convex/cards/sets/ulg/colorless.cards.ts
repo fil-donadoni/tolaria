@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { makeTapForMana } from "../../abilities";
 
 // Faerie Conclave — the ULG "manland" cycle's blue member, the same three
@@ -20,7 +20,7 @@ import { makeTapForMana } from "../../abilities";
 //    Creature type rather than setting it.
 //
 // hand-tail: {1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land. (#4195)
-export const faerieConclave: CardDefinition = {
+export const faerieConclave = defineCard(() => ({
     id: "ae3ede87-b026-4781-81ab-8652664f8e41",
     name: "Faerie Conclave",
     rarity: "uncommon",
@@ -56,7 +56,7 @@ export const faerieConclave: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Grim Monolith — "This artifact doesn't untap during your untap step.
 // {T}: Add {C}{C}{C}. {4}: Untap this artifact." (CR 502.1 untap
@@ -64,7 +64,7 @@ export const faerieConclave: CardDefinition = {
 // shape to LEA's Basalt Monolith (`convex/cards/sets/lea/colorless.cards.ts`) — the
 // `{4}: Untap this artifact` ability reuses the same `tapUntap` Op pattern.
 // Vintage Cube free tranche (issue #675, ADR 0041).
-export const grimMonolith: CardDefinition = {
+export const grimMonolith = defineCard(() => ({
     id: "9ddc9fe1-17c8-4e1d-aeb8-c4214e881280",
     rarity: "rare",
     name: "Grim Monolith",
@@ -89,7 +89,7 @@ export const grimMonolith: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Memory Jar — {5} Artifact (Vintage Cube FREE: edict/discard/hand
 // disruption, issue #682). "{T}, Sacrifice this artifact: Each player exiles
@@ -125,7 +125,7 @@ export const grimMonolith: CardDefinition = {
 // even its owner may look until it comes back.
 const MEMORY_JAR_RETURN_TRIGGER_ID = "memory-jar-return";
 
-export const memoryJar: CardDefinition = {
+export const memoryJar = defineCard(() => ({
     id: "a15d33d6-7213-4482-a1be-ac0a73644af6",
     name: "Memory Jar",
     rarity: "rare",
@@ -160,7 +160,7 @@ export const memoryJar: CardDefinition = {
                     ctx.drawCards(pid, 7);
                 }
                 ctx.scheduleDelayedTrigger(
-                    memoryJar.id,
+                    memoryJar().id,
                     MEMORY_JAR_RETURN_TRIGGER_ID,
                     "next-end-step",
                     payload
@@ -197,7 +197,7 @@ export const memoryJar: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Treetop Village — the ULG "manland" cycle's green member. Three lines:
 //  • "This land enters tapped." (`entersTapped`, the FEM sacrifice-land shape.)
@@ -213,7 +213,7 @@ export const memoryJar: CardDefinition = {
 //    by ADDING the Creature type rather than setting it.
 //
 // hand-tail: {1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (#4195)
-export const treetopVillage: CardDefinition = {
+export const treetopVillage = defineCard(() => ({
     id: "02212bd8-0c0f-4e8e-99f1-a8477476c03a",
     name: "Treetop Village",
     rarity: "uncommon",
@@ -249,4 +249,4 @@ export const treetopVillage: CardDefinition = {
             ],
         },
     ],
-};
+}));

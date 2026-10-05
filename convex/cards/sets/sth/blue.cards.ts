@@ -1,11 +1,11 @@
 // sth — blue cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Mana Leak — "Counter target spell unless its controller pays {3}." (CR
 // 701.6a counter-unless-pay, CR 118.12a may-pay). Same mayPay + if(not $paid)
 // + counter shape as Force Spike (leg/blue.cards.ts), just a bigger tax (issue
 // #683).
-export const manaLeak: CardDefinition = {
+export const manaLeak = defineCard(() => ({
     id: "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
     rarity: "common",
     name: "Mana Leak",
@@ -29,4 +29,4 @@ export const manaLeak: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

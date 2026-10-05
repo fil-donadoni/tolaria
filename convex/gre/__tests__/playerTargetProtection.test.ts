@@ -72,13 +72,13 @@ function twoSeatBoard(
         controllerId: "p1",
         ownerId: "p1",
     });
-    const h1 = makeInstance(grizzlyBears.id, {
+    const h1 = makeInstance(grizzlyBears().id, {
         id: "h1",
         controllerId: "p2",
         ownerId: "p2",
         zone: "hand",
     });
-    const h2 = makeInstance(grizzlyBears.id, {
+    const h2 = makeInstance(grizzlyBears().id, {
         id: "h2",
         controllerId: "p2",
         ownerId: "p2",
@@ -96,7 +96,7 @@ function twoSeatBoard(
 
 describe("targeted 'target opponent' triggers honour player protection (CR 702.16b via CR 115.4, issue #2801)", () => {
     it("auto-selects the sole legal opponent and resolves when nothing protects them", () => {
-        const { state, source } = twoSeatBoard(ravenousRats.id, "rats");
+        const { state, source } = twoSeatBoard(ravenousRats().id, "rats");
         // CR 603.3d — one mandatory target, exactly one legal candidate: the
         // engine locks it without prompting.
         expect(
@@ -118,7 +118,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
     });
 
     it("removes the trigger from the stack when the only opponent has protection from everything", () => {
-        const { state, source } = twoSeatBoard(ravenousRats.id, "rats", {
+        const { state, source } = twoSeatBoard(ravenousRats().id, "rats", {
             playerProtectionFromEverything: ["p2"],
         });
         expect(
@@ -142,12 +142,12 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
     it("removes the trigger from the stack when the only opponent has shroud", () => {
         // CR 702.18 via CR 115.4 — Solitary Confinement gives its controller
         // shroud through the `player-guard` static effect.
-        const confinement = makeInstance(solitaryConfinement.id, {
+        const confinement = makeInstance(solitaryConfinement().id, {
             id: "confine",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const { state, source } = twoSeatBoard(ravenousRats.id, "rats");
+        const { state, source } = twoSeatBoard(ravenousRats().id, "rats");
         state.players[1].battlefield.push(confinement);
 
         expect(
@@ -163,7 +163,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
     });
 
     it("protects the player against Archon of Cruelty's enters trigger too — the fix is the class, not the card", () => {
-        const { state, source } = twoSeatBoard(archonOfCruelty.id, "archon", {
+        const { state, source } = twoSeatBoard(archonOfCruelty().id, "archon", {
             playerProtectionFromEverything: ["p2"],
         });
         const before = state.players[0].life;
@@ -184,7 +184,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
 
     it("still targets a protected player's OPPONENT — protection is per-player, not global", () => {
         // p1 (the Rats' controller) is the protected one; p2 is still fair game.
-        const { state, source } = twoSeatBoard(ravenousRats.id, "rats", {
+        const { state, source } = twoSeatBoard(ravenousRats().id, "rats", {
             playerProtectionFromEverything: ["p1"],
         });
         expect(
@@ -199,7 +199,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
     });
 
     it("survives the wire projection — the client sees the same locked target", () => {
-        const { state, source } = twoSeatBoard(ravenousRats.id, "rats");
+        const { state, source } = twoSeatBoard(ravenousRats().id, "rats");
         announceTrigger(state, source, "ravenous-rats-etb", etbEvent(source));
         const projected = projectPublicState(state, 1, "p1");
         expect(projected.stack).toHaveLength(1);
@@ -211,7 +211,7 @@ describe("targeted 'target opponent' triggers honour player protection (CR 702.1
 
 describe("life loss is neither damage nor targeting (CR 702.16e, issue #2801)", () => {
     it("Sheoldred still drains a player with protection from everything on their draw", () => {
-        const sheoldred = makeInstance(sheoldredTheApocalypse.id, {
+        const sheoldred = makeInstance(sheoldredTheApocalypse().id, {
             id: "sheol",
             controllerId: "p1",
             ownerId: "p1",

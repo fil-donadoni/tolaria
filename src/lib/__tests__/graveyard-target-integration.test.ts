@@ -38,7 +38,7 @@ function asPlayers(state: GameState): Player[] {
 }
 
 function pendingFor(
-    card: typeof resurrection,
+    card: ReturnType<typeof resurrection>,
     casterId: string
 ): PendingTarget {
     const req = card.targetRequirement!;
@@ -60,14 +60,14 @@ function pendingFor(
 
 describe("graveyard target dialog full path (#314)", () => {
     it("single graveyard (controller: you) — dialog skips choice, picks, resolves", () => {
-        const dead = makeInstance(grizzlyBears.id, {
+        const dead = makeInstance(grizzlyBears().id, {
             id: "dead",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
         // An opponent's creature in their graveyard must NOT be eligible.
-        const oppDead = makeInstance(grizzlyBears.id, {
+        const oppDead = makeInstance(grizzlyBears().id, {
             id: "opp-dead",
             controllerId: "p2",
             ownerId: "p2",
@@ -80,7 +80,7 @@ describe("graveyard target dialog full path (#314)", () => {
             ],
         });
 
-        const pending = pendingFor(resurrection, "p1");
+        const pending = pendingFor(resurrection(), "p1");
         const eligible = getEligibleGraveyards(
             pending,
             asPlayers(state),
@@ -97,14 +97,14 @@ describe("graveyard target dialog full path (#314)", () => {
         // The dialog's eligibility set matches the server's legal targets.
         const legal = getLegalTargets(
             state,
-            resurrection.targetRequirement!,
+            resurrection().targetRequirement!,
             NO_TARGETING_SOURCE,
             "p1"
         );
         expect(legal.map((t) => `${t.playerId}:${t.id}`)).toEqual(["p1:dead"]);
 
         // Picking the card submits the graveyard-card target and resolves.
-        pushSpell(state, resurrection.id, "p1", [
+        pushSpell(state, resurrection().id, "p1", [
             { type: "graveyard-card", id: "dead", playerId: "p1" },
         ]);
         resolveTopOfStack(state);
@@ -120,13 +120,13 @@ describe("graveyard target dialog full path (#314)", () => {
     });
 
     it("two graveyards (controller: any) — dialog offers a choice, then picks from the chosen graveyard, resolves", () => {
-        const myDead = makeInstance(grizzlyBears.id, {
+        const myDead = makeInstance(grizzlyBears().id, {
             id: "my-dead",
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
         });
-        const oppDead = makeInstance(grizzlyBears.id, {
+        const oppDead = makeInstance(grizzlyBears().id, {
             id: "opp-dead",
             controllerId: "p2",
             ownerId: "p2",
@@ -139,7 +139,7 @@ describe("graveyard target dialog full path (#314)", () => {
             ],
         });
 
-        const pending = pendingFor(animateDead, "p1");
+        const pending = pendingFor(animateDead(), "p1");
         const eligible = getEligibleGraveyards(
             pending,
             asPlayers(state),
@@ -157,7 +157,7 @@ describe("graveyard target dialog full path (#314)", () => {
         // Matches the server's legal targets across both graveyards.
         const legal = getLegalTargets(
             state,
-            animateDead.targetRequirement!,
+            animateDead().targetRequirement!,
             NO_TARGETING_SOURCE,
             "p1"
         );
@@ -170,7 +170,7 @@ describe("graveyard target dialog full path (#314)", () => {
         const chosen = eligible.find((g) => !g.isMine)!;
         expect(chosen.cards.map((c) => c.id)).toEqual(["opp-dead"]);
 
-        pushSpell(state, animateDead.id, "p1", [
+        pushSpell(state, animateDead().id, "p1", [
             {
                 type: "graveyard-card",
                 id: "opp-dead",
@@ -186,13 +186,13 @@ describe("graveyard target dialog full path (#314)", () => {
         expect(revived).toBeDefined();
         expect(revived?.controllerId).toBe("p1");
         const aura = state.players[0].battlefield.find(
-            (c) => (c.card as { id?: string }).id === animateDead.id
+            (c) => (c.card as { id?: string }).id === animateDead().id
         );
         expect(aura?.attachedTo).toBe("opp-dead");
     });
 
     it("single eligible graveyard despite controller: any (only one non-empty) — choice step skipped", () => {
-        const myDead = makeInstance(grizzlyBears.id, {
+        const myDead = makeInstance(grizzlyBears().id, {
             id: "my-dead",
             controllerId: "p1",
             ownerId: "p1",
@@ -204,7 +204,7 @@ describe("graveyard target dialog full path (#314)", () => {
                 makePlayer("p2", { graveyard: [] }),
             ],
         });
-        const pending = pendingFor(animateDead, "p1");
+        const pending = pendingFor(animateDead(), "p1");
         const eligible = getEligibleGraveyards(
             pending,
             asPlayers(state),

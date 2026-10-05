@@ -4,7 +4,6 @@
 // generic mana is encoded as `X: n` (e.g. {1}{G} → { X: 1, G: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
-    CardDefinition,
     Color,
     ManaCost,
     SpellContext,
@@ -12,7 +11,7 @@ import type {
     TargetSelection,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
 // Per-attacker "sacrifice a land" attack tax (CR 508.1c/1g — Flooded Woodlands,
 // Reclamation, #733). A battlefield-scanned `attack-sacrifice-tax` static whose
@@ -123,7 +122,7 @@ function makeUpkeepPayOrElse(args: {
 // via `additionalCosts.sacrificeFilter`; CR 701.23 library search for a creature
 // card → hand; CR 701.20 shuffle.) The reveal is implicit — the searched card
 // moves to the caster's hand and the library is shuffled.
-export const altarOfBone: CardDefinition = {
+export const altarOfBone = defineCard(() => ({
     id: "75d5b014-8675-4d91-a539-ac5c31d44b35",
     name: "Altar of Bone",
     rarity: "rare",
@@ -171,7 +170,7 @@ export const altarOfBone: CardDefinition = {
         }
         ctx.shuffleLibrary(ctx.controller);
     },
-};
+}));
 // DEFERRED (#734): the colour-keyed all-damage prevention shield itself now
 // ships (Prismatic Ward — a `replacementEffects[]` damage shield reading the
 // stored `chosenModeId` colour). Chromatic Armor now reuses that exact shield
@@ -205,7 +204,7 @@ const CHROMATIC_ARMOR_COLOR_NAMES: Record<string, string> = {
 // on the Aura's HOST — the SAME `replacementEffects[]` seam as Prismatic Ward,
 // running at every damage site (combat and non-combat); CR 601.2f the {X}
 // re-choose whose X is fixed by the source's own sleight-counter count.)
-export const chromaticArmor: CardDefinition = {
+export const chromaticArmor = defineCard(() => ({
     id: "2657e85b-8f77-41fa-9df2-233443efef43",
     name: "Chromatic Armor",
     rarity: "rare",
@@ -302,13 +301,13 @@ export const chromaticArmor: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Diabolic Vision — "Look at the top five cards of your library. Put one of
 // them into your hand and the rest on top of your library in any order." (CR
 // 401 library peek/reorder, CR 121 to hand.) Composition: peek the top five
 // (grant knowledge), pick one to move to hand, then reorder the remaining top
 // cards.
-export const diabolicVision: CardDefinition = {
+export const diabolicVision = defineCard(() => ({
     id: "1ea01324-1cfb-498c-8299-f690373864bd",
     name: "Diabolic Vision",
     rarity: "uncommon",
@@ -355,7 +354,7 @@ export const diabolicVision: CardDefinition = {
         if (ordered === undefined) return; // suspended
         ctx.reorderLibraryTop(ctx.controller, ordered);
     },
-};
+}));
 // Earthlink — upkeep "pay {2} or sacrifice" (CR 603.6a phase trigger +
 // CR 117.3a may-pay with a hard sacrifice on decline, via the local
 // `makeUpkeepPayOrElse`) plus a death trigger: "Whenever a creature dies, that
@@ -366,7 +365,7 @@ export const diabolicVision: CardDefinition = {
 // Scryfall oracle text (ADR 0004): the upkeep clause is a flat "pay {2}", NOT
 // cumulative upkeep.
 const EARTHLINK_ID = "a83cb1c4-7c5b-4a5e-b15e-138d644f5cdb";
-export const earthlink: CardDefinition = {
+export const earthlink = defineCard(() => ({
     id: EARTHLINK_ID,
     name: "Earthlink",
     rarity: "rare",
@@ -417,13 +416,13 @@ export const earthlink: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Elemental Augury — "{3}: Look at the top three cards of target player's
 // library, then put them back in any order." (CR 401 library peek/reorder.)
 // The activated ability targets a player; on resolution the controller looks at
 // (gains knowledge of) the top three of that player's library and reorders
 // them.
-export const elementalAugury: CardDefinition = {
+export const elementalAugury = defineCard(() => ({
     id: "62bbff2a-5109-400a-961b-eacffb9aed67",
     name: "Elemental Augury",
     rarity: "rare",
@@ -469,14 +468,14 @@ export const elementalAugury: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Essence Vortex — {1}{U}{B} Instant. "Destroy target creature unless its
 // controller pays life equal to its toughness. A creature destroyed this way
 // can't be regenerated." (CR 117.3a / 118.4 — a "pay life unless" offer to the
 // target's controller via `requestMayPay` (no mana cost = a yes/no life gate);
 // pay `getToughness` life to keep it, else destroy with the no-regen rider
 // CR 701.19a.) The toughness is snapshotted at resolution (CR 608.2g).
-export const essenceVortex: CardDefinition = {
+export const essenceVortex = defineCard(() => ({
     id: "fe07e496-5070-4116-a91a-a3bbe19c12af",
     name: "Essence Vortex",
     rarity: "uncommon",
@@ -515,7 +514,7 @@ export const essenceVortex: CardDefinition = {
         }
         ctx.destroy(target, { cantBeRegenerated: true });
     },
-};
+}));
 // Fiery Justice — {R}{G}{W} Sorcery. "Fiery Justice deals 5 damage divided as
 // you choose among any number of targets. Target opponent gains 5 life."
 // (CR 601.2d / 120.4 divide as you choose.) The "5 damage divided" group is the
@@ -541,7 +540,7 @@ export const essenceVortex: CardDefinition = {
 // split and mis-assigns the 5 damage. Fixing that means scoping the divide
 // budget to its own group across three shared sites used by every divide card
 // (Fury, Arc Lightning), which is a bigger change than this card.
-export const fieryJustice: CardDefinition = {
+export const fieryJustice = defineCard(() => ({
     id: "8965ce61-0522-4f77-a82d-89441d1ba867",
     name: "Fiery Justice",
     rarity: "rare",
@@ -558,7 +557,7 @@ export const fieryJustice: CardDefinition = {
         { op: "dealDamageDividedAsChosen", total: 5 },
         { op: "gainLife", player: "opponent", amount: 5 },
     ],
-};
+}));
 // Fire Covenant — {1}{B}{R} Instant. "As an additional cost to cast this spell,
 // pay X life. Fire Covenant deals X damage divided as you choose among any
 // number of target creatures." (CR 601.2b pay-X-life additional cost; CR 601.2d
@@ -568,7 +567,7 @@ export const fieryJustice: CardDefinition = {
 // the stack, snapshots X so `getX()` returns it, and drives the per-target
 // split via `divideAsChosen: { total: "X" }`. DSL-first (ADR 0045): the
 // `dealDamageDividedAsChosen` Op resolves `total: "X"` as `getX()`.
-export const fireCovenant: CardDefinition = {
+export const fireCovenant = defineCard(() => ({
     id: "6a0139c2-ad86-4c71-ab6d-4840c37d5d20",
     name: "Fire Covenant",
     rarity: "uncommon",
@@ -585,7 +584,7 @@ export const fireCovenant: CardDefinition = {
         divideAsChosen: { total: "X" },
     },
     effects: [{ op: "dealDamageDividedAsChosen", total: "X" }],
-};
+}));
 // Flooded Woodlands — {2}{U}{B} enchantment. "Green creatures can't attack
 // unless their controller sacrifices a land of their choice for each green
 // creature they control that's attacking." (CR 508.1c/1g — a per-attacker
@@ -593,7 +592,7 @@ export const fireCovenant: CardDefinition = {
 // prohibition. Modelled with the `attack-sacrifice-tax` combat seam: the engine
 // scans this static at declare-attackers confirmation and charges one land
 // sacrifice per attacking green creature — #733. Twin: Reclamation, below.)
-export const floodedWoodlands: CardDefinition = {
+export const floodedWoodlands = defineCard(() => ({
     id: "de89e9e1-485b-42e5-9728-5d6f948999e1",
     name: "Flooded Woodlands",
     rarity: "rare",
@@ -609,7 +608,7 @@ export const floodedWoodlands: CardDefinition = {
                 "Green creatures can't attack unless their controller sacrifices a land for each attacking green creature they control",
         }),
     ],
-};
+}));
 // Fumarole — {3}{B}{R} Sorcery. "As an additional cost to cast this spell, pay
 // 3 life.\nDestroy target creature and target land." (CR 601.2b fixed pay-life
 // additional cost; CR 601.2c two INDEPENDENT typed target groups; CR 701.8
@@ -617,7 +616,7 @@ export const floodedWoodlands: CardDefinition = {
 // creature (target 0) and `additionalTargetRequirements` the land (target 1);
 // the Effect Script destroys each positionally. The fixed 3-life cost rides
 // `additionalCosts.payLife`.
-export const fumarole: CardDefinition = {
+export const fumarole = defineCard(() => ({
     id: "efa53e9a-0d7c-4d17-b2be-56930edfa2c2",
     name: "Fumarole",
     rarity: "uncommon",
@@ -632,7 +631,7 @@ export const fumarole: CardDefinition = {
         { op: "destroy", target: { target: 0 } },
         { op: "destroy", target: { target: 1 } },
     ],
-};
+}));
 // Ghostly Flame (#668) — demonstrates the damage-source colour-override seam.
 //   "Black and/or red permanents and spells are colorless sources of damage."
 // CR 119.4 / 614 — while this enchantment is on the battlefield, any black
@@ -640,7 +639,7 @@ export const fumarole: CardDefinition = {
 // override lives in the engine seam `describeDamageSource`
 // (`convex/gre/replacements.ts`), the single point every damage site reads
 // source colours from, gated on Ghostly Flame being in play. No per-card code.
-export const ghostlyFlame: CardDefinition = {
+export const ghostlyFlame = defineCard(() => ({
     id: "6314344b-6493-4142-9c76-da9b90b8d3e1",
     name: "Ghostly Flame",
     rarity: "rare",
@@ -648,14 +647,14 @@ export const ghostlyFlame: CardDefinition = {
         "Black and/or red permanents and spells are colorless sources of damage.",
     manaCost: { B: 1, R: 1 },
     types: ["Enchantment"],
-};
+}));
 // Giant Trap Door Spider — {1}{R}{G} 2/3. "{1}{R}{G}, {T}: Exile this creature
 // and target creature without flying that's attacking you." (CR 605 activated
 // ability; CR 118.5 / 406 exile. "Without flying" filters legal targets via
 // `excludeAbility`; "attacking you" is `combatRoleFilter: "attacking"` — in a
 // 2-player game every attacking creature is attacking the lone defender. The
 // ability exiles both its source and the chosen attacker.)
-export const giantTrapDoorSpider: CardDefinition = {
+export const giantTrapDoorSpider = defineCard(() => ({
     id: "8965dfa8-dc90-4cf2-a93b-72bf88b58936",
     name: "Giant Trap Door Spider",
     rarity: "uncommon",
@@ -689,11 +688,11 @@ export const giantTrapDoorSpider: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Glaciers — upkeep pay-{W}{U}-or-sacrifice (CR 603.6a / 117.3a) plus the
 // Conversion-style global subtype replacement "All Mountains are Plains"
 // (CR 305.7, layer 4 subtype-set).
-export const glaciers: CardDefinition = {
+export const glaciers = defineCard(() => ({
     id: "b86e159b-ecf1-4b4a-9041-4e97fdf935e5",
     name: "Glaciers",
     rarity: "rare",
@@ -717,7 +716,7 @@ export const glaciers: CardDefinition = {
             prompt: "Pay {W}{U} to keep Glaciers?",
         }),
     ],
-};
+}));
 // Hymn of Rebirth — "Put target creature card from a graveyard onto the
 // battlefield under your control." (CR 601.2c graveyard target in ANY graveyard;
 // CR 400.7 / 800.4a zone change where the OWNER stays the graveyard's owner but
@@ -726,7 +725,7 @@ export const glaciers: CardDefinition = {
 // the resolve passes the caster as the explicit `controllerId` override on
 // `returnToBattlefield`. The target carries `t.playerId` — the graveyard's
 // owner — used to locate the card; the 4th arg redirects control to the caster.
-export const hymnOfRebirth: CardDefinition = {
+export const hymnOfRebirth = defineCard(() => ({
     id: "61d0f2f2-f6e2-4b8a-8418-10b17c5e0ea9",
     name: "Hymn of Rebirth",
     rarity: "uncommon",
@@ -757,7 +756,7 @@ export const hymnOfRebirth: CardDefinition = {
             controller: "controller",
         },
     ],
-};
+}));
 // Kjeldoran Frostbeast — "At end of combat, destroy all creatures blocking or
 // blocked by this creature." (CR 511.3 END_OF_COMBAT phase trigger, scope
 // "each"; CR 701.8 destroy.) The block graph is still live at the END_OF_COMBAT
@@ -769,7 +768,7 @@ export const hymnOfRebirth: CardDefinition = {
 // Every such partner is destroyed (CR 510.1c damage has already been dealt by
 // this step, so survivors of combat are still destroyed by the trigger).
 const KJELDORAN_FROSTBEAST_ID = "2fccb1d0-b324-4780-bb9e-4533240da06d";
-export const kjeldoranFrostbeast: CardDefinition = {
+export const kjeldoranFrostbeast = defineCard(() => ({
     id: KJELDORAN_FROSTBEAST_ID,
     name: "Kjeldoran Frostbeast",
     rarity: "uncommon",
@@ -815,7 +814,7 @@ export const kjeldoranFrostbeast: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Merieke Ri Berit — "doesn't untap during your untap step" (the
 // `does-not-untap` self-keyword, read by the untap step, CR 502.1) + "{T}: Gain
 // control of target creature for as long as you control Merieke Ri Berit"
@@ -861,7 +860,7 @@ function meriekeDestroyControlled(ctx: SpellContext): void {
         }
     }
 }
-export const meriekeRiBerit: CardDefinition = {
+export const meriekeRiBerit = defineCard(() => ({
     id: MERIEKE_RI_BERIT_ID,
     name: "Merieke Ri Berit",
     rarity: "rare",
@@ -930,7 +929,7 @@ export const meriekeRiBerit: CardDefinition = {
             resolve: (ctx) => meriekeDestroyControlled(ctx),
         }),
     ],
-};
+}));
 // Monsoon — "At the beginning of each player's end step, tap all untapped
 // Islands that player controls and this enchantment deals X damage to the
 // player, where X is the number of Islands tapped this way." (CR 603.6a phase
@@ -939,7 +938,7 @@ export const meriekeRiBerit: CardDefinition = {
 // tapped ones don't count), then deal damage equal to the number tapped this
 // way (Power Surge's "untapped lands" read, but Monsoon also TAPS them).
 const MONSOON_ID = "254fcc50-79a5-40cd-b028-e78dde3f8480";
-export const monsoon: CardDefinition = {
+export const monsoon = defineCard(() => ({
     id: MONSOON_ID,
     name: "Monsoon",
     rarity: "rare",
@@ -988,7 +987,7 @@ export const monsoon: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Mountain Titan — "{1}{R}{R}: Until end of turn, whenever you cast a black
 // spell, put a +1/+1 counter on this creature." (CR 605 activated ability that
 // arms an until-end-of-turn cast-watch trigger via `grantTriggeredAbility` with
@@ -999,7 +998,7 @@ export const monsoon: CardDefinition = {
 // (off `triggeredAbilities`) so it functions only while armed. Each activation
 // stacks another copy until end of turn, matching the printed wording.
 const MOUNTAIN_TITAN_ID = "bcc1d589-02a2-4896-a283-9d0385534667";
-export const mountainTitan: CardDefinition = {
+export const mountainTitan = defineCard(() => ({
     id: MOUNTAIN_TITAN_ID,
     name: "Mountain Titan",
     rarity: "rare",
@@ -1050,12 +1049,12 @@ export const mountainTitan: CardDefinition = {
             },
         }),
     ],
-};
+}));
 // Reclamation — {2}{G}{W} enchantment. Twin of Flooded Woodlands (black
 // creatures). "Black creatures can't attack unless their controller sacrifices
 // a land of their choice for each black creature they control that's attacking."
 // (CR 508.1c/1g — the `attack-sacrifice-tax` combat seam, #733.)
-export const reclamation: CardDefinition = {
+export const reclamation = defineCard(() => ({
     id: "ca335f4f-d345-4eb9-9bc6-74595c501078",
     name: "Reclamation",
     rarity: "rare",
@@ -1071,11 +1070,11 @@ export const reclamation: CardDefinition = {
                 "Black creatures can't attack unless their controller sacrifices a land for each attacking black creature they control",
         }),
     ],
-};
+}));
 // Skeleton Ship — legendary 0/3 with a state-triggered "no Islands → sacrifice"
 // guard (CR 603.8) and "{T}: Put a -1/-1 counter on target creature" (CR 122,
 // layer 7d). The state trigger fizzles at resolve if an Island reappears.
-export const skeletonShip: CardDefinition = {
+export const skeletonShip = defineCard(() => ({
     id: "271c8a7c-0f71-4f9d-ab0e-ca7c8c4aca50",
     name: "Skeleton Ship",
     rarity: "rare",
@@ -1127,10 +1126,10 @@ export const skeletonShip: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Spectral Shield — Aura: static +0/+2 (layer 7c) and "can't be the target of
 // spells" on the host (CR 113.3 — spells only; abilities may still target it).
-export const spectralShield: CardDefinition = {
+export const spectralShield = defineCard(() => ({
     id: "7fe0a783-d086-4dc8-ae4a-59f3c2daaca0",
     name: "Spectral Shield",
     rarity: "uncommon",
@@ -1150,10 +1149,10 @@ export const spectralShield: CardDefinition = {
             applies: (target, source) => target.id === source.attachedTo,
         },
     ],
-};
+}));
 // Storm Spirit — 3/3 flier with "{T}: deal 2 damage to target creature"
 // (CR 605 activated ability, CR 120.1 damage).
-export const stormSpirit: CardDefinition = {
+export const stormSpirit = defineCard(() => ({
     id: "7a383a5f-4814-4b92-aa80-2a6440a719bc",
     name: "Storm Spirit",
     rarity: "rare",
@@ -1174,10 +1173,10 @@ export const stormSpirit: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));
 // Wings of Aesthir — Aura: static +1/+0 (layer 7c) plus flying and first
 // strike grants on the host (CR 611 keyword-grant).
-export const wingsOfAesthir: CardDefinition = {
+export const wingsOfAesthir = defineCard(() => ({
     id: "eeb0282d-ccec-4556-8b70-b6f665077afe",
     name: "Wings of Aesthir",
     rarity: "uncommon",
@@ -1200,4 +1199,4 @@ export const wingsOfAesthir: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));

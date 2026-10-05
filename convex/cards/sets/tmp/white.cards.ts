@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Humility — "All creatures lose all abilities and have base power and
 // toughness 1/1." Two static effects over the same predicate, one per CR 613
@@ -39,7 +39,7 @@ import type { CardDefinition } from "../../types";
 // already applied, which this engine cannot yet tell apart because one Oracle
 // line becomes several independent per-layer `StaticEffect` entries.
 // hand-tail: All creatures lose all abilities and have base power and toughness 1/1. (#4195)
-export const humility: CardDefinition = {
+export const humility = defineCard(() => ({
     id: "a2fb7128-806b-4148-80fe-eb967f248021",
     rarity: "rare",
     name: "Humility",
@@ -61,4 +61,4 @@ export const humility: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));

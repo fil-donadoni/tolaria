@@ -122,23 +122,23 @@ function boardWithCopyRetarget(chosenX: number): {
     state: GameState;
     targetIds: string[];
 } {
-    const t1 = makeInstance(grizzlyBears.id, {
+    const t1 = makeInstance(grizzlyBears().id, {
         id: "t1",
         controllerId: "p2",
         ownerId: "p2",
     });
-    const t2 = makeInstance(hillGiant.id, {
+    const t2 = makeInstance(hillGiant().id, {
         id: "t2",
         controllerId: "p2",
         ownerId: "p2",
     });
-    const t3 = makeInstance(savannahLions.id, {
+    const t3 = makeInstance(savannahLions().id, {
         id: "t3",
         controllerId: "p2",
         ownerId: "p2",
     });
     const copy: StackItem = {
-        ...makeInstance(grizzlyBears.id, {
+        ...makeInstance(grizzlyBears().id, {
             id: "copy-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -181,17 +181,17 @@ function boardWithRealCopyRetarget(chosenX: number): {
     state: GameState;
     targetIds: string[];
 } {
-    const t1 = makeInstance(grizzlyBears.id, {
+    const t1 = makeInstance(grizzlyBears().id, {
         id: "rt1",
         controllerId: "p2",
         ownerId: "p2",
     });
-    const t2 = makeInstance(hillGiant.id, {
+    const t2 = makeInstance(hillGiant().id, {
         id: "rt2",
         controllerId: "p2",
         ownerId: "p2",
     });
-    const t3 = makeInstance(savannahLions.id, {
+    const t3 = makeInstance(savannahLions().id, {
         id: "rt3",
         controllerId: "p2",
         ownerId: "p2",

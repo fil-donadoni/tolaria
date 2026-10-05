@@ -15,13 +15,13 @@ import { grizzlyBears } from "../../cards/sets/lea/index.cards";
 import { enumerateMoves } from "../moves";
 
 function offered(attachedTo: string | undefined): boolean {
-    const aura = makeInstance(bloodfireInfusion.id, {
+    const aura = makeInstance(bloodfireInfusion().id, {
         id: "aura",
         controllerId: "p1",
         ownerId: "p1",
         ...(attachedTo ? { attachedTo } : {}),
     });
-    const host = makeInstance(grizzlyBears.id, {
+    const host = makeInstance(grizzlyBears().id, {
         id: "host",
         controllerId: "p1",
         ownerId: "p1",

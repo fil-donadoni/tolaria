@@ -108,7 +108,7 @@ function singleDivideTriggerState(
     const state = makeState({
         players: playerIds.map((id) => makePlayer(id)),
     });
-    const item = pushSpell(state, mountain.id, "p1");
+    const item = pushSpell(state, mountain().id, "p1");
     item.id = "trig";
     item.targets = undefined;
     item.inlineTargetRequirement = {
@@ -324,12 +324,12 @@ describe("selectTargets batch — the abort guard rejects a surplus entry spilli
         // top-down). Any real card id works; `inlineTargetRequirement`
         // (reflexive-trigger shape, CR 603.3d) overrides the lookup so no
         // card-def ability is ever consulted.
-        const bottom: StackItem = pushSpell(state, mountain.id, "p1");
+        const bottom: StackItem = pushSpell(state, mountain().id, "p1");
         bottom.id = "trig-bottom";
         bottom.targets = undefined;
         bottom.inlineTargetRequirement = { type: "player", count: 1 };
 
-        const top: StackItem = pushSpell(state, mountain.id, "p1");
+        const top: StackItem = pushSpell(state, mountain().id, "p1");
         top.id = "trig-top";
         top.targets = undefined;
         top.inlineTargetRequirement = { type: "player", count: 1 };

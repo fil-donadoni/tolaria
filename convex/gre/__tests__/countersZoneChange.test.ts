@@ -23,7 +23,7 @@ import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { compactState, expandState } from "../serialize";
 
 function withCounteredBear(): GameState {
-    const bear = makeInstance(grizzlyBears.id, {
+    const bear = makeInstance(grizzlyBears().id, {
         id: "bear",
         controllerId: "p1",
         ownerId: "p1",

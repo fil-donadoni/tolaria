@@ -103,20 +103,20 @@ function citadelState(
     islands = 0
 ): GameState {
     const battlefield: CardInstanceState[] = [
-        makeInstance(bolassCitadel.id, {
+        makeInstance(bolassCitadel().id, {
             id: "citadel",
             controllerId: "p1",
             ownerId: "p1",
         }),
         ...Array.from({ length: mountains }, (_, i) =>
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: `mountain-${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
             })
         ),
         ...Array.from({ length: islands }, (_, i) =>
-            makeInstance(island.id, {
+            makeInstance(island().id, {
                 id: `island-${i}`,
                 controllerId: "p1",
                 ownerId: "p1",
@@ -146,7 +146,7 @@ function citadelState(
 describe("announceCast — a library-top cast pays LIFE instead of mana (CR 118.9-analog / 119.4, issue #2398)", () => {
     it("no-target commit path: Grizzly Bears (MV 2) off the top costs 2 life and moves library → stack", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(citadelState(grizzlyBears.id)),
+            gameStateSeed(citadelState(grizzlyBears().id)),
         ]);
 
         await runAnnounceCast(harness.ctx, { cardInstanceId: "top" });
@@ -166,7 +166,7 @@ describe("announceCast — a library-top cast pays LIFE instead of mana (CR 118.
 
     it("targeted commit path: Lightning Bolt (MV 1) off the top costs 1 life once the target is chosen, not at announcement", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(citadelState(lightningBolt.id)),
+            gameStateSeed(citadelState(lightningBolt().id)),
         ]);
 
         await runAnnounceCast(harness.ctx, { cardInstanceId: "top" });
@@ -192,7 +192,7 @@ describe("announceCast — a library-top cast pays LIFE instead of mana (CR 118.
     });
 
     it("charges nothing extra without the permission — the same card in the library is not castable at all", async () => {
-        const state = citadelState(grizzlyBears.id);
+        const state = citadelState(grizzlyBears().id);
         // Citadel leaves play: the permission is re-derived live, so the top
         // card stops being a legal cast source (`assertLegalAction`).
         state.players[0].battlefield = state.players[0].battlefield.filter(
@@ -210,7 +210,7 @@ describe("announceCast — a library-top cast pays LIFE instead of mana (CR 118.
 describe("announceCast — CR 107.3b: the only legal choice for X is 0 on a cast that pays neither its mana cost nor an alternative cost including X", () => {
     it("rejects an announced X > 0 for Fireball off the top of the library", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(citadelState(fireball.id)),
+            gameStateSeed(citadelState(fireball().id)),
         ]);
 
         // Before the clamp this SUCCEEDED: `castRawManaCost` returns `{}`, so
@@ -227,7 +227,7 @@ describe("announceCast — CR 107.3b: the only legal choice for X is 0 on a cast
 
     it("accepts the cast with X omitted and prices it at X = 0 (1 life for {X}{R})", async () => {
         const harness = makeMutationCtx("p1", [
-            gameStateSeed(citadelState(fireball.id)),
+            gameStateSeed(citadelState(fireball().id)),
         ]);
 
         await runAnnounceCast(harness.ctx, { cardInstanceId: "top" });
@@ -251,9 +251,9 @@ describe("announceCast — CR 107.3b: the only legal choice for X is 0 on a cast
     });
 
     it("still demands an X for the SAME card cast from the hand (the clamp is scoped to the replaced cost)", async () => {
-        const state = citadelState(grizzlyBears.id);
+        const state = citadelState(grizzlyBears().id);
         state.players[0].hand = [
-            makeInstance(fireball.id, {
+            makeInstance(fireball().id, {
                 id: "hand-fireball",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -274,7 +274,7 @@ describe("announceCast — CR 601.2b: no alternative cost may ride along with th
         // rejection can only come from the CR 601.2b gate and not from the
         // affordability check that runs before it. The assertion is on the
         // specific message for the same reason.
-        const state = citadelState(gush.id, 0, 2);
+        const state = citadelState(gush().id, 0, 2);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await expect(
@@ -290,9 +290,9 @@ describe("announceCast — CR 601.2b: no alternative cost may ride along with th
     });
 
     it("the SAME alternative cost is accepted for the same card in HAND (the gate is the replacement, not the card)", async () => {
-        const state = citadelState(grizzlyBears.id, 0, 2);
+        const state = citadelState(grizzlyBears().id, 0, 2);
         state.players[0].hand = [
-            makeInstance(gush.id, {
+            makeInstance(gush().id, {
                 id: "hand-gush",
                 controllerId: "p1",
                 ownerId: "p1",

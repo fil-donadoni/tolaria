@@ -31,7 +31,7 @@ import type { GameState } from "@convex/gre/state";
 
 describe("Stormchaser's Talent — class level affordance over the wire (CR 716.2a)", () => {
     const board = (classLevel?: number) => {
-        const talent = makeInstance(stormchasersTalent.id, {
+        const talent = makeInstance(stormchasersTalent().id, {
             id: "talent",
             controllerId: "p1",
             ownerId: "p1",

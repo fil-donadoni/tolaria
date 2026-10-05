@@ -2,7 +2,7 @@
 // `import * as tmp from "./sets/tmp/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Reanimate — {B} Sorcery. "Put target creature card from a graveyard onto
 // the battlefield under your control. You lose life equal to that card's
@@ -19,7 +19,7 @@ import type { CardDefinition } from "../../types";
 // used) for "under your control", and `bind` + a `ref.manaValue` snapshot
 // property for "lose life equal to that card's mana value" (captured BEFORE
 // the reanimation, CR 608.2h last-known information).
-export const reanimate: CardDefinition = {
+export const reanimate = defineCard(() => ({
     id: "ae1ef31c-8ca5-444c-8f39-e1d1827318f5",
     name: "Reanimate",
     rarity: "uncommon",
@@ -47,7 +47,7 @@ export const reanimate: CardDefinition = {
             amount: { ref: "$reanimated.manaValue" },
         },
     ],
-};
+}));
 
 // Corpse Dance — {2}{B} Instant. "Buyback {2} (You may pay an additional {2}
 // as you cast this spell. If you do, put this card into your hand as it
@@ -73,7 +73,7 @@ export const reanimate: CardDefinition = {
 // Sneak Attack idiom (`usg/red.cards.ts`, issue #1151) with the sacrifice swapped
 // for an exile — since the two cards' non-buyback text is word-for-word
 // identical in modern oracle.
-export const corpseDance: CardDefinition = {
+export const corpseDance = defineCard(() => ({
     id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c", // TMP 116
     name: "Corpse Dance",
     rarity: "rare",
@@ -108,7 +108,7 @@ export const corpseDance: CardDefinition = {
             effects: [{ op: "exile", target: { ref: "$captured" } }],
         },
     ],
-};
+}));
 
 // Reckless Spite — {1}{B}{B} Instant. "Destroy two target nonblack
 // creatures. You lose 5 life." (CR 701.8 destroy, CR 601.2c "two target" —
@@ -119,7 +119,7 @@ export const corpseDance: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/black.cards.ts`.
-export const recklessSpite: CardDefinition = {
+export const recklessSpite = defineCard(() => ({
     id: "9141daea-1f4f-4227-b7d7-20753e3cb4d4", // TMP 152
     rarity: "uncommon",
     name: "Reckless Spite",
@@ -132,7 +132,7 @@ export const recklessSpite: CardDefinition = {
         { op: "destroy", target: { target: 1 } },
         { op: "loseLife", player: "controller", amount: 5 },
     ],
-};
+}));
 
 // Perish — {2}{B} Sorcery. "Destroy all green creatures. They can't be
 // regenerated." A one-sided-in-practice sweeper whose scope is a COLOUR
@@ -145,7 +145,7 @@ export const recklessSpite: CardDefinition = {
 // time rather than pre-emptively stripped.
 //
 // compiler-gap: Destroy all green creatures. They can't be regenerated. (#2693)
-export const perish: CardDefinition = {
+export const perish = defineCard(() => ({
     id: "e47ace1d-73de-44aa-a3fe-2e2a21ebec79", // TMP 147
     rarity: "uncommon",
     name: "Perish",
@@ -169,4 +169,4 @@ export const perish: CardDefinition = {
             ],
         },
     ],
-};
+}));

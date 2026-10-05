@@ -31,7 +31,7 @@ const GAME_ID = "game-1" as Id<"games">;
 const EXERT_ABILITY_INDEX = 1;
 
 function castPaymentState(): GameState {
-    const arena = makeInstance(arenaOfGlory.id, {
+    const arena = makeInstance(arenaOfGlory().id, {
         id: "arena",
         controllerId: "p1",
         ownerId: "p1",

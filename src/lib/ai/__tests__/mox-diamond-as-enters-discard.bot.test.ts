@@ -53,7 +53,7 @@ import type { BotAction } from "../brain";
 const BOT = "p2";
 
 function handLand(id: string): CardInstanceState {
-    return makeInstance(forest.id, {
+    return makeInstance(forest().id, {
         id,
         controllerId: BOT,
         ownerId: BOT,
@@ -62,7 +62,7 @@ function handLand(id: string): CardInstanceState {
 }
 
 function battlefieldLand(id: string): CardInstanceState {
-    return makeInstance(forest.id, { id, controllerId: BOT, ownerId: BOT });
+    return makeInstance(forest().id, { id, controllerId: BOT, ownerId: BOT });
 }
 
 /** Mox Diamond entering under the BOT's control (the non-cast route parks it
@@ -84,7 +84,7 @@ function moxEntering(landsInHand: number, landsInPlay: number): GameState {
         activePlayerId: BOT,
         priorityPlayerId: BOT,
     });
-    const mox = makeInstance(moxDiamond.id, {
+    const mox = makeInstance(moxDiamond().id, {
         id: "mox",
         controllerId: BOT,
         ownerId: BOT,
@@ -171,7 +171,7 @@ describe("bot answers Mox Diamond's as-enters discard (CR 614.1a, issue #2389)",
                 makePlayer("p1"),
                 makePlayer(BOT, {
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "bears",
                             controllerId: BOT,
                             ownerId: BOT,
@@ -183,7 +183,7 @@ describe("bot answers Mox Diamond's as-enters discard (CR 614.1a, issue #2389)",
             activePlayerId: BOT,
             priorityPlayerId: BOT,
         });
-        const mox = makeInstance(moxDiamond.id, {
+        const mox = makeInstance(moxDiamond().id, {
             id: "mox",
             controllerId: BOT,
             ownerId: BOT,

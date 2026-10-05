@@ -104,31 +104,33 @@ describe("a compiled colour-filtered cast trigger fires on the right colour (CR 
     const GNARR_TRIGGER = "bog-gnarr-trigger";
 
     it("Bog Gnarr fires when EITHER player casts a black spell", () => {
-        expect(castAgainst(BOG_GNARR.id, "p2", darkRitual.id)).toEqual([
+        expect(castAgainst(BOG_GNARR.id, "p2", darkRitual().id)).toEqual([
             GNARR_TRIGGER,
         ]);
-        expect(castAgainst(BOG_GNARR.id, "p1", darkRitual.id)).toEqual([
+        expect(castAgainst(BOG_GNARR.id, "p1", darkRitual().id)).toEqual([
             GNARR_TRIGGER,
         ]);
     });
 
     it("Bog Gnarr does NOT fire on a red or a blue spell", () => {
-        expect(castAgainst(BOG_GNARR.id, "p2", lightningBolt.id)).toEqual([]);
-        expect(castAgainst(BOG_GNARR.id, "p2", counterspell.id)).toEqual([]);
+        expect(castAgainst(BOG_GNARR.id, "p2", lightningBolt().id)).toEqual([]);
+        expect(castAgainst(BOG_GNARR.id, "p2", counterspell().id)).toEqual([]);
     });
 
     const PATROL_TRIGGER = "dwarven-patrol-trigger";
 
     it("Dwarven Patrol fires on YOUR nonred spell", () => {
-        expect(castAgainst(DWARVEN_PATROL.id, "p1", darkRitual.id)).toEqual([
+        expect(castAgainst(DWARVEN_PATROL.id, "p1", darkRitual().id)).toEqual([
             PATROL_TRIGGER,
         ]);
     });
 
     it("Dwarven Patrol does NOT fire on your red spell, nor on the opponent's nonred one", () => {
-        expect(castAgainst(DWARVEN_PATROL.id, "p1", lightningBolt.id)).toEqual(
+        expect(
+            castAgainst(DWARVEN_PATROL.id, "p1", lightningBolt().id)
+        ).toEqual([]);
+        expect(castAgainst(DWARVEN_PATROL.id, "p2", darkRitual().id)).toEqual(
             []
         );
-        expect(castAgainst(DWARVEN_PATROL.id, "p2", darkRitual.id)).toEqual([]);
     });
 });

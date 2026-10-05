@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Oust — {W} Sorcery. "Put target creature into its owner's library second
 // from the top. Its controller gains 3 life." (Modern Scryfall oracle text,
@@ -32,7 +32,7 @@ import type { CardDefinition } from "../../types";
 // controller-of-the-target life gain are both unparsed today.
 // compiler-gap: "Put target creature into its owner's library second from the top." (#2693)
 // compiler-gap: "Its controller gains 3 life." (#2693)
-export const oust: CardDefinition = {
+export const oust = defineCard(() => ({
     id: "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
     name: "Oust",
     rarity: "uncommon",
@@ -55,4 +55,4 @@ export const oust: CardDefinition = {
             amount: 3,
         },
     ],
-};
+}));

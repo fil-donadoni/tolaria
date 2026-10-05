@@ -1,8 +1,8 @@
 // IKO — multicolor cards, split by colour per ADR 0043. The registry's
 // `import * as iko from "./sets/iko/index.cards"` re-exports this module.
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { CASTABLE_PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, CASTABLE_PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Lutri, the Spellchaser — Companion framework tracer card (issue #1391,
@@ -21,7 +21,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // (eve/multicolor.cards.ts) for the reference shape. This closes the divergence
 // this card previously shipped under (issue #782, closed), the same gap that
 // stubbed Deathrite Shaman (rtr/multicolor.cards.ts).
-export const lutri: CardDefinition = {
+export const lutri = defineCard(() => ({
     // Kept as a literal (not imported from `gre/companion.ts`'s `LUTRI_ID`):
     // that module imports `tryGetDefinition` from the card registry
     // (`../cards`), which barrel-imports every set INCLUDING this file —
@@ -100,7 +100,7 @@ export const lutri: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Lurrus of the Dream-Den — Companion framework (issue #1392, ADR 0064).
 // "Companion — Each permanent card in your starting deck has mana value 2 or
@@ -131,7 +131,7 @@ export const lutri: CardDefinition = {
 // declarative field as Icetill Explorer's, not an activated/triggered ability
 // or an Effect Script Op. Lifelink is a standard implemented keyword
 // (Mechanics Registry, CR 702.15).
-export const lurrus: CardDefinition = {
+export const lurrus = defineCard(() => ({
     // Kept as a literal (not imported from `gre/companion.ts`'s `LURRUS_ID`):
     // same import-cycle rationale as `lutri` above (multicolor.ts →
     // gre/companion.ts → cards/index.cards.ts → multicolor.ts). `gre/companion.ts`'s
@@ -168,7 +168,7 @@ export const lurrus: CardDefinition = {
         oncePerTurn: true,
         yourTurnOnly: true,
     },
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Zirda, the Dawnwaker — the THIRD Vintage Cube companion (with `lutri` and
@@ -218,7 +218,7 @@ export const lurrus: CardDefinition = {
 // compiler-gap: "Companion — Each permanent card in your starting deck has an activated ability." (#2693)
 // compiler-gap: "Abilities you activate that aren't mana abilities cost {2} less to activate. This effect can't reduce the mana in that cost to less than one mana." (#2693)
 // compiler-gap: "{1}, {T}: Target creature can't block this turn." (#2693)
-export const zirda: CardDefinition = {
+export const zirda = defineCard(() => ({
     // Kept as a literal (not imported from `gre/companion.ts`'s `ZIRDA_ID`) —
     // same anti-cycle rationale as `lutri`/`lurrus` above (multicolor.ts →
     // gre/companion.ts → cards/index.cards.ts → multicolor.ts).
@@ -275,4 +275,4 @@ export const zirda: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, PermanentView } from "../../types";
+import { defineCard, type PermanentView } from "../../types";
 
 // Carnage, Crimson Chaos — {2}{B}{R} Legendary Creature. "Trample. When
 // Carnage enters, return target creature card with mana value 3 or less from
@@ -60,7 +60,7 @@ import type { CardDefinition, PermanentView } from "../../types";
 // after it parses) nor the battlefield-scanned enters-tapped static.
 // hand-tail: "Venom Blast —" ability-word prefix (#4195)
 // hand-tail: "Artifacts and creatures your opponents control enter tapped." (#4195)
-export const spiderWomanStunningSavior: CardDefinition = {
+export const spiderWomanStunningSavior = defineCard(() => ({
     id: "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2",
     name: "Spider-Woman, Stunning Savior",
     rarity: "rare",
@@ -95,4 +95,4 @@ export const spiderWomanStunningSavior: CardDefinition = {
                 "Artifacts and creatures your opponents control enter tapped (Spider-Woman, Stunning Savior).",
         },
     ],
-};
+}));

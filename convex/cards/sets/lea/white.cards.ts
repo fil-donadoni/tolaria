@@ -16,7 +16,7 @@ import type {
     SpellContext,
     TriggeredAbility,
 } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { knightStaticAbilities, makeCircleOfProtection } from "../../abilities";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -24,7 +24,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 // Animate Wall — "Enchant Wall. Enchanted Wall can attack as though it didn't
 // have defender." (CR 702.3, 613.1a layer 6 keyword removal). Aura removes
 // defender from its host, allowing the Wall to be declared as an attacker.
-export const animateWall: CardDefinition = {
+export const animateWall = defineCard(() => ({
     id: "d5c83259-9b90-47c2-b48e-c7d78519e792",
     rarity: "rare",
     name: "Animate Wall",
@@ -41,9 +41,9 @@ export const animateWall: CardDefinition = {
             keyword: "defender",
         },
     ],
-};
+}));
 
-export const armageddon: CardDefinition = {
+export const armageddon = defineCard(() => ({
     id: "5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb",
     rarity: "rare",
     name: "Armageddon",
@@ -70,7 +70,7 @@ export const armageddon: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Balance — "Each player chooses a number of lands they control equal to the
 // number of lands controlled by the player who controls the fewest, then
@@ -192,7 +192,7 @@ function balanceEqualizeHand(ctx: SpellContext): void {
     }
 }
 
-export const balance: CardDefinition = {
+export const balance = defineCard(() => ({
     id: "6f9ea46a-411f-40ce-a873-a905180093f4",
     rarity: "rare",
     name: "Balance",
@@ -209,12 +209,12 @@ export const balance: CardDefinition = {
         balanceEqualizeHand,
         balanceEqualizeCreatures,
     ],
-};
+}));
 
 // Benalish Hero — vanilla 1/1 with banding (CR 702.22). The keyword lives in
 // staticAbilities[]; the combat engine reads it to expand band-blocking and
 // shift combat-damage assignment authority (CR 702.22j-k).
-export const benalishHero: CardDefinition = {
+export const benalishHero = defineCard(() => ({
     id: "11600105-56c6-4073-a4a6-8469030b39c9",
     rarity: "common",
     name: "Benalish Hero",
@@ -226,23 +226,25 @@ export const benalishHero: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["banding"],
-};
+}));
 
-export const blackWard: CardDefinition = makeColorWard({
-    id: "15967a39-303f-457d-bcde-51837c8d63e1",
-    rarity: "uncommon",
-    name: "Black Ward",
-    oracleText:
-        "Enchant creature\nEnchanted creature has protection from black. This effect doesn't remove this Aura.",
-    color: "black",
-});
+export const blackWard = defineCard(() =>
+    makeColorWard({
+        id: "15967a39-303f-457d-bcde-51837c8d63e1",
+        rarity: "uncommon",
+        name: "Black Ward",
+        oracleText:
+            "Enchant creature\nEnchanted creature has protection from black. This effect doesn't remove this Aura.",
+        color: "black",
+    })
+);
 
 // Blaze of Glory — "Cast this spell only during combat before blockers are
 // declared. Target creature defending player controls can block any number
 // of creatures this turn. It blocks each attacking creature this turn if
 // able." (CR 509.1a — multi-block, CR 509.1c — must-block-all).
 // castPhaseRestriction limits to BEGINNING_OF_COMBAT and DECLARE_ATTACKERS.
-export const blazeOfGlory: CardDefinition = {
+export const blazeOfGlory = defineCard(() => ({
     id: "98fba951-c5bb-497c-9292-ce1b2a1e1247",
     rarity: "rare",
     name: "Blaze of Glory",
@@ -259,12 +261,12 @@ export const blazeOfGlory: CardDefinition = {
             ctx.setMustBlockAll(target);
         }
     },
-};
+}));
 
 // Blessing — "Enchant creature. {W}: Enchanted creature gets +1/+1 until
 // end of turn." (CR 303.4 aura, CR 611.1 temp P/T mod, activated-on-aura
 // pumping the host — same shape as holyArmor's pump.)
-export const blessing: CardDefinition = {
+export const blessing = defineCard(() => ({
     id: "f131fd27-18da-47ca-b59f-135bcac83abd",
     rarity: "rare",
     name: "Blessing",
@@ -295,19 +297,21 @@ export const blessing: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const blueWard: CardDefinition = makeColorWard({
-    id: "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
-    rarity: "uncommon",
-    name: "Blue Ward",
-    oracleText:
-        "Enchant creature\nEnchanted creature has protection from blue. This effect doesn't remove this Aura.",
-    color: "blue",
-});
+export const blueWard = defineCard(() =>
+    makeColorWard({
+        id: "93f9f0f2-e1cc-4740-888c-1336c6de0a27",
+        rarity: "uncommon",
+        name: "Blue Ward",
+        oracleText:
+            "Enchant creature\nEnchanted creature has protection from blue. This effect doesn't remove this Aura.",
+        color: "blue",
+    })
+);
 
 // Castle — "Untapped creatures you control get +0/+2." (CR 611, 613 — static layer 7c)
-export const castle: CardDefinition = {
+export const castle = defineCard(() => ({
     id: "b0da8d56-3178-44c2-9344-95d2346d326f",
     rarity: "uncommon",
     name: "Castle",
@@ -325,7 +329,7 @@ export const castle: CardDefinition = {
             toughness: 2,
         },
     ],
-};
+}));
 
 // Circle of Protection — "{1}: The next time a source of your choice of
 // [color] would deal damage to you this turn, prevent that damage." The
@@ -333,45 +337,53 @@ export const castle: CardDefinition = {
 // built from the shared `makeCircleOfProtection` factory (also used by the
 // Beta-original Circle of Protection: Black in leb.ts).
 
-export const circleOfProtectionBlue: CardDefinition = makeCircleOfProtection({
-    id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
-    rarity: "common",
-    name: "Circle of Protection: Blue",
-    oracleText:
-        "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
-    color: "U",
-    colorWord: "Blue",
-});
+export const circleOfProtectionBlue = defineCard(() =>
+    makeCircleOfProtection({
+        id: "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
+        rarity: "common",
+        name: "Circle of Protection: Blue",
+        oracleText:
+            "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
+        color: "U",
+        colorWord: "Blue",
+    })
+);
 
-export const circleOfProtectionGreen: CardDefinition = makeCircleOfProtection({
-    id: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
-    rarity: "common",
-    name: "Circle of Protection: Green",
-    oracleText:
-        "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
-    color: "G",
-    colorWord: "Green",
-});
+export const circleOfProtectionGreen = defineCard(() =>
+    makeCircleOfProtection({
+        id: "1ae32d20-b438-4f43-b603-e8f706ecfb03",
+        rarity: "common",
+        name: "Circle of Protection: Green",
+        oracleText:
+            "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
+        color: "G",
+        colorWord: "Green",
+    })
+);
 
-export const circleOfProtectionRed: CardDefinition = makeCircleOfProtection({
-    id: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
-    rarity: "common",
-    name: "Circle of Protection: Red",
-    oracleText:
-        "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
-    color: "R",
-    colorWord: "Red",
-});
+export const circleOfProtectionRed = defineCard(() =>
+    makeCircleOfProtection({
+        id: "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
+        rarity: "common",
+        name: "Circle of Protection: Red",
+        oracleText:
+            "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
+        color: "R",
+        colorWord: "Red",
+    })
+);
 
-export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
-    id: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
-    rarity: "common",
-    name: "Circle of Protection: White",
-    oracleText:
-        "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
-    color: "W",
-    colorWord: "White",
-});
+export const circleOfProtectionWhite = defineCard(() =>
+    makeCircleOfProtection({
+        id: "92df19c9-e127-42d9-8dd2-7fa5a7095428",
+        rarity: "common",
+        name: "Circle of Protection: White",
+        oracleText:
+            "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
+        color: "W",
+        colorWord: "White",
+    })
+);
 
 // Consecrate Land — "Enchant land\nEnchanted land has indestructible and can't
 // be enchanted by other Auras." (CR 303.4 aura attachment, 702.12
@@ -383,7 +395,7 @@ export const circleOfProtectionWhite: CardDefinition = makeCircleOfProtection({
 // it is still resolving — not yet on the battlefield and with `attachedTo`
 // unset — so `AURA_AFFECTS_HOST` is false for it, and the guard only starts
 // barring new Auras once Consecrate Land is attached.
-export const consecrateLand: CardDefinition = {
+export const consecrateLand = defineCard(() => ({
     id: "d2379f78-c03f-447f-b3c9-10a918d556e9",
     rarity: "uncommon",
     name: "Consecrate Land",
@@ -410,14 +422,14 @@ export const consecrateLand: CardDefinition = {
             cantBeEnchanted: true,
         },
     ],
-};
+}));
 
 // Conversion — "At the beginning of your upkeep, sacrifice this enchantment
 // unless you pay {W}{W}. All Mountains are Plains." (CR 305.7 global
 // subtype replacement, CR 603.6a upkeep trigger, CR 117.3a pay-or-else).
 // Layer 4 subtype-set replaces subtypes on every permanent with subtype
 // "Mountain" with ["Plains"], changing their mana production.
-export const conversion: CardDefinition = {
+export const conversion = defineCard(() => ({
     id: "13186bc9-8d9c-433b-ba15-121ef94dd68a",
     rarity: "uncommon",
     name: "Conversion",
@@ -442,12 +454,12 @@ export const conversion: CardDefinition = {
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));
 
 // Crusade — "White creatures get +1/+1." (CR 611 — static layer 7c, color via
 // CR 202.2). Mirrors Bad Moon's structure but filtered on white instead of
 // black. Affects creatures of either controller.
-export const crusade: CardDefinition = {
+export const crusade = defineCard(() => ({
     id: "057986c7-20c0-4157-b4df-beae4ef5c66d",
     rarity: "rare",
     name: "Crusade",
@@ -463,13 +475,13 @@ export const crusade: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Death Ward — "Regenerate target creature." (CR 701.19a regenerate, 614.5
 // destroy replacement). Stacks one regen shield on the target via the same
 // primitive used by Regeneration's activated ability — consumed by the next
 // destroy attempt, expiring at CLEANUP if unused (CR 514.2).
-export const deathWard: CardDefinition = {
+export const deathWard = defineCard(() => ({
     id: "fa5466cc-aa57-4a7f-8b21-d92b2fe02e13",
     rarity: "common",
     name: "Death Ward",
@@ -480,9 +492,9 @@ export const deathWard: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #846): regenerate the announced
     // creature target (CR 701.19a).
     effects: [{ op: "regenerate", target: { target: 0 } }],
-};
+}));
 
-export const disenchant: CardDefinition = {
+export const disenchant = defineCard(() => ({
     id: "2722d7e2-61c6-4934-9c21-875ee78fd06c",
     rarity: "common",
     name: "Disenchant",
@@ -491,7 +503,7 @@ export const disenchant: CardDefinition = {
     types: ["Instant"],
     targetRequirement: { type: ["Artifact", "Enchantment"], count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Farmstead — "Enchant land\nEnchanted land has \"At the beginning of your
 // upkeep, you may pay {W}{W}. If you do, you gain 1 life.\"" (modern Scryfall
@@ -504,7 +516,7 @@ export const disenchant: CardDefinition = {
 // changed controllers (Control Magic, etc.) follows the new controller
 // automatically. (The pre-Oracle Alpha printing gained 2 life unconditionally
 // with no cost — issue #960 corrected it to the modern optional-{W}{W} gain 1.)
-export const farmstead: CardDefinition = {
+export const farmstead = defineCard(() => ({
     id: "3455b006-9ea5-4aef-8ad2-d0701eb0cacf",
     rarity: "rare",
     name: "Farmstead",
@@ -555,18 +567,20 @@ export const farmstead: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const greenWard: CardDefinition = makeColorWard({
-    id: "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
-    rarity: "uncommon",
-    name: "Green Ward",
-    oracleText:
-        "Enchant creature\nEnchanted creature has protection from green. This effect doesn't remove this Aura.",
-    color: "green",
-});
+export const greenWard = defineCard(() =>
+    makeColorWard({
+        id: "1f6118b2-fe01-425a-a2ed-6d7c42286c8e",
+        rarity: "uncommon",
+        name: "Green Ward",
+        oracleText:
+            "Enchant creature\nEnchanted creature has protection from green. This effect doesn't remove this Aura.",
+        color: "green",
+    })
+);
 
-export const guardianAngel: CardDefinition = {
+export const guardianAngel = defineCard(() => ({
     id: "0f84d676-5327-454c-a033-b4498a9d28e2",
     rarity: "common",
     name: "Guardian Angel",
@@ -596,13 +610,13 @@ export const guardianAngel: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Healing Salve — "Choose one — Target player gains 3 life. OR Prevent the
 // next 3 damage that would be dealt to any target this turn." (CR 700.2
 // modal — chooser picks one mode at announcement, the chosen mode's
 // targetRequirement drives target selection.)
-export const healingSalve: CardDefinition = {
+export const healingSalve = defineCard(() => ({
     id: "e28de37e-84d5-4dc7-b36c-e14da5924729",
     rarity: "common",
     name: "Healing Salve",
@@ -643,13 +657,13 @@ export const healingSalve: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Holy Armor — "Enchant creature. Enchanted creature gets +0/+2. {1}{W}:
 // Enchanted creature gets +0/+3 until end of turn." (CR 303.4 aura, 611
 // static layer 7c, 611.1 temp P/T mod). Static buff stacks with the activated
 // pump on the same host (both summed at read time).
-export const holyArmor: CardDefinition = {
+export const holyArmor = defineCard(() => ({
     id: "b01041d2-687e-4972-81c8-16690809275b",
     rarity: "common",
     name: "Holy Armor",
@@ -689,12 +703,12 @@ export const holyArmor: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Holy Strength — "Enchant creature. Enchanted creature gets +1/+2." (CR 303.4
 // aura attachment, 611 static layer 7c). Plain pt-buff aura — same shape as
 // the future Unholy Strength / Weakness, all reusing AURA_AFFECTS_HOST.
-export const holyStrength: CardDefinition = {
+export const holyStrength = defineCard(() => ({
     id: "e945a4cd-0eb1-4f54-898d-169ce2748a03",
     rarity: "common",
     name: "Holy Strength",
@@ -711,14 +725,14 @@ export const holyStrength: CardDefinition = {
             toughness: 2,
         },
     ],
-};
+}));
 
 // Island Sanctuary — "If you would draw a card during your draw step, instead
 // you may skip that draw. If you do, until your next turn, you can't be
 // attacked except by creatures with flying and/or islandwalk." (CR 614 draw
 // replacement). The `drawStepReplacement` flag suppresses the automatic draw;
 // a phaseTrigger at DRAW asks the player whether to skip or draw.
-export const islandSanctuary: CardDefinition = {
+export const islandSanctuary = defineCard(() => ({
     id: "c15e8a42-89de-42bc-8d5f-33426d207c3a",
     rarity: "rare",
     name: "Island Sanctuary",
@@ -770,13 +784,13 @@ export const islandSanctuary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Karma — "At the beginning of each player's upkeep, Karma deals damage to
 // that player equal to the number of Swamps they control." (CR 603.6a phase
 // trigger, 120.1 damage). Fires on every player's UPKEEP — the active player
 // at trigger time is the one taking the damage, not Karma's controller.
-export const karma: CardDefinition = {
+export const karma = defineCard(() => ({
     id: "6f30ad61-fcb7-4d55-ba86-94de1bf545e4",
     rarity: "uncommon",
     name: "Karma",
@@ -814,11 +828,11 @@ export const karma: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Lance — "Enchant creature. Enchanted creature has first strike." (CR 303.4
 // aura attachment, 702.7 first strike, 611.2 keyword grant via static effect).
-export const lance: CardDefinition = {
+export const lance = defineCard(() => ({
     id: "ddb633f5-cc4d-4157-8217-def90cb15e24",
     rarity: "uncommon",
     name: "Lance",
@@ -834,12 +848,12 @@ export const lance: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));
 
 // Mesa Pegasus — 1/1 with flying + banding. Both keywords coexist in
 // staticAbilities[]; flying governs evasion (CR 702.9) and banding governs
 // combat-damage assignment (CR 702.21).
-export const mesaPegasus: CardDefinition = {
+export const mesaPegasus = defineCard(() => ({
     id: "eaac88da-d19e-4771-944c-3709963d04e7",
     rarity: "common",
     name: "Mesa Pegasus",
@@ -851,9 +865,9 @@ export const mesaPegasus: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying", "banding"],
-};
+}));
 
-export const pearledUnicorn: CardDefinition = {
+export const pearledUnicorn = defineCard(() => ({
     id: "6daf1aab-1e58-4a5a-bc66-cb3f7c86e0e8",
     rarity: "common",
     name: "Pearled Unicorn",
@@ -863,7 +877,7 @@ export const pearledUnicorn: CardDefinition = {
     subtypes: ["Unicorn"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Personal Incarnation — LEA original oracle: "All damage that would be
 // dealt to its owner is dealt to Personal Incarnation instead. When Personal
@@ -876,7 +890,7 @@ export const pearledUnicorn: CardDefinition = {
 // === self.ownerId`. The dies-trigger reads `event.ownerId` from the
 // PERMANENT_LEFT payload so a control-changed Personal Incarnation still
 // damages its ORIGINAL owner (CR 109.5 ownership is permanent).
-export const personalIncarnation: CardDefinition = {
+export const personalIncarnation = defineCard(() => ({
     id: "caf9cef4-0f2d-478a-b119-fe1967687f74",
     rarity: "rare",
     name: "Personal Incarnation",
@@ -931,7 +945,7 @@ export const personalIncarnation: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // CR 305.7 / 613.1d layer 5 — lace cycle factory
 export function makeLace(args: {
@@ -964,15 +978,17 @@ export function makeLace(args: {
     };
 }
 
-export const purelace: CardDefinition = makeLace({
-    id: "2facf462-55cd-4da4-997f-2cf4add75628",
-    rarity: "rare",
-    name: "Purelace",
-    oracleText:
-        "Target spell or permanent becomes white. (Mana symbols on that permanent remain unchanged.)",
-    manaCost: { W: 1 },
-    color: "W",
-});
+export const purelace = defineCard(() =>
+    makeLace({
+        id: "2facf462-55cd-4da4-997f-2cf4add75628",
+        rarity: "rare",
+        name: "Purelace",
+        oracleText:
+            "Target spell or permanent becomes white. (Mana symbols on that permanent remain unchanged.)",
+        manaCost: { W: 1 },
+        color: "W",
+    })
+);
 
 // Color Ward cycle — {W} Enchant creature; enchanted creature has protection
 // from <color>. All five wards are structurally identical (white-costed
@@ -1009,14 +1025,16 @@ function makeColorWard(args: {
     };
 }
 
-export const redWard: CardDefinition = makeColorWard({
-    id: "e0c64c01-c2aa-470b-88c6-3d3e4a969649",
-    rarity: "uncommon",
-    name: "Red Ward",
-    oracleText:
-        "Enchant creature\nEnchanted creature has protection from red. This effect doesn't remove this Aura.",
-    color: "red",
-});
+export const redWard = defineCard(() =>
+    makeColorWard({
+        id: "e0c64c01-c2aa-470b-88c6-3d3e4a969649",
+        rarity: "uncommon",
+        name: "Red Ward",
+        oracleText:
+            "Enchant creature\nEnchanted creature has protection from red. This effect doesn't remove this Aura.",
+        color: "red",
+    })
+);
 
 // Resurrection — "Return target creature card from your graveyard to the
 // battlefield." (CR 400.7 zone change, CR 302.1 summoning sickness applies to
@@ -1025,7 +1043,7 @@ export const redWard: CardDefinition = makeColorWard({
 // caster's own graveyard at cast time (CR 601.2c); the resolve re-checks
 // implicitly because `returnToBattlefield` silently fizzles if the card has
 // left the graveyard between cast and resolution (CR 608.2b).
-export const resurrection: CardDefinition = {
+export const resurrection = defineCard(() => ({
     id: "4fff6e6f-4ebd-4ec8-9443-59efb22d376c",
     rarity: "uncommon",
     name: "Resurrection",
@@ -1043,7 +1061,7 @@ export const resurrection: CardDefinition = {
     // graveyard creature card to the battlefield under its owner's control
     // (CR 400.7 reanimation).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
-};
+}));
 
 // Reverse Damage — "The next time a source of your choice would deal damage
 // to you this turn, prevent that damage. You gain life equal to the damage
@@ -1058,7 +1076,7 @@ export const resurrection: CardDefinition = {
 // target union covers both: `any` yields creatures/planeswalkers/players, and
 // `spell` yields stack items. Players are excluded from being a damage
 // source in practice (the prevention check keys on `sourceInstanceId`).
-export const reverseDamage: CardDefinition = {
+export const reverseDamage = defineCard(() => ({
     id: "943baea8-b173-4863-a3ab-dd217d483cd9",
     rarity: "rare",
     name: "Reverse Damage",
@@ -1077,9 +1095,9 @@ export const reverseDamage: CardDefinition = {
             duration: { phase: "end-of-turn" },
         });
     },
-};
+}));
 
-export const righteousness: CardDefinition = {
+export const righteousness = defineCard(() => ({
     id: "d0ba7b76-f3d0-47d0-8a35-0c08e67200fb",
     rarity: "rare",
     name: "Righteousness",
@@ -1100,14 +1118,14 @@ export const righteousness: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Samite Healer — "{T}: Prevent the next 1 damage that would be dealt to
 // any target this turn." (CR 615.1, 120.3 "any target" = creature/player).
 // Drops a 1-damage shield on the chosen target via the
 // `preventNextNDamageToTarget` primitive; shield is consumed by the next
 // damage event regardless of source, leftover wears off at CLEANUP.
-export const samiteHealer: CardDefinition = {
+export const samiteHealer = defineCard(() => ({
     id: "efba235e-04e5-449c-906c-0ac33f6d7929",
     rarity: "common",
     name: "Samite Healer",
@@ -1140,9 +1158,9 @@ export const samiteHealer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const savannahLions: CardDefinition = {
+export const savannahLions = defineCard(() => ({
     id: "d05b92bd-797e-413f-a8b0-32e0937a1ee0",
     rarity: "rare",
     name: "Savannah Lions",
@@ -1152,9 +1170,9 @@ export const savannahLions: CardDefinition = {
     subtypes: ["Cat"],
     power: 2,
     toughness: 1,
-};
+}));
 
-export const serraAngel: CardDefinition = {
+export const serraAngel = defineCard(() => ({
     id: "f8ac5006-91bd-4803-93da-f87cf196dd2f",
     rarity: "uncommon",
     name: "Serra Angel",
@@ -1166,14 +1184,14 @@ export const serraAngel: CardDefinition = {
     power: 4,
     toughness: 4,
     staticAbilities: ["flying", "vigilance"],
-};
+}));
 
 // First DSL card exercising the bind + ref constructs (ADR 0045, issue #802).
 // The whole effect is a declarative Effect Script: `exile` snapshots the
 // creature's power and controller BEFORE it leaves the battlefield (CR 608.2h
 // last-known information), then `gainLife` reads that snapshot — "its
 // controller gains life equal to its power". No imperative `resolve()`.
-export const swordsToPlowshares: CardDefinition = {
+export const swordsToPlowshares = defineCard(() => ({
     id: "386ea9eb-abc1-4862-aa2d-8fb808d79490",
     rarity: "uncommon",
     name: "Swords to Plowshares",
@@ -1190,7 +1208,7 @@ export const swordsToPlowshares: CardDefinition = {
             amount: { ref: "$creature.power" },
         },
     ],
-};
+}));
 
 // Veteran Bodyguard — "As long as Veteran Bodyguard remains untapped, all
 // damage that would be dealt to you by unblocked attacking creatures is
@@ -1200,7 +1218,7 @@ export const swordsToPlowshares: CardDefinition = {
 // `state.combat.{attackerIds, blockerAssignments}`. MTGJSON LEA.json:
 // subtypes ["Human"] (no "Soldier"), 2/5 — both "Soldier" and the 2/4
 // toughness were wrong, caught by the widened data/json conformance guard.
-export const veteranBodyguard: CardDefinition = {
+export const veteranBodyguard = defineCard(() => ({
     id: "cbd9ab01-a833-4fa4-8dee-151bd9800835",
     rarity: "rare",
     name: "Veteran Bodyguard",
@@ -1244,9 +1262,9 @@ export const veteranBodyguard: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const wallOfSwords: CardDefinition = {
+export const wallOfSwords = defineCard(() => ({
     id: "99ec4723-b36c-4015-b361-736a6523e8f5",
     rarity: "uncommon",
     name: "Wall of Swords",
@@ -1257,10 +1275,10 @@ export const wallOfSwords: CardDefinition = {
     power: 3,
     toughness: 5,
     staticAbilities: ["defender", "flying"],
-};
+}));
 
 // White Knight — first strike + protection from black (CR 702.7, 702.16).
-export const whiteKnight: CardDefinition = {
+export const whiteKnight = defineCard(() => ({
     id: "50abfba8-c9f9-4ebf-965a-4b425fe83129",
     rarity: "uncommon",
     name: "White Knight",
@@ -1272,22 +1290,24 @@ export const whiteKnight: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: knightStaticAbilities("black"),
-};
+}));
 
-export const whiteWard: CardDefinition = makeColorWard({
-    id: "49b22665-1501-420a-82ad-f71f6768bcf8",
-    rarity: "uncommon",
-    name: "White Ward",
-    oracleText:
-        "Enchant creature\nEnchanted creature has protection from white. This effect doesn't remove this Aura.",
-    color: "white",
-});
+export const whiteWard = defineCard(() =>
+    makeColorWard({
+        id: "49b22665-1501-420a-82ad-f71f6768bcf8",
+        rarity: "uncommon",
+        name: "White Ward",
+        oracleText:
+            "Enchant creature\nEnchanted creature has protection from white. This effect doesn't remove this Aura.",
+        color: "white",
+    })
+);
 
 // Wrath of God — "Destroy all creatures. They can't be regenerated."
 // (CR 701.7, 701.19c). The `cantBeRegenerated` rider suppresses any
 // regeneration shields the victims may have stacked; indestructible still
 // protects (CR 702.12).
-export const wrathOfGod: CardDefinition = {
+export const wrathOfGod = defineCard(() => ({
     id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
     rarity: "rare",
     name: "Wrath of God",
@@ -1319,7 +1339,7 @@ export const wrathOfGod: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Helper for the "at the beginning of your upkeep, pay {cost} or
 // <consequence>" pattern (CR 603.6a phase trigger, CR 117.3a optional cost).

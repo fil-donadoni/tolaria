@@ -56,7 +56,7 @@ function crewBoard(
     creatures: ReadonlyArray<{ id: string; cardId: string; tapped?: boolean }>,
     opts: { copterTapped?: boolean } = {}
 ): GameState {
-    const copter = makeInstance(smugglersCopter.id, {
+    const copter = makeInstance(smugglersCopter().id, {
         id: "copter",
         controllerId: "p1",
         ownerId: "p1",
@@ -304,7 +304,7 @@ describe("Vehicle is not a creature until crewed (CR 301.7 / 301.7a)", () => {
 describe("Crew N (CR 702.122a)", () => {
     it("taps the chosen creature and turns the Vehicle into an artifact creature", () => {
         // Savannah Lions is a 2/1 — one creature covers Crew 1.
-        const state = crewBoard([{ id: "lion", cardId: savannahLions.id }]);
+        const state = crewBoard([{ id: "lion", cardId: savannahLions().id }]);
         crewWith(state, ["lion"]);
 
         // The picker auto-commits at the threshold: cost paid, ability on the
@@ -363,7 +363,7 @@ describe("Crew N (CR 702.122a)", () => {
 
     it("an already-tapped creature can't pay (CR 702.122a 'untapped')", () => {
         const state = crewBoard([
-            { id: "lion", cardId: savannahLions.id, tapped: true },
+            { id: "lion", cardId: savannahLions().id, tapped: true },
         ]);
         expect(() =>
             activateAbilityOnState(state, {
@@ -375,7 +375,7 @@ describe("Crew N (CR 702.122a)", () => {
     });
 
     it("a SUMMONING-SICK creature CAN crew (CR 302.6 governs its own {T} only)", () => {
-        const state = crewBoard([{ id: "lion", cardId: savannahLions.id }]);
+        const state = crewBoard([{ id: "lion", cardId: savannahLions().id }]);
         state.players[0].battlefield.find(
             (c) => c.id === "lion"
         )!.isSummoningSick = true;
@@ -385,7 +385,7 @@ describe("Crew N (CR 702.122a)", () => {
     });
 
     it("the Vehicle itself is never a legal pick (CR 702.122a 'other')", () => {
-        const state = crewBoard([{ id: "bear", cardId: grizzlyBears.id }]);
+        const state = crewBoard([{ id: "bear", cardId: grizzlyBears().id }]);
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "copter",
@@ -400,7 +400,7 @@ describe("Crew N (CR 702.122a)", () => {
     });
 
     it("a tapped Vehicle can still be crewed (crew has no {T} on the source)", () => {
-        const state = crewBoard([{ id: "bear", cardId: grizzlyBears.id }], {
+        const state = crewBoard([{ id: "bear", cardId: grizzlyBears().id }], {
             copterTapped: true,
         });
         crewWith(state, ["bear"]);
@@ -412,8 +412,8 @@ describe("Crew N (CR 702.122a)", () => {
 
     it("crewing an already-crewed Vehicle is a legal no-op (CR 702.122a)", () => {
         const state = crewBoard([
-            { id: "bear-a", cardId: grizzlyBears.id },
-            { id: "bear-b", cardId: grizzlyBears.id },
+            { id: "bear-a", cardId: grizzlyBears().id },
+            { id: "bear-b", cardId: grizzlyBears().id },
         ]);
         crewWith(state, ["bear-a"]);
         resolveTopOfStack(state);
@@ -438,8 +438,8 @@ describe("crew payment accumulates until the threshold (CR 702.122a)", () => {
         // pair overshoots. This is the accumulation branch: pick, picker still
         // open with the running total mirrored, pick again, commit.
         const state = crewThreeBoard([
-            { id: "b1", cardId: grizzlyBears.id },
-            { id: "b2", cardId: grizzlyBears.id },
+            { id: "b1", cardId: grizzlyBears().id },
+            { id: "b2", cardId: grizzlyBears().id },
         ]);
         activateAbilityOnState(state, {
             playerId: "p1",
@@ -496,7 +496,7 @@ describe("crew payment accumulates until the threshold (CR 702.122a)", () => {
     });
 
     it("a single 2/2 clears Crew 1 on the first pick (auto-commit)", () => {
-        const state = crewBoard([{ id: "b1", cardId: grizzlyBears.id }]);
+        const state = crewBoard([{ id: "b1", cardId: grizzlyBears().id }]);
         activateAbilityOnState(state, {
             playerId: "p1",
             cardInstanceId: "copter",
@@ -519,8 +519,8 @@ describe("crew payment accumulates until the threshold (CR 702.122a)", () => {
 
     it("the picker rejects a second pick once the cost is paid", () => {
         const state = crewBoard([
-            { id: "bear-a", cardId: grizzlyBears.id },
-            { id: "bear-b", cardId: grizzlyBears.id },
+            { id: "bear-a", cardId: grizzlyBears().id },
+            { id: "bear-b", cardId: grizzlyBears().id },
         ]);
         crewWith(state, ["bear-a"]);
         // Cost already paid and committed — there is no picker left at all.
@@ -542,7 +542,7 @@ describe("crew payment accumulates until the threshold (CR 702.122a)", () => {
 // ===========================================================================
 describe("crewed until end of turn (CR 702.122a / 514.2)", () => {
     it("the animation reverts at cleanup — the Vehicle is a non-creature again", () => {
-        const state = crewBoard([{ id: "bear", cardId: grizzlyBears.id }]);
+        const state = crewBoard([{ id: "bear", cardId: grizzlyBears().id }]);
         crewWith(state, ["bear"]);
         resolveTopOfStack(state);
         expect(isCreature(copterOf(state))).toBe(true);
@@ -560,7 +560,7 @@ describe("crewed until end of turn (CR 702.122a / 514.2)", () => {
 // ===========================================================================
 describe("wire format — crewed Vehicle survives the projection", () => {
     it("projectPublicState preserves the creature type and printed P/T", () => {
-        const state = crewBoard([{ id: "bear", cardId: grizzlyBears.id }]);
+        const state = crewBoard([{ id: "bear", cardId: grizzlyBears().id }]);
         crewWith(state, ["bear"]);
         resolveTopOfStack(state);
 
@@ -687,13 +687,13 @@ describe("targeted totalPower activation (CR 602.1 / 118.8 / 702.122a)", () => {
             ownerId: "p1",
         });
         const bears = ["b1", "b2"].map((id) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
             })
         );
-        const victim = makeInstance(grizzlyBears.id, {
+        const victim = makeInstance(grizzlyBears().id, {
             id: "victim",
             controllerId: "p2",
             ownerId: "p2",

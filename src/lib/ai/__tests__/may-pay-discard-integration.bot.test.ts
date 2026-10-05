@@ -126,7 +126,7 @@ function fireSpeakerEtb(state: GameState, speaker: CardInstanceState): void {
 /** Seed a suspended Formidable Speaker ETB may-pay with TWO discardable hand
  *  cards the BOT controls — a real choice is owed (CR 701.9 / 118.3). */
 function seedTwoHandCards(): GameState {
-    const speaker = makeInstance(formidableSpeaker.id, {
+    const speaker = makeInstance(formidableSpeaker().id, {
         id: "speaker",
         controllerId: BOT,
         ownerId: BOT,

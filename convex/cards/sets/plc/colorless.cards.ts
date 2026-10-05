@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Urborg, Tomb of Yawgmoth — "Each land is a Swamp in addition to its other
 // land types." (CR 305.7, 611 — layer 4 subtype addition.) Modelled as a
@@ -25,7 +25,7 @@ import type { CardDefinition } from "../../types";
 // and let the intrinsic ability shadow a land's own — fixed by the unified
 // option list. Its per-card test only covered Urborg-on-itself, a pure Swamp,
 // the one case where single-colour happened to be correct.)
-export const urborgTombOfYawgmoth: CardDefinition = {
+export const urborgTombOfYawgmoth = defineCard(() => ({
     id: "19e1224f-82cb-4f41-8739-f880cba61bbb",
     rarity: "rare",
     name: "Urborg, Tomb of Yawgmoth",
@@ -47,4 +47,4 @@ export const urborgTombOfYawgmoth: CardDefinition = {
             subtypes: ["Swamp"],
         },
     ],
-};
+}));

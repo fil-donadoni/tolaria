@@ -47,7 +47,7 @@ const OBSERVER = "p1";
 
 /** A twenty-card mono-black decklist — the `expert` search's evidence that
  *  this opponent spends its cards on {B} whatever its board shows. */
-const BLACK_DECK = Array<string>(20).fill(scatheZombies.id);
+const BLACK_DECK = Array<string>(20).fill(scatheZombies().id);
 
 /** The board both halves of the difficulty sweep run on: the estimated seat
  *  holds ONE untapped Plains and nothing else, so the blind reading is "this
@@ -60,7 +60,10 @@ function boardWithLonePlains(): GameState {
             makePlayer(OBSERVER),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(plains.id, { id: "pl-1", controllerId: "p2" }),
+                    makeInstance(plains().id, {
+                        id: "pl-1",
+                        controllerId: "p2",
+                    }),
                 ],
             }),
         ],
@@ -88,22 +91,26 @@ describe("deckColorEvidence — the decklist lowered into colour mass (issue #35
     it("counts ONE unit per coloured card, per colour that card actually is", () => {
         expect(deckColorEvidence(BLACK_DECK)).toEqual({ B: 20 });
         expect(
-            deckColorEvidence([grizzlyBears.id, grizzlyBears.id, swamp.id])
+            deckColorEvidence([
+                grizzlyBears().id,
+                grizzlyBears().id,
+                swamp().id,
+            ])
         ).toEqual({ G: 2 });
     });
 
     it("a land, and an id the registry cannot resolve, are evidence of nothing", () => {
-        expect(deckColorEvidence([plains.id, swamp.id])).toEqual({});
+        expect(deckColorEvidence([plains().id, swamp().id])).toEqual({});
         expect(deckColorEvidence(["not-a-card-id"])).toEqual({});
     });
 
     it("a GOLD card demands each of its colours (CR 202.2) — one unit apiece", () => {
         // Jasmine Boreal is {3}{G}{W}: one green unit AND one white unit from
         // the same physical card, because a deck holding it wants both.
-        expect(deckColorEvidence([jasmineBoreal.id])).toEqual({ G: 1, W: 1 });
-        expect(deckColorEvidence([jasmineBoreal.id, scatheZombies.id])).toEqual(
-            { G: 1, W: 1, B: 1 }
-        );
+        expect(deckColorEvidence([jasmineBoreal().id])).toEqual({ G: 1, W: 1 });
+        expect(
+            deckColorEvidence([jasmineBoreal().id, scatheZombies().id])
+        ).toEqual({ G: 1, W: 1, B: 1 });
     });
 });
 
@@ -272,7 +279,7 @@ describe("the estimate per difficulty — `expert` differs, the rest are byte-id
         const empty = boardWithLonePlains();
         const withHand = boardWithLonePlains();
         withHand.players[1].hand = [
-            makeInstance(scatheZombies.id, {
+            makeInstance(scatheZombies().id, {
                 id: "secret",
                 controllerId: "p2",
                 zone: "hand",

@@ -54,7 +54,7 @@ const STARTING_HAND_SIZE = 7;
 
 function setupCleanupDiscard(handSize: number): GameState {
     const hand = Array.from({ length: handSize }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `p1-card-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -75,13 +75,13 @@ function setupCleanupDiscard(handSize: number): GameState {
 }
 
 function setupScepterDiscard(handIds: string[]): GameState {
-    const scepter = makeInstance(disruptingScepter.id, {
+    const scepter = makeInstance(disruptingScepter().id, {
         id: "scepter",
         controllerId: "p1",
         ownerId: "p1",
     });
     const hand = handIds.map((id) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id,
             controllerId: "p2",
             ownerId: "p2",
@@ -94,8 +94,8 @@ function setupScepterDiscard(handIds: string[]): GameState {
             makePlayer("p2", { hand }),
         ],
     });
-    const ability = disruptingScepter.activatedAbilities![0];
-    const item = pushSpell(state, disruptingScepter.id, "p1", [
+    const ability = disruptingScepter().activatedAbilities![0];
+    const item = pushSpell(state, disruptingScepter().id, "p1", [
         { type: "player", id: "p2" },
     ]);
     item.abilityId = ability.id;
@@ -230,7 +230,7 @@ describe("applyPendingChoiceSubmit — discard-hand mid-resolution (CR 608.2)", 
         // Scepter targets p2 → zoneOwnerId === playerId === p2 (default).
         // Submitting a card from p1's hand should fail.
         const state = setupScepterDiscard(["h1"]);
-        const p1Card = makeInstance(lightningBolt.id, {
+        const p1Card = makeInstance(lightningBolt().id, {
             id: "p1-card",
             ownerId: "p1",
             controllerId: "p1",
@@ -298,13 +298,13 @@ describe("applyPendingChoiceSubmit — discard-hand cleanup (CR 514.1)", () => {
 // ---------------------------------------------------------------------------
 
 function setupUntapPick(tappedLandCount: number): GameState {
-    const orb = makeInstance(winterOrb.id, {
+    const orb = makeInstance(winterOrb().id, {
         id: "orb",
         controllerId: "p1",
         ownerId: "p1",
     });
     const lands = Array.from({ length: tappedLandCount }, (_, i) =>
-        makeInstance(plains.id, {
+        makeInstance(plains().id, {
             id: `land-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -442,7 +442,7 @@ function makeMulliganGame(): GameState {
     const deckSize = 60;
     function deck(owner: string) {
         return Array.from({ length: deckSize }, (_, i) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: `${owner}-lib-${i}`,
                 controllerId: owner,
                 ownerId: owner,
@@ -583,7 +583,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
     }
 
     it("mana CU: submitMayPay(accept) pays {U} from the pool and keeps it", () => {
-        const forces = makeInstance(illusionaryForces.id, {
+        const forces = makeInstance(illusionaryForces().id, {
             id: "forces",
             controllerId: "p1",
             ownerId: "p1",
@@ -606,7 +606,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
     });
 
     it("sacrifice CU: submitMayPay(accept) sacrifices a land via the union leg", () => {
-        const kraken = makeInstance(polarKraken.id, {
+        const kraken = makeInstance(polarKraken().id, {
             id: "kraken",
             controllerId: "p1",
             ownerId: "p1",
@@ -638,7 +638,7 @@ describe("applyMayPaySubmit — cumulative-upkeep cost union (CR 702.24, #638)",
     });
 
     it("sacrifice CU: submitMayPay(decline) sacrifices the Kraken itself", () => {
-        const kraken = makeInstance(polarKraken.id, {
+        const kraken = makeInstance(polarKraken().id, {
             id: "kraken",
             controllerId: "p1",
             ownerId: "p1",
@@ -692,15 +692,15 @@ describe("applyPendingChoiceSubmit — choose-damage-target (Cuombajj Witches)",
      *  target already chosen, resolve once to suspend on the opponent's
      *  choice, and return the suspended state + the head choice. */
     function suspendOnOpponentChoice() {
-        const witches = makeInstance(cuombajjWitches.id, {
+        const witches = makeInstance(cuombajjWitches().id, {
             id: "witches",
             controllerId: "p1",
         });
-        const myBody = makeInstance(juzamDjinn.id, {
+        const myBody = makeInstance(juzamDjinn().id, {
             id: "p1-body",
             controllerId: "p1",
         });
-        const oppBody = makeInstance(juzamDjinn.id, {
+        const oppBody = makeInstance(juzamDjinn().id, {
             id: "p2-body",
             controllerId: "p2",
         });
@@ -794,7 +794,7 @@ const WIN_SEED = 1; // first flipCoin() → true (heads / win)
 const LOSE_SEED = 7; // first flipCoin() → false (tails / lose)
 
 function suspendOnBottleFlip(seed: number): GameState {
-    const bottle = makeInstance(bottleOfSuleiman.id, {
+    const bottle = makeInstance(bottleOfSuleiman().id, {
         id: "bottle",
         controllerId: "p1",
         ownerId: "p1",
@@ -888,13 +888,13 @@ describe("applyRandomRevealAck — coin flip resume (CR 705.2 / ADR 0023)", () =
 // ---------------------------------------------------------------------------
 
 function suspendOnYdwenBlockFlip(seed: number): GameState {
-    const attacker = makeInstance(grizzlyBears.id, {
+    const attacker = makeInstance(grizzlyBears().id, {
         id: "atk",
         controllerId: "p1",
         ownerId: "p1",
         isAttacking: true,
     });
-    const ydwen = makeInstance(ydwenEfreet.id, {
+    const ydwen = makeInstance(ydwenEfreet().id, {
         id: "ydwen",
         controllerId: "p2",
         ownerId: "p2",
@@ -995,12 +995,12 @@ describe("applyRandomRevealAck — Ydwen block-trigger resume (#303, CR 705 / 50
 // state for an SBA-raised phase-level choice (stackItemId: "").
 describe("applyPendingChoiceSubmit — legend-keep (CR 704.5j)", () => {
     function setupTwoJasmines(): GameState {
-        const a = makeInstance(jasmineBoreal.id, {
+        const a = makeInstance(jasmineBoreal().id, {
             id: "jasmine-a",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const b = makeInstance(jasmineBoreal.id, {
+        const b = makeInstance(jasmineBoreal().id, {
             id: "jasmine-b",
             controllerId: "p1",
             ownerId: "p1",
@@ -1042,7 +1042,7 @@ describe("applyPendingChoiceSubmit — legend-keep (CR 704.5j)", () => {
         const state = setupTwoJasmines();
         const head = state.pendingChoices![0];
         // A real-but-irrelevant battlefield id is not in candidateIds.
-        const intruder = makeInstance(grizzlyBears.id, { id: "intruder" });
+        const intruder = makeInstance(grizzlyBears().id, { id: "intruder" });
         state.players[0].battlefield.push(intruder);
 
         expect(() =>
@@ -1080,13 +1080,13 @@ describe("applyNameCardSubmit — name-a-card mid-resolution (CR 202.3 / 701.x)"
     // exercises the dedicated submit path (the primitive the `submitNameCard`
     // mutation drives).
     function setupNameCard(): GameState {
-        const top = makeInstance(tundraWolves.id, {
+        const top = makeInstance(tundraWolves().id, {
             id: "top",
             controllerId: "p2",
             ownerId: "p2",
             zone: "library",
         });
-        const sphinx = makeInstance(petraSphinx.id, {
+        const sphinx = makeInstance(petraSphinx().id, {
             id: "sphinx",
             controllerId: "p1",
             ownerId: "p1",
@@ -1097,7 +1097,7 @@ describe("applyNameCardSubmit — name-a-card mid-resolution (CR 202.3 / 701.x)"
                 makePlayer("p2", { library: [top] }),
             ],
         });
-        const ability = petraSphinx.activatedAbilities![0];
+        const ability = petraSphinx().activatedAbilities![0];
         state.stack.push({
             ...sphinx,
             zone: "stack",
@@ -1209,13 +1209,13 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     }
 
     it("casts the chosen non-targeted spell as the opponent's spell via the submit path", () => {
-        const oppRitual = makeInstance(darkRitual.id, {
+        const oppRitual = makeInstance(darkRitual().id, {
             id: "opp-ritual",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const oppSwamp = makeInstance(swamp.id, {
+        const oppSwamp = makeInstance(swamp().id, {
             id: "opp-swamp",
             controllerId: "p2",
             ownerId: "p2",
@@ -1225,7 +1225,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
             oppHand: [oppRitual],
             oppBattlefield: [oppSwamp],
         });
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1234,7 +1234,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         submitViaMutationPath(state, "opp-ritual");
 
         const ritual = state.stack.find(
-            (s) => (s.card as { id?: string }).id === darkRitual.id
+            (s) => (s.card as { id?: string }).id === darkRitual().id
         );
         expect(ritual?.castById).toBe("p2");
         expect(ritual?.actingPlayerId).toBe("p1");
@@ -1242,14 +1242,14 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     });
 
     it("rejects a stale submit for a different chooser (validation in the submit path)", () => {
-        const oppRitual = makeInstance(darkRitual.id, {
+        const oppRitual = makeInstance(darkRitual().id, {
             id: "opp-ritual",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
         const state = wocState({ oppHand: [oppRitual] });
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1271,13 +1271,13 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     // chosen spell's targets through the same submit path. ---
 
     it("casts the opponent's Lightning Bolt aimed at the opponent themselves via the submit path", () => {
-        const oppBolt = makeInstance(lightningBolt.id, {
+        const oppBolt = makeInstance(lightningBolt().id, {
             id: "opp-bolt",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const oppMountain = makeInstance(mountain.id, {
+        const oppMountain = makeInstance(mountain().id, {
             id: "opp-mountain",
             controllerId: "p2",
             ownerId: "p2",
@@ -1288,7 +1288,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
             oppBattlefield: [oppMountain],
         });
         const startingLife = state.players[1].life;
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1307,7 +1307,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         submitViaMutationPath(state, "p2");
 
         const bolt = state.stack.find(
-            (s) => (s.card as { id?: string }).id === lightningBolt.id
+            (s) => (s.card as { id?: string }).id === lightningBolt().id
         );
         expect(bolt?.castById).toBe("p2"); // CR 601 — opponent's spell
         expect(bolt?.actingPlayerId).toBe("p1"); // ADR 0037
@@ -1321,13 +1321,13 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     });
 
     it("rejects an illegal target pick (not in the legal set) via the submit path", () => {
-        const oppBolt = makeInstance(lightningBolt.id, {
+        const oppBolt = makeInstance(lightningBolt().id, {
             id: "opp-bolt",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const oppMountain = makeInstance(mountain.id, {
+        const oppMountain = makeInstance(mountain().id, {
             id: "opp-mountain",
             controllerId: "p2",
             ownerId: "p2",
@@ -1337,7 +1337,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
             oppHand: [oppBolt],
             oppBattlefield: [oppMountain],
         });
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1360,19 +1360,19 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     // decision flows through the same submit path the mutation runs. ---
 
     it("casts the opponent's Fireball with controller-chosen X via the submit path (CR 107.3)", () => {
-        const oppFireball = makeInstance(fireball.id, {
+        const oppFireball = makeInstance(fireball().id, {
             id: "opp-fireball",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const m1 = makeInstance(mountain.id, {
+        const m1 = makeInstance(mountain().id, {
             id: "opp-m1",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
-        const m2 = makeInstance(mountain.id, {
+        const m2 = makeInstance(mountain().id, {
             id: "opp-m2",
             controllerId: "p2",
             ownerId: "p2",
@@ -1383,7 +1383,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
             oppBattlefield: [m1, m2],
         });
         const startLife = state.players[0].life;
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1397,7 +1397,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         submitViaMutationPath(state, "p1");
 
         const fb = state.stack.find(
-            (s) => (s.card as { id?: string }).id === fireball.id
+            (s) => (s.card as { id?: string }).id === fireball().id
         );
         expect(fb?.castById).toBe("p2");
         expect(fb?.chosenX).toBe(1);
@@ -1409,19 +1409,19 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     });
 
     it("casts the opponent's Sacrifice with a controller-chosen sacrifice via the submit path (CR 118.8)", () => {
-        const oppSacrifice = makeInstance(sacrifice.id, {
+        const oppSacrifice = makeInstance(sacrifice().id, {
             id: "opp-sacrifice",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const oppSwamp = makeInstance(swamp.id, {
+        const oppSwamp = makeInstance(swamp().id, {
             id: "opp-swamp",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
-        const oppBears = makeInstance(grizzlyBears.id, {
+        const oppBears = makeInstance(grizzlyBears().id, {
             id: "opp-bears",
             controllerId: "p2",
             ownerId: "p2",
@@ -1431,7 +1431,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
             oppHand: [oppSacrifice],
             oppBattlefield: [oppSwamp, oppBears],
         });
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1446,7 +1446,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         submitViaMutationPath(state, "opp-bears");
 
         const sac = state.stack.find(
-            (s) => (s.card as { id?: string }).id === sacrifice.id
+            (s) => (s.card as { id?: string }).id === sacrifice().id
         );
         expect(sac?.castById).toBe("p2");
         expect(sac?.additionalSacrificeSnapshot?.cardInstanceId).toBe(
@@ -1469,25 +1469,25 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
     // choice to the WoC controller (Acting Player), read the controlled
     // opponent's zone, then revert when the spell leaves the stack.
     it("routes the chosen spell's resolution choice to the controller, then fetches into the OPPONENT's hand (CR 608)", () => {
-        const oppTutor = makeInstance(demonicTutor.id, {
+        const oppTutor = makeInstance(demonicTutor().id, {
             id: "opp-tutor",
             controllerId: "p2",
             ownerId: "p2",
             zone: "hand",
         });
-        const oppSwamp1 = makeInstance(swamp.id, {
+        const oppSwamp1 = makeInstance(swamp().id, {
             id: "opp-swamp-1",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
-        const oppSwamp2 = makeInstance(swamp.id, {
+        const oppSwamp2 = makeInstance(swamp().id, {
             id: "opp-swamp-2",
             controllerId: "p2",
             ownerId: "p2",
             zone: "battlefield",
         });
-        const oppLibCard = makeInstance(darkRitual.id, {
+        const oppLibCard = makeInstance(darkRitual().id, {
             id: "opp-lib-ritual",
             controllerId: "p2",
             ownerId: "p2",
@@ -1503,7 +1503,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
                 }),
             ],
         });
-        pushSpell(state, wordOfCommand.id, "p1", [
+        pushSpell(state, wordOfCommand().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);
@@ -1530,7 +1530,7 @@ describe("Word of Command — submitResolutionChoice path (#577, CR 601)", () =>
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(
             state.stack.find(
-                (s) => (s.card as { id?: string }).id === demonicTutor.id
+                (s) => (s.card as { id?: string }).id === demonicTutor().id
             )
         ).toBeUndefined();
     });

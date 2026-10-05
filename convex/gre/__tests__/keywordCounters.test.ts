@@ -19,12 +19,12 @@ import { grizzlyBears } from "../../cards/sets/lea/green.cards";
 import { grantedKeywordRows } from "../../cards/__tests__/setup.helper";
 
 function pushItem(state: ReturnType<typeof makeState>): StackItem {
-    return pushSpell(state, grizzlyBears.id, "p1");
+    return pushSpell(state, grizzlyBears().id, "p1");
 }
 
 describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
     it("a flying counter grants flying while present", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear1",
             controllerId: "p1",
             ownerId: "p1",
@@ -53,7 +53,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
     });
 
     it("removing the last flying counter splices the grant back out", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear2",
             controllerId: "p1",
             ownerId: "p1",
@@ -75,7 +75,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
     });
 
     it("a partial removal (2 flying counters -> 1) leaves the keyword granted", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear3",
             controllerId: "p1",
             ownerId: "p1",
@@ -103,7 +103,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
         // Simulate a creature that ALREADY has flying printed, then also
         // receives a flying counter (redundant, CR 702.9). Removing the
         // counter must strip only the counter-sourced occurrence.
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear4",
             controllerId: "p1",
             ownerId: "p1",
@@ -129,7 +129,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
     });
 
     it("a non-keyword counter type (+1/+1) grants nothing", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear5",
             controllerId: "p1",
             ownerId: "p1",
@@ -151,7 +151,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
         // "Ward" is `status: "planned"` in the registry (no engine
         // enforcement) — a "ward" counter must stay inert, mirroring the
         // Guard A gate for a card's OWN declared `staticAbilities`.
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear6",
             controllerId: "p1",
             ownerId: "p1",
@@ -169,7 +169,7 @@ describe("keyword counters (CR 122.1c / 613.4d, issue #1194)", () => {
     });
 
     it("is idempotent across repeated adds while the counter stays present", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear7",
             controllerId: "p1",
             ownerId: "p1",

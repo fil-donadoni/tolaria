@@ -8,10 +8,10 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
+import {
+    defineCard,
+    type SpellContext,
+    type TargetSelection,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
@@ -23,7 +23,7 @@ import { abilityActivatedTrigger } from "../../abilities/triggers/abilityActivat
 // (CR 603.6a upkeep trigger; CR 117.3a optional may; CR 701.21 sacrifice.)
 // The may is gated on having an artifact to sacrifice; declining (or having no
 // artifact) runs the else-branch: tap self + 2 damage to the controller.
-export const yawgmothDemon: CardDefinition = {
+export const yawgmothDemon = defineCard(() => ({
     id: "04bbd231-0d5f-4cbf-92a7-10d2c5c4b82c",
     rarity: "rare",
     name: "Yawgmoth Demon",
@@ -103,14 +103,14 @@ export const yawgmothDemon: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Priest of Yawgmoth — {1}{B} 1/2. "{T}, Sacrifice an artifact: Add an amount
 // of {B} equal to the sacrificed artifact's mana value." The mana-value-derived
 // effect reads the sacrificed permanent's mv via getAdditionalSacrificeMv
 // (snapshotted at commit). Modeled as a stack ability (see the CR 605.1a note
 // in `atq/red.cards.ts`, tracked-by: #3989).
-export const priestOfYawgmoth: CardDefinition = {
+export const priestOfYawgmoth = defineCard(() => ({
     id: "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
     rarity: "common",
     name: "Priest of Yawgmoth",
@@ -150,12 +150,12 @@ export const priestOfYawgmoth: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Gate to Phyrexia — {B}{B} Enchantment. "Sacrifice a creature: Destroy target
 // artifact. Activate only during your upkeep and only once each turn."
 // (CR 602.5 once-per-turn + upkeep timing.)
-export const gateToPhyrexia: CardDefinition = {
+export const gateToPhyrexia = defineCard(() => ({
     id: "1f372950-6693-4838-80ef-8fd9aa3e0349",
     rarity: "uncommon",
     name: "Gate to Phyrexia",
@@ -177,7 +177,7 @@ export const gateToPhyrexia: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster B — "ability activated" trigger event (PRD #269 / issue #285)
@@ -198,7 +198,7 @@ export const gateToPhyrexia: CardDefinition = {
 // this enchantment deals 1 damage to that artifact's controller." (CR 603.2.)
 // `scope: "any"` + an Artifact type filter; damage goes to the artifact's
 // controller (carried on each event payload).
-export const hauntingWind: CardDefinition = {
+export const hauntingWind = defineCard(() => ({
     id: "a2f6ef2f-a3a2-4e1f-b7eb-59abc8414114",
     rarity: "uncommon",
     name: "Haunting Wind",
@@ -257,7 +257,7 @@ export const hauntingWind: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Artifact Possession — {2}{B} Enchantment — Aura. "Enchant artifact. Whenever
 // enchanted artifact becomes tapped or a player activates an ability of
@@ -265,7 +265,7 @@ export const hauntingWind: CardDefinition = {
 // damage to that artifact's controller." (CR 303.4 aura attachment, 603.2.)
 // As with Psychic Venom, there is no `host` scope (ADR 0002) — `scope: "any"`
 // plus a `self.attachedTo` host-check condition is the idiomatic expression.
-export const artifactPossession: CardDefinition = {
+export const artifactPossession = defineCard(() => ({
     id: "587d6ac8-fad8-49e0-862e-636e06628ff9",
     rarity: "common",
     name: "Artifact Possession",
@@ -319,7 +319,7 @@ export const artifactPossession: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Phyrexian Gremlins — {2}{B} Creature — Phyrexian Gremlin, 1/1. "{T}: Tap
 // target artifact. It doesn't untap during its controller's untap step for as
@@ -327,7 +327,7 @@ export const artifactPossession: CardDefinition = {
 // source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1 optional
 // untap.) The Gremlin taps the artifact AND records the lock; the artifact
 // stays tapped through its controller's untap steps until the Gremlin untaps.
-export const phyrexianGremlins: CardDefinition = {
+export const phyrexianGremlins = defineCard(() => ({
     id: "21a985a9-5612-4844-982e-fd1aa6249770",
     rarity: "common",
     name: "Phyrexian Gremlins",
@@ -356,7 +356,7 @@ export const phyrexianGremlins: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Xenic Poltergeist — {1}{B}{B} Creature — Spirit, 1/1. "{T}: Until your next
 // upkeep, target noncreature artifact becomes an artifact creature with power
@@ -371,7 +371,7 @@ export const phyrexianGremlins: CardDefinition = {
 // the target is already an artifact, so the resulting "artifact creature" type
 // line is correct without an Artifact type-add. Re-verified 2026-08-05 in the
 // #1212 tracker audit; nothing is missing here.
-export const xenicPoltergeist: CardDefinition = {
+export const xenicPoltergeist = defineCard(() => ({
     id: "5149ffff-d38f-458e-bcfa-a4b6b332a0b4",
     rarity: "uncommon",
     name: "Xenic Poltergeist",
@@ -423,4 +423,4 @@ export const xenicPoltergeist: CardDefinition = {
             },
         },
     ],
-};
+}));

@@ -341,7 +341,7 @@ describe("advancePhase", () => {
             p1.battlefield.push(
                 makeCard({
                     id: "cloak",
-                    card: { id: cloakOfConfusion.id },
+                    card: { id: cloakOfConfusion().id },
                     types: ["Enchantment"],
                     subtypes: ["Aura"],
                     attachedTo: "atk",
@@ -1562,7 +1562,7 @@ describe("declare-blockers priority with no legal block (CR 117.3a, issue #3086)
         // Giant Growth on the unblocked attacker, cast in the window the fix
         // restored. If it resolved after combat damage (or never), the
         // defender would take the flier's printed 2.
-        pushSpell(state, giantGrowth.id, "p1", [
+        pushSpell(state, giantGrowth().id, "p1", [
             { type: "permanent", id: "flier" },
         ]);
         state.priorityPlayerId = "p2";
@@ -2885,7 +2885,7 @@ describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
             ...(state.delayedTriggers ?? []),
             {
                 id,
-                sourceCardId: cloakOfConfusion.id,
+                sourceCardId: cloakOfConfusion().id,
                 triggerId: "$inline-effects",
                 controller: "p1",
                 timing: "next-cleanup-step",
@@ -3008,7 +3008,7 @@ describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
         state.delayedTriggers = [
             {
                 id: "dt-leave-1",
-                sourceCardId: cloakOfConfusion.id,
+                sourceCardId: cloakOfConfusion().id,
                 triggerId: "$inline-effects",
                 controller: "p1",
                 timing: "leaves-battlefield",
@@ -3107,7 +3107,7 @@ describe("cleanup-step delayed triggers (CR 514.3a / 603.7)", () => {
         state.players[0].grantedAbilities = [
             {
                 id: "grant-1",
-                sourceCardId: cloakOfConfusion.id,
+                sourceCardId: cloakOfConfusion().id,
                 abilityId: "cloak-of-confusion-a1",
                 duration: { phase: "end-of-turn", skip: 1 },
                 grantedAtTurn: 1,

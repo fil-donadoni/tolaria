@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import type { GameEvent, PermanentView } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { equipAbility, jobSelect } from "../../abilities/equipment";
 
 // Astrologian's Planisphere (issue #2610) — {1}{U} Artifact — Equipment.
@@ -41,7 +41,7 @@ import { equipAbility, jobSelect } from "../../abilities/equipment";
 //    `event` form stays legal per the DSL's "no `$event` read on an
 //    array-event trigger" rule.
 //  - Equip cost is `{2}`, printed on its own with the flavour prefix.
-export const astrologiansPlanisphere: CardDefinition = {
+export const astrologiansPlanisphere = defineCard(() => ({
     id: "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6", // FIN 46
     name: "Astrologian's Planisphere",
     rarity: "rare",
@@ -100,4 +100,4 @@ export const astrologiansPlanisphere: CardDefinition = {
             oracleText: "Diana — Equip {2}",
         }),
     ],
-};
+}));

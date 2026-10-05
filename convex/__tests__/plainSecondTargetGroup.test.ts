@@ -77,7 +77,7 @@ const ANOTHER_WARP = () =>
     );
 
 function bear(id: string): ReturnType<typeof makeInstance> {
-    return makeInstance(grizzlyBears.id, {
+    return makeInstance(grizzlyBears().id, {
         id,
         controllerId: "p2",
         ownerId: "p2",

@@ -3,8 +3,8 @@
 // sos/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2): lands and colourless artifacts (no coloured cost) live in
 // colorless.ts.
-import type { CardDefinition, SpellContext } from "../../types";
-import { isBasicLandCard } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, isBasicLandCard } from "../../types";
 
 // Erode — "Destroy target creature or planeswalker. Its controller may
 // search their library for a basic land card, put it onto the battlefield
@@ -16,7 +16,7 @@ import { isBasicLandCard } from "../../types";
 // ice/green.cards.ts: `ctx.requestChoice` + `ctx.putFromLibraryOntoBattlefield` +
 // `ctx.shuffleLibrary`).
 
-export const erode: CardDefinition = {
+export const erode = defineCard(() => ({
     id: "32e670da-7563-4f6a-a7db-4c126a440eb8",
     rarity: "rare",
     name: "Erode",
@@ -60,4 +60,4 @@ export const erode: CardDefinition = {
         }
         ctx.shuffleLibrary(controllerId);
     },
-};
+}));

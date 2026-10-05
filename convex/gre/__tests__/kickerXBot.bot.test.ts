@@ -33,7 +33,7 @@ function board(lands: number): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(verdelothTheAncient.id, {
+                    makeInstance(verdelothTheAncient().id, {
                         id: VERDELOTH,
                         zone: "hand",
                         controllerId: "p1",

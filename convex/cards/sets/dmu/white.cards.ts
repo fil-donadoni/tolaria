@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
@@ -37,7 +36,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 //     leaves in response to its own ETB trigger — the ETB resolves against a
 //     source that is already gone, exiles nothing, and the leave trigger's
 //     `holdsExileBundle` gate finds no bundle to return.
-export const leylineBinding: CardDefinition = {
+export const leylineBinding = defineCard(() => ({
     id: "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
     name: "Leyline Binding",
     rarity: "rare",
@@ -72,7 +71,7 @@ export const leylineBinding: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));
 
 // STOP-AND-ISSUE (tracked-by: #1239) — Serra Paragon: "Flying. Once during
 // each of your turns, you may play a land from your graveyard or cast a

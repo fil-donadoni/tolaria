@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, TriggerStateView } from "../../types";
+import { defineCard, type TriggerStateView } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { attacksTrigger } from "../../abilities/triggers/attacksTrigger";
 import { enduringReturnTrigger } from "../../abilities/enduringReturn";
@@ -67,7 +67,7 @@ function hasDelirium(controllerId: string, state?: TriggerStateView): boolean {
 //  - "After this phase, there is an additional combat phase" is the
 //    `extraCombat` Op (CR 500.8), which queues one combat phase consumed at
 //    the END_OF_COMBAT exit.
-export const fearOfMissingOut: CardDefinition = {
+export const fearOfMissingOut = defineCard(() => ({
     id: "9d48aaff-46ab-411b-9456-171d4709f951",
     rarity: "rare",
     name: "Fear of Missing Out",
@@ -134,7 +134,7 @@ export const fearOfMissingOut: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Enduring Courage — {2}{R}{R} Enchantment Creature — Dog Glimmer, 3/3
 // (issue #2085, the DSK "Enduring" cycle; the shared dies-trigger and its
@@ -169,7 +169,7 @@ export const fearOfMissingOut: CardDefinition = {
 // one-time baseline instead, which only ever shrinks.
 // compiler-gap: Whenever another creature you control enters, it gets +2/+0 and gains haste until end of turn. (#2693)
 // compiler-gap: When Enduring Courage dies, if it was a creature, return it to the battlefield under its owner's control. It's an enchantment. (It's not a creature.) (#2693)
-export const enduringCourage: CardDefinition = {
+export const enduringCourage = defineCard(() => ({
     id: "f46ac55f-d68e-4d5d-af0a-3879f97f705e",
     name: "Enduring Courage",
     rarity: "rare",
@@ -210,4 +210,4 @@ export const enduringCourage: CardDefinition = {
             cardName: "Enduring Courage",
         }),
     ],
-};
+}));

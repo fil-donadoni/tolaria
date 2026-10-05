@@ -100,11 +100,11 @@ describe("golden — the painland line merges into one manaChoices ability", () 
 
 describe("gold — the Ice Age painland cycle round-trips through its own text", () => {
     it.each([
-        adarkarWastes,
-        brushland,
-        karplusanForest,
-        sulfurousSprings,
-        undergroundRiver,
+        adarkarWastes(),
+        brushland(),
+        karplusanForest(),
+        sulfurousSprings(),
+        undergroundRiver(),
     ])("$name", (card) => {
         const verdict = roundTripCard(card).verdict;
         expect(sortKeys(verdict)).toEqual({ ok: true, kind: "equal" });

@@ -74,7 +74,7 @@ function board(
         zone: "hand",
     });
     const lands = Array.from({ length: 6 }, (_, i) =>
-        makeInstance(forest.id, {
+        makeInstance(forest().id, {
             id: `forest-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -94,7 +94,7 @@ function board(
 
 describe("announceCast — a min-0 'up to X' / 'up to N' requirement stays legal with zero legal targets (CR 601.2c, issue #2369)", () => {
     it("Pest Infestation: X = 3, no artifacts/enchantments on the board — does not throw, enters target selection with an empty candidate set", async () => {
-        const { state } = board(pestInfestation.id);
+        const { state } = board(pestInfestation().id);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runAnnounceCast(harness.ctx, {
@@ -109,7 +109,7 @@ describe("announceCast — a min-0 'up to X' / 'up to N' requirement stays legal
     });
 
     it("Pest Infestation: X = 0, no artifacts/enchantments on the board — does not throw", async () => {
-        const { state } = board(pestInfestation.id);
+        const { state } = board(pestInfestation().id);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runAnnounceCast(harness.ctx, {
@@ -125,7 +125,7 @@ describe("announceCast — a min-0 'up to X' / 'up to N' requirement stays legal
     });
 
     it("Force of Vigor: no artifacts/enchantments on the board — does not throw (pre-existing bug, same fix site)", async () => {
-        const { state } = board(forceOfVigor.id);
+        const { state } = board(forceOfVigor().id);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runAnnounceCast(harness.ctx, { cardInstanceId: "spell" });
@@ -137,12 +137,12 @@ describe("announceCast — a min-0 'up to X' / 'up to N' requirement stays legal
     });
 
     it('Pest Infestation: "up to X" with fewer legal targets than X (X = 3, one artifact) is still legal to announce', async () => {
-        const onlyArtifact = makeInstance(ankhOfMishra.id, {
+        const onlyArtifact = makeInstance(ankhOfMishra().id, {
             id: "scarce-artifact",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const { state } = board(pestInfestation.id, [onlyArtifact]);
+        const { state } = board(pestInfestation().id, [onlyArtifact]);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runAnnounceCast(harness.ctx, {
@@ -158,12 +158,12 @@ describe("announceCast — a min-0 'up to X' / 'up to N' requirement stays legal
 
 describe("announceCast — X = 0 with a legal target present skips target selection entirely (issue #2369 review round 1, minor)", () => {
     it("Pest Infestation: X = 0 with an artifact on the board never opens a { min: 0, max: 0 } target-selection banner", async () => {
-        const artifact = makeInstance(ankhOfMishra.id, {
+        const artifact = makeInstance(ankhOfMishra().id, {
             id: "present-artifact",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const { state } = board(pestInfestation.id, [artifact]);
+        const { state } = board(pestInfestation().id, [artifact]);
         const harness = makeMutationCtx("p1", [gameStateSeed(state)]);
 
         await runAnnounceCast(harness.ctx, {

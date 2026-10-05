@@ -371,7 +371,7 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
     // card's own `targetRequirement` (Lord of the Undead's `subtypeFilter`,
     // Dreams of the Dead's `colorFilterAny`), not a hand-picked filter value.
     it("Lord of the Undead's REAL subtypeFilter requirement: a Zombie graveyard card matches, a Bear does not", () => {
-        const req = lordOfTheUndead.activatedAbilities![0].targetRequirement!;
+        const req = lordOfTheUndead().activatedAbilities![0].targetRequirement!;
         const zombie = makeInstance({ id: "gy-zombie", subtypes: ["Zombie"] });
         const bear = makeInstance({ id: "gy-bear", subtypes: ["Bear"] });
         const state: GameState = {
@@ -429,18 +429,18 @@ describe("matchesGraveyardTarget — driven through projectPublicState (wiring r
     });
 
     it("Dreams of the Dead's REAL colorFilterAny requirement: a white creature card matches, a green one does not", () => {
-        const req = dreamsOfTheDead.activatedAbilities![0].targetRequirement!;
+        const req = dreamsOfTheDead().activatedAbilities![0].targetRequirement!;
         // Real registered card ids (not a synthetic `def-…` id): the wire
         // projection's `slimCard` reduces `card` to `{ id }` ONLY, stripping
         // any embedded `manaCost` — so `hasColor` must resolve colour through
         // `tryGetDefinition(id)`, the same as the real server/client path.
         const green = makeInstance({
             id: "gy-green",
-            card: { id: balduvianBears.id },
+            card: { id: balduvianBears().id },
         });
         const white = makeInstance({
             id: "gy-white",
-            card: { id: kjeldoranWarrior.id },
+            card: { id: kjeldoranWarrior().id },
         });
         const state: GameState = {
             players: [
@@ -559,7 +559,7 @@ describe("checkCardTargetFilters — client stubbed-ctx contract (issue #1950 re
 
         const candidate = {
             id: "gy-candidate",
-            card: { id: kjeldoranWarrior.id },
+            card: { id: kjeldoranWarrior().id },
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",

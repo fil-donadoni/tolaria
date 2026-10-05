@@ -9,10 +9,10 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    EffectTokenSpec,
-    SpellContext,
+import {
+    defineCard,
+    type EffectTokenSpec,
+    type SpellContext,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -55,7 +55,7 @@ function sporeUpkeepTrigger(id: string) {
     });
 }
 
-export const thallid: CardDefinition = {
+export const thallid = defineCard(() => ({
     id: THALLID_ID,
     rarity: "common",
     name: "Thallid",
@@ -87,9 +87,9 @@ export const thallid: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const thallidDevourer: CardDefinition = {
+export const thallidDevourer = defineCard(() => ({
     id: "aa533845-4c4b-4072-aa39-8e56ce7ec325", // FEM 75
     rarity: "uncommon",
     name: "Thallid Devourer",
@@ -137,9 +137,9 @@ export const thallidDevourer: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const thornThallid: CardDefinition = {
+export const thornThallid = defineCard(() => ({
     id: "16e61c00-3e94-4f6f-8515-65b430829e91", // FEM 80a
     rarity: "common",
     name: "Thorn Thallid",
@@ -162,9 +162,9 @@ export const thornThallid: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const feralThallid: CardDefinition = {
+export const feralThallid = defineCard(() => ({
     id: "e585241e-c647-456d-b3b1-3d48dd78c372", // FEM 69
     rarity: "uncommon",
     name: "Feral Thallid",
@@ -188,9 +188,9 @@ export const feralThallid: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
-export const sporeFlower: CardDefinition = {
+export const sporeFlower = defineCard(() => ({
     id: "f9681dc0-d0fc-4d5b-a23c-63ec1cc8343d", // FEM 73
     rarity: "uncommon",
     name: "Spore Flower",
@@ -214,9 +214,9 @@ export const sporeFlower: CardDefinition = {
             effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
-};
+}));
 
-export const elvishFarmer: CardDefinition = {
+export const elvishFarmer = defineCard(() => ({
     id: "40a9710e-b2f8-4746-8640-d450f58a6e49", // FEM 66
     rarity: "common",
     name: "Elvish Farmer",
@@ -255,9 +255,9 @@ export const elvishFarmer: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 2 }],
         },
     ],
-};
+}));
 
-export const elvishHunter: CardDefinition = {
+export const elvishHunter = defineCard(() => ({
     id: "e00455ac-c7ce-4916-98ed-cca9354e3f22", // FEM 67a (canonical art)
     rarity: "common",
     name: "Elvish Hunter",
@@ -282,9 +282,9 @@ export const elvishHunter: CardDefinition = {
             effects: [{ op: "skipNextUntap", target: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const elvishScout: CardDefinition = {
+export const elvishScout = defineCard(() => ({
     id: "689cd2ed-be81-4769-a8ec-287946301396", // FEM 68a (canonical art)
     rarity: "common",
     name: "Elvish Scout",
@@ -322,9 +322,9 @@ export const elvishScout: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const sporeCloud: CardDefinition = {
+export const sporeCloud = defineCard(() => ({
     id: "1691a9f4-4ea7-440f-9bdc-4214ab3c90f0", // FEM 72a (canonical art)
     rarity: "uncommon",
     name: "Spore Cloud",
@@ -361,9 +361,9 @@ export const sporeCloud: CardDefinition = {
             }
         }
     },
-};
+}));
 
-export const theloniteDruid: CardDefinition = {
+export const theloniteDruid = defineCard(() => ({
     id: "cd8772dd-513d-4dd0-a5db-5214dc8da4e0", // FEM 78
     rarity: "rare",
     name: "Thelonite Druid",
@@ -405,9 +405,9 @@ export const theloniteDruid: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const theloniteMonk: CardDefinition = {
+export const theloniteMonk = defineCard(() => ({
     id: "5400ff25-c70e-4095-a228-190601b86043", // FEM 79
     rarity: "uncommon",
     name: "Thelonite Monk",
@@ -439,9 +439,9 @@ export const theloniteMonk: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const thelonsChant: CardDefinition = {
+export const thelonsChant = defineCard(() => ({
     id: "9d970195-0a09-4cb4-a2c0-c16fcab5c859", // FEM 76
     rarity: "rare",
     name: "Thelon's Chant",
@@ -514,9 +514,9 @@ export const thelonsChant: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const thelonsCurse: CardDefinition = {
+export const thelonsCurse = defineCard(() => ({
     id: "9b868846-cc3c-4756-a5dd-2335bb380567", // FEM 77
     rarity: "rare",
     name: "Thelon's Curse",
@@ -572,9 +572,9 @@ export const thelonsCurse: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
-export const nightSoil: CardDefinition = {
+export const nightSoil = defineCard(() => ({
     id: "4cda6d18-d4b1-4b8a-a72e-f90115adf4c3", // FEM 71a (canonical art)
     rarity: "common",
     name: "Night Soil",
@@ -605,4 +605,4 @@ export const nightSoil: CardDefinition = {
             ],
         },
     ],
-};
+}));

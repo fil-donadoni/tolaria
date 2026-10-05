@@ -39,7 +39,7 @@ import { solitaryConfinement } from "../../cards/sets/jud/white.cards";
 function boardWithBear(
     extra: Partial<Parameters<typeof makeInstance>[1]> = {}
 ): GameState {
-    const bear = makeInstance(grizzlyBears.id, {
+    const bear = makeInstance(grizzlyBears().id, {
         id: "bear",
         controllerId: "p2",
         ownerId: "p2",
@@ -71,7 +71,7 @@ function grantKeyword(state: GameState, instanceId: string, keyword: string) {
 describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
     it("counters a targeted DESTROY spell; the creature survives", () => {
         const state = boardWithBear();
-        const spell = pushSpell(state, terror.id, "p1", [
+        const spell = pushSpell(state, terror().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "shroud");
@@ -87,7 +87,7 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
 
     it("counters a targeted DAMAGE spell; nothing is marked (CR 702.18a has no damage leg)", () => {
         const state = boardWithBear();
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "shroud");
@@ -103,7 +103,7 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
 
     it("counters a BOUNCE spell (Unsummon) on the same path as destroy", () => {
         const state = boardWithBear();
-        pushSpell(state, unsummon.id, "p1", [
+        pushSpell(state, unsummon().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "shroud");
@@ -115,7 +115,7 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
 
     it("counters an EXILE spell (Swords to Plowshares) on the same path as destroy", () => {
         const state = boardWithBear();
-        pushSpell(state, swordsToPlowshares.id, "p1", [
+        pushSpell(state, swordsToPlowshares().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "shroud");
@@ -130,7 +130,7 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
     });
 
     it("bars the permanent's OWN controller too (CR 702.18a is unfiltered)", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -141,7 +141,7 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, unsummon.id, "p1", [
+        pushSpell(state, unsummon().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "shroud");
@@ -156,7 +156,9 @@ describe("CR 608.2b — shroud gained in response (CR 702.18a)", () => {
 describe("CR 608.2b — hexproof gained in response (CR 702.11b)", () => {
     it("counters an OPPONENT-controlled targeted spell", () => {
         const state = boardWithBear();
-        pushSpell(state, terror.id, "p1", [{ type: "permanent", id: "bear" }]);
+        pushSpell(state, terror().id, "p1", [
+            { type: "permanent", id: "bear" },
+        ]);
         grantKeyword(state, "bear", "hexproof");
         resolveTopOfStack(state);
 
@@ -164,7 +166,7 @@ describe("CR 608.2b — hexproof gained in response (CR 702.11b)", () => {
     });
 
     it("does NOT counter the permanent's own controller's spell (CR 702.11b)", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -175,7 +177,7 @@ describe("CR 608.2b — hexproof gained in response (CR 702.11b)", () => {
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, unsummon.id, "p1", [
+        pushSpell(state, unsummon().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "hexproof");
@@ -196,7 +198,7 @@ describe("CR 113.7a — the source's controller is the CASTER, not the card obje
     // p2 — so a gate reading `controllerId` would call p1's own spell an
     // opponent's source and counter it against p1's own hexproof creature.
     it("lets a stolen spell target the CASTER's own hexproof permanent (CR 702.11b)", () => {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -207,7 +209,7 @@ describe("CR 113.7a — the source's controller is the CASTER, not the card obje
                 makePlayer("p2"),
             ],
         });
-        const item = pushSpell(state, unsummon.id, "p1", [
+        const item = pushSpell(state, unsummon().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         // The stolen-cast shape: owned and "controlled" by p2 as a card
@@ -231,7 +233,7 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
     // gate ran.
     it("counters a targeted DESTROY spell (Terror + protection from black)", () => {
         const state = boardWithBear();
-        const spell = pushSpell(state, terror.id, "p1", [
+        const spell = pushSpell(state, terror().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         grantKeyword(state, "bear", "protection from black");
@@ -250,12 +252,12 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
     // spell is countered and the rider never happens — before the CR 608.2b
     // protective leg landed it resolved and p1 took 5.
     it("counters the SPELL, not merely its damage (Ashes to Ashes rider never happens)", () => {
-        const first = makeInstance(grizzlyBears.id, {
+        const first = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const second = makeInstance(grizzlyBears.id, {
+        const second = makeInstance(grizzlyBears().id, {
             id: "bear2",
             controllerId: "p2",
             ownerId: "p2",
@@ -266,7 +268,7 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
                 makePlayer("p2", { battlefield: [first, second] }),
             ],
         });
-        pushSpell(state, ashesToAshes.id, "p1", [
+        pushSpell(state, ashesToAshes().id, "p1", [
             { type: "permanent", id: "bear" },
             { type: "permanent", id: "bear2" },
         ]);
@@ -282,12 +284,12 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
     // spell does as much as it can. The rider still happens, which is what
     // separates "pruned" from "countered".
     it("prunes only the illegal target and still does as much as possible (CR 608.2c)", () => {
-        const first = makeInstance(grizzlyBears.id, {
+        const first = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const second = makeInstance(grizzlyBears.id, {
+        const second = makeInstance(grizzlyBears().id, {
             id: "bear2",
             controllerId: "p2",
             ownerId: "p2",
@@ -298,7 +300,7 @@ describe("CR 608.2b — protection gained in response (CR 702.16b)", () => {
                 makePlayer("p2", { battlefield: [first, second] }),
             ],
         });
-        pushSpell(state, ashesToAshes.id, "p1", [
+        pushSpell(state, ashesToAshes().id, "p1", [
             { type: "permanent", id: "bear" },
             { type: "permanent", id: "bear2" },
         ]);
@@ -361,13 +363,13 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
     // `isSpell` bit — an ability must still get through.
     describe("Anti-Magic Aura's spell-only guard (CR 113.3)", () => {
         function enchantedBoard(): GameState {
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 id: "bear",
                 controllerId: "p2",
                 ownerId: "p2",
                 isTapped: true,
             });
-            const aura = makeInstance(antiMagicAura.id, {
+            const aura = makeInstance(antiMagicAura().id, {
                 id: "aura",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -383,7 +385,7 @@ describe("CR 608.2b — abilities are covered on the same terms as spells", () =
 
         it("counters a targeted SPELL at resolution", () => {
             const state = enchantedBoard();
-            pushSpell(state, terror.id, "p1", [
+            pushSpell(state, terror().id, "p1", [
                 { type: "permanent", id: "bear" },
             ]);
             resolveTopOfStack(state);
@@ -413,19 +415,19 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
                 makePlayer("p1"),
                 makePlayer("p2", {
                     library: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "lib1",
                             controllerId: "p2",
                             ownerId: "p2",
                             zone: "library",
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "lib2",
                             controllerId: "p2",
                             ownerId: "p2",
                             zone: "library",
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "lib3",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -445,13 +447,13 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
     // A draw has no prevention leg.
     it("counters a spell already targeting them", () => {
         const state = boardWithLibrary();
-        pushSpell(state, ancestralRecall.id, "p1", [
+        pushSpell(state, ancestralRecall().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         // Solitary Confinement's `player-guard` gives its controller shroud
         // (CR 702.18 via CR 115.4), read by `playerHasShroud`.
         state.players[1].battlefield.push(
-            makeInstance(solitaryConfinement.id, {
+            makeInstance(solitaryConfinement().id, {
                 id: "confinement",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -469,7 +471,7 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
     // narrowing at all: it bars the protected player's own spells too.
     it("counters a spell against a player with protection from everything (CR 702.16j)", () => {
         const state = boardWithLibrary();
-        pushSpell(state, ancestralRecall.id, "p1", [
+        pushSpell(state, ancestralRecall().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         state.playerProtectionFromEverything = ["p2"];
@@ -482,7 +484,7 @@ describe("CR 608.2b — a PLAYER who gained shroud (CR 702.18 via CR 115.4)", ()
 
     it("still resolves against a player with no guard (control)", () => {
         const state = boardWithLibrary();
-        pushSpell(state, ancestralRecall.id, "p1", [
+        pushSpell(state, ancestralRecall().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         resolveTopOfStack(state);

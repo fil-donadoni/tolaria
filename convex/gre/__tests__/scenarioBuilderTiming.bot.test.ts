@@ -20,10 +20,10 @@ import type { ScenarioSpec } from "../../debugScenarioSpec";
  *  the rebuilt position allows (CR 307.1 / 305.1 / 302.1). */
 const TIMING_BOARD: ScenarioSpec = {
     cards: [
-        { name: forest.name, owner: "me", zone: "hand" },
-        { name: grizzlyBears.name, owner: "me", zone: "hand" },
-        { name: giantGrowth.name, owner: "me", zone: "hand" },
-        { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+        { name: forest().name, owner: "me", zone: "hand" },
+        { name: grizzlyBears().name, owner: "me", zone: "hand" },
+        { name: giantGrowth().name, owner: "me", zone: "hand" },
+        { name: grizzlyBears().name, owner: "opp", zone: "battlefield" },
     ],
     landCount: 4,
 };
@@ -59,10 +59,12 @@ describe("buildStateFromScenario — timing on the opponent's turn (issue #3454)
         // No land drop (CR 305.1: active player, main phase, empty stack).
         expect(kindsFor(onOppTurn, meId)).not.toContain("play-land");
         // No creature — sorcery timing (CR 302.1 / 307.1).
-        expect(castableDefIds(onOppTurn, meId)).not.toContain(grizzlyBears.id);
+        expect(castableDefIds(onOppTurn, meId)).not.toContain(
+            grizzlyBears().id
+        );
         // The instant IS offered: the seat still has priority, it is only the
         // timing that narrowed.
-        expect(castableDefIds(onOppTurn, meId)).toContain(giantGrowth.id);
+        expect(castableDefIds(onOppTurn, meId)).toContain(giantGrowth().id);
 
         // The control: the SAME board on the judged seat's own turn offers all
         // three, so the assertion above is measuring the turn holder and not
@@ -72,7 +74,7 @@ describe("buildStateFromScenario — timing on the opponent's turn (issue #3454)
             "play-land"
         );
         expect(castableDefIds(onOwnTurn, onOwnTurn.players[0].id)).toContain(
-            grizzlyBears.id
+            grizzlyBears().id
         );
     });
 });

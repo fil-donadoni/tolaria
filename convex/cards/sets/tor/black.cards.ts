@@ -3,12 +3,12 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Cabal Ritual — {1}{B} Instant. "Add {B}{B}{B}. Threshold — Add {B}{B}{B}{B}{B}
 // instead if there are seven or more cards in your graveyard." (CR 704.5n
 // Threshold ability word — engine infra, no registry row.)
-export const cabalRitual: CardDefinition = {
+export const cabalRitual = defineCard(() => ({
     id: "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
     rarity: "uncommon",
     name: "Cabal Ritual",
@@ -30,7 +30,7 @@ export const cabalRitual: CardDefinition = {
             else: [{ op: "addMana", mana: { B: 3 } }],
         },
     ],
-};
+}));
 
 // Sickening Dreams — {1}{B} Sorcery. "As an additional cost to cast this spell,
 // discard X cards.\nSickening Dreams deals X damage to each creature and each
@@ -50,7 +50,7 @@ export const cabalRitual: CardDefinition = {
 // set carries the player refs, and neither can name the other's members.
 //
 // compiler-gap: "As an additional cost to cast this spell, discard X cards." (#2693)
-export const sickeningDreams: CardDefinition = {
+export const sickeningDreams = defineCard(() => ({
     id: "9396ac77-9f53-46bd-b126-02441a0f5594",
     rarity: "uncommon",
     name: "Sickening Dreams",
@@ -86,4 +86,4 @@ export const sickeningDreams: CardDefinition = {
             ],
         },
     ],
-};
+}));

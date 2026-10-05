@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { boastAbility } from "../../abilities/boast";
 
 // Broadside Bombardiers — the card that surfaced Boast (CR 702.142, issue
@@ -19,7 +19,7 @@ import { boastAbility } from "../../abilities/boast";
 // INFORMATION (CR 608.2h) read off the stack item's
 // `additionalSacrificeSnapshot` via the `sacrificed` EffectValue member —
 // NOT a live-battlefield `manaValue` selector, which could never reach it.
-export const broadsideBombardiers: CardDefinition = {
+export const broadsideBombardiers = defineCard(() => ({
     id: "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
     name: "Broadside Bombardiers",
     rarity: "rare",
@@ -58,4 +58,4 @@ export const broadsideBombardiers: CardDefinition = {
             ],
         }),
     ],
-};
+}));

@@ -84,19 +84,19 @@ function board(): GameState {
         ownerId: "p1",
         zone: "hand",
     });
-    const land = makeInstance(plains.id, {
+    const land = makeInstance(plains().id, {
         id: "plains-0",
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
     });
-    const art = makeInstance(ankhOfMishra.id, {
+    const art = makeInstance(ankhOfMishra().id, {
         id: "ankh",
         controllerId: "p2",
         ownerId: "p2",
         zone: "battlefield",
     });
-    const victim = makeInstance(grizzlyBears.id, {
+    const victim = makeInstance(grizzlyBears().id, {
         id: "bears",
         controllerId: "p2",
         ownerId: "p2",

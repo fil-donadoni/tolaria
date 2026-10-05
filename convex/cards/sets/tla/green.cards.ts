@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
@@ -70,7 +70,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // 0045): `tappedTrigger` hardcodes its `resolve` and exposes no `effects[]`
 // site (same documented limitation as every other `tappedTrigger` card in the
 // catalogue, e.g. Wild Growth, lea/green.cards.ts).
-export const badgermoleCub: CardDefinition = {
+export const badgermoleCub = defineCard(() => ({
     id: "340c5799-4964-44dd-8c48-8f3f3aba5211",
     name: "Badgermole Cub",
     rarity: "mythic",
@@ -151,4 +151,4 @@ export const badgermoleCub: CardDefinition = {
             },
         }),
     ],
-};
+}));

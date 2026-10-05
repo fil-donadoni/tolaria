@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Circular Logic — {2}{U} Instant. "Counter target spell unless its controller
 // pays {1} for each card in your graveyard.\nMadness {U}" (CR 118.12a — "[do
@@ -26,7 +26,7 @@ import type { CardDefinition } from "../../types";
 // case to guard.
 //
 // compiler-gap: "Counter target spell unless its controller pays {1} for each card in your graveyard." (#2693)
-export const circularLogic: CardDefinition = {
+export const circularLogic = defineCard(() => ({
     id: "cd9198d6-201d-4175-8f70-eef92d7d5bb5",
     rarity: "uncommon",
     name: "Circular Logic",
@@ -56,4 +56,4 @@ export const circularLogic: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

@@ -43,7 +43,7 @@ const FIREBALL = "b7623c00-144b-4a8f-9c6c-f5e9e4f65ece"; // {X}{R}
 
 /** Everflowing Chalice with `charge` counters on the battlefield. */
 function chalice(charge: number): CardInstanceState {
-    return makeInstance(everflowingChalice.id, {
+    return makeInstance(everflowingChalice().id, {
         id: `chalice-${charge}`,
         controllerId: "p1",
         counters: charge > 0 ? { charge } : {},
@@ -80,8 +80,8 @@ describe("getManaTapOptionsDetailed drops a zero-output option (CR 605.1a, issue
     });
 
     it("ordinary sources are untouched (delta zero)", () => {
-        const m = makeInstance(mountain.id, { controllerId: "p1" });
-        const ring = makeInstance(solRing.id, { controllerId: "p1" });
+        const m = makeInstance(mountain().id, { controllerId: "p1" });
+        const ring = makeInstance(solRing().id, { controllerId: "p1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [m, ring] }),
@@ -104,7 +104,7 @@ describe("a choice list keeps its zero-output entry — index space is load-bear
     /** Icatian Store with `storage` counters: "{T}, Remove any number of
      *  storage counters: Add {W} for each counter removed" → choices [0..N]. */
     function store(storage: number): CardInstanceState {
-        return makeInstance(icatianStore.id, {
+        return makeInstance(icatianStore().id, {
             id: "store",
             controllerId: "p1",
             counters: { storage },
@@ -201,9 +201,9 @@ describe("isUntappedManaSource / hasManaAbility are board-aware (CR 106.1, issue
 
     it("delta is EXACTLY ZERO for sources with no manaAmount hook", () => {
         const sources = [
-            makeInstance(mountain.id, { controllerId: "p1" }),
-            makeInstance(forest.id, { controllerId: "p1" }),
-            makeInstance(solRing.id, { controllerId: "p1" }),
+            makeInstance(mountain().id, { controllerId: "p1" }),
+            makeInstance(forest().id, { controllerId: "p1" }),
+            makeInstance(solRing().id, { controllerId: "p1" }),
         ];
         for (const s of sources) {
             expect(isUntappedManaSource(s, sources)).toBe(
@@ -255,8 +255,8 @@ describe("auto-tap never taps a zero-output source (issue #1889)", () => {
         });
         const c = chalice(0);
         const lands = [
-            makeInstance(mountain.id, { id: "m1", controllerId: "p1" }),
-            makeInstance(mountain.id, { id: "m2", controllerId: "p1" }),
+            makeInstance(mountain().id, { id: "m1", controllerId: "p1" }),
+            makeInstance(mountain().id, { id: "m2", controllerId: "p1" }),
         ];
         const pendingCast: PendingCast = {
             playerId: "p1",
@@ -288,7 +288,7 @@ describe("auto-tap never taps a zero-output source (issue #1889)", () => {
 
     it("buildAutoTapSources skips the 0-counter Chalice entirely", () => {
         const c = chalice(0);
-        const m = makeInstance(mountain.id, { id: "m1", controllerId: "p1" });
+        const m = makeInstance(mountain().id, { id: "m1", controllerId: "p1" });
         const sources = buildAutoTapSources([c, m]);
         expect(sources.map((s) => s.cardId)).toEqual(["m1"]);
     });
@@ -347,7 +347,7 @@ describe("wire format — the same answer survives projectPublicState (issue #18
 // on an empty list and submits no index). Nothing is tapped, no mana is added.
 describe("a choice-only source with an EMPTY option list is rejected, not silently tapped (CR 605.1a, issue #1889)", () => {
     it("Fellwar Stone facing no colour-producing opponent land throws 'Card does not produce mana'", () => {
-        const rock = makeInstance(fellwarStone.id, {
+        const rock = makeInstance(fellwarStone().id, {
             id: "fellwar",
             controllerId: "p1",
         });
@@ -359,7 +359,7 @@ describe("a choice-only source with an EMPTY option list is rejected, not silent
                 // could produce a colour — Fellwar Stone reads lands only.
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(solRing.id, {
+                        makeInstance(solRing().id, {
                             id: "opp-ring",
                             controllerId: "p2",
                         }),

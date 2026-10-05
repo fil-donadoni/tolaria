@@ -57,13 +57,13 @@ function position(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(dodecapod.id, {
+                    makeInstance(dodecapod().id, {
                         id: "pod",
                         ownerId: "p1",
                         controllerId: "p1",
                         zone: "hand",
                     }),
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bear",
                         ownerId: "p1",
                         controllerId: "p1",
@@ -73,7 +73,7 @@ function position(): GameState {
             }),
             makePlayer("p2", {
                 hand: [
-                    makeInstance(mindRot.id, {
+                    makeInstance(mindRot().id, {
                         id: "rot",
                         ownerId: "p2",
                         controllerId: "p2",

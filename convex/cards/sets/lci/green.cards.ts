@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { createMapTokenOp } from "../../abilities/tokens/mapToken";
 
 // Sentinel of the Nameless City — {2}{G} Creature — Merfolk Warrior Scout 3/4
@@ -23,7 +23,7 @@ import { createMapTokenOp } from "../../abilities/tokens/mapToken";
 //    definition with one art and one client rehydration path. The token's own
 //    activated ability is where Explore actually happens; this card never
 //    mentions the keyword.
-export const sentinelOfTheNamelessCity: CardDefinition = {
+export const sentinelOfTheNamelessCity = defineCard(() => ({
     id: "eeeffc0b-dc92-458e-ad58-86ff6077a508",
     name: "Sentinel of the Nameless City",
     rarity: "uncommon",
@@ -54,4 +54,4 @@ export const sentinelOfTheNamelessCity: CardDefinition = {
             effects: [createMapTokenOp()],
         },
     ],
-};
+}));

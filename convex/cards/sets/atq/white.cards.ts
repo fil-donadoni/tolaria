@@ -8,7 +8,7 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, PermanentView, SpellContext } from "../../types";
+import { defineCard, type PermanentView, type SpellContext } from "../../types";
 import { makeCircleOfProtection } from "../../abilities";
 
 // Argivian Archaeologist — {1}{W}{W} Creature — Human Artificer, 1/1 (NOT an
@@ -20,7 +20,7 @@ import { makeCircleOfProtection } from "../../abilities";
 // (useStack: true). MTGJSON ATQ.json: casting cost {1}{W}{W}, types
 // ["Creature"], 1/1 — the "Artifact" type and 1/2 toughness above were both
 // wrong, caught by the widened data/json conformance guard.
-export const argivianArchaeologist: CardDefinition = {
+export const argivianArchaeologist = defineCard(() => ({
     id: "ce83a3cb-467d-44f6-a051-4855c8cf52a6",
     rarity: "rare",
     name: "Argivian Archaeologist",
@@ -49,7 +49,7 @@ export const argivianArchaeologist: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Argivian Blacksmith — {1}{W}{W} Creature — Human Artificer, 2/2. "{T}:
 // Prevent the next 2 damage that would be dealt to target artifact creature
@@ -61,7 +61,7 @@ export const argivianArchaeologist: CardDefinition = {
 // `type: "Creature"` here, so it can prevent damage to a non-artifact creature
 // too — a loosening of the printed restriction. Closing this needs an
 // AND-types target filter (engine/rules change) and is deferred (tracked #974).
-export const argivianBlacksmith: CardDefinition = {
+export const argivianBlacksmith = defineCard(() => ({
     id: "5f604338-5ee4-4c47-ad5a-5c805c96c8de",
     rarity: "common",
     name: "Argivian Blacksmith",
@@ -93,13 +93,13 @@ export const argivianBlacksmith: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Circle of Protection: Artifacts — {1}{W} Enchantment. "{2}: The next time an
 // artifact source of your choice would deal damage to you this turn, prevent
 // that damage." (CR 615.1/615.6.) Built from the shared `makeCircleOfProtection`
 // factory generalized to an artifact-source filter (instead of a color).
-export const circleOfProtectionArtifacts: CardDefinition =
+export const circleOfProtectionArtifacts = defineCard(() =>
     makeCircleOfProtection({
         id: "22ebd5a3-fef8-4097-b038-89a6cb38227d",
         rarity: "uncommon",
@@ -107,7 +107,8 @@ export const circleOfProtectionArtifacts: CardDefinition =
         oracleText:
             "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
         source: { kind: "artifact", word: "artifact" },
-    });
+    })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster C+D — continuous prevention/redirection of damage from artifact
@@ -165,7 +166,7 @@ function artifactSourcePreventionEffect(opts: {
 // can't be the target of abilities from artifact sources." (CR 303.4 aura;
 // CR 509.1b block restriction on the host; CR 615 continuous prevention on the
 // host; CR 611 source-type-filtered targeting guard.)
-export const artifactWard: CardDefinition = {
+export const artifactWard = defineCard(() => ({
     id: "b3a5101a-ec66-4658-950c-9ad49c29b836",
     rarity: "common",
     name: "Artifact Ward",
@@ -206,13 +207,13 @@ export const artifactWard: CardDefinition = {
             appliesToId: (self) => self.attachedTo,
         }),
     ],
-};
+}));
 
 // Martyrs of Korlis — {3}{W}{W} Creature — Human, 1/6. "As long as this
 // creature is untapped, all damage that would be dealt to you by artifacts is
 // dealt to this creature instead." (CR 614 continuous redirection, gated on
 // self.isTapped and the source being an artifact.)
-export const martyrsOfKorlis: CardDefinition = {
+export const martyrsOfKorlis = defineCard(() => ({
     id: "bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88",
     rarity: "uncommon",
     name: "Martyrs of Korlis",
@@ -252,7 +253,7 @@ export const martyrsOfKorlis: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Reverse Polarity — {W}{W} Instant. "You gain X life, where X is twice the
 // damage dealt to you so far this turn by artifacts." (CR 119 lifegain; reads
@@ -261,7 +262,7 @@ export const martyrsOfKorlis: CardDefinition = {
 // per-turn artifact-damage EffectValue plus an arithmetic (×2) value construct;
 // neither exists in the grammar (literal|ref|count|manaValue), so the amount
 // can't be expressed as an Op today. tracked-by: #1993
-export const reversePolarity: CardDefinition = {
+export const reversePolarity = defineCard(() => ({
     id: "da7ed8ba-3886-4779-a9b3-6892a7ed3527",
     rarity: "common",
     name: "Reverse Polarity",
@@ -276,4 +277,4 @@ export const reversePolarity: CardDefinition = {
             ctx.gainLife(caster, artifactDamage * 2);
         }
     },
-};
+}));

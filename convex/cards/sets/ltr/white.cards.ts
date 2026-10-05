@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { typecyclingAbility } from "../../abilities/cycling";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
@@ -19,7 +19,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 //    cleanup reverts them). Same shape as Garruk Wildspeaker's −4.
 //  - Plainscycling {1}: CR 702.29e typecycling — `typecyclingAbility`, which
 //    shares plain Cycling's activation shell (CR 702.29f).
-export const eaglesOfTheNorth: CardDefinition = {
+export const eaglesOfTheNorth = defineCard(() => ({
     id: "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
     name: "Eagles of the North",
     rarity: "common",
@@ -67,7 +67,7 @@ export const eaglesOfTheNorth: CardDefinition = {
     ],
     // CR 702.29e/f — Plainscycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Plains")],
-};
+}));
 
 // Reprieve — "Return target spell to its owner's hand. Draw a card." (Issue
 // #2605.) Two declarative clauses, one Op each:
@@ -82,7 +82,7 @@ export const eaglesOfTheNorth: CardDefinition = {
 // The whole spell is subject to CR 608.2b like any single-target spell: with
 // its only target no longer on the stack, Reprieve does not resolve at all and
 // its controller draws nothing.
-export const reprieve: CardDefinition = {
+export const reprieve = defineCard(() => ({
     id: "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
     name: "Reprieve",
     rarity: "uncommon",
@@ -102,4 +102,4 @@ export const reprieve: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));

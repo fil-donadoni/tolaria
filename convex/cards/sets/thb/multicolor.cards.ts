@@ -1,6 +1,6 @@
 // thb — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition, EffectOp } from "../../types";
+import { defineCard, type EffectOp } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // CR 702.138b — "sacrifice it unless it escaped": sacrifice $source when the
@@ -49,7 +49,7 @@ const uroValue: EffectOp[] = [
 // "Whenever Uro enters or attacks, you gain 3 life and draw a card, then you may
 //  put a land card from your hand onto the battlefield."
 // "Escape—{G}{G}{U}{U}, Exile five other cards from your graveyard." (CR 702.138.)
-export const uroTitanOfNaturesWrath: CardDefinition = {
+export const uroTitanOfNaturesWrath = defineCard(() => ({
     id: "a0b6a71e-56cb-4d25-8f2b-7a4f1b60900d",
     name: "Uro, Titan of Nature's Wrath",
     rarity: "mythic",
@@ -88,4 +88,4 @@ export const uroTitanOfNaturesWrath: CardDefinition = {
     ],
     // CR 702.138 — Escape. {G}{G}{U}{U} + exile five OTHER graveyard cards.
     escape: { mana: { G: 2, U: 2 }, exile: { count: 5 } },
-};
+}));

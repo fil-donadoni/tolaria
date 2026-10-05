@@ -1,5 +1,5 @@
 // mh1 — white cards (ADR 0043 colour split).
-import type { CardDefinition, PermanentView } from "../../types";
+import { defineCard, type PermanentView } from "../../types";
 import { protectionColorModes } from "../../abilities";
 
 // Giver of Runes — {W} Creature — Kor Cleric (issue #684, Cube FREE evasion/
@@ -7,7 +7,7 @@ import { protectionColorModes } from "../../abilities";
 // protection from colorless or from the color of your choice until end of
 // turn." (CR 702.16 protection; CR 613.1f temporary keyword grant; CR 700.2
 // modal choice; CR 109.2 "another" excludes the source itself.)
-export const giverOfRunes: CardDefinition = {
+export const giverOfRunes = defineCard(() => ({
     id: "4e117771-5a8b-4812-b487-32ba34b7f724",
     name: "Giver of Runes",
     rarity: "rare",
@@ -45,7 +45,7 @@ export const giverOfRunes: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Ephemerate — {W} Instant (issue #1402, closes the #676 stub). "Exile target
 // creature you control, then return it to the battlefield under its owner's
@@ -60,7 +60,7 @@ export const giverOfRunes: CardDefinition = {
 // returning the card under its OWNER's control by default (no explicit
 // `controller` — matches "under its owner's control"). Cast again from exile
 // at the caster's next upkeep (Rebound), the fresh copy picks a NEW target.
-export const ephemerate: CardDefinition = {
+export const ephemerate = defineCard(() => ({
     id: "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
     name: "Ephemerate",
     rarity: "common",
@@ -74,7 +74,7 @@ export const ephemerate: CardDefinition = {
         { op: "exile", target: { target: 0 }, bind: "$c" },
         { op: "moveZone", target: { ref: "$c" }, to: "battlefield" },
     ],
-};
+}));
 
 // Winds of Abandon — {1}{W} Sorcery (MH1 35, Vintage Cube). "Exile target
 // creature you don't control. For each creature exiled this way, its controller
@@ -114,7 +114,7 @@ export const ephemerate: CardDefinition = {
 // "for each creature exiled this way…" tail has no rule either, so neither
 // line round-trips yet (issue #3274):
 // compiler-gap: Overload {4}{W}{W} (#3274)
-export const windsOfAbandon: CardDefinition = {
+export const windsOfAbandon = defineCard(() => ({
     id: "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
     name: "Winds of Abandon",
     rarity: "rare",
@@ -160,4 +160,4 @@ export const windsOfAbandon: CardDefinition = {
             ],
         },
     ],
-};
+}));

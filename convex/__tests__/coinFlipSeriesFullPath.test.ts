@@ -51,7 +51,7 @@ const submit = (ctx: Parameters<typeof runMutation>[1], amount: number) =>
 
 function suspendedSquee(rngSeed: number): GameState {
     const library = Array.from({ length: 20 }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `p1-lib-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -64,7 +64,7 @@ function suspendedSquee(rngSeed: number): GameState {
         priorityPlayerId: "p1",
         players: [makePlayer("p1", { library }), makePlayer("p2")],
     });
-    pushSpell(state, squeesRevenge.id, "p1");
+    pushSpell(state, squeesRevenge().id, "p1");
     expect(resolveTopOfStack(state)).toBeNull();
     return state;
 }

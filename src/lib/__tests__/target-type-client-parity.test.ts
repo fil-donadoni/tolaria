@@ -198,21 +198,21 @@ const onBoard = (cardId: string, id: string, types?: string[]) =>
         ...(types ? { types: types as never } : {}),
     });
 
-const BEARS = () => onBoard(grizzlyBears.id, "bears");
+const BEARS = () => onBoard(grizzlyBears().id, "bears");
 
 // ─── the table ──────────────────────────────────────────────────────────────
 
 const ROWS: Record<TargetTypeMember, Row> = {
     Creature: {
         requirement: { type: "Creature", count: 1 },
-        build: () => board([BEARS(), onBoard(forest.id, "forest")]),
+        build: () => board([BEARS(), onBoard(forest().id, "forest")]),
         legal: "permanent:bears",
         illegal: "permanent:forest",
     },
     Planeswalker: {
         requirement: { type: "Planeswalker", count: 1 },
         build: () =>
-            board([onBoard(sorinLordOfInnistrad.id, "sorin"), BEARS()]),
+            board([onBoard(sorinLordOfInnistrad().id, "sorin"), BEARS()]),
         legal: "permanent:sorin",
         illegal: "permanent:bears",
     },
@@ -225,8 +225,8 @@ const ROWS: Record<TargetTypeMember, Row> = {
         requirement: { type: "Instant", count: 1 },
         build: () =>
             board(
-                [onBoard(counterspell.id, "instant-perm")],
-                [counterspell.id]
+                [onBoard(counterspell().id, "instant-perm")],
+                [counterspell().id]
             ),
         legal: "permanent:instant-perm",
         illegal: "spell:*",
@@ -234,25 +234,25 @@ const ROWS: Record<TargetTypeMember, Row> = {
     Sorcery: {
         requirement: { type: "Sorcery", count: 1 },
         build: () =>
-            board([onBoard(stoneRain.id, "sorcery-perm")], [stoneRain.id]),
+            board([onBoard(stoneRain().id, "sorcery-perm")], [stoneRain().id]),
         legal: "permanent:sorcery-perm",
         illegal: "spell:*",
     },
     Artifact: {
         requirement: { type: "Artifact", count: 1 },
-        build: () => board([onBoard(solRing.id, "ring"), BEARS()]),
+        build: () => board([onBoard(solRing().id, "ring"), BEARS()]),
         legal: "permanent:ring",
         illegal: "permanent:bears",
     },
     Enchantment: {
         requirement: { type: "Enchantment", count: 1 },
-        build: () => board([onBoard(animateWall.id, "aura"), BEARS()]),
+        build: () => board([onBoard(animateWall().id, "aura"), BEARS()]),
         legal: "permanent:aura",
         illegal: "permanent:bears",
     },
     Land: {
         requirement: { type: "Land", count: 1 },
-        build: () => board([onBoard(forest.id, "forest"), BEARS()]),
+        build: () => board([onBoard(forest().id, "forest"), BEARS()]),
         legal: "permanent:forest",
         illegal: "permanent:bears",
     },
@@ -260,7 +260,8 @@ const ROWS: Record<TargetTypeMember, Row> = {
     // reads only the instance's `types`, which the projection carries as-is.
     Battle: {
         requirement: { type: "Battle", count: 1 },
-        build: () => board([onBoard(forest.id, "battle", ["Battle"]), BEARS()]),
+        build: () =>
+            board([onBoard(forest().id, "battle", ["Battle"]), BEARS()]),
         legal: "permanent:battle",
         illegal: "permanent:bears",
     },
@@ -268,7 +269,7 @@ const ROWS: Record<TargetTypeMember, Row> = {
         requirement: { type: "Kindred", count: 1 },
         build: () =>
             board([
-                onBoard(solRing.id, "kindred", ["Kindred", "Artifact"]),
+                onBoard(solRing().id, "kindred", ["Kindred", "Artifact"]),
                 BEARS(),
             ]),
         legal: "permanent:kindred",
@@ -284,13 +285,13 @@ const ROWS: Record<TargetTypeMember, Row> = {
     // a land.
     any: {
         requirement: { type: "any", count: 1 },
-        build: () => board([BEARS(), onBoard(forest.id, "forest")]),
+        build: () => board([BEARS(), onBoard(forest().id, "forest")]),
         legal: "permanent:bears",
         illegal: "permanent:forest",
     },
     spell: {
         requirement: { type: "spell", count: 1 },
-        build: () => board([BEARS()], [counterspell.id]),
+        build: () => board([BEARS()], [counterspell().id]),
         legal: "spell:*",
         illegal: "permanent:bears",
     },
@@ -298,7 +299,8 @@ const ROWS: Record<TargetTypeMember, Row> = {
     // player.
     "spell-or-permanent": {
         requirement: { type: "spell-or-permanent", count: 1 },
-        build: () => board([onBoard(forest.id, "forest")], [counterspell.id]),
+        build: () =>
+            board([onBoard(forest().id, "forest")], [counterspell().id]),
         legal: "permanent:forest",
         illegal: "player:p2",
     },
@@ -309,7 +311,7 @@ const ROWS: Record<TargetTypeMember, Row> = {
         build: () => {
             const state = board([BEARS()]);
             state.players[1].graveyard.push(
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: "dead-bears",
                     controllerId: "p2",
                     zone: "graveyard",

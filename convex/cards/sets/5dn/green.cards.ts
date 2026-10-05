@@ -1,5 +1,5 @@
 // 5dn — green cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Eternal Witness — {1}{G}{G} Creature. "When this creature enters, you may
 // return target card from your graveyard to your hand." (CR 603.6a ETB,
@@ -13,7 +13,7 @@ import type { CardDefinition } from "../../types";
 // engine's optional-pick idiom, and no `filter` at all admits any card type
 // (Eternal Witness returns lands, artifacts, spells — not just creatures).
 // `moveZone`'s cards-shape `from: "graveyard"` (issue #680) does the move.
-export const eternalWitness: CardDefinition = {
+export const eternalWitness = defineCard(() => ({
     id: "c7e10ca7-1e5d-4224-82cf-798a4d436d72",
     name: "Eternal Witness",
     rarity: "uncommon",
@@ -54,4 +54,4 @@ export const eternalWitness: CardDefinition = {
             ],
         },
     ],
-};
+}));

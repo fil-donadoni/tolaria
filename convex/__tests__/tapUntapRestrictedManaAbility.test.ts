@@ -53,7 +53,7 @@ const runTapUntap = (
     );
 
 function halflingState(): GameState {
-    const halfling = makeInstance(delightedHalfling.id, {
+    const halfling = makeInstance(delightedHalfling().id, {
         id: "halfling",
         controllerId: "p1",
         ownerId: "p1",

@@ -39,12 +39,12 @@ const pileOf = (state: ReturnType<typeof makeState>) =>
 
 describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", () => {
     it("removePermanentTo APPENDS: two creatures dying in sequence land oldest-first, newest on top", () => {
-        const first = makeInstance(grizzlyBears.id, {
+        const first = makeInstance(grizzlyBears().id, {
             id: "died-first",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const second = makeInstance(grizzlyBears.id, {
+        const second = makeInstance(grizzlyBears().id, {
             id: "died-second",
             controllerId: "p1",
             ownerId: "p1",
@@ -65,13 +65,13 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
     });
 
     it("moveCard APPENDS: two discards land oldest-first, newest on top", () => {
-        const first = makeInstance(grizzlyBears.id, {
+        const first = makeInstance(grizzlyBears().id, {
             id: "discarded-first",
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const second = makeInstance(grizzlyBears.id, {
+        const second = makeInstance(grizzlyBears().id, {
             id: "discarded-second",
             controllerId: "p1",
             ownerId: "p1",
@@ -97,13 +97,13 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
     });
 
     it("moveCard APPENDS for a library → graveyard move (mill) too", () => {
-        const top = makeInstance(grizzlyBears.id, {
+        const top = makeInstance(grizzlyBears().id, {
             id: "milled-first",
             controllerId: "p1",
             ownerId: "p1",
             zone: "library",
         });
-        const next = makeInstance(grizzlyBears.id, {
+        const next = makeInstance(grizzlyBears().id, {
             id: "milled-second",
             controllerId: "p1",
             ownerId: "p1",
@@ -114,7 +114,7 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
                 makePlayer("p1", {
                     library: [top, next],
                     graveyard: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "already-there",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -140,12 +140,12 @@ describe("graveyard order (CR 404.3 — an ordered zone; top = last element)", (
     });
 
     it("the two funnels interleave into ONE chronological order", () => {
-        const creature = makeInstance(grizzlyBears.id, {
+        const creature = makeInstance(grizzlyBears().id, {
             id: "the-creature",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const inHand = makeInstance(grizzlyBears.id, {
+        const inHand = makeInstance(grizzlyBears().id, {
             id: "the-discard",
             controllerId: "p1",
             ownerId: "p1",

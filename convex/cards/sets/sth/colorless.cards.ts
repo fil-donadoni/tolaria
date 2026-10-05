@@ -2,7 +2,7 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import type { ActivatedAbilityContext, CardDefinition } from "../../types";
+import { defineCard, type ActivatedAbilityContext } from "../../types";
 
 // Mox Diamond — {0} Artifact. "If this artifact would enter, you may discard
 // a land card instead. If you do, put this artifact onto the battlefield. If
@@ -27,7 +27,7 @@ import type { ActivatedAbilityContext, CardDefinition } from "../../types";
 //
 // Clause 4 is a plain CR 605.1a mana ability (`useStack: false`, CR 605.3a),
 // the City of Brass / Celestial Prism / Lotus Guardian `manaChoices` shape.
-export const moxDiamond: CardDefinition = {
+export const moxDiamond = defineCard(() => ({
     id: "28028830-83ed-45e2-b495-3b9ad9d3e988",
     rarity: "rare",
     name: "Mox Diamond",
@@ -54,7 +54,7 @@ export const moxDiamond: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));
 
 // Volrath's Stronghold — Legendary Land. "{T}: Add {C}." plus "{1}{B}, {T}:
 // Put target creature card from your graveyard on top of your library."
@@ -71,7 +71,7 @@ export const moxDiamond: CardDefinition = {
 // (`wth/black.cards.ts`) performs imperatively, here as one declarative Op.
 //
 // compiler-gap: {1}{B}, {T}: Put target creature card from your graveyard on top of your library. (#2693)
-export const volrathsStronghold: CardDefinition = {
+export const volrathsStronghold = defineCard(() => ({
     id: "43bf015b-152e-4d67-b773-e75fb2487a32", // STH 143
     rarity: "rare",
     name: "Volrath's Stronghold",
@@ -106,4 +106,4 @@ export const volrathsStronghold: CardDefinition = {
             ],
         },
     ],
-};
+}));

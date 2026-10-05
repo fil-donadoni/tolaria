@@ -8,7 +8,7 @@
 // cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Detonate — {X}{R} Sorcery. "Destroy target artifact with mana value X. It
 // can't be regenerated. Detonate deals X damage to that artifact's
@@ -17,7 +17,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // equals X (CR 107.3 / 202.3). Snapshot the controller before the destroy so
 // the X damage still lands on the right player via last-known information
 // (CR 608.2c).
-export const detonate: CardDefinition = {
+export const detonate = defineCard(() => ({
     id: "ffd7eb90-ae95-49df-898a-9510187bce1c",
     rarity: "uncommon",
     name: "Detonate",
@@ -43,7 +43,7 @@ export const detonate: CardDefinition = {
         ctx.destroy(target, { cantBeRegenerated: true });
         ctx.dealDamage({ type: "player", id: controllerId }, x);
     },
-};
+}));
 
 // Shatterstorm — {2}{R}{R} Sorcery. "Destroy all artifacts. They can't be
 // regenerated." Mass destroy via `forEach` over the "Artifact" battlefield
@@ -51,7 +51,7 @@ export const detonate: CardDefinition = {
 // 701.19c) — the Day of Judgment shape (`m11/white.ts`) with the `destroy`
 // Op's `cantBeRegenerated` passthrough (ADR 0053); indestructible artifacts
 // are still spared.
-export const shatterstorm: CardDefinition = {
+export const shatterstorm = defineCard(() => ({
     id: "0987461a-45c0-4956-8627-cd27a7e038d0",
     rarity: "rare",
     name: "Shatterstorm",
@@ -75,13 +75,13 @@ export const shatterstorm: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Artifact Blast — {R} Instant. "Counter target artifact spell." Targets a
 // spell on the stack restricted to the Artifact card type via
 // `spellTypeFilter` (CR 114.1), then counters it (CR 701.6a). No-op if the
 // target has left the stack (CR 608.2b, handled by `counter`).
-export const artifactBlast: CardDefinition = {
+export const artifactBlast = defineCard(() => ({
     id: "1506d99d-7b2e-4101-84a5-c950dadb263a",
     rarity: "common",
     name: "Artifact Blast",
@@ -94,7 +94,7 @@ export const artifactBlast: CardDefinition = {
         spellTypeFilter: "Artifact",
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Goblin Artisans — {R} Creature — Goblin Artificer, 1/1. "{T}: Flip a coin.
 // If you win the flip, draw a card. If you lose the flip, counter target
@@ -117,7 +117,7 @@ export const artifactBlast: CardDefinition = {
 // ability from another creature named Goblin Artisans" multi-copy clause is
 // simplified (not enforced) — it only matters with two Goblin Artisans
 // targeting the same spell, an edge the current pool/UI doesn't exercise.
-export const goblinArtisans: CardDefinition = {
+export const goblinArtisans = defineCard(() => ({
     id: "6669d96e-9a7b-4427-a477-f4e76831f593",
     rarity: "uncommon",
     name: "Goblin Artisans",
@@ -159,7 +159,7 @@ export const goblinArtisans: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cluster A — sacrifice-as-activation-cost on a filtered, non-self permanent

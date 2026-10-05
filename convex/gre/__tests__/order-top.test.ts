@@ -19,7 +19,7 @@ import type { StackItem } from "../state";
 
 const lib = (ids: string[]) =>
     ids.map((id) =>
-        makeInstance(ponder.id, {
+        makeInstance(ponder().id, {
             id,
             controllerId: "p1",
             ownerId: "p1",
@@ -31,7 +31,7 @@ const lib = (ids: string[]) =>
  *  identity is irrelevant — `orderTop` reads only the library + collectedChoices). */
 function pushItem(state: ReturnType<typeof makeState>): StackItem {
     const item: StackItem = {
-        ...makeInstance(ponder.id, { controllerId: "p1", ownerId: "p1" }),
+        ...makeInstance(ponder().id, { controllerId: "p1", ownerId: "p1" }),
         id: "s1",
         castById: "p1",
         targets: [],

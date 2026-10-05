@@ -106,7 +106,7 @@ function courserBoard(
             makePlayer("p1", {
                 battlefield: withCourser
                     ? [
-                          makeInstance(courserOfKruphix.id, {
+                          makeInstance(courserOfKruphix().id, {
                               controllerId: "p1",
                               ownerId: "p1",
                               id: "courser",
@@ -132,7 +132,7 @@ function courserBoard(
 
 describe("play-lands-from-top-of-library end-to-end (CR 305.1-analog, Courser of Kruphix)", () => {
     it("the controller's own top-of-library land arrives at the pile reducer with a PLAYABLE affordance", async () => {
-        const state = courserBoard([forest.id, mountain.id]);
+        const state = courserBoard([forest().id, mountain().id]);
         await expect(
             topSlotLegalActionsFor(state, "p1", "p1")
         ).resolves.toContain("play");
@@ -141,21 +141,21 @@ describe("play-lands-from-top-of-library end-to-end (CR 305.1-analog, Courser of
     it("the OPPONENT's view of that same card carries no affordance", async () => {
         // The CR 401.5 reveal is symmetric, so p2 genuinely sees the card — but
         // it is never theirs to play, so no Play button may reach their board.
-        const state = courserBoard([forest.id, mountain.id]);
+        const state = courserBoard([forest().id, mountain().id]);
         await expect(
             topSlotLegalActionsFor(state, "p2", "p1")
         ).resolves.toBeUndefined();
     });
 
     it("no affordance without a Courser on the battlefield", async () => {
-        const state = courserBoard([forest.id, mountain.id], false);
+        const state = courserBoard([forest().id, mountain().id], false);
         await expect(
             topSlotLegalActionsFor(state, "p1", "p1")
         ).resolves.toBeUndefined();
     });
 
     it("no affordance when the top card is not a land", async () => {
-        const state = courserBoard([grizzlyBears.id, forest.id]);
+        const state = courserBoard([grizzlyBears().id, forest().id]);
         await expect(
             topSlotLegalActionsFor(state, "p1", "p1")
         ).resolves.toBeUndefined();
@@ -166,7 +166,7 @@ describe("play-lands-from-top-of-library end-to-end (CR 305.1-analog, Courser of
         // button must appear greyed rather than vanish, so the player can see
         // WHY nothing happens; that distinction is carried entirely by
         // present-but-empty vs. absent.
-        const state = courserBoard([forest.id, mountain.id], true, 1);
+        const state = courserBoard([forest().id, mountain().id], true, 1);
         await expect(
             topSlotLegalActionsFor(state, "p1", "p1")
         ).resolves.toEqual([]);

@@ -108,7 +108,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("canCastFromGraveyardByPermission respects the maxManaValue cap", () => {
-            const cheapBolt = makeInstance(lightningBolt.id, {
+            const cheapBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -137,7 +137,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("canCastFromGraveyardByPermission is false for a LAND (lands go through the play branch)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -177,7 +177,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         // above) and `projectGraveyardCard` (gameProjections.ts, wire-level
         // exposure — covered by the frontend-wiring describe block below).
         it('a LAND in the graveyard HAS the "play" action while the permission covers "land"', () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 id: "gy-mountain",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -206,7 +206,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
 
     describe("spell affordance (getLegalActions) — active vs. inactive", () => {
         it('a NON-LAND card in the graveyard HAS the "cast" action while the permission covers "spell"', () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 id: "gy-bolt",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -233,7 +233,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it('does NOT offer "cast" without the permission (a plain graveyard card is never castable)', () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -250,7 +250,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it('does NOT offer "cast" when the permission covers only "land"', () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -276,7 +276,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
 
     describe("cast-commit seam (game.ts) — pays the normal printed mana cost", () => {
         it("locateCastSource routes a permission-covered card to the graveyard zone, at its printed cost", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 id: "gy-bolt",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -309,7 +309,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("graveyardCastStackFlags marks castFromGraveyard only — NOT exileOnResolve or escaped", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
             });
             const state = makeState({
@@ -332,7 +332,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("casts Lightning Bolt from the graveyard, deals damage, and returns it to the graveyard (not exiled)", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 id: "gy-bolt",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -387,7 +387,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
 
     describe("play-commit seam (applyPlayLandFromGraveyard)", () => {
         it("moves the graveyard land to the battlefield and records the land drop (CR 305.2)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 id: "gy-mountain",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -419,7 +419,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         // entry funnels through `resetBattlefieldTransientState`, and the
         // play-a-land-from-graveyard seam has to do the same.
         it("re-enters UNTAPPED even when it died tapped (CR 400.7)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 id: "gy-mountain",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -469,12 +469,12 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("no longer offers play/cast once the permission has expired", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -504,7 +504,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
 
     describe("frontend wiring — projectPublicState tags the affordance", () => {
         it("attaches legalActions + castKind: graveyard-permission to the viewer's OWN non-land graveyard card", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 id: "gy-bolt",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -531,7 +531,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("does NOT tag the OPPONENT's view of the same card", () => {
-            const gyBolt = makeInstance(lightningBolt.id, {
+            const gyBolt = makeInstance(lightningBolt().id, {
                 id: "gy-bolt",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -558,7 +558,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("a LAND still gets legalActions with NO castKind (a play, not a keyword cast)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 id: "gy-mountain",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -585,7 +585,7 @@ describe("Graveyard-cast/land-play permission (CR 305.1-analog / 601, issue #114
         });
 
         it("a LAND gets NO legalActions without the permission (the real gate — getLegalActions is zone-agnostic)", () => {
-            const gyMountain = makeInstance(mountain.id, {
+            const gyMountain = makeInstance(mountain().id, {
                 id: "gy-mountain",
                 zone: "graveyard",
                 controllerId: "p1",

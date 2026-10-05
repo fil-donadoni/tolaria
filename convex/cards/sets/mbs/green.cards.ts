@@ -2,7 +2,7 @@
 // `import * as mbs from "./sets/mbs/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Green Sun's Zenith — "Search your library for a green creature card with
 // mana value X or less, put it onto the battlefield, then shuffle. Shuffle
@@ -21,7 +21,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 //      graveyard (CR 608.2m default) to its owner's (shuffled) library,
 //      mirroring the existing `exileSelf` self-redirect design (Recall)
 //      but targeting the library instead of exile.
-export const greenSunsZenith: CardDefinition = {
+export const greenSunsZenith = defineCard(() => ({
     id: "02335747-54e3-4827-ae19-4e362863da9b",
     name: "Green Sun's Zenith",
     rarity: "rare",
@@ -54,4 +54,4 @@ export const greenSunsZenith: CardDefinition = {
         { op: "libraryLook", action: "shuffle", player: "controller" },
         { op: "shuffleSelfIntoLibrary" },
     ],
-};
+}));

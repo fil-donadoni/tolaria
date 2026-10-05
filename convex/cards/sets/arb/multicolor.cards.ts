@@ -3,7 +3,7 @@
 // arb/index.cards.ts. Cards are classified by the colour identity of their mana
 // cost (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Thopter Foundry — {W/B}{U} Artifact (Cube FREE residue token-maker, issue
 // #1304, unblocked by issue #1926 / PRD #1736 hybrid mana wave). "{1},
@@ -28,7 +28,7 @@ import type { CardDefinition } from "../../types";
 // Scryfall `all_parts`).
 const THOPTER_FOUNDRY_ID = "42b8d797-b01d-49cf-9818-d84bba17029d";
 
-export const thopterFoundry: CardDefinition = {
+export const thopterFoundry = defineCard(() => ({
     id: THOPTER_FOUNDRY_ID,
     name: "Thopter Foundry",
     rarity: "uncommon",
@@ -64,4 +64,4 @@ export const thopterFoundry: CardDefinition = {
             ],
         },
     ],
-};
+}));

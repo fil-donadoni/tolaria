@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import {
     additionalCostPaidCondition,
@@ -91,7 +91,7 @@ import {
 // named for the corpus backlog PRD #2693 ranks the next grammar rule by.
 // compiler-gap: Squad {3} (As an additional cost to cast this spell, you may pay {3} any number of times. When this creature enters, create that many tokens that are copies of it.) (#2693)
 // compiler-gap: Whenever a creature token you control enters, put a +1/+1 counter on it. (#2693)
-export const securitronSquadron: CardDefinition = {
+export const securitronSquadron = defineCard(() => ({
     id: "b689a206-aec3-4a31-95cf-3d4b840db04c", // PIP 23
     name: "Securitron Squadron",
     rarity: "rare",
@@ -160,4 +160,4 @@ export const securitronSquadron: CardDefinition = {
             ],
         }),
     ],
-};
+}));

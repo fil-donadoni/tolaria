@@ -79,7 +79,7 @@ function readCommitSources(): { rel: string; lines: string[] }[] {
 /** Pentad Prism in hand, `pool` floating, priority with its controller — the
  *  state `announceCast` sees when the caster tapped lands first. */
 function prismInHandWithPool(pool: Record<string, number>): GameState {
-    const prism = makeInstance(pentadPrism.id, {
+    const prism = makeInstance(pentadPrism().id, {
         id: "prism",
         controllerId: "p1",
         ownerId: "p1",
@@ -103,12 +103,12 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
         const state = prismInHandWithPool(pool);
         const player = state.players[0];
         // The cost under test comes from the CARD, not from this test.
-        const manaCost = normalizeManaCost(pentadPrism.manaCost!);
+        const manaCost = normalizeManaCost(pentadPrism().manaCost!);
         const payment = payCastManaCost(
             state,
             player,
             manaCost,
-            pentadPrism,
+            pentadPrism(),
             [],
             "prism"
         );
@@ -159,7 +159,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
         parked.pendingCast = {
             playerId: "p1",
             cardInstanceId: "prism",
-            manaCost: normalizeManaCost(pentadPrism.manaCost!),
+            manaCost: normalizeManaCost(pentadPrism().manaCost!),
             tappedLandIds: [],
         };
         expect(tryAutoCommitPendingCast(parked, "p1")).not.toBeNull();
@@ -186,7 +186,7 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
             state,
             state.players[0],
             { U: 1, R: 1 },
-            pentadPrism,
+            pentadPrism(),
             [],
             "prism"
         );
@@ -217,8 +217,8 @@ describe("announceCast immediate-commit: mana-spent capture (CR 106.4 / 702.44a,
         const payment = payCastManaCost(
             state,
             state.players[0],
-            normalizeManaCost(pentadPrism.manaCost!),
-            { ...pentadPrism, noteManaSpent: undefined },
+            normalizeManaCost(pentadPrism().manaCost!),
+            { ...pentadPrism(), noteManaSpent: undefined },
             [],
             "prism"
         );

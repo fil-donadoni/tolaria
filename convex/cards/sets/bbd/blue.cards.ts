@@ -2,7 +2,7 @@
 // `import * as bbd from "./sets/bbd/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Spellseeker — {2}{U} Creature. "When this creature enters, you may search
@@ -15,7 +15,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // 701.20): it makes the found instant/sorcery known to every player, placed
 // BEFORE the moveZone/shuffle so the knowledge rides the card into hand and
 // survives the shuffle.
-export const spellseeker: CardDefinition = {
+export const spellseeker = defineCard(() => ({
     id: "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
     rarity: "rare",
     name: "Spellseeker",
@@ -62,4 +62,4 @@ export const spellseeker: CardDefinition = {
             ],
         }),
     ],
-};
+}));

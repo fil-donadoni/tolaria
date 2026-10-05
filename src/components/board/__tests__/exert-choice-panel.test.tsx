@@ -60,7 +60,7 @@ function renderPanel(attackers: CardInstance[], c: Combat = combat()) {
 
 describe("ExertChoicePanel (CR 508.1g / 701.43d)", () => {
     it("offers the choice for a declared attacker whose card declares it", () => {
-        renderPanel([attacker(glorybringer.id, "glory")]);
+        renderPanel([attacker(glorybringer().id, "glory")]);
         expect(
             screen.getByRole("button", { name: /Glorybringer/ })
         ).toBeTruthy();
@@ -68,14 +68,14 @@ describe("ExertChoicePanel (CR 508.1g / 701.43d)", () => {
 
     it("renders nothing when no declared attacker offers exert", () => {
         const { container } = renderPanel(
-            [attacker(grizzlyBears.id, "bears")],
+            [attacker(grizzlyBears().id, "bears")],
             combat({ attackerIds: ["bears"] })
         );
         expect(container.firstChild).toBeNull();
     });
 
     it("fires toggleExert for the clicked attacker and reflects the current choice", () => {
-        renderPanel([attacker(glorybringer.id, "glory")]);
+        renderPanel([attacker(glorybringer().id, "glory")]);
         const button = screen.getByRole("button", { name: /Glorybringer/ });
         expect(button.getAttribute("aria-pressed")).toBe("false");
         fireEvent.click(button);
@@ -87,7 +87,7 @@ describe("ExertChoicePanel (CR 508.1g / 701.43d)", () => {
 
         cleanup();
         renderPanel(
-            [attacker(glorybringer.id, "glory")],
+            [attacker(glorybringer().id, "glory")],
             combat({ exertedIds: ["glory"] })
         );
         expect(

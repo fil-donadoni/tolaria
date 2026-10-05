@@ -1,7 +1,7 @@
 // chk — colorless cards (ADR 0043 colour split). Modern Scryfall oracle
 // text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Sensei's Divining Top — "{1}: Look at the top three cards of your
 // library, then put them back in any order.\n{T}: Draw a card, then put
@@ -13,7 +13,7 @@ import type { CardDefinition } from "../../types";
 // permanent to a specific 1-based position from the top, `position`
 // omitted defaulting to 1/top (issue #1726, `putIntoLibraryFromBattlefield`)
 // — closing the gap the original stub tracked as #1369.
-export const senseisDiviningTop: CardDefinition = {
+export const senseisDiviningTop = defineCard(() => ({
     id: "4a08ca06-58db-4ce6-b490-be4bea8956a1",
     name: "Sensei's Divining Top",
     rarity: "uncommon",
@@ -55,4 +55,4 @@ export const senseisDiviningTop: CardDefinition = {
             ],
         },
     ],
-};
+}));

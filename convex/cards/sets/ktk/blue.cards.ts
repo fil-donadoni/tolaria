@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Treasure Cruise — {7}{U} Sorcery. "Delve (Each card you exile from your
 // graveyard while casting this spell pays for {1}.) Draw three cards."
@@ -17,7 +17,7 @@ import type { CardDefinition } from "../../types";
 // already exercised catalogue-wide, so no hand-written per-card GRE test is
 // required (the per-Op regime + the auto-generated smoke sweep cover it).
 // Scryfall KTK #59.
-export const treasureCruise: CardDefinition = {
+export const treasureCruise = defineCard(() => ({
     id: "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21",
     name: "Treasure Cruise",
     rarity: "common",
@@ -27,4 +27,4 @@ export const treasureCruise: CardDefinition = {
     types: ["Sorcery"],
     staticAbilities: ["delve"],
     effects: [{ op: "draw", player: "controller", count: 3 }],
-};
+}));

@@ -2,7 +2,7 @@
 // split by colour per ADR 0043. The registry's `import * as thb from "./sets/thb/index.cards"`
 // resolves through thb/index.cards.ts. Modern Scryfall oracle text is authoritative
 // (ADR 0004); generic mana is encoded as `X: n` (e.g. {1} → { X: 1 }).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Soul-Guide Lantern — {1} Artifact. Graveyard hate plus a sacrifice-cantrip
@@ -17,7 +17,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // is subject to hexproof / protection / becomes-target triggers instead of the
 // old resolve()+requestChoice per-graveyard workaround. `type: "card"` = any
 // card type; `zone: "graveyard"` + `controller: "any"` = either player's bin.
-export const soulGuideLantern: CardDefinition = {
+export const soulGuideLantern = defineCard(() => ({
     id: "7c850b94-75c9-4457-8b5e-1193352d6fcb",
     name: "Soul-Guide Lantern",
     rarity: "uncommon",
@@ -83,4 +83,4 @@ export const soulGuideLantern: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
-};
+}));

@@ -54,7 +54,7 @@ registerTokenDefinition(stormCounterProbe);
  *  the enumerator could actually have produced. */
 function stormPosition(): GameState {
     const lands = [0, 1].map((i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `mtn-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -66,13 +66,13 @@ function stormPosition(): GameState {
             makePlayer("p1", {
                 battlefield: lands,
                 hand: [
-                    makeInstance(lightningBolt.id, {
+                    makeInstance(lightningBolt().id, {
                         id: "bolt",
                         controllerId: "p1",
                         ownerId: "p1",
                         zone: "hand",
                     }),
-                    makeInstance(grapeshot.id, {
+                    makeInstance(grapeshot().id, {
                         id: "grapeshot",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -268,7 +268,7 @@ describe("greedy drain is bounded by the cast item, not by stack depth (issue #3
         // A pre-existing item on the stack: the opponent's Bolt, which the
         // probe's storm copy will counter. `stackDepthBeforeCast` is therefore
         // 1, not 0.
-        const oppBolt = makeInstance(lightningBolt.id, {
+        const oppBolt = makeInstance(lightningBolt().id, {
             id: "opp-bolt",
             controllerId: "p2",
             ownerId: "p2",

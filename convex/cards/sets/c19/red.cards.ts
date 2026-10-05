@@ -1,5 +1,5 @@
 // c19 — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Anje's Ravager — {2}{R} Creature — Vampire Berserker, 3/3. "This creature
 // attacks each combat if able.\nWhenever this creature attacks, discard your
@@ -7,7 +7,7 @@ import type { CardDefinition } from "../../types";
 // via `staticEffects[]`, template Urborg Drake `inv/multicolor.ts`; CR 509
 // attack trigger; CR 702.35 Madness — the discard→exile cast capability,
 // `convex/gre/madness.ts`.)
-export const anjesRavager: CardDefinition = {
+export const anjesRavager = defineCard(() => ({
     id: "22924c44-5551-4a48-a574-dfef91a5d4d7",
     rarity: "rare",
     name: "Anje's Ravager",
@@ -47,6 +47,6 @@ export const anjesRavager: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 export {};

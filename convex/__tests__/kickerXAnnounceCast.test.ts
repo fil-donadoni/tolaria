@@ -36,7 +36,7 @@ function board(): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    makeInstance(verdelothTheAncient.id, {
+                    makeInstance(verdelothTheAncient().id, {
                         id: VERDELOTH,
                         controllerId: "p1",
                         ownerId: "p1",

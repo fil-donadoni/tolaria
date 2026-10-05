@@ -41,7 +41,7 @@ const ETB_ID = "deceiver-exarch-etb";
 function mkTrigger(id: string, controllerId = "p1"): StackItem {
     return {
         id,
-        card: { id: deceiverExarch.id },
+        card: { id: deceiverExarch().id },
         controllerId,
         ownerId: controllerId,
         castById: controllerId,
@@ -68,7 +68,7 @@ function twoSidedBoard(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "mine",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -78,7 +78,7 @@ function twoSidedBoard(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "theirs",
                         controllerId: "p2",
                         ownerId: "p2",
@@ -152,7 +152,7 @@ describe("modal triggered abilities — announcement (CR 603.3c)", () => {
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "mine",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -235,7 +235,7 @@ describe("modal triggered abilities — the trigger item is built un-announced (
         // mode nobody chose. CR 700.2b — the mode is chosen as part of putting
         // the ability on the stack, never inherited.
         const state = twoSidedBoard();
-        const exarch = makeInstance(deceiverExarch.id, {
+        const exarch = makeInstance(deceiverExarch().id, {
             id: "exarch",
             controllerId: "p1",
             ownerId: "p1",

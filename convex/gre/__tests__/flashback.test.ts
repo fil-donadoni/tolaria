@@ -59,19 +59,19 @@ import {
 describe("Flashback capability (CR 702.34)", () => {
     describe("flashback cost lookup (convex/gre/flashback.ts)", () => {
         it("getFlashbackCost reads the printed flashback cost", () => {
-            const fb = makeInstance(firebolt.id, { zone: "graveyard" });
+            const fb = makeInstance(firebolt().id, { zone: "graveyard" });
             expect(getFlashbackCost(fb)).toEqual({ X: 4, R: 1 });
             expect(hasFlashback(fb)).toBe(true);
         });
 
         it("a card with no flashback has no flashback cost", () => {
-            const bear = makeInstance(grizzlyBears.id, { zone: "graveyard" });
+            const bear = makeInstance(grizzlyBears().id, { zone: "graveyard" });
             expect(getFlashbackCost(bear)).toBeUndefined();
             expect(hasFlashback(bear)).toBe(false);
         });
 
         it("a granted flashback (Snapcaster) overrides the printed cost", () => {
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 grantedFlashback: { X: 1, U: 1 },
             });
@@ -79,8 +79,8 @@ describe("Flashback capability (CR 702.34)", () => {
         });
 
         it("findFlashbackCastable locates a flashback card in the graveyard", () => {
-            const fb = makeInstance(firebolt.id, { zone: "graveyard" });
-            const bear = makeInstance(grizzlyBears.id, { zone: "graveyard" });
+            const fb = makeInstance(firebolt().id, { zone: "graveyard" });
+            const bear = makeInstance(grizzlyBears().id, { zone: "graveyard" });
             const p1 = makePlayer("p1", { graveyard: [fb, bear] });
             expect(findFlashbackCastable(p1, fb.id)?.id).toBe(fb.id);
             // A graveyard card without flashback is not castable from there.
@@ -93,7 +93,7 @@ describe("Flashback capability (CR 702.34)", () => {
             manaPool: Record<string, number>,
             phase: GameState["phase"] = "PRECOMBAT_MAIN"
         ): { state: GameState; fireboltId: string } {
-            const fb = makeInstance(firebolt.id, {
+            const fb = makeInstance(firebolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -133,7 +133,7 @@ describe("Flashback capability (CR 702.34)", () => {
             // Firebolt is a sorcery: not castable while the stack is non-empty.
             const { state, fireboltId } = stateWithGraveyardFirebolt({ R: 5 });
             state.stack.push(
-                makeInstance(grizzlyBears.id, { zone: "stack" }) as StackItem
+                makeInstance(grizzlyBears().id, { zone: "stack" }) as StackItem
             );
             const card = getPlayer(state, "p1").graveyard.find(
                 (c) => c.id === fireboltId
@@ -144,7 +144,7 @@ describe("Flashback capability (CR 702.34)", () => {
         });
 
         it("a plain (non-flashback) graveyard card is never castable", () => {
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -160,7 +160,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
     describe("flashback cast + exile-on-resolve (the real cast seam)", () => {
         it("casts Firebolt from the graveyard, deals damage, and exiles it (not graveyard)", () => {
-            const fb = makeInstance(firebolt.id, {
+            const fb = makeInstance(firebolt().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -212,7 +212,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
     describe("until-end-of-turn grant expiry (CR 514.2)", () => {
         it("clears a granted flashback on a graveyard card at cleanup", () => {
-            const granted = makeInstance(grizzlyBears.id, {
+            const granted = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -232,7 +232,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
     describe("serialization round-trip (grantedFlashback + castFromGraveyard)", () => {
         it("preserves the granted-flashback field on a graveyard card", () => {
-            const granted = makeInstance(grizzlyBears.id, {
+            const granted = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -252,7 +252,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
         it("preserves castFromGraveyard on a stack item", () => {
             const item: StackItem = {
-                ...makeInstance(firebolt.id, {
+                ...makeInstance(firebolt().id, {
                     zone: "stack",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -295,7 +295,7 @@ describe("Flashback capability (CR 702.34)", () => {
             });
 
             it("a purely non-mana flashback has NO mana but IS castable (Lava Dart)", () => {
-                const c = makeInstance(grizzlyBears.id, {
+                const c = makeInstance(grizzlyBears().id, {
                     zone: "graveyard",
                     grantedFlashback: { sacrifice: SAC_MOUNTAIN },
                 });
@@ -309,13 +309,13 @@ describe("Flashback capability (CR 702.34)", () => {
             });
 
             it("a mana-only flashback carries no additional cost (backward compat)", () => {
-                const fb = makeInstance(firebolt.id, { zone: "graveyard" });
+                const fb = makeInstance(firebolt().id, { zone: "graveyard" });
                 expect(getFlashbackCost(fb)).toEqual({ X: 4, R: 1 });
                 expect(getFlashbackAdditionalCost(fb)).toBeUndefined();
             });
 
             it("mana + sacrifice compose (both accessors return their part)", () => {
-                const c = makeInstance(grizzlyBears.id, {
+                const c = makeInstance(grizzlyBears().id, {
                     zone: "graveyard",
                     grantedFlashback: {
                         mana: { U: 1 },
@@ -337,7 +337,7 @@ describe("Flashback capability (CR 702.34)", () => {
                 battlefield: ReturnType<typeof makeInstance>[] = [],
                 hand: ReturnType<typeof makeInstance>[] = []
             ): { state: GameState; card: ReturnType<typeof makeInstance> } {
-                const fb = makeInstance(firebolt.id, {
+                const fb = makeInstance(firebolt().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -361,7 +361,7 @@ describe("Flashback capability (CR 702.34)", () => {
                 const withMountain = graveyardFlashbackState(
                     { sacrifice: SAC_MOUNTAIN },
                     [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             controllerId: "p1",
                             ownerId: "p1",
                         }),
@@ -392,7 +392,7 @@ describe("Flashback capability (CR 702.34)", () => {
                     { exileFromHand: { color: "U" } },
                     [],
                     [
-                        makeInstance(ancestralRecall.id, {
+                        makeInstance(ancestralRecall().id, {
                             zone: "hand",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -412,7 +412,7 @@ describe("Flashback capability (CR 702.34)", () => {
                     { exileFromHand: { color: "U" } },
                     [],
                     [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             zone: "hand",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -440,7 +440,7 @@ describe("Flashback capability (CR 702.34)", () => {
                     { exileFromHand: {} },
                     [],
                     [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             zone: "hand",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -470,11 +470,11 @@ describe("Flashback capability (CR 702.34)", () => {
 
         describe("sacrifice cost folds into the cast selection — graveyard cast only", () => {
             it("builds a Mountain-sacrifice requirement on the flashback cast and pays it", () => {
-                const mtn = makeInstance(mountain.id, {
+                const mtn = makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                 });
-                const fb = makeInstance(grizzlyBears.id, {
+                const fb = makeInstance(grizzlyBears().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -517,11 +517,11 @@ describe("Flashback capability (CR 702.34)", () => {
             });
 
             it("does NOT fold the flashback sacrifice onto a hand (non-flashback) cast", () => {
-                const mtn = makeInstance(mountain.id, {
+                const mtn = makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                 });
-                const fb = makeInstance(grizzlyBears.id, {
+                const fb = makeInstance(grizzlyBears().id, {
                     zone: "hand",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -549,17 +549,17 @@ describe("Flashback capability (CR 702.34)", () => {
 
         describe("exile-from-hand cost picker (zone-aware)", () => {
             it("records a picked hand card, rejecting a non-matching colour", () => {
-                const blue = makeInstance(ancestralRecall.id, {
+                const blue = makeInstance(ancestralRecall().id, {
                     zone: "hand",
                     controllerId: "p1",
                     ownerId: "p1",
                 });
-                const red = makeInstance(mountain.id, {
+                const red = makeInstance(mountain().id, {
                     zone: "hand",
                     controllerId: "p1",
                     ownerId: "p1",
                 });
-                const fb = makeInstance(grizzlyBears.id, {
+                const fb = makeInstance(grizzlyBears().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -608,7 +608,7 @@ describe("Flashback capability (CR 702.34)", () => {
                 fb: ReturnType<typeof makeInstance>;
                 blue: ReturnType<typeof makeInstance>;
             } {
-                const fb = makeInstance(firebolt.id, {
+                const fb = makeInstance(firebolt().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -617,7 +617,7 @@ describe("Flashback capability (CR 702.34)", () => {
                     // targetRequirement), which is the gap this issue closes.
                     grantedFlashback: { exileFromHand: { color: "U" } },
                 });
-                const blue = makeInstance(ancestralRecall.id, {
+                const blue = makeInstance(ancestralRecall().id, {
                     zone: "hand",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -653,7 +653,7 @@ describe("Flashback capability (CR 702.34)", () => {
             });
 
             it("rejects a targeted flashback cast when no matching card is in hand", () => {
-                const fb = makeInstance(firebolt.id, {
+                const fb = makeInstance(firebolt().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -720,7 +720,7 @@ describe("Flashback capability (CR 702.34)", () => {
 
         describe("serialization round-trip", () => {
             it("preserves a FlashbackCost grant + the exile-cost zone", () => {
-                const granted = makeInstance(grizzlyBears.id, {
+                const granted = makeInstance(grizzlyBears().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -759,13 +759,13 @@ describe("Flashback capability (CR 702.34)", () => {
 
         describe("frontend wiring — projectPublicState tags a non-mana flashback", () => {
             it("attaches legalActions to a sacrifice-flashback card when affordable", () => {
-                const fb = makeInstance(firebolt.id, {
+                const fb = makeInstance(firebolt().id, {
                     zone: "graveyard",
                     controllerId: "p1",
                     ownerId: "p1",
                     grantedFlashback: { sacrifice: SAC_MOUNTAIN },
                 });
-                const mtn = makeInstance(mountain.id, {
+                const mtn = makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                 });
@@ -791,17 +791,17 @@ describe("Flashback capability (CR 702.34)", () => {
 
     describe("frontend wiring — projectPublicState tags the affordance", () => {
         it("attaches legalActions to the viewer's OWN graveyard flashback card, not the opponent's", () => {
-            const mine = makeInstance(faithlessLooting.id, {
+            const mine = makeInstance(faithlessLooting().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const theirs = makeInstance(firebolt.id, {
+            const theirs = makeInstance(firebolt().id, {
                 zone: "graveyard",
                 controllerId: "p2",
                 ownerId: "p2",
             });
-            const plainMine = makeInstance(grizzlyBears.id, {
+            const plainMine = makeInstance(grizzlyBears().id, {
                 zone: "graveyard",
                 controllerId: "p1",
                 ownerId: "p1",

@@ -6,8 +6,8 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
@@ -37,7 +37,7 @@ import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 // `ctx.targets[0]` read imperatively). CR 608.2b's "absent target → no-op" is
 // the Op's own skip-when-gone behavior, so the old `if (target?.type !==
 // "permanent") return;` guard needs no explicit restatement.
-export const erhnamDjinn: CardDefinition = {
+export const erhnamDjinn = defineCard(() => ({
     id: "42bc0c3f-0a52-4bdc-83da-6484bf3102f3",
     rarity: "rare",
     name: "Erhnam Djinn",
@@ -83,9 +83,9 @@ export const erhnamDjinn: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const sandstorm: CardDefinition = {
+export const sandstorm = defineCard(() => ({
     id: "73cba9cd-73d9-442e-bd99-9cba9f398b64",
     rarity: "common",
     name: "Sandstorm",
@@ -98,9 +98,9 @@ export const sandstorm: CardDefinition = {
     resolve: (ctx: SpellContext) => {
         ctx.dealDamageToEach(1, { creatures: { isAttacking: true } });
     },
-};
+}));
 
-export const desertTwister: CardDefinition = {
+export const desertTwister = defineCard(() => ({
     id: "0d77c149-cca2-45c7-bc83-5ba1872ad5e0",
     rarity: "uncommon",
     name: "Desert Twister",
@@ -111,9 +111,9 @@ export const desertTwister: CardDefinition = {
     // "any" — CR 115.4 any target admits players and misses lands (#3073).
     targetRequirement: { type: [...PERMANENT_TYPES], count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
-export const singingTree: CardDefinition = {
+export const singingTree = defineCard(() => ({
     id: "3003bf1e-8085-45d8-882b-c449109e7631",
     rarity: "rare",
     name: "Singing Tree",
@@ -149,7 +149,7 @@ export const singingTree: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 /** Returns the unique player with strictly more life than every other, or
  *  null on a tie (CR 104 "the player with the most life"). */
@@ -174,7 +174,7 @@ function uniqueMostLife(
 // Ghazbán Ogre — at your upkeep, an indefinite control reassign to the unique
 // most-life player (no revert condition). Intervening-if gates on a strict
 // unique maximum (CR 603.4).
-export const ghazbanOgre: CardDefinition = {
+export const ghazbanOgre = defineCard(() => ({
     id: "f9d613d5-36a2-4633-b5af-64511bb29cc2",
     rarity: "common",
     name: "Ghazbán Ogre",
@@ -219,7 +219,7 @@ export const ghazbanOgre: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 const NAFS_ASP_ID = "965f722c-2b18-4c22-8c30-12552def5940";
 
@@ -227,7 +227,7 @@ const NAFS_ASP_ID = "965f722c-2b18-4c22-8c30-12552def5940";
 // player's NEXT DRAW STEP (new `next-draw-step` timing) offering "pay {1} or
 // lose 1 life". The "before that draw step" window is modelled as a may-pay at
 // the draw step itself.
-export const nafsAsp: CardDefinition = {
+export const nafsAsp = defineCard(() => ({
     id: NAFS_ASP_ID,
     rarity: "common",
     name: "Nafs Asp",
@@ -292,13 +292,13 @@ export const nafsAsp: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Cyclone — upkeep: add a wind counter, then pay {G} per counter or sacrifice;
 // if paid, deal (counter count) damage to each creature and player. The wind
 // counter and the damage run on the resumed (committed) path so the stepped
 // re-run after the may-pay suspension doesn't double-apply them.
-export const cyclone: CardDefinition = {
+export const cyclone = defineCard(() => ({
     id: "f11684d6-5b74-47a7-a2d0-256c9e437aa6",
     rarity: "uncommon",
     name: "Cyclone",
@@ -347,12 +347,12 @@ export const cyclone: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Drop of Honey — upkeep: destroy the least-power creature (can't be
 // regenerated; you choose among ties). A separate state trigger sacrifices it
 // when the battlefield has no creatures.
-export const dropOfHoney: CardDefinition = {
+export const dropOfHoney = defineCard(() => ({
     id: "26e090d4-e7fe-403c-9aca-05c1b45ed238",
     rarity: "rare",
     name: "Drop of Honey",
@@ -420,7 +420,7 @@ export const dropOfHoney: CardDefinition = {
             effects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
-};
+}));
 
 // Metamorphosis (ARN) — "As an additional cost to cast this spell, sacrifice a
 // creature. Add X mana of any one color, where X is 1 plus the sacrificed
@@ -450,7 +450,7 @@ const METAMORPHOSIS_COLORS: {
     { id: "green", color: "G", label: "Add green mana" },
 ];
 
-export const metamorphosis: CardDefinition = {
+export const metamorphosis = defineCard(() => ({
     id: "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
     rarity: "common",
     name: "Metamorphosis",
@@ -488,7 +488,7 @@ export const metamorphosis: CardDefinition = {
             ctx.addRestrictedMana(ctx.controller, cost, "creature-spell");
         },
     })),
-};
+}));
 
 // Ifh-Bíff Efreet — "Flying\n{G}: This creature deals 1 damage to each creature
 // with flying and each player. Any player may activate this ability."
@@ -499,7 +499,7 @@ export const metamorphosis: CardDefinition = {
 // the controller-only default on `ability.activatableByAnyPlayer`). The
 // activator pays {G} from their own pool; the source is not tapped and stays
 // under its controller's control.
-export const ifhBiffEfreet: CardDefinition = {
+export const ifhBiffEfreet = defineCard(() => ({
     id: "c0b10fb7-8667-42bf-aeb6-35767a82917b",
     rarity: "rare",
     name: "Ifh-Bíff Efreet",
@@ -531,4 +531,4 @@ export const ifhBiffEfreet: CardDefinition = {
             },
         },
     ],
-};
+}));

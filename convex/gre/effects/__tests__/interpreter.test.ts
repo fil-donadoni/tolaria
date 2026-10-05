@@ -10262,7 +10262,7 @@ describe("EffectCardFilter.hasAbility (CR 702, issue #1097)", () => {
         // Attach Flight (LEA Aura, CR 611.2 keyword-grant) via the REAL cast
         // path — materializes "flying" onto the host's staticAbilities, not
         // merely the printed card definition.
-        pushSpell(state, flight.id, "p2", [
+        pushSpell(state, flight().id, "p2", [
             { type: "permanent", id: "bear-granted" },
         ]);
         resolveTopOfStack(state);
@@ -10390,7 +10390,7 @@ describe("EffectCardFilter.excludeAbility (CR 702.9a, issue #4310)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        pushSpell(state, flight.id, "p2", [
+        pushSpell(state, flight().id, "p2", [
             { type: "permanent", id: "bear-granted-x" },
         ]);
         resolveTopOfStack(state);
@@ -25325,7 +25325,7 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
     // discarding Blizzard and casting it from the graveyard put it on the stack
     // with zero snow lands in play.
     function blizzardCdrState(battlefield: CardInstanceState[]): GameState {
-        const bliz = makeInstance(blizzard.id, {
+        const bliz = makeInstance(blizzard().id, {
             id: "cdrBlizzard",
             controllerId: "p1",
             ownerId: "p1",
@@ -25340,7 +25340,7 @@ describe("Effect Script Op: castDuringResolution (CR 608.2f, issue #1477)", () =
     }
 
     function snowLand(id: string): CardInstanceState {
-        return makeInstance(snowCoveredForest.id, {
+        return makeInstance(snowCoveredForest().id, {
             id,
             controllerId: "p1",
             ownerId: "p1",
@@ -26208,7 +26208,7 @@ describe("Effect Script Op: castDuringResolution — LAND branch, play during re
         // "only if you control a snow land") still passed silently. Both must
         // behave identically: the offer appears either way, and only the
         // ACCEPT outcome differs by legality.
-        const bliz = makeInstance(blizzard.id, {
+        const bliz = makeInstance(blizzard().id, {
             id: "cdrBlizNoSnow",
             controllerId: "p1",
             ownerId: "p1",

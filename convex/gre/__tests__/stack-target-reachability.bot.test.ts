@@ -51,29 +51,29 @@ function board(opts: { abilityTarget: "myLand" | "myBear" | "theirLand" }): {
             makePlayer("p1", {
                 life: 20,
                 hand: [
-                    makeInstance(teferisResponse.id, {
+                    makeInstance(teferisResponse().id, {
                         id: "response",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
                 ],
                 battlefield: [
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "isle1",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(island.id, {
+                    makeInstance(island().id, {
                         id: "isle2",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(forest.id, {
+                    makeInstance(forest().id, {
                         id: "myLand",
                         controllerId: "p1",
                         ownerId: "p1",
                     }),
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "myBear",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -88,7 +88,7 @@ function board(opts: { abilityTarget: "myLand" | "myBear" | "theirLand" }): {
                         controllerId: "p2",
                         ownerId: "p2",
                     }),
-                    makeInstance(forest.id, {
+                    makeInstance(forest().id, {
                         id: "theirLand",
                         controllerId: "p2",
                         ownerId: "p2",

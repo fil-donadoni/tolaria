@@ -4,7 +4,6 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type {
-    CardDefinition,
     Color,
     EffectTokenSpec,
     ManaCost,
@@ -86,7 +85,7 @@ function effectiveColors(perm: PermanentView): Color[] {
 // permanent's own continuous static text). `Math.max(0, amount - 1)` keeps
 // the reduction from going negative (a 1-damage source deals 0, never
 // "negative damage").
-export const lashknifeBarrier: CardDefinition = {
+export const lashknifeBarrier = defineCard(() => ({
     id: "2485c10d-de02-4be9-8119-afb2296e3317", // PLS printing (scryfallId)
     name: "Lashknife Barrier",
     rarity: "uncommon",
@@ -131,7 +130,7 @@ export const lashknifeBarrier: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Heroic Defiance — {1}{W} Enchantment — Aura. "Enchant creature. Enchanted
 // creature gets +3/+3 unless it shares a color with the most common color
@@ -173,7 +172,7 @@ export const lashknifeBarrier: CardDefinition = {
 // express this card instead: its `applies` gets no `state` (can't read the
 // board-wide census) and its `condition` gets no `target` (can't compare the
 // enchanted creature's own colour). Bug-class tracked-by: #1992.
-export const heroicDefiance: CardDefinition = {
+export const heroicDefiance = defineCard(() => ({
     id: "0dc1aa36-5d3b-4d25-9d54-937cdabf72a4", // PLS 6
     rarity: "common",
     name: "Heroic Defiance",
@@ -198,7 +197,7 @@ export const heroicDefiance: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Free tranche (issue #1948, parent PRD #1935) — every card below is
@@ -230,7 +229,7 @@ export const auraBlast = defineCard(() => ({
 // any type uses the full CR 300.1 permanent-type set (incl. Land), not
 // `type: "any"` (which matches only the CR 115.4 damageable types) —
 // Vindicate / Boomerang precedent (`apc/multicolor.cards.ts`).
-export const auroraGriffin: CardDefinition = {
+export const auroraGriffin = defineCard(() => ({
     id: "bfd6c695-1944-4bb0-a701-0daf47cdbcb4", // PLS 2
     name: "Aurora Griffin",
     rarity: "common",
@@ -260,14 +259,14 @@ export const auroraGriffin: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Disciple of Kangee — {2}{W} Creature — Human Wizard, 2/2. "{U}, {T}:
 // Target creature gains flying and becomes blue until end of turn." (CR
 // 702.9 temporary flying grant via `grantAbility`, issue #843; CR 613.1e
 // colour-change via `setColor`, issue #1083 — the SAME two-Op composition
 // Disciple of Kangee's blue mirror-image, Tidal Visionary, already ships.)
-export const discipleOfKangee: CardDefinition = {
+export const discipleOfKangee = defineCard(() => ({
     id: "e268fe16-070b-4b78-9793-59755edb2fd5", // PLS 3
     name: "Disciple of Kangee",
     rarity: "common",
@@ -302,7 +301,7 @@ export const discipleOfKangee: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // The five WUBRG basic-land-type → protection-colour pairs Dominaria's
 // Judgment grants "until end of turn ... if you control a <land>". Table
@@ -329,7 +328,7 @@ const DOMINARIAS_JUDGMENT_PAIRS: { subtype: string; colorName: string }[] = [
 // SUBTYPE (not merely a card named "Plains"), so a nonbasic land carrying the
 // Plains type (Snow-Covered Plains, a dual) counts too — broader than a
 // basic-only check, matching CR 305.6.
-export const dominariasJudgment: CardDefinition = {
+export const dominariasJudgment = defineCard(() => ({
     id: "9703d090-b415-48e2-8158-dd8fc57ecc50", // PLS 4
     name: "Dominaria's Judgment",
     rarity: "rare",
@@ -372,7 +371,7 @@ export const dominariasJudgment: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Hobble — {2}{W} Enchantment — Aura. "Enchant creature\nWhen this Aura
 // enters, draw a card.\nEnchanted creature can't attack.\nEnchanted creature
@@ -392,7 +391,7 @@ export const dominariasJudgment: CardDefinition = {
 // 702.3a) as a hack — defender carries its own identity (Prison
 // Barricade-style "as though it didn't have defender" overrides key off the
 // literal keyword), which this card's oracle text never grants.
-export const hobble: CardDefinition = {
+export const hobble = defineCard(() => ({
     id: "54c76a22-f9e3-408b-a5bd-403add57e31a", // PLS 7
     name: "Hobble",
     rarity: "common",
@@ -425,7 +424,7 @@ export const hobble: CardDefinition = {
             oracleText: "Enchanted creature can't block if it's black.",
         },
     ],
-};
+}));
 
 // Honorable Scout — {W} Creature — Human Soldier Scout, 1/1. "When this
 // creature enters, you gain 2 life for each black and/or red creature target
@@ -433,7 +432,7 @@ export const hobble: CardDefinition = {
 // targeted-player battlefield count, `EffectCountSpec`, issue #999 — `color`
 // is an OR filter, CR 202.2, so a black-red creature counts once, exactly
 // "black and/or red" and never double.)
-export const honorableScout: CardDefinition = {
+export const honorableScout = defineCard(() => ({
     id: "bd311758-0352-4b7d-a24f-7f3f2b5d7b0f", // PLS 8
     name: "Honorable Scout",
     rarity: "common",
@@ -471,7 +470,7 @@ export const honorableScout: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // The 1/1 white Spirit flying token March of Souls creates for each creature
 // destroyed this way (PLS's printed token for this card, Scryfall id
@@ -509,7 +508,7 @@ const MARCH_OF_SOULS_SPIRIT: EffectTokenSpec = {
 // #807/#1083) reads the iterated creature's OWN controller from its
 // per-iteration snapshot — LKI (CR 608.2h), so it still resolves after the
 // creature has left play — giving the token to ITS controller, not the caster.
-export const marchOfSouls: CardDefinition = {
+export const marchOfSouls = defineCard(() => ({
     id: "f07dd0f1-b80b-4af0-ae76-907ec55ec7d5", // PLS 10
     name: "March of Souls",
     rarity: "rare",
@@ -549,7 +548,7 @@ export const marchOfSouls: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Orim's Chant — {W} Instant. "Kicker {W} (You may pay an additional {W} as
 // you cast this spell.)\nTarget player can't cast spells this turn. If this
@@ -559,7 +558,7 @@ export const marchOfSouls: CardDefinition = {
 // GAME-scoped `"cant-attack-all"` mode, issue #2002 — the whole board, EVERY
 // creature including one that enters the battlefield LATER this same turn,
 // before attackers are declared.)
-export const orimsChant: CardDefinition = {
+export const orimsChant = defineCard(() => ({
     id: "055afa78-b969-498f-a3ad-c792426e5ee6", // PLS 11
     name: "Orim's Chant",
     rarity: "rare",
@@ -581,7 +580,7 @@ export const orimsChant: CardDefinition = {
             then: [{ op: "restrictCombat", restriction: "cant-attack-all" }],
         },
     ],
-};
+}));
 
 // Samite Elder — {2}{W} Creature — Human Cleric, 1/2. "{T}: Creatures you
 // control gain protection from the colors of target permanent you control
@@ -595,7 +594,7 @@ export const orimsChant: CardDefinition = {
 // arbitrary runtime colour SET. `forEach` over the controller's creatures,
 // with FIVE `if(objectMatchesFilter(target 0, color X))` checks in the body,
 // each conditionally granting "protection from X" to the current `$each`.
-export const samiteElder: CardDefinition = {
+export const samiteElder = defineCard(() => ({
     id: "b3c5dccc-2a48-4dcc-a796-fa6fdc11a14e", // PLS 14
     name: "Samite Elder",
     rarity: "rare",
@@ -646,7 +645,7 @@ export const samiteElder: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Samite Pilgrim — {1}{W} Creature — Human Cleric, 1/1. "Domain — {T}:
 // Prevent the next X damage that would be dealt to target creature this
@@ -656,7 +655,7 @@ export const samiteElder: CardDefinition = {
 // ITALIC ABILITY WORD with no independent rules meaning (CR 207.2c) — it
 // carries no `staticAbilities[]` entry, matching every other shipped Domain
 // card (Tribal Flames / Wandering Stream / Power Armor, `inv/*.ts`).
-export const samitePilgrim: CardDefinition = {
+export const samitePilgrim = defineCard(() => ({
     id: "c12529e4-f4b1-45be-8252-28783badbec5", // PLS 15
     name: "Samite Pilgrim",
     rarity: "common",
@@ -686,7 +685,7 @@ export const samitePilgrim: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sunscape Familiar — {1}{W} Creature — Wall, 0/3. "Defender (This creature
 // can't attack.)\nGreen spells and blue spells you cast cost {1} less to
@@ -704,7 +703,7 @@ export const samitePilgrim: CardDefinition = {
 // One entry whose predicate is true for "green OR blue" applies the {1}
 // reduction exactly once regardless of how many of the two colours the spell
 // has.
-export const sunscapeFamiliar: CardDefinition = {
+export const sunscapeFamiliar = defineCard(() => ({
     id: "9621f341-bf85-4b77-bf19-2fb013b4c955", // PLS 17
     name: "Sunscape Familiar",
     rarity: "common",
@@ -726,7 +725,7 @@ export const sunscapeFamiliar: CardDefinition = {
             costReduction: { X: 1 },
         },
     ],
-};
+}));
 
 // Surprise Deployment — {3}{W} Instant. "Cast this spell only during
 // combat.\nYou may put a nonwhite creature card from your hand onto the
@@ -740,7 +739,7 @@ export const sunscapeFamiliar: CardDefinition = {
 // added closes the "capture the just-entered permanent" gap Cauldron Dance's
 // still-stubbed comment describes as blocking; CR 603.7 delayed trigger for
 // the return, ADR 0048.)
-export const surpriseDeployment: CardDefinition = {
+export const surpriseDeployment = defineCard(() => ({
     id: "9a26148b-b981-4af5-995b-52b1426737e3", // PLS 18
     name: "Surprise Deployment",
     rarity: "uncommon",
@@ -786,7 +785,7 @@ export const surpriseDeployment: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Voice of All — {2}{W}{W} Creature — Angel, 2/2. "Flying\nAs this creature
 // enters, choose a color.\nThis creature has protection from the chosen
@@ -814,7 +813,7 @@ export const surpriseDeployment: CardDefinition = {
 // onto the token before the CR 614 chokepoint reads it (CR 707.5), so the
 // chokepoint sees THIS definition's clause on the token exactly as it does on
 // a cast or reanimated Voice of All.
-export const voiceOfAll: CardDefinition = {
+export const voiceOfAll = defineCard(() => ({
     id: "75f37536-db3d-4726-9e45-b9108247d0e6", // PLS 19
     name: "Voice of All",
     rarity: "uncommon",
@@ -840,7 +839,7 @@ export const voiceOfAll: CardDefinition = {
         condition: (source) => source.chosenModeId === color,
         keyword: `protection from ${PLS_WHITE_COLOR_NAMES[color]}`,
     })),
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred (engine capability gap, tracked-by: #2003) — of the two PLS White
@@ -916,7 +915,7 @@ export const voiceOfAll: CardDefinition = {
 // The shield itself is the `preventDamage` mode `"all-from-source"` with
 // `combatOnly: true` — the same source-scoped, recipient-agnostic entry
 // Falling Timber uses (`pls/green.cards.ts`).
-export const guardDogs: CardDefinition = {
+export const guardDogs = defineCard(() => ({
     id: "ba32eee7-10ba-4f0b-8a87-c3ecfa22ae41", // PLS 5
     rarity: "uncommon",
     name: "Guard Dogs",
@@ -969,7 +968,7 @@ export const guardDogs: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Pollen Remedy — {W} Instant. "Kicker—Sacrifice a land.\nPrevent the next 3
 // damage that would be dealt this turn to any number of targets, divided as
@@ -990,7 +989,7 @@ export const guardDogs: CardDefinition = {
 // `kickedTargetRequirement`, so the announcement-time stepper offers 6) and
 // the resolution-time total. The `if { kickerCount: true } >= 1` branch keeps
 // the two in lockstep.
-export const pollenRemedy: CardDefinition = {
+export const pollenRemedy = defineCard(() => ({
     id: "9797c813-0cda-44ad-ae41-330e9bde9cb9", // PLS 13
     rarity: "common",
     name: "Pollen Remedy",
@@ -1041,4 +1040,4 @@ export const pollenRemedy: CardDefinition = {
             ],
         },
     ],
-};
+}));

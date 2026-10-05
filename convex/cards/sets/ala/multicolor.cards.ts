@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 
@@ -61,7 +61,7 @@ import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 // fragments rather than by a round trip (PRD #2693).
 // compiler-gap: When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card. (#2693)
 // compiler-gap: When this creature leaves the battlefield, return the exiled card to its owner's hand. (#2693)
-export const tidehollowSculler: CardDefinition = {
+export const tidehollowSculler = defineCard(() => ({
     id: "1abecc77-07f2-43e4-8585-0a8199cdcf01",
     name: "Tidehollow Sculler",
     rarity: "uncommon",
@@ -120,4 +120,4 @@ export const tidehollowSculler: CardDefinition = {
             ],
         }),
     ],
-};
+}));

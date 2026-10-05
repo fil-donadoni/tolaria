@@ -347,14 +347,17 @@ describe("matchesTargetRequirement", () => {
     // so the client marks ANY creature clickable under the "Creature"
     // requirement and lets the server reject an over-MV pick (CR 202.3, #994).
     it("marks a creature clickable for Dominate's 'Creature' requirement (mvFilter is server-side)", () => {
-        expect(dominate.targetRequirement?.type).toBe("Creature");
+        expect(dominate().targetRequirement?.type).toBe("Creature");
         const creature = makeCardInstance({ types: ["Creature"] });
         const land = makeCardInstance({ types: ["Land"] });
         expect(
-            matchesTargetRequirement(creature, dominate.targetRequirement!.type)
+            matchesTargetRequirement(
+                creature,
+                dominate().targetRequirement!.type
+            )
         ).toBe(true);
         expect(
-            matchesTargetRequirement(land, dominate.targetRequirement!.type)
+            matchesTargetRequirement(land, dominate().targetRequirement!.type)
         ).toBe(false);
     });
 });
@@ -388,7 +391,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
          *  through the real projection rather than being hand-built. */
         controlChangedThisTurn?: string[]
     ) {
-        const legendary = makeInstance(livonyaSilone.id, {
+        const legendary = makeInstance(livonyaSilone().id, {
             id: "legendary-1",
             controllerId: "p2",
             ownerId: "p2",
@@ -400,7 +403,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
             ownerId: "p2",
             ...plainCreatureOverrides,
         });
-        const karakasInstance = makeInstance(karakas.id, {
+        const karakasInstance = makeInstance(karakas().id, {
             id: "karakas-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -457,7 +460,9 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
 
     it("supertypeFilter (Karakas): highlights the legendary creature, rejects the non-legendary one, through the real wire projection", () => {
         const { players, pendingTarget, legendaryClient, plainClient } =
-            projectScenario(karakas.activatedAbilities![1].targetRequirement!);
+            projectScenario(
+                karakas().activatedAbilities![1].targetRequirement!
+            );
 
         // The OLD narrow check alone would wrongly say both match — proving
         // the bug (a "Creature" requirement's structural type check has no
@@ -631,24 +636,24 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
             controllerId: "p1",
             ownerId: "p1",
         });
-        const myLand = makeInstance(forestCard.id, {
+        const myLand = makeInstance(forestCard().id, {
             id: "my-land",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const auraOnCreature = makeInstance(holyStrength.id, {
+        const auraOnCreature = makeInstance(holyStrength().id, {
             id: "aura-on-creature",
             controllerId: "p1",
             ownerId: "p1",
             attachedTo: "my-creature",
         });
-        const auraOnLand = makeInstance(holyStrength.id, {
+        const auraOnLand = makeInstance(holyStrength().id, {
             id: "aura-on-land",
             controllerId: "p1",
             ownerId: "p1",
             attachedTo: "my-land",
         });
-        const miracleWorkerInstance = makeInstance(miracleWorker.id, {
+        const miracleWorkerInstance = makeInstance(miracleWorker().id, {
             id: "mw-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -692,7 +697,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
     }
 
     it("attachedToFilter (CR 303.4b, issue #1853, Miracle Worker's 'attached to a creature you control'): rejects an Aura on a land, accepts one on a creature, through the real wire projection", () => {
-        const req = miracleWorker.activatedAbilities!.find(
+        const req = miracleWorker().activatedAbilities!.find(
             (a) => a.id === "miracle-worker-destroy-aura"
         )!.targetRequirement!;
         const {
@@ -729,7 +734,7 @@ describe("matchesPermanentTargetFilters (CR 109/202/205/613 / 701.26 / 702, issu
     });
 
     it("attachedToFilter (issue #1853): FAILS CLOSED when the candidate's host can't be resolved on the synthetic board (unattached candidate)", () => {
-        const req = miracleWorker.activatedAbilities!.find(
+        const req = miracleWorker().activatedAbilities!.find(
             (a) => a.id === "miracle-worker-destroy-aura"
         )!.targetRequirement!;
         const { players, pendingTarget, auraOnCreatureClient } =
@@ -916,13 +921,13 @@ describe("face-down permanent target filters read the sentinel for the controlle
         req: TargetRequirement,
         viewerId: "p1" | "p2"
     ) {
-        const legendary = makeInstance(livonyaSilone.id, {
+        const legendary = makeInstance(livonyaSilone().id, {
             id: "fd-legendary",
             controllerId: "p1",
             ownerId: "p1",
         });
         turnFaceDown(NO_BOARD_LAYER_VIEW, legendary, "morph");
-        const karakasInstance = makeInstance(karakas.id, {
+        const karakasInstance = makeInstance(karakas().id, {
             id: "karakas-1",
             controllerId: "p2",
             ownerId: "p2",
@@ -1034,7 +1039,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             "p1"
         );
         expect(target.card.id).toBe(FACE_DOWN_CARD_ID);
-        expect(target.knownCardId).toBe(livonyaSilone.id);
+        expect(target.knownCardId).toBe(livonyaSilone().id);
     });
 
     it("the opponent's view carries neither the real id nor knownCardId", () => {
@@ -1047,7 +1052,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
     });
 
     it("turning the permanent face up restores normal filtering", () => {
-        const legendary = makeInstance(livonyaSilone.id, {
+        const legendary = makeInstance(livonyaSilone().id, {
             id: "fd-legendary",
             controllerId: "p1",
             ownerId: "p1",
@@ -1064,7 +1069,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
                 makeServerPlayer("p1", { battlefield: [legendary] }),
                 makeServerPlayer("p2", {
                     battlefield: [
-                        makeInstance(karakas.id, {
+                        makeInstance(karakas().id, {
                             id: "karakas-1",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -1087,7 +1092,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
             .battlefield.find(
                 (c) => c.id === "fd-legendary"
             ) as unknown as CardInstance;
-        expect(target.card.id).toBe(livonyaSilone.id);
+        expect(target.card.id).toBe(livonyaSilone().id);
         expect(
             matchesPermanentTargetFilters(
                 target,
@@ -1103,7 +1108,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
         // Norritt — "{T}: Untap target blue creature." — has a real, unrestricted
         // activated ability. Face down, the permanent is a vanilla 2/2 with
         // `staticAbilities: []` and no activated abilities at all.
-        const norrittCard = makeInstance(norritt.id, {
+        const norrittCard = makeInstance(norritt().id, {
             id: "fd-norritt",
             controllerId: "p1",
             ownerId: "p1",
@@ -1129,7 +1134,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
     });
 
     it("sanity: Norritt's untap ability IS offered face up (proves the face-down test above isn't vacuous)", () => {
-        const norrittCard = makeInstance(norritt.id, {
+        const norrittCard = makeInstance(norritt().id, {
             id: "up-norritt",
             controllerId: "p1",
             ownerId: "p1",
@@ -1166,7 +1171,7 @@ describe("face-down permanent target filters read the sentinel for the controlle
 
 describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", () => {
     function projectFaceDown(viewerId: "p1" | "p2") {
-        const legendary = makeInstance(livonyaSilone.id, {
+        const legendary = makeInstance(livonyaSilone().id, {
             id: "fd-legendary",
             controllerId: "p1",
             ownerId: "p1",
@@ -1196,10 +1201,10 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
     it("the controller's own face-down permanent renders the SENTINEL face; the real id survives only as the identification affordance", () => {
         const target = projectFaceDown("p1");
         expect(target.card.id).toBe(FACE_DOWN_CARD_ID); // rules id stays honest
-        expect(displayCardId(target)).toBe(livonyaSilone.id);
+        expect(displayCardId(target)).toBe(livonyaSilone().id);
         expect(getCardImageDefId(target)).toBe(FACE_DOWN_CARD_ID);
         // …and it is what the preview's SECOND face is built from (CR 708.5).
-        expect(faceDownRealCardId(target)).toBe(livonyaSilone.id);
+        expect(faceDownRealCardId(target)).toBe(livonyaSilone().id);
     });
 
     it("the opponent's view of the SAME permanent stays the sentinel on both helpers", () => {
@@ -1213,7 +1218,7 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
     });
 
     it("a face-up permanent is unaffected — both helpers are a no-op without knownCardId", () => {
-        const upCard = makeInstance(livonyaSilone.id, {
+        const upCard = makeInstance(livonyaSilone().id, {
             id: "up-legendary",
             controllerId: "p1",
             ownerId: "p1",
@@ -1230,8 +1235,8 @@ describe("displayCardId / getCardImageDefId (issue #1735 review, finding 3)", ()
             .battlefield.find(
                 (c) => c.id === "up-legendary"
             ) as unknown as CardInstance;
-        expect(displayCardId(target)).toBe(livonyaSilone.id);
-        expect(getCardImageDefId(target)).toBe(livonyaSilone.id);
+        expect(displayCardId(target)).toBe(livonyaSilone().id);
+        expect(getCardImageDefId(target)).toBe(livonyaSilone().id);
         expect(faceDownRealCardId(target)).toBeUndefined();
     });
 });
@@ -1496,7 +1501,7 @@ describe("getStackAbilities", () => {
     // `assertActivationTimingLegal` is authoritative).
     it("hides a sorcerySpeedOnly ability outside a main phase, shows it during one", () => {
         const card = makeCardInstance({
-            card: { id: dauthiVoidwalker.id },
+            card: { id: dauthiVoidwalker().id },
             types: ["Creature"],
             isTapped: false,
         });
@@ -1510,7 +1515,7 @@ describe("getStackAbilities", () => {
 
     it("returns a sorcerySpeedOnly ability when `phase` is omitted (no filter applied)", () => {
         const card = makeCardInstance({
-            card: { id: dauthiVoidwalker.id },
+            card: { id: dauthiVoidwalker().id },
             types: ["Creature"],
             isTapped: false,
         });
@@ -1526,7 +1531,7 @@ describe("getStackAbilities", () => {
     // real reducer (`buildTriggerStateView`), not a hand-built view.
     it("hides a controllerTurnOnly ability during the opponent's turn, shows it on the controller's turn (Disrupting Scepter)", () => {
         const card = makeCardInstance({
-            card: { id: disruptingScepter.id },
+            card: { id: disruptingScepter().id },
             types: ["Artifact"],
             isTapped: false,
             controllerId: "p1",
@@ -1549,7 +1554,7 @@ describe("getStackAbilities", () => {
 
     it("returns a controllerTurnOnly ability when `activePlayerId` is unknown (fail-open, matches the phase/sorcery-speed discipline)", () => {
         const card = makeCardInstance({
-            card: { id: disruptingScepter.id },
+            card: { id: disruptingScepter().id },
             types: ["Artifact"],
             isTapped: false,
         });
@@ -1575,14 +1580,14 @@ describe("getStackAbilities", () => {
         // the sacrifice fixture makes the view non-empty.)
         const sacrificeFodder = makeCardInstance({
             id: "fodder",
-            card: { id: crawWurm.id },
+            card: { id: crawWurm().id },
             types: ["Creature"],
             controllerId: "p1",
             ownerId: "p1",
         });
         const targetArtifact = makeCardInstance({
             id: "target-artifact",
-            card: { id: powerArmor.id },
+            card: { id: powerArmor().id },
             types: ["Artifact"],
             controllerId: "p1",
             ownerId: "p1",
@@ -1599,7 +1604,7 @@ describe("getStackAbilities", () => {
             "p1"
         );
         const card = makeCardInstance({
-            card: { id: gateToPhyrexia.id },
+            card: { id: gateToPhyrexia().id },
             types: ["Enchantment"],
             controllerId: "p1",
             ownerId: "p1",
@@ -1609,7 +1614,7 @@ describe("getStackAbilities", () => {
         expect(beforeUse[0].id).toBe("gate-to-phyrexia-destroy");
 
         const usedCard = makeCardInstance({
-            card: { id: gateToPhyrexia.id },
+            card: { id: gateToPhyrexia().id },
             types: ["Enchantment"],
             controllerId: "p1",
             ownerId: "p1",
@@ -1625,14 +1630,14 @@ describe("getStackAbilities", () => {
         // orthogonal to the `activationsThisTurn` gate under test here.
         const sacrificeFodder = makeCardInstance({
             id: "fodder2",
-            card: { id: crawWurm.id },
+            card: { id: crawWurm().id },
             types: ["Creature"],
             controllerId: "p1",
             ownerId: "p1",
         });
         const targetArtifact = makeCardInstance({
             id: "target-artifact2",
-            card: { id: powerArmor.id },
+            card: { id: powerArmor().id },
             types: ["Artifact"],
             controllerId: "p1",
             ownerId: "p1",
@@ -1649,7 +1654,7 @@ describe("getStackAbilities", () => {
             "p1"
         );
         const card = makeCardInstance({
-            card: { id: gateToPhyrexia.id },
+            card: { id: gateToPhyrexia().id },
             types: ["Enchantment"],
             controllerId: "p1",
             ownerId: "p1",
@@ -1845,7 +1850,7 @@ describe("getStackAbilities", () => {
 describe("getStackAbilities — Power Armor (Domain-scaled pump, issue #1066)", () => {
     it("surfaces the {3},{T} ability when untapped", () => {
         const card = makeCardInstance({
-            card: { id: powerArmor.id },
+            card: { id: powerArmor().id },
             types: ["Artifact"],
             isTapped: false,
         });
@@ -1856,7 +1861,7 @@ describe("getStackAbilities — Power Armor (Domain-scaled pump, issue #1066)", 
 
     it("hides the ability when the source is already tapped (unpayable {T})", () => {
         const card = makeCardInstance({
-            card: { id: powerArmor.id },
+            card: { id: powerArmor().id },
             types: ["Artifact"],
             isTapped: true,
         });
@@ -2062,7 +2067,7 @@ describe("getGraveyardStackAbilities vs LIVE snow status (Whiteout, issue #2235 
     const makeWhiteout = (): CardInstance =>
         makeCardInstance({
             id: "wo-1",
-            card: { id: whiteout.id },
+            card: { id: whiteout().id },
             types: ["Instant"],
             ownerId: "p1",
             controllerId: "p1",
@@ -2076,7 +2081,7 @@ describe("getGraveyardStackAbilities vs LIVE snow status (Whiteout, issue #2235 
      *  (`convex/gre/snow.ts`) writes onto the target instance. */
     const weathervanedForest: CardInstance = {
         id: "forest-1",
-        card: { id: forest.id },
+        card: { id: forest().id },
         controllerId: "p1",
         ownerId: "p1",
         zone: "battlefield",
@@ -2449,9 +2454,9 @@ describe("getAnyPlayerStackAbilities", () => {
             controllerTurnOnly: true,
         };
         const variant = {
-            ...clergyOfTheHolyNimbus,
+            ...clergyOfTheHolyNimbus(),
             activatedAbilities: [
-                ...(clergyOfTheHolyNimbus.activatedAbilities ?? []),
+                ...(clergyOfTheHolyNimbus().activatedAbilities ?? []),
                 syntheticAbility,
             ],
         };
@@ -3538,7 +3543,7 @@ describe("getDisplayAbilities (#156 granted keywords)", () => {
     // them.
     it("assigns Skyship Weatherlight's triggered row an earlier order than its activated row", () => {
         const { activated, triggered } = getDisplayAbilities(
-            skyshipWeatherlight.id
+            skyshipWeatherlight().id
         );
         expect(triggered).toHaveLength(1);
         expect(activated).toHaveLength(1);
@@ -4017,7 +4022,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         excludeTypes: [
             {
                 card: makeCardInstance({
-                    card: { id: forest.id },
+                    card: { id: forest().id },
                     types: ["Land"],
                     subtypes: ["Forest"],
                 }),
@@ -4046,7 +4051,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         excludeSubtypes: [
             {
                 card: makeCardInstance({
-                    card: { id: crosissCatacombs.id },
+                    card: { id: crosissCatacombs().id },
                     types: ["Land"],
                     subtypes: ["Lair"],
                 }),
@@ -4055,7 +4060,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
             },
             {
                 card: makeCardInstance({
-                    card: { id: forest.id },
+                    card: { id: forest().id },
                     types: ["Land"],
                     subtypes: ["Forest"],
                 }),
@@ -4066,7 +4071,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         excludeSupertypes: [
             {
                 card: makeCardInstance({
-                    card: { id: forest.id },
+                    card: { id: forest().id },
                     types: ["Land"],
                     subtypes: ["Forest"],
                 }),
@@ -4135,7 +4140,7 @@ describe("matchesPermanentFilter / toMatchablePermanent — MIRROR_CENSUS parity
         supertypes: [
             {
                 card: makeCardInstance({
-                    card: { id: forest.id },
+                    card: { id: forest().id },
                     types: ["Land"],
                     subtypes: ["Forest"],
                 }),
@@ -4400,7 +4405,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
     function representativeEntry(turnState?: ControlContinuityView) {
         const card = {
             id: "rep",
-            card: { id: crawWurm.id },
+            card: { id: crawWurm().id },
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield" as const,
@@ -4491,7 +4496,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         const entry = (offSorceryTiming: boolean | undefined) => {
             const card = {
                 id: "necro",
-                card: { id: crawWurm.id },
+                card: { id: crawWurm().id },
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "battlefield" as const,
@@ -4567,7 +4572,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         // WRONGLY offered this ability — the fail-OPEN direction.
         const tokenArtifact: CardInstance = {
             id: "token-art",
-            card: { id: thopterFoundry.id },
+            card: { id: thopterFoundry().id },
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
@@ -4579,7 +4584,7 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         };
         const foundry: CardInstance = {
             id: "foundry",
-            card: { id: thopterFoundry.id },
+            card: { id: thopterFoundry().id },
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
@@ -4610,12 +4615,12 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
         // between the server and `buildTriggerStateView`). Projects through
         // the REAL wire boundary (`projectPublicState`), then re-runs the
         // affordability check against the PROJECTED battlefield.
-        const range = makeInstance(caribouRange.id, {
+        const range = makeInstance(caribouRange().id, {
             id: "range",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const caribouToken = makeInstance(crawWurm.id, {
+        const caribouToken = makeInstance(crawWurm().id, {
             id: "caribou-token",
             controllerId: "p1",
             ownerId: "p1",
@@ -4692,12 +4697,12 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
             ).map((a) => a.id);
         }
 
-        const extruder = makeInstance(legionExtruder.id, {
+        const extruder = makeInstance(legionExtruder().id, {
             id: "extruder",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const otherArtifact = makeInstance(ornithopter.id, {
+        const otherArtifact = makeInstance(ornithopter().id, {
             id: "other-artifact",
             controllerId: "p1",
             ownerId: "p1",
@@ -4741,13 +4746,13 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
             );
         }
 
-        const host = makeInstance(grizzlyBears.id, {
+        const host = makeInstance(grizzlyBears().id, {
             id: "host",
             controllerId: "p1",
             ownerId: "p1",
         });
         const aura = (attachedTo?: string) =>
-            makeInstance(bloodfireInfusion.id, {
+            makeInstance(bloodfireInfusion().id, {
                 id: "aura",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -4768,15 +4773,15 @@ describe("buildTriggerStateView — TRIGGER_STATE_VIEW_CENSUS (issue #1951 revie
     });
 
     it("#4319 — the ability-menu gate canPayFilteredGiveUpCost reads the same host (Bloodfire Infusion)", () => {
-        const ability = getDefinition(bloodfireInfusion.id)
+        const ability = getDefinition(bloodfireInfusion().id)
             .activatedAbilities![0];
         const view = (attachedTo?: string) => {
-            const host = makeInstance(grizzlyBears.id, {
+            const host = makeInstance(grizzlyBears().id, {
                 id: "host",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const aura = makeInstance(bloodfireInfusion.id, {
+            const aura = makeInstance(bloodfireInfusion().id, {
                 id: "aura",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -4886,7 +4891,7 @@ describe("mayPaySacrificeCount / mayPaySacrificePower — Infernal Denizen's con
             makeCardInstance({
                 id: "s1",
                 controllerId: "p1",
-                card: { id: forest.id },
+                card: { id: forest().id },
                 types: ["Land"],
                 subtypes: ["Swamp"],
                 power: 0,
@@ -4928,7 +4933,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("derives the picker colours from the opponent's lands", () => {
         const rock = makeCardInstance({
             id: "fs1",
-            card: { id: fellwarStone.id },
+            card: { id: fellwarStone().id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -4946,7 +4951,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("returns the static fallback (any colour) when no players passed", () => {
         const rock = makeCardInstance({
             id: "fs2",
-            card: { id: fellwarStone.id },
+            card: { id: fellwarStone().id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -4964,7 +4969,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("hasManaAbility recognises the dynamic chooser and the sacrifice mana ability", () => {
         const rock = makeCardInstance({
             id: "fs3",
-            card: { id: fellwarStone.id },
+            card: { id: fellwarStone().id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -4972,7 +4977,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
         expect(hasManaAbility(rock)).toBe(true);
         const gt = makeCardInstance({
             id: "gt1",
-            card: { id: gaeasTouch.id },
+            card: { id: gaeasTouch().id },
             controllerId: "p1",
             types: ["Enchantment"],
             subtypes: [],
@@ -4984,7 +4989,7 @@ describe("getManaChoices — Fellwar Stone (board-conditional)", () => {
     it("Deep Water exposes no tap mana ability (its ability uses the stack)", () => {
         const dw = makeCardInstance({
             id: "dw1",
-            card: { id: deepWater.id },
+            card: { id: deepWater().id },
             controllerId: "p1",
             types: ["Enchantment"],
             subtypes: [],
@@ -5001,7 +5006,7 @@ describe("Mana Battery mana picker (charge-counter scaling, #482)", () => {
     function battery(counters?: Record<string, number>): CardInstance {
         return makeCardInstance({
             id: "battery",
-            card: { id: redManaBattery.id },
+            card: { id: redManaBattery().id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -5042,7 +5047,7 @@ describe("getNonTapManaChoices — Vivi Ornitier (non-tap choice-based mana abil
     function vivi(counters?: Record<string, number>): CardInstance {
         return makeCardInstance({
             id: "vivi",
-            card: { id: viviOrnitier.id },
+            card: { id: viviOrnitier().id },
             controllerId: "p1",
             types: ["Creature"],
             subtypes: ["Wizard"],
@@ -5055,7 +5060,7 @@ describe("getNonTapManaChoices — Vivi Ornitier (non-tap choice-based mana abil
     it("is null for a card with no non-tap choice-based mana ability (regular getManaChoices, e.g. Fellwar Stone, has its own describe block)", () => {
         const rock = makeCardInstance({
             id: "fs-nontap",
-            card: { id: fellwarStone.id },
+            card: { id: fellwarStone().id },
             controllerId: "p1",
             types: ["Artifact"],
             subtypes: [],
@@ -5117,7 +5122,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
         expect(
             isLandwalkUnblockable(plainswalker(), [
                 land(PLAINS_ID, "Plains"),
-                enchant(greatWall.id),
+                enchant(greatWall().id),
             ])
         ).toBe(false);
     });
@@ -5126,7 +5131,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
         expect(
             isLandwalkUnblockable(islandwalker(), [
                 land(ISLAND_ID, "Island"),
-                enchant(undertow.id),
+                enchant(undertow().id),
             ])
         ).toBe(false);
     });
@@ -5135,7 +5140,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
         expect(
             isLandwalkUnblockable(islandwalker(), [
                 land(ISLAND_ID, "Island"),
-                enchant(greatWall.id),
+                enchant(greatWall().id),
             ])
         ).toBe(true);
     });
@@ -5147,7 +5152,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
     const legendaryLandwalker = (): CardInstance =>
         makeCardInstance({
             id: "atk",
-            card: { id: livonyaSilone.id },
+            card: { id: livonyaSilone().id },
             staticAbilities: ["legendary landwalk"],
         });
     const registryLand = (id: string): CardInstance =>
@@ -5156,7 +5161,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
     it("legendary landwalk is unblockable behind a legendary land (Pendelhaven)", () => {
         expect(
             isLandwalkUnblockable(legendaryLandwalker(), [
-                registryLand(pendelhaven.id),
+                registryLand(pendelhaven().id),
             ])
         ).toBe(true);
     });
@@ -5175,7 +5180,7 @@ describe("isLandwalkUnblockable (landwalk-negation parity, CR 509.1b / 702.14)",
             isLandwalkUnblockable(legendaryLandwalker(), [
                 makeCardInstance({
                     id: "legendary-creature",
-                    card: { id: livonyaSilone.id },
+                    card: { id: livonyaSilone().id },
                     types: ["Creature"],
                 }),
             ])
@@ -5662,7 +5667,7 @@ describe("shouldShowOracleText — preview Oracle-text gate", () => {
 // every card encoding fixed generic via `generic` — not just Dominate.
 describe("manaCostToString renders fixed generic mana (bug class)", () => {
     it("renders Dominate's {X}{1}{U}{U} — the generic:1 is not dropped", () => {
-        expect(manaCostToString(dominate.manaCost)).toBe("{X}{1}{U}{U}");
+        expect(manaCostToString(dominate().manaCost)).toBe("{X}{1}{U}{U}");
     });
 
     it("renders a variable-X + fixed-generic + colored cost in {X}{N}{C} order", () => {
@@ -5702,7 +5707,7 @@ describe("manaCostToString renders fixed generic mana (bug class)", () => {
 describe("phyrexianSplitChoices (CR 107.4f)", () => {
     it("labels each affordable split of a 2-pip cost (Dismember)", () => {
         const card = makeCardInstance({
-            card: { id: dismember.id },
+            card: { id: dismember().id },
             types: ["Instant"],
             phyrexianOptions: [0, 1, 2],
         });
@@ -5715,7 +5720,7 @@ describe("phyrexianSplitChoices (CR 107.4f)", () => {
 
     it("labels the two-way split of a single-pip cost (Gitaxian Probe)", () => {
         const card = makeCardInstance({
-            card: { id: gitaxianProbe.id },
+            card: { id: gitaxianProbe().id },
             types: ["Sorcery"],
             phyrexianOptions: [0, 1],
         });
@@ -5727,7 +5732,7 @@ describe("phyrexianSplitChoices (CR 107.4f)", () => {
 
     it("returns [] when there is no real branch (< 2 options)", () => {
         const card = makeCardInstance({
-            card: { id: gitaxianProbe.id },
+            card: { id: gitaxianProbe().id },
             types: ["Sorcery"],
             phyrexianOptions: [1],
         });
@@ -5735,7 +5740,7 @@ describe("phyrexianSplitChoices (CR 107.4f)", () => {
         // And when the field is absent entirely (non-Phyrexian / degenerate).
         expect(
             phyrexianSplitChoices(
-                makeCardInstance({ card: { id: gitaxianProbe.id } })
+                makeCardInstance({ card: { id: gitaxianProbe().id } })
             )
         ).toEqual([]);
     });
@@ -6041,7 +6046,7 @@ function makeImprovisePlayer(overrides: Partial<Player> = {}): Player {
 describe("hasImprovise", () => {
     it("is true for Metallic Rebuke (declares the keyword)", () => {
         const card = makeCardInstance({
-            card: { id: metallicRebuke.id },
+            card: { id: metallicRebuke().id },
             types: ["Instant"],
         });
         expect(hasImprovise(card)).toBe(true);
@@ -6067,7 +6072,7 @@ describe("pendingCastSourceCard / pendingCastHasImprovise / pendingCastRemaining
     it("finds the cast source in the caster's own hand", () => {
         const spell = makeCardInstance({
             id: "spell-1",
-            card: { id: metallicRebuke.id },
+            card: { id: metallicRebuke().id },
             types: ["Instant"],
             zone: "hand",
         });
@@ -6079,7 +6084,7 @@ describe("pendingCastSourceCard / pendingCastHasImprovise / pendingCastRemaining
     it("falls back to exile, then graveyard, when not in hand (Ice Cauldron / Flashback casts)", () => {
         const spell = makeCardInstance({
             id: "spell-1",
-            card: { id: metallicRebuke.id },
+            card: { id: metallicRebuke().id },
             types: ["Instant"],
             zone: "exile",
         });
@@ -6179,7 +6184,7 @@ describe("activeManaSpendChoice (CR 601.2g)", () => {
 describe("Millstone fixture sanity (Improvise payment tests use it as a plain artifact)", () => {
     it("is an Artifact with no mana ability", () => {
         const card = makeCardInstance({
-            card: { id: millstone.id },
+            card: { id: millstone().id },
             types: ["Artifact"],
         });
         expect(hasManaAbility(card)).toBe(false);
@@ -6198,7 +6203,7 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
     function board(artifactCount: number) {
         const mox = makeCardInstance({
             id: "mox",
-            card: { id: moxOpal.id },
+            card: { id: moxOpal().id },
             controllerId: "p1",
             ownerId: "p1",
             types: ["Artifact"],
@@ -6206,7 +6211,7 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
         const others = Array.from({ length: artifactCount - 1 }, (_, i) =>
             makeCardInstance({
                 id: `art${i}`,
-                card: { id: moxOpal.id },
+                card: { id: moxOpal().id },
                 controllerId: "p1",
                 ownerId: "p1",
                 types: ["Artifact"],
@@ -6226,7 +6231,7 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
     it("hasManaAbility is false with fewer than 3 artifacts controlled", () => {
         const card = makeCardInstance({
             id: "mox",
-            card: { id: moxOpal.id },
+            card: { id: moxOpal().id },
             types: ["Artifact"],
         });
         expect(hasManaAbility(card, board(2))).toBe(false);
@@ -6235,7 +6240,7 @@ describe("Mox Opal Metalcraft gate through buildTriggerStateView (issue #1530, #
     it("hasManaAbility is true with 3+ artifacts controlled, via the real buildTriggerStateView reducer", () => {
         const card = makeCardInstance({
             id: "mox",
-            card: { id: moxOpal.id },
+            card: { id: moxOpal().id },
             types: ["Artifact"],
         });
         expect(hasManaAbility(card, board(3))).toBe(true);
@@ -6255,7 +6260,7 @@ describe("hasManaAbility drops a zero-output mana source (issue #1889)", () => {
     function chalice(charge: number) {
         return makeCardInstance({
             id: `chalice-${charge}`,
-            card: { id: everflowingChalice.id },
+            card: { id: everflowingChalice().id },
             controllerId: "p1",
             ownerId: "p1",
             types: ["Artifact"],
@@ -6304,7 +6309,7 @@ describe("hasManaAbility drops a zero-output mana source (issue #1889)", () => {
     it("a 0-counter storage land still reads as a mana source and still offers its choice list", () => {
         const land = makeCardInstance({
             id: "store",
-            card: { id: icatianStore.id },
+            card: { id: icatianStore().id },
             controllerId: "p1",
             ownerId: "p1",
             types: ["Land"],
@@ -6324,7 +6329,7 @@ describe("hasManaAbility drops a zero-output mana source (issue #1889)", () => {
     it("a 3-counter storage land's client choice list is the full 0..N ladder", () => {
         const land = makeCardInstance({
             id: "store",
-            card: { id: icatianStore.id },
+            card: { id: icatianStore().id },
             controllerId: "p1",
             ownerId: "p1",
             types: ["Land"],
@@ -6568,7 +6573,7 @@ describe("Sorrow's Path — count:2 targeting ability's affordability gate (CR 6
     function sorrowsPathOnBoard(): CardInstance {
         return makeCardInstance({
             id: "path",
-            card: { id: sorrowsPath.id },
+            card: { id: sorrowsPath().id },
             types: ["Land"],
             isTapped: false,
         });
@@ -6576,7 +6581,7 @@ describe("Sorrow's Path — count:2 targeting ability's affordability gate (CR 6
     function blocker(id: string): CardInstance {
         return makeCardInstance({
             id,
-            card: { id: sorrowsPath.id },
+            card: { id: sorrowsPath().id },
             controllerId: "p2",
             types: ["Creature"],
             isBlocking: true,
@@ -6672,11 +6677,11 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
 
     it("Quirion Explorer: the picker offers exactly the opponent's land colours", () => {
         const { slimSource, players, view } = projectManaScenario(
-            quirionExplorer.id,
-            [basic(mountainCard.id, "p1", "own-mountain")],
+            quirionExplorer().id,
+            [basic(mountainCard().id, "p1", "own-mountain")],
             [
-                basic(forestCard.id, "p2", "opp-forest"),
-                basic(islandCard.id, "p2", "opp-island"),
+                basic(forestCard().id, "p2", "opp-forest"),
+                basic(islandCard().id, "p2", "opp-island"),
             ]
         );
         // p1's own Mountain must not leak in — only p2's Forest + Island.
@@ -6689,29 +6694,29 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
 
     it("Star Compass: the picker offers only the controller's BASIC land colours", () => {
         const { slimSource, players } = projectManaScenario(
-            starCompass.id,
+            starCompass().id,
             [
-                basic(swampCard.id, "p1", "own-swamp"),
+                basic(swampCard().id, "p1", "own-swamp"),
                 // Nonbasic: taps for three colours, contributes none.
-                basic(crosissCatacombs.id, "p1", "own-lair"),
+                basic(crosissCatacombs().id, "p1", "own-lair"),
             ],
-            [basic(mountainCard.id, "p2", "opp-mountain")]
+            [basic(mountainCard().id, "p2", "opp-mountain")]
         );
         expect(getManaChoices(slimSource, players)).toEqual([{ B: 1 }]);
     });
 
     it("Meteor Crater: the picker offers the COLOURS of the controller's permanents", () => {
-        const { slimSource, players } = projectManaScenario(meteorCrater.id, [
+        const { slimSource, players } = projectManaScenario(meteorCrater().id, [
             // A Forest taps for {G} but is colourless — it contributes nothing.
-            basic(forestCard.id, "p1", "own-forest"),
-            basic(crawWurm.id, "p1", "own-wurm"),
+            basic(forestCard().id, "p1", "own-forest"),
+            basic(crawWurm().id, "p1", "own-wurm"),
         ]);
         expect(getManaChoices(slimSource, players)).toEqual([{ G: 1 }]);
     });
 
     it("an EMPTY scope offers no picker at all — no false affordance", () => {
         const { slimSource, players } = projectManaScenario(
-            quirionExplorer.id,
+            quirionExplorer().id,
             [],
             []
         );
@@ -6732,7 +6737,7 @@ describe("getManaChoices — board-derived colour sources through the wire reduc
 describe("PLS C4 prevention slice — client affordances (#1955)", () => {
     it("Guard Dogs' {2}{W},{T} ability is offered in the tap menu (untapped, main phase)", () => {
         const card = makeCardInstance({
-            card: { id: guardDogs.id },
+            card: { id: guardDogs().id },
             types: ["Creature"],
             subtypes: ["Dog"],
             isTapped: false,
@@ -6743,7 +6748,7 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
         ).toHaveLength(1);
         // A tap cost is unpayable while already tapped (CR 602.2a).
         const tapped = makeCardInstance({
-            card: { id: guardDogs.id },
+            card: { id: guardDogs().id },
             types: ["Creature"],
             subtypes: ["Dog"],
             isTapped: true,
@@ -6755,7 +6760,7 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
 
     it("Radiant Kavu's mana-only ability is offered even while tapped", () => {
         const card = makeCardInstance({
-            card: { id: radiantKavu.id },
+            card: { id: radiantKavu().id },
             types: ["Creature"],
             subtypes: ["Kavu"],
             isTapped: true,
@@ -6771,7 +6776,7 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
     });
 
     it("Rith's Charm mode 3 makes permanents clickable AND enables stack-spell selection", () => {
-        const req = rithsCharm.modes?.[2].targetRequirement;
+        const req = rithsCharm().modes?.[2].targetRequirement;
         const types = req?.type as string[];
         // Every permanent type in the requirement marks a battlefield card
         // clickable (CR 609.7 — the source may be any object).
@@ -6790,14 +6795,14 @@ describe("PLS C4 prevention slice — client affordances (#1955)", () => {
         // field the whole client divide UI (`useDivideTargets`,
         // `useDivideBuffer`, `DivideTargetList`) keys off. Kicked and unkicked
         // must both carry one, or the stepper never opens for that mode.
-        expect(pollenRemedy.targetRequirement?.divideAsChosen?.total).toBe(3);
+        expect(pollenRemedy().targetRequirement?.divideAsChosen?.total).toBe(3);
         expect(
-            pollenRemedy.kickedTargetRequirement?.divideAsChosen?.total
+            pollenRemedy().kickedTargetRequirement?.divideAsChosen?.total
         ).toBe(6);
         // "Any target" is what makes both players and permanents clickable.
-        expect(wantsPermanentTarget(pollenRemedy.targetRequirement!.type)).toBe(
-            true
-        );
+        expect(
+            wantsPermanentTarget(pollenRemedy().targetRequirement!.type)
+        ).toBe(true);
     });
 });
 
@@ -6827,7 +6832,7 @@ describe("Norritt — force-attack ability's no-legal-target gate honours contro
     function norrittOnBoard(): CardInstance {
         return makeCardInstance({
             id: "norr",
-            card: { id: norritt.id },
+            card: { id: norritt().id },
             controllerId: "p2",
             ownerId: "p2",
             types: ["Creature"],
@@ -6838,7 +6843,7 @@ describe("Norritt — force-attack ability's no-legal-target gate honours contro
     function activeCreature(id: string, enteredOnTurn: number): CardInstance {
         return makeCardInstance({
             id,
-            card: { id: crawWurm.id },
+            card: { id: crawWurm().id },
             controllerId: "p1",
             ownerId: "p1",
             types: ["Creature"],
@@ -6933,7 +6938,7 @@ describe("Fear of Missing Out — attack-trigger target announcement reaches the
     const WRATH = getCardByName("Wrath of God").id;
 
     it("projects a PendingTarget whose targetType marks creatures — and only creatures — clickable", () => {
-        const fomo = makeInstance(fearOfMissingOut.id, {
+        const fomo = makeInstance(fearOfMissingOut().id, {
             id: "fomo",
             controllerId: "p1",
             ownerId: "p1",

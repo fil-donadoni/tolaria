@@ -36,11 +36,11 @@ import {
 import { makeInstance, makePlayer, makeState, pushSpell } from "./setup.helper";
 
 const BASIC_BY_COLOR: Record<string, CardDefinition> = {
-    W: plains,
-    U: island,
-    B: swamp,
-    R: mountain,
-    G: forest,
+    W: plains(),
+    U: island(),
+    B: swamp(),
+    R: mountain(),
+    G: forest(),
 };
 
 /** The registry cards whose spell target legality rides an X-dependent mana
@@ -120,7 +120,7 @@ function landsForCast(
     for (const c of ["W", "U", "B", "R", "G"]) {
         for (let i = 0; i < (cost[c] ?? 0); i++) push(BASIC_BY_COLOR[c]);
     }
-    for (let i = 0; i < genericSlots; i++) push(island);
+    for (let i = 0; i < genericSlots; i++) push(island());
     return lands;
 }
 

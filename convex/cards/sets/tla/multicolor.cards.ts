@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
@@ -43,7 +43,7 @@ const AANG_AT_THE_CROSSROADS_ID = "fea89ca0-8070-4f28-9851-994314f9d248";
 //
 // compiler-gap: "look at the top five cards of your library. You may put a creature card with mana value 4 or less from among them onto the battlefield" (#2693)
 // compiler-gap: "transform Aang at the beginning of the next upkeep" (#2693)
-export const aangAtTheCrossroads: CardDefinition = {
+export const aangAtTheCrossroads = defineCard(() => ({
     id: AANG_AT_THE_CROSSROADS_ID,
     name: "Aang, at the Crossroads",
     rarity: "rare",
@@ -162,4 +162,4 @@ export const aangAtTheCrossroads: CardDefinition = {
             }),
         ],
     },
-};
+}));

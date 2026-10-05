@@ -153,8 +153,8 @@ function makeGameState(overrides: Partial<GameState> = {}): GameState {
 function makeCastleOnBattlefield(controllerId: string): CardInstanceState {
     return makeCard({
         id: `castle-${controllerId}`,
-        card: { id: castle.id, name: castle.name, types: castle.types },
-        types: castle.types,
+        card: { id: castle().id, name: castle().name, types: castle().types },
+        types: castle().types,
         controllerId,
         ownerId: controllerId,
         zone: "battlefield",
@@ -317,11 +317,11 @@ describe("Castle + damage", () => {
             ...makeCard({
                 id: "bolt",
                 card: {
-                    id: lightningBolt.id,
-                    name: lightningBolt.name,
-                    types: lightningBolt.types,
+                    id: lightningBolt().id,
+                    name: lightningBolt().name,
+                    types: lightningBolt().types,
                 },
-                types: lightningBolt.types,
+                types: lightningBolt().types,
                 zone: "stack",
             }),
             castById: "p2",
@@ -392,11 +392,11 @@ describe("Castle + Giant Growth", () => {
             ...makeCard({
                 id: "gg",
                 card: {
-                    id: giantGrowth.id,
-                    name: giantGrowth.name,
-                    types: giantGrowth.types,
+                    id: giantGrowth().id,
+                    name: giantGrowth().name,
+                    types: giantGrowth().types,
                 },
-                types: giantGrowth.types,
+                types: giantGrowth().types,
                 zone: "stack",
             }),
             castById: "p1",
@@ -425,8 +425,12 @@ describe("Castle + Giant Growth", () => {
 function makeBadMoon(controllerId: string): CardInstanceState {
     return makeCard({
         id: `badmoon-${controllerId}`,
-        card: { id: badMoon.id, name: badMoon.name, types: badMoon.types },
-        types: badMoon.types,
+        card: {
+            id: badMoon().id,
+            name: badMoon().name,
+            types: badMoon().types,
+        },
+        types: badMoon().types,
         controllerId,
         ownerId: controllerId,
         zone: "battlefield",
@@ -440,14 +444,14 @@ function makeBlackCreature(
     return makeCard({
         id,
         card: {
-            id: bogWraith.id,
-            name: bogWraith.name,
-            types: bogWraith.types,
-            manaCost: bogWraith.manaCost, // { X: 3, B: 1 } — colors predicate reads this
+            id: bogWraith().id,
+            name: bogWraith().name,
+            types: bogWraith().types,
+            manaCost: bogWraith().manaCost, // { X: 3, B: 1 } — colors predicate reads this
         },
-        types: bogWraith.types,
-        power: bogWraith.power,
-        toughness: bogWraith.toughness,
+        types: bogWraith().types,
+        power: bogWraith().power,
+        toughness: bogWraith().toughness,
         controllerId,
         ownerId: controllerId,
         zone: "battlefield",
@@ -602,11 +606,11 @@ describe("Bad Moon static effect (CR 611)", () => {
             ...makeCard({
                 id: "bolt",
                 card: {
-                    id: lightningBolt.id,
-                    name: lightningBolt.name,
-                    types: lightningBolt.types,
+                    id: lightningBolt().id,
+                    name: lightningBolt().name,
+                    types: lightningBolt().types,
                 },
-                types: lightningBolt.types,
+                types: lightningBolt().types,
                 zone: "stack",
             }),
             castById: "p2",
@@ -773,14 +777,14 @@ describe("multiple pt-cda sources on the same target (CR 613.4b — overwrite, n
         const makeCrusade = (id: string) =>
             makeCard({
                 id,
-                card: { id: crusade.id },
+                card: { id: crusade().id },
                 controllerId: "p1",
                 ownerId: "p1",
             });
         const makeOpal = (id: string) =>
             makeCard({
                 id,
-                card: { id: opalescence.id },
+                card: { id: opalescence().id },
                 controllerId: "p1",
                 ownerId: "p1",
             });

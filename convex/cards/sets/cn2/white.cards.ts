@@ -1,7 +1,7 @@
 // CN2 (Conspiracy: Take the Crown, 2016) — white cards, split by colour per ADR 0043. The
 // registry's `import * as cn2 from "./sets/cn2/index.cards"` resolves through
 // cn2/index.cards.ts.
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Palace Jailer — {2}{W}{W} Creature — Human Soldier, 2/2 (CN2, issue #1199).
@@ -27,7 +27,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // `becomeMonarch`) is the smallest primitive that composes the existing
 // exile/return machinery with the new release condition rather than
 // inventing a card-shaped effect.
-export const palaceJailer: CardDefinition = {
+export const palaceJailer = defineCard(() => ({
     id: "78cef262-c753-4658-b3ec-fec8db47f944",
     rarity: "uncommon",
     name: "Palace Jailer",
@@ -66,4 +66,4 @@ export const palaceJailer: CardDefinition = {
             },
         }),
     ],
-};
+}));

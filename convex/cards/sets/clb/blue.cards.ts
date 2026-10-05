@@ -1,7 +1,7 @@
 // clb — blue cards (ADR 0043 colour split).
 
-import { PERMANENT_TYPES } from "../../types";
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
+import type { GameEvent, PermanentView } from "../../types";
 
 // Displacer Kitten — {3}{U} Creature — Cat Beast, 2/2 (issue #1375, closes
 // the #1308 residue stub). "Avoidance — Whenever you cast a noncreature
@@ -31,7 +31,7 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 // "Up to one" with no target chosen (or none legal, CR 603.3c) is a clean
 // no-op: `exile` early-returns on an unresolvable target so `$c` stays
 // unbound, and `moveZone`'s ref recovery then finds no id and returns too.
-export const displacerKitten: CardDefinition = {
+export const displacerKitten = defineCard(() => ({
     id: "c7a401b8-29fb-46ef-a663-427f66724d5c",
     name: "Displacer Kitten",
     rarity: "rare",
@@ -66,4 +66,4 @@ export const displacerKitten: CardDefinition = {
             ],
         },
     ],
-};
+}));

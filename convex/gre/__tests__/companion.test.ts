@@ -30,23 +30,30 @@ import { lutri, lurrus, zirda } from "../../cards/sets/iko/multicolor.cards";
 describe("companion.ts — Singleton (CR 702.139b, Lutri, the Spellchaser)", () => {
     it("passes a deck with duplicate LANDS but no duplicate nonland names", () => {
         const deck = [
-            mountain,
-            mountain,
-            mountain,
-            plains,
-            lightningBolt,
-            savannahLions,
+            mountain(),
+            mountain(),
+            mountain(),
+            plains(),
+            lightningBolt(),
+            savannahLions(),
         ];
         expect(singleton(deck)).toBe(true);
     });
 
     it("fails a deck with a duplicated nonland card name", () => {
-        const deck = [lightningBolt, lightningBolt, savannahLions];
+        const deck = [lightningBolt(), lightningBolt(), savannahLions()];
         expect(singleton(deck)).toBe(false);
     });
 
     it("passes an all-land deck regardless of copy count", () => {
-        const deck = [mountain, mountain, mountain, mountain, plains, plains];
+        const deck = [
+            mountain(),
+            mountain(),
+            mountain(),
+            mountain(),
+            plains(),
+            plains(),
+        ];
         expect(singleton(deck)).toBe(true);
     });
 
@@ -59,18 +66,18 @@ describe("companion.ts — everyPermanent / permanentManaValueAtMost2 (CR 702.13
     it("passes a deck where every PERMANENT card has mana value <= 2", () => {
         // Savannah Lions is MV 1; Lightning Bolt (an instant, non-permanent)
         // is exempt regardless of its own MV.
-        const deck = [mountain, plains, savannahLions, lightningBolt];
+        const deck = [mountain(), plains(), savannahLions(), lightningBolt()];
         expect(permanentManaValueAtMost2(deck)).toBe(true);
     });
 
     it("fails when a PERMANENT card exceeds mana value 2", () => {
         // Serra Angel is {2}{W}{W}, MV 4.
-        const deck = [mountain, savannahLions, serraAngel];
+        const deck = [mountain(), savannahLions(), serraAngel()];
         expect(permanentManaValueAtMost2(deck)).toBe(false);
     });
 
     it("exempts non-permanent cards (instants/sorceries) regardless of their own mana value", () => {
-        const deck = [lightningBolt, lightningBolt];
+        const deck = [lightningBolt(), lightningBolt()];
         expect(permanentManaValueAtMost2(deck)).toBe(true);
     });
 
@@ -82,34 +89,34 @@ describe("companion.ts — everyPermanent / permanentManaValueAtMost2 (CR 702.13
         const hasSubtypeCat = everyPermanent((def) =>
             (def.subtypes ?? []).includes("Cat")
         );
-        expect(hasSubtypeCat([savannahLions])).toBe(true);
+        expect(hasSubtypeCat([savannahLions()])).toBe(true);
         // Mountain has no "Cat" subtype and, unlike a non-permanent card, is
         // NOT exempt (Land IS one of the CR 300.1 permanent types) — fails.
-        expect(hasSubtypeCat([savannahLions, mountain])).toBe(false);
+        expect(hasSubtypeCat([savannahLions(), mountain()])).toBe(false);
     });
 });
 
 describe("companion.ts — everyPermanent / permanentHasActivatedAbility (CR 702.139a, Zirda, the Dawnwaker, issue #1339)", () => {
     it("passes an all-basic-land deck — a basic land's mana ability is implicit (LAND_SUBTYPE_MANA), never a literal activatedAbilities[] entry", () => {
-        const deck = [mountain, plains];
+        const deck = [mountain(), plains()];
         expect(permanentHasActivatedAbility(deck)).toBe(true);
     });
 
     it("fails when a permanent has no activated ability at all", () => {
         // Savannah Lions is a vanilla creature — no activatedAbilities[] and
         // no basic land subtype.
-        const deck = [mountain, savannahLions];
+        const deck = [mountain(), savannahLions()];
         expect(permanentHasActivatedAbility(deck)).toBe(false);
     });
 
     it("exempts non-permanent cards (instants/sorceries) regardless", () => {
-        const deck = [lightningBolt, lightningBolt];
+        const deck = [lightningBolt(), lightningBolt()];
         expect(permanentHasActivatedAbility(deck)).toBe(true);
     });
 
     it("passes a permanent with an explicit activatedAbilities[] entry", () => {
         // Zirda's own "{1}, {T}: Target creature can't block this turn."
-        expect(permanentHasActivatedAbility([zirda])).toBe(true);
+        expect(permanentHasActivatedAbility([zirda()])).toBe(true);
     });
 
     it("passes an empty deck vacuously", () => {
@@ -120,60 +127,60 @@ describe("companion.ts — everyPermanent / permanentHasActivatedAbility (CR 702
 describe("companion.ts — selectCompanion (CR 702.139c, auto-declare)", () => {
     it("auto-declares Lutri when the sideboard carries it and the maindeck is singleton", () => {
         const maindeckIds = [
-            mountain.id,
-            plains.id,
-            lightningBolt.id,
-            savannahLions.id,
+            mountain().id,
+            plains().id,
+            lightningBolt().id,
+            savannahLions().id,
         ];
-        const selected = selectCompanion([lutri.id], maindeckIds);
-        expect(selected?.id).toBe(lutri.id);
+        const selected = selectCompanion([lutri().id], maindeckIds);
+        expect(selected?.id).toBe(lutri().id);
     });
 
     it("does not declare Lutri when the maindeck fails its Singleton condition", () => {
-        const maindeckIds = [lightningBolt.id, lightningBolt.id];
-        expect(selectCompanion([lutri.id], maindeckIds)).toBeUndefined();
+        const maindeckIds = [lightningBolt().id, lightningBolt().id];
+        expect(selectCompanion([lutri().id], maindeckIds)).toBeUndefined();
     });
 
     it("auto-declares Lurrus when the sideboard carries it and every permanent in the maindeck is MV <= 2 (issue #1392)", () => {
         const maindeckIds = [
-            mountain.id,
-            plains.id,
-            lightningBolt.id, // instant, exempt regardless of MV
-            savannahLions.id, // MV 1 permanent
+            mountain().id,
+            plains().id,
+            lightningBolt().id, // instant, exempt regardless of MV
+            savannahLions().id, // MV 1 permanent
         ];
-        const selected = selectCompanion([lurrus.id], maindeckIds);
-        expect(selected?.id).toBe(lurrus.id);
+        const selected = selectCompanion([lurrus().id], maindeckIds);
+        expect(selected?.id).toBe(lurrus().id);
     });
 
     it("does not declare Lurrus when the maindeck has a permanent above MV 2", () => {
-        const maindeckIds = [mountain.id, serraAngel.id]; // Serra Angel is MV 4
-        expect(selectCompanion([lurrus.id], maindeckIds)).toBeUndefined();
+        const maindeckIds = [mountain().id, serraAngel().id]; // Serra Angel is MV 4
+        expect(selectCompanion([lurrus().id], maindeckIds)).toBeUndefined();
     });
 
     it("auto-declares Zirda when every maindeck permanent has an activated ability (issue #1339)", () => {
-        const maindeckIds = [mountain.id, plains.id, lightningBolt.id];
-        expect(selectCompanion([zirda.id], maindeckIds)?.id).toBe(zirda.id);
+        const maindeckIds = [mountain().id, plains().id, lightningBolt().id];
+        expect(selectCompanion([zirda().id], maindeckIds)?.id).toBe(zirda().id);
     });
 
     it("does not declare Zirda when a maindeck permanent has no activated ability", () => {
         // Savannah Lions is a vanilla creature — no activated ability.
-        const maindeckIds = [mountain.id, savannahLions.id];
-        expect(selectCompanion([zirda.id], maindeckIds)).toBeUndefined();
+        const maindeckIds = [mountain().id, savannahLions().id];
+        expect(selectCompanion([zirda().id], maindeckIds)).toBeUndefined();
     });
 
     it("ignores a sideboard card without the companion keyword", () => {
         expect(
-            selectCompanion([savannahLions.id], [mountain.id])
+            selectCompanion([savannahLions().id], [mountain().id])
         ).toBeUndefined();
     });
 
     it("returns undefined for an empty sideboard", () => {
-        expect(selectCompanion([], [mountain.id])).toBeUndefined();
+        expect(selectCompanion([], [mountain().id])).toBeUndefined();
     });
 
     it("skips an unregistered sideboard card id without throwing", () => {
         expect(
-            selectCompanion(["not-a-real-card-id"], [mountain.id])
+            selectCompanion(["not-a-real-card-id"], [mountain().id])
         ).toBeUndefined();
     });
 });
@@ -182,24 +189,24 @@ describe("companion.ts — canSummonCompanion (CR 116.2 / 702.139a)", () => {
     function stateWithCompanion(overrides: Partial<PlayerState> = {}) {
         const p1 = makePlayer("p1", {
             battlefield: [
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                     zone: "battlefield",
                 }),
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                     zone: "battlefield",
                 }),
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                     zone: "battlefield",
                 }),
             ],
             companion: {
-                instance: makeInstance(lutri.id, {
+                instance: makeInstance(lutri().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                 }),
@@ -223,7 +230,7 @@ describe("companion.ts — canSummonCompanion (CR 116.2 / 702.139a)", () => {
     it("is false once the companion has been used", () => {
         const state = stateWithCompanion({
             companion: {
-                instance: makeInstance(lutri.id, {
+                instance: makeInstance(lutri().id, {
                     controllerId: "p1",
                     ownerId: "p1",
                 }),
@@ -247,7 +254,7 @@ describe("companion.ts — canSummonCompanion (CR 116.2 / 702.139a)", () => {
 
     it("is false with a non-empty stack", () => {
         const state = stateWithCompanion();
-        pushSpell(state, lightningBolt.id, "p1");
+        pushSpell(state, lightningBolt().id, "p1");
         expect(canSummonCompanion(state, state.players[0])).toBe(false);
     });
 

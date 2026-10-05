@@ -22,7 +22,7 @@ describe("Bot reachability — the planner sees the same permission", () => {
     it("plans a {R} ability cost off a Forest, and only for the scoped source", () => {
         const { state, creature, artifact } = board();
         const player = getPlayer(state, "p1");
-        player.battlefield.push(makeInstance(forest.id, { id: "forest-1" }));
+        player.battlefield.push(makeInstance(forest().id, { id: "forest-1" }));
         const cost = normalizeManaCost({ R: 1 } as ManaCost);
 
         expect(
@@ -43,7 +43,7 @@ describe("Bot reachability — the planner sees the same permission", () => {
         // suite goes red on it.
         const { state } = board();
         const player = getPlayer(state, "p1");
-        player.battlefield.push(makeInstance(forest.id, { id: "forest-1" }));
+        player.battlefield.push(makeInstance(forest().id, { id: "forest-1" }));
 
         const abilityMoves = enumerateMoves(state, "p1").filter(
             (m) => m.kind === "activate-ability"

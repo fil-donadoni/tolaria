@@ -206,7 +206,7 @@ describe("findings-1969 — an Op field read at module evaluation (issue #1969)"
             const { figureOfFable } =
                 await import("../../cards/sets/ecl/multicolor.cards");
             const grants: unknown[] = [];
-            JSON.stringify(figureOfFable, (_k, v) => {
+            JSON.stringify(figureOfFable(), (_k, v) => {
                 if (v && typeof v === "object" && v.op === "grantAbility") {
                     grants.push(v);
                 }

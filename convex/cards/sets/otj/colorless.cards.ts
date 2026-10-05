@@ -3,8 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 import { wardAbility } from "../../abilities/ward";
 import { equipAbility } from "../../abilities/equipment";
 
@@ -44,7 +43,7 @@ import { equipAbility } from "../../abilities/equipment";
 // the equipped creature's effective `staticAbilities` carries the
 // board-visible keyword the Mechanics Registry's `ward` row documents,
 // exactly as a printed ward creature would.
-export const lavaspurBoots: CardDefinition = {
+export const lavaspurBoots = defineCard(() => ({
     id: "e50709de-e6ef-4dbc-af1e-290fed279f34",
     name: "Lavaspur Boots",
     rarity: "uncommon",
@@ -93,4 +92,4 @@ export const lavaspurBoots: CardDefinition = {
             oracleText: "Equip {1}",
         }),
     ],
-};
+}));

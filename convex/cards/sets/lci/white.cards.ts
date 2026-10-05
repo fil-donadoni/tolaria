@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 import { BAT_TOKEN } from "../../sharedTokens";
 
 // TODO(issue #676 stub — the Explore blocker is GONE: CR 701.44 shipped as
@@ -53,7 +53,7 @@ import { BAT_TOKEN } from "../../sharedTokens";
 // nor for token creation, so Guard C is satisfied by declaring the fragment
 // rather than by a round trip (PRD #2693).
 // compiler-gap: "When this creature enters or dies, create a 1/1 black Bat creature token with flying." (#2693)
-export const sanguineEvangelist: CardDefinition = {
+export const sanguineEvangelist = defineCard(() => ({
     id: "269ddd84-fdc4-4c94-b183-32ecec56967c",
     name: "Sanguine Evangelist",
     rarity: "uncommon",
@@ -87,4 +87,4 @@ export const sanguineEvangelist: CardDefinition = {
             ],
         },
     ],
-};
+}));

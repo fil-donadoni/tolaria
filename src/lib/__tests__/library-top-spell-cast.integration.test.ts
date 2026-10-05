@@ -114,7 +114,7 @@ function citadelBoard(libraryIds: string[], withCitadel = true, life = 20) {
                 life,
                 battlefield: withCitadel
                     ? [
-                          makeInstance(bolassCitadel.id, {
+                          makeInstance(bolassCitadel().id, {
                               controllerId: "p1",
                               ownerId: "p1",
                               id: "citadel",
@@ -137,10 +137,10 @@ function citadelBoard(libraryIds: string[], withCitadel = true, life = 20) {
 
 describe("cast-from-top-of-library end-to-end (CR 601.3, Bolas's Citadel)", () => {
     it("the controller's own top-of-library spell arrives face-up with a CASTABLE affordance", async () => {
-        const state = citadelBoard([grizzlyBears.id, forest.id]);
+        const state = citadelBoard([grizzlyBears().id, forest().id]);
         const top = await topSlotFor(state, "p1", "p1");
         expect(top.faceUp).toBe(true);
-        expect(top.cardId).toBe(grizzlyBears.id);
+        expect(top.cardId).toBe(grizzlyBears().id);
         expect(top.legalActions).toContain("cast");
         // CR 118.9-analog / 107.3b / 601.2b — the flag survives the QUERY and
         // the pile reducer, which is the only route by which `useHandCardCommit`
@@ -150,22 +150,22 @@ describe("cast-from-top-of-library end-to-end (CR 601.3, Bolas's Citadel)", () =
     });
 
     it("CR 401.5 — the OPPONENT sees a face-DOWN top card: the look is controller-only", async () => {
-        const state = citadelBoard([grizzlyBears.id, forest.id]);
+        const state = citadelBoard([grizzlyBears().id, forest().id]);
         const top = await topSlotFor(state, "p2", "p1");
         expect(top.faceUp).toBe(false);
-        expect(top.cardId).not.toBe(grizzlyBears.id);
+        expect(top.cardId).not.toBe(grizzlyBears().id);
         expect(top.legalActions).toBeUndefined();
     });
 
     it("no visibility and no affordance without a Citadel on the battlefield", async () => {
-        const state = citadelBoard([grizzlyBears.id, forest.id], false);
+        const state = citadelBoard([grizzlyBears().id, forest().id], false);
         const top = await topSlotFor(state, "p1", "p1");
         expect(top.faceUp).toBe(false);
         expect(top.legalActions).toBeUndefined();
     });
 
     it("CR 305.9 — a top LAND is face-up but carries 'play', never 'cast'", async () => {
-        const state = citadelBoard([forest.id, grizzlyBears.id]);
+        const state = citadelBoard([forest().id, grizzlyBears().id]);
         const top = await topSlotFor(state, "p1", "p1");
         expect(top.faceUp).toBe(true);
         expect(top.legalActions).toContain("play");
@@ -177,7 +177,7 @@ describe("cast-from-top-of-library end-to-end (CR 601.3, Bolas's Citadel)", () =
         // Still visible and still "castable in principle", just not right now:
         // the button must appear greyed rather than vanish, and that
         // distinction is carried entirely by present-but-empty vs. absent.
-        const state = citadelBoard([grizzlyBears.id, forest.id], true, 1);
+        const state = citadelBoard([grizzlyBears().id, forest().id], true, 1);
         const top = await topSlotFor(state, "p1", "p1");
         expect(top.faceUp).toBe(true);
         expect(top.legalActions).toEqual([]);

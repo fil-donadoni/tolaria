@@ -170,7 +170,7 @@ describe("entry-shape invariants are type errors", () => {
             affected: { kind: "predicate" },
             payload: {
                 kind: "template",
-                sourceCardId: crusade.id,
+                sourceCardId: crusade().id,
                 effectIndex: 0,
             },
             characteristicDefining: false,
@@ -209,7 +209,7 @@ describe("entry-shape invariants are type errors", () => {
 
 describe("registry timestamps share the CR 613.7 sequence", () => {
     it("a newly applied static source outranks every live registry entry", () => {
-        const source = makeInstance(crusade.id, {
+        const source = makeInstance(crusade().id, {
             id: "crusade-1",
             controllerId: "p1",
             ownerId: "p1",

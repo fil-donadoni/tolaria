@@ -31,7 +31,7 @@ describe("marked damage accumulates across noncombat events (CR 120.3e, 704.5g)"
     function boardWithAngel() {
         // Serra Angel: 4/4. One Bolt (3) leaves her alive at 3 marked; a
         // second accumulates to 6 >= 4 and the SBA destroys her.
-        const angel = makeInstance(serraAngel.id, {
+        const angel = makeInstance(serraAngel().id, {
             id: "angel",
             controllerId: "p2",
             ownerId: "p2",
@@ -44,7 +44,7 @@ describe("marked damage accumulates across noncombat events (CR 120.3e, 704.5g)"
         });
     }
     const bolt = (state: ReturnType<typeof boardWithAngel>) => {
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "angel" },
         ]);
         resolveTopOfStack(state);
@@ -68,7 +68,7 @@ describe("marked damage accumulates across noncombat events (CR 120.3e, 704.5g)"
         ).toBeUndefined();
         expect(
             state.players[1].graveyard.some(
-                (c) => (c.card as { id: string }).id === serraAngel.id
+                (c) => (c.card as { id: string }).id === serraAngel().id
             )
         ).toBe(true);
     });

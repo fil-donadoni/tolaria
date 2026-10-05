@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Tear Asunder — "Kicker {1}{B}. Exile target artifact or enchantment. If this
 // spell was kicked, exile target nonland permanent instead." (CR 702.33 Kicker,
@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // nonland permanent card types (Creature, Artifact, Enchantment, Planeswalker;
 // Battle unused in this cube era). Card colour is green ({1}{G}); the kicker's
 // {B} does not change the card's colour. Vintage Cube Kicker cluster (#692).
-export const tearAsunder: CardDefinition = {
+export const tearAsunder = defineCard(() => ({
     id: "629aa907-9533-4681-9bf2-9e56450a4cc2",
     rarity: "uncommon",
     name: "Tear Asunder",
@@ -40,4 +40,4 @@ export const tearAsunder: CardDefinition = {
         count: 1,
     },
     effects: [{ op: "exile", target: { target: 0 } }],
-};
+}));

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // TODO(issue #684 stub — Sage of the Skies' defining ability, "When you cast
 // this spell, if you've cast another spell this turn, copy this spell,"
@@ -79,7 +79,7 @@ import type { CardDefinition } from "../../types";
 // compiler-gap: "+1: Create a 1/1 white Soldier creature token." (#2693)
 // compiler-gap: "0: Put a +1/+1 counter on each creature you control. Those creatures gain flying until your next turn." (#2693)
 // compiler-gap: "-3: Destroy target creature an opponent controls with mana value 3 or greater." (#2693)
-export const elspethStormSlayer: CardDefinition = {
+export const elspethStormSlayer = defineCard(() => ({
     id: "73a065e3-b530-4e62-ab3c-4f6f908184ec",
     name: "Elspeth, Storm Slayer",
     rarity: "mythic",
@@ -183,4 +183,4 @@ export const elspethStormSlayer: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));

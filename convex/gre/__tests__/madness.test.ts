@@ -70,7 +70,7 @@ function discardAndFireMadnessTrigger(
 describe("Madness capability (CR 702.35)", () => {
     describe("discard replacement (CR 702.35c)", () => {
         it("exiles a discarded madness card instead of putting it into the graveyard, NOT yet castable", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -101,7 +101,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("puts a NON-madness card into the graveyard as normal (control)", () => {
-            const bear = makeInstance(grizzlyBears.id, {
+            const bear = makeInstance(grizzlyBears().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -124,7 +124,7 @@ describe("Madness capability (CR 702.35)", () => {
 
     describe("reflexive cast-trigger on the stack (CR 702.35a)", () => {
         it("puts a reflexive triggered ability on the stack, owner-controlled", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -153,7 +153,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("opens the owner's cast window when the reflexive trigger resolves", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -177,7 +177,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("pushes a blocking madness-cast pending choice on the owner when the trigger resolves", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -201,7 +201,7 @@ describe("Madness capability (CR 702.35)", () => {
     describe("cast for the madness cost (CR 702.35a)", () => {
         it("charges the madness cost, not the printed cost, on the exile cast", () => {
             // Anje's Ravager: printed {2}{R}, Madness {1}{R}.
-            const card = makeInstance(anjesRavager.id, {
+            const card = makeInstance(anjesRavager().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -226,7 +226,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("casts a Madness {0} creature from exile for free; the resolved permanent drops the madness marker", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -281,7 +281,7 @@ describe("Madness capability (CR 702.35)", () => {
 
     describe("decline → graveyard immediately (CR 702.35a)", () => {
         it("declineMadness bins the uncast card the instant the owner passes, not at cleanup", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -305,7 +305,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("declineMadness pops the head madness-cast choice as it bins the card", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -333,14 +333,14 @@ describe("Madness capability (CR 702.35)", () => {
         // the active player priority and keeps the game in CLEANUP; the card is
         // NOT binned in the same synchronous pass.
         it("keeps a Rootwalla discarded to hand size castable via its reflexive trigger, then bins it on decline", () => {
-            const rootwalla = makeInstance(baskingRootwalla.id, {
+            const rootwalla = makeInstance(baskingRootwalla().id, {
                 id: "walla",
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "hand",
             });
             const filler = Array.from({ length: 7 }, (_, i) =>
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: `f${i}`,
                     controllerId: "p1",
                     ownerId: "p1",
@@ -403,7 +403,7 @@ describe("Madness capability (CR 702.35)", () => {
 
     describe("serialization round-trip", () => {
         it("preserves the pending-trigger marker before the window opens", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -425,7 +425,7 @@ describe("Madness capability (CR 702.35)", () => {
         });
 
         it("preserves the open cast window (castableFromExileBy + madnessCastWindow)", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -450,7 +450,7 @@ describe("Madness capability (CR 702.35)", () => {
 
     describe("frontend wiring — projectPublicState (CR 702.35a)", () => {
         it("carries the cast affordance to the owner and hides it from the opponent while the window is open", () => {
-            const card = makeInstance(baskingRootwalla.id, {
+            const card = makeInstance(baskingRootwalla().id, {
                 zone: "hand",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -479,11 +479,11 @@ describe("Madness capability (CR 702.35)", () => {
 
     describe("card definitions", () => {
         it("Basking / Blazing Rootwalla carry Madness {0}", () => {
-            const b = makeInstance(baskingRootwalla.id, { zone: "hand" });
+            const b = makeInstance(baskingRootwalla().id, { zone: "hand" });
             expect(getMadnessCost(b)).toEqual({});
         });
         it("Anje's Ravager carries Madness {1}{R}", () => {
-            const a = makeInstance(anjesRavager.id, { zone: "hand" });
+            const a = makeInstance(anjesRavager().id, { zone: "hand" });
             expect(getMadnessCost(a)).toEqual({ X: 1, R: 1 });
         });
     });

@@ -50,12 +50,12 @@ function boltVsBearsState(): {
     boltId: string;
     bearsId: string;
 } {
-    const bolt = makeInstance(lightningBolt.id, {
+    const bolt = makeInstance(lightningBolt().id, {
         id: "bolt-1",
         controllerId: "p1",
         zone: "hand",
     });
-    const bears = makeInstance(grizzlyBears.id, {
+    const bears = makeInstance(grizzlyBears().id, {
         id: "bears-1",
         controllerId: "p2",
         zone: "battlefield",
@@ -95,14 +95,14 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
-                card: lightningBolt.name,
+                card: lightningBolt().name,
             })
         ).toBe(true);
         // kind + target.
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
-                target: grizzlyBears.name,
+                target: grizzlyBears().name,
             })
         ).toBe(true);
     });
@@ -118,14 +118,14 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
-                card: grizzlyBears.name,
+                card: grizzlyBears().name,
             })
         ).toBe(false);
         // `target` names an existing card that is not among the targets.
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
-                target: lightningBolt.name,
+                target: lightningBolt().name,
             })
         ).toBe(false);
     });
@@ -149,11 +149,11 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
     });
 
     it("`cards` demands every name, `accept` compares the yes/no payload", () => {
-        const bearA = makeInstance(grizzlyBears.id, {
+        const bearA = makeInstance(grizzlyBears().id, {
             id: "bear-a",
             controllerId: "p1",
         });
-        const boltOnBattlefield = makeInstance(lightningBolt.id, {
+        const boltOnBattlefield = makeInstance(lightningBolt().id, {
             id: "bolt-bf",
             controllerId: "p1",
             zone: "battlefield",
@@ -172,7 +172,7 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         expect(
             matchesMove(state, attack, {
                 kind: "declare-attackers",
-                cards: [grizzlyBears.name],
+                cards: [grizzlyBears().name],
             })
         ).toBe(true);
         // Bolt is on the battlefield (so the name resolves) but is not an
@@ -180,7 +180,7 @@ describe("matchesMove — partial-match semantics (issue #1427)", () => {
         expect(
             matchesMove(state, attack, {
                 kind: "declare-attackers",
-                cards: [grizzlyBears.name, lightningBolt.name],
+                cards: [grizzlyBears().name, lightningBolt().name],
             })
         ).toBe(false);
 
@@ -241,7 +241,7 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
         counterId: string;
         stackBoltId: string;
     } {
-        const counter = makeInstance(counterspell.id, {
+        const counter = makeInstance(counterspell().id, {
             id: "counter-1",
             controllerId: "p1",
             zone: "hand",
@@ -249,13 +249,13 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
         const state = makeState({
             players: [makePlayer("p1", { hand: [counter] }), makePlayer("p2")],
         });
-        const boltOnStack = pushSpell(state, lightningBolt.id, "p2");
+        const boltOnStack = pushSpell(state, lightningBolt().id, "p2");
         return { state, counterId: counter.id, stackBoltId: boltOnStack.id };
     }
 
     it("resolves a card name to its instance on the stack", () => {
         const { state, stackBoltId } = counterspellState();
-        expect([...instanceIdsForName(state, lightningBolt.name)]).toEqual([
+        expect([...instanceIdsForName(state, lightningBolt().name)]).toEqual([
             stackBoltId,
         ]);
     });
@@ -266,8 +266,8 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
         expect(
             matchesMove(state, move, {
                 kind: "cast-spell",
-                card: counterspell.name,
-                target: lightningBolt.name,
+                card: counterspell().name,
+                target: lightningBolt().name,
             })
         ).toBe(true);
     });
@@ -276,8 +276,8 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
         const { state, counterId, stackBoltId } = counterspellState();
         const move = castSpell(counterId, [{ type: "spell", id: stackBoltId }]);
         const described = describeChosenMove(state, move);
-        expect(described).toContain(`cards=[${counterspell.name}]`);
-        expect(described).toContain(`targets=[${lightningBolt.name}]`);
+        expect(described).toContain(`cards=[${counterspell().name}]`);
+        expect(described).toContain(`targets=[${lightningBolt().name}]`);
         expect(described).not.toContain(stackBoltId);
     });
 
@@ -294,7 +294,7 @@ describe("matchesMove — stack-resident names (finding 1, issue #1427)", () => 
 describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issue #1427)", () => {
     it("throws when a REAL card has zero instances in the built state", () => {
         const { state } = boltVsBearsState();
-        expect(() => instanceIdsForName(state, mountain.name)).toThrow(
+        expect(() => instanceIdsForName(state, mountain().name)).toThrow(
             /no instance of it exists/i
         );
     });
@@ -315,7 +315,7 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
         expect(() =>
             matchesMove(state, castSpell(boltId, []), {
                 kind: "play-land",
-                card: mountain.name,
+                card: mountain().name,
             })
         ).toThrow(/no instance of it exists/i);
         expect(() =>
@@ -324,7 +324,7 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
                 { kind: "play-land", cardInstanceId: boltId },
                 {
                     kind: "play-land",
-                    card: mountain.name,
+                    card: mountain().name,
                 }
             )
         ).toThrow(/no instance of it exists/i);
@@ -332,7 +332,7 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
         expect(() =>
             matchesMove(state, null, {
                 kind: "play-land",
-                card: mountain.name,
+                card: mountain().name,
             })
         ).toThrow(/no instance of it exists/i);
     });
@@ -343,7 +343,7 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
         expect(() =>
             matchesMove(state, move, {
                 kind: "cast-spell",
-                target: mountain.name,
+                target: mountain().name,
             })
         ).toThrow(/no instance of it exists/i);
     });
@@ -356,7 +356,7 @@ describe("instanceIdsForName — unresolvable names fail loudly (finding 2, issu
 // ────────────────────────────────────────────────────────────────────────
 
 const LAND_SPEC: BladeScenario["spec"] = {
-    cards: [{ name: forest.name, owner: "me", zone: "hand" }],
+    cards: [{ name: forest().name, owner: "me", zone: "hand" }],
     phase: "PRECOMBAT_MAIN",
     turn: 3,
     libraryCount: 20,
@@ -383,7 +383,7 @@ function landScenario(
 // way on purpose: it asserts the runner's bookkeeping and never doubles as a
 // (duplicated, fast-suite) bet on the bot's playing strength.
 const ANY_LEGAL: { kind: Move["kind"]; card?: string }[] = [
-    { kind: "play-land", card: forest.name },
+    { kind: "play-land", card: forest().name },
     { kind: "pass" },
 ];
 
@@ -478,7 +478,7 @@ describe("runBladeScenario — seeds (issue #1427)", () => {
         expect(() =>
             runBladeScenario(
                 landScenario({
-                    forbidden: [{ kind: "play-land", card: mountain.name }],
+                    forbidden: [{ kind: "play-land", card: mountain().name }],
                 })
             )
         ).toThrow(/no instance of it exists/i);

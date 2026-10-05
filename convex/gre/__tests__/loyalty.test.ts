@@ -30,7 +30,7 @@ import { projectPublicState } from "../../gameProjections";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { lilianaOfTheVeil } from "../../cards/sets/isd/black.cards";
 
-const LILIANA = lilianaOfTheVeil.id;
+const LILIANA = lilianaOfTheVeil().id;
 
 describe("starting loyalty on ETB (CR 306.5b)", () => {
     it("places loyalty counters equal to CardDefinition.loyalty as the planeswalker enters", () => {
@@ -67,7 +67,7 @@ describe("damage → loyalty (CR 120.3 / 704.5i)", () => {
 
     it("removes loyalty counters instead of marking damage (5 loyalty − 3 = 2)", () => {
         const { state } = withPlaneswalker(5);
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "pw" },
         ]);
         resolveTopOfStack(state);
@@ -80,7 +80,7 @@ describe("damage → loyalty (CR 120.3 / 704.5i)", () => {
 
     it("burn to lethal loyalty kills the planeswalker (3 loyalty − 3 → 0 → graveyard SBA)", () => {
         const { state } = withPlaneswalker(3);
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "pw" },
         ]);
         resolveTopOfStack(state);
@@ -95,7 +95,7 @@ describe("damage → loyalty (CR 120.3 / 704.5i)", () => {
 
     it("survives the wire projection: loyalty value is correct client-side after damage", () => {
         const { state } = withPlaneswalker(5);
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "pw" },
         ]);
         resolveTopOfStack(state);
@@ -231,7 +231,7 @@ describe("loyalty-ability activation gates (CR 606.3/606.5)", () => {
 
     it("blocks activation with a non-empty stack (not sorcery timing)", () => {
         const { state, pw } = stateWithPw();
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "player", id: "p2" },
         ]);
         expect(() =>
@@ -263,9 +263,9 @@ describe("loyalty-activation allowance (CR 606.3, issue #3339)", () => {
      *  spread of the frozen original, per `withTemporaryDefinition`'s contract. */
     function lilianaWithExtraActivations(extra: number) {
         return {
-            ...lilianaOfTheVeil,
+            ...lilianaOfTheVeil(),
             staticEffects: [
-                ...(lilianaOfTheVeil.staticEffects ?? []),
+                ...(lilianaOfTheVeil().staticEffects ?? []),
                 { kind: "loyalty-activation-allowance" as const, extra },
             ],
         };

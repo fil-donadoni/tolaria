@@ -117,23 +117,23 @@ function offeredAbilityIds(
 
 describe("Crew N affordability hint (CR 702.122a, via buildTriggerStateView)", () => {
     it("offers Crew 1 when an untapped creature with enough power is out", () => {
-        const copter = perm("copter", smugglersCopter);
-        const bear = perm("bear", grizzlyBears);
+        const copter = perm("copter", smugglersCopter());
+        const bear = perm("bear", grizzlyBears());
         expect(offeredAbilityIds(copter, [copter, bear])).toContain(
             "smugglers-copter-crew"
         );
     });
 
     it("hides Crew 1 on an empty board (no creature can pay)", () => {
-        const copter = perm("copter", smugglersCopter);
+        const copter = perm("copter", smugglersCopter());
         expect(offeredAbilityIds(copter, [copter])).not.toContain(
             "smugglers-copter-crew"
         );
     });
 
     it("hides Crew 1 when the only creature is already tapped", () => {
-        const copter = perm("copter", smugglersCopter);
-        const bear = perm("bear", grizzlyBears, { isTapped: true });
+        const copter = perm("copter", smugglersCopter());
+        const bear = perm("bear", grizzlyBears(), { isTapped: true });
         expect(offeredAbilityIds(copter, [copter, bear])).not.toContain(
             "smugglers-copter-crew"
         );
@@ -141,7 +141,7 @@ describe("Crew N affordability hint (CR 702.122a, via buildTriggerStateView)", (
 
     it("does NOT count the Vehicle itself as a crewing creature (CR 702.122a 'other')", () => {
         // A crewed Copter IS a creature; it still can't crew itself.
-        const copter = perm("copter", smugglersCopter, {
+        const copter = perm("copter", smugglersCopter(), {
             types: ["Artifact", "Creature"],
         });
         expect(offeredAbilityIds(copter, [copter])).not.toContain(
@@ -150,8 +150,8 @@ describe("Crew N affordability hint (CR 702.122a, via buildTriggerStateView)", (
     });
 
     it("does not count an opponent's creature (controllerRelation: 'you')", () => {
-        const copter = perm("copter", smugglersCopter);
-        const theirBear = perm("their-bear", grizzlyBears, {
+        const copter = perm("copter", smugglersCopter());
+        const theirBear = perm("their-bear", grizzlyBears(), {
             controllerId: "p2",
             ownerId: "p2",
         });
@@ -236,8 +236,8 @@ describe("the crew hint uses EFFECTIVE power (CR 613.4 layers)", () => {
     });
 
     it("a 2/2 shrunk to 0/0 by -1/-1 counters cannot pay Crew 1", () => {
-        const copter = perm("copter", smugglersCopter);
-        const shrunk = perm("shrunk", grizzlyBears, {
+        const copter = perm("copter", smugglersCopter());
+        const shrunk = perm("shrunk", grizzlyBears(), {
             counters: { "-1/-1": 2 },
         });
         // Base power is still 2 — weighing it would wrongly offer the ability.
@@ -249,13 +249,13 @@ describe("the crew hint uses EFFECTIVE power (CR 613.4 layers)", () => {
 
     it("an anthem (Crusade, layer 7d) lifts a 2/1 over the Crew 3 threshold", () => {
         const vehicle = perm("vehicle", crewThreeVehicle);
-        const lions = perm("lions", savannahLions);
+        const lions = perm("lions", savannahLions());
         // Alone the white 2/1 is one power short…
         expect(offeredAbilityIds(vehicle, [vehicle, lions])).not.toContain(
             CREW_3_ID
         );
         // …with Crusade on the board it is a 3/2 and pays exactly.
-        const anthem = perm("crusade", crusade);
+        const anthem = perm("crusade", crusade());
         expect(offeredAbilityIds(vehicle, [vehicle, lions, anthem])).toContain(
             CREW_3_ID
         );

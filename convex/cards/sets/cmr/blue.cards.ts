@@ -1,7 +1,7 @@
 // CMR — blue cards, split by colour per ADR 0043. The registry's
 // `import * as cmr from "./sets/cmr/index.cards"` re-exports this module.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { TREASURE_TOKEN } from "../../sharedTokens";
 
 // Hullbreacher — {2}{U} Creature — Merfolk Pirate 3/2 (issue #1265, PRD #779,
@@ -20,7 +20,7 @@ import { TREASURE_TOKEN } from "../../sharedTokens";
 //     "{T}, Sacrifice this artifact: Add one mana of any color" mana ability
 //     ships via the token-scoped `activatedAbilities` passthrough (issue #778,
 //     `TREASURE_TOKEN` in `cards/sharedTokens.ts`).
-export const hullbreacher: CardDefinition = {
+export const hullbreacher = defineCard(() => ({
     id: "4df8aabc-7fcb-4b7b-980b-18f499e6c170",
     name: "Hullbreacher",
     rarity: "rare",
@@ -45,4 +45,4 @@ export const hullbreacher: CardDefinition = {
             !event.isTurnBasedDrawStepDraw,
         outcome: { kind: "redirect-to-token", token: TREASURE_TOKEN, count: 1 },
     },
-};
+}));

@@ -61,9 +61,9 @@ function frame(overrides: Partial<GameState> = {}): GameState {
         players: [
             makePlayer("p1", {
                 hand: [
-                    handCard(rout.id, "rout1"),
-                    handCard(braingeyser.id, "sorcery1"),
-                    handCard(lightningBolt.id, "instant1"),
+                    handCard(rout().id, "rout1"),
+                    handCard(braingeyser().id, "sorcery1"),
+                    handCard(lightningBolt().id, "instant1"),
                 ],
             }),
             makePlayer("p2"),
@@ -85,10 +85,10 @@ const offWindow = () => frame({ activePlayerId: "p2", priorityPlayerId: "p1" });
 describe("the whole cycle declares the rider (CR 601.3c, issue #2146)", () => {
     it("every shipped Invasion card carrying the printed rider is announceable off-window and owes exactly {2}", () => {
         for (const def of [
-            rout,
-            ghituFire,
-            twilightsCall,
-            saprolingSymbiosis,
+            rout(),
+            ghituFire(),
+            twilightsCall(),
+            saprolingSymbiosis(),
         ]) {
             expect(def.oracleText).toContain("as though it had flash");
             // Not a definition snapshot: each card is driven through the real
@@ -130,7 +130,7 @@ describe("castTimingBaseLegal — legal to ANNOUNCE (CR 601.3c)", () => {
         // Teferi, Time Raveler under p2: "Each opponent can cast spells only
         // any time they could cast a sorcery."
         off.players[1].battlefield.push(
-            makeInstance(teferiTimeRaveler.id, {
+            makeInstance(teferiTimeRaveler().id, {
                 id: "teferi1",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -177,7 +177,7 @@ describe("flashSurchargeRequired — what is OWED (CR 601.3c)", () => {
     it("is not owed under a sorcery-speed lock — the surcharge cannot buy a window CR 101.2 has closed", () => {
         const off = offWindow();
         off.players[1].battlefield.push(
-            makeInstance(teferiTimeRaveler.id, {
+            makeInstance(teferiTimeRaveler().id, {
                 id: "teferi1",
                 controllerId: "p2",
                 ownerId: "p2",
@@ -192,33 +192,33 @@ describe("flashSurchargeRequired — what is OWED (CR 601.3c)", () => {
 describe("announceCast declaration guard (CR 601.3c)", () => {
     it("rejects a client claiming the surcharge on a card that declares none", () => {
         expect(() =>
-            assertFlashSurchargeDeclaration(braingeyser, true, false)
+            assertFlashSurchargeDeclaration(braingeyser(), true, false)
         ).toThrow();
         expect(() =>
-            assertFlashSurchargeDeclaration(braingeyser, false, false)
+            assertFlashSurchargeDeclaration(braingeyser(), false, false)
         ).toThrow();
     });
 
     it("rejects an explicit DECLINE of a surcharge this cast actually owes", () => {
         expect(() =>
-            assertFlashSurchargeDeclaration(rout, false, true)
+            assertFlashSurchargeDeclaration(rout(), false, true)
         ).toThrow();
     });
 
     it("accepts an acknowledgement, and accepts an OMITTED flag either way (a non-UI caller still pays)", () => {
         expect(() =>
-            assertFlashSurchargeDeclaration(rout, true, true)
+            assertFlashSurchargeDeclaration(rout(), true, true)
         ).not.toThrow();
         expect(() =>
-            assertFlashSurchargeDeclaration(rout, undefined, true)
+            assertFlashSurchargeDeclaration(rout(), undefined, true)
         ).not.toThrow();
         expect(() =>
-            assertFlashSurchargeDeclaration(rout, undefined, false)
+            assertFlashSurchargeDeclaration(rout(), undefined, false)
         ).not.toThrow();
         // Claiming it when nothing is owed is benign, not an error: the client
         // read a projection taken before it clicked. Nothing is charged.
         expect(() =>
-            assertFlashSurchargeDeclaration(rout, true, false)
+            assertFlashSurchargeDeclaration(rout(), true, false)
         ).not.toThrow();
     });
 });
@@ -228,7 +228,7 @@ function castFrame(mana: number, overrides: Partial<GameState> = {}) {
     return makeState({
         players: [
             makePlayer("p1", {
-                hand: [handCard(rout.id, "rout1")],
+                hand: [handCard(rout().id, "rout1")],
                 manaPool: { W: mana, U: 0, B: 0, R: 0, G: 0, C: 0 },
             }),
             makePlayer("p2"),
@@ -279,7 +279,7 @@ describe("cost fold (CR 601.3c / 601.2f)", () => {
         const state = makeState({
             players: [
                 makePlayer("p1", {
-                    hand: [handCard(ghituFire.id, "ghitu1")],
+                    hand: [handCard(ghituFire().id, "ghitu1")],
                     manaPool: { W: 0, U: 0, B: 0, R: 6, G: 0, C: 0 },
                 }),
                 makePlayer("p2"),
@@ -339,7 +339,7 @@ describe("CR 601.6a — a cast BEGUN under the permission finishes at the announ
         });
         const pt = noTargetPt();
         state.stack.push({
-            ...handCard(lightningBolt.id, "onstack"),
+            ...handCard(lightningBolt().id, "onstack"),
             zone: "stack",
             castById: "p2",
         } as (typeof state.stack)[number]);
@@ -358,7 +358,7 @@ describe("affordability gate (CR 601.2f) — the cast is offered only at the sur
     const withLands = (count: number, overrides: Partial<GameState>) => {
         const state = makeState({
             players: [
-                makePlayer("p1", { hand: [handCard(rout.id, "rout1")] }),
+                makePlayer("p1", { hand: [handCard(rout().id, "rout1")] }),
                 makePlayer("p2"),
             ],
             phase: "PRECOMBAT_MAIN",
@@ -366,7 +366,7 @@ describe("affordability gate (CR 601.2f) — the cast is offered only at the sur
         });
         for (let i = 0; i < count; i++) {
             state.players[0].battlefield.push(
-                makeInstance(plains.id, {
+                makeInstance(plains().id, {
                     id: `plains${i}`,
                     controllerId: "p1",
                     ownerId: "p1",

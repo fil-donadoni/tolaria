@@ -64,7 +64,7 @@ describe("Emrakul, the Aeons Torn — definition (CR 702.9 / 702.16a / 702.86)",
         // the raw module export must NOT show it — reading through
         // `getDefinition` must.
         const rawTriggerIds = (
-            rawEmrakulModuleExport.triggeredAbilities ?? []
+            rawEmrakulModuleExport().triggeredAbilities ?? []
         ).map((a) => a.id);
         expect(rawTriggerIds).not.toContain(annihilatorTriggerId(6));
 

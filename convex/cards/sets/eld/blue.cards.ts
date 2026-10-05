@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { PERMANENT_TYPES } from "../../../gre/constants";
 
@@ -37,7 +37,7 @@ import { PERMANENT_TYPES } from "../../../gre/constants";
 // that card this turn" card in this engine uses; `withoutPayingManaCost` is
 // deliberately OMITTED — Emry's reminder text is explicit that "You still pay
 // its costs. Timing rules still apply." The grant is revoked at CLEANUP.
-export const emryLurkerOfTheLoch: CardDefinition = {
+export const emryLurkerOfTheLoch = defineCard(() => ({
     id: "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
     rarity: "rare",
     name: "Emry, Lurker of the Loch",
@@ -86,7 +86,7 @@ export const emryLurkerOfTheLoch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Slice 1 of ADR 0120 — the INSET SPELL, and the first adventurer card
@@ -127,7 +127,7 @@ export const emryLurkerOfTheLoch: CardDefinition = {
 // on its own diff, the same split ADR 0120 §6 made for Bonecrusher Giant. That
 // work is issue #3315; this marker retires with it.
 // compiler-gap: "This creature can block only creatures with flying." (#3315)
-export const brazenBorrower: CardDefinition = {
+export const brazenBorrower = defineCard(() => ({
     id: "c2089ec9-0665-448f-bfe9-d181de127814",
     rarity: "mythic",
     name: "Brazen Borrower",
@@ -180,4 +180,4 @@ export const brazenBorrower: CardDefinition = {
         // CR 400.7 — the Boomerang script, verbatim.
         effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
     },
-};
+}));

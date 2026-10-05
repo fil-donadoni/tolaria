@@ -22,7 +22,7 @@ import type { ScenarioSpec } from "../../debugScenarioSpec";
 const ABILITY = "gaeas-touch-forest";
 
 const BOARD: ScenarioSpec = {
-    cards: [{ name: gaeasTouch.name, owner: "me" }],
+    cards: [{ name: gaeasTouch().name, owner: "me" }],
 };
 
 function activatedAbilityIds(state: GameState): string[] {

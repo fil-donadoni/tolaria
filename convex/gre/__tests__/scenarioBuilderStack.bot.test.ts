@@ -101,10 +101,10 @@ function roundTrip(
  *  every shape below. */
 const BOARD: ScenarioSpec = {
     cards: [
-        { name: lightningBolt.name, owner: "opp", zone: "hand" },
+        { name: lightningBolt().name, owner: "opp", zone: "hand" },
         { name: "Mountain", owner: "opp", count: 3 },
         { name: prodigalSorcerer.name, owner: "me" },
-        { name: grizzlyBears.name, owner: "me" },
+        { name: grizzlyBears().name, owner: "me" },
     ],
     phase: "PRECOMBAT_MAIN",
     turn: 5,
@@ -123,9 +123,9 @@ describe("a cast spell in flight round-trips (issue #3513)", () => {
             [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
             ],
             0
@@ -138,10 +138,14 @@ describe("a cast spell in flight round-trips (issue #3513)", () => {
         expect(lowered.stack).toEqual([
             {
                 kind: "spell",
-                name: lightningBolt.name,
+                name: lightningBolt().name,
                 controller: "opp",
                 targets: [
-                    { kind: "permanent", name: grizzlyBears.name, seat: "me" },
+                    {
+                        kind: "permanent",
+                        name: grizzlyBears().name,
+                        seat: "me",
+                    },
                 ],
             },
         ]);
@@ -166,15 +170,15 @@ describe("a cast spell in flight round-trips (issue #3513)", () => {
             [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
             ],
             0
         );
         expect(lowered.stack).toHaveLength(1);
-        expect(lowered.cards.some((c) => c.name === lightningBolt.name)).toBe(
+        expect(lowered.cards.some((c) => c.name === lightningBolt().name)).toBe(
             false
         );
 
@@ -182,7 +186,7 @@ describe("a cast spell in flight round-trips (issue #3513)", () => {
             ...lowered,
             cards: [
                 ...lowered.cards,
-                { name: lightningBolt.name, owner: "opp", zone: "hand" },
+                { name: lightningBolt().name, owner: "opp", zone: "hand" },
             ],
         };
         const rebuilt = buildStateFromScenario(
@@ -207,9 +211,9 @@ describe("an activated ability answered by a spell round-trips (issue #3513)", (
         },
         {
             kind: "cast",
-            card: lightningBolt.name,
+            card: lightningBolt().name,
             by: "opp",
-            target: grizzlyBears.name,
+            target: grizzlyBears().name,
         },
     ];
 
@@ -264,7 +268,7 @@ describe("a spell targeting another object on the stack (issue #3513)", () => {
             ...OPP_TURN,
             cards: [
                 ...OPP_TURN.cards,
-                { name: counterspell.name, owner: "me", zone: "hand" },
+                { name: counterspell().name, owner: "me", zone: "hand" },
                 { name: "Island", owner: "me", count: 2 },
             ],
         };
@@ -273,15 +277,15 @@ describe("a spell targeting another object on the stack (issue #3513)", () => {
             [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
                 {
                     kind: "cast",
-                    card: counterspell.name,
+                    card: counterspell().name,
                     by: "me",
-                    target: lightningBolt.name,
+                    target: lightningBolt().name,
                 },
             ],
             0
@@ -293,7 +297,7 @@ describe("a spell targeting another object on the stack (issue #3513)", () => {
         ).toEqual([]);
         expect(lowered.stack?.[1]).toMatchObject({
             kind: "spell",
-            name: counterspell.name,
+            name: counterspell().name,
             controller: "me",
             targets: [{ kind: "stack", index: 0 }],
         });
@@ -318,11 +322,11 @@ describe("duplicate-name targets resolve to the SAME instance (issue #3513)", ()
         const spec: ScenarioSpec = {
             ...BOARD,
             cards: [
-                { name: lightningBolt.name, owner: "opp", zone: "hand" },
+                { name: lightningBolt().name, owner: "opp", zone: "hand" },
                 { name: "Mountain", owner: "opp", count: 3 },
                 { name: prodigalSorcerer.name, owner: "me" },
-                { name: grizzlyBears.name, owner: "me" },
-                { name: grizzlyBears.name, owner: "me", damageMarked: 1 },
+                { name: grizzlyBears().name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me", damageMarked: 1 },
             ],
         };
         const live = buildBladeState({
@@ -345,7 +349,7 @@ describe("duplicate-name targets resolve to the SAME instance (issue #3513)", ()
         // own selection shape, then lower: the question is whether the spec
         // can say WHICH one.
         const bears = live.players[0].battlefield.filter(
-            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+            (c) => (c.card as { id?: string }).id === grizzlyBears().id
         );
         expect(bears).toHaveLength(2);
         live.stack[0].targets = [{ type: "permanent", id: bears[1].id }];
@@ -354,12 +358,17 @@ describe("duplicate-name targets resolve to the SAME instance (issue #3513)", ()
             mySeatId: live.players[0].id,
         });
         expect(lowered.stack?.[0].targets).toEqual([
-            { kind: "permanent", name: grizzlyBears.name, seat: "me", nth: 1 },
+            {
+                kind: "permanent",
+                name: grizzlyBears().name,
+                seat: "me",
+                nth: 1,
+            },
         ]);
 
         const rebuilt = buildStateFromScenario(buildBladeBaseState(), lowered);
         const rebuiltBears = rebuilt.players[0].battlefield.filter(
-            (c) => (c.card as { id?: string }).id === grizzlyBears.id
+            (c) => (c.card as { id?: string }).id === grizzlyBears().id
         );
         expect(rebuilt.stack[0].targets?.[0].id).toBe(rebuiltBears[1].id);
         // And it is the DAMAGED one, which is the whole point.
@@ -375,9 +384,9 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
             setup: [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
             ],
             bot: "me",
@@ -395,7 +404,9 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
         expect(lowered.stack).toBeUndefined();
         const notes = dropped.filter((d) => d.startsWith(STACK_DROPPED_PREFIX));
         expect(notes).toHaveLength(1);
-        expect(notes[0]).toContain(`index 0 (opp ${lightningBolt.name} spell)`);
+        expect(notes[0]).toContain(
+            `index 0 (opp ${lightningBolt().name} spell)`
+        );
         expect(notes[0]).toContain('"isCopy"');
     });
 
@@ -411,9 +422,9 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
             setup: [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
             ],
             bot: "me",
@@ -442,7 +453,7 @@ describe("a stack the spec cannot carry is REFUSED whole (issue #3513)", () => {
         expect(fields).not.toContain('"triggerEvent"');
         expect(fields).not.toContain('"triggeredAbilityId"');
         expect(blockers).toContainEqual({
-            item: `opp ${lightningBolt.name} trigger:some-trigger`,
+            item: `opp ${lightningBolt().name} trigger:some-trigger`,
             field: "trigger-source-not-on-battlefield",
         });
     });
@@ -461,9 +472,9 @@ describe("a CAPTURED stack reloads into a live game (issue #3515)", () => {
             [
                 {
                     kind: "cast",
-                    card: lightningBolt.name,
+                    card: lightningBolt().name,
                     by: "opp",
-                    target: grizzlyBears.name,
+                    target: grizzlyBears().name,
                 },
             ],
             0
@@ -484,7 +495,7 @@ describe("the builder refuses an incoherent declared stack (issue #3513)", () =>
                 stack: [
                     {
                         kind: "spell",
-                        name: counterspell.name,
+                        name: counterspell().name,
                         controller: "me",
                         targets: [{ kind: "stack", index: 0 }],
                     },
@@ -515,12 +526,12 @@ describe("the builder refuses an incoherent declared stack (issue #3513)", () =>
                 stack: [
                     {
                         kind: "spell",
-                        name: lightningBolt.name,
+                        name: lightningBolt().name,
                         controller: "opp",
                         targets: [
                             {
                                 kind: "permanent",
-                                name: grizzlyBears.name,
+                                name: grizzlyBears().name,
                                 seat: "me",
                                 nth: 3,
                             },
@@ -550,7 +561,7 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             stack: [
                 {
                     kind: "spell",
-                    name: gristTheHungerTide.name,
+                    name: gristTheHungerTide().name,
                     controller: "opp",
                 },
             ],
@@ -591,18 +602,18 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             ...BOARD,
             cards: [
                 ...BOARD.cards,
-                { name: lightningBolt.name, owner: "opp", zone: "graveyard" },
+                { name: lightningBolt().name, owner: "opp", zone: "graveyard" },
             ],
             stack: [
                 {
                     kind: "spell",
-                    name: counterspell.name,
+                    name: counterspell().name,
                     controller: "me",
                     x: 3,
                     targets: [
                         {
                             kind: "graveyard-card",
-                            name: lightningBolt.name,
+                            name: lightningBolt().name,
                             seat: "opp",
                         },
                     ],
@@ -636,19 +647,19 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
         const rebuilt = buildStateFromScenario(buildBladeBaseState(), {
             ...BOARD,
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me" },
                 { name: prodigalSorcerer.name, owner: "me" },
-                { name: grizzlyBears.name, owner: "me", damageMarked: 1 },
+                { name: grizzlyBears().name, owner: "me", damageMarked: 1 },
             ],
             stack: [
                 {
                     kind: "spell",
-                    name: lightningBolt.name,
+                    name: lightningBolt().name,
                     controller: "opp",
                     targets: [
                         {
                             kind: "permanent",
-                            name: grizzlyBears.name,
+                            name: grizzlyBears().name,
                             seat: "me",
                             nth: 1,
                         },
@@ -666,7 +677,12 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             mySeatId: rebuilt.players[0].id,
         });
         expect(lowered.stack?.[0].targets).toEqual([
-            { kind: "permanent", name: grizzlyBears.name, seat: "me", nth: 1 },
+            {
+                kind: "permanent",
+                name: grizzlyBears().name,
+                seat: "me",
+                nth: 1,
+            },
         ]);
     });
 
@@ -679,19 +695,19 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             stack: [
                 {
                     kind: "spell",
-                    name: lightningBolt.name,
+                    name: lightningBolt().name,
                     controller: "opp",
                     targets: [
                         {
                             kind: "permanent",
-                            name: grizzlyBears.name,
+                            name: grizzlyBears().name,
                             seat: "me",
                         },
                     ],
                 },
                 {
                     kind: "spell",
-                    name: counterspell.name,
+                    name: counterspell().name,
                     controller: "me",
                     targets: [{ kind: "stack", index: 0 }],
                 },
@@ -720,7 +736,7 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             cards: [
                 ...BOARD.cards,
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "opp",
                     faceDown: true,
                 },
@@ -728,12 +744,12 @@ describe("the vocabulary's remaining shapes (issue #3513 review)", () => {
             stack: [
                 {
                     kind: "spell",
-                    name: lightningBolt.name,
+                    name: lightningBolt().name,
                     controller: "opp",
                     targets: [
                         {
                             kind: "permanent",
-                            name: grizzlyBears.name,
+                            name: grizzlyBears().name,
                             seat: "me",
                         },
                     ],

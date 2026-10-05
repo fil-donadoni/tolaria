@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
@@ -27,7 +27,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //     nothing in either names this card.
 //
 // hand-tail: "Then target opponent may have you draw a card. If that player doesn't, you mill X cards, where X is the number of influence counters on Palantír of Orthanc, and that player loses life equal to the total mana value of those cards." (#4195)
-export const palantirOfOrthanc: CardDefinition = {
+export const palantirOfOrthanc = defineCard(() => ({
     id: "6efb6a69-562c-4d95-858d-b067444cfd7e",
     name: "Palantír of Orthanc",
     rarity: "mythic",
@@ -148,7 +148,7 @@ export const palantirOfOrthanc: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // The One Ring (issue #674). Every clause is declarative: the keyword rides
 // `staticAbilities`, and all three abilities are Effect Scripts (ADR 0045) —
@@ -163,7 +163,7 @@ export const palantirOfOrthanc: CardDefinition = {
 // the accepted set can't diverge) and by `applyPlayerDamagePrevention` (the
 // one chokepoint every player-damage sink routes through). The Op
 // `setProtectionFromEverything` is its declarative skin.
-export const theOneRing: CardDefinition = {
+export const theOneRing = defineCard(() => ({
     // The BASE LTR printing (collector #246, black border, no `boosterfun`).
     // The stub's id was the serialized 1-of-1 (collector #0, `serialized` +
     // borderless) — a promo treatment, not the card's first/normal print, so it
@@ -257,4 +257,4 @@ export const theOneRing: CardDefinition = {
             ],
         },
     ],
-};
+}));

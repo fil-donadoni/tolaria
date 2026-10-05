@@ -13,7 +13,7 @@ import type { GameState, PendingTarget } from "../state";
 
 describe("Cast-commit count (real finalizeTargetSelection path)", () => {
     it("a targeted spell increments spellsCastThisTurn by exactly 1", () => {
-        const boltInHand = makeInstance(lightningBolt.id, {
+        const boltInHand = makeInstance(lightningBolt().id, {
             id: "bolt-1",
             controllerId: "p1",
             ownerId: "p1",

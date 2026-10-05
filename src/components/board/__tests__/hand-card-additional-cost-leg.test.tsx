@@ -89,7 +89,7 @@ function projectedBoard(
     opts: { life: number; spares: number } = { life: 20, spares: 1 }
 ): { card: CardInstance; players: Player[] } {
     const spares = Array.from({ length: opts.spares }, (_, i) =>
-        makeInstance(lightningBolt.id, {
+        makeInstance(lightningBolt().id, {
             id: `spare${i}`,
             controllerId: "me",
             ownerId: "me",
@@ -113,7 +113,7 @@ function projectedBoard(
             }),
             makePlayer("them", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bears",
                         controllerId: "them",
                         ownerId: "them",
@@ -183,12 +183,11 @@ describe("cast-click additional-cost leg picker (CR 601.2b, #2379)", () => {
         // The premise the gate reads — from the real definition, so the test
         // goes red if the card stops declaring the clause, not only if the
         // gate is removed.
-        expect(bitterTriumph.additionalCosts?.oneOf?.map((l) => l.id)).toEqual([
-            "discard",
-            "pay-3-life",
-        ]);
+        expect(
+            bitterTriumph().additionalCosts?.oneOf?.map((l) => l.id)
+        ).toEqual(["discard", "pay-3-life"]);
 
-        const { card, players } = projectedBoard(bitterTriumph.id, "bt1");
+        const { card, players } = projectedBoard(bitterTriumph().id, "bt1");
         expect(card.legalActions).toContain("cast");
 
         renderCard(card, players);
@@ -214,7 +213,7 @@ describe("cast-click additional-cost leg picker (CR 601.2b, #2379)", () => {
         // CR 601.2a — the spell can't discard itself to pay its own cost, so a
         // hand holding nothing else leaves the discard leg unpayable. Offering
         // it would throw "Can't pay that additional cost" on click.
-        const { card, players } = projectedBoard(bitterTriumph.id, "bt2", {
+        const { card, players } = projectedBoard(bitterTriumph().id, "bt2", {
             life: 20,
             spares: 0,
         });
@@ -234,7 +233,7 @@ describe("cast-click additional-cost leg picker (CR 601.2b, #2379)", () => {
     });
 
     it("Bitter Triumph, empty hand AND 2 life: not castable at all (CR 601.2h)", () => {
-        const { card } = projectedBoard(bitterTriumph.id, "bt3", {
+        const { card } = projectedBoard(bitterTriumph().id, "bt3", {
             life: 2,
             spares: 0,
         });
@@ -242,7 +241,7 @@ describe("cast-click additional-cost leg picker (CR 601.2b, #2379)", () => {
     });
 
     it("Lightning Bolt (the must-NOT row): no picker, no stray leg argument", () => {
-        const { card, players } = projectedBoard(lightningBolt.id, "bolt1");
+        const { card, players } = projectedBoard(lightningBolt().id, "bolt1");
         expect(card.legalActions).toContain("cast");
 
         renderCard(card, players);

@@ -1,7 +1,7 @@
 // bro — multicolor cards (ADR 0043 colour split). The registry's
 // `import * as bro from "./sets/bro/index.cards"` re-exports this module.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition, GameEvent, PermanentView } from "../../types";
+import { defineCard, type GameEvent, type PermanentView } from "../../types";
 
 // Third Path Iconoclast — {U}{R} Creature — Human Monk 2/1 (Vintage Cube token
 // maker, issue #678). "Whenever you cast a noncreature spell, create a 1/1
@@ -12,7 +12,7 @@ import type { CardDefinition, GameEvent, PermanentView } from "../../types";
 // authored DSL-first as `effects` (ADR 0045), not a `resolve()` closure.
 const THIRD_PATH_ICONOCLAST_ID = "f1a21287-e244-4960-84fb-c4f6e5c346d9";
 
-export const thirdPathIconoclast: CardDefinition = {
+export const thirdPathIconoclast = defineCard(() => ({
     id: THIRD_PATH_ICONOCLAST_ID,
     name: "Third Path Iconoclast",
     rarity: "uncommon",
@@ -50,4 +50,4 @@ export const thirdPathIconoclast: CardDefinition = {
             ],
         },
     ],
-};
+}));

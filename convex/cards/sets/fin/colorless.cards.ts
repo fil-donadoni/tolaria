@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Starting Town — "This land enters tapped unless it's your first, second,
 // or third turn of the game.\n{T}: Add {C}.\n{T}, Pay 1 life: Add one mana of
@@ -22,7 +22,7 @@ import type { CardDefinition } from "../../types";
 // simply two separate `activatedAbilities` entries, each carrying its own
 // cost. `entersTappedUnless` reads `LandEntryStateView.activePlayerId` +
 // each player's `turnsTaken` directly — see the field-level fix below.
-export const startingTown: CardDefinition = {
+export const startingTown = defineCard(() => ({
     id: "fc7d1912-7e27-49ef-bd98-375d975a42b0",
     name: "Starting Town",
     rarity: "rare",
@@ -80,4 +80,4 @@ export const startingTown: CardDefinition = {
             manaChoices: [{ W: 1 }, { U: 1 }, { B: 1 }, { R: 1 }, { G: 1 }],
         },
     ],
-};
+}));

@@ -2,9 +2,9 @@
 // `import * as tmt from "./sets/tmt/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    CardDefinition,
-    TriggeredAbility,
+import {
+    defineCard,
+    type TriggeredAbility,
 } from "../../../../convex/cards/types";
 
 // Super Shredder — {1}{B} Legendary Creature — Mutant Ninja Human, 1/1
@@ -34,7 +34,7 @@ function superShredderCounterTrigger(): TriggeredAbility {
     };
 }
 
-export const superShredder: CardDefinition = {
+export const superShredder = defineCard(() => ({
     id: "37a497b8-e908-4ddc-996e-a8470df72afb",
     name: "Super Shredder",
     rarity: "mythic",
@@ -48,4 +48,4 @@ export const superShredder: CardDefinition = {
     toughness: 1,
     staticAbilities: ["menace"],
     triggeredAbilities: [superShredderCounterTrigger()],
-};
+}));

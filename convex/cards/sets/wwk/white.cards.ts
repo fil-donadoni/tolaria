@@ -2,7 +2,7 @@
 // `import * as wwk from "./sets/wwk/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Stoneforge Mystic — {1}{W} Creature. "When this creature enters, you may
@@ -18,7 +18,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // it" clause is a `reveal` Op on the picked card (issue #945, CR 701.20): it
 // makes the found Equipment known to every player, placed BEFORE the
 // moveZone/shuffle so the knowledge rides the card into hand.
-export const stoneforgeMystic: CardDefinition = {
+export const stoneforgeMystic = defineCard(() => ({
     id: "19557351-b65f-4b04-b971-66abdc07000a",
     rarity: "rare",
     name: "Stoneforge Mystic",
@@ -90,4 +90,4 @@ export const stoneforgeMystic: CardDefinition = {
             ],
         },
     ],
-};
+}));

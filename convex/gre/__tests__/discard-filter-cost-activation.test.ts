@@ -118,7 +118,7 @@ function scenario(overrides: {
     library?: CardInstanceState[];
     manaPool?: Record<string, number>;
 }): GameState {
-    const survival = makeInstance(survivalOfTheFittest.id, {
+    const survival = makeInstance(survivalOfTheFittest().id, {
         id: "survival-1",
         controllerId: "p1",
         ownerId: "p1",
@@ -149,7 +149,7 @@ function scenario(overrides: {
 
 describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", () => {
     it("rejects activation when no matching creature card is in hand", () => {
-        const wood = makeInstance(forest.id, {
+        const wood = makeInstance(forest().id, {
             id: "forest-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -162,7 +162,7 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
     });
 
     it("enters pendingActivation with a discardFilterChoice picker and blocks commit until picked", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -183,13 +183,13 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
     });
 
     it("rejects a pick that doesn't match the filter (a land isn't a creature card)", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const wood = makeInstance(forest.id, {
+        const wood = makeInstance(forest().id, {
             id: "forest-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -203,19 +203,19 @@ describe("discard-a-card-matching-<filter> activation cost (CR 602.1 / 118.3)", 
     });
 
     it("discards the chosen creature card and finds a creature card in the library, revealed into hand, CR 701.23 search / 701.20 reveal", () => {
-        const bears = makeInstance(grizzlyBears.id, {
+        const bears = makeInstance(grizzlyBears().id, {
             id: "bears-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const libBears = makeInstance(grizzlyBears.id, {
+        const libBears = makeInstance(grizzlyBears().id, {
             id: "lib-bears-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "library",
         });
-        const libForest = makeInstance(forest.id, {
+        const libForest = makeInstance(forest().id, {
             id: "lib-forest-1",
             controllerId: "p1",
             ownerId: "p1",

@@ -51,13 +51,13 @@
 // today). Each remaining stub is a stop-and-issue case — not an invented Op,
 // not a `resolve()` paper-over.
 import type {
-    CardDefinition,
     Color,
     ManaCost,
     PermanentView,
     StaticEffectContext,
 } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     BASIC_LAND_SUBTYPES,
     countDomain,
@@ -114,7 +114,7 @@ function effectiveColors(perm: PermanentView): Color[] {
 // choice on the top card (projected face-up as `libraryPeek`), then on submit
 // keeps it on top or sends it to the true bottom of the library. Then the draw
 // (CR 121.1). scry resolves first, then draw.
-export const opt: CardDefinition = {
+export const opt = defineCard(() => ({
     id: "958262ec-8e52-40cf-a9fd-a60e42643e15",
     name: "Opt",
     rarity: "common",
@@ -132,7 +132,7 @@ export const opt: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Empress Galina — {3}{U}{U} Legendary Creature — Merfolk Noble, 1/3.
 // "{U}{U}, {T}: Gain control of target legendary permanent. (This effect
@@ -140,7 +140,7 @@ export const opt: CardDefinition = {
 // condition.) The `gainControl` Op with `duration` omitted is exactly the
 // indefinite reassignment (issue #848); `supertypeFilter: ["Legendary"]`
 // restricts the target set (CR 205.4a).
-export const empressGalina: CardDefinition = {
+export const empressGalina = defineCard(() => ({
     id: "6851dbc7-f072-41e7-a899-897445d99425",
     name: "Empress Galina",
     rarity: "rare",
@@ -173,12 +173,12 @@ export const empressGalina: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Exclude — {2}{U} Instant. "Counter target creature spell. Draw a card."
 // (CR 701.6a + CR 121.1, the shipped creature-counter template — leg/blue.ts
 // Dissipate-style precedent.)
-export const exclude: CardDefinition = {
+export const exclude = defineCard(() => ({
     id: "aeb359c8-209c-455f-84b2-970e5678a9fa",
     name: "Exclude",
     rarity: "common",
@@ -190,7 +190,7 @@ export const exclude: CardDefinition = {
         { op: "counter", target: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Manipulate Fate — {1}{U} Sorcery. "Search your library for three cards,
 // exile them, then shuffle. Draw a card." (CR 701.23 search + CR 701.13 exile
@@ -198,7 +198,7 @@ export const exclude: CardDefinition = {
 // search→exile/hand→shuffle tutor template (bbd/blue.cards.ts Spellseeker): a plain
 // `choice(kind:"search-library")` with no filter (any three cards) feeds
 // `moveZone`'s cards-form into exile, then `libraryLook` shuffles.
-export const manipulateFate: CardDefinition = {
+export const manipulateFate = defineCard(() => ({
     id: "5bb52acb-dedb-4ed6-a6da-8c036f2b2958",
     name: "Manipulate Fate",
     rarity: "uncommon",
@@ -226,7 +226,7 @@ export const manipulateFate: CardDefinition = {
         { op: "libraryLook", action: "shuffle", player: "controller" },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Prohibit — {1}{U} Instant. Kicker {2}. "Counter target spell if its mana
 // value is 2 or less. If this spell was kicked, counter that spell if its
@@ -235,7 +235,7 @@ export const manipulateFate: CardDefinition = {
 // the kicked/unkicked split is expressed via `kickedTargetRequirement`
 // (announcement swaps in the wider mv ceiling), not a runtime `if`: no
 // runtime branch needed, `effects` is a plain counter.
-export const prohibit: CardDefinition = {
+export const prohibit = defineCard(() => ({
     id: "0daa5458-2a97-40d0-b18d-2381a7a68ee1",
     name: "Prohibit",
     rarity: "common",
@@ -257,12 +257,12 @@ export const prohibit: CardDefinition = {
         mvFilter: { max: 4 },
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Repulse — {2}{U} Instant. "Return target creature to its owner's hand.
 // Draw a card." (CR 400.7 zone move + CR 121.1 draw — the shipped
 // bounce-and-draw template.)
-export const repulse: CardDefinition = {
+export const repulse = defineCard(() => ({
     id: "9a04e9be-48be-440e-9825-cfffd4c2b1a4",
     name: "Repulse",
     rarity: "common",
@@ -274,13 +274,13 @@ export const repulse: CardDefinition = {
         { op: "moveZone", target: { target: 0 }, to: "hand" },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Sapphire Leech — {1}{U} Creature — Leech, 2/2. "Flying. Blue spells you
 // cast cost {U} more to cast." (CR 702.9 flying + CR 601.2f cost increase.)
 // `cost-modifier` static, the exact Derelor template (fem/black.cards.ts: "Black
 // spells you cast cost {B} more to cast") with the colour swapped to blue.
-export const sapphireLeech: CardDefinition = {
+export const sapphireLeech = defineCard(() => ({
     id: "e6763ffd-9d89-4f26-871a-be24fbdef38d",
     name: "Sapphire Leech",
     rarity: "rare",
@@ -301,12 +301,12 @@ export const sapphireLeech: CardDefinition = {
             costIncrease: { U: 1 },
         },
     ],
-};
+}));
 
 // Sky Weaver — {1}{U} Creature — Metathran Wizard, 2/1. "{2}: Target white or
 // black creature gains flying until end of turn." (CR 611.2a/613.1f layer-6
 // duration grant + CR 202.2 OR colour filter — `colorFilterAny`.)
-export const skyWeaver: CardDefinition = {
+export const skyWeaver = defineCard(() => ({
     id: "04974146-42a8-4f10-b443-67bfeaa54d5d",
     name: "Sky Weaver",
     rarity: "uncommon",
@@ -339,13 +339,13 @@ export const skyWeaver: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Vodalian Merchant — {1}{U} Creature — Merfolk, 1/2. "When this creature
 // enters, draw a card, then discard a card." (CR 603.6a ETB + CR 121.1 draw +
 // CR 701.9 discard — the shipped looter template, atq/colorless.ts Jalum
 // Tome: draw, then a `choose-hand-card` pick, then discard the pick.)
-export const vodalianMerchant: CardDefinition = {
+export const vodalianMerchant = defineCard(() => ({
     id: "c1c0effa-a4b8-4166-a66a-90cf01c6ea0d",
     name: "Vodalian Merchant",
     rarity: "common",
@@ -380,7 +380,7 @@ export const vodalianMerchant: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Vodalian Serpent — {3}{U} Creature — Serpent, 2/2. Kicker {2}. "This
 // creature can't attack unless defending player controls an Island. If this
@@ -395,7 +395,7 @@ export const vodalianMerchant: CardDefinition = {
 // field. Previously an `enteredTrigger` carrying an `if(kickerCount>=1)`
 // `counters` Op, which put the placement on the stack and let both players
 // see (and respond to) a 2/2 Serpent that should already have been a 6/6.
-export const vodalianSerpent: CardDefinition = {
+export const vodalianSerpent = defineCard(() => ({
     id: "92adcf6c-ab14-414c-a5cb-56feae048c84",
     name: "Vodalian Serpent",
     rarity: "common",
@@ -431,7 +431,7 @@ export const vodalianSerpent: CardDefinition = {
                 "Vodalian Serpent can't attack unless defending player controls an Island.",
         },
     ],
-};
+}));
 
 // Wash Out — {3}{U} Sorcery. "Return all permanents of the color of your
 // choice to their owners' hands." (CR 700.2 modal colour pick + CR 400.7 mass
@@ -447,7 +447,7 @@ const WASH_OUT_COLOR_NAMES: Record<(typeof WASH_OUT_COLORS)[number], string> = {
     R: "red",
     G: "green",
 };
-export const washOut: CardDefinition = {
+export const washOut = defineCard(() => ({
     id: "7719d043-5827-4479-825b-23d9e979ead7",
     name: "Wash Out",
     rarity: "uncommon",
@@ -484,7 +484,7 @@ export const washOut: CardDefinition = {
             })),
         },
     ],
-};
+}));
 
 // Zanam Djinn — {5}{U} Creature — Djinn, 5/6. "Flying. This creature gets
 // -2/-2 as long as blue is the most common color among all permanents or is
@@ -507,7 +507,7 @@ function blueIsMostCommonOrTied(
     const blue = tally.U;
     return ZANAM_DJINN_COLORS.every((c) => tally[c] <= blue);
 }
-export const zanamDjinn: CardDefinition = {
+export const zanamDjinn = defineCard(() => ({
     id: "57a3c1d5-0ca8-443b-ae7a-66e0363e377b",
     name: "Zanam Djinn",
     rarity: "uncommon",
@@ -533,7 +533,7 @@ export const zanamDjinn: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 
 // Traveler's Cloak — {2}{U} Enchantment — Aura, enchant creature. "As this
 // Aura enters, choose a land type. When this Aura enters, draw a card.
@@ -554,7 +554,7 @@ export const zanamDjinn: CardDefinition = {
 // file without reopening the set↔registry eval-time cycle) — Magnigoth
 // Treefolk (`pls/green.cards.ts`) needs the same fan-out for its own Domain
 // landwalk grant and imports the same table.
-export const travelersCloak: CardDefinition = {
+export const travelersCloak = defineCard(() => ({
     id: "977f0f82-0542-40c9-9a48-73077941dbd1",
     name: "Traveler's Cloak",
     rarity: "common",
@@ -605,7 +605,7 @@ export const travelersCloak: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 1 }],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -624,7 +624,7 @@ export const travelersCloak: CardDefinition = {
 // (unlike Elephant Grass's nonblack clause, `vis/green.cards.ts`) — every attacking
 // creature is taxed, so `taxes` only confirms the attacker is a creature
 // (defensive; only creatures can attack, CR 506.2).
-export const collectiveRestraint: CardDefinition = {
+export const collectiveRestraint = defineCard(() => ({
     id: "d71daa57-ac02-4dd9-8c90-d38bdd45fb51",
     name: "Collective Restraint",
     rarity: "rare",
@@ -645,7 +645,7 @@ export const collectiveRestraint: CardDefinition = {
                 "Creatures can't attack you unless their controller pays {X} for each creature they control that's attacking you, where X is the number of basic land types among lands you control.",
         },
     ],
-};
+}));
 
 // Worldly Counsel — {1}{U} Instant. "Domain — Look at the top X cards of
 // your library, where X is the number of basic land types among lands you
@@ -655,7 +655,7 @@ export const collectiveRestraint: CardDefinition = {
 // already composes "look at top N, keep one, bottom the rest in look order"
 // — `look` is the ninth EffectValue grammar member `{ domain: { of } }`
 // (issue #1066) instead of a literal/`{X}`; `take` defaults to 1.
-export const worldlyCounsel: CardDefinition = {
+export const worldlyCounsel = defineCard(() => ({
     id: "8fc66fbf-f411-4607-aece-7c35d9a07c80",
     name: "Worldly Counsel",
     rarity: "common",
@@ -671,7 +671,7 @@ export const worldlyCounsel: CardDefinition = {
             look: { domain: { of: "controller" } },
         },
     ],
-};
+}));
 
 // Fact or Fiction — {3}{U} Instant. "Reveal the top five cards of your
 // library. An opponent separates those cards into two piles. Put one pile
@@ -684,7 +684,7 @@ export const worldlyCounsel: CardDefinition = {
 // bare-picks-`cards` shape moves each WHOLE pile in one Op — no `forEach`
 // wrapper needed, since a plain zone move (not a per-object action) is the
 // outcome.
-export const factOrFiction: CardDefinition = {
+export const factOrFiction = defineCard(() => ({
     id: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
     name: "Fact or Fiction",
     rarity: "uncommon",
@@ -724,7 +724,7 @@ export const factOrFiction: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Capability-gap stubs — genuine engine/DSL gaps discovered authoring this
@@ -753,7 +753,7 @@ export const factOrFiction: CardDefinition = {
 // half composes the pre-existing `optionChoice` Op via the shared
 // `chooseColorEffects` builder — no new choice-kind construct needed, ADR
 // 0045 "generalize, don't add".)
-export const blindSeer: CardDefinition = {
+export const blindSeer = defineCard(() => ({
     id: "5c54ec26-c7f1-4258-9cc9-1709987f293c",
     name: "Blind Seer",
     rarity: "rare",
@@ -780,7 +780,7 @@ export const blindSeer: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Breaking Wave — "You may cast this spell as though it had flash if you pay
 // {2} more to cast it. Simultaneously untap all tapped creatures and tap all
@@ -830,7 +830,7 @@ export const blindSeer: CardDefinition = {
 // slice #1083, iterates the whole announced target set — the "X-multi-
 // target" gap closer, `EffectObjectSelector`'s single fixed `{ target: N }`
 // slot's variable-N companion.)
-export const distortingWake: CardDefinition = {
+export const distortingWake = defineCard(() => ({
     id: "cf48eec9-96be-4f53-9d9a-c6f02d44c995",
     name: "Distorting Wake",
     rarity: "rare",
@@ -849,7 +849,7 @@ export const distortingWake: CardDefinition = {
             effects: [{ op: "moveZone", target: { ref: "$each" }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Dream Thrush — {1}{U} Creature — Bird, 1/1. "Flying. {T}: Target land
 // becomes the basic land type of your choice until end of turn." (CR 702.9b
@@ -863,7 +863,7 @@ export const distortingWake: CardDefinition = {
 // The modes are built by the shared `landTypeChangeEffects` (issue #4138) —
 // the Oracle compiler's land-type rule is the second caller, and the two have
 // to agree byte for byte or this card stops round-tripping under Guard C.
-export const dreamThrush: CardDefinition = {
+export const dreamThrush = defineCard(() => ({
     id: "258217df-ae88-4d93-895a-3fd242baacd1",
     name: "Dream Thrush",
     rarity: "common",
@@ -891,7 +891,7 @@ export const dreamThrush: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Essence Leak — "Enchant permanent. As long as enchanted permanent is red or
 // green, it has 'At the beginning of your upkeep, sacrifice this permanent
@@ -938,7 +938,7 @@ export const dreamThrush: CardDefinition = {
 // `CardInstanceState.wasKicked` — a one-shot fact fixed at CR 614.1c ETB
 // replacement time, materialized into `staticAbilities` continuously, no stack
 // window. Same correction applies to Kavu Titan (`inv/green.cards.ts`).
-export const faerieSquadron: CardDefinition = {
+export const faerieSquadron = defineCard(() => ({
     id: "4c707c81-dbbd-43be-a79a-7bc92a584839",
     name: "Faerie Squadron",
     rarity: "common",
@@ -970,7 +970,7 @@ export const faerieSquadron: CardDefinition = {
             keyword: "flying",
         },
     ],
-};
+}));
 
 // Mana Maze — "Players can't cast spells that share a color with the spell
 // most recently cast this turn." No game-state field tracks the most
@@ -994,7 +994,7 @@ export const faerieSquadron: CardDefinition = {
 // "battlefield")` puts it into play; the trailing `if { picksNonEmpty }` gate
 // — the Krovikan Sorcerer "if you do" idiom — returns this creature to hand
 // only when a card was actually put onto the battlefield.)
-export const metathranAerostat: CardDefinition = {
+export const metathranAerostat = defineCard(() => ({
     id: "59f34850-fb6f-4ac5-8309-4d53d770e28c",
     name: "Metathran Aerostat",
     rarity: "rare",
@@ -1047,7 +1047,7 @@ export const metathranAerostat: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Metathran Transport — {1}{U}{U} Creature — Metathran, 1/3. "Flying. This
 // creature can't be blocked by blue creatures. {U}: Target creature becomes
@@ -1057,7 +1057,7 @@ export const metathranAerostat: CardDefinition = {
 // Op — shipped this slice #1083 — the activated ability now uses; the
 // activated half is a FIXED "becomes blue", not a player choice, so it's a
 // bare `setColor` Op, not `chooseColorEffects`'s modal wrapper.)
-export const metathranTransport: CardDefinition = {
+export const metathranTransport = defineCard(() => ({
     id: "4fa9048d-1599-44a5-b4b2-45382c5b238d",
     name: "Metathran Transport",
     rarity: "uncommon",
@@ -1098,7 +1098,7 @@ export const metathranTransport: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Psychic Battle — "Whenever a player chooses one or more targets, each
 // player reveals the top card of their library. The player who reveals the
@@ -1118,7 +1118,7 @@ export const metathranTransport: CardDefinition = {
 // becomes the color of your choice until end of turn." (CR 702.9b flying;
 // CR 613.1e via `chooseColorEffects` — same `setColor` Op as Blind Seer,
 // shipped this slice #1083 — targeting `$source` for a self-color-change.)
-export const rainbowCrow: CardDefinition = {
+export const rainbowCrow = defineCard(() => ({
     id: "7e622ad2-473f-489e-b4cf-bbdcc44d0cde",
     name: "Rainbow Crow",
     rarity: "uncommon",
@@ -1144,7 +1144,7 @@ export const rainbowCrow: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Shoreline Raider — "Protection from Kavu."
 //
@@ -1176,7 +1176,7 @@ export const rainbowCrow: CardDefinition = {
 // every targeted creature, not a per-creature pick — so the `optionChoice`
 // wraps the `forEach` (one shared choice, applied to the whole set), unlike
 // `chooseColorEffects`'s single-target convenience wrapper.)
-export const swayOfIllusion: CardDefinition = {
+export const swayOfIllusion = defineCard(() => ({
     id: "ff65e386-9aec-4deb-a4ec-d9a97bd87645",
     name: "Sway of Illusion",
     rarity: "uncommon",
@@ -1206,7 +1206,7 @@ export const swayOfIllusion: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Teferi's Response — {1}{U} Instant. "Counter target spell or ability an
 // opponent controls that targets a land you control. If a permanent's ability
@@ -1252,7 +1252,7 @@ export const swayOfIllusion: CardDefinition = {
 // so the card is hand-written and declares the gap. The `draw` half compiles
 // fine; the marker names only what the grammar cannot consume.
 // hand-tail: "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent." (#4195)
-export const teferisResponse: CardDefinition = {
+export const teferisResponse = defineCard(() => ({
     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
     name: "Teferi's Response",
     rarity: "rare",
@@ -1276,7 +1276,7 @@ export const teferisResponse: CardDefinition = {
         { op: "destroy", target: { ref: "$counteredSource" } },
         { op: "draw", player: "controller", count: 2 },
     ],
-};
+}));
 
 // Temporal Distortion — "Whenever a creature or land becomes tapped, put an
 // hourglass counter on it. Each permanent with an hourglass counter on it
@@ -1297,7 +1297,7 @@ export const teferisResponse: CardDefinition = {
 // creature becomes the color of your choice until end of turn." (CR 613.1e
 // via `chooseColorEffects` — same `setColor` Op as Blind Seer, shipped this
 // slice #1083 — targeting an announced Creature slot.)
-export const tidalVisionary: CardDefinition = {
+export const tidalVisionary = defineCard(() => ({
     id: "a72a3051-7f46-4b6b-b4fb-0f170d9687ab",
     name: "Tidal Visionary",
     rarity: "common",
@@ -1323,7 +1323,7 @@ export const tidalVisionary: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Well-Laid Plans — {2}{U} Enchantment. "Prevent all damage that would be
 // dealt to a creature by another creature if they share a color." (CR 615
@@ -1334,7 +1334,7 @@ export const tidalVisionary: CardDefinition = {
 // event before. NOTE — the stub's placeholder id
 // `5f2b3879-c962-5274-89a8-2f1da2b56a2e` does not resolve to any real
 // Scryfall object (verified); corrected to the real INV #88 print id below.)
-export const wellLaidPlans: CardDefinition = {
+export const wellLaidPlans = defineCard(() => ({
     id: "1c55eb8f-925a-42c1-9e48-d7f99cab3b01",
     name: "Well-Laid Plans",
     rarity: "rare",
@@ -1373,4 +1373,4 @@ export const wellLaidPlans: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));

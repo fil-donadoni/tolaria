@@ -202,7 +202,7 @@ describe("Forced target choice — lowering invariants (CR 601.2c)", () => {
             compiledDefinition(STANDARD_BEARER) as never
         );
         expect(identity(compiled.staticEffects)).toBe(
-            identity(standardBearer.staticEffects)
+            identity(standardBearer().staticEffects)
         );
     });
 

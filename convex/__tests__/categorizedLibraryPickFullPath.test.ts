@@ -111,9 +111,9 @@ describe("Gaea's Balance — counted sacrifice cost (CR 601.2f / 118.8, issue #3
             priorityPlayerId: "p1",
             players: [
                 makePlayer("p1", {
-                    hand: [makeInstance(gaeasBalance.id, { zone: "hand" })],
+                    hand: [makeInstance(gaeasBalance().id, { zone: "hand" })],
                     battlefield: Array.from({ length: lands }, (_, i) =>
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: `land-${i}`,
                             zone: "battlefield",
                         })
@@ -140,7 +140,7 @@ describe("Gaea's Balance — counted sacrifice cost (CR 601.2f / 118.8, issue #3
         ).not.toThrow();
 
         const picker = buildAdditionalCostPicker(
-            gaeasBalance.additionalCosts,
+            gaeasBalance().additionalCosts,
             player
         );
         expect(picker).toEqual({
@@ -160,7 +160,7 @@ describe("Gaea's Balance — counted sacrifice cost (CR 601.2f / 118.8, issue #3
             state,
             player,
             player.hand[0],
-            gaeasBalance.additionalCosts,
+            gaeasBalance().additionalCosts,
             "Gaea's Balance"
         );
         expect(selection?.requirements).toHaveLength(1);
@@ -183,16 +183,16 @@ describe("Gaea's Balance — the categorised search, end to end (CR 701.23a)", (
             players: [
                 makePlayer("p1", {
                     library: [
-                        libraryCard(forest.id, "forest-1"),
-                        libraryCard(island.id, "island-1"),
-                        libraryCard(forest.id, "forest-2"),
-                        libraryCard(grizzlyBears.id, "bears"),
+                        libraryCard(forest().id, "forest-1"),
+                        libraryCard(island().id, "island-1"),
+                        libraryCard(forest().id, "forest-2"),
+                        libraryCard(grizzlyBears().id, "bears"),
                     ],
                 }),
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, gaeasBalance.id, "p1");
+        pushSpell(state, gaeasBalance().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         return state;
     };
@@ -277,15 +277,15 @@ describe("Guided Passage — an OPPONENT's categorised pick (CR 701.20a, issue #
             players: [
                 makePlayer("p1", {
                     library: [
-                        libraryCard(grizzlyBears.id, "bears"),
-                        libraryCard(forest.id, "forest-1"),
-                        libraryCard(plains.id, "plains-1"),
+                        libraryCard(grizzlyBears().id, "bears"),
+                        libraryCard(forest().id, "forest-1"),
+                        libraryCard(plains().id, "plains-1"),
                     ],
                 }),
                 makePlayer("p2"),
             ],
         });
-        pushSpell(state, guidedPassage.id, "p1");
+        pushSpell(state, guidedPassage().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         return state;
     };

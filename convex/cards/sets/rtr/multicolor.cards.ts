@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, ManaCost } from "../../types";
+import { defineCard, type ManaCost } from "../../types";
 import { colorChoiceModes } from "../../abilities/chooseColor";
 
 // Deathrite Shaman — {B/G} Creature — Elf Shaman, 1/2 (issue #1926, PRD
@@ -42,7 +42,7 @@ import { colorChoiceModes } from "../../abilities/chooseColor";
 // each mode a bare `addMana` for that colour, exactly as Phyrexian Altar
 // (inv/colorless.cards.ts) already ships — both Ops already exercised
 // catalogue-wide (per-Op regime, no hand-written test required).
-export const deathriteShaman: CardDefinition = {
+export const deathriteShaman = defineCard(() => ({
     id: "70496f16-c4c0-4c03-beef-454eb4824cd1",
     rarity: "rare",
     name: "Deathrite Shaman",
@@ -116,4 +116,4 @@ export const deathriteShaman: CardDefinition = {
             ],
         },
     ],
-};
+}));

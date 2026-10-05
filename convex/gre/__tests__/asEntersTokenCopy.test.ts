@@ -141,7 +141,7 @@ function allPermanents(state: GameState): CardInstanceState[] {
 
 describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters choices", () => {
     it("mode: a token copy of Voice of All chooses a colour before it enters, and the granted protection is live (CR 614.12's own example)", () => {
-        const source = makeInstance(voiceOfAll.id, {
+        const source = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });
@@ -175,7 +175,7 @@ describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters ch
     });
 
     it("mode: the chosen mode and its protection survive the wire projection (mandatory)", () => {
-        const source = makeInstance(voiceOfAll.id, {
+        const source = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });
@@ -194,7 +194,7 @@ describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters ch
     });
 
     it("body: a token copy of Primal Clay picks a body and does NOT enter as a 0/0 (CR 704.5f)", () => {
-        const source = makeInstance(primalClay.id, {
+        const source = makeInstance(primalClay().id, {
             id: "clay",
             controllerId: "p1",
         });
@@ -221,7 +221,7 @@ describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters ch
     });
 
     it("name: a token copy of Meddling Mage names a card", () => {
-        const source = makeInstance(meddlingMage.id, {
+        const source = makeInstance(meddlingMage().id, {
             id: "mage",
             controllerId: "p1",
         });
@@ -232,21 +232,21 @@ describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters ch
         expect(head(state).kind).toBe("name-card");
         applyNameCardSubmit(state, {
             playerId: "p1",
-            cardName: grizzlyBears.name,
+            cardName: grizzlyBears().name,
         });
 
         const token = tokensOf(state, "p1")[0];
-        expect(token.chosenName).toBe(grizzlyBears.name);
+        expect(token.chosenName).toBe(grizzlyBears().name);
 
         const projected = projectPublicState(state, 1, "p1");
         const slim = projected.players
             .find((p) => p.id === "p1")!
             .battlefield.find((c) => c.id === token.id);
-        expect(slim?.chosenName).toBe(grizzlyBears.name);
+        expect(slim?.chosenName).toBe(grizzlyBears().name);
     });
 
     it("subtypes: a token copy of Illusionary Terrain chooses two basic land types", () => {
-        const source = makeInstance(illusionaryTerrain.id, {
+        const source = makeInstance(illusionaryTerrain().id, {
             id: "terrain",
             controllerId: "p1",
         });
@@ -271,7 +271,7 @@ describe("CR 614.12 / 707.6 — a token copy owes the COPIED card's as-enters ch
 
 describe("CR 707.6 — the pick is FRESH, never inherited from the copied permanent", () => {
     it("a token copying a Voice of All that already chose red still chooses for itself", () => {
-        const source = makeInstance(voiceOfAll.id, {
+        const source = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });
@@ -299,7 +299,7 @@ describe("CR 707.6 — the pick is FRESH, never inherited from the copied perman
 
 describe("CR 707.5 / 704.5f — nothing observes the token while its choices are owed", () => {
     it("no SBA sweep and no wire projection can see the staged token", () => {
-        const source = makeInstance(primalClay.id, {
+        const source = makeInstance(primalClay().id, {
             id: "clay",
             controllerId: "p1",
         });
@@ -347,7 +347,7 @@ describe("CR 707.5 / 704.5f — nothing observes the token while its choices are
 
 describe("ADR 0100 D5 — creating more than one token copy owes each token its own choices exactly once", () => {
     it("count: 1 — one park, one answer, exactly ONE token", () => {
-        const source = makeInstance(voiceOfAll.id, {
+        const source = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });
@@ -361,7 +361,7 @@ describe("ADR 0100 D5 — creating more than one token copy owes each token its 
     });
 
     it("count: 2 — two parks, two answers, exactly TWO tokens each with its OWN pick", () => {
-        const source = makeInstance(voiceOfAll.id, {
+        const source = makeInstance(voiceOfAll().id, {
             id: "voice",
             controllerId: "p1",
         });
@@ -389,7 +389,7 @@ describe("ADR 0100 D5 — creating more than one token copy owes each token its 
     });
 
     it("count: 2 of a source with NO as-enters clause still creates exactly two (the un-parked control)", () => {
-        const source = makeInstance(grizzlyBears.id, {
+        const source = makeInstance(grizzlyBears().id, {
             id: "bears",
             controllerId: "p1",
         });
@@ -476,7 +476,7 @@ describe("plain token creation is unchanged (the must-NOT census rows)", () => {
 
 describe("the resolve() producer: Sin, Spira's Punishment (fin/multicolor.cards.ts)", () => {
     it("its token copy of a card with an as-enters clause is created exactly once", () => {
-        const sin = makeInstance(sinSpirasPunishment.id, {
+        const sin = makeInstance(sinSpirasPunishment().id, {
             id: "sin",
             controllerId: "p1",
             ownerId: "p1",
@@ -503,13 +503,13 @@ describe("the resolve() producer: Sin, Spira's Punishment (fin/multicolor.cards.
                     // guard was deleted in the same change as a second, silent
                     // authority over the same invariant.
                     graveyard: [
-                        makeInstance(voiceOfAll.id, {
+                        makeInstance(voiceOfAll().id, {
                             id: "gy-voice-a",
                             controllerId: "p1",
                             ownerId: "p1",
                             zone: "graveyard",
                         }),
-                        makeInstance(voiceOfAll.id, {
+                        makeInstance(voiceOfAll().id, {
                             id: "gy-voice-b",
                             controllerId: "p1",
                             ownerId: "p1",

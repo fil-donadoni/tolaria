@@ -1,6 +1,6 @@
 // mir — red cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Goblin Tinkerer — {1}{R} 1/2 Goblin Artificer. "{R}, {T}: Destroy target
 // artifact. That artifact deals damage equal to its mana value to this
@@ -21,7 +21,7 @@ import type { CardDefinition } from "../../types";
 // itself, which is why a big artifact kills it.
 //
 // hand-tail: {R}, {T}: Destroy target artifact. That artifact deals damage equal to its mana value to this creature. (#4195)
-export const goblinTinkerer: CardDefinition = {
+export const goblinTinkerer = defineCard(() => ({
     id: "e6529852-8b3e-4a70-a4a1-029e012231c6", // MIR 180
     rarity: "common",
     name: "Goblin Tinkerer",
@@ -51,4 +51,4 @@ export const goblinTinkerer: CardDefinition = {
             ],
         },
     ],
-};
+}));

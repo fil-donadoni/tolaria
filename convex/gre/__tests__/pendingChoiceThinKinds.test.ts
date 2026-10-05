@@ -56,7 +56,7 @@ function ids(cards: { id: string }[]): string[] {
 describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)", () => {
     it("keeps the picked lands, sacrifices the rest, and resolves Balance", () => {
         const land = (id: string, owner: string) =>
-            makeInstance(plains.id, {
+            makeInstance(plains().id, {
                 id,
                 controllerId: owner,
                 ownerId: owner,
@@ -73,7 +73,7 @@ describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)
                 }),
             ],
         });
-        pushSpell(state, balance.id, "p1");
+        pushSpell(state, balance().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices?.[0]).toMatchObject({
             kind: "keep-permanents",
@@ -97,15 +97,15 @@ describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(plains.id, {
+                        makeInstance(plains().id, {
                             id: "l1",
                             controllerId: "p1",
                         }),
-                        makeInstance(plains.id, {
+                        makeInstance(plains().id, {
                             id: "l2",
                             controllerId: "p1",
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "bear",
                             controllerId: "p1",
                         }),
@@ -113,12 +113,12 @@ describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)
                 }),
                 makePlayer("p2", {
                     battlefield: [
-                        makeInstance(plains.id, {
+                        makeInstance(plains().id, {
                             id: "p2-l",
                             controllerId: "p2",
                             ownerId: "p2",
                         }),
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p2-bear",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -127,7 +127,7 @@ describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)
                 }),
             ],
         });
-        pushSpell(state, balance.id, "p1");
+        pushSpell(state, balance().id, "p1");
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0].kind).toBe("keep-permanents");
 
@@ -143,7 +143,7 @@ describe("keep-permanents (Balance, CR 608.2d — a keep chosen while resolving)
 describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () => {
     it("keeps the picked card, discards the rest, and resolves Balance", () => {
         const card = (id: string, owner: string) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: owner,
                 ownerId: owner,
@@ -161,7 +161,7 @@ describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () 
                 makePlayer("p2", { hand: [card("p2-h0", "p2")] }),
             ],
         });
-        pushSpell(state, balance.id, "p1");
+        pushSpell(state, balance().id, "p1");
         expect(resolveTopOfStack(state)).toBeNull();
         expect(state.pendingChoices?.[0]).toMatchObject({
             kind: "keep-hand",
@@ -185,7 +185,7 @@ describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () 
             players: [
                 makePlayer("p1", {
                     hand: ["h0", "h1"].map((id) =>
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id,
                             controllerId: "p1",
                             zone: "hand",
@@ -194,7 +194,7 @@ describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () 
                 }),
                 makePlayer("p2", {
                     hand: [
-                        makeInstance(grizzlyBears.id, {
+                        makeInstance(grizzlyBears().id, {
                             id: "p2-h0",
                             controllerId: "p2",
                             ownerId: "p2",
@@ -204,7 +204,7 @@ describe("keep-hand (Balance, CR 608.2d — a keep chosen while resolving)", () 
                 }),
             ],
         });
-        pushSpell(state, balance.id, "p1");
+        pushSpell(state, balance().id, "p1");
         resolveTopOfStack(state);
         expect(state.pendingChoices?.[0].kind).toBe("keep-hand");
 
@@ -290,9 +290,9 @@ describe("choose-player (CR 608.2d — a player chosen while resolving, not a ta
 
 describe("draw-look-keep (Aladdin's Lamp, CR 614 draw replacement)", () => {
     function raise(x: number): GameState {
-        const lamp = makeInstance(aladdinsLamp.id, { id: "lamp" });
+        const lamp = makeInstance(aladdinsLamp().id, { id: "lamp" });
         const lib = ["c0", "c1", "c2", "c3"].map((id) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p1",
                 zone: "library",
@@ -361,7 +361,7 @@ describe("legend-keep (CR 704.5j — raised by a resolving legend)", () => {
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(jasmineBoreal.id, {
+                        makeInstance(jasmineBoreal().id, {
                             id: "old-jasmine",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -371,7 +371,7 @@ describe("legend-keep (CR 704.5j — raised by a resolving legend)", () => {
                 makePlayer("p2"),
             ],
         });
-        const spell = pushSpell(state, jasmineBoreal.id, "p1");
+        const spell = pushSpell(state, jasmineBoreal().id, "p1");
         resolveTopOfStack(state);
         checkStateBasedActions(state);
         expect(state.pendingChoices?.[0]).toMatchObject({
@@ -394,12 +394,12 @@ describe("legend-keep (CR 704.5j — raised by a resolving legend)", () => {
 describe("choose-aura-host (CR 303.4f — Aura entering without being cast)", () => {
     it("refuses an empty submission and a non-host, then a legal host attaches the Aura", () => {
         const bear = (id: string) =>
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id,
                 controllerId: "p1",
                 ownerId: "p1",
             });
-        const aura = makeInstance(unholyStrength.id, {
+        const aura = makeInstance(unholyStrength().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -411,7 +411,7 @@ describe("choose-aura-host (CR 303.4f — Aura entering without being cast)", ()
                     battlefield: [
                         bear("bear-1"),
                         bear("bear-2"),
-                        makeInstance(plains.id, {
+                        makeInstance(plains().id, {
                             id: "land",
                             controllerId: "p1",
                             ownerId: "p1",

@@ -112,7 +112,7 @@ function fivePowerVsTwoBears(
     assignments: Record<string, number>,
     atkOverrides: Partial<CardInstanceState> = {}
 ): GameState {
-    const atk = permanent(twoHeadedGiantOfForiys.id, "atk", "p1", {
+    const atk = permanent(twoHeadedGiantOfForiys().id, "atk", "p1", {
         isAttacking: true,
         power: 5,
         toughness: 5,
@@ -122,11 +122,11 @@ function fivePowerVsTwoBears(
     // Toughness bumped well above any split tested here — SBA lethal-damage
     // death is not what these tests are about, and a dead blocker vanishing
     // from the battlefield would make the post-confirm assertions moot.
-    const b1 = permanent(grizzlyBears.id, "b1", "p2", {
+    const b1 = permanent(grizzlyBears().id, "b1", "p2", {
         isBlocking: true,
         toughness: 10,
     });
-    const b2 = permanent(grizzlyBears.id, "b2", "p2", {
+    const b2 = permanent(grizzlyBears().id, "b2", "p2", {
         isBlocking: true,
         toughness: 10,
     });
@@ -261,13 +261,13 @@ describe("confirmDamage accepts the engine's own seeded default even after a dec
         // 0 and making the engine's own default fail
         // `combatDamageAssignmentCompleteness` (a hard vs-AI freeze: the bot
         // only ever confirms the seeded default and never re-derives it).
-        const atk = permanent(twoHeadedGiantOfForiys.id, "atk", "p1", {
+        const atk = permanent(twoHeadedGiantOfForiys().id, "atk", "p1", {
             isAttacking: true,
             power: 4,
             toughness: 4,
             staticAbilities: [],
         });
-        const b2 = permanent(grizzlyBears.id, "b2", "p2", {
+        const b2 = permanent(grizzlyBears().id, "b2", "p2", {
             isBlocking: true,
             toughness: 10,
         });

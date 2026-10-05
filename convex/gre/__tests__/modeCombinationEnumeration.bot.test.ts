@@ -362,8 +362,8 @@ describe("two-level ACTIVATION enumeration (CR 602.2b / 700.2, issue #2265)", ()
     const JITTE_MODES = "umezawas-jitte-modes";
     /** A modal ability that chooses one or two DISTINCT modes. */
     const jitteChoosingUpToTwo: CardDefinition = {
-        ...umezawasJitte,
-        activatedAbilities: umezawasJitte.activatedAbilities!.map((a) =>
+        ...umezawasJitte(),
+        activatedAbilities: umezawasJitte().activatedAbilities!.map((a) =>
             a.id === JITTE_MODES
                 ? { ...a, modeSelection: { min: 1, max: 2 } }
                 : a
@@ -417,7 +417,7 @@ describe("two-level ACTIVATION enumeration (CR 602.2b / 700.2, issue #2265)", ()
                 }
             );
             const jitte = state.players[0].battlefield.find(
-                (c) => (c.card as { id?: string }).id === umezawasJitte.id
+                (c) => (c.card as { id?: string }).id === umezawasJitte().id
             )!;
             jitte.counters = { ...(jitte.counters ?? {}), charge: 2 };
             const activations = enumerateMoves(

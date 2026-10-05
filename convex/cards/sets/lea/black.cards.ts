@@ -8,13 +8,16 @@
 // colorless.ts.
 
 import type {
-    CardDefinition,
     PermanentView,
     SpellContext,
     StaticEffectContext,
     TargetSelection,
 } from "../../types";
-import { AURA_AFFECTS_HOST, EFFECT_AFFECTS_SELF } from "../../types";
+import {
+    defineCard,
+    AURA_AFFECTS_HOST,
+    EFFECT_AFFECTS_SELF,
+} from "../../types";
 import { knightStaticAbilities } from "../../abilities";
 import { creatureCardsAboveInGraveyard } from "../../graveyardOrder";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
@@ -43,7 +46,7 @@ import { makeLace } from "./white.cards";
 //    the event (CR 603.10) and calls `sacrifice` on the host. If the host has
 //    already left the battlefield by then (e.g. lethal damage), sacrifice is a
 //    silent no-op (CR 608.2b).
-export const animateDead: CardDefinition = {
+export const animateDead = defineCard(() => ({
     id: "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
     rarity: "uncommon",
     name: "Animate Dead",
@@ -84,10 +87,10 @@ export const animateDead: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Bad Moon — "Black creatures get +1/+1." (CR 611 — static layer 7c, color check via CR 202.2)
-export const badMoon: CardDefinition = {
+export const badMoon = defineCard(() => ({
     id: "43572906-ea74-4411-a549-5dc401591d2a",
     rarity: "rare",
     name: "Bad Moon",
@@ -103,10 +106,10 @@ export const badMoon: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Black Knight — first strike + protection from white (CR 702.7, 702.16).
-export const blackKnight: CardDefinition = {
+export const blackKnight = defineCard(() => ({
     id: "c1662949-0d69-49a3-8c69-daf10717ed4e",
     rarity: "uncommon",
     name: "Black Knight",
@@ -118,11 +121,11 @@ export const blackKnight: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: knightStaticAbilities("white"),
-};
+}));
 
 // Bog Wraith — swampwalk (landwalk keyword, CR 702.14b). Enforced at
 // blocker-assignment time by validateBlockerEligibility in gre/combat.ts.
-export const bogWraith: CardDefinition = {
+export const bogWraith = defineCard(() => ({
     id: "6701874e-986e-4b81-9268-90b6171e6187",
     rarity: "uncommon",
     name: "Bog Wraith",
@@ -134,7 +137,7 @@ export const bogWraith: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["swampwalk"],
-};
+}));
 
 // Out of scope — see ADR 0010
 // export const contractFromBelow: CardDefinition = {
@@ -149,7 +152,7 @@ export const bogWraith: CardDefinition = {
 // land's controller, Cursed Land deals 1 damage to that player." (CR 303.4
 // aura attachment, 603.6a phase trigger). Same shape as Farmstead/Feedback —
 // trigger fires on the host's controller's upkeep only.
-export const cursedLand: CardDefinition = {
+export const cursedLand = defineCard(() => ({
     id: "cf5f3c61-1e54-4eea-bf82-311cfa988e6a",
     rarity: "uncommon",
     name: "Cursed Land",
@@ -183,9 +186,9 @@ export const cursedLand: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
-export const darkRitual: CardDefinition = {
+export const darkRitual = defineCard(() => ({
     id: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
     rarity: "common",
     name: "Dark Ritual",
@@ -193,7 +196,7 @@ export const darkRitual: CardDefinition = {
     manaCost: { B: 1 },
     types: ["Instant"],
     effects: [{ op: "addMana", mana: { B: 3 } }],
-};
+}));
 
 // Out of scope — see ADR 0010
 // export const darkpact: CardDefinition = {
@@ -206,7 +209,7 @@ export const darkRitual: CardDefinition = {
 
 // Deathgrip — "{B}, Sacrifice Deathgrip: Counter target green spell." (CR
 // 701.6a counter, 202.2 color filter on stack target).
-export const deathgrip: CardDefinition = {
+export const deathgrip = defineCard(() => ({
     id: "2371c126-f19a-472a-ba5f-3b1366274ea0",
     rarity: "uncommon",
     name: "Deathgrip",
@@ -227,17 +230,19 @@ export const deathgrip: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const deathlace: CardDefinition = makeLace({
-    id: "6ff1cefc-62cb-4525-b0c5-2b09603b4314",
-    rarity: "rare",
-    name: "Deathlace",
-    oracleText:
-        "Target spell or permanent becomes black. (Mana symbols on that permanent remain unchanged.)",
-    manaCost: { B: 1 },
-    color: "B",
-});
+export const deathlace = defineCard(() =>
+    makeLace({
+        id: "6ff1cefc-62cb-4525-b0c5-2b09603b4314",
+        rarity: "rare",
+        name: "Deathlace",
+        oracleText:
+            "Target spell or permanent becomes black. (Mana symbols on that permanent remain unchanged.)",
+        manaCost: { B: 1 },
+        color: "B",
+    })
+);
 
 // Out of scope — see ADR 0010
 // export const demonicAttorney: CardDefinition = {
@@ -256,7 +261,7 @@ export const deathlace: CardDefinition = makeLace({
 // Implemented via `requestChoice` with `zoneOwnerId: ctx.controller` —
 // chooser is the opp, but the candidate set is from controller's
 // battlefield.
-export const demonicHordes: CardDefinition = {
+export const demonicHordes = defineCard(() => ({
     id: "6c9bb8b1-fb79-4b99-ba09-c6e6c860de50",
     rarity: "rare",
     name: "Demonic Hordes",
@@ -325,14 +330,14 @@ export const demonicHordes: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Demonic Tutor — "Search your library for a card, then shuffle and put that
 // card on top." (CR 701.23 for search, CR 701.24 for shuffle). Modern oracle
 // simplifies (tracked-by: #2785) to "Search your library for a card, put it into your hand, then
 // shuffle." Effect Script: search-library choice (count=1), then move the
 // picked card into the caster's hand, then shuffle.
-export const demonicTutor: CardDefinition = {
+export const demonicTutor = defineCard(() => ({
     id: "711d4d54-5520-4de8-9b93-79902ed8e562",
     rarity: "uncommon",
     name: "Demonic Tutor",
@@ -364,7 +369,7 @@ export const demonicTutor: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));
 
 // Drain Life — "Drain Life deals X damage to any target. You gain life equal
 // to the damage dealt." (CR 107.3 for X, CR 120.1 for damage, CR 118.3 for
@@ -385,7 +390,7 @@ export const demonicTutor: CardDefinition = {
 // generic pip alongside the variable {X} uses `generic` (Soul Burn's
 // `{X}{2}{B}` shape, ice/black.cards.ts), found missing by the widened
 // data/json conformance guard (issue tracking PR #2047's guard gap).
-export const drainLife: CardDefinition = {
+export const drainLife = defineCard(() => ({
     id: "5d077a49-73d4-4958-b42a-31b814e110e8",
     rarity: "common",
     name: "Drain Life",
@@ -404,13 +409,13 @@ export const drainLife: CardDefinition = {
         { op: "dealDamage", amount: { X: true }, to: { target: 0 } },
         { op: "gainLife", player: "controller", amount: { X: true } },
     ],
-};
+}));
 
 // Evil Presence — "Enchant land. Enchanted land is a Swamp." (CR 305.7
 // subtype replacement, CR 303.4 aura). Layer 4 subtype-set replaces the
 // host's subtypes with ["Swamp"], which also changes its mana production
 // via getBasicLandMana (Swamp → {B}).
-export const evilPresence: CardDefinition = {
+export const evilPresence = defineCard(() => ({
     id: "0551d66e-8cd4-48f0-aa17-15f26be9d85f",
     rarity: "uncommon",
     name: "Evil Presence",
@@ -426,13 +431,13 @@ export const evilPresence: CardDefinition = {
             subtypes: ["Swamp"],
         },
     ],
-};
+}));
 
 // Fear — "Enchant creature. Enchanted creature has fear (it can't be blocked
 // except by artifact creatures and/or black creatures)." (CR 303.4 aura,
 // 702.36b fear). Granted as `fear` keyword on the host; the combat validator
 // enforces the artifact-or-black blocker check.
-export const fear: CardDefinition = {
+export const fear = defineCard(() => ({
     id: "0cd927be-e63f-4371-a1d8-7a0489cb187e",
     rarity: "common",
     name: "Fear",
@@ -449,11 +454,11 @@ export const fear: CardDefinition = {
             keyword: "fear",
         },
     ],
-};
+}));
 
 // Gloom — "White spells cost {3} more to cast. Activated abilities of white
 // enchantments cost {3} more to activate." (CR 601.2f cost modification).
-export const gloom: CardDefinition = {
+export const gloom = defineCard(() => ({
     id: "a8d10bc7-daeb-4c0d-9e4a-8eae8d11699f",
     rarity: "uncommon",
     name: "Gloom",
@@ -475,11 +480,11 @@ export const gloom: CardDefinition = {
             costIncrease: { X: 3 },
         },
     ],
-};
+}));
 
 // Howl from Beyond — "Target creature gets +X/+0 until end of turn." (CR 107.3
 // X cost, 611.1 temp P/T mod). Single-target pump scaled by paid X.
-export const howlFromBeyond: CardDefinition = {
+export const howlFromBeyond = defineCard(() => ({
     id: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
     rarity: "common",
     name: "Howl from Beyond",
@@ -499,11 +504,11 @@ export const howlFromBeyond: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Hypnotic Specter — CR 603 triggered ability on combat/spell damage to an
 // opponent. The random discard uses the game's seeded PRNG (CR 701.9a).
-export const hypnoticSpecter: CardDefinition = {
+export const hypnoticSpecter = defineCard(() => ({
     id: "b43b900f-2d9b-442b-9699-058483604ec9",
     rarity: "uncommon",
     name: "Hypnotic Specter",
@@ -528,7 +533,7 @@ export const hypnoticSpecter: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Lich — multi-replacement enchantment that turns its controller's life
 // total into a draw-engine and a sacrifice-engine. CR-faithful clauses:
@@ -555,7 +560,7 @@ export const hypnoticSpecter: CardDefinition = {
 // non-token, non-Lich) rather than player-driven — CR 701.21 says the
 // controller picks, but mid-trigger choice requires a richer pendingChoices
 // integration than this wave. Documented limitation.
-export const lich: CardDefinition = {
+export const lich = defineCard(() => ({
     id: "4250caec-0e37-41be-9ec4-8938deb5f0d0",
     rarity: "rare",
     name: "Lich",
@@ -685,9 +690,9 @@ export const lich: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const lordOfThePit: CardDefinition = {
+export const lordOfThePit = defineCard(() => ({
     id: "2926777a-4f6e-4965-ba83-22cf7df02602",
     rarity: "rare",
     name: "Lord of the Pit",
@@ -741,12 +746,12 @@ export const lordOfThePit: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Mind Twist — "Target player discards X cards at random." (CR 107.3 X cost,
 // 701.8a random discard). Routes through `discardAtRandom` which uses the
 // game's seeded PRNG for deterministic replays.
-export const mindTwist: CardDefinition = {
+export const mindTwist = defineCard(() => ({
     id: "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
     rarity: "rare",
     name: "Mind Twist",
@@ -757,7 +762,7 @@ export const mindTwist: CardDefinition = {
     effects: [
         { op: "discardAtRandom", player: { target: 0 }, count: { X: true } },
     ],
-};
+}));
 
 // Nether Shadow — "Haste. At the beginning of your upkeep, if this card is in
 // your graveyard with three or more creature cards above it, you may put this
@@ -766,7 +771,7 @@ export const mindTwist: CardDefinition = {
 // scan via `zone: "graveyard"`; the intervening-if counts creature cards
 // stacked above Nether Shadow in its owner's graveyard via the shared
 // `creatureCardsAboveInGraveyard` helper (index 0 = bottom, last = top).
-export const netherShadow: CardDefinition = {
+export const netherShadow = defineCard(() => ({
     id: "f13ad58a-6f9b-420a-bac1-40929f5e616a",
     rarity: "rare",
     name: "Nether Shadow",
@@ -814,7 +819,7 @@ export const netherShadow: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Nettling Imp — "{T}: Target non-Wall creature the active player controls
 // attacks this combat if able. If it doesn't, destroy it at the beginning of
@@ -827,7 +832,7 @@ export const netherShadow: CardDefinition = {
 // schedules a delayed end-step trigger that checks hasAttackedThisTurn.
 const NETTLING_IMP_ID = "8105973c-a94d-444c-ba20-ab0fa978bee8";
 
-export const nettlingImp: CardDefinition = {
+export const nettlingImp = defineCard(() => ({
     id: NETTLING_IMP_ID,
     rarity: "uncommon",
     name: "Nettling Imp",
@@ -901,14 +906,14 @@ export const nettlingImp: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Nightmare — Flying. "Nightmare's power and toughness are each equal to the
 // number of Swamps you control." (CR 604.3 CDA, layer 7b). Modeled as a
 // pt-cda static effect scoped to the card itself; base 0/0 means the CDA's
 // output is the effective stat line. CR 208.2 still applies: if the CDA
 // returns 0, the card is a 0/0 and dies to SBA unless otherwise buffed.
-export const nightmare: CardDefinition = {
+export const nightmare = defineCard(() => ({
     id: "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
     rarity: "rare",
     name: "Nightmare",
@@ -940,7 +945,7 @@ export const nightmare: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Paralyze — "Enchant creature. When this Aura enters, tap enchanted
 // creature. Enchanted creature doesn't untap during its controller's untap
@@ -953,7 +958,7 @@ export const nightmare: CardDefinition = {
 // keyword-grant publishes `does-not-untap` onto the host via
 // `AURA_AFFECTS_HOST`; the host stays tapped through the controller's untap
 // step until they pay {4} on upkeep.
-export const paralyze: CardDefinition = {
+export const paralyze = defineCard(() => ({
     id: "be33a155-de26-43d1-88f1-c926f1b7cb7c",
     rarity: "common",
     name: "Paralyze",
@@ -1002,7 +1007,7 @@ export const paralyze: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Pestilence — "At the beginning of the end step, if no creatures are on the
 // battlefield, sacrifice this enchantment.\n{B}: This enchantment deals 1
@@ -1014,7 +1019,7 @@ export const paralyze: CardDefinition = {
 // "the end step" → scope "each") and its intervening-if re-checks "no creatures
 // on the battlefield" at trigger AND resolve time (CR 603.4); the activated
 // ability now has no activation restriction (CR 602.5a).
-export const pestilence: CardDefinition = {
+export const pestilence = defineCard(() => ({
     id: "d42a6350-b16b-4e10-a273-e6cbb55dcb7a",
     rarity: "common",
     name: "Pestilence",
@@ -1082,13 +1087,13 @@ export const pestilence: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Plague Rats — "Plague Rats's power and toughness are each equal to the
 // number of creatures named Plague Rats on the battlefield." (CR 604.3 CDA,
 // 207.2 name match). Same pt-cda shape as Nightmare; counts every Plague
 // Rats across both battlefields, regardless of controller.
-export const plagueRats: CardDefinition = {
+export const plagueRats = defineCard(() => ({
     id: "b3724e40-0622-4aee-9334-6c9fff88bcd5",
     rarity: "common",
     name: "Plague Rats",
@@ -1117,12 +1122,12 @@ export const plagueRats: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Raise Dead — "Return target creature card from your graveyard to your hand."
 // (CR 400.7 zone change, 608.2b illegal target → no-op). Mirrors Regrowth's
 // targeting shape but constrained to Creature cards.
-export const raiseDead: CardDefinition = {
+export const raiseDead = defineCard(() => ({
     id: "ce07bede-2219-427c-a61a-56518751de42",
     rarity: "common",
     name: "Raise Dead",
@@ -1138,7 +1143,7 @@ export const raiseDead: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // graveyard creature card to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
+}));
 
 // Sacrifice — "As an additional cost to cast this spell, sacrifice a
 // creature. Add an amount of {B} equal to the sacrificed creature's mana
@@ -1147,7 +1152,7 @@ export const raiseDead: CardDefinition = {
 // announcement and the player picks the target via selectAdditionalCost
 // before mana payment can complete. The sacrificed creature's mana value
 // is snapshotted on the stack item for the resolve.
-export const sacrifice: CardDefinition = {
+export const sacrifice = defineCard(() => ({
     id: "12164aee-6a27-4246-8d15-2d6dd20d92e9",
     rarity: "uncommon",
     name: "Sacrifice",
@@ -1168,9 +1173,9 @@ export const sacrifice: CardDefinition = {
         if (mv === undefined || mv <= 0) return;
         ctx.addMana({ B: mv });
     },
-};
+}));
 
-export const scatheZombies: CardDefinition = {
+export const scatheZombies = defineCard(() => ({
     id: "e9be6dcf-5e25-4b8c-9cd0-badf3771f81e",
     rarity: "common",
     name: "Scathe Zombies",
@@ -1180,14 +1185,14 @@ export const scatheZombies: CardDefinition = {
     subtypes: ["Zombie"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Scavenging Ghoul — "At the beginning of each end step, put a corpse counter
 // on this creature for each creature that died this turn. / Remove a corpse
 // counter from this creature: Regenerate this creature." (CR 603.6a end-step
 // trigger, CR 122.1 counter, CR 701.19a regenerate). The deaths-this-turn
 // tally is maintained on `GameState.deathsThisTurn` and reset on advanceTurn.
-export const scavengingGhoul: CardDefinition = {
+export const scavengingGhoul = defineCard(() => ({
     id: "426984e0-88e1-4a2d-9a1c-798b95864df3",
     rarity: "uncommon",
     name: "Scavenging Ghoul",
@@ -1234,12 +1239,12 @@ export const scavengingGhoul: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Sengir Vampire — flying, 4/4. "Whenever another creature dies, if Sengir
 // Vampire dealt damage to it this turn, put a +1/+1 counter on Sengir
 // Vampire." (CR 603.2 death trigger, CR 122.1 +1/+1 counter, layer 7d).
-export const sengirVampire: CardDefinition = {
+export const sengirVampire = defineCard(() => ({
     id: "510840f4-7c0e-4b47-8ebf-23c20cac4bd9",
     rarity: "uncommon",
     name: "Sengir Vampire",
@@ -1276,7 +1281,7 @@ export const sengirVampire: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Simulacrum — "You gain life equal to the damage dealt to you this turn.
 // Simulacrum deals damage to target creature you control equal to the damage
@@ -1287,7 +1292,7 @@ export const sengirVampire: CardDefinition = {
 //
 // `controller: "you"` enforces the "creature you control" restriction at
 // target selection (CR 109.3 via `getLegalTargets`).
-export const simulacrum: CardDefinition = {
+export const simulacrum = defineCard(() => ({
     id: "35c3a78d-cc79-4187-929a-8aa1d1469990",
     rarity: "uncommon",
     name: "Simulacrum",
@@ -1307,11 +1312,11 @@ export const simulacrum: CardDefinition = {
         ctx.gainLife(ctx.caster, damage);
         ctx.dealDamage(t, damage);
     },
-};
+}));
 
 // Sinkhole — "Destroy target land." (CR 701.8). Targeting uses the generic
 // Land type filter; resolution delegates to the shared destroy primitive.
-export const sinkhole: CardDefinition = {
+export const sinkhole = defineCard(() => ({
     id: "04b31611-9053-4eaf-b392-21bb644fef5f",
     rarity: "common",
     name: "Sinkhole",
@@ -1320,10 +1325,10 @@ export const sinkhole: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
     effects: [{ op: "destroy", target: { target: 0 } }],
-};
+}));
 
 // Unholy Strength — "Enchanted creature gets +2/+1." Mirror of Holy Strength.
-export const unholyStrength: CardDefinition = {
+export const unholyStrength = defineCard(() => ({
     id: "90563f90-0127-4164-b43b-f0321dc63a1d",
     rarity: "common",
     name: "Unholy Strength",
@@ -1340,11 +1345,11 @@ export const unholyStrength: CardDefinition = {
             toughness: 1,
         },
     ],
-};
+}));
 
 // Wall of Bone — "Defender. {B}: Regenerate Wall of Bone." Same regen shape as
 // Drudge Skeletons; blocked from attacking by the Defender keyword (CR 702.3).
-export const wallOfBone: CardDefinition = {
+export const wallOfBone = defineCard(() => ({
     id: "ae20d442-a544-4a03-9ebf-5ecb137c67dd",
     rarity: "uncommon",
     name: "Wall of Bone",
@@ -1367,12 +1372,12 @@ export const wallOfBone: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Warp Artifact — "Enchant artifact. At the beginning of the upkeep of
 // enchanted artifact's controller, Warp Artifact deals 1 damage to that
 // player." Mirror of Cursed Land/Feedback, hosting on Artifact instead.
-export const warpArtifact: CardDefinition = {
+export const warpArtifact = defineCard(() => ({
     id: "9e5e07a2-fbdf-4c4c-996a-fce40bab5de5",
     rarity: "rare",
     name: "Warp Artifact",
@@ -1402,12 +1407,12 @@ export const warpArtifact: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Weakness — "Enchanted creature gets -2/-1." Negative pt-buff aura. Lethal
 // at -1 toughness if base + buffs ≤ 1; SBA 704.5g sweeps the resulting
 // 0-toughness creature on the next checkpoint.
-export const weakness: CardDefinition = {
+export const weakness = defineCard(() => ({
     id: "36ca06a1-9b9a-49a2-9c47-9b72228621bc",
     rarity: "common",
     name: "Weakness",
@@ -1424,11 +1429,11 @@ export const weakness: CardDefinition = {
             toughness: -1,
         },
     ],
-};
+}));
 
 // Will-o'-the-Wisp — "Flying. {B}: Regenerate Will-o'-the-Wisp." Flying static
 // + self-regen activated. Same shape as Drudge Skeletons / Wall of Bone.
-export const willOTheWisp: CardDefinition = {
+export const willOTheWisp = defineCard(() => ({
     id: "a1a6f8e9-7bc1-4151-b55f-acf877b1a7a6",
     rarity: "rare",
     name: "Will-o'-the-Wisp",
@@ -1451,7 +1456,7 @@ export const willOTheWisp: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Word of Command — "Look at target opponent's hand and choose a card from it.
 // You control that player until Word of Command finishes resolving. The player
@@ -1479,7 +1484,7 @@ export const willOTheWisp: CardDefinition = {
 //      played (#577). This slice supports a NON-targeted spell; targeted / X /
 //      modal casts route the extra choices to the controller in later slices
 //      (#578-#580).
-export const wordOfCommand: CardDefinition = {
+export const wordOfCommand = defineCard(() => ({
     id: "96c21429-98d3-416b-be00-6aa9c4c5a006",
     rarity: "rare",
     name: "Word of Command",
@@ -1703,7 +1708,7 @@ export const wordOfCommand: CardDefinition = {
             additionalSacrificeIds,
         });
     },
-};
+}));
 
 // Zombie Master — "Other Zombie creatures you control have swampwalk. Other
 // Zombies have '{B}: Regenerate this creature.'" (CR 611, 702.13c landwalk,
@@ -1713,7 +1718,7 @@ export const wordOfCommand: CardDefinition = {
 // original LEA text and current Oracle both omit it. The granted regen
 // template lives on `grantTemplates` so Zombie Master itself does NOT expose
 // it as a native activated ability.
-export const zombieMaster: CardDefinition = {
+export const zombieMaster = defineCard(() => ({
     id: "3d4255a0-d445-4c00-b936-bbf07851e1c8",
     rarity: "rare",
     name: "Zombie Master",
@@ -1753,11 +1758,11 @@ export const zombieMaster: CardDefinition = {
             effects: [{ op: "regenerate", target: { ref: "$source" } }],
         },
     ],
-};
+}));
 
 // Terror — {1}{B} Instant. "Destroy target nonartifact, nonblack creature.
 // It can't be regenerated." (CR 701.8, 701.19c, 202.2, 205)
-export const terror: CardDefinition = {
+export const terror = defineCard(() => ({
     id: "21004958-2c7e-4a55-bc80-411c4d780106",
     rarity: "common",
     name: "Terror",
@@ -1779,4 +1784,4 @@ export const terror: CardDefinition = {
     effects: [
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
-};
+}));

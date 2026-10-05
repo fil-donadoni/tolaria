@@ -30,8 +30,8 @@ import type { ScenarioSpec } from "../../debugScenarioSpec";
  *  `declare-attackers` step walks forward into an open block window. */
 const COMBAT_BOARD: ScenarioSpec = {
     cards: [
-        { name: grizzlyBears.name, owner: "me" },
-        { name: shivanDragon.name, owner: "opp" },
+        { name: grizzlyBears().name, owner: "me" },
+        { name: shivanDragon().name, owner: "opp" },
     ],
     phase: "DECLARE_ATTACKERS",
     turn: 5,
@@ -117,14 +117,14 @@ describe("a combat a card name cannot reference is REFUSED (issue #3458)", () =>
         // detect. Hence a refusal, not a note.
         const state = buildStateFromScenario(buildBladeBaseState(), {
             cards: [
-                { name: grizzlyBears.name, owner: "me" },
+                { name: grizzlyBears().name, owner: "me" },
                 {
-                    name: grizzlyBears.name,
+                    name: grizzlyBears().name,
                     owner: "me",
                     counters: { "+1/+1": 1 },
                     tapped: true,
                 },
-                { name: shivanDragon.name, owner: "opp" },
+                { name: shivanDragon().name, owner: "opp" },
             ],
             phase: "DECLARE_BLOCKERS",
             turn: 5,

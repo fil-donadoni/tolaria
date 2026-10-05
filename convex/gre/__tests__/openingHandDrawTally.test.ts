@@ -94,7 +94,7 @@ describe("opening hand vs the per-turn draw tally (CR 103.5 / CR 121.1, issue #1
         recordDeclaration(state, "p1", "keep");
         recordDeclaration(state, "p2", "keep");
 
-        const applies = leovoldEmissaryOfTrest.drawReplacement!.applies;
+        const applies = leovoldEmissaryOfTrest().drawReplacement!.applies;
         const leovold = { controllerId: "p1" } as Parameters<typeof applies>[1];
         // Leovold's predicate reads only the event and its source.
         const view = {} as Parameters<typeof applies>[2];

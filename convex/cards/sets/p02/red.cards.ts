@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Goblin Matron — {2}{R} 1/1 Goblin. "When this creature enters, you may
@@ -26,7 +26,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // creature (Goblin Grenade and the Goblin lands are legal finds).
 //
 // hand-tail: When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle. (#4195)
-export const goblinMatron: CardDefinition = {
+export const goblinMatron = defineCard(() => ({
     id: "f99dc21c-8600-49bf-b0a3-c981f7ec7ac3", // P02 100
     rarity: "uncommon",
     name: "Goblin Matron",
@@ -86,4 +86,4 @@ export const goblinMatron: CardDefinition = {
             ],
         }),
     ],
-};
+}));

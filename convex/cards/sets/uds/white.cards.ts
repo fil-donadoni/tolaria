@@ -2,10 +2,10 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004). Generic mana is
 // encoded as `X: n` ({3}{W} → { X: 3, W: 1 }).
 
-import type {
-    CardDefinition,
-    PermanentView,
-    StaticEffectContext,
+import {
+    defineCard,
+    type PermanentView,
+    type StaticEffectContext,
 } from "../../types";
 
 // CR 404 / 400.7 / 614-batch — a bulk graveyard-set sweep (issue #1056),
@@ -27,7 +27,7 @@ import type {
 // auto-picks the first one (deterministic order) — no player choice is
 // modeled, matching this sweep's own "no per-card choice" design for which
 // enchantments return.
-export const replenish: CardDefinition = {
+export const replenish = defineCard(() => ({
     id: "7fd2fe13-bbc0-42b7-bc42-3b51910ce118",
     rarity: "rare",
     name: "Replenish",
@@ -53,7 +53,7 @@ export const replenish: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 /** CR 205 layer-4 / 613.4b — "each OTHER non-Aura enchantment" (target !==
  *  source, live `types`/`subtypes` so the set stays current with any earlier
@@ -78,7 +78,7 @@ const IS_OTHER_NON_AURA_ENCHANTMENT: (
 // or a noncreature-artifact set.) Unconditional (no "isn't already a
 // creature" gate) — unlike Animate Artifact's host clause, Opalescence's text
 // carries no such condition.
-export const opalescence: CardDefinition = {
+export const opalescence = defineCard(() => ({
     id: "3c0071fb-afa5-47b5-b266-2b10a4f5a98a",
     rarity: "rare",
     name: "Opalescence",
@@ -101,4 +101,4 @@ export const opalescence: CardDefinition = {
             },
         },
     ],
-};
+}));

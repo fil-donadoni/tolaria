@@ -7,9 +7,9 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
-export const scarwoodGoblins: CardDefinition = {
+export const scarwoodGoblins = defineCard(() => ({
     id: "5542d236-af43-43b8-b30f-8980d74bbdd0",
     rarity: "common",
     name: "Scarwood Goblins",
@@ -19,11 +19,11 @@ export const scarwoodGoblins: CardDefinition = {
     subtypes: ["Goblin"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Marsh Goblins — {B}{R} 1/1 Goblin with Swampwalk (CR 702.14 — can't be blocked
 // while the defending player controls a Swamp). Pure keyword static.
-export const marshGoblins: CardDefinition = {
+export const marshGoblins = defineCard(() => ({
     id: "8aabd80f-a18a-4bc1-9f05-4c3a63de77ce",
     rarity: "common",
     name: "Marsh Goblins",
@@ -35,4 +35,4 @@ export const marshGoblins: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["swampwalk"],
-};
+}));

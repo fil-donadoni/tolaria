@@ -74,13 +74,13 @@ function handCard(cardId: string, id: string, controllerId = "p1") {
 
 describe("Evoke — cost lookup (CR 702.74a, convex/gre/alternativeCost.ts)", () => {
     it("getAlternativeCost resolves def.evoke by its own id (reference equality)", () => {
-        expect(getAlternativeCost(grief, "evoke")).toBe(grief.evoke);
-        expect(getAlternativeCost(solitude, "evoke")).toBe(solitude.evoke);
+        expect(getAlternativeCost(grief(), "evoke")).toBe(grief().evoke);
+        expect(getAlternativeCost(solitude(), "evoke")).toBe(solitude().evoke);
     });
 
     it("affordableAlternativeCosts offers the evoke variant when a matching hand card is available", () => {
-        const griefInst = handCard(grief.id, "grief");
-        const ritual = handCard(darkRitual.id, "ritual");
+        const griefInst = handCard(grief().id, "grief");
+        const ritual = handCard(darkRitual().id, "ritual");
         const state = makeState({
             players: [
                 makePlayer("p1", { hand: [griefInst, ritual] }),
@@ -96,7 +96,7 @@ describe("Evoke — cost lookup (CR 702.74a, convex/gre/alternativeCost.ts)", ()
     });
 
     it("affordableAlternativeCosts omits evoke with no matching hand card", () => {
-        const griefInst = handCard(grief.id, "grief");
+        const griefInst = handCard(grief().id, "grief");
         const state = makeState({
             players: [
                 makePlayer("p1", { hand: [griefInst] }),
@@ -114,9 +114,9 @@ describe("Evoke — cost lookup (CR 702.74a, convex/gre/alternativeCost.ts)", ()
 
 describe("Evoke — cast commit tags the stack item (CR 601.2h / 118.9)", () => {
     function griefEvokeCast(): GameState {
-        const griefInst = handCard(grief.id, "grief");
-        const ritual = handCard(darkRitual.id, "ritual");
-        const oppCard = handCard(grizzlyBears.id, "opp-card", "p2");
+        const griefInst = handCard(grief().id, "grief");
+        const ritual = handCard(darkRitual().id, "ritual");
+        const oppCard = handCard(grizzlyBears().id, "opp-card", "p2");
         const state = makeState({
             players: [
                 makePlayer("p1", { hand: [griefInst, ritual] }),
@@ -213,17 +213,17 @@ describe("Evoke — CR 702.74a sacrifice-on-ETB", () => {
 
     it("an EVOKED Grief resolves its ETB (opponent discards) then sacrifices itself", () => {
         const griefStack: StackItem = {
-            ...handCard(grief.id, "grief"),
+            ...handCard(grief().id, "grief"),
             zone: "stack",
             castById: "p1",
             evoked: true,
         };
-        const oppCard = handCard(grizzlyBears.id, "opp-card", "p2");
+        const oppCard = handCard(grizzlyBears().id, "opp-card", "p2");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { hand: [oppCard] })],
         });
         state.stack.push(griefStack);
-        enterAndResolveTriggers(state, "grief", grief.id);
+        enterAndResolveTriggers(state, "grief", grief().id);
 
         // The ETB effect fired: the opponent's sole nonland card was
         // discarded (forced pick, no suspension).
@@ -243,16 +243,16 @@ describe("Evoke — CR 702.74a sacrifice-on-ETB", () => {
 
     it("a HARD-CAST Grief (no evoke) resolves its ETB and survives", () => {
         const griefStack: StackItem = {
-            ...handCard(grief.id, "grief"),
+            ...handCard(grief().id, "grief"),
             zone: "stack",
             castById: "p1",
         };
-        const oppCard = handCard(grizzlyBears.id, "opp-card", "p2");
+        const oppCard = handCard(grizzlyBears().id, "opp-card", "p2");
         const state = makeState({
             players: [makePlayer("p1"), makePlayer("p2", { hand: [oppCard] })],
         });
         state.stack.push(griefStack);
-        enterAndResolveTriggers(state, "grief", grief.id);
+        enterAndResolveTriggers(state, "grief", grief().id);
 
         // ETB effect still fires (unconditional on evoke).
         expect(state.players[1].hand).toHaveLength(0);
@@ -281,13 +281,13 @@ describe("Solitude ETB (CR 603.3d — exile up to one other creature, LKI life g
      *  Serra Angel, power 4) and fires Solitude's ETB onto the stack, leaving
      *  its target slot un-set (the trigger-target machinery locks it next). */
     function setupSolitudeEtb(withSerra = true): GameState {
-        const solitudePermanent = makeInstance(solitude.id, {
+        const solitudePermanent = makeInstance(solitude().id, {
             id: "solitude",
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
-        const serra = makeInstance(serraAngel.id, {
+        const serra = makeInstance(serraAngel().id, {
             id: "serra",
             controllerId: "p2",
             ownerId: "p2",
@@ -307,7 +307,7 @@ describe("Solitude ETB (CR 603.3d — exile up to one other creature, LKI life g
                 type: "PERMANENT_ENTERED",
                 instanceId: "solitude",
                 controllerId: "p1",
-                cardId: solitude.id,
+                cardId: solitude().id,
                 types: ["Creature"],
             },
         ]).filter((t) => t.triggeredAbilityId === "solitude-etb");
@@ -385,7 +385,7 @@ describe("Solitude ETB (CR 603.3d — exile up to one other creature, LKI life g
 
 describe("Evoke — serialization (CR 702.74a)", () => {
     it("round-trips the evoked flag on a battlefield permanent", () => {
-        const griefPermanent = makeInstance(grief.id, {
+        const griefPermanent = makeInstance(grief().id, {
             id: "grief",
             controllerId: "p1",
             ownerId: "p1",
@@ -407,7 +407,7 @@ describe("Evoke — serialization (CR 702.74a)", () => {
 
 describe("Evoke — frontend wiring SURFACE (projectPublicState)", () => {
     it("evoked survives the wire projection", () => {
-        const griefPermanent = makeInstance(grief.id, {
+        const griefPermanent = makeInstance(grief().id, {
             id: "grief",
             controllerId: "p1",
             ownerId: "p1",
@@ -608,8 +608,8 @@ describe("Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 7
      *  through the real cast-commit seam. p1's library holds one Forest so the
      *  green half has something to find. */
     function evokeVibranceWith(pool: Record<string, number>): GameState {
-        const vib = handCard(vibrance.id, "vib");
-        const libForest = makeInstance(forest.id, {
+        const vib = handCard(vibrance().id, "vib");
+        const libForest = makeInstance(forest().id, {
             id: "lib-forest",
             controllerId: "p1",
             ownerId: "p1",
@@ -628,7 +628,7 @@ describe("Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 7
             playerId: "p1",
             cardInstanceId: "vib",
             // The cost under test comes from the CARD, not from this test.
-            manaCost: normalizeManaCost(vibrance.evoke!.mana!),
+            manaCost: normalizeManaCost(vibrance().evoke!.mana!),
             tappedLandIds: [],
             evoked: true,
         };
@@ -645,7 +645,7 @@ describe("Evoke × guild-hybrid cost × spent-mana-colour (CR 202.1a / 106.4 / 7
                 type: "PERMANENT_ENTERED",
                 instanceId: "vib",
                 controllerId: "p1",
-                cardId: vibrance.id,
+                cardId: vibrance().id,
                 types: ["Creature"],
             },
         ]);
@@ -801,12 +801,12 @@ describe("Evoke — countered → graveyard → Regrowth → HARD recast does no
         //    (the cost-payment plumbing that produces this stamp is already
         //    covered by the "cast commit tags the stack item" describe block
         //    above; this test is about the EXIT, not the payment).
-        const grief1 = pushSpell(state, grief.id, "p1");
+        const grief1 = pushSpell(state, grief().id, "p1");
         grief1.evoked = true;
 
         // 2. Counter it — SpellContext.counter()'s default "graveyard"
         //    destination, exactly like the buyback regression.
-        const counterer = pushSpell(state, counterspell.id, "p2");
+        const counterer = pushSpell(state, counterspell().id, "p2");
         const ctx = buildSpellContext(state, counterer);
         ctx.counter({ type: "spell", id: grief1.id });
 
@@ -820,7 +820,7 @@ describe("Evoke — countered → graveyard → Regrowth → HARD recast does no
         expect((inGraveyard as { evoked?: boolean }).evoked).toBe(undefined);
 
         // 3. Regrowth returns it to hand.
-        pushSpell(state, regrowth.id, "p1", [
+        pushSpell(state, regrowth().id, "p1", [
             { type: "graveyard-card", id: grief1.id, playerId: "p1" },
         ]);
         resolveTopOfStack(state);
@@ -862,7 +862,7 @@ describe("Evoke — countered → graveyard → Regrowth → HARD recast does no
                 type: "PERMANENT_ENTERED",
                 instanceId: grief1.id,
                 controllerId: "p1",
-                cardId: grief.id,
+                cardId: grief().id,
                 types: ["Creature"],
             },
         ]);

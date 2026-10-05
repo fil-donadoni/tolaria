@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Harvester of Misery — {3}{B}{B} Creature — Spirit, 5/4, Menace (Vintage
@@ -31,7 +31,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // Both `pump` and `discardThis` are already interpreter/engine-exercised —
 // no hand-written per-card test required (per-Op test regime,
 // gre-development.md).
-export const harvesterOfMisery: CardDefinition = {
+export const harvesterOfMisery = defineCard(() => ({
     id: "a3012af9-621d-4fae-b00d-079a89ae35fe",
     name: "Harvester of Misery",
     rarity: "mythic",
@@ -99,4 +99,4 @@ export const harvesterOfMisery: CardDefinition = {
             ],
         },
     ],
-};
+}));

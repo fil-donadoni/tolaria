@@ -1,6 +1,6 @@
 // blb — white cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { OFFSPRING_COST_ID, offspringTrigger } from "../../abilities/offspring";
 
@@ -54,7 +54,7 @@ import { OFFSPRING_COST_ID, offspringTrigger } from "../../abilities/offspring";
 // cost keyword, so the offspring line is named for the corpus backlog PRD #2693
 // ranks the next grammar rule by.
 // compiler-gap: Offspring {1} (You may pay an additional {1} as you cast this spell. If you do, when this creature enters, create a 1/1 token copy of it.) (#2693)
-export const intrepidRabbit: CardDefinition = {
+export const intrepidRabbit = defineCard(() => ({
     id: "4d70b99d-c8bf-4a56-8957-cf587fe60b81", // BLB 17
     name: "Intrepid Rabbit",
     rarity: "common",
@@ -100,4 +100,4 @@ export const intrepidRabbit: CardDefinition = {
             ],
         }),
     ],
-};
+}));

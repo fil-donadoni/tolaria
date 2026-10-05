@@ -2,13 +2,13 @@
 // `import * as ons from "./sets/ons/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Fetchland family (issue #677) — see zen/colorless.cards.ts's header comment for
 // the shared DSL pattern (`choice` with an OR subtype filter + `moveZone`
 // cards-shape to the battlefield + `libraryLook` shuffle).
 
-export const pollutedDelta: CardDefinition = {
+export const pollutedDelta = defineCard(() => ({
     id: "0f7585c8-9e21-4eef-afc1-2852de23db2f",
     name: "Polluted Delta",
     rarity: "rare",
@@ -44,9 +44,9 @@ export const pollutedDelta: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const bloodstainedMire: CardDefinition = {
+export const bloodstainedMire = defineCard(() => ({
     id: "68c72226-6f52-4322-8b14-18737293dfa0",
     name: "Bloodstained Mire",
     rarity: "rare",
@@ -82,9 +82,9 @@ export const bloodstainedMire: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const windsweptHeath: CardDefinition = {
+export const windsweptHeath = defineCard(() => ({
     id: "7a7c5941-9c8a-4a40-9efb-a84f05c58e53",
     name: "Windswept Heath",
     rarity: "rare",
@@ -120,9 +120,9 @@ export const windsweptHeath: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const floodedStrand: CardDefinition = {
+export const floodedStrand = defineCard(() => ({
     id: "b4e3d844-d3b4-41d8-921d-c1cb3af343f8",
     name: "Flooded Strand",
     rarity: "rare",
@@ -158,9 +158,9 @@ export const floodedStrand: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const woodedFoothills: CardDefinition = {
+export const woodedFoothills = defineCard(() => ({
     id: "cdad38f7-9dfa-4f1b-9fac-41ab2b253f53",
     name: "Wooded Foothills",
     rarity: "rare",
@@ -196,4 +196,4 @@ export const woodedFoothills: CardDefinition = {
             ],
         },
     ],
-};
+}));

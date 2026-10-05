@@ -82,7 +82,7 @@ describe("getLegalActions", () => {
     describe("lands (CR 305.2)", () => {
         it('land cards in HAND have "play" action', () => {
             const state = makeGameState();
-            const land = card(plains.id);
+            const land = card(plains().id);
             const player = makePlayer({ hand: [land] });
 
             const actions = getLegalActions(state, player, land);
@@ -91,7 +91,7 @@ describe("getLegalActions", () => {
 
         it('land cards do NOT have "cast" action (CR 305.1 — lands are not spells)', () => {
             const state = makeGameState();
-            const land = card(plains.id);
+            const land = card(plains().id);
             const player = makePlayer({ hand: [land] });
 
             const actions = getLegalActions(state, player, land);
@@ -99,7 +99,7 @@ describe("getLegalActions", () => {
         });
 
         it('blocks "play" once the per-turn land drop is spent (CR 305.2)', () => {
-            const land = card(plains.id);
+            const land = card(plains().id);
             const state = makeGameState();
             const player = makePlayer({
                 hand: [land],
@@ -111,7 +111,7 @@ describe("getLegalActions", () => {
         });
 
         it("treats undefined landsPlayedThisTurn as 0 (CR 305.2)", () => {
-            const land = card(plains.id);
+            const land = card(plains().id);
             const state = makeGameState();
             const player = makePlayer({
                 hand: [land],
@@ -129,14 +129,14 @@ describe("getLegalActions", () => {
         it('a land NOT in any zone (no hand/graveyard-permission/exile-grant) has NO "play" action', () => {
             const state = makeGameState();
             const player = makePlayer();
-            const land = card(plains.id);
+            const land = card(plains().id);
 
             const actions = getLegalActions(state, player, land);
             expect(actions).not.toContain("play");
         });
 
         it('a land in the GRAVEYARD with no play-from-graveyard permission has NO "play" action', () => {
-            const land = card(plains.id, { zone: "graveyard" });
+            const land = card(plains().id, { zone: "graveyard" });
             const state = makeGameState();
             const player = makePlayer({ graveyard: [land] });
 
@@ -145,7 +145,7 @@ describe("getLegalActions", () => {
         });
 
         it('a land in the EXILE zone with no cast-from-exile grant has NO "play" action', () => {
-            const land = card(plains.id, { zone: "exile" });
+            const land = card(plains().id, { zone: "exile" });
             const state = makeGameState();
             const player = makePlayer({ exile: [land] });
 
@@ -154,7 +154,7 @@ describe("getLegalActions", () => {
         });
 
         it('a land in the EXILE zone under a CAST-ONLY grant (no castableFromExileIncludesLand) has NO "play" action', () => {
-            const land = card(plains.id, {
+            const land = card(plains().id, {
                 zone: "exile",
                 castableFromExileBy: "p1",
             });
@@ -178,7 +178,7 @@ describe("getLegalActions", () => {
              *  exile. p1 is active, in their POSTCOMBAT_MAIN with an empty
              *  stack and priority — the exact repro board. */
             function crossPlayerGrant(casterLandsPlayed: number) {
-                const land = card(plains.id, {
+                const land = card(plains().id, {
                     zone: "exile",
                     castableFromExileBy: "p1",
                     castableFromExileIncludesLand: true,
@@ -227,7 +227,7 @@ describe("getLegalActions", () => {
         });
 
         it('a land in an OPPONENT\'s hand has NO "play" action for the viewing player', () => {
-            const land = card(plains.id, { zone: "hand" });
+            const land = card(plains().id, { zone: "hand" });
             const state = makeGameState();
             // `land` lives in p2's hand; `player` (p1) has no zone containing it.
             const player = makePlayer({ id: "p1" });
@@ -241,7 +241,7 @@ describe("getLegalActions", () => {
         it("creature can be cast when stack is empty", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const lion = card(savannahLions.id);
+            const lion = card(savannahLions().id);
 
             const actions = getLegalActions(state, player, lion);
             expect(actions).toContain("cast");
@@ -251,13 +251,13 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...card(lightningBolt.id, { zone: "stack" }),
+                        ...card(lightningBolt().id, { zone: "stack" }),
                         castById: "p2",
                     },
                 ],
             });
             const player = makePlayer();
-            const lion = card(savannahLions.id);
+            const lion = card(savannahLions().id);
 
             const actions = getLegalActions(state, player, lion);
             expect(actions).not.toContain("cast");
@@ -266,7 +266,7 @@ describe("getLegalActions", () => {
         it('creature does NOT have "play" action', () => {
             const state = makeGameState();
             const player = makePlayer();
-            const lion = card(savannahLions.id);
+            const lion = card(savannahLions().id);
 
             const actions = getLegalActions(state, player, lion);
             expect(actions).not.toContain("play");
@@ -283,13 +283,13 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...card(savannahLions.id, { zone: "stack" }),
+                        ...card(savannahLions().id, { zone: "stack" }),
                         castById: "p2",
                     },
                 ],
             });
             const player = makePlayer();
-            const flasher = card(subtlety.id);
+            const flasher = card(subtlety().id);
             expect(flasher.staticAbilities).toContain("flash");
 
             const actions = getLegalActions(state, player, flasher);
@@ -301,7 +301,7 @@ describe("getLegalActions", () => {
         it("instant can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
 
             const actions = getLegalActions(state, player, bolt);
             expect(actions).toContain("cast");
@@ -311,13 +311,13 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...card(savannahLions.id, { zone: "stack" }),
+                        ...card(savannahLions().id, { zone: "stack" }),
                         castById: "p1",
                     },
                 ],
             });
             const player = makePlayer();
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
 
             const actions = getLegalActions(state, player, bolt);
             expect(actions).toContain("cast");
@@ -326,7 +326,7 @@ describe("getLegalActions", () => {
         it("instant does NOT have play action", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
 
             const actions = getLegalActions(state, player, bolt);
             expect(actions).not.toContain("play");
@@ -337,7 +337,7 @@ describe("getLegalActions", () => {
         it("sorcery can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const sorcery = card(armageddon.id);
+            const sorcery = card(armageddon().id);
 
             const actions = getLegalActions(state, player, sorcery);
             expect(actions).toContain("cast");
@@ -347,13 +347,13 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...card(lightningBolt.id, { zone: "stack" }),
+                        ...card(lightningBolt().id, { zone: "stack" }),
                         castById: "p2",
                     },
                 ],
             });
             const player = makePlayer();
-            const sorcery = card(armageddon.id);
+            const sorcery = card(armageddon().id);
 
             const actions = getLegalActions(state, player, sorcery);
             expect(actions).not.toContain("cast");
@@ -364,7 +364,7 @@ describe("getLegalActions", () => {
         it("enchantment can be cast with empty stack", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const aura = card(crusade.id);
+            const aura = card(crusade().id);
 
             const actions = getLegalActions(state, player, aura);
             expect(actions).toContain("cast");
@@ -374,13 +374,13 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 stack: [
                     {
-                        ...card(giantGrowth.id, { zone: "stack" }),
+                        ...card(giantGrowth().id, { zone: "stack" }),
                         castById: "p1",
                     },
                 ],
             });
             const player = makePlayer();
-            const aura = card(crusade.id);
+            const aura = card(crusade().id);
 
             const actions = getLegalActions(state, player, aura);
             expect(actions).not.toContain("cast");
@@ -391,9 +391,9 @@ describe("getLegalActions", () => {
         it("returns no actions when player does not have priority", () => {
             const state = makeGameState({ priorityPlayerId: "p2" });
             const player = makePlayer({ id: "p1" });
-            const land = card(plains.id);
-            const instant = card(lightningBolt.id);
-            const creature = card(savannahLions.id);
+            const land = card(plains().id);
+            const instant = card(lightningBolt().id);
+            const creature = card(savannahLions().id);
 
             expect(getLegalActions(state, player, land)).toEqual([]);
             expect(getLegalActions(state, player, instant)).toEqual([]);
@@ -403,7 +403,7 @@ describe("getLegalActions", () => {
         it("returns actions when player has priority", () => {
             const state = makeGameState({ priorityPlayerId: "p1" });
             const player = makePlayer({ id: "p1" });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
 
             expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
@@ -427,9 +427,11 @@ describe("getLegalActions", () => {
             const state = makeGameState({ pendingCast });
             const player = makePlayer({ id: "p1" });
 
-            expect(getLegalActions(state, player, card(plains.id))).toEqual([]);
+            expect(getLegalActions(state, player, card(plains().id))).toEqual(
+                []
+            );
             expect(
-                getLegalActions(state, player, card(lightningBolt.id))
+                getLegalActions(state, player, card(lightningBolt().id))
             ).toEqual([]);
         });
 
@@ -448,7 +450,7 @@ describe("getLegalActions", () => {
             const player = makePlayer({ id: "p1" });
 
             expect(
-                getLegalActions(state, player, card(lightningBolt.id))
+                getLegalActions(state, player, card(lightningBolt().id))
             ).toEqual([]);
         });
 
@@ -465,7 +467,7 @@ describe("getLegalActions", () => {
             const player = makePlayer({ id: "p1" });
 
             expect(
-                getLegalActions(state, player, card(lightningBolt.id))
+                getLegalActions(state, player, card(lightningBolt().id))
             ).toEqual([]);
         });
 
@@ -486,7 +488,7 @@ describe("getLegalActions", () => {
             const player = makePlayer({ id: "p1" });
 
             expect(
-                getLegalActions(state, player, card(lightningBolt.id))
+                getLegalActions(state, player, card(lightningBolt().id))
             ).toEqual([]);
         });
 
@@ -495,7 +497,7 @@ describe("getLegalActions", () => {
             const player = makePlayer({ id: "p1" });
 
             expect(
-                getLegalActions(state, player, card(lightningBolt.id))
+                getLegalActions(state, player, card(lightningBolt().id))
             ).toContain("cast");
         });
     });
@@ -507,7 +509,7 @@ describe("getLegalActions", () => {
                 manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0 },
                 battlefield: [],
             });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
             expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
@@ -517,12 +519,12 @@ describe("getLegalActions", () => {
                 manaPool: { W: 0, U: 0, B: 0, R: 1, G: 0, C: 0 },
                 battlefield: [],
             });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
             expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
 
         it('allows "cast" when an untapped basic land covers the cost', () => {
-            const land = card(mountain.id, {
+            const land = card(mountain().id, {
                 zone: "battlefield",
                 isTapped: false,
             });
@@ -533,12 +535,12 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
             expect(getLegalActions(state, player, bolt)).toContain("cast");
         });
 
         it('blocks "cast" when the only land is tapped', () => {
-            const land = card(mountain.id, {
+            const land = card(mountain().id, {
                 zone: "battlefield",
                 isTapped: true,
             });
@@ -549,12 +551,12 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
             expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
         it('blocks "cast" when only off-color sources are available', () => {
-            const land = card(plains.id, {
+            const land = card(plains().id, {
                 zone: "battlefield",
                 isTapped: false,
             });
@@ -565,7 +567,7 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const bolt = card(lightningBolt.id);
+            const bolt = card(lightningBolt().id);
             expect(getLegalActions(state, player, bolt)).not.toContain("cast");
         });
 
@@ -575,7 +577,7 @@ describe("getLegalActions", () => {
             // satisfy a {G} cost on a Giant Growth in hand. The bird itself
             // is a legal target for the Growth (creature on the battlefield),
             // so the cast is gated purely on mana availability.
-            const birds = card(birdsOfParadise.id, {
+            const birds = card(birdsOfParadise().id, {
                 zone: "battlefield",
                 isSummoningSick: true,
             });
@@ -586,14 +588,14 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const growth = card(giantGrowth.id);
+            const growth = card(giantGrowth().id);
             expect(getLegalActions(state, player, growth)).not.toContain(
                 "cast"
             );
         });
 
         it("counts a creature mana source once summoning sickness has worn off", () => {
-            const birds = card(birdsOfParadise.id, {
+            const birds = card(birdsOfParadise().id, {
                 zone: "battlefield",
                 isSummoningSick: false,
             });
@@ -604,12 +606,12 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const growth = card(giantGrowth.id);
+            const growth = card(giantGrowth().id);
             expect(getLegalActions(state, player, growth)).toContain("cast");
         });
 
         it('allows "cast" for an X-cost spell when only the fixed portion is payable', () => {
-            const land = card(mountain.id, {
+            const land = card(mountain().id, {
                 zone: "battlefield",
                 isTapped: false,
             });
@@ -621,7 +623,7 @@ describe("getLegalActions", () => {
                 players: [player, makePlayer({ id: "p2" })],
             });
             // Fireball: { X: "X", R: 1 } — minimum announce cost is {R}.
-            const spell = card(fireball.id);
+            const spell = card(fireball().id);
             expect(getLegalActions(state, player, spell)).toContain("cast");
         });
     });
@@ -630,7 +632,7 @@ describe("getLegalActions", () => {
         it("returns all actions regardless of card type", () => {
             const state = makeGameState();
             const player = makePlayer();
-            const land = card(plains.id);
+            const land = card(plains().id);
 
             const actions = getLegalActions(state, player, land, true);
             expect(actions).toContain("play");
@@ -655,41 +657,41 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const spell = card(naturalOrder.id);
+            const spell = card(naturalOrder().id);
             // No green creature on the battlefield — Natural Order's
             // "sacrifice a green creature" additional cost is unpayable.
             expect(getLegalActions(state, player, spell)).not.toContain("cast");
         });
 
         it('allows "cast" for a sacrificeFilter spell once a legal permanent exists', () => {
-            const bears = card(grizzlyBears.id, { zone: "battlefield" });
+            const bears = card(grizzlyBears().id, { zone: "battlefield" });
             const player = makePlayer({ battlefield: [bears] });
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const spell = card(naturalOrder.id);
+            const spell = card(naturalOrder().id);
             expect(getLegalActions(state, player, spell)).toContain("cast");
         });
 
         it('does not block "cast" for a sacrificeFilter spell on an off-color permanent', () => {
             // Savannah Lions is white, not green — doesn't satisfy Natural
             // Order's "sacrifice a green creature" filter.
-            const lions = card(savannahLions.id, { zone: "battlefield" });
+            const lions = card(savannahLions().id, { zone: "battlefield" });
             const player = makePlayer({ battlefield: [lions] });
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const spell = card(naturalOrder.id);
+            const spell = card(naturalOrder().id);
             expect(getLegalActions(state, player, spell)).not.toContain("cast");
         });
 
         it('blocks "cast" for an exileFilter spell with no legal permanent to exile', () => {
-            const grave = card(grizzlyBears.id, { zone: "graveyard" });
+            const grave = card(grizzlyBears().id, { zone: "graveyard" });
             const player = makePlayer({ battlefield: [], graveyard: [grave] });
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const spell = card(soulExchange.id);
+            const spell = card(soulExchange().id);
             // No creature on the battlefield to exile — Soul Exchange's
             // additional cost is unpayable even though a legal
             // (graveyard) target exists for the return-to-battlefield
@@ -698,8 +700,8 @@ describe("getLegalActions", () => {
         });
 
         it('allows "cast" for an exileFilter spell once a legal permanent exists', () => {
-            const bears = card(grizzlyBears.id, { zone: "battlefield" });
-            const grave = card(grizzlyBears.id, { zone: "graveyard" });
+            const bears = card(grizzlyBears().id, { zone: "battlefield" });
+            const grave = card(grizzlyBears().id, { zone: "graveyard" });
             const player = makePlayer({
                 battlefield: [bears],
                 graveyard: [grave],
@@ -707,7 +709,7 @@ describe("getLegalActions", () => {
             const state = makeGameState({
                 players: [player, makePlayer({ id: "p2" })],
             });
-            const spell = card(soulExchange.id);
+            const spell = card(soulExchange().id);
             expect(getLegalActions(state, player, spell)).toContain("cast");
         });
     });
@@ -720,7 +722,7 @@ describe("getLegalActions", () => {
 describe("assertLegalAction", () => {
     it("does not throw for a legal action", () => {
         const state = makeGameState();
-        const land = card(plains.id);
+        const land = card(plains().id);
         const player = makePlayer({ hand: [land] });
 
         expect(() =>
@@ -731,7 +733,7 @@ describe("assertLegalAction", () => {
     it("throws for an illegal action with descriptive message", () => {
         const state = makeGameState();
         const player = makePlayer();
-        const land = card(plains.id);
+        const land = card(plains().id);
 
         expect(() => assertLegalAction(state, player, land, "cast")).toThrow(
             'Illegal action "cast" on "Plains"'
@@ -742,13 +744,13 @@ describe("assertLegalAction", () => {
         const state = makeGameState({
             stack: [
                 {
-                    ...card(lightningBolt.id, { zone: "stack" }),
+                    ...card(lightningBolt().id, { zone: "stack" }),
                     castById: "p2",
                 },
             ],
         });
         const player = makePlayer();
-        const lion = card(savannahLions.id);
+        const lion = card(savannahLions().id);
 
         expect(() => assertLegalAction(state, player, lion, "cast")).toThrow(
             'Illegal action "cast" on "Savannah Lions"'
@@ -759,7 +761,7 @@ describe("assertLegalAction", () => {
         const state = makeGameState({
             stack: [
                 {
-                    ...card(savannahLions.id, { zone: "stack" }),
+                    ...card(savannahLions().id, { zone: "stack" }),
                     castById: "p1",
                 },
             ],
@@ -767,7 +769,7 @@ describe("assertLegalAction", () => {
         const player = makePlayer();
         // Ancestral Recall targets a player (always available) — keeps the
         // test focused on timing rather than target availability.
-        const instant = card(ancestralRecall.id);
+        const instant = card(ancestralRecall().id);
 
         expect(() =>
             assertLegalAction(state, player, instant, "cast")
@@ -796,13 +798,13 @@ describe('raiseTriggerTargetSelection — "up to X" count collapse (CR 601.2c / 
     function stateWithInlineTrigger(
         count: NonNullable<StackItem["inlineTargetRequirement"]>["count"]
     ): { state: GameState; trigger: StackItem } {
-        const target = card(savannahLions.id, {
+        const target = card(savannahLions().id, {
             id: "target-1",
             controllerId: "p1",
         });
         const player = makePlayer({ battlefield: [target] });
         const trigger: StackItem = {
-            ...card(ancestralRecall.id, { zone: "stack" }),
+            ...card(ancestralRecall().id, { zone: "stack" }),
             id: "trig-1",
             castById: "p1",
             targets: undefined,

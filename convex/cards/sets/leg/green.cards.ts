@@ -4,11 +4,11 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type {
-    CardDefinition,
-    SpellContext,
-    PermanentView,
-    TargetSelection,
+import {
+    defineCard,
+    type SpellContext,
+    type PermanentView,
+    type TargetSelection,
 } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
@@ -27,7 +27,7 @@ import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
 
 // Concordant Crossroads — World enchantment, "All creatures have haste."
 // (CR 702.10, 613.1a layer 6 — keyword-grant to every creature, any controller.)
-export const concordantCrossroads: CardDefinition = {
+export const concordantCrossroads = defineCard(() => ({
     id: "3bdcfae4-86c9-4d8a-bcfe-f0a928ec29db",
     rarity: "rare",
     name: "Concordant Crossroads",
@@ -45,7 +45,7 @@ export const concordantCrossroads: CardDefinition = {
             keyword: "haste",
         },
     ],
-};
+}));
 
 // Sylvan Library — "At the beginning of your draw step, you may draw two
 // additional cards. If you do, choose two cards in your hand drawn this turn.
@@ -72,7 +72,7 @@ export const concordantCrossroads: CardDefinition = {
 // hand-rolled `resolveSteps` split — the interpreter's own checkpointing now
 // does for free what that split used to need by hand (mirrors `putBack`'s
 // doc note on the identical Brainstorm-era bug).
-export const sylvanLibrary: CardDefinition = {
+export const sylvanLibrary = defineCard(() => ({
     id: "f486df00-7c4a-4ff0-bb0b-c8b5432ac742",
     rarity: "uncommon",
     name: "Sylvan Library",
@@ -111,7 +111,7 @@ export const sylvanLibrary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Green free tranche (#375) — every mono-green Legends card expressible with
@@ -192,7 +192,7 @@ export const sylvanLibrary: CardDefinition = {
 // --- Vanilla / keyword creatures (CR 110.1 / 702 — pure data) -------------
 
 // Barbary Apes — vanilla 2/2 Ape (CR 110.1).
-export const barbaryApes: CardDefinition = {
+export const barbaryApes = defineCard(() => ({
     id: "df25ffdd-995d-46ae-856b-f6368f9438ed",
     rarity: "common",
     name: "Barbary Apes",
@@ -202,10 +202,10 @@ export const barbaryApes: CardDefinition = {
     subtypes: ["Ape"],
     power: 2,
     toughness: 2,
-};
+}));
 
 // Durkwood Boars — vanilla 4/4 Boar (CR 110.1).
-export const durkwoodBoars: CardDefinition = {
+export const durkwoodBoars = defineCard(() => ({
     id: "8d41f08b-68fb-45f2-bdc9-488baedc7d6f",
     rarity: "common",
     name: "Durkwood Boars",
@@ -215,10 +215,10 @@ export const durkwoodBoars: CardDefinition = {
     subtypes: ["Boar"],
     power: 4,
     toughness: 4,
-};
+}));
 
 // Moss Monster — vanilla 3/6 Elemental (CR 110.1).
-export const mossMonster: CardDefinition = {
+export const mossMonster = defineCard(() => ({
     id: "9903c043-9a7a-4994-b532-136d4c46edfd",
     rarity: "common",
     name: "Moss Monster",
@@ -228,10 +228,10 @@ export const mossMonster: CardDefinition = {
     subtypes: ["Elemental"],
     power: 3,
     toughness: 6,
-};
+}));
 
 // Cat Warriors — forestwalk (CR 702.14 landwalk variant).
-export const catWarriors: CardDefinition = {
+export const catWarriors = defineCard(() => ({
     id: "d2187a64-2823-4f58-ad35-70f8913db2dc",
     rarity: "common",
     name: "Cat Warriors",
@@ -243,10 +243,10 @@ export const catWarriors: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["forestwalk"],
-};
+}));
 
 // Hornet Cobra — first strike (CR 702.7).
-export const hornetCobra: CardDefinition = {
+export const hornetCobra = defineCard(() => ({
     id: "27180bad-9bbc-462b-8832-626dc403a3fd",
     rarity: "common",
     name: "Hornet Cobra",
@@ -257,12 +257,12 @@ export const hornetCobra: CardDefinition = {
     power: 2,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
+}));
 
 // Elven Riders — "can't be blocked except by Walls and/or creatures with
 // flying" (CR 509.1b block restriction via a `block-restriction` static on the
 // attacker side; the combat validator scans the attacker's own statics).
-export const elvenRiders: CardDefinition = {
+export const elvenRiders = defineCard(() => ({
     id: "ad1d349b-b5ab-4b2b-9b39-f8d8f6374aa5",
     rarity: "rare",
     name: "Elven Riders",
@@ -293,14 +293,14 @@ export const elvenRiders: CardDefinition = {
                 "This creature can't be blocked except by Walls and/or creatures with flying.",
         },
     ],
-};
+}));
 
 // --- pt-cda creatures (CR 604.3 — characteristic-defining P/T) -------------
 
 // Rabid Wombat — Vigilance; "This creature gets +2/+2 for each Aura attached to
 // it." (CR 702.20 vigilance + a `pt-cda` that counts Auras attached to the
 // source at stat-read time, added on top of its base 0/1.)
-export const rabidWombat: CardDefinition = {
+export const rabidWombat = defineCard(() => ({
     id: "9d9b9eb8-6367-4ab5-8e00-a9c9e1d69032",
     rarity: "uncommon",
     name: "Rabid Wombat",
@@ -332,13 +332,13 @@ export const rabidWombat: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Emerald Dragonfly — Flying; "{G}{G}: This creature gains first strike until
 // end of turn." (CR 702.9 flying + CR 611.2a end-of-turn keyword grant.)
-export const emeraldDragonfly: CardDefinition = {
+export const emeraldDragonfly = defineCard(() => ({
     id: "a3e81250-52c3-49f6-be43-17c34339e177",
     rarity: "common",
     name: "Emerald Dragonfly",
@@ -369,11 +369,11 @@ export const emeraldDragonfly: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Fire Sprites — Flying; "{G}, {T}: Add {R}." (CR 702.9 flying + CR 605.1a mana
 // ability — `useStack: false`, resolves immediately, no priority.)
-export const fireSprites: CardDefinition = {
+export const fireSprites = defineCard(() => ({
     id: "d26fa79a-ede8-4c80-98d5-f49696f8104d",
     rarity: "common",
     name: "Fire Sprites",
@@ -394,11 +394,11 @@ export const fireSprites: CardDefinition = {
             manaProduced: { R: 1 },
         },
     ],
-};
+}));
 
 // Killer Bees — Flying; "{G}: This creature gets +1/+1 until end of turn."
 // (CR 702.9 flying + CR 611.1 repeatable temporary buff.)
-export const killerBees: CardDefinition = {
+export const killerBees = defineCard(() => ({
     id: "2e30b5ff-1239-4c4d-ac7c-554ecf8e1e27",
     rarity: "rare",
     name: "Killer Bees",
@@ -428,11 +428,11 @@ export const killerBees: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Pixie Queen — Flying; "{G}{G}{G}, {T}: Target creature gains flying until end
 // of turn." (CR 702.9 flying + CR 611.2a keyword grant on a chosen target.)
-export const pixieQueen: CardDefinition = {
+export const pixieQueen = defineCard(() => ({
     id: "b9527c2a-23bb-4d33-9e72-6e0ab3de0e6b",
     rarity: "rare",
     name: "Pixie Queen",
@@ -464,14 +464,14 @@ export const pixieQueen: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Burn spells scaling on a per-player count (CR 120.1) ------------------
 
 // Storm Seeker — "Storm Seeker deals damage to target player equal to the
 // number of cards in that player's hand." (CR 120.1 damage = hand-size snapshot
 // at resolution, CR 402.1.)
-export const stormSeeker: CardDefinition = {
+export const stormSeeker = defineCard(() => ({
     id: "3b66d0cc-84d7-41ad-b0e7-74ebf604543f",
     rarity: "uncommon",
     name: "Storm Seeker",
@@ -490,12 +490,12 @@ export const stormSeeker: CardDefinition = {
         if (target?.type !== "player") return;
         ctx.dealDamage(target, ctx.getHandSize(target.id));
     },
-};
+}));
 
 // Typhoon — "Typhoon deals damage to each opponent equal to the number of
 // Islands that player controls." (CR 120.1 damage scaled per opponent's Island
 // count, CR 205.3.)
-export const typhoon: CardDefinition = {
+export const typhoon = defineCard(() => ({
     id: "254e0403-67d8-4e73-8d89-c901ebeba49f",
     rarity: "rare",
     name: "Typhoon",
@@ -522,14 +522,14 @@ export const typhoon: CardDefinition = {
             to: { player: "opponent" },
         },
     ],
-};
+}));
 
 // --- Combat tricks (CR 611.1) ----------------------------------------------
 
 // Winter Blast — "Tap X target creatures. Winter Blast deals 2 damage to each
 // of those creatures with flying." (CR 107.3 X chosen on cast → CR 701.26a tap
 // of each target → CR 120.1 damage gated on flying, snapshot at resolution.)
-export const winterBlast: CardDefinition = {
+export const winterBlast = defineCard(() => ({
     id: "fb846366-2105-4999-8af1-a11687f42e17",
     rarity: "rare",
     name: "Winter Blast",
@@ -567,12 +567,12 @@ export const winterBlast: CardDefinition = {
             if (flyers.has(target.id)) ctx.dealDamage(target, 2);
         }
     },
-};
+}));
 
 // Sylvan Paradise — "One or more target creatures become green until end of
 // turn." (CR 305.7 layer-5 colour override, end-of-turn duration; variable
 // target count, CR 601.2c.)
-export const sylvanParadise: CardDefinition = {
+export const sylvanParadise = defineCard(() => ({
     id: "f323c3bb-cece-4035-b1a7-c4817cf7a08c",
     rarity: "uncommon",
     name: "Sylvan Paradise",
@@ -602,10 +602,10 @@ export const sylvanParadise: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Craw Giant — {3}{G}{G}{G}{G} 6/4, Trample, Rampage 2.
-export const crawGiant: CardDefinition = {
+export const crawGiant = defineCard(() => ({
     id: "707dadf0-735f-445d-9240-e49660913314",
     rarity: "uncommon",
     name: "Craw Giant",
@@ -618,10 +618,10 @@ export const crawGiant: CardDefinition = {
     toughness: 4,
     staticAbilities: ["trample", "rampage 2"],
     triggeredAbilities: [rampageTrigger(2)],
-};
+}));
 
 // Wolverine Pack — {2}{G}{G} 2/4, Rampage 2.
-export const wolverinePack: CardDefinition = {
+export const wolverinePack = defineCard(() => ({
     id: "ba5aee52-095e-4c69-93eb-5adac11ed1fc",
     rarity: "common",
     name: "Wolverine Pack",
@@ -634,14 +634,14 @@ export const wolverinePack: CardDefinition = {
     toughness: 4,
     staticAbilities: ["rampage 2"],
     triggeredAbilities: [rampageTrigger(2)],
-};
+}));
 
 // Master of the Hunt — "{2}{G}{G}: Create a 1/1 green Wolf creature token named
 // Wolves of the Hunt. It has 'bands with other creatures named Wolves of the
 // Hunt.'" (CR 702.22j name-quality band via a token with the parametric
 // keyword.) The token's name-quality keyword lets every Wolves-of-the-Hunt
 // token band together (CR 702.22j: all members share the name).
-export const masterOfTheHunt: CardDefinition = {
+export const masterOfTheHunt = defineCard(() => ({
     id: "4e6bf56e-2d74-4e4d-a667-885853979377",
     rarity: "rare",
     name: "Master of the Hunt",
@@ -685,11 +685,11 @@ export const masterOfTheHunt: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Shelkin Brownie — "{T}: Target creature loses all 'bands with other' abilities
 // until end of turn." (CR 611.2a layer-6 duration-scoped keyword removal.)
-export const shelkinBrownie: CardDefinition = {
+export const shelkinBrownie = defineCard(() => ({
     id: "fddcc557-871d-425b-b4ee-bc0c9bc717aa",
     rarity: "common",
     name: "Shelkin Brownie",
@@ -724,7 +724,7 @@ export const shelkinBrownie: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Cocoon — {G} Aura ("Enchant creature you control"). ETB taps the host and
 // puts three pupa counters ON THE AURA; the host doesn't untap while the Aura
@@ -732,7 +732,7 @@ export const shelkinBrownie: CardDefinition = {
 // remove, sacrifice the Aura, put a +1/+1 counter on the host, and the host
 // gains flying. CR 122 (counters on the Aura itself), CR 502.1 untap skip,
 // CR 701.21 sacrifice, CR 613.1b/6 flying grant.
-export const cocoon: CardDefinition = {
+export const cocoon = defineCard(() => ({
     id: "a82c87b1-de37-4423-a1a4-533a1d8108b2",
     rarity: "uncommon",
     name: "Cocoon",
@@ -816,14 +816,14 @@ export const cocoon: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Whirling Dervish — {G}{G} 1/1, protection from black. "At the beginning of
 // each end step, if this creature dealt damage to an opponent this turn, put a
 // +1/+1 counter on it." CR 702.16 protection, CR 603.6a end-step state-condition
 // trigger (intervening-if reads the turn-scoped `dealtDamageToOpponentThisTurn`
 // flag), CR 122.1 +1/+1 counter.
-export const whirlingDervish: CardDefinition = {
+export const whirlingDervish = defineCard(() => ({
     id: "eba294e7-7097-4bc3-b396-72e85dd4f441",
     rarity: "uncommon",
     name: "Whirling Dervish",
@@ -858,13 +858,13 @@ export const whirlingDervish: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Arboria — {2}{G}{G} World Enchantment. "Creatures can't attack a player
 // unless that player cast a spell or put a nontoken permanent onto the
 // battlefield during their last turn." (CR 508.1c — defender-history attack
 // restriction; engine-enforced by id via per-player turn-history flags.)
-export const arboria: CardDefinition = {
+export const arboria = defineCard(() => ({
     id: "095078b0-0f26-442f-9d3b-45e30cdb33c4",
     rarity: "uncommon",
     name: "Arboria",
@@ -873,7 +873,7 @@ export const arboria: CardDefinition = {
     manaCost: { X: 2, G: 2 },
     types: ["Enchantment"],
     supertypes: ["World"],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Giant Turtle (#490) — "attacked during your last turn" self attack
@@ -887,7 +887,7 @@ export const arboria: CardDefinition = {
 // current one. Reuses the generic self `attack-restriction` plumbing
 // (validateAttackerEligibility → collectAttackRestrictions), so the rule is
 // data-driven and not hardcoded to Giant Turtle.
-export const giantTurtle: CardDefinition = {
+export const giantTurtle = defineCard(() => ({
     id: "87e5fc19-3b10-476f-9a73-e8bf4b5fbec0",
     rarity: "common",
     name: "Giant Turtle",
@@ -908,4 +908,4 @@ export const giantTurtle: CardDefinition = {
             predicate: (self) => self.attackedDuringLastTurn !== true,
         },
     ],
-};
+}));

@@ -2,7 +2,7 @@
 // `import * as mmq from "./sets/mmq/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 
 // Snuff Out — {3}{B} Instant. "If you control a Swamp, you may pay 4 life rather
@@ -19,7 +19,7 @@ import { CREATURE_SUBTYPES } from "../../../oracle/grammar/shared/subtypes";
 // / Terror pattern (ice/black.cards.ts, lea/black.cards.ts) — the effect stays `resolve()`.
 // protocol card: `ctx.destroy(target, { cantBeRegenerated: true })` has no
 // Effect Script Op (the destroy Op carries no regeneration-suppression flag).
-export const snuffOut: CardDefinition = {
+export const snuffOut = defineCard(() => ({
     id: "18a3cca1-e50e-49b6-9e1a-f86640e3b177", // MMQ 162
     rarity: "common",
     name: "Snuff Out",
@@ -40,7 +40,7 @@ export const snuffOut: CardDefinition = {
         const target = ctx.targets[0];
         if (target) ctx.destroy(target, { cantBeRegenerated: true });
     },
-};
+}));
 
 // Conspiracy — {3}{B}{B} Enchantment. "As this enchantment enters, choose a
 // creature type. Creatures you control are the chosen type. The same is true
@@ -83,7 +83,7 @@ export const snuffOut: CardDefinition = {
 // dependency system reaches, not the only thing the engine could do.
 // compiler-gap: As this enchantment enters, choose a creature type. (#2693)
 // compiler-gap: Creatures you control are the chosen type. The same is true for creature spells you control and creature cards you own that aren't on the battlefield. (#2693)
-export const conspiracy: CardDefinition = {
+export const conspiracy = defineCard(() => ({
     id: "411c9f22-2df0-4a63-b2be-fa02612a6ef8",
     rarity: "rare",
     name: "Conspiracy",
@@ -115,4 +115,4 @@ export const conspiracy: CardDefinition = {
             },
         },
     ],
-};
+}));

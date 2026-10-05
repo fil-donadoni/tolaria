@@ -4,9 +4,9 @@
 // Phyrexian mana `{U/P}` (CR 107.4f) is resolved in the cost system
 // (`convex/gre/phyrexian.ts`, `announceCast.phyrexianLifePips`); the effects
 // below are independent of which cost was paid.
-import type { CardDefinition, SpellContext } from "../../types";
+import type { SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 
 // Gitaxian Probe — "Look at target player's hand. Draw a card." Mana cost is a
 // single Phyrexian pip `{U/P}` (pay {U} or 2 life). "Look at target player's
@@ -14,7 +14,7 @@ import { PERMANENT_TYPES } from "../../types";
 // expressed with the `revealHand` suspend/ack display primitive + `markKnown`
 // exactly as Glasses of Urza does; the trailing unconditional draw rides in the
 // same closure.
-export const gitaxianProbe: CardDefinition = {
+export const gitaxianProbe = defineCard(() => ({
     id: "995486ce-58bb-4753-a812-0ca73ef1a235",
     rarity: "common",
     name: "Gitaxian Probe",
@@ -50,7 +50,7 @@ export const gitaxianProbe: CardDefinition = {
         // CR 121.1 — then draw a card (unconditional, even on an empty hand).
         ctx.drawCards(ctx.controller, 1);
     },
-};
+}));
 
 // Phyrexian Metamorph — "You may have this creature enter as a copy of any
 // artifact or creature on the battlefield, except it's an artifact in addition
@@ -61,7 +61,7 @@ export const gitaxianProbe: CardDefinition = {
 // Artifact type (CR 707.9d). Declining (or no artifact/creature present) leaves
 // it a 0/0 artifact creature that dies to SBA (CR 704.5f). Mana cost carries a
 // Phyrexian pip `{U/P}` (pay {U} or 2 life).
-export const phyrexianMetamorph: CardDefinition = {
+export const phyrexianMetamorph = defineCard(() => ({
     id: "d2e27911-87cb-49a0-a34f-6afe4bddd592",
     rarity: "rare",
     name: "Phyrexian Metamorph",
@@ -87,7 +87,7 @@ export const phyrexianMetamorph: CardDefinition = {
             },
         ],
     },
-};
+}));
 
 // Deceiver Exarch — {2}{U} Creature — Phyrexian Cleric, 1/4. Flash. ETB is a
 // MODAL triggered ability (CR 603.3c): choose one — untap target permanent you
@@ -97,7 +97,7 @@ export const phyrexianMetamorph: CardDefinition = {
 // The mode is announced as the trigger goes on the stack, before targets, and
 // each mode carries its own controller-filtered `targetRequirement` so only the
 // chosen mode's targets are ever considered (CR 700.2c).
-export const deceiverExarch: CardDefinition = {
+export const deceiverExarch = defineCard(() => ({
     id: "1f123ad6-fe84-4fed-9c0f-6b41921e9c26",
     rarity: "uncommon",
     name: "Deceiver Exarch",
@@ -159,4 +159,4 @@ export const deceiverExarch: CardDefinition = {
             ],
         }),
     ],
-};
+}));

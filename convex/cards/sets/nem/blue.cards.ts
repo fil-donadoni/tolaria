@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
 
@@ -18,7 +18,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // seam (ADR 0054); the exile-and-return bundle is the DSL-first (ADR 0045)
 // `exileWithAttachments` / `returnExiledForSource` Op pair (ADR 0028).
 const PARALLAX_TIDE_ID = "7fe593eb-df3c-43e5-97a6-418f91e87cb3"; // NEM 37
-export const parallaxTide: CardDefinition = {
+export const parallaxTide = defineCard(() => ({
     id: PARALLAX_TIDE_ID,
     name: "Parallax Tide",
     rarity: "rare",
@@ -50,7 +50,7 @@ export const parallaxTide: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));
 
 // Accumulated Knowledge — {1}{U} Instant. "Draw a card, then draw cards equal
 // to the number of cards named Accumulated Knowledge in all graveyards."
@@ -64,7 +64,7 @@ export const parallaxTide: CardDefinition = {
 // (CR 122 — "in all graveyards") and a `name` filter (CR 201.2 — "cards named
 // Accumulated Knowledge"). The resolving copy is on the stack, not a graveyard,
 // so it is naturally excluded: 0 copies in graveyards → draw 1; 1 copy → draw 2.
-export const accumulatedKnowledge: CardDefinition = {
+export const accumulatedKnowledge = defineCard(() => ({
     id: "ab061406-38f4-40e7-a9ea-e3cbcaabc127", // NEM 26
     rarity: "common",
     name: "Accumulated Knowledge",
@@ -86,7 +86,7 @@ export const accumulatedKnowledge: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Dominate — {X}{1}{U}{U} Instant. "Gain control of target creature with mana
 // value X or less." A targeted layer-2 control change (CR 613.1b) filtered by
@@ -99,7 +99,7 @@ export const accumulatedKnowledge: CardDefinition = {
 // legal targets in `getLegalTargets` to creatures whose mana value is X or
 // less. `{X}{1}{U}{U}` = variable X plus one fixed generic and {U}{U}, encoded
 // as `X: "X"` (the variable marker) + `generic: 1` + `U: 2`.
-export const dominate: CardDefinition = {
+export const dominate = defineCard(() => ({
     id: "63b2dcb1-8c3e-434c-865a-196d4d799706",
     rarity: "uncommon",
     name: "Dominate",
@@ -118,7 +118,7 @@ export const dominate: CardDefinition = {
             controller: "controller",
         },
     ],
-};
+}));
 
 // Daze — {1}{U} Instant. "You may return an Island you control to its owner's
 // hand rather than pay this spell's mana cost. Counter target spell unless its
@@ -130,7 +130,7 @@ export const dominate: CardDefinition = {
 // single Island. The counter-unless-pay effect is the shipped Mana Tithe / Force
 // Spike shape — a `mayPay` on the spell's controller + `if (not $paid) counter`,
 // both already-censused Ops (ADR 0045, DSL-first).
-export const daze: CardDefinition = {
+export const daze = defineCard(() => ({
     id: "d03bff25-0d5e-4dcf-8d75-6df846afea3b", // NEM 30
     rarity: "common",
     name: "Daze",
@@ -166,4 +166,4 @@ export const daze: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));

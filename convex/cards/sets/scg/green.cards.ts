@@ -1,6 +1,6 @@
 // SCG (Scourge) — green cards, split by colour per ADR 0043. The registry's
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Xantid Swarm — "Flying. Whenever this creature attacks, defending player
 // can't cast spells this turn." ({G}, 0/1 Insect.)
@@ -14,7 +14,7 @@ import type { CardDefinition } from "../../types";
 // per-player flag (`state.cannotCastSpellsThisTurn`) enforced by the shared cast
 // gate `castProhibitionReason` and cleared at CLEANUP (CR 514.2). Playing a land
 // is unaffected — a land is not a spell and is not cast (CR 601 / 305).
-export const xantidSwarm: CardDefinition = {
+export const xantidSwarm = defineCard(() => ({
     id: "6a87911a-3931-46aa-9348-2728c4b73b96",
     name: "Xantid Swarm",
     rarity: "rare",
@@ -41,4 +41,4 @@ export const xantidSwarm: CardDefinition = {
             effects: [{ op: "restrictCasting", player: "opponent" }],
         },
     ],
-};
+}));

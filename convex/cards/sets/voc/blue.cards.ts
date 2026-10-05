@@ -1,7 +1,7 @@
 // Streets of New Capenna Commander (VOC) — blue cards, split by colour per
 // ADR 0043. The registry's `import * as voc from "./sets/voc/index.cards"` resolves through
 // voc/index.cards.ts. Modern Scryfall oracle text is authoritative (ADR 0004).
-import type { CardDefinition, CardType, SpellContext } from "../../types";
+import { defineCard, type CardType, type SpellContext } from "../../types";
 
 const OCCULT_EPIPHANY_ID = "6920c895-bc98-4871-a53f-219fa27a74e5";
 
@@ -12,7 +12,7 @@ const OCCULT_EPIPHANY_ID = "6920c895-bc98-4871-a53f-219fa27a74e5";
 // (irreversible), then the discard pick — the discarded cards' types are read
 // from the hand BEFORE they move, and one flying Spirit is made per distinct
 // card type among them.
-export const occultEpiphany: CardDefinition = {
+export const occultEpiphany = defineCard(() => ({
     id: OCCULT_EPIPHANY_ID,
     name: "Occult Epiphany",
     rarity: "rare",
@@ -74,4 +74,4 @@ export const occultEpiphany: CardDefinition = {
             }
         },
     ],
-};
+}));

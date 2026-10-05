@@ -1,5 +1,5 @@
 // wth — green cards (ADR 0043 colour split).
-import type { CardDefinition, GameEvent } from "../../types";
+import { defineCard, type GameEvent } from "../../types";
 
 // Gaea's Blessing — {1}{G} Sorcery (issue #1055 — the mill / library→graveyard
 // zone-change trigger). Oracle (three clauses):
@@ -23,7 +23,7 @@ import type { CardDefinition, GameEvent } from "../../types";
 // the trigger's controller too, but the engine copies the trigger's
 // controller from the source's `controllerId`, which a card cast by a
 // non-owner can still carry, so the event is the field to read.
-export const gaeasBlessing: CardDefinition = {
+export const gaeasBlessing = defineCard(() => ({
     id: "ee83d511-57e0-40fb-a4db-62f6c2c39888",
     rarity: "uncommon",
     name: "Gaea's Blessing",
@@ -84,4 +84,4 @@ export const gaeasBlessing: CardDefinition = {
             ],
         },
     ],
-};
+}));

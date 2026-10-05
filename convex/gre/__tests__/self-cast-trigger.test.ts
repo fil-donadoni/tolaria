@@ -310,7 +310,7 @@ describe("regression: Mana Vortex's cast trigger reaches the stack through a rea
     // per-card test hand-drives the trigger via `resolveTrigger`, which proves
     // the RESOLUTION but never the COLLECTION — the half that was broken.
     it("casting Mana Vortex announces its counter-unless-you-sacrifice-a-land trigger", () => {
-        const { state, spell } = cast(manaVortex.id);
+        const { state, spell } = cast(manaVortex().id);
         expect(state.stack).toHaveLength(2);
         expect(state.stack[0].id).toBe(spell.id);
         expect(state.stack[1].triggeredAbilityId).toBe(

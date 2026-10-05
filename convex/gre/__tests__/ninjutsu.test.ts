@@ -70,7 +70,7 @@ function combatBoard(opts: {
     });
     // CR 508.1a — a real planeswalker for p2, so an `attackTargets` entry
     // names something that is actually on the battlefield (CR 506.3c cares).
-    const walker = makeInstance(wrennAndSix.id, {
+    const walker = makeInstance(wrennAndSix().id, {
         id: "pw-1",
         controllerId: "p2",
         ownerId: "p2",
@@ -329,14 +329,14 @@ describe("Ninjutsu alongside a static additional-sacrifice tax (CR 601.2f)", () 
         const { state, shinobiId } = combatBoard({ attackerIds: ["a1"] });
         const p1 = state.players[0];
         p1.battlefield.push(
-            makeInstance(drought.id, {
+            makeInstance(drought().id, {
                 id: "drought",
                 controllerId: "p1",
                 ownerId: "p1",
             })
         );
         p1.battlefield.push(
-            makeInstance(swamp.id, {
+            makeInstance(swamp().id, {
                 id: "swamp-1",
                 controllerId: "p1",
                 ownerId: "p1",

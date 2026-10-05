@@ -2,14 +2,14 @@
 // oracle text is authoritative (ADR 0004). Cards are classified by the colour
 // identity of their mana cost (CR 202.2).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeTapForMana } from "../../abilities";
 
 // Avacyn's Pilgrim — one-mana dork that fixes into white (CR 605.1a mana
 // ability, `useStack: false`); same shape as Llanowar Elves/Elvish Mystic but
 // producing a color other than its own casting cost. Vintage Cube free
 // tranche (issue #675, ADR 0041).
-export const avacynsPilgrim: CardDefinition = {
+export const avacynsPilgrim = defineCard(() => ({
     id: "7eb39e97-53c2-4df0-9fb3-a3d6a24ec41f",
     rarity: "common",
     name: "Avacyn's Pilgrim",
@@ -26,4 +26,4 @@ export const avacynsPilgrim: CardDefinition = {
             produces: { W: 1 },
         }),
     ],
-};
+}));

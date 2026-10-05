@@ -9,11 +9,11 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
-export const combatMedic: CardDefinition = {
+export const combatMedic = defineCard(() => ({
     id: "9cfd96cb-03d6-4845-8595-50bf17b35726", // FEM 1a
     rarity: "common",
     name: "Combat Medic",
@@ -45,11 +45,11 @@ export const combatMedic: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 const FARRELS_MANTLE_ID = "af092da3-8713-4a59-86d3-827b942d6456"; // FEM 2
 
-export const farrelsMantle: CardDefinition = {
+export const farrelsMantle = defineCard(() => ({
     id: FARRELS_MANTLE_ID,
     rarity: "common",
     name: "Farrel's Mantle",
@@ -105,9 +105,9 @@ export const farrelsMantle: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const farrelsZealot: CardDefinition = {
+export const farrelsZealot = defineCard(() => ({
     id: "0401bd23-9f81-40b7-a6c2-e3f9847d175c", // FEM 3a
     rarity: "common",
     name: "Farrel's Zealot",
@@ -149,11 +149,11 @@ export const farrelsZealot: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 const FARRELITE_PRIEST_ID = "e11bf79b-a951-4d0c-acdf-d8ba5290a648"; // FEM 4
 
-export const farrelitePriest: CardDefinition = {
+export const farrelitePriest = defineCard(() => ({
     id: FARRELITE_PRIEST_ID,
     rarity: "common",
     name: "Farrelite Priest",
@@ -211,9 +211,9 @@ export const farrelitePriest: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const handOfJustice: CardDefinition = {
+export const handOfJustice = defineCard(() => ({
     id: "7a899b2d-825c-4929-a769-f4df70bf6a17", // FEM 5
     rarity: "rare",
     name: "Hand of Justice",
@@ -245,9 +245,9 @@ export const handOfJustice: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const heroism: CardDefinition = {
+export const heroism = defineCard(() => ({
     id: "08ee87a0-a7eb-4472-9045-85d11e8a1501", // FEM 6
     rarity: "common",
     name: "Heroism",
@@ -313,9 +313,9 @@ export const heroism: CardDefinition = {
             },
         },
     ],
-};
+}));
 
-export const icatianJavelineers: CardDefinition = {
+export const icatianJavelineers = defineCard(() => ({
     id: "f04b8356-2384-4743-80dd-f15ca7ec65f7", // FEM 8a
     rarity: "common",
     name: "Icatian Javelineers",
@@ -341,9 +341,9 @@ export const icatianJavelineers: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 
-export const icatianMoneychanger: CardDefinition = {
+export const icatianMoneychanger = defineCard(() => ({
     id: "b3d502d4-4a96-47b3-ae26-8b2c9f36623d", // FEM 10a
     rarity: "common",
     name: "Icatian Moneychanger",
@@ -412,9 +412,9 @@ export const icatianMoneychanger: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
-export const icatianPhalanx: CardDefinition = {
+export const icatianPhalanx = defineCard(() => ({
     id: "7bc02d30-3eef-4a48-8b11-b4f37219ab3a", // FEM 11
     rarity: "uncommon",
     name: "Icatian Phalanx",
@@ -426,7 +426,7 @@ export const icatianPhalanx: CardDefinition = {
     power: 2,
     toughness: 4,
     staticAbilities: ["banding"],
-};
+}));
 
 // DIVERGENCE (tracked-by: #2119): the "Whenever this creature attacks, all
 // creatures banded with it gain first strike until end of turn" trigger is NOT
@@ -437,7 +437,7 @@ export const icatianPhalanx: CardDefinition = {
 // vocabulary (`cards/types.ts`), whose own doc says it is meant to grow one set
 // at a time. Body would then be a `forEach` over the members with the shipped
 // `grantAbility` Op.
-export const icatianSkirmishers: CardDefinition = {
+export const icatianSkirmishers = defineCard(() => ({
     id: "15f6d115-c02d-45a3-aa6d-402964df47dd", // FEM 14
     rarity: "uncommon",
     name: "Icatian Skirmishers",
@@ -449,11 +449,11 @@ export const icatianSkirmishers: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["first strike", "banding"],
-};
+}));
 
 const ICATIAN_TOWN_ID = "cbb7c28d-0366-4d01-84a2-f1bc9f38aa4a"; // FEM 15
 
-export const icatianTown: CardDefinition = {
+export const icatianTown = defineCard(() => ({
     id: ICATIAN_TOWN_ID,
     rarity: "uncommon",
     name: "Icatian Town",
@@ -477,9 +477,9 @@ export const icatianTown: CardDefinition = {
             count: 4,
         },
     ],
-};
+}));
 
-export const orderOfLeitbur: CardDefinition = {
+export const orderOfLeitbur = defineCard(() => ({
     id: "ebd6e51e-f042-4673-a898-291607105829", // FEM 16a
     rarity: "uncommon",
     name: "Order of Leitbur",
@@ -525,4 +525,4 @@ export const orderOfLeitbur: CardDefinition = {
             ],
         },
     ],
-};
+}));

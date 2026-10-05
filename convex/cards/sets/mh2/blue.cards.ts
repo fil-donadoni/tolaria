@@ -1,5 +1,5 @@
 // mh2 — blue cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { evokeTrigger } from "../../abilities/evoke";
 import { affinityForArtifacts } from "../../abilities/affinity";
@@ -18,7 +18,7 @@ import { affinityForArtifacts } from "../../abilities/affinity";
 // targeting foundation — `raiseTriggerTargetSelection` locks the target as the
 // trigger is put on the stack, offering only creature/planeswalker spells below
 // it. "Up to one" ⇒ min 0, so the controller may decline.
-export const subtlety: CardDefinition = {
+export const subtlety = defineCard(() => ({
     id: "701256d5-1389-48b7-9581-d6037209bd06",
     rarity: "mythic",
     name: "Subtlety",
@@ -89,7 +89,7 @@ export const subtlety: CardDefinition = {
         }),
         evokeTrigger("Subtlety"),
     ],
-};
+}));
 
 // Lose Focus — {1}{U} Instant (MH2). "Replicate {U} (When you cast this
 // spell, copy it for each time you paid its replicate cost. You may choose new
@@ -113,7 +113,7 @@ export const subtlety: CardDefinition = {
 // went unpaid (CR 701.6a).
 //
 // compiler-gap: Replicate {U} (#2693)
-export const loseFocus: CardDefinition = {
+export const loseFocus = defineCard(() => ({
     id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
     name: "Lose Focus",
     rarity: "common",
@@ -149,7 +149,7 @@ export const loseFocus: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Thought Monitor — {6}{U} Artifact Creature — Construct, 2/2 (MH2 71).
 // "Affinity for artifacts (This spell costs {1} less to cast for each artifact
@@ -173,7 +173,7 @@ export const loseFocus: CardDefinition = {
 // becomes MH2 71 (996c1952-8d10-4296-8960-ff8993833649) and this paragraph
 // goes away.
 // tracked-by: #1844
-export const thoughtMonitor: CardDefinition = {
+export const thoughtMonitor = defineCard(() => ({
     id: "c5b53f25-25e7-47db-b356-65e93e3b0059", // PMH2 71s (= MH2 71)
     name: "Thought Monitor",
     rarity: "rare",
@@ -193,6 +193,6 @@ export const thoughtMonitor: CardDefinition = {
             effects: [{ op: "draw", player: "controller", count: 2 }],
         }),
     ],
-};
+}));
 
 export {};

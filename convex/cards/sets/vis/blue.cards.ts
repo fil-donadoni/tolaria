@@ -2,12 +2,8 @@
 // `import * as vis from "./sets/vis/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
-import { BASIC_LAND_SUBTYPES } from "../../types";
+import type { SpellContext, TargetSelection } from "../../types";
+import { defineCard, BASIC_LAND_SUBTYPES } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Impulse — {1}{U} Instant. "Look at the top four cards of your library. Put one
@@ -25,7 +21,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // CardPrint reprints. The parent issue named `sets/mmq/blue.cards.ts`, but Impulse was
 // never printed in Mercadian Masques — Visions is its true first printing (both
 // vis and mmq are Premodern-legal).
-export const impulse: CardDefinition = {
+export const impulse = defineCard(() => ({
     id: "9d710a97-062f-4773-b6c6-8aeddeb3b6e8", // VIS 34
     rarity: "common",
     name: "Impulse",
@@ -42,7 +38,7 @@ export const impulse: CardDefinition = {
             take: 1,
         },
     ],
-};
+}));
 
 // Vision Charm — {U} instant, a three-mode "Choose one —" charm (CR 700.2).
 //
@@ -68,7 +64,7 @@ export const impulse: CardDefinition = {
 //
 // Modern Oracle (Scryfall, set VIS) is followed per the project rule: mode 3
 // is a SINGLE "Target artifact phases out", not the printed "up to four".
-export const visionCharm: CardDefinition = {
+export const visionCharm = defineCard(() => ({
     id: "78b384d3-3adf-493a-8b89-bfe68fd1c3e2",
     name: "Vision Charm",
     rarity: "common",
@@ -181,7 +177,7 @@ export const visionCharm: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Man-o'-War — {2}{U} 2/2 Jellyfish. "When this creature enters, return target
 // creature to its owner's hand." A CR 603.3d targeted ETB trigger (the target is
@@ -191,7 +187,7 @@ export const visionCharm: CardDefinition = {
 // compiled row sits in quarantine only because the generated smoke scenario
 // cannot model a `moveZone` on an announced creature, which is what the per-card
 // test in `vis/__tests__/blue.test.ts` covers instead.
-export const manOWar: CardDefinition = {
+export const manOWar = defineCard(() => ({
     id: "4dbf9bf9-75cd-4b25-a3a1-43b7e029700b", // VIS 37
     rarity: "common",
     name: "Man-o'-War",
@@ -212,4 +208,4 @@ export const manOWar: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         }),
     ],
-};
+}));

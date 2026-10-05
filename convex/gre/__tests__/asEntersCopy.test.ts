@@ -135,8 +135,8 @@ function entered(state: GameState, id = "subject"): CardInstanceState {
 
 describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", () => {
     it("Phantasmal Image reanimated: prompt raised, copy applied, Illusion added, self-sac trigger granted", () => {
-        const state = graveyardBoard(phantasmalImage.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phantasmalImage().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
@@ -152,7 +152,7 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         answer(state, ["serra"]);
 
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(getEffectivePower(state, copy)).toBe(4);
         expect(getEffectiveToughness(state, copy)).toBe(4);
         // CR 707.2's "except" clause: Illusion IN ADDITION TO the copied
@@ -173,13 +173,13 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
     });
 
     it("Phantasmal Image reanimated: the granted trigger actually FIRES on the reanimated copy (CR 603.2)", () => {
-        const state = graveyardBoard(phantasmalImage.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phantasmalImage().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         reanimateFromGraveyard(state, "subject");
         answer(state, ["serra"]);
 
-        const bolt = pushSpell(state, grizzlyBears.id, "p2");
+        const bolt = pushSpell(state, grizzlyBears().id, "p2");
         emitBecameTargetEvents(
             state,
             [{ type: "permanent", id: "subject" }],
@@ -202,8 +202,8 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
     });
 
     it("Clone reanimated: enters as a copy with the copied P/T, subtypes and abilities", () => {
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
@@ -211,39 +211,39 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         answer(state, ["serra"]);
 
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(copy.subtypes).toEqual(["Angel"]);
         expect(copy.staticAbilities).toEqual(["flying", "vigilance"]);
         expect(getEffectivePower(state, copy)).toBe(4);
         expect(getEffectiveToughness(state, copy)).toBe(4);
-        expect(copy.copiedFrom).toBe(clone.id);
+        expect(copy.copiedFrom).toBe(clone().id);
     });
 
     it("Vesuvan Doppelganger reanimated: copies the body but keeps its own blue (CR 707.9d)", () => {
-        const state = graveyardBoard(vesuvanDoppelganger.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(vesuvanDoppelganger().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
         answer(state, ["serra"]);
 
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(getEffectivePower(state, copy)).toBe(4);
         expect(copy.colorOverride).toEqual(["U"]);
         expect(STATIC_EFFECT_CTX.getColors(copy)).toEqual(["U"]);
     });
 
     it("Phyrexian Metamorph reanimated: copies a creature and stays an artifact too", () => {
-        const state = graveyardBoard(phyrexianMetamorph.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phyrexianMetamorph().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
         answer(state, ["serra"]);
 
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(copy.types).toContain("Creature");
         expect(copy.types).toContain("Artifact");
     });
@@ -253,9 +253,9 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         // generic put-onto-the-battlefield path (census row B) is what a blink
         // or an Academy-Rector-shaped effect uses, and it is the same
         // chokepoint.
-        const state = graveyardBoard(copyArtifact.id, [
+        const state = graveyardBoard(copyArtifact().id, [
             opponentPermanent("3792c6ef-c4e6-4923-9a51-7d28fbc5c393", "helm"),
-            opponentPermanent(serraAngel.id, "serra"),
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
@@ -273,10 +273,10 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
     });
 
     it("full path through the real Reanimate spell — the exact reported position", () => {
-        const state = graveyardBoard(phantasmalImage.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phantasmalImage().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
-        const spell = pushSpell(state, reanimate.id, "p1", [
+        const spell = pushSpell(state, reanimate().id, "p1", [
             { type: "graveyard-card", id: "subject", playerId: "p1" },
         ]);
 
@@ -293,7 +293,7 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
         expect(state.stack.map((s) => s.id)).not.toContain(spell.id);
         expect(state.pendingChoices ?? []).toHaveLength(0);
         const copy = entered(state);
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
         expect(getEffectiveToughness(state, copy)).toBe(4);
     });
 });
@@ -302,8 +302,8 @@ describe("CR 707.5 — the copy choice is raised on a NON-CAST entry (#2451)", (
 
 describe("declining the copy leaves the printed body (CR 704.5f, #2451)", () => {
     it("a declined Clone enters as its printed 0/0 and the sweep bins it", () => {
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         reanimateFromGraveyard(state, "subject");
 
@@ -327,8 +327,8 @@ describe("declining the copy leaves the printed body (CR 704.5f, #2451)", () => 
     it("a declined Phantasmal Image has NO granted self-sacrifice trigger", () => {
         // The trigger is part of the copy effect's "except" clause, not printed
         // on the base card — declining must not grant it.
-        const state = graveyardBoard(phantasmalImage.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phantasmalImage().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         reanimateFromGraveyard(state, "subject");
         answer(state, []);
@@ -338,7 +338,7 @@ describe("declining the copy leaves the printed body (CR 704.5f, #2451)", () => 
     });
 
     it("no legal source — the choice is auto-declined, never a prompt nobody can answer", () => {
-        const state = graveyardBoard(clone.id, []);
+        const state = graveyardBoard(clone().id, []);
 
         reanimateFromGraveyard(state, "subject");
 
@@ -348,7 +348,7 @@ describe("declining the copy leaves the printed body (CR 704.5f, #2451)", () => 
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect(state.stagedEntries).toBeUndefined();
         const printed = entered(state);
-        expect((printed.card as { id: string }).id).toBe(clone.id);
+        expect((printed.card as { id: string }).id).toBe(clone().id);
         expect(getEffectiveToughness(state, printed)).toBe(0);
 
         checkStateBasedActions(state);
@@ -362,7 +362,7 @@ describe("declining the copy leaves the printed body (CR 704.5f, #2451)", () => 
 
 describe("CR 707.6 — the copy's controller makes the COPIED card's as-enters choices (#2451)", () => {
     it("a reanimated Clone copying a permanent with its own as-enters clause owes a SECOND, fresh choice", () => {
-        const state = graveyardBoard(clone.id, [
+        const state = graveyardBoard(clone().id, [
             opponentPermanent(PAY_LIFE_ID, "source"),
         ]);
         // The source permanent already made ITS choice long ago; CR 707.6 says
@@ -403,9 +403,9 @@ describe("CR 707.6 — the copy's controller makes the COPIED card's as-enters c
         // Clone's identity is a definition already consulted and appends
         // nothing — without that dedup this is an unbounded chain, since every
         // answer re-owes the same choice.
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(clone.id, "other-clone"),
-            opponentPermanent(grizzlyBears.id, "bears"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(clone().id, "other-clone"),
+            opponentPermanent(grizzlyBears().id, "bears"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
@@ -426,8 +426,8 @@ describe("CR 707.6 — the copy's controller makes the COPIED card's as-enters c
     });
 
     it("a copied definition with no as-enters clause appends nothing and the entry resumes at once", () => {
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(grizzlyBears.id, "bears"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(grizzlyBears().id, "bears"),
         ]);
 
         reanimateFromGraveyard(state, "subject");
@@ -436,7 +436,7 @@ describe("CR 707.6 — the copy's controller makes the COPIED card's as-enters c
         expect(state.stagedEntries).toBeUndefined();
         expect(state.pendingChoices ?? []).toHaveLength(0);
         expect((entered(state).card as { id: string }).id).toBe(
-            grizzlyBears.id
+            grizzlyBears().id
         );
     });
 
@@ -444,7 +444,7 @@ describe("CR 707.6 — the copy's controller makes the COPIED card's as-enters c
         // A pending choice IS a stable save point, so a two-choice chain is
         // saved and reloaded MID-chain in ordinary play, not as an edge case:
         // the copy has already been applied to a card that is in no zone.
-        const state = graveyardBoard(clone.id, [
+        const state = graveyardBoard(clone().id, [
             opponentPermanent(PAY_LIFE_ID, "source"),
         ]);
         reanimateFromGraveyard(state, "subject");
@@ -473,7 +473,7 @@ describe("as-enters copy on a TOKEN entry (census row C, #2451)", () => {
             players: [
                 makePlayer("p1"),
                 makePlayer("p2", {
-                    battlefield: [opponentPermanent(serraAngel.id, "serra")],
+                    battlefield: [opponentPermanent(serraAngel().id, "serra")],
                 }),
             ],
         });
@@ -511,8 +511,8 @@ describe("as-enters copy on a TOKEN entry (census row C, #2451)", () => {
 
 describe("CR 400.7 — the copy carry never resurrects a previous existence (#2451)", () => {
     it("a graveyard Clone's stale colorOverride and foreign ability grant do NOT ride the copy back onto the battlefield", () => {
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         // The exit side clears neither of these (the CR 400.7 reset is
         // ENTRY-side), so both are reachable on a card sitting in a graveyard:
@@ -532,8 +532,8 @@ describe("CR 400.7 — the copy carry never resurrects a previous existence (#24
 
         const copy = entered(state);
         // The copy itself still happened…
-        expect((copy.card as { id: string }).id).toBe(serraAngel.id);
-        expect(copy.copiedFrom).toBe(clone.id);
+        expect((copy.card as { id: string }).id).toBe(serraAngel().id);
+        expect(copy.copiedFrom).toBe(clone().id);
         // …and Clone's `opts` name NEITHER a colour clause nor an added
         // trigger, so neither field may be set on the permanent that entered.
         expect(copy.colorOverride).toBeUndefined();
@@ -553,8 +553,8 @@ describe("CR 400.7 — the copy carry never resurrects a previous existence (#24
 
 describe("wire format: the reanimated copy survives projectPublicState (#2451)", () => {
     it("Phantasmal Image's copied identity, added subtype and P/T all project", () => {
-        const state = graveyardBoard(phantasmalImage.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(phantasmalImage().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         reanimateFromGraveyard(state, "subject");
         answer(state, ["serra"]);
@@ -563,7 +563,7 @@ describe("wire format: the reanimated copy survives projectPublicState (#2451)",
         const slim = projected.players[0].battlefield.find(
             (c) => c.id === "subject"
         )!;
-        expect((slim.card as { id: string }).id).toBe(serraAngel.id);
+        expect((slim.card as { id: string }).id).toBe(serraAngel().id);
         expect(slim.subtypes).toEqual(["Angel", "Illusion"]);
         expect(slim.staticAbilities).toEqual(["flying", "vigilance"]);
         expect(getEffectivePower(projected, slim)).toBe(4);
@@ -571,8 +571,8 @@ describe("wire format: the reanimated copy survives projectPublicState (#2451)",
     });
 
     it("the STAGED permanent is in no projected zone while its choice is outstanding", () => {
-        const state = graveyardBoard(clone.id, [
-            opponentPermanent(serraAngel.id, "serra"),
+        const state = graveyardBoard(clone().id, [
+            opponentPermanent(serraAngel().id, "serra"),
         ]);
         reanimateFromGraveyard(state, "subject");
 
@@ -582,6 +582,6 @@ describe("wire format: the reanimated copy survives projectPublicState (#2451)",
             expect(p.graveyard.some((c) => c.id === "subject")).toBe(false);
         }
         // The dialog renders it from its definition id instead (ADR 0100 D2).
-        expect(head(state).subjectCardId).toBe(clone.id);
+        expect(head(state).subjectCardId).toBe(clone().id);
     });
 });

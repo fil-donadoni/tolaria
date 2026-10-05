@@ -156,10 +156,10 @@ describe("cast-click mode gate for an as-enters choice (CR 614.12a, #2019)", () 
         // The premise the gate reads — asserted from the real definition so the
         // test goes red if the card stops declaring the clause, not only if the
         // gate is removed.
-        expect(declaresAsEntersMode(voiceOfAll)).toBe(true);
-        expect(voiceOfAll.modes && voiceOfAll.modes.length).toBeGreaterThan(0);
+        expect(declaresAsEntersMode(voiceOfAll())).toBe(true);
+        expect(voiceOfAll().modes?.length).toBeGreaterThan(0);
 
-        const card = projectedHandCard(voiceOfAll.id, "voice1");
+        const card = projectedHandCard(voiceOfAll().id, "voice1");
         expect(card.legalActions).toContain("cast");
 
         renderCard(card);
@@ -178,9 +178,9 @@ describe("cast-click mode gate for an as-enters choice (CR 614.12a, #2019)", () 
     });
 
     it("Vision Charm (the must-NOT row): an ordinary modal spell still opens the picker before announcing", () => {
-        expect(declaresAsEntersMode(visionCharm)).toBe(false);
+        expect(declaresAsEntersMode(visionCharm())).toBe(false);
 
-        const card = projectedHandCard(visionCharm.id, "charm1");
+        const card = projectedHandCard(visionCharm().id, "charm1");
         expect(card.legalActions).toContain("cast");
 
         renderCard(card);

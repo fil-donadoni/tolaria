@@ -7,8 +7,7 @@
 // (printId) and resolves printId -> definitionId -> the shared CardDefinition
 // (ADR 0014).
 
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
 
 // Time Warp — {3}{U}{U} Sorcery. "Target player takes an extra turn after
 // this one." (CR 500.7, Vintage Cube FREE tranche, issue #686.) DSL-first
@@ -18,7 +17,7 @@ import { AURA_AFFECTS_HOST } from "../../types";
 // this card (no new engine capability, only the Op wrapper the primitive-reuse
 // mandate calls for). `targetRequirement` is a single player (CR 601.2c);
 // the announced slot feeds the Op's `player: { target: 0 }`.
-export const timeWarp: CardDefinition = {
+export const timeWarp = defineCard(() => ({
     id: "3447aeaf-3b26-442a-99d4-0a7ee76c8e76", // TMP 97
     rarity: "rare",
     name: "Time Warp",
@@ -27,7 +26,7 @@ export const timeWarp: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
     effects: [{ op: "extraTurn", player: { target: 0 } }],
-};
+}));
 
 // Shimmering Wings — {U} Enchantment — Aura, enchant creature. "Enchanted
 // creature has flying. {U}: Return this Aura to its owner's hand." (CR 702.9
@@ -39,7 +38,7 @@ export const timeWarp: CardDefinition = {
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/blue.cards.ts`.
-export const shimmeringWings: CardDefinition = {
+export const shimmeringWings = defineCard(() => ({
     id: "a6a8dc46-04c7-479a-90c1-b55e6c67e0e3", // TMP 87
     name: "Shimmering Wings",
     rarity: "common",
@@ -67,7 +66,7 @@ export const shimmeringWings: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Intuition — {2}{U} Instant. "Search your library for three cards and reveal
 // them. Target opponent chooses one. Put that card into your hand and the rest
@@ -117,7 +116,7 @@ export const shimmeringWings: CardDefinition = {
 // The ENGINE capability is what this issue built; teaching the grammar to read
 // a four-clause search/reveal/foreign-choose/split-destination sentence is the
 // Oracle-compiler PRD's own scope, not this one's.
-export const intuition: CardDefinition = {
+export const intuition = defineCard(() => ({
     id: "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
     rarity: "rare",
     name: "Intuition",
@@ -164,4 +163,4 @@ export const intuition: CardDefinition = {
         },
         { op: "libraryLook", action: "shuffle", player: "controller" },
     ],
-};
+}));

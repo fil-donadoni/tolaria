@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { investigateOp } from "../../abilities/tokens/clueToken";
 import {
     drawTrigger,
@@ -94,7 +94,7 @@ import { TAMIYO_SEASONED_SCHOLAR_EMBLEM_ID } from "../../emblems";
 //     SAME `hand-size-override` continuous static effect Library of Leng /
 //     Reliquary Tower carry on a permanent — `effectiveMaxHandSize`
 //     (`gre/phases.ts`) now also scans `state.emblems` for it.
-export const tamiyoInquisitiveStudent: CardDefinition = {
+export const tamiyoInquisitiveStudent = defineCard(() => ({
     id: "2a717b98-cdac-416d-bf6c-f6b6638e65d1",
     name: "Tamiyo, Inquisitive Student",
     rarity: "mythic",
@@ -237,4 +237,4 @@ export const tamiyoInquisitiveStudent: CardDefinition = {
             },
         ],
     },
-};
+}));

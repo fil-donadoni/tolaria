@@ -507,7 +507,7 @@ describe("activation flow — targeted ability (Circle of Protection: Red)", () 
         const cop = makeInstance({
             id: "cop",
             card: {
-                id: circleOfProtectionRed.id,
+                id: circleOfProtectionRed().id,
                 name: "Circle of Protection: Red",
             },
             types: ["Enchantment"],
@@ -528,7 +528,7 @@ describe("activation flow — targeted ability (Circle of Protection: Red)", () 
         const bolt: StackItem = {
             ...makeInstance({
                 id: "bolt",
-                card: { id: lightningBolt.id, name: "Lightning Bolt" },
+                card: { id: lightningBolt().id, name: "Lightning Bolt" },
                 types: ["Instant"],
                 zone: "stack",
                 controllerId: "p2",
@@ -613,12 +613,12 @@ describe("activation flow — Oasis ({T}: prevent next 1 to target creature)", (
     it("activates (tap-only), resolves, and prevents 1 of a later 3 damage", () => {
         const oasisLand = makeInstance({
             id: "oasis",
-            card: { id: oasis.id },
+            card: { id: oasis().id },
             types: ["Land"],
         });
         const bear = makeInstance({
             id: "bear",
-            card: { id: dancingScimitar.id },
+            card: { id: dancingScimitar().id },
             types: ["Creature"],
         });
         const state = makeGame({
@@ -649,7 +649,7 @@ describe("activation flow — Oasis ({T}: prevent next 1 to target creature)", (
         const bolt: StackItem = {
             ...makeInstance({
                 id: "bolt",
-                card: { id: lightningBolt.id },
+                card: { id: lightningBolt().id },
                 types: ["Instant"],
                 zone: "stack",
                 controllerId: "p2",
@@ -672,7 +672,7 @@ describe("activation flow — Pyramids save-land ({2}: destroy replacement)", ()
     it("enters pendingActivation, commits after paying {2}, and records the shield", () => {
         const pyr = makeInstance({
             id: "pyr",
-            card: { id: pyramids.id },
+            card: { id: pyramids().id },
             types: ["Artifact"],
         });
         const islands = Array.from({ length: 2 }, (_, i) =>
@@ -731,13 +731,13 @@ describe("activation flow — Ifh-Bíff Efreet ({G}, any player may activate, CR
     function setup() {
         const efreet = makeInstance({
             id: "efreet",
-            card: { id: ifhBiffEfreet.id },
+            card: { id: ifhBiffEfreet().id },
             controllerId: "p1",
             ownerId: "p1",
         });
         const oppFlyer = makeInstance({
             id: "opp-flyer",
-            card: { id: birdMaiden.id },
+            card: { id: birdMaiden().id },
             controllerId: "p2",
             ownerId: "p2",
         });
@@ -803,7 +803,7 @@ describe("activation flow — Ifh-Bíff Efreet ({G}, any player may activate, CR
         // CR 602.1). Place it on p1; p2 attempts activation → permission error.
         const pyr = makeInstance({
             id: "pyr",
-            card: { id: pyramids.id },
+            card: { id: pyramids().id },
             types: ["Artifact"],
             controllerId: "p1",
             ownerId: "p1",
@@ -819,7 +819,7 @@ describe("activation flow — Jandor's Ring ({2},{T}, discard last drawn: Draw)"
     function setup() {
         const ring = makeInstance({
             id: "ring",
-            card: { id: jandorsRing.id },
+            card: { id: jandorsRing().id },
             types: ["Artifact"],
         });
         const islands = Array.from({ length: 2 }, (_, i) =>
@@ -833,7 +833,7 @@ describe("activation flow — Jandor's Ring ({2},{T}, discard last drawn: Draw)"
         const library = Array.from({ length: 3 }, (_, i) =>
             makeInstance({
                 id: `lib-${i}`,
-                card: { id: jandorsRing.id },
+                card: { id: jandorsRing().id },
                 zone: "library",
                 types: ["Artifact"],
             })
@@ -928,7 +928,7 @@ describe("activation flow — Ashnod's Battle Gear (+2/-2 while tapped)", () => 
     it("the {T} cost taps the Gear so the buff is live, then optional-untap keeps it", () => {
         const gear = makeInstance({
             id: "gear",
-            card: { id: ashnodsBattleGear.id },
+            card: { id: ashnodsBattleGear().id },
         });
         const bear = makeInstance({
             id: "bear",
@@ -1039,7 +1039,7 @@ describe("activation flow — Bazaar of Baghdad ({T}: draw two, discard three)",
     it("draws exactly once before suspending, then discards the three chosen cards", () => {
         const bazaar = makeInstance({
             id: "bazaar",
-            card: { id: bazaarOfBaghdad.id },
+            card: { id: bazaarOfBaghdad().id },
             types: ["Land"],
         });
         const state = makeGame({
@@ -1105,7 +1105,7 @@ describe("activation flow — Tracker Fight ({G}{G},{T}: mutual damage)", () => 
     it("pays {G}{G}, taps Tracker, targets a creature, and both fight to the death", () => {
         const trk = makeInstance({
             id: "trk",
-            card: { id: tracker.id },
+            card: { id: tracker().id },
             types: ["Creature"],
             power: 2,
             toughness: 2,
@@ -1179,7 +1179,7 @@ describe("activation flow — Clergy of the Holy Nimbus ({1}, opponents-only, CR
     function setup() {
         const clergy = makeInstance({
             id: "clergy",
-            card: { id: clergyOfTheHolyNimbus.id },
+            card: { id: clergyOfTheHolyNimbus().id },
             controllerId: "p1",
             ownerId: "p1",
         });

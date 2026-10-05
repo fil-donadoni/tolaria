@@ -7,8 +7,8 @@
 // classified by the colour identity of their mana cost (CR 202.2); lands and
 // artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 
@@ -20,7 +20,7 @@ import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 // `activationPhaseRestriction`) and `oncePerTurn`; CR 400.7 hand → battlefield
 // via `putFromHandOntoBattlefield`. The second is a mana ability with a
 // sacrifice cost, CR 605.1a.)
-export const gaeasTouch: CardDefinition = {
+export const gaeasTouch = defineCard(() => ({
     id: "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
     rarity: "common",
     name: "Gaea's Touch",
@@ -77,7 +77,7 @@ export const gaeasTouch: CardDefinition = {
             manaProduced: { G: 2 },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GREEN (#414 / C5 #422)
@@ -100,7 +100,7 @@ export const gaeasTouch: CardDefinition = {
 // resolve against the same instance — it takes 2× its own power, matching the
 // printed ruling that it "deals damage to itself ... then immediately do it
 // again").
-export const tracker: CardDefinition = {
+export const tracker = defineCard(() => ({
     id: "35ffc69e-26f2-434f-8c89-2df108dd984a",
     rarity: "rare",
     name: "Tracker",
@@ -125,7 +125,7 @@ export const tracker: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Elves of Deep Shadow — {G} 1/1 Elf Druid, "{T}: Add {B}. This creature deals
 // 1 damage to you." A painland-style mana creature (CR 605.1a mana ability —
@@ -134,7 +134,7 @@ export const tracker: CardDefinition = {
 // mirroring the engine's established painland idiom (City of Brass). Tapping for
 // the mana ability is the only way this creature taps for mana, so the trigger
 // fires exactly when the printed "deals 1 damage to you" clause should.
-export const elvesOfDeepShadow: CardDefinition = {
+export const elvesOfDeepShadow = defineCard(() => ({
     id: "f395278e-6d74-4f35-af9d-21bad7b19763",
     rarity: "uncommon",
     name: "Elves of Deep Shadow",
@@ -169,14 +169,14 @@ export const elvesOfDeepShadow: CardDefinition = {
             manaProduced: { B: 1 },
         },
     ],
-};
+}));
 
 // Wormwood Treefolk — {3}{G}{G} 4/4 Treefolk. "{G}{G}: This creature gains
 // forestwalk until end of turn and deals 2 damage to you.\n{B}{B}: This creature
 // gains swampwalk until end of turn and deals 2 damage to you." (CR 605
 // activated abilities; CR 611.2a temporary keyword grants at layer 6 expiring at
 // end of turn; CR 702.14 landwalk; each grant pays an additional self-damage.)
-export const wormwoodTreefolk: CardDefinition = {
+export const wormwoodTreefolk = defineCard(() => ({
     id: "2fa20173-e88a-4b14-9c54-14567ca5571c",
     rarity: "rare",
     name: "Wormwood Treefolk",
@@ -225,7 +225,7 @@ export const wormwoodTreefolk: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Free tranche — Green (#415). Every card here is pure CardDefinition data on
@@ -242,7 +242,7 @@ export const wormwoodTreefolk: CardDefinition = {
 
 // Carnivorous Plant — vanilla Defender Plant Wall (CR 702.3 defender keyword;
 // the body is pure stats + the can't-attack keyword, no rules text otherwise).
-export const carnivorousPlant: CardDefinition = {
+export const carnivorousPlant = defineCard(() => ({
     id: "6a615650-4da3-4efc-aa5e-c1f2c4f79478",
     rarity: "common",
     name: "Carnivorous Plant",
@@ -253,10 +253,10 @@ export const carnivorousPlant: CardDefinition = {
     power: 4,
     toughness: 5,
     staticAbilities: ["defender"],
-};
+}));
 
 // Land Leeches — vanilla First strike Leech (CR 702.7 first strike keyword).
-export const landLeeches: CardDefinition = {
+export const landLeeches = defineCard(() => ({
     id: "ff99543d-86a1-44f8-88ec-aaec071d6c05",
     rarity: "common",
     name: "Land Leeches",
@@ -268,7 +268,7 @@ export const landLeeches: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["first strike"],
-};
+}));
 
 // Hidden Path — global anthem grant: "Green creatures have forestwalk." (CR 611
 // continuous keyword-grant, layer 6; CR 702.14c forestwalk evasion.) Modeled
@@ -277,7 +277,7 @@ export const landLeeches: CardDefinition = {
 // color-changing effect, e.g. a green creature laced blue stops getting it). The
 // grant applies to ALL green creatures, both players' (the printed text is not
 // controller-scoped).
-export const hiddenPath: CardDefinition = {
+export const hiddenPath = defineCard(() => ({
     id: "cbc93c0b-0ac8-4b8f-b2f6-96887d1acd77",
     rarity: "rare",
     name: "Hidden Path",
@@ -293,7 +293,7 @@ export const hiddenPath: CardDefinition = {
             keyword: "forestwalk",
         },
     ],
-};
+}));
 
 // Lurker — "This creature can't be the target of spells unless it attacked or
 // blocked this turn." (CR 115 targeting restriction.) A self permanent-guard
@@ -303,7 +303,7 @@ export const hiddenPath: CardDefinition = {
 // / `hasBlockedThisTurn` on PermanentView) so the shroud blinks off the instant
 // Lurker is declared as an attacker or blocker. Mirrors Spectral Cloak's live
 // host-state read (leg.ts), but self-targeted and combat-conditioned.
-export const lurker: CardDefinition = {
+export const lurker = defineCard(() => ({
     id: "b39eb671-e17e-4c5a-8913-1e3be7faedfb",
     rarity: "rare",
     name: "Lurker",
@@ -327,7 +327,7 @@ export const lurker: CardDefinition = {
                 !target.hasBlockedThisTurn,
         },
     ],
-};
+}));
 
 // People of the Woods — characteristic-defining toughness: "toughness is equal
 // to the number of Forests you control." (CR 613.4a CDA, layer 7a.) Printed
@@ -337,7 +337,7 @@ export const lurker: CardDefinition = {
 // 0+forests. A subtype-count over the controller's battlefield (CR 305.6 —
 // basic AND nonbasic Forests both count). Mirrors Nightmare / Dakkon's self-CDA
 // layer but contributes only to toughness.
-export const peopleOfTheWoods: CardDefinition = {
+export const peopleOfTheWoods = defineCard(() => ({
     id: "2fb5926f-9988-4bc0-b2b7-e286db208310",
     rarity: "uncommon",
     name: "People of the Woods",
@@ -368,7 +368,7 @@ export const peopleOfTheWoods: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Savaen Elves — "{G}{G}, {T}: Destroy target Aura attached to a land." (CR
 // 605 activated ability; CR 701.8 destroy.) The target is any Aura
@@ -379,7 +379,7 @@ export const peopleOfTheWoods: CardDefinition = {
 // Miracle Worker's sibling "attached to a creature you control" clause also
 // uses, so all three share ONE implementation instead of three resolve()
 // bodies re-checking the host post-target.
-export const savaenElves: CardDefinition = {
+export const savaenElves = defineCard(() => ({
     id: "38fb3014-f631-4a75-92cd-7e626b13a4c3",
     rarity: "common",
     name: "Savaen Elves",
@@ -404,7 +404,7 @@ export const savaenElves: CardDefinition = {
             effects: [{ op: "destroy", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // Scarwood Hag — two activated abilities granting / stripping forestwalk until
 // end of turn (CR 605 activated abilities; CR 611 layer-6 keyword grant /
@@ -412,7 +412,7 @@ export const savaenElves: CardDefinition = {
 // end-of-turn DurationSpec (like Part Water, leg.ts); the strip reuses
 // `removeStaticAbilities` (the duration-scoped counterpart, used by Shelkin
 // Brownie / Tolaria).
-export const scarwoodHag: CardDefinition = {
+export const scarwoodHag = defineCard(() => ({
     id: "ac2655e4-3a4d-4f73-820a-02fab675d42e",
     rarity: "uncommon",
     name: "Scarwood Hag",
@@ -462,7 +462,7 @@ export const scarwoodHag: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Scarwood Bandits — forestwalk (CR 702.14c keyword) + "{2}{G}, {T}: Unless an
 // opponent pays {2}, gain control of target artifact for as long as this creature
@@ -472,7 +472,7 @@ export const scarwoodHag: CardDefinition = {
 // `controller-controls-source` condition (Aladdin's "for as long as you control
 // ~" form, which the conditional-control SBA reverts when Scarwood Bandits leaves
 // play).
-export const scarwoodBandits: CardDefinition = {
+export const scarwoodBandits = defineCard(() => ({
     id: "46b762a7-a774-4cb4-8ecf-dd6486a066c3",
     rarity: "rare",
     name: "Scarwood Bandits",
@@ -520,7 +520,7 @@ export const scarwoodBandits: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Spitting Slug — "Whenever this creature blocks or becomes blocked, you may pay
 // {1}{G}. If you do, this creature gains first strike until end of turn.
@@ -530,7 +530,7 @@ export const scarwoodBandits: CardDefinition = {
 // BLOCKERS_CONFIRMED whenever the slug is either side of a block; the controller
 // chooses to pay {1}{G} (→ slug gets first strike) or not (→ the paired
 // creature does instead).
-export const spittingSlug: CardDefinition = {
+export const spittingSlug = defineCard(() => ({
     id: "7011356e-7516-4ca0-ac54-d30af7ce03a2",
     rarity: "uncommon",
     name: "Spitting Slug",
@@ -593,7 +593,7 @@ export const spittingSlug: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Venom — Aura. "Enchant creature\nWhenever enchanted creature blocks or becomes
 // blocked by a non-Wall creature, destroy the other creature at end of combat."
@@ -603,7 +603,7 @@ export const spittingSlug: CardDefinition = {
 // `scheduleDelayedTrigger("next-end-of-combat")` → destroy), but the trigger is
 // keyed to the aura's HOST (`self.attachedTo`) rather than the source itself.
 const VENOM_ID = "bb0480f5-6aae-4297-afa6-3f7a5801bf95";
-export const venom: CardDefinition = {
+export const venom = defineCard(() => ({
     id: VENOM_ID,
     rarity: "common",
     name: "Venom",
@@ -676,7 +676,7 @@ export const venom: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Whippoorwill — "{G}{G}, {T}: Target creature can't be regenerated this turn.
 // Damage that would be dealt to that creature this turn can't be prevented or
@@ -697,7 +697,7 @@ export const venom: CardDefinition = {
 // protocol card: the ability arms three turn-scoped flags on one target from a
 // single Oracle sentence and predates the DSL. Both primitives it calls are exposed as Ops (`exileOnDeath`,
 // `lockDamage`) for cards authored after this one.
-export const whippoorwill: CardDefinition = {
+export const whippoorwill = defineCard(() => ({
     id: "e56146bf-5db0-4bef-83bb-efa5ebec6684",
     rarity: "uncommon",
     name: "Whippoorwill",
@@ -726,7 +726,7 @@ export const whippoorwill: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Marsh Viper — "Whenever this creature deals damage to a player, that player
 // gets two poison counters." (modern Oracle, ADR 0004). The trigger fires on
@@ -735,7 +735,7 @@ export const whippoorwill: CardDefinition = {
 // constraint. Reuses the ARN poison precedent (Nafs Asp) and the C1.1 poison
 // seam (ADR 0032): `addPoisonCounters` adds two counters to the damaged player;
 // the >=10 loss is the global SBA (CR 704.5c), not the card's concern.
-export const marshViper: CardDefinition = {
+export const marshViper = defineCard(() => ({
     id: "109cce7a-96f7-4e67-878a-bd5c93ea8643",
     rarity: "common",
     name: "Marsh Viper",
@@ -759,4 +759,4 @@ export const marshViper: CardDefinition = {
             },
         }),
     ],
-};
+}));

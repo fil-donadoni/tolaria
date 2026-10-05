@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Galvanic Discharge — "{R} Instant. Choose target creature or planeswalker.
 // You get {E}{E}{E} (three energy counters), then you may pay any amount of
@@ -27,7 +27,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // `requestOptionChoice` over 0..pool. Split into two steps so the "you get
 // {E}{E}{E}" mutation (step 0) runs ONCE and is not re-applied when the pay
 // choice (step 1) suspends/resumes (CR 608.3 stepped resolution).
-export const galvanicDischarge: CardDefinition = {
+export const galvanicDischarge = defineCard(() => ({
     id: "32aa6e33-221f-414c-9b51-850d97a7e051",
     rarity: "common",
     name: "Galvanic Discharge",
@@ -75,4 +75,4 @@ export const galvanicDischarge: CardDefinition = {
             ctx.dealDamage(target, paid);
         },
     ],
-};
+}));

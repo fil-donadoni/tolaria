@@ -27,9 +27,9 @@ import type { ScenarioSpec } from "../../debugScenarioSpec";
  *  mana or not at all. */
 const TAPPED_OUT: ScenarioSpec = {
     cards: [
-        { name: grizzlyBears.name, owner: "me", zone: "hand" },
-        { name: giantGrowth.name, owner: "me", zone: "hand" },
-        { name: grizzlyBears.name, owner: "opp", zone: "battlefield" },
+        { name: grizzlyBears().name, owner: "me", zone: "hand" },
+        { name: giantGrowth().name, owner: "me", zone: "hand" },
+        { name: grizzlyBears().name, owner: "opp", zone: "battlefield" },
     ],
     landCount: 0,
 };
@@ -58,7 +58,7 @@ describe("buildStateFromScenario — what floating mana pays for (issue #3460)",
             manaPool: { me: { G: 1, W: 2 } },
         });
         expect(castableDefIds(withMana, withMana.players[0].id)).toContain(
-            grizzlyBears.id
+            grizzlyBears().id
         );
 
         // The SAME board with no pool: the discriminating half of the pair —
@@ -78,9 +78,9 @@ describe("buildStateFromScenario — what floating mana pays for (issue #3460)",
         const ids = castableDefIds(oneGreen, oneGreen.players[0].id);
 
         // {G} covers Giant Growth…
-        expect(ids).toContain(giantGrowth.id);
+        expect(ids).toContain(giantGrowth().id);
         // …and one mana is one short of the Bears' {1}{G}.
-        expect(ids).not.toContain(grizzlyBears.id);
+        expect(ids).not.toContain(grizzlyBears().id);
     });
 
     // CR 106.6 — the restriction is enforced at the LEGALITY gate

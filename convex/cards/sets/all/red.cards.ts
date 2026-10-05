@@ -1,6 +1,6 @@
 // ALL (Alliances) — red cards, split by colour per ADR 0043. The registry's
 // `import * as all from "./sets/all/index.cards"` re-exports this module.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Pyrokinesis — {4}{R}{R} Instant. "You may exile a red card from your hand
 // rather than pay this spell's mana cost. Pyrokinesis deals 4 damage divided as
@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // effect is the `dealDamageDividedAsChosen` Op (CR 601.2d / 120.4, DSL-first
 // ADR 0045): it reads the announced per-target split off the stack item, with
 // `total` mirroring `divideAsChosen.total`.
-export const pyrokinesis: CardDefinition = {
+export const pyrokinesis = defineCard(() => ({
     id: "db2a5e85-6cbc-43c1-9362-4056ad017ef0", // ALL 78
     rarity: "uncommon",
     name: "Pyrokinesis",
@@ -36,4 +36,4 @@ export const pyrokinesis: CardDefinition = {
         },
     ],
     effects: [{ op: "dealDamageDividedAsChosen", total: 4 }],
-};
+}));

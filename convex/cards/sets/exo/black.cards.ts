@@ -23,9 +23,8 @@
 // implemented against the INV reprint, which filed it under the
 // wrong home set and rendered the wrong art. That printing now rides along
 // as a `CardPrint` in `inv/black.cards.ts`.
-import type { CardDefinition } from "../../types";
-import { AURA_AFFECTS_HOST } from "../../types";
-export const cursedFlesh: CardDefinition = {
+import { defineCard, AURA_AFFECTS_HOST } from "../../types";
+export const cursedFlesh = defineCard(() => ({
     id: "7433b9bf-ee6e-41fe-b826-0d20584198b1", // EXO 56
     rarity: "common",
     name: "Cursed Flesh",
@@ -43,4 +42,4 @@ export const cursedFlesh: CardDefinition = {
         },
         { kind: "keyword-grant", applies: AURA_AFFECTS_HOST, keyword: "fear" },
     ],
-};
+}));

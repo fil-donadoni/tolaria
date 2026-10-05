@@ -1,6 +1,6 @@
 // SCG (Scourge) — red cards, split by colour per ADR 0043. The registry's
 // `import * as scg from "./sets/scg/index.cards"` resolves here via scg/index.cards.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { GOBLIN_TOKEN } from "../../sharedTokens";
@@ -31,7 +31,7 @@ import { GOBLIN_TOKEN } from "../../sharedTokens";
 //      "lifegain"` replacement that returns `{ kind: "consumed" }` blocks all
 //      of them and is automatically lifted when the source leaves play.
 //      Precedent: LEA Lich (per-controller lifegain replacement).
-export const sulfuricVortex: CardDefinition = {
+export const sulfuricVortex = defineCard(() => ({
     id: "79955e27-eef7-43bd-9895-e9209ed1537f",
     name: "Sulfuric Vortex",
     rarity: "rare",
@@ -67,7 +67,7 @@ export const sulfuricVortex: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 
 // Siege-Gang Commander — {3}{R}{R} 2/2 Goblin. "When this creature enters,
 // create three 1/1 red Goblin creature tokens." (CR 603.6a ETB trigger,
@@ -81,7 +81,7 @@ export const sulfuricVortex: CardDefinition = {
 // same shape Deadapult (`pls/red.cards.ts`) uses for "Sacrifice a Zombie". The
 // Commander is itself a Goblin, so it is a legal sacrifice for its own
 // ability (CR 701.21a — the cost names a characteristic, not "another").
-export const siegeGangCommander: CardDefinition = {
+export const siegeGangCommander = defineCard(() => ({
     id: "92e78cec-aaf9-4fe8-887b-b7e356d63315", // SCG 103
     rarity: "rare",
     name: "Siege-Gang Commander",
@@ -122,4 +122,4 @@ export const siegeGangCommander: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
         },
     ],
-};
+}));

@@ -1,6 +1,6 @@
 // PCY (Prophecy) — blue cards, split by colour per ADR 0043. The registry's
 // `import * as pcy from "./sets/pcy/index.cards"` re-exports this module.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Foil — {2}{U}{U} Instant. "You may discard an Island card and another card
 // rather than pay this spell's mana cost. Counter target spell." (CR 118.9
@@ -9,7 +9,7 @@ import type { CardDefinition } from "../../types";
 // keyword name) with a two-requirement hand-discard leg (an Island card + any
 // other distinct card); the on-resolution effect is a single already-censused
 // `counter` Op (ADR 0045, DSL-first).
-export const foil: CardDefinition = {
+export const foil = defineCard(() => ({
     id: "870fb793-3107-4cb2-ba78-34fbf5c9da2f", // PCY 34
     rarity: "uncommon",
     name: "Foil",
@@ -32,4 +32,4 @@ export const foil: CardDefinition = {
         },
     ],
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));

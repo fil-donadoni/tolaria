@@ -2,11 +2,11 @@
 // `import * as mid from "./sets/mid/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Infernal Grasp — "Destroy target creature. You lose 2 life." (CR 701.8
 // destroy; CR 119.3 life loss.)
-export const infernalGrasp: CardDefinition = {
+export const infernalGrasp = defineCard(() => ({
     id: "17824929-f131-4b8d-addb-66c25323155e",
     rarity: "uncommon",
     name: "Infernal Grasp",
@@ -18,4 +18,4 @@ export const infernalGrasp: CardDefinition = {
         { op: "destroy", target: { target: 0 } },
         { op: "loseLife", player: "controller", amount: 2 },
     ],
-};
+}));

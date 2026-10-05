@@ -71,7 +71,7 @@ describe("dslAbilityScriptOpValue — zone-aware self-bounce (issue #1964)", () 
     });
 
     it("Master of Death's real upkeep-return ability scores its own graveyard->hand move positively", () => {
-        const upkeepReturn = masterOfDeath.triggeredAbilities!.find(
+        const upkeepReturn = masterOfDeath().triggeredAbilities!.find(
             (t) => t.id === "master-of-death-upkeep-return"
         )!;
         expect(upkeepReturn.zone).toBe("graveyard");
@@ -112,7 +112,7 @@ describe("dslAbilityScriptOpValue — zone-aware self-bounce (issue #1964)", () 
     });
 
     it("Whiteout's real graveyard-return activated ability scores its own graveyard->hand move positively", () => {
-        const whiteoutReturn = whiteout.activatedAbilities!.find(
+        const whiteoutReturn = whiteout().activatedAbilities!.find(
             (a) => a.id === "whiteout-return"
         )!;
         expect(whiteoutReturn.activateFromGraveyard).toBe(true);

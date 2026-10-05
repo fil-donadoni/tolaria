@@ -1,7 +1,7 @@
 // mrd — green cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Viridian Joiner — {2}{G} Creature — Elf Druid, 1/2. "{T}: Add an amount of
 // {G} equal to this creature's power." A single-colour, board-conditional
@@ -15,7 +15,7 @@ import type { CardDefinition } from "../../types";
 // ability additionally needs a runtime {U}/{R} colour-split CHOICE on a
 // NON-tap activation, a separate, not-yet-built activation pathway (tracked
 // by a follow-up issue, see `fin/multicolor.cards.ts`).
-export const viridianJoiner: CardDefinition = {
+export const viridianJoiner = defineCard(() => ({
     id: "b50679df-bf82-4bb2-9fe3-8ebd7a9decde",
     name: "Viridian Joiner",
     rarity: "common",
@@ -40,4 +40,4 @@ export const viridianJoiner: CardDefinition = {
             manaAmount: (source) => ({ G: source.power ?? 0 }),
         },
     ],
-};
+}));

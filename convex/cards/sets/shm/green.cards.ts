@@ -21,8 +21,7 @@
 //     toughness: 6,
 // };
 
-import type { CardDefinition } from "../../types";
-import { BASIC_LAND_SUBTYPES } from "../../types";
+import { defineCard, BASIC_LAND_SUBTYPES } from "../../types";
 
 // Prismatic Omen — {1}{G} Enchantment. "Lands you control are every basic land
 // type in addition to their other types." CR 205.1b's "in addition to its
@@ -49,7 +48,7 @@ import { BASIC_LAND_SUBTYPES } from "../../types";
 // replacement writes. Nor can either end the other's existence — CR 305.7
 // reaches a land's rules text, and this card is an enchantment.
 // compiler-gap: Lands you control are every basic land type in addition to their other types. (#2693)
-export const prismaticOmen: CardDefinition = {
+export const prismaticOmen = defineCard(() => ({
     id: "e75594cc-de47-49f2-9a8b-ba76c576368e",
     rarity: "rare",
     name: "Prismatic Omen",
@@ -73,4 +72,4 @@ export const prismaticOmen: CardDefinition = {
             subtypes: [...BASIC_LAND_SUBTYPES],
         },
     ],
-};
+}));

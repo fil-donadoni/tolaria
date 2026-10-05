@@ -2,52 +2,62 @@
 // oracle text is authoritative (ADR 0004). Lands and colourless artifacts
 // (no coloured cost) live here per the colour-split convention.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { makeDualLand } from "../../abilities";
 import { makeVehicle } from "../../abilities/vehicle";
 
 // The KLD "fast land" cycle — see `makeDualLand`'s `fastLand` flag in
 // `convex/cards/abilities/index.ts` for the shared conditional-tapped shape.
 // Vintage Cube free tranche (issue #675, ADR 0041).
-export const inspiringVantage: CardDefinition = makeDualLand({
-    id: "160ac412-005f-48ca-a204-10207307c6c2",
-    name: "Inspiring Vantage",
-    rarity: "rare",
-    colors: ["R", "W"],
-    fastLand: true,
-});
+export const inspiringVantage = defineCard(() =>
+    makeDualLand({
+        id: "160ac412-005f-48ca-a204-10207307c6c2",
+        name: "Inspiring Vantage",
+        rarity: "rare",
+        colors: ["R", "W"],
+        fastLand: true,
+    })
+);
 
-export const spirebluffCanal: CardDefinition = makeDualLand({
-    id: "4e587ea7-0632-4789-ba75-3c410da2bb96",
-    name: "Spirebluff Canal",
-    rarity: "rare",
-    colors: ["U", "R"],
-    fastLand: true,
-});
+export const spirebluffCanal = defineCard(() =>
+    makeDualLand({
+        id: "4e587ea7-0632-4789-ba75-3c410da2bb96",
+        name: "Spirebluff Canal",
+        rarity: "rare",
+        colors: ["U", "R"],
+        fastLand: true,
+    })
+);
 
-export const botanicalSanctum: CardDefinition = makeDualLand({
-    id: "8744471b-a528-47d9-84d0-4526273f55e9",
-    name: "Botanical Sanctum",
-    rarity: "rare",
-    colors: ["G", "U"],
-    fastLand: true,
-});
+export const botanicalSanctum = defineCard(() =>
+    makeDualLand({
+        id: "8744471b-a528-47d9-84d0-4526273f55e9",
+        name: "Botanical Sanctum",
+        rarity: "rare",
+        colors: ["G", "U"],
+        fastLand: true,
+    })
+);
 
-export const bloomingMarsh: CardDefinition = makeDualLand({
-    id: "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
-    name: "Blooming Marsh",
-    rarity: "rare",
-    colors: ["B", "G"],
-    fastLand: true,
-});
+export const bloomingMarsh = defineCard(() =>
+    makeDualLand({
+        id: "90da33d4-fe9c-42fe-b326-2fe337dc3ecd",
+        name: "Blooming Marsh",
+        rarity: "rare",
+        colors: ["B", "G"],
+        fastLand: true,
+    })
+);
 
-export const concealedCourtyard: CardDefinition = makeDualLand({
-    id: "c8769e97-aee8-4466-a9d7-0f4245ae4a97",
-    name: "Concealed Courtyard",
-    rarity: "rare",
-    colors: ["W", "B"],
-    fastLand: true,
-});
+export const concealedCourtyard = defineCard(() =>
+    makeDualLand({
+        id: "c8769e97-aee8-4466-a9d7-0f4245ae4a97",
+        name: "Concealed Courtyard",
+        rarity: "rare",
+        colors: ["W", "B"],
+        fastLand: true,
+    })
+);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vehicles (CR 301.7) + Crew (CR 702.122) — issue #777
@@ -76,57 +86,59 @@ export const concealedCourtyard: CardDefinition = makeDualLand({
 // 2 greater" as a TOKEN characteristic, which needs `crewPowerBonus` threaded
 // through TokenSpec / `tokenDefinitionId` / the client token decoder.
 // tracked-by: #1863
-export const smugglersCopter: CardDefinition = makeVehicle({
-    id: "7832abb5-5107-4603-904e-491b221bd3e3",
-    name: "Smuggler's Copter",
-    rarity: "rare",
-    manaCost: { X: 2 },
-    oracleText:
-        "Flying\nWhenever this Vehicle attacks or blocks, you may draw a card. If you do, discard a card.\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)",
-    power: 3,
-    toughness: 3,
-    crew: 1,
-    staticAbilities: ["flying"],
-    triggeredAbilities: [
-        {
-            id: "smugglers-copter-loot",
-            oracleText:
-                "Whenever this Vehicle attacks or blocks, you may draw a card. If you do, discard a card.",
-            event: ["ATTACKERS_DECLARED", "BLOCKERS_CONFIRMED"],
-            matches: (event, self) =>
-                (event.type === "ATTACKERS_DECLARED" &&
-                    event.attackerIds.includes(self.id)) ||
-                (event.type === "BLOCKERS_CONFIRMED" &&
-                    event.blockerId === self.id),
-            effects: [
-                {
-                    op: "mayPay",
-                    player: "controller",
-                    prompt: "Draw a card, then discard a card (Smuggler's Copter)?",
-                    bind: "$loot",
-                },
-                {
-                    op: "if",
-                    predicate: { binding: "$loot" },
-                    then: [
-                        { op: "draw", player: "controller", count: 1 },
-                        {
-                            op: "choice",
-                            kind: "choose-hand-card",
-                            player: "controller",
-                            zone: "hand",
-                            count: 1,
-                            prompt: "Discard a card.",
-                            bind: "$discard",
-                        },
-                        {
-                            op: "discard",
-                            player: "controller",
-                            cards: { ref: "$discard" },
-                        },
-                    ],
-                },
-            ],
-        },
-    ],
-});
+export const smugglersCopter = defineCard(() =>
+    makeVehicle({
+        id: "7832abb5-5107-4603-904e-491b221bd3e3",
+        name: "Smuggler's Copter",
+        rarity: "rare",
+        manaCost: { X: 2 },
+        oracleText:
+            "Flying\nWhenever this Vehicle attacks or blocks, you may draw a card. If you do, discard a card.\nCrew 1 (Tap any number of creatures you control with total power 1 or more: This Vehicle becomes an artifact creature until end of turn.)",
+        power: 3,
+        toughness: 3,
+        crew: 1,
+        staticAbilities: ["flying"],
+        triggeredAbilities: [
+            {
+                id: "smugglers-copter-loot",
+                oracleText:
+                    "Whenever this Vehicle attacks or blocks, you may draw a card. If you do, discard a card.",
+                event: ["ATTACKERS_DECLARED", "BLOCKERS_CONFIRMED"],
+                matches: (event, self) =>
+                    (event.type === "ATTACKERS_DECLARED" &&
+                        event.attackerIds.includes(self.id)) ||
+                    (event.type === "BLOCKERS_CONFIRMED" &&
+                        event.blockerId === self.id),
+                effects: [
+                    {
+                        op: "mayPay",
+                        player: "controller",
+                        prompt: "Draw a card, then discard a card (Smuggler's Copter)?",
+                        bind: "$loot",
+                    },
+                    {
+                        op: "if",
+                        predicate: { binding: "$loot" },
+                        then: [
+                            { op: "draw", player: "controller", count: 1 },
+                            {
+                                op: "choice",
+                                kind: "choose-hand-card",
+                                player: "controller",
+                                zone: "hand",
+                                count: 1,
+                                prompt: "Discard a card.",
+                                bind: "$discard",
+                            },
+                            {
+                                op: "discard",
+                                player: "controller",
+                                cards: { ref: "$discard" },
+                            },
+                        ],
+                    },
+                ],
+            },
+        ],
+    })
+);

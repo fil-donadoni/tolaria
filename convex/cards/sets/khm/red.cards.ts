@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { tappedTrigger } from "../../abilities/triggers/tappedTrigger";
 import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
 
@@ -19,7 +19,7 @@ import { EFFECT_TREASURE_TOKEN } from "../../sharedTokens";
 //   CR 701.23b: finding nothing is legal, so the pick is `{ min: 0, max: 1 }`
 //   and the shuffle happens regardless.
 // compiler-gap: "Other Dwarves you control get +1/+0." (#2693)
-export const magdaBrazenOutlaw: CardDefinition = {
+export const magdaBrazenOutlaw = defineCard(() => ({
     id: "079e6263-e54c-4899-a336-5315909b9322",
     name: "Magda, Brazen Outlaw",
     rarity: "rare",
@@ -94,4 +94,4 @@ export const magdaBrazenOutlaw: CardDefinition = {
             ],
         },
     ],
-};
+}));

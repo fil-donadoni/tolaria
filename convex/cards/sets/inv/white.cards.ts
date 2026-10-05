@@ -29,8 +29,9 @@
 // (#1066, #1067); the 2 split cards (Stand // Deliver, Wax // Wane) are
 // out-of-scope (ADR 0010/0041, unmodelled `split` layout) and carry no stub.
 
-import type { CardDefinition, Color } from "../../types";
+import type { Color } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     countDomain,
     EFFECT_AFFECTS_SELF,
@@ -53,7 +54,7 @@ import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
 // the cast card's `controllerId` (the caster, while the card is still in
 // hand) against this permanent's own `controllerId` (the 3rd `effectSource`
 // argument `getCostModifiers` passes to every predicate).
-export const alabasterLeech: CardDefinition = {
+export const alabasterLeech = defineCard(() => ({
     id: "c86b45d9-aba6-4c09-8605-037754ba7fd4",
     rarity: "rare",
     name: "Alabaster Leech",
@@ -72,7 +73,7 @@ export const alabasterLeech: CardDefinition = {
             costIncrease: { W: 1 },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // ETB triggers (CR 603.6a) — Effect Script
@@ -87,7 +88,7 @@ export const alabasterLeech: CardDefinition = {
 // `count: "kicker"` reads the Kicker tally (0/1 for a single, non-Multi
 // kicker) directly at ETB — no triggered ability needed (Everflowing
 // Chalice precedent, `EffectKickerCountValue` doc, types.ts).
-export const ardentSoldier: CardDefinition = {
+export const ardentSoldier = defineCard(() => ({
     id: "39dce974-846f-4365-b0a5-851e38668e7d",
     rarity: "common",
     name: "Ardent Soldier",
@@ -107,7 +108,7 @@ export const ardentSoldier: CardDefinition = {
         },
     ],
     entersWith: { counters: [{ type: "+1/+1", count: "kicker" }] },
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Activated abilities (CR 605)
@@ -119,7 +120,7 @@ export const ardentSoldier: CardDefinition = {
 
 // Crimson Acolyte — "Protection from red. {W}: Target creature gains
 // protection from red until end of turn."
-export const crimsonAcolyte: CardDefinition = {
+export const crimsonAcolyte = defineCard(() => ({
     id: "c1718028-3009-4bdd-9f6f-59c17edd1344",
     rarity: "common",
     name: "Crimson Acolyte",
@@ -149,10 +150,10 @@ export const crimsonAcolyte: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Obsidian Acolyte — same shape as Crimson Acolyte, black instead of red.
-export const obsidianAcolyte: CardDefinition = {
+export const obsidianAcolyte = defineCard(() => ({
     id: "868efcee-bb13-4b6f-b81b-99408685e4c4",
     rarity: "common",
     name: "Obsidian Acolyte",
@@ -182,7 +183,7 @@ export const obsidianAcolyte: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Characteristic-defining P/T (CR 604.3, layer 7a) — board-wide scans
@@ -197,7 +198,7 @@ export const obsidianAcolyte: CardDefinition = {
 // returns only the Swamp-count DELTA (not the full 2+swamps total, unlike
 // Angry Mob's 0/0-base convention — both are equivalent, this one keeps the
 // printed 2/2 stats visible on the definition).
-export const crusadingKnight: CardDefinition = {
+export const crusadingKnight = defineCard(() => ({
     id: "a4ab4640-1871-41dd-bd21-64741e21ba37",
     rarity: "rare",
     name: "Crusading Knight",
@@ -228,14 +229,14 @@ export const crusadingKnight: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Ruham Djinn — "First strike. This creature gets -2/-2 as long as white is
 // the most common color among all permanents or is tied for most common."
 // A board-wide colour tally (via `ctx.getColors`) gates a `pt-buff` — same
 // `StaticEffectContext`/board-scan capability as Crusading Knight/Angry Mob,
 // just tallying colours instead of a subtype.
-export const ruhamDjinn: CardDefinition = {
+export const ruhamDjinn = defineCard(() => ({
     id: "a46c7718-1ecc-418c-b213-13be9de5cb7f",
     rarity: "uncommon",
     name: "Ruham Djinn",
@@ -275,7 +276,7 @@ export const ruhamDjinn: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Kicker + Effect Script (spell-level kickerCount read, CR 702.33e)
@@ -283,7 +284,7 @@ export const ruhamDjinn: CardDefinition = {
 
 // Dismantling Blow — "Kicker {2}{U}. Destroy target artifact or enchantment.
 // If this spell was kicked, draw two cards."
-export const dismantlingBlow: CardDefinition = {
+export const dismantlingBlow = defineCard(() => ({
     id: "39514d54-cb6c-4b3b-a3be-46db991be4d4",
     rarity: "common",
     name: "Dismantling Blow",
@@ -307,12 +308,12 @@ export const dismantlingBlow: CardDefinition = {
             then: [{ op: "draw", player: "controller", count: 2 }],
         },
     ],
-};
+}));
 
 // Orim's Touch — "Kicker {1}. Prevent the next 2 damage that would be dealt
 // to any target this turn. If this spell was kicked, prevent the next 4
 // damage instead."
-export const orimsTouch: CardDefinition = {
+export const orimsTouch = defineCard(() => ({
     id: "559f551e-7891-4c6d-8798-a25c0255fa3b",
     rarity: "common",
     name: "Orim's Touch",
@@ -352,7 +353,7 @@ export const orimsTouch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Replacement effects (CR 614, ADR 0125) — damage clamp / redirect
@@ -363,7 +364,7 @@ export const orimsTouch: CardDefinition = {
 // instead." A flat clamp: no color/board scan needed (unlike Spirit of
 // Resistance, deferred (tracked-by: #2785) — see the stub section), just the event's own
 // `amount` field.
-export const divinePresence: CardDefinition = {
+export const divinePresence = defineCard(() => ({
     id: "28cb898d-d6ce-410a-83bf-37962cca2735",
     rarity: "rare",
     name: "Divine Presence",
@@ -385,7 +386,7 @@ export const divinePresence: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 const HARSH_JUDGMENT_COLORS = ["W", "U", "B", "R", "G"] as const;
 const HARSH_JUDGMENT_COLOR_NAMES: Record<
@@ -406,7 +407,7 @@ const HARSH_JUDGMENT_COLOR_NAMES: Record<
 // the replacement, no per-mode resolve needed) + a redirect replacement
 // (precedent: Personal Incarnation's `kind: "modified"` target rewrite,
 // lea/white.cards.ts).
-export const harshJudgment: CardDefinition = {
+export const harshJudgment = defineCard(() => ({
     id: "34c78dee-ab45-4638-b89a-10686145b19a",
     rarity: "rare",
     name: "Harsh Judgment",
@@ -460,7 +461,7 @@ export const harshJudgment: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 const LIBERATE_ID = "96794470-31ea-478f-b11c-dc8342a508e2";
 
@@ -475,7 +476,7 @@ const LIBERATE_ID = "96794470-31ea-478f-b11c-dc8342a508e2";
 // matches "under its owner's control"). `from: "exile"` pins the #1469
 // RETURN-A-DEPARTED-OBJECT recovery path explicitly (Mechanics Registry
 // `moveZone` note).
-export const liberate: CardDefinition = {
+export const liberate = defineCard(() => ({
     id: LIBERATE_ID,
     rarity: "uncommon",
     name: "Liberate",
@@ -502,10 +503,10 @@ export const liberate: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Razorfoot Griffin — vanilla flying + first strike.
-export const razorfootGriffin: CardDefinition = {
+export const razorfootGriffin = defineCard(() => ({
     id: "819e2046-9b78-4fd0-92f8-798bfac51195",
     rarity: "common",
     name: "Razorfoot Griffin",
@@ -517,7 +518,7 @@ export const razorfootGriffin: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying", "first strike"],
-};
+}));
 
 // Restrain — "Prevent all combat damage that would be dealt by target
 // attacking creature this turn. Draw a card." (CR 615) — a genuine
@@ -530,7 +531,7 @@ export const razorfootGriffin: CardDefinition = {
 // shield is overridden by it, an ASSIGNMENT restriction is not, because a
 // creature that assigns no combat damage never produces a damage event to
 // protect. Restrain says "prevent", so it is the shield.
-export const restrain: CardDefinition = {
+export const restrain = defineCard(() => ({
     id: "f6b5c765-619c-4db9-b509-91892fb65e8f",
     rarity: "common",
     name: "Restrain",
@@ -554,10 +555,10 @@ export const restrain: CardDefinition = {
         },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Reviving Dose — "You gain 3 life. Draw a card."
-export const revivingDose: CardDefinition = {
+export const revivingDose = defineCard(() => ({
     id: "8d44dd88-ad20-4d89-8831-d2dfa6873428",
     rarity: "common",
     name: "Reviving Dose",
@@ -568,7 +569,7 @@ export const revivingDose: CardDefinition = {
         { op: "gainLife", player: "controller", amount: 3 },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Spell-cast triggers (CR 603.2 + 601.2i)
@@ -579,7 +580,7 @@ export const revivingDose: CardDefinition = {
 // runs in the factory's `condition` closure (a plain predicate over the
 // event's own `spellColors`, no board scan — same category as every other
 // `spellCastTrigger.condition` usage elsewhere in the catalogue).
-export const rewardsOfDiversity: CardDefinition = {
+export const rewardsOfDiversity = defineCard(() => ({
     id: "04116b38-8fb1-47c6-b68d-060d0fc4a60d",
     rarity: "uncommon",
     name: "Rewards of Diversity",
@@ -597,7 +598,7 @@ export const rewardsOfDiversity: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 4 }],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Phase (upkeep) trigger (CR 603.6a) — optional graveyard reanimation
@@ -617,7 +618,7 @@ export const rewardsOfDiversity: CardDefinition = {
 // (`{ target: 0 }`) and reanimates via `moveZone` — the target-shape's
 // `graveyard-card` → `battlefield` branch (issue #680), no `from` needed
 // (inferred from the target kind).
-export const reyaDawnbringer: CardDefinition = {
+export const reyaDawnbringer = defineCard(() => ({
     id: "e1e0e72b-e65e-4578-b610-9f529daa32d7",
     rarity: "rare",
     name: "Reya Dawnbringer",
@@ -657,7 +658,7 @@ export const reyaDawnbringer: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Aura (CR 303) — does-not-untap keyword grant + return-to-hand ability
@@ -671,7 +672,7 @@ export const reyaDawnbringer: CardDefinition = {
 // of turn." `colorFilterAny` is the standard multi-color "OR" target filter
 // (precedent: Circle of Protection's `makeCircleOfProtection` factory,
 // Greater Realm of Preservation).
-export const spiritWeaver: CardDefinition = {
+export const spiritWeaver = defineCard(() => ({
     id: "90b0ef47-cb22-4146-a17e-e49a6031a7e6",
     rarity: "uncommon",
     name: "Spirit Weaver",
@@ -705,11 +706,11 @@ export const spiritWeaver: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Sunscape Master — "{G}{G}, {T}: Creatures you control get +2/+2 until end
 // of turn. {U}{U}, {T}: Return target creature to its owner's hand."
-export const sunscapeMaster: CardDefinition = {
+export const sunscapeMaster = defineCard(() => ({
     id: "ebb7203d-529d-45d2-8e03-cd342c153f38",
     rarity: "rare",
     name: "Sunscape Master",
@@ -758,7 +759,7 @@ export const sunscapeMaster: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Sacrifice-a-permanent-matching-filter cost (CR 602.1, 118.5) + enchantment
@@ -774,7 +775,7 @@ export const sunscapeMaster: CardDefinition = {
 // ability targets an enchantment SPELL via `spellTypeFilter` (precedent:
 // `makeCircleOfProtection`'s artifact-source shape,
 // `{ type: ["Artifact", "spell"], spellTypeFilter: "Artifact" }`).
-export const teferisCare: CardDefinition = {
+export const teferisCare = defineCard(() => ({
     id: "031b1cc1-4468-4bc5-85c0-c22dce131225",
     rarity: "uncommon",
     name: "Teferi's Care",
@@ -808,7 +809,7 @@ export const teferisCare: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Kicker-conditional ETB / keyword-grant cluster (issue #1328, capability
@@ -848,7 +849,7 @@ export const teferisCare: CardDefinition = {
 // re-running `matches`, so a check-time predicate never sees it and only the
 // resolution-time `if` branch still gates it. Authority for the whole rule is
 // `additionalCostPaidCondition`'s doc block (`cards/abilities/triggers/shared.ts`).
-export const benalishEmissary: CardDefinition = {
+export const benalishEmissary = defineCard(() => ({
     id: "6b82d56e-80d7-4be9-ac22-de3257efc458", // INV 5
     rarity: "uncommon",
     name: "Benalish Emissary",
@@ -888,7 +889,7 @@ export const benalishEmissary: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Benalish Lancer — {2}{W} Creature — Human Knight, 2/2. "Kicker {2}{W}. If
 // this creature was kicked, it enters with two +1/+1 counters on it and
@@ -900,7 +901,7 @@ export const benalishEmissary: CardDefinition = {
 // one-shot fact snapshotted from the resolving stack item's `kickerCount` at
 // ETB, issue #1716/#1753. Closed by issue #1328; swap `haste`/`fear` for
 // `first strike` from the shared template.
-export const benalishLancer: CardDefinition = {
+export const benalishLancer = defineCard(() => ({
     id: "3a38d40a-e745-4fee-b179-f8c27e9b2fbd", // INV 7
     rarity: "common",
     name: "Benalish Lancer",
@@ -941,7 +942,7 @@ export const benalishLancer: CardDefinition = {
             keyword: "first strike",
         },
     ],
-};
+}));
 
 // Prison Barricade — {1}{W} Creature — Wall, 1/3, Defender. "Kicker {1}{W}.
 // If this creature was kicked, it enters with a +1/+1 counter on it and
@@ -960,7 +961,7 @@ export const benalishLancer: CardDefinition = {
 // (`gre/combatRegistry.ts`) only ever consults the DEFENDER_RULE when
 // `card.staticAbilities.includes("defender")` is true. No printed defender
 // left to check against once removed → no restriction to override.
-export const prisonBarricade: CardDefinition = {
+export const prisonBarricade = defineCard(() => ({
     id: "449c4800-8718-4593-a61e-03ad7f348c6d", // INV 25
     rarity: "common",
     name: "Prison Barricade",
@@ -999,7 +1000,7 @@ export const prisonBarricade: CardDefinition = {
             keyword: "defender",
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Deferred stubs (issue #1069) — genuinely missing engine capability, NOT
@@ -1036,7 +1037,7 @@ export const prisonBarricade: CardDefinition = {
 // CR 101.4: `simultaneous: true` makes every player's pick, in APNAP order,
 // before any land is sacrificed.
 // compiler-gap: "Each player chooses from the lands they control a land of each basic land type, then sacrifices the rest." (#2693)
-export const globalRuin: CardDefinition = {
+export const globalRuin = defineCard(() => ({
     id: "336474b4-2cf5-44c0-b72c-f75f1a7ed928",
     name: "Global Ruin",
     rarity: "rare",
@@ -1068,7 +1069,7 @@ export const globalRuin: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Glimmering Angel — {3}{W} Creature — Angel, 2/2. "Flying. {U}: This
 // creature gains shroud until end of turn." Unblocked by PR #2040 (issue
@@ -1078,7 +1079,7 @@ export const globalRuin: CardDefinition = {
 // appending the literal string to `staticAbilities` is enforced live.
 // Straight `grantAbility` DSL body over `$source`, precedent Homarid Warrior
 // (fem/blue.cards.ts) minus its tap/skipNextUntap legs.
-export const glimmeringAngel: CardDefinition = {
+export const glimmeringAngel = defineCard(() => ({
     id: "f14f55e4-eded-4a86-87f4-b8fa6f30bc0f",
     name: "Glimmering Angel",
     rarity: "common",
@@ -1105,7 +1106,7 @@ export const glimmeringAngel: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Pledge of Loyalty — {1}{W} Enchantment — Aura. "Enchant creature.
 // Enchanted creature has protection from the colors of permanents you
@@ -1159,7 +1160,7 @@ export const glimmeringAngel: CardDefinition = {
 // The mass-destruction half is the Wrath of God shape (`lea/white.cards.ts`): a
 // `forEach` over battlefield creatures feeding `destroy` with
 // `cantBeRegenerated` (CR 701.19 — Regenerate is what the clause suppresses).
-export const rout: CardDefinition = {
+export const rout = defineCard(() => ({
     id: "94bc55ed-b89b-4e22-b3f1-4ce0f8d180d7",
     name: "Rout",
     rarity: "rare",
@@ -1185,7 +1186,7 @@ export const rout: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Samite Ministration — {1}{W} Instant. "Prevent all damage that would be
 // dealt to you this turn by a source of your choice. Whenever damage from a
@@ -1231,7 +1232,7 @@ export const rout: CardDefinition = {
 // restriction only. `{ ref: "$target0.name" }` is the reserved
 // announced-target ref (issue #2065, `gre/effects/targetRef.ts`), read as the
 // target's LIVE name, so a Clone that has become the target counts.
-export const winnow: CardDefinition = {
+export const winnow = defineCard(() => ({
     id: "d61748dd-4010-47da-8717-ca0147877057",
     name: "Winnow",
     rarity: "rare",
@@ -1264,7 +1265,7 @@ export const winnow: CardDefinition = {
         // not the destroy leg fired.
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Domain cluster (parent PRD #1063, issue #1066)
@@ -1278,7 +1279,7 @@ export const winnow: CardDefinition = {
 // "compute returns the delta, not the total" convention above) via the
 // shared `countDomain` helper — the SAME scan `SpellContext.getDomain` /
 // Collective Restraint's dynamic attack tax use.
-export const wayfaringGiant: CardDefinition = {
+export const wayfaringGiant = defineCard(() => ({
     id: "57e45de5-0e8b-41d3-979b-ec5a29cac682",
     name: "Wayfaring Giant",
     rarity: "uncommon",
@@ -1299,7 +1300,7 @@ export const wayfaringGiant: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Strength of Unity — {3}{W} Enchantment — Aura. "Enchant creature. Domain —
 // Enchanted creature gets +1/+1 for each basic land type among lands you
@@ -1309,7 +1310,7 @@ export const wayfaringGiant: CardDefinition = {
 // controller's board, not the enchanted creature's controller (relevant when
 // an opponent's creature is enchanted by an Aura you cast, though Strength
 // of Unity is normally cast on your own creature).
-export const strengthOfUnity: CardDefinition = {
+export const strengthOfUnity = defineCard(() => ({
     id: "1a9d4ff8-af35-413f-9aa2-f4c6e34fade2",
     name: "Strength of Unity",
     rarity: "common",
@@ -1329,7 +1330,7 @@ export const strengthOfUnity: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Pile-division cluster (parent PRD #1063, issue #1067, ADR 0053)
@@ -1344,7 +1345,7 @@ export const strengthOfUnity: CardDefinition = {
 // you / Chooser: an opponent" row (Fact or Fiction's twin). `moveZone`'s
 // bare-picks-`cards` shape moves each WHOLE pile in one Op (exile / reanimate
 // under the owner's default control) — no `forEach` wrapper needed.
-export const deathOrGlory: CardDefinition = {
+export const deathOrGlory = defineCard(() => ({
     id: "81f967c9-b38d-489d-96cc-44a6b1804e10",
     name: "Death or Glory",
     rarity: "rare",
@@ -1388,7 +1389,7 @@ export const deathOrGlory: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Fight or Flight — {3}{W} Enchantment. "At the beginning of combat on each
 // opponent's turn, separate all creatures that player controls into two
@@ -1402,7 +1403,7 @@ export const deathOrGlory: CardDefinition = {
 // firing event's active player (the affected opponent). The chosen pile has
 // no restriction (may attack, the default) — `chosenEffect: []`; the other
 // pile can't attack this turn via the new `restrictCombat` Op.
-export const fightOrFlight: CardDefinition = {
+export const fightOrFlight = defineCard(() => ({
     id: "46bde162-3737-4b93-a27a-63b909a4183d",
     name: "Fight or Flight",
     rarity: "rare",
@@ -1455,7 +1456,7 @@ export const fightOrFlight: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // Stand // Deliver and Wax // Wane are SHIPPED, and they ship from

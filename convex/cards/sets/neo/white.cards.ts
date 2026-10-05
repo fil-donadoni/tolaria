@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
 import {
+    defineCard,
     AURA_AFFECTS_HOST,
     RECONFIGURE_LOSES_CREATURE_WHILE_ATTACHED,
 } from "../../types";
@@ -25,7 +25,7 @@ import {
 // `AURA_AFFECTS_HOST` predicate — the same attach plumbing an Aura's P/T buff
 // uses, generalized: `AURA_AFFECTS_HOST` only reads `source.attachedTo`, it
 // doesn't care whether the source is an Aura or an Equipment.
-export const lionSash: CardDefinition = {
+export const lionSash = defineCard(() => ({
     id: "3e1766e9-2fa7-4446-a255-7beea1467ece",
     name: "Lion Sash",
     rarity: "rare",
@@ -122,4 +122,4 @@ export const lionSash: CardDefinition = {
             effects: [{ op: "unattach" }],
         },
     ],
-};
+}));

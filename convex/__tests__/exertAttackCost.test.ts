@@ -71,13 +71,13 @@ function declareAttackersState(): GameState {
         players: [
             makePlayer("p1", {
                 battlefield: [
-                    makeInstance(glorybringer.id, {
+                    makeInstance(glorybringer().id, {
                         id: "glory",
                         controllerId: "p1",
                         ownerId: "p1",
                         isSummoningSick: false,
                     }),
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "bears",
                         controllerId: "p1",
                         ownerId: "p1",
@@ -87,7 +87,7 @@ function declareAttackersState(): GameState {
             }),
             makePlayer("p2", {
                 battlefield: [
-                    makeInstance(grizzlyBears.id, {
+                    makeInstance(grizzlyBears().id, {
                         id: "victim",
                         controllerId: "p2",
                         ownerId: "p2",

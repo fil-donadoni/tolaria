@@ -76,14 +76,14 @@ function board(opts: {
                 hand: hand("p1", p1Hand),
                 battlefield: [
                     ...Array.from({ length: alurens }, (_, i) =>
-                        makeInstance(aluren.id, {
+                        makeInstance(aluren().id, {
                             id: `aluren-${i}`,
                             controllerId: "p1",
                             ownerId: "p1",
                         })
                     ),
                     ...Array.from({ length: forests }, (_, i) =>
-                        makeInstance(forest.id, {
+                        makeInstance(forest().id, {
                             id: `forest-${i}`,
                             controllerId: "p1",
                             ownerId: "p1",
@@ -105,8 +105,8 @@ const handCard = (state: GameState, playerId: string, index = 0) =>
 describe("cast-permission static (CR 601.3 / 118.9)", () => {
     it("grants to EITHER player — Aluren says 'any player', so the opponent's own hand is covered too", () => {
         const state = board({
-            p1Hand: [grizzlyBears.id],
-            p2Hand: [grizzlyBears.id],
+            p1Hand: [grizzlyBears().id],
+            p2Hand: [grizzlyBears().id],
         });
 
         expect(
@@ -124,7 +124,7 @@ describe("cast-permission static (CR 601.3 / 118.9)", () => {
 
     it("filters by the declared EffectCardFilter — a creature over the mana-value ceiling and a cheap noncreature are both out (CR 202.3)", () => {
         const state = board({
-            p1Hand: [grizzlyBears.id, shivanDragon.id, lightningBolt.id],
+            p1Hand: [grizzlyBears().id, shivanDragon().id, lightningBolt().id],
         });
         const covered = (i: number) =>
             collectCastPermissions(state, "p1", handCard(state, "p1", i))
@@ -136,7 +136,7 @@ describe("cast-permission static (CR 601.3 / 118.9)", () => {
     });
 
     it("ends the moment the source leaves the battlefield — nothing is materialized to unwind (CR 603.10)", () => {
-        const state = board({ p1Hand: [grizzlyBears.id] });
+        const state = board({ p1Hand: [grizzlyBears().id] });
         expect(hasCastPermissionFlash(state, "p1", handCard(state, "p1"))).toBe(
             true
         );
@@ -154,7 +154,7 @@ describe("cast-permission static (CR 601.3 / 118.9)", () => {
     });
 
     it("two sources grant ONE permission, not two cast options (CR 118.9a — one alternative cost per spell)", () => {
-        const state = board({ alurens: 2, p1Hand: [grizzlyBears.id] });
+        const state = board({ alurens: 2, p1Hand: [grizzlyBears().id] });
 
         expect(
             castPermissionAltCosts(state, "p1", handCard(state, "p1"))
@@ -164,7 +164,7 @@ describe("cast-permission static (CR 601.3 / 118.9)", () => {
 
 describe("the cost half is an ALTERNATIVE cost (CR 118.9 / 118.5 / 601.2b)", () => {
     it("offers a zero-mana option the caster announces, and makes an otherwise unaffordable creature castable", () => {
-        const state = board({ p1Hand: [grizzlyBears.id] });
+        const state = board({ p1Hand: [grizzlyBears().id] });
         const card = handCard(state, "p1");
         const player = getPlayer(state, "p1");
 
@@ -180,7 +180,7 @@ describe("the cost half is an ALTERNATIVE cost (CR 118.9 / 118.5 / 601.2b)", () 
 
     it("STACKS with the card's own alternative costs — both appear as choices (CR 118.9a is a choice, not a suppression)", () => {
         const probe: CardDefinition = {
-            ...grizzlyBears,
+            ...grizzlyBears(),
             alternativeCosts: [
                 {
                     id: "probe-free-alt",
@@ -190,7 +190,7 @@ describe("the cost half is an ALTERNATIVE cost (CR 118.9 / 118.5 / 601.2b)", () 
             ],
         };
         withTemporaryDefinition(probe, () => {
-            const state = board({ p1Hand: [grizzlyBears.id] });
+            const state = board({ p1Hand: [grizzlyBears().id] });
             const ids = castOptionAlternativeCosts(
                 state,
                 getPlayer(state, "p1"),
@@ -204,7 +204,7 @@ describe("the cost half is an ALTERNATIVE cost (CR 118.9 / 118.5 / 601.2b)", () 
 
     it("offers nothing to a permission that only widens TIMING — such a cast pays its printed cost", () => {
         const orrery: CardDefinition = {
-            ...aluren,
+            ...aluren(),
             staticEffects: [
                 {
                     kind: "cast-permission",
@@ -218,7 +218,7 @@ describe("the cost half is an ALTERNATIVE cost (CR 118.9 / 118.5 / 601.2b)", () 
             ],
         };
         withTemporaryDefinition(orrery, () => {
-            const state = board({ p1Hand: [shivanDragon.id] });
+            const state = board({ p1Hand: [shivanDragon().id] });
             const card = handCard(state, "p1");
 
             expect(hasCastPermissionFlash(state, "p1", card)).toBe(true);
@@ -232,7 +232,7 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
         // p2 holds priority during p1's turn: outside p2's own sorcery window
         // (CR 307.1), so only the permission licenses this cast at all.
         const state = board({
-            p2Hand: [grizzlyBears.id],
+            p2Hand: [grizzlyBears().id],
             activePlayerId: "p1",
             priorityPlayerId: "p2",
         });
@@ -245,7 +245,7 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
     });
 
     it("leaves the free cast OPTIONAL inside the caster's own sorcery window — the printed cast is still available there (CR 307.1)", () => {
-        const state = board({ p1Hand: [grizzlyBears.id], forests: 2 });
+        const state = board({ p1Hand: [grizzlyBears().id], forests: 2 });
         const card = handCard(state, "p1");
 
         expect(castPermissionRequiredFor(state, "p1", card)).toBe(false);
@@ -258,9 +258,9 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
 
     it("forces nothing when a timing-only permission already licenses the off-window cast", () => {
         const both: CardDefinition = {
-            ...aluren,
+            ...aluren(),
             staticEffects: [
-                ...(aluren.staticEffects ?? []),
+                ...(aluren().staticEffects ?? []),
                 {
                     kind: "cast-permission",
                     id: "probe-timing-only",
@@ -274,7 +274,7 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
         };
         withTemporaryDefinition(both, () => {
             const state = board({
-                p2Hand: [grizzlyBears.id],
+                p2Hand: [grizzlyBears().id],
                 activePlayerId: "p1",
                 priorityPlayerId: "p2",
             });
@@ -288,7 +288,7 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
 
     it("a sorcery-speed LOCK beats the permission (CR 101.2) — no off-window cast, and nothing is forced", () => {
         const lock: CardDefinition = {
-            ...aluren,
+            ...aluren(),
             id: "11111111-1111-4111-8111-111111111111",
             name: "Probe Lock",
             staticEffects: [
@@ -303,7 +303,7 @@ describe("the timing half (CR 601.3b / 702.8a) and its mandatory pairing (CR 118
         };
         withTemporaryDefinition(lock, () => {
             const state = board({
-                p2Hand: [grizzlyBears.id],
+                p2Hand: [grizzlyBears().id],
                 activePlayerId: "p1",
                 priorityPlayerId: "p2",
             });
@@ -336,7 +336,7 @@ describe("the permission is HAND-scoped (CR 302.1 / 601.3)", () => {
     // an Aluren is on the battlefield.
     const offWindow = () =>
         board({
-            p2Hand: [grizzlyBears.id],
+            p2Hand: [grizzlyBears().id],
             activePlayerId: "p1",
             priorityPlayerId: "p2",
         });
@@ -426,13 +426,13 @@ describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)
      *  asserts against the PERMISSION's field, not the card's (they are equal
      *  today only because the permission text is the whole card paragraph). */
     function alurenPermission() {
-        const [permission] = declaredCastPermissions(aluren);
+        const [permission] = declaredCastPermissions(aluren());
         if (!permission) throw new Error("Aluren declares no cast permission");
         return permission;
     }
 
     it("`label` is what the cast-option row shows, and `oracleText` is the fallback", () => {
-        const state = board({ p1Hand: [grizzlyBears.id] });
+        const state = board({ p1Hand: [grizzlyBears().id] });
         // Aluren declares both, so the row shows the SHORT label.
         expect(
             castPermissionAltCosts(state, "p1", handCard(state, "p1")).map(
@@ -443,15 +443,15 @@ describe("cast-permission `oracleText` is CARD DATA, never UI copy (issue #3284)
         // A permission with NO label falls back to the printed sentence —
         // the behaviour every permission had before `label` existed.
         const unlabelled: CardDefinition = {
-            ...aluren,
-            staticEffects: (aluren.staticEffects ?? []).map((effect) =>
+            ...aluren(),
+            staticEffects: (aluren().staticEffects ?? []).map((effect) =>
                 effect.kind === "cast-permission"
                     ? { ...effect, label: undefined }
                     : effect
             ),
         };
         withTemporaryDefinition(unlabelled, () => {
-            const fallback = board({ p1Hand: [grizzlyBears.id] });
+            const fallback = board({ p1Hand: [grizzlyBears().id] });
             expect(
                 castPermissionAltCosts(
                     fallback,

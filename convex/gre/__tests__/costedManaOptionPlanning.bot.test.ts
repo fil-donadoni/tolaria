@@ -45,13 +45,13 @@ const EXERT_OPTION_INDEX = 1;
 
 /** Arena of Glory plus `funders` Mountains, and optionally a spell in hand. */
 function board(funders: number, handCard?: CardDefinition): GameState {
-    const arena = makeInstance(arenaOfGlory.id, {
+    const arena = makeInstance(arenaOfGlory().id, {
         id: "arena",
         controllerId: "p1",
         ownerId: "p1",
     });
     const lands = Array.from({ length: funders }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `mountain-${i}`,
             controllerId: "p1",
             ownerId: "p1",
@@ -297,12 +297,12 @@ describe("a CAST-scoped substitution never funds the option's ACTIVATION leg (CR
      *  grant scoped to the SPELL (North Star, Robber of the Rich's exiled
      *  card). The Forest is red for the cast's own cost and for nothing else. */
     function grantedBoard(granted: boolean): GameState {
-        const arena = makeInstance(arenaOfGlory.id, {
+        const arena = makeInstance(arenaOfGlory().id, {
             id: "arena",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const green = makeInstance(forest.id, {
+        const green = makeInstance(forest().id, {
             id: "forest-0",
             controllerId: "p1",
             ownerId: "p1",

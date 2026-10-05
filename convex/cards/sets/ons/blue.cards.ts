@@ -4,8 +4,8 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition, SpellContext } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { SpellContext } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 
 // Chain of Vapor — {U} Instant. "Return target nonland permanent to its
 // owner's hand. Then that permanent's controller may sacrifice a land of their
@@ -28,7 +28,7 @@ import { PERMANENT_TYPES } from "../../types";
 // controller is captured in step 0 by last-known information (CR 608.2h)
 // BEFORE the bounce: once `returnToHand` moves it off the battlefield,
 // `getController` would have no live permanent to read.
-export const chainOfVapor: CardDefinition = {
+export const chainOfVapor = defineCard(() => ({
     id: "30f6b4a2-5780-46e9-b239-459d2cf37743",
     rarity: "uncommon",
     name: "Chain of Vapor",
@@ -90,4 +90,4 @@ export const chainOfVapor: CardDefinition = {
             if (copyId) ctx.requestCopyRetarget(copyId);
         },
     ],
-};
+}));

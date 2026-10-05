@@ -41,7 +41,7 @@ const FALLEN_SHINOBI = "900c9dfd-ece1-4b09-a801-0fa05e1994b9";
  *  hand and the {2}{U}{B} is on the board untapped. The one position in which
  *  ninjutsu is legal at all (CR 509.1h). */
 function ninjutsuBoard(): { state: GameState; shinobiId: string } {
-    const bear = makeInstance(grizzlyBears.id, {
+    const bear = makeInstance(grizzlyBears().id, {
         id: "bear",
         controllerId: "p1",
         ownerId: "p1",
@@ -49,10 +49,10 @@ function ninjutsuBoard(): { state: GameState; shinobiId: string } {
         isAttacking: true,
     });
     const lands = [
-        makeInstance(island.id, { id: "isl-1", controllerId: "p1" }),
-        makeInstance(island.id, { id: "isl-2", controllerId: "p1" }),
-        makeInstance(swamp.id, { id: "swp-1", controllerId: "p1" }),
-        makeInstance(swamp.id, { id: "swp-2", controllerId: "p1" }),
+        makeInstance(island().id, { id: "isl-1", controllerId: "p1" }),
+        makeInstance(island().id, { id: "isl-2", controllerId: "p1" }),
+        makeInstance(swamp().id, { id: "swp-1", controllerId: "p1" }),
+        makeInstance(swamp().id, { id: "swp-2", controllerId: "p1" }),
     ];
     const shinobi = makeInstance(FALLEN_SHINOBI, {
         id: "shinobi",
@@ -116,7 +116,7 @@ describe("hand-source activated abilities are enumerated (CR 113.6 / 702.49a)", 
         // Grizzly Bears has no activated ability at all; the point is the
         // negative: nothing on a hand card is enumerated except an ability that
         // opted into the hand with `activateFromHand`.
-        const extra = makeInstance(grizzlyBears.id, {
+        const extra = makeInstance(grizzlyBears().id, {
             id: "bear-in-hand",
             zone: "hand",
             controllerId: "p1",
@@ -277,14 +277,14 @@ describe("a TARGETED hand-source ability enumerates its targets (CR 602.2b)", ()
         const p1 = state.players.find((p) => p.id === "p1")!;
         const p2 = state.players.find((p) => p.id === "p2")!;
         p1.battlefield.push(
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "mine",
                 controllerId: "p1",
                 ownerId: "p1",
             })
         );
         p2.battlefield.push(
-            makeInstance(grizzlyBears.id, {
+            makeInstance(grizzlyBears().id, {
                 id: "theirs",
                 controllerId: "p2",
                 ownerId: "p2",

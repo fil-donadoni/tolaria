@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { typecyclingAbility } from "../../abilities/cycling";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { createFoodTokenOp } from "../../abilities/tokens/foodToken";
@@ -26,7 +26,7 @@ import { createFoodTokenOp } from "../../abilities/tokens/foodToken";
 // 605.3a — `useStack: false`, `manaChoices` + `manaRestriction` +
 // `effect` fallback, exactly like Adarkar Unicorn / Mishra's Workshop); no
 // Effect Script / `resolve()` needed for either.
-export const delightedHalfling: CardDefinition = {
+export const delightedHalfling = defineCard(() => ({
     id: "71384418-173a-4f77-adab-56e52fa23692",
     name: "Delighted Halfling",
     rarity: "rare",
@@ -61,7 +61,7 @@ export const delightedHalfling: CardDefinition = {
             effect: (ctx) => ctx.addMana({ G: 1 }),
         },
     ],
-};
+}));
 
 // Generous Ent — "Reach. When this creature enters, create a Food token.
 // Forestcycling {1}." (Issue #1839.) All three clauses declarative:
@@ -70,7 +70,7 @@ export const delightedHalfling: CardDefinition = {
 //    the shared CR 707.2 Food spec (never a hand-rolled token spec).
 //  - Forestcycling {1}: CR 702.29e typecycling — `typecyclingAbility`, which
 //    shares plain Cycling's activation shell (CR 702.29f).
-export const generousEnt: CardDefinition = {
+export const generousEnt = defineCard(() => ({
     id: "85d22d5d-3875-42ff-b51e-c6e21db201f5",
     name: "Generous Ent",
     rarity: "common",
@@ -92,4 +92,4 @@ export const generousEnt: CardDefinition = {
     ],
     // CR 702.29e/f — Forestcycling {1}.
     activatedAbilities: [typecyclingAbility({ generic: 1 }, "Forest")],
-};
+}));

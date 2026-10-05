@@ -10,7 +10,7 @@ import type {
     PermanentView,
     SpellContext,
 } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import type { Phase } from "../../../gre/types";
 import { countSnowLands } from "../../snowReads";
 import { cumulativeUpkeepTrigger } from "../../abilities/cumulativeUpkeep";
@@ -52,7 +52,7 @@ function nextUpkeepDrawTrigger(): DelayedTriggerDef {
 // turn (CR 605 activated ability; CR 613 layer 7c). The "1/1 creature" filter
 // is the target's effective power AND toughness (powerFilter + toughnessFilter
 // both pinned to 1).
-export const aegisOfTheMeek: CardDefinition = {
+export const aegisOfTheMeek = defineCard(() => ({
     id: "5d272051-f442-4f6e-8c64-df28b398d2e8",
     name: "Aegis of the Meek",
     rarity: "rare",
@@ -85,7 +85,7 @@ export const aegisOfTheMeek: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // DEFERRED — Amulet of Quoz is an ante card (CR 407 / ADR 0010 — ante &
 // subgames are out of scope). Stays a commented stub permanently.
 // export const amuletOfQuoz: CardDefinition = {
@@ -101,7 +101,7 @@ export const aegisOfTheMeek: CardDefinition = {
 // land." (CR 205.4a.) `activationPhaseRestriction` to the combat steps;
 // `canActivate` gates on a non-active (defending) player controlling a snow land
 // (2-player — the defending player is the non-active player).
-export const arcumsSleigh: CardDefinition = {
+export const arcumsSleigh = defineCard(() => ({
     id: "e9780ce2-756c-48e5-9936-45f6a224f61d",
     name: "Arcum's Sleigh",
     rarity: "uncommon",
@@ -144,7 +144,7 @@ export const arcumsSleigh: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Arcum's Weathervane — two activated abilities that mutate a target land's snow
 // supertype INDEFINITELY (CR 205.4a): one removes Snow from a snow land, the
 // other adds Snow to a nonsnow BASIC land. Both use the `setSupertype`
@@ -152,7 +152,7 @@ export const arcumsSleigh: CardDefinition = {
 // play). Target filtering: the remove ability targets live snow lands
 // (`supertypeFilter: ["Snow"]`); the add ability targets basic lands (the
 // "nonsnow" clause is enforced in resolve — a no-op if already snow).
-export const arcumsWeathervane: CardDefinition = {
+export const arcumsWeathervane = defineCard(() => ({
     id: "9e142435-6930-4596-bc3b-60abde1229df",
     name: "Arcum's Weathervane",
     rarity: "uncommon",
@@ -195,7 +195,7 @@ export const arcumsWeathervane: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Arcum's Whistle — {3} Artifact (issue #738). "{3}, {T}: Choose target
 // non-Wall creature the active player has controlled continuously since the
 // beginning of the turn. That player may pay {X}, where X is that creature's
@@ -230,7 +230,7 @@ export const arcumsWeathervane: CardDefinition = {
 // entered the battlefield this turn, or changed control this turn, was a
 // legal target even though the printed card forbids it.
 const ARCUMS_WHISTLE_ID = "73c07c87-0e44-4a5a-92b7-728350cd02de";
-export const arcumsWhistle: CardDefinition = {
+export const arcumsWhistle = defineCard(() => ({
     id: ARCUMS_WHISTLE_ID,
     name: "Arcum's Whistle",
     rarity: "uncommon",
@@ -306,7 +306,7 @@ export const arcumsWhistle: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Barbed Sextant — {1} Artifact. "{1}, {T}, Sacrifice this artifact: Add one
 // mana of any color. Draw a card at the beginning of the next turn's upkeep."
 // The mana add is a mana ability (CR 605.1a — adds mana, doesn't target), so it
@@ -315,7 +315,7 @@ export const arcumsWhistle: CardDefinition = {
 // live in the mana-ability `effect` context (which only exposes `addMana`), so
 // it rides `armsDelayedTriggerOnTap` (ADR 0040): tapping for mana arms the
 // shared `next-upkeep` cantrip delayed trigger, controlled by the activator.
-export const barbedSextant: CardDefinition = {
+export const barbedSextant = defineCard(() => ({
     id: "edb82654-de12-4dce-8c6b-f28d68f0fbe1",
     name: "Barbed Sextant",
     rarity: "common",
@@ -339,7 +339,7 @@ export const barbedSextant: CardDefinition = {
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
-};
+}));
 // Celestial Sword — {3}, {T}: Target creature you control gets +3/+3 until end
 // of turn, then is sacrificed at the next end step (CR 605 activated ability;
 // CR 613 layer 7c buff; CR 603.7b delayed triggered ability for the sacrifice).
@@ -361,7 +361,7 @@ export const barbedSextant: CardDefinition = {
 // make it pass) or a future Op-vocabulary affordance that also surfaces on
 // the static definition.
 const CELESTIAL_SWORD_ID = "2bc0e8d3-633b-4281-863f-c51c69eed0b6";
-export const celestialSword: CardDefinition = {
+export const celestialSword = defineCard(() => ({
     id: CELESTIAL_SWORD_ID,
     name: "Celestial Sword",
     rarity: "rare",
@@ -409,11 +409,11 @@ export const celestialSword: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Despotic Scepter — {T}: Destroy target permanent you own. It can't be
 // regenerated (CR 605 activated ability; CR 701.8 destroy; the
 // can't-be-regenerated rider suppresses the regen shield).
-export const despoticScepter: CardDefinition = {
+export const despoticScepter = defineCard(() => ({
     id: "53e381a4-810e-4b75-aed3-c16cf0eb06fa",
     name: "Despotic Scepter",
     rarity: "rare",
@@ -444,7 +444,7 @@ export const despoticScepter: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Crown of the Ages — {4}, {T}: Attach target Aura attached to a creature to
 // another creature (CR 605 activated ability; CR 303.4 / 701.3d move-an-aura via
 // `reattachAura`). The targeted Aura is chosen via `subtypeFilter: "Aura"` +
@@ -456,7 +456,7 @@ export const despoticScepter: CardDefinition = {
 // mid-resolution from all battlefields. We re-read the aura's current host
 // (`getAttachedTo`) and exclude it so the reattach moves the aura to a
 // DIFFERENT creature ("another creature").
-export const crownOfTheAges: CardDefinition = {
+export const crownOfTheAges = defineCard(() => ({
     id: "fce2991f-48e1-4cfe-af0a-18b6d9400493",
     name: "Crown of the Ages",
     rarity: "rare",
@@ -504,7 +504,7 @@ export const crownOfTheAges: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Elkin Bottle — "{3}, {T}: Exile the top card of your library. Until the
 // beginning of your next upkeep, you may play that card." (CR 601.3 / 305.1-analog / 608.2g
 // play-from-exile, the Impulse idiom.) Composes shipped primitives:
@@ -521,7 +521,7 @@ export const crownOfTheAges: CardDefinition = {
 // turn). A timed revoke needs a play-permission-expiry primitive that isn't
 // built; the observable golden path (exile top card, then cast it from exile)
 // is faithful.
-export const elkinBottle: CardDefinition = {
+export const elkinBottle = defineCard(() => ({
     id: "49301c19-55a0-4146-9474-0b86cd320e31",
     name: "Elkin Bottle",
     rarity: "rare",
@@ -562,14 +562,14 @@ export const elkinBottle: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Goblin Lyre — Sacrifice this artifact: Flip a coin. Win → deal damage to
 // target opponent equal to creatures you control; lose → deal damage to you
 // equal to creatures that opponent controls (CR 605 activated ability with
 // sacrifice cost; CR 705.2 coin flip via the suspending `requestCoinFlip`;
 // CR 120.1 damage; `getCreatureCount`). Planeswalkers are out of scope, so the
 // "or planeswalker" clause collapses to "target opponent".
-export const goblinLyre: CardDefinition = {
+export const goblinLyre = defineCard(() => ({
     id: "951114fb-5ae5-4eb0-8e03-6e39b0b634b5",
     name: "Goblin Lyre",
     rarity: "rare",
@@ -638,7 +638,7 @@ export const goblinLyre: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Talisman cycle (Hematite/Lapis Lazuli/Malachite/Nacre/Onyx) — "Whenever a
 // player casts a [color] spell, you may pay {3}. If you do, untap target
 // permanent." (CR 603.2 cast trigger via `spellCastTrigger` + SpellFilter color
@@ -721,12 +721,14 @@ function makeTalisman(args: {
         ],
     };
 }
-export const hematiteTalisman: CardDefinition = makeTalisman({
-    id: "83585337-56a9-44d2-9ed1-8a959bcfb010",
-    name: "Hematite Talisman",
-    color: "R",
-    colorWord: "red",
-});
+export const hematiteTalisman = defineCard(() =>
+    makeTalisman({
+        id: "83585337-56a9-44d2-9ed1-8a959bcfb010",
+        name: "Hematite Talisman",
+        color: "R",
+        colorWord: "red",
+    })
+);
 // Ice Cauldron — noted-mana battery + cast-from-exile (CR 106.10, CR 601.3).
 // "{X}, {T}: You may exile a nonland card from your hand. You may cast that card
 // for as long as it remains exiled. Put a charge counter and note the TYPE and
@@ -749,7 +751,7 @@ export const hematiteTalisman: CardDefinition = makeTalisman({
 // SIMPLIFICATION (tracked-by: #2785) (flagged, CR 605.1a): as with Jeweled Amulet, the "add the
 // noted mana" ability is a mana ability that this engine models as
 // `useStack: true` (the mana-ability path can't produce stored/variable mana).
-export const iceCauldron: CardDefinition = {
+export const iceCauldron = defineCard(() => ({
     id: "1a3e095a-7056-4df3-bf7d-9c217d591446",
     name: "Ice Cauldron",
     rarity: "rare",
@@ -831,7 +833,7 @@ export const iceCauldron: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Infinite Hourglass — upkeep time-counter accrual + a counter-scaled anthem +
 // an any-player {3} counter-removal restricted to upkeep steps (CR 603.6a phase
 // trigger via `phaseTrigger`; CR 122 counters via `addCounter`/`removeCounter`;
@@ -839,7 +841,7 @@ export const iceCauldron: CardDefinition = {
 // CR 602.1 `activatableByAnyPlayer` + CR 602.5 `activationPhaseRestriction:
 // ["UPKEEP"]`). The anthem is `pt-cda` (not `pt-buff`) because its magnitude is
 // game-state-dependent (the live time-counter count), recomputed every stat read.
-export const infiniteHourglass: CardDefinition = {
+export const infiniteHourglass = defineCard(() => ({
     id: "f9a42152-32c0-47ff-aaac-8deaf01873ca",
     name: "Infinite Hourglass",
     rarity: "rare",
@@ -898,13 +900,13 @@ export const infiniteHourglass: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Jester's Cap — {2}, {T}, Sacrifice this artifact: Search target player's
 // library for three cards and exile them. Then that player shuffles (CR 605
 // activated ability with sacrifice cost; CR 701.23 library search of another
 // player's zone via `requestChoice` with `zoneOwnerId`; CR 406 exile;
 // CR 701.24 shuffle). The activating player makes the search.
-export const jestersCap: CardDefinition = {
+export const jestersCap = defineCard(() => ({
     id: "47ac44d0-8090-4e7b-ac47-c567294f185e",
     name: "Jester's Cap",
     rarity: "rare",
@@ -956,7 +958,7 @@ export const jestersCap: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Jester's Mask — enters tapped; {1},{T},Sac: a target opponent puts their hand
 // on top of their library; you search that player's library for that many cards;
 // those go to their hand; then they shuffle (CR 110.5b enters tapped; CR 605
@@ -966,7 +968,7 @@ export const jestersCap: CardDefinition = {
 // the hand size, move the whole hand to library (`moveZone`), search for that
 // many cards into hand, shuffle. The "on top of library" detail is washed out by
 // the mandatory final shuffle, so the library-position primitive isn't needed.
-export const jestersMask: CardDefinition = {
+export const jestersMask = defineCard(() => ({
     id: "daa1ba0c-cb89-4bb2-8a35-6a4a4eecccf7",
     name: "Jester's Mask",
     rarity: "rare",
@@ -1033,7 +1035,7 @@ export const jestersMask: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Jeweled Amulet — noted-mana battery (CR 106.10). "{1}, {T}: Put a charge
 // counter on this artifact. Note the TYPE of mana spent to pay this activation
 // cost. Activate only if there are no charge counters." then "{T}, Remove a
@@ -1053,7 +1055,7 @@ export const jestersMask: CardDefinition = {
 // Both abilities are therefore `useStack: true` (resolve-driven). The only
 // observable difference is that an opponent could respond to the mana being
 // added — a rules-lawyer-level deviation with no effect in normal play.
-export const jeweledAmulet: CardDefinition = {
+export const jeweledAmulet = defineCard(() => ({
     id: "34f7bad2-d28f-42d2-9246-fe3545ef49a7",
     name: "Jeweled Amulet",
     rarity: "uncommon",
@@ -1100,25 +1102,31 @@ export const jeweledAmulet: CardDefinition = {
             },
         },
     ],
-};
-export const lapisLazuliTalisman: CardDefinition = makeTalisman({
-    id: "ce00bb19-983e-427d-be54-ae6daf0ccdde",
-    name: "Lapis Lazuli Talisman",
-    color: "U",
-    colorWord: "blue",
-});
-export const malachiteTalisman: CardDefinition = makeTalisman({
-    id: "63fb8a24-ce53-4a69-be2a-55c6dbba5ee7",
-    name: "Malachite Talisman",
-    color: "G",
-    colorWord: "green",
-});
-export const nacreTalisman: CardDefinition = makeTalisman({
-    id: "06912236-8225-4eb0-8086-c6a163c69892",
-    name: "Nacre Talisman",
-    color: "W",
-    colorWord: "white",
-});
+}));
+export const lapisLazuliTalisman = defineCard(() =>
+    makeTalisman({
+        id: "ce00bb19-983e-427d-be54-ae6daf0ccdde",
+        name: "Lapis Lazuli Talisman",
+        color: "U",
+        colorWord: "blue",
+    })
+);
+export const malachiteTalisman = defineCard(() =>
+    makeTalisman({
+        id: "63fb8a24-ce53-4a69-be2a-55c6dbba5ee7",
+        name: "Malachite Talisman",
+        color: "G",
+        colorWord: "green",
+    })
+);
+export const nacreTalisman = defineCard(() =>
+    makeTalisman({
+        id: "06912236-8225-4eb0-8086-c6a163c69892",
+        name: "Nacre Talisman",
+        color: "W",
+        colorWord: "white",
+    })
+);
 // Naked Singularity — cumulative upkeep {3} (CR 702.24, ADR 0042) plus a
 // continuous per-basic-subtype land-mana permutation (CR 614): "If tapped for
 // mana, Plains produce {R}, Islands produce {G}, Swamps produce {W}, Mountains
@@ -1126,7 +1134,7 @@ export const nacreTalisman: CardDefinition = makeTalisman({
 // a `byBasicSubtype` `landManaSubstitution` (global, read live from the
 // battlefield by the `applyLandManaReplacement` mana funnel). A dual / nonbasic
 // land whose subtype isn't a basic type is unaffected.
-export const nakedSingularity: CardDefinition = {
+export const nakedSingularity = defineCard(() => ({
     id: "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
     name: "Naked Singularity",
     rarity: "rare",
@@ -1150,19 +1158,21 @@ export const nakedSingularity: CardDefinition = {
             costLabel: "{3}",
         }),
     ],
-};
-export const onyxTalisman: CardDefinition = makeTalisman({
-    id: "a89b2368-1180-4821-bcb8-8161c18e5538",
-    name: "Onyx Talisman",
-    color: "B",
-    colorWord: "black",
-});
+}));
+export const onyxTalisman = defineCard(() =>
+    makeTalisman({
+        id: "a89b2368-1180-4821-bcb8-8161c18e5538",
+        name: "Onyx Talisman",
+        color: "B",
+        colorWord: "black",
+    })
+);
 // Pentagram of the Ages — {4}, {T}: The next time a source of your choice would
 // deal damage to you this turn, prevent that damage (CR 605 activated ability;
 // CR 609.7 "source of your choice" via `requestChoice({ kind: "pick-source" })`;
 // CR 615.1/615.6 one-shot source-scoped prevention shield via
 // `preventNextDamageFromSource`, the Circle of Protection mechanism).
-export const pentagramOfTheAges: CardDefinition = {
+export const pentagramOfTheAges = defineCard(() => ({
     id: "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
     name: "Pentagram of the Ages",
     rarity: "rare",
@@ -1196,14 +1206,14 @@ export const pentagramOfTheAges: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Runed Arch — enters tapped; {X},{T},Sac: X target creatures with power 2 or
 // less can't be blocked this turn (CR 110.5b enters tapped; CR 605 activated
 // ability with X-bound target count; CR 107.3 X chosen at activation;
 // CR 613 layer 7c power filter; CR 509.1b can't-be-blocked via
 // `setCantBeBlockedThisTurn`). `count: "X"` resolves the target count against the
 // chosen X; a 0-X activation skips target selection.
-export const runedArch: CardDefinition = {
+export const runedArch = defineCard(() => ({
     id: "ca02861b-9639-480d-8e54-e024f0c70158",
     name: "Runed Arch",
     rarity: "rare",
@@ -1243,11 +1253,11 @@ export const runedArch: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Shield of the Ages — {2}: Prevent the next 1 damage that would be dealt to
 // you this turn (CR 605 activated ability; CR 615.1 prevention shield on the
 // controller).
-export const shieldOfTheAges: CardDefinition = {
+export const shieldOfTheAges = defineCard(() => ({
     id: "7411ab40-47f6-44d1-8e33-9ff5301dcd9b",
     name: "Shield of the Ages",
     rarity: "uncommon",
@@ -1275,7 +1285,7 @@ export const shieldOfTheAges: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Snow Fortress — Defender Wall with two self-pumps and a {3} ping (CR 702.3
 // defender; CR 605 activated abilities; CR 613 layer 7c buffs; CR 120.1 damage).
 //
@@ -1285,7 +1295,7 @@ export const shieldOfTheAges: CardDefinition = {
 // (the controller is the defending player) refinement. In a duel every
 // attacker is attacking Snow Fortress's controller, so the narrower filter
 // matches play exactly.
-export const snowFortress: CardDefinition = {
+export const snowFortress = defineCard(() => ({
     id: "1c480e07-fb26-4760-865f-47985f7447bb",
     name: "Snow Fortress",
     rarity: "rare",
@@ -1347,7 +1357,7 @@ export const snowFortress: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
+}));
 // Soldevi Golem — a 5/3 Golem that doesn't untap normally; instead, at your
 // upkeep you may untap a tapped opponent creature to untap it too (CR 702 —
 // "doesn't untap" via the `does-not-untap` keyword; CR 603.6a phase trigger;
@@ -1368,7 +1378,7 @@ export const snowFortress: CardDefinition = {
 // equal the factory's `scopedPlayerId`, so the plain `"controller"` player
 // ref is safe (per `phaseTrigger`'s own doc caveat). `targetRequirement` is
 // now passed straight into the factory call (it accepts the param directly).
-export const soldeviGolem: CardDefinition = {
+export const soldeviGolem = defineCard(() => ({
     id: "64d35e88-81d3-4a54-aa79-190615abc616",
     name: "Soldevi Golem",
     rarity: "rare",
@@ -1422,11 +1432,11 @@ export const soldeviGolem: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Soldevi Simulacrum — {4} Artifact Creature 2/4 with cumulative upkeep {1}
 // (CR 702.24, ADR 0042) and firebreathing "{1}: This creature gets +1/+0 until
 // end of turn." (CR 611.1 temporary P/T mod, Dragon Engine pattern).
-export const soldeviSimulacrum: CardDefinition = {
+export const soldeviSimulacrum = defineCard(() => ({
     id: "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
     name: "Soldevi Simulacrum",
     rarity: "uncommon",
@@ -1466,13 +1476,13 @@ export const soldeviSimulacrum: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Staff of the Ages — Creatures with landwalk abilities can be blocked as
 // though they didn't have those abilities (CR 509.1b / 702.14 landwalk-negation
 // static, battlefield-scanned). Expressed with the parametric landwalk-negation
 // kind (shared with Great Wall / Undertow) listing every basic land subtype, so
 // all basic landwalk variants are suppressed at once.
-export const staffOfTheAges: CardDefinition = {
+export const staffOfTheAges = defineCard(() => ({
     id: "5c709836-55b6-4de9-b190-b5f66dc53c87",
     name: "Staff of the Ages",
     rarity: "rare",
@@ -1489,12 +1499,12 @@ export const staffOfTheAges: CardDefinition = {
                 "Creatures with landwalk abilities can be blocked as though they didn't have those abilities.",
         },
     ],
-};
+}));
 // Sunstone — "{2}, Sacrifice a snow land: Prevent all combat damage that would
 // be dealt this turn." The cost combines {2} mana with a snow-typed sacrifice
 // (CR 118.5 / 205.4a) via `sacrificeFilter` (Land + Snow supertype, resolved
 // live); the effect is `preventAllCombatDamage` (CR 615).
-export const sunstone: CardDefinition = {
+export const sunstone = defineCard(() => ({
     id: "3c1c67fa-ff88-4a61-b8a5-8a872b3dc44f",
     name: "Sunstone",
     rarity: "uncommon",
@@ -1517,14 +1527,14 @@ export const sunstone: CardDefinition = {
             effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
-};
+}));
 // Time Bomb — upkeep time-counter accrual + a {1},{T},Sac board-wipe scaled by
 // the time-counter count (CR 603.6a phase trigger; CR 122 counters; CR 605
 // activated ability with mana+tap+sacrifice cost; CR 119/120.1 damage via
 // `dealDamageToEach`). The sacrifice is a COST (paid at activation), so by
 // resolution the source is off the battlefield — `getCounterCount` reads the
 // pre-sacrifice last-known count off the resolving stack item (CR 608.2g).
-export const timeBomb: CardDefinition = {
+export const timeBomb = defineCard(() => ({
     id: "092ec691-4729-46d3-a4e2-0cfc5df42a31",
     name: "Time Bomb",
     rarity: "rare",
@@ -1607,7 +1617,7 @@ export const timeBomb: CardDefinition = {
             ],
         },
     ],
-};
+}));
 // Urza's Bauble ships as an active CardDefinition below (issue #674): the
 // next-upkeep cantrip is buildable via the shared `nextUpkeepDrawTrigger`, and
 // the "look at a card at random in target player's hand" clause is purely
@@ -1632,7 +1642,7 @@ export const timeBomb: CardDefinition = {
 // multi-card) shape — this card's single-card reveal-and-compare use isn't
 // that shape. Blocked on: a reveal-top-card Op + a name-equality predicate
 // (planned — no issue filed yet).
-export const vexingArcanix: CardDefinition = {
+export const vexingArcanix = defineCard(() => ({
     id: "0c9ea118-6a19-4e1b-aa5a-9b2729efc096",
     name: "Vexing Arcanix",
     rarity: "rare",
@@ -1670,13 +1680,13 @@ export const vexingArcanix: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Vibrating Sphere — During your turn, creatures you control get +2/+0; during
 // turns other than yours, creatures you control get -0/-2 (CR 611.2c
 // turn-conditional anthem via two `pt-buff` static effects gated by
 // `state.activePlayerId === source.controllerId`, CR 102.1 turn ownership;
 // CR 613 layer 7c). "You" is the controller of Vibrating Sphere.
-export const vibratingSphere: CardDefinition = {
+export const vibratingSphere = defineCard(() => ({
     id: "48f93ded-ecf6-4a70-8ca3-a9c0c3201c21",
     name: "Vibrating Sphere",
     rarity: "rare",
@@ -1706,13 +1716,13 @@ export const vibratingSphere: CardDefinition = {
             toughness: -2,
         },
     ],
-};
+}));
 // Walking Wall — Defender Wall with a once-per-turn {3} self-pump that also lets
 // it attack despite defender (CR 702.3 defender; CR 605 activated ability;
 // CR 613 layer 7c temporary +3/-1 via `addTemporaryPTBuff`; CR 508
 // attack-despite-defender via `allowAttackDespiteDefender`; CR 602.5 once-per-turn
 // via `oncePerTurn`).
-export const walkingWall: CardDefinition = {
+export const walkingWall = defineCard(() => ({
     id: "cba1238c-1969-452d-8112-124cbbd49417",
     name: "Walking Wall",
     rarity: "uncommon",
@@ -1742,10 +1752,10 @@ export const walkingWall: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Wall of Shields — Defender + Banding artifact Wall (CR 702.3 defender,
 // CR 702.22 banding). Pure keyword data.
-export const wallOfShields: CardDefinition = {
+export const wallOfShields = defineCard(() => ({
     id: "6376c7c4-aaca-4625-83d4-a49f01aec535",
     name: "Wall of Shields",
     rarity: "uncommon",
@@ -1757,7 +1767,7 @@ export const wallOfShields: CardDefinition = {
     power: 0,
     toughness: 4,
     staticAbilities: ["defender", "banding"],
-};
+}));
 // Painland cycle (Adarkar Wastes, Brushland, Karplusan Forest, Sulfurous
 // Springs, Underground River) — "{T}: Add {C}.  {T}: Add <c1> or <c2>. This
 // land deals 1 damage to you." (CR 605.1a — both are mana abilities,
@@ -1767,7 +1777,7 @@ export const wallOfShields: CardDefinition = {
 // free while only a coloured tap pings the controller. City of Brass's blanket
 // "whenever this becomes tapped" trigger can't express this (it fires on every
 // tap, including the painless {C}); the rider fires only on a coloured choice.
-export const adarkarWastes: CardDefinition = {
+export const adarkarWastes = defineCard(() => ({
     id: "09dd9023-f7ee-4e99-8821-7059deb83730",
     name: "Adarkar Wastes",
     rarity: "rare",
@@ -1785,9 +1795,9 @@ export const adarkarWastes: CardDefinition = {
             dealsDamageToControllerOnColoredTap: 1,
         },
     ],
-};
+}));
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const brushland: CardDefinition = {
+export const brushland = defineCard(() => ({
     id: "170e5ccd-54bf-4c6d-86b4-0359ca8f36e8",
     name: "Brushland",
     rarity: "rare",
@@ -1805,7 +1815,7 @@ export const brushland: CardDefinition = {
             dealsDamageToControllerOnColoredTap: 1,
         },
     ],
-};
+}));
 // Glacial Chasm — Land (issue #727). Four clauses over shipped seams:
 //   • Cumulative upkeep—Pay 2 life — the ADR 0042 template with a life cost
 //     (`cost: { life: 2 }`), the `{ life }` MayPayCost union leg.
@@ -1819,7 +1829,7 @@ export const brushland: CardDefinition = {
 //   • "Prevent all damage that would be dealt to you" — a continuous
 //     `replacementEffects[]` prevention (CR 615.1) on player-targeted damage
 //     aimed at the controller; `replace` consumes the event.
-export const glacialChasm: CardDefinition = {
+export const glacialChasm = defineCard(() => ({
     id: "3d23f800-7a6f-40e3-b242-9f5955e47a75",
     name: "Glacial Chasm",
     rarity: "uncommon",
@@ -1878,7 +1888,7 @@ export const glacialChasm: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 // Halls of Mist — Land (issue #727). Cumulative upkeep {1} plus a single
 // battlefield-scanned `global-attack-restriction` (CR 508.1c): a creature is
 // forbidden from attacking if it attacked during its controller's most recent
@@ -1886,7 +1896,7 @@ export const glacialChasm: CardDefinition = {
 // snapshotted at each controller's CLEANUP (Giant Turtle, LEG) — so NO new
 // GameState field is needed; the flag is on `CardInstanceState`/`PermanentView`
 // and survives the public projection.
-export const hallsOfMist: CardDefinition = {
+export const hallsOfMist = defineCard(() => ({
     id: "b926a189-90b6-47bb-b5d6-b033e57007b4",
     name: "Halls of Mist",
     rarity: "rare",
@@ -1912,14 +1922,14 @@ export const hallsOfMist: CardDefinition = {
             costLabel: "{1}",
         }),
     ],
-};
+}));
 // Ice Floe — land-flavoured untap-lock twin of Mole Worms (CR 611.2 untap-lock
 // tied to the source's tapped state via `lockUntapWhileSourceTapped`; CR 502.1
 // optional untap via `may-choose-not-to-untap`). Target filter mirrors Giant
 // Trap Door Spider: a non-flying attacking creature ("attacking you" in
 // 2-player = an opponent's attacker, CR 508.1) via `combatRoleFilter:
 // "attacking"` + `excludeAbility: "flying"`.
-export const iceFloe: CardDefinition = {
+export const iceFloe = defineCard(() => ({
     id: "85ce04fb-e687-41e0-ae9a-16a51df5d943",
     name: "Ice Floe",
     rarity: "uncommon",
@@ -1949,9 +1959,9 @@ export const iceFloe: CardDefinition = {
             },
         },
     ],
-};
+}));
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const karplusanForest: CardDefinition = {
+export const karplusanForest = defineCard(() => ({
     id: "ba6f1263-d598-49fb-b5f8-09f11822ebd0",
     name: "Karplusan Forest",
     rarity: "rare",
@@ -1969,7 +1979,7 @@ export const karplusanForest: CardDefinition = {
             dealsDamageToControllerOnColoredTap: 1,
         },
     ],
-};
+}));
 // Depletion-dual cycle (Land Cap, Lava Tubes, River Delta, Timberline Ridge,
 // Veldt — CR 605.1a / 502.1 / 603.6a / 122.1). Each:
 //   * "{T}: Add <c1> or <c2>. Put a depletion counter on this land." — ONE
@@ -2038,28 +2048,34 @@ function depletionDual(args: {
         ],
     };
 }
-export const landCap: CardDefinition = depletionDual({
-    id: "c4806c02-7a4d-42e3-affd-0338084bd3ab",
-    name: "Land Cap",
-    c1: "W",
-    c2: "U",
-});
+export const landCap = defineCard(() =>
+    depletionDual({
+        id: "c4806c02-7a4d-42e3-affd-0338084bd3ab",
+        name: "Land Cap",
+        c1: "W",
+        c2: "U",
+    })
+);
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
-export const lavaTubes: CardDefinition = depletionDual({
-    id: "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
-    name: "Lava Tubes",
-    c1: "B",
-    c2: "R",
-});
+export const lavaTubes = defineCard(() =>
+    depletionDual({
+        id: "5e7c2cf6-f36f-451b-bba5-19a82c659c4c",
+        name: "Lava Tubes",
+        c1: "B",
+        c2: "R",
+    })
+);
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
-export const riverDelta: CardDefinition = depletionDual({
-    id: "ea335fc0-0591-4acd-9ae8-7858222770da",
-    name: "River Delta",
-    c1: "U",
-    c2: "B",
-});
+export const riverDelta = defineCard(() =>
+    depletionDual({
+        id: "ea335fc0-0591-4acd-9ae8-7858222770da",
+        name: "River Delta",
+        c1: "U",
+        c2: "B",
+    })
+);
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const sulfurousSprings: CardDefinition = {
+export const sulfurousSprings = defineCard(() => ({
     id: "2fdeab50-b45f-412b-85a3-c6cf009ce567",
     name: "Sulfurous Springs",
     rarity: "rare",
@@ -2077,16 +2093,18 @@ export const sulfurousSprings: CardDefinition = {
             dealsDamageToControllerOnColoredTap: 1,
         },
     ],
-};
+}));
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
-export const timberlineRidge: CardDefinition = depletionDual({
-    id: "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
-    name: "Timberline Ridge",
-    c1: "R",
-    c2: "G",
-});
+export const timberlineRidge = defineCard(() =>
+    depletionDual({
+        id: "87cc2fc9-0a24-4ac1-afcc-9317b90c7178",
+        name: "Timberline Ridge",
+        c1: "R",
+        c2: "G",
+    })
+);
 // Painland — see Adarkar Wastes note ({C} painless + coloured-tap self-damage).
-export const undergroundRiver: CardDefinition = {
+export const undergroundRiver = defineCard(() => ({
     id: "92369d7e-5e5a-46f9-bb31-c57d62410283",
     name: "Underground River",
     rarity: "rare",
@@ -2104,19 +2122,21 @@ export const undergroundRiver: CardDefinition = {
             dealsDamageToControllerOnColoredTap: 1,
         },
     ],
-};
+}));
 // Depletion-dual — see the `depletionDual` factory note above Land Cap.
-export const veldt: CardDefinition = depletionDual({
-    id: "987534fb-74a9-46a3-805f-fe2fe2df4a90",
-    name: "Veldt",
-    c1: "G",
-    c2: "W",
-});
+export const veldt = defineCard(() =>
+    depletionDual({
+        id: "987534fb-74a9-46a3-805f-fe2fe2df4a90",
+        name: "Veldt",
+        c1: "G",
+        c2: "W",
+    })
+);
 // Snow-Covered Plains — basic land carrying the Snow supertype (CR 205.4a).
 // The intrinsic basic mana ability comes from the Plains subtype
 // (`LAND_SUBTYPE_MANA`); ICE snow is a TYPE reference only — there is no {S}
 // snow mana (that is a later Coldsnap addition; see CONTEXT.md "Snow").
-export const snowCoveredPlains: CardDefinition = {
+export const snowCoveredPlains = defineCard(() => ({
     id: "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
     name: "Snow-Covered Plains",
     rarity: "common",
@@ -2124,8 +2144,8 @@ export const snowCoveredPlains: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Plains"],
-};
-export const snowCoveredIsland: CardDefinition = {
+}));
+export const snowCoveredIsland = defineCard(() => ({
     id: "ad8b77cf-b53e-4da3-9c27-3851b7b25a98",
     name: "Snow-Covered Island",
     rarity: "common",
@@ -2133,8 +2153,8 @@ export const snowCoveredIsland: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Island"],
-};
-export const snowCoveredSwamp: CardDefinition = {
+}));
+export const snowCoveredSwamp = defineCard(() => ({
     id: "65a3c27f-6b15-49b6-ac89-36cfb79b3b54",
     name: "Snow-Covered Swamp",
     rarity: "common",
@@ -2142,9 +2162,9 @@ export const snowCoveredSwamp: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Swamp"],
-};
+}));
 // Mountain — ICE reprint of the LEA basic land (CardPrint onto LEA, ADR 0014).
-export const snowCoveredMountain: CardDefinition = {
+export const snowCoveredMountain = defineCard(() => ({
     id: "ccd3afb3-5574-4f2d-adbe-969a428f1c63",
     name: "Snow-Covered Mountain",
     rarity: "common",
@@ -2152,8 +2172,8 @@ export const snowCoveredMountain: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Mountain"],
-};
-export const snowCoveredForest: CardDefinition = {
+}));
+export const snowCoveredForest = defineCard(() => ({
     id: "4c0ad95c-d62c-4138-ada0-fa39a63a449e",
     name: "Snow-Covered Forest",
     rarity: "common",
@@ -2161,7 +2181,7 @@ export const snowCoveredForest: CardDefinition = {
     types: ["Land"],
     supertypes: ["Basic", "Snow"],
     subtypes: ["Forest"],
-};
+}));
 // Urza's Bauble — {0} Artifact (Vintage Cube card-advantage tranche, issue
 // #674). "{T}, Sacrifice this artifact: Look at a card at random in target
 // player's hand. You draw a card at the beginning of the next turn's upkeep."
@@ -2173,7 +2193,7 @@ export const snowCoveredForest: CardDefinition = {
 // `delayedTrigger` Op (CR 603.7d delayed triggered ability). The ability
 // resolves on the stack (it is not a mana ability), and the source is
 // sacrificed as a cost.
-export const urzasBauble: CardDefinition = {
+export const urzasBauble = defineCard(() => ({
     id: "58c9e9a7-e170-4361-b7d5-22fc0771c489",
     name: "Urza's Bauble",
     rarity: "common",
@@ -2207,4 +2227,4 @@ export const urzasBauble: CardDefinition = {
             ],
         },
     ],
-};
+}));

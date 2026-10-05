@@ -56,17 +56,17 @@ interface Projected {
  *  the client actually receives them, through `projectPublicState`. */
 function projectBoards(
     withCap: boolean,
-    capDefId: string = duelingGrounds.id,
-    firstDefenderDefId: string = grizzlyBears.id
+    capDefId: string = duelingGrounds().id,
+    firstDefenderDefId: string = grizzlyBears().id
 ): Projected {
     const mine = [
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: "a",
             controllerId: "me",
             ownerId: "me",
             isSummoningSick: false,
         }),
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: "b",
             controllerId: "me",
             ownerId: "me",
@@ -80,7 +80,7 @@ function projectBoards(
             ownerId: "opp",
             isSummoningSick: false,
         }),
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: "y",
             controllerId: "opp",
             ownerId: "opp",
@@ -218,8 +218,8 @@ describe("the declared-blocker cap counts CREATURES, not assignments (CR 509.1a,
         // exactly the client/server drift the shared scanner exists to prevent.
         const boards = projectBoards(
             true,
-            cavernsOfDespair.id,
-            twoHeadedGiantOfForiys.id
+            cavernsOfDespair().id,
+            twoHeadedGiantOfForiys().id
         );
         const { result } = renderBoard(
             boards,
@@ -235,8 +235,8 @@ describe("the declared-blocker cap counts CREATURES, not assignments (CR 509.1a,
     it("two DISTINCT creatures blocking under the same cap of two do close it", () => {
         const boards = projectBoards(
             true,
-            cavernsOfDespair.id,
-            twoHeadedGiantOfForiys.id
+            cavernsOfDespair().id,
+            twoHeadedGiantOfForiys().id
         );
         const three = {
             ...boards,

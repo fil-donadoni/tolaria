@@ -1,7 +1,7 @@
 // mom — blue cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import {
     drawTrigger,
     nthDrawThisTurn,
@@ -25,7 +25,7 @@ import {
 // draw-trigger whose effect must act on the DRAWING player (Sheoldred).
 // "Each player draws a card" is the `forEach { set: "players" }` shape
 // Timetwister already exercises (`sets/lea/blue.cards.ts`).
-export const faerieMastermind: CardDefinition = {
+export const faerieMastermind = defineCard(() => ({
     id: "52d3005f-a1c7-4ef5-911f-ccc0752f4181", // MOM printing (scryfallId)
     name: "Faerie Mastermind",
     rarity: "rare",
@@ -64,4 +64,4 @@ export const faerieMastermind: CardDefinition = {
             ],
         },
     ],
-};
+}));

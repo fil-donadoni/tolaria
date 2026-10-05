@@ -4,7 +4,7 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 
 // Consult the Star Charts — "Kicker {1}{U}. Look at the top X cards of your
@@ -15,7 +15,7 @@ import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 // lands you control (`count` value) and puts `take` (1, or 2 when kicked) into
 // hand, bottoming the rest — one execution path, no new Op. Vintage Cube Kicker
 // cluster (issue #692, ADR 0041).
-export const consultTheStarCharts: CardDefinition = {
+export const consultTheStarCharts = defineCard(() => ({
     id: "a16a6555-2e3a-4587-aacd-0307d696b26c",
     rarity: "rare",
     name: "Consult the Star Charts",
@@ -66,7 +66,7 @@ export const consultTheStarCharts: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Quantum Riddler — {3}{U}{U} Creature — Sphinx 4/6 (issue #3294). Three
 // clauses, three shapes:
@@ -97,7 +97,7 @@ export const consultTheStarCharts: CardDefinition = {
 // is why `__tests__/blue.test.ts` asserts the multi-card total explicitly.
 // compiler-gap: "As long as you have one or fewer cards in hand, if you would draw one or more cards, you draw that many cards plus one instead." (#2693)
 // compiler-gap: "Warp {1}{U}" (#2693)
-export const quantumRiddler: CardDefinition = {
+export const quantumRiddler = defineCard(() => ({
     id: "120be808-ff3b-4fca-96a1-4db6b9825856",
     rarity: "mythic",
     name: "Quantum Riddler",
@@ -133,4 +133,4 @@ export const quantumRiddler: CardDefinition = {
                 ?.handSize ?? Number.POSITIVE_INFINITY) <= 1,
         outcome: { kind: "modify-count", delta: 1 },
     },
-};
+}));

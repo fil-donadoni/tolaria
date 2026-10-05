@@ -6,17 +6,17 @@
 // identity of their mana cost (CR 202.2); lands and artifacts (no coloured
 // cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    Color,
-    ManaCost,
-    SpellContext,
+import {
+    defineCard,
+    type Color,
+    type ManaCost,
+    type SpellContext,
 } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 import { diedTrigger } from "../../abilities/triggers/diedTrigger";
 import { stateTrigger } from "../../abilities/triggers/stateTrigger";
 
-export const moorishCavalry: CardDefinition = {
+export const moorishCavalry = defineCard(() => ({
     id: "f86f0781-7614-4779-a58d-f13ce96bdf33",
     rarity: "common",
     name: "Moorish Cavalry",
@@ -27,9 +27,9 @@ export const moorishCavalry: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["trample"],
-};
+}));
 
-export const repentantBlacksmith: CardDefinition = {
+export const repentantBlacksmith = defineCard(() => ({
     id: "61fc30b6-1355-425b-a86f-18f59f83141c",
     rarity: "rare",
     name: "Repentant Blacksmith",
@@ -40,9 +40,9 @@ export const repentantBlacksmith: CardDefinition = {
     power: 1,
     toughness: 2,
     staticAbilities: ["protection from red"],
-};
+}));
 
-export const warElephant: CardDefinition = {
+export const warElephant = defineCard(() => ({
     id: "7416c366-95cc-4799-b6c6-34d8fad8c202",
     rarity: "common",
     name: "War Elephant",
@@ -53,9 +53,9 @@ export const warElephant: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["trample", "banding"],
-};
+}));
 
-export const armyOfAllah: CardDefinition = {
+export const armyOfAllah = defineCard(() => ({
     id: "3d170015-b125-49a6-a15e-8fd116bbcb14",
     rarity: "common",
     name: "Army of Allah",
@@ -63,9 +63,9 @@ export const armyOfAllah: CardDefinition = {
     manaCost: { X: 1, W: 2 },
     types: ["Instant"],
     effect: { kind: "pump-combat", side: "attacking", power: 2, toughness: 0 },
-};
+}));
 
-export const piety: CardDefinition = {
+export const piety = defineCard(() => ({
     id: "f649c571-d7ec-4ebc-9e18-b0657cab495b",
     rarity: "common",
     name: "Piety",
@@ -73,12 +73,12 @@ export const piety: CardDefinition = {
     manaCost: { X: 2, W: 1 },
     types: ["Instant"],
     effect: { kind: "pump-combat", side: "blocking", power: 0, toughness: 3 },
-};
+}));
 
 // Eye for an Eye — transient reflect entry on the damageRedirections family
 // (CR 614): the chosen source's next damage to you proceeds unchanged, and an
 // equal amount is dealt to that source's controller.
-export const eyeForAnEye: CardDefinition = {
+export const eyeForAnEye = defineCard(() => ({
     id: "2933ca2a-097b-44f4-ae56-ad524d26fd06",
     rarity: "uncommon",
     name: "Eye for an Eye",
@@ -101,13 +101,13 @@ export const eyeForAnEye: CardDefinition = {
             duration: { phase: "end-of-turn" },
         });
     },
-};
+}));
 
 // Camel — banding, plus "as long as this creature is attacking, prevent all
 // damage Deserts would deal to it and to creatures banded with it" (CR 614).
 // The protected set is Camel's attacking band (or just Camel if attacking
 // solo); the prevention only applies while Camel is itself an attacker.
-export const camel: CardDefinition = {
+export const camel = defineCard(() => ({
     id: "e0078aa8-bfb8-43b0-a6b7-1991596c21e1",
     rarity: "common",
     name: "Camel",
@@ -143,7 +143,7 @@ export const camel: CardDefinition = {
             replace: () => ({ kind: "consumed" }),
         },
     ],
-};
+}));
 
 // Abu Ja'far — death trigger that destroys its combat partners (CR 603.2 /
 // 603.10). The trigger resolves after Abu Ja'far is already in the graveyard,
@@ -152,7 +152,7 @@ export const camel: CardDefinition = {
 // `combatPartnerIds()` in state.ts). The body re-checks each partner is still
 // on the battlefield (CR 608.2b) and destroys it with `cantBeRegenerated`
 // (CR 701.19c — the printed "they can't be regenerated").
-export const abuJafar: CardDefinition = {
+export const abuJafar = defineCard(() => ({
     id: "0e9ad288-d164-44a6-96ec-4185a1587f1a",
     rarity: "uncommon",
     name: "Abu Ja'far",
@@ -184,7 +184,7 @@ export const abuJafar: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 /** True when SOME nontoken permanent of `color` is controlled by a player
  *  other than `myControllerId` — i.e. (in a 2-player game) the opponent
@@ -239,7 +239,7 @@ const JIHAD_COLOR_NAMES: Record<Color, string> = {
 
 const JIHAD_COLORS: Color[] = ["W", "U", "B", "R", "G"];
 
-export const jihad: CardDefinition = {
+export const jihad = defineCard(() => ({
     id: "b6c7705a-2987-4ef1-92b1-2c55d989ec6f",
     rarity: "rare",
     name: "Jihad",
@@ -298,4 +298,4 @@ export const jihad: CardDefinition = {
             resolve: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
         }),
     ],
-};
+}));

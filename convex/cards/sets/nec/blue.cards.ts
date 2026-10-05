@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { wardAbility } from "../../abilities/ward";
 
@@ -28,7 +28,7 @@ import { wardAbility } from "../../abilities/ward";
 // `wardAbility({ cost: { mana: {X:4} }, costLabel: "{4}" })` (CR 702.21a) —
 // the shared "counter unless pay" DSL shape (Miscalculation/Force Spike);
 // Kappa Cannoneer is the first catalogue card to prove the keyword.
-export const kappaCannoneer: CardDefinition = {
+export const kappaCannoneer = defineCard(() => ({
     id: "85a89077-b384-4fca-9d26-7297962c1541", // NEC 14
     name: "Kappa Cannoneer",
     rarity: "rare",
@@ -64,4 +64,4 @@ export const kappaCannoneer: CardDefinition = {
             ],
         }),
     ],
-};
+}));

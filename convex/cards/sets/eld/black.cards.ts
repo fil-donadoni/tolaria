@@ -2,7 +2,7 @@
 // `import * as eld from "./sets/eld/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Wishclaw Talisman — {1}{B} Artifact. "This artifact enters with three wish
 // counters on it. {1}, {T}, Remove a wish counter from this artifact: Search
@@ -20,7 +20,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // field; `controllerTurnOnly` models "Activate only during your turn"; the
 // control change to "an opponent" uses the `EffectPlayerRef` literal
 // `"opponent"`.
-export const wishclawTalisman: CardDefinition = {
+export const wishclawTalisman = defineCard(() => ({
     id: "07c17b01-ee5d-491a-8403-b3f819b778c4",
     name: "Wishclaw Talisman",
     rarity: "rare",
@@ -67,4 +67,4 @@ export const wishclawTalisman: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -2,7 +2,7 @@
 // `import * as eld from "./sets/eld/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition } from "../../../../convex/cards/types";
+import { defineCard } from "../../../../convex/cards/types";
 
 // Fabled Passage — "{T}, Sacrifice this land: Search your library for a basic
 // land card, put it onto the battlefield tapped, then shuffle. Then if you
@@ -26,7 +26,7 @@ import type { CardDefinition } from "../../../../convex/cards/types";
 // land is already on the battlefield by then and is one of the "four or
 // more lands" it's being counted against, matching the printed card's
 // resolution order.
-export const fabledPassage: CardDefinition = {
+export const fabledPassage = defineCard(() => ({
     id: "b841bfa8-7c17-4df2-8466-780ab9a4a53a",
     name: "Fabled Passage",
     rarity: "rare",
@@ -85,4 +85,4 @@ export const fabledPassage: CardDefinition = {
             ],
         },
     ],
-};
+}));

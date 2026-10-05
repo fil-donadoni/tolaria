@@ -52,7 +52,7 @@ import {
 } from "./gameMutationHarness.fixture";
 
 const GAME_ID = "game-1" as Id<"games">;
-const MOUNTAIN = leaMountain.id;
+const MOUNTAIN = leaMountain().id;
 const SWAMP = getCardByName("Swamp").id;
 
 type AutoTapArgs = { gameId: Id<"games">; playerId: string };
@@ -72,7 +72,7 @@ function stateWithPendingCast(
     manaCost: PendingCast["manaCost"],
     opponentBattlefield: GameState["players"][number]["battlefield"] = []
 ): GameState {
-    const cast = makeInstance(grizzlyBears.id, {
+    const cast = makeInstance(grizzlyBears().id, {
         id: "spell",
         controllerId: "p1",
         ownerId: "p1",
@@ -97,7 +97,7 @@ function stateWithPendingCast(
 
 describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser, issue #2240)", () => {
     it("unlocked: emits BOTH colour options, indices matching the unified getManaTapOptionsDetailed list", () => {
-        const verge = makeInstance(thornspireVerge.id, {
+        const verge = makeInstance(thornspireVerge().id, {
             id: "verge",
             controllerId: "p1",
         });
@@ -124,7 +124,7 @@ describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser,
     });
 
     it("locked: exposes ONLY the primary colour — the gated option must not appear", () => {
-        const verge = makeInstance(thornspireVerge.id, {
+        const verge = makeInstance(thornspireVerge().id, {
             id: "verge",
             controllerId: "p1",
         });
@@ -146,7 +146,7 @@ describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser,
     });
 
     it("end to end: a spell payable ONLY through the unlocked gated colour auto-taps and fully pays via the REAL autoTapForPayment mutation", async () => {
-        const verge = makeInstance(thornspireVerge.id, {
+        const verge = makeInstance(thornspireVerge().id, {
             id: "verge",
             controllerId: "p1",
         });
@@ -175,7 +175,7 @@ describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser,
     });
 
     it("end to end: with the unlock condition NOT met, auto-tap does not plan the gated colour — the spell stays unpaid, the Verge stays untapped", async () => {
-        const verge = makeInstance(thornspireVerge.id, {
+        const verge = makeInstance(thornspireVerge().id, {
             id: "verge",
             controllerId: "p1",
         });
@@ -198,7 +198,7 @@ describe("buildAutoTapSources — Verge land (getManaChoices, own-board chooser,
 
 describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scanning chooser, issue #2240)", () => {
     it("emits one option per opponent colour, in the shared MANA_COLORS index space — pins a non-zero index to its colour (no aliasing between the planner and the unified option list)", () => {
-        const stone = makeInstance(fellwarStone.id, {
+        const stone = makeInstance(fellwarStone().id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -233,7 +233,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("end to end: auto-tap pays a cost only Fellwar Stone can cover (colour read off an OPPONENT's land) via the REAL autoTapForPayment mutation", async () => {
-        const stone = makeInstance(fellwarStone.id, {
+        const stone = makeInstance(fellwarStone().id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -258,7 +258,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("end to end with TWO opponent colours: pays a {R} cost via Fellwar Stone's non-zero index — proves the mutation resolves the SAME index the planner emitted, not merely index 0", async () => {
-        const stone = makeInstance(fellwarStone.id, {
+        const stone = makeInstance(fellwarStone().id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -290,7 +290,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
     });
 
     it("with no opponent colour-producing land, Fellwar Stone offers nothing and a {B} cost stays unpaid", async () => {
-        const stone = makeInstance(fellwarStone.id, {
+        const stone = makeInstance(fellwarStone().id, {
             id: "stone",
             controllerId: "p1",
         });
@@ -322,7 +322,7 @@ describe("buildAutoTapSources — Fellwar Stone (manaColorSource, opponent-scann
 // its base mana, never for a scaling tap the player never chose.
 describe("buildAutoTapSources — Mana Battery (manaChoiceRemovesCounters, counter-burning options stay manual, issue #2240 review)", () => {
     it("with both a Mana Battery (3 charge counters) and two Swamps that alone cover the cost, auto-tap spends the two Swamps and leaves the battery's counters untouched — measured A/B: unguarded, ONE battery tap at index 3 removed all 3 counters for {B}{B}{B}{B} (2 floating); guarded, two Swamps tapped, battery/counters untouched", async () => {
-        const battery = makeInstance(blackManaBattery.id, {
+        const battery = makeInstance(blackManaBattery().id, {
             id: "battery",
             controllerId: "p1",
             counters: { charge: 3 },
@@ -363,7 +363,7 @@ describe("buildAutoTapSources — Mana Battery (manaChoiceRemovesCounters, count
     });
 
     it("with no other source, the battery still pays via its FREE index-0 option (0 counters removed) — only the counter-burning options are off-limits, not the source itself", async () => {
-        const battery = makeInstance(blackManaBattery.id, {
+        const battery = makeInstance(blackManaBattery().id, {
             id: "battery",
             controllerId: "p1",
             counters: { charge: 3 },
@@ -384,7 +384,7 @@ describe("buildAutoTapSources — Mana Battery (manaChoiceRemovesCounters, count
     });
 
     it("with no other source and a cost beyond the free option's output, the battery's counter-burning options stay off-limits — the cost is left partially unpaid rather than auto-spending counters", async () => {
-        const battery = makeInstance(blackManaBattery.id, {
+        const battery = makeInstance(blackManaBattery().id, {
             id: "battery",
             controllerId: "p1",
             counters: { charge: 3 },

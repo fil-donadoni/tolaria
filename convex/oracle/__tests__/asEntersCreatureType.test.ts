@@ -55,7 +55,7 @@ describe("as-enters creature-type choice (CR 614.12a)", () => {
                 { kind: "subtypes", from: [...CREATURE_SUBTYPES], count: 1 },
             ],
         });
-        expect(outcome.definition.entersWith).toEqual(brassHerald.entersWith);
+        expect(outcome.definition.entersWith).toEqual(brassHerald().entersWith);
     });
 
     it("keeps the entry counters when the card also enters with them", () => {

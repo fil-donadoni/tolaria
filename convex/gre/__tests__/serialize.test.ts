@@ -38,15 +38,21 @@ import { turnFaceDown } from "../faceDown";
 function freshState(): GameState {
     const p1 = makePlayer("p1", {
         library: [
-            makeInstance(mountain.id, { controllerId: "p1", zone: "library" }),
-            makeInstance(mountain.id, { controllerId: "p1", zone: "library" }),
-            makeInstance(lightningBolt.id, {
+            makeInstance(mountain().id, {
+                controllerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(mountain().id, {
+                controllerId: "p1",
+                zone: "library",
+            }),
+            makeInstance(lightningBolt().id, {
                 controllerId: "p1",
                 zone: "library",
             }),
         ],
         hand: [
-            makeInstance(lightningBolt.id, {
+            makeInstance(lightningBolt().id, {
                 controllerId: "p1",
                 zone: "hand",
             }),
@@ -54,10 +60,10 @@ function freshState(): GameState {
     });
     const p2 = makePlayer("p2", {
         library: [
-            makeInstance(plains.id, { controllerId: "p2", zone: "library" }),
+            makeInstance(plains().id, { controllerId: "p2", zone: "library" }),
         ],
         battlefield: [
-            makeInstance(savannahLions.id, {
+            makeInstance(savannahLions().id, {
                 controllerId: "p2",
                 ownerId: "p2",
                 zone: "battlefield",
@@ -139,7 +145,7 @@ describe("gameStates serialize round-trip", () => {
     it("preserves a player's companion slot (issue #1391)", () => {
         const state = freshState();
         state.players[0].companion = {
-            instance: makeInstance(savannahLions.id, {
+            instance: makeInstance(savannahLions().id, {
                 controllerId: "p1",
                 ownerId: "p1",
             }),
@@ -150,7 +156,7 @@ describe("gameStates serialize round-trip", () => {
         expect(companion).toBeDefined();
         expect(companion?.used).toBe(false);
         expect((companion?.instance.card as { id?: string }).id).toBe(
-            savannahLions.id
+            savannahLions().id
         );
         expect(companion?.instance.types).toEqual(["Creature"]);
     });
@@ -186,7 +192,7 @@ describe("gameStates serialize round-trip", () => {
     // silent, and at the one save point this key exists for.
     it("preserves stagedEntries mid as-enters choice, definition and all", () => {
         const state = freshState();
-        const aura = makeInstance(animateArtifact.id, {
+        const aura = makeInstance(animateArtifact().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -211,9 +217,9 @@ describe("gameStates serialize round-trip", () => {
         expect(entry.owed).toEqual([{ kind: "aura-host" }]);
         // The definition itself resolves — this is what the rehydrate half buys.
         const rehydratedDefId = (entry.card.card as { id?: unknown }).id;
-        expect(rehydratedDefId).toBe(animateArtifact.id);
+        expect(rehydratedDefId).toBe(animateArtifact().id);
         expect(tryGetDefinition(String(rehydratedDefId))?.name).toBe(
-            animateArtifact.name
+            animateArtifact().name
         );
         expect(entry.card.id).toBe(aura.id);
         expect(entry.card.ownerId).toBe("p1");
@@ -230,7 +236,7 @@ describe("gameStates serialize round-trip", () => {
     it("preserves an origin:'spell' stagedEntry's stack-item bookkeeping", () => {
         const state = freshState();
         const spell: StackItem = {
-            ...makeInstance(animateArtifact.id, {
+            ...makeInstance(animateArtifact().id, {
                 id: "parked-spell",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -266,7 +272,7 @@ describe("gameStates serialize round-trip", () => {
         expect(card.notedManaSpent).toEqual({ U: 2 });
         expect(card.isCopy).toBe(true);
         // The definition still rehydrates, exactly as on the effect row.
-        expect((card.card as { id?: unknown }).id).toBe(animateArtifact.id);
+        expect((card.card as { id?: unknown }).id).toBe(animateArtifact().id);
     });
 
     it("re-expands a fresh state to a deeply-equal GameState", () => {
@@ -413,7 +419,7 @@ describe("gameStates serialize round-trip", () => {
         // battlefield card would round-trip through the same `compactCard`
         // branch without proving the claim the field exists for.
         const state = freshState();
-        const parked = makeInstance(animateArtifact.id, {
+        const parked = makeInstance(animateArtifact().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "graveyard",
@@ -1003,7 +1009,7 @@ describe("gameStates serialize round-trip", () => {
     // the DB round trip so the controller keeps seeing it after a reload.
     it("preserves knownTo on a face-down exiled card across the round trip", () => {
         const state = freshState();
-        const exiled = makeInstance(lightningBolt.id, {
+        const exiled = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
@@ -1022,14 +1028,14 @@ describe("gameStates serialize round-trip", () => {
     // reach the compact shape through different writers.
     it("preserves faceDownBy on a face-down permanent and a face-down exiled card", () => {
         const state = freshState();
-        const morph = makeInstance(lightningBolt.id, {
+        const morph = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "battlefield",
         });
         turnFaceDown(state, morph, "morph");
         state.players[0].battlefield.push(morph);
-        const exiled = makeInstance(lightningBolt.id, {
+        const exiled = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
@@ -1058,7 +1064,7 @@ describe("gameStates serialize round-trip", () => {
     // keep hiding the card from an opponent CR 406.3 entitles to see it.
     it("heals a RETIRED faceDownBy producer, and the per-viewer grant it accompanied, on expand (issue #3001)", () => {
         const state = freshState();
-        const exiled = makeInstance(lightningBolt.id, {
+        const exiled = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
@@ -1083,7 +1089,7 @@ describe("gameStates serialize round-trip", () => {
     // legitimate face-down exile whose grant must survive untouched.
     it("leaves a producer-less face-down exiled card's knownTo alone (pre-#2904 state)", () => {
         const state = freshState();
-        const exiled = makeInstance(lightningBolt.id, {
+        const exiled = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
@@ -1103,7 +1109,7 @@ describe("gameStates serialize round-trip", () => {
     // future retrieval ability still finds its linked cards after a reload.
     it("preserves exiledBySourceId on an exiled card across the round trip", () => {
         const state = freshState();
-        const exiled = makeInstance(lightningBolt.id, {
+        const exiled = makeInstance(lightningBolt().id, {
             controllerId: "p1",
             ownerId: "p1",
             zone: "exile",
@@ -1402,7 +1408,7 @@ describe("gameStates serialize round-trip", () => {
 
     it("preserves phasedOut bundles across the round trip (CR 702.26)", () => {
         const state = freshState();
-        const host = makeInstance(savannahLions.id, {
+        const host = makeInstance(savannahLions().id, {
             id: "host",
             controllerId: "p2",
             ownerId: "p2",
@@ -1410,7 +1416,7 @@ describe("gameStates serialize round-trip", () => {
             isTapped: true,
             counters: { "+1/+1": 1 },
         });
-        const aura = makeInstance(plains.id, {
+        const aura = makeInstance(plains().id, {
             id: "aura",
             controllerId: "p1",
             ownerId: "p1",
@@ -1441,12 +1447,12 @@ describe("gameStates serialize round-trip", () => {
         expect(gotAura.ownerId).toBe("p1");
         expect(gotAura.attachedTo).toBe("host");
         // The fat definition is rehydrated from the slim `{ id }` reference.
-        expect((gotHost.card as { id: string }).id).toBe(savannahLions.id);
+        expect((gotHost.card as { id: string }).id).toBe(savannahLions().id);
     });
 
     it("preserves an untap-cycle bundle's phasedOutTurn (CR 702.26f)", () => {
         const state = freshState();
-        const host = makeInstance(savannahLions.id, {
+        const host = makeInstance(savannahLions().id, {
             id: "art",
             controllerId: "p1",
             ownerId: "p1",
@@ -1653,7 +1659,7 @@ describe("schema drift guard", () => {
             tappedLandIds: [],
         };
         state.players[0].companion = {
-            instance: makeInstance(savannahLions.id, {
+            instance: makeInstance(savannahLions().id, {
                 controllerId: "p1",
                 ownerId: "p1",
             }),
@@ -1860,7 +1866,7 @@ describe("optional field round-trip smoke tests", () => {
         // every Class to level 1 (CR 716.2d) with all of its bars re-armed.
         const state = freshState();
         state.players[0].battlefield.push(
-            makeInstance(savannahLions.id, {
+            makeInstance(savannahLions().id, {
                 id: "levelled",
                 classLevel: 3,
             })
@@ -1925,7 +1931,7 @@ describe("optional field round-trip smoke tests", () => {
                 affected: { kind: "predicate" },
                 payload: {
                     kind: "template",
-                    sourceCardId: crusade.id,
+                    sourceCardId: crusade().id,
                     effectIndex: 0,
                 },
                 characteristicDefining: false,
@@ -2871,7 +2877,7 @@ describe("backward compatibility", () => {
     it("reads a cast-copy trigger saved under the pre-#2100 storm keys", () => {
         const state = freshState();
         const snapshot: StackItem = {
-            ...makeInstance(lightningBolt.id, {
+            ...makeInstance(lightningBolt().id, {
                 id: "bolt-snapshot",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -2881,7 +2887,7 @@ describe("backward compatibility", () => {
         };
         state.stack = [
             {
-                ...makeInstance(lightningBolt.id, {
+                ...makeInstance(lightningBolt().id, {
                     id: "storm-trigger",
                     controllerId: "p1",
                     ownerId: "p1",
@@ -2975,12 +2981,12 @@ describe("backward compatibility", () => {
         // flips to ["Swamp"] the first time `recomputeContinuousEffects`
         // re-stamps Tomb with a brand-new LATEST timestamp instead of its
         // (missing) original one.
-        const land = makeInstance(tundra.id, {
+        const land = makeInstance(tundra().id, {
             id: "land-legacy-1",
             counters: { mire: 1 },
         });
-        const tomb = makeInstance(cyclopeanTomb.id, { id: "tomb-legacy-1" });
-        const moon = makeInstance(bloodMoon.id, { id: "moon-legacy-1" });
+        const tomb = makeInstance(cyclopeanTomb().id, { id: "tomb-legacy-1" });
+        const moon = makeInstance(bloodMoon().id, { id: "moon-legacy-1" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [land, tomb, moon] }),
@@ -3055,12 +3061,12 @@ describe("backward compatibility", () => {
         // battlefield order instead of by the surviving record evidence
         // (the land's own `grantedSubtypes` array order, which DOES capture
         // "Moon pushed its record first") picks the wrong winner.
-        const land = makeInstance(tundra.id, {
+        const land = makeInstance(tundra().id, {
             id: "land-legacy-2",
             counters: { mire: 1 },
         });
-        const moon = makeInstance(bloodMoon.id, { id: "moon-legacy-2" });
-        const tomb = makeInstance(cyclopeanTomb.id, { id: "tomb-legacy-2" });
+        const moon = makeInstance(bloodMoon().id, { id: "moon-legacy-2" });
+        const tomb = makeInstance(cyclopeanTomb().id, { id: "tomb-legacy-2" });
         const state = makeState({
             players: [
                 makePlayer("p1", { battlefield: [land, tomb] }),
@@ -3127,7 +3133,7 @@ describe("migrates a pre-S6b layer-6 ledger into the registry (PRD #2064 S6b)", 
         staticAbilities?: string[];
         baseStaticAbilities?: string[];
     }): Record<string, unknown> {
-        const bear = makeInstance(grizzlyBears.id, { id: "legacy-1" });
+        const bear = makeInstance(grizzlyBears().id, { id: "legacy-1" });
         if (rows.staticAbilities) bear.staticAbilities = rows.staticAbilities;
         if (rows.baseStaticAbilities) {
             bear.baseStaticAbilities = rows.baseStaticAbilities;
@@ -3347,7 +3353,7 @@ describe("token spec interning + cardId string table (issue #1780)", () => {
     it("round-trips a 60-card library of the same card exactly and shrinks materially", () => {
         const state = freshState();
         const bigLibrary = Array.from({ length: 60 }, () =>
-            makeInstance(mountain.id, { controllerId: "p2", zone: "library" })
+            makeInstance(mountain().id, { controllerId: "p2", zone: "library" })
         );
         state.players[1].library = bigLibrary;
 
@@ -3359,7 +3365,7 @@ describe("token spec interning + cardId string table (issue #1780)", () => {
         // The 36-char Scryfall id string appears exactly once — in cardPool
         // — never once per copy.
         const occurrences =
-            JSON.stringify(compact).split(mountain.id).length - 1;
+            JSON.stringify(compact).split(mountain().id).length - 1;
         expect(occurrences).toBe(1);
 
         expect(expandState(compact)).toEqual(state);

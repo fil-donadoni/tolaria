@@ -4,13 +4,12 @@
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
 import type {
-    CardDefinition,
     DamageDealtEvent,
     GameEvent,
     PermanentView,
     SpellContext,
 } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 
 // Barrowgoyf — {2}{B} Creature — Lhurgoyf, printed */1+* (Vintage Cube
 // residue, issue #1305, parent PRD #620). "Deathtouch, lifelink. Barrowgoyf's
@@ -45,7 +44,7 @@ import { EFFECT_AFFECTS_SELF } from "../../types";
 // the same channel Chain Lightning uses to survive an irreversible op mid-
 // resolution); step 2 offers the optional creature retrieval, restricted to
 // exactly those milled ids via `candidateIds` (never the whole graveyard).
-export const barrowgoyf: CardDefinition = {
+export const barrowgoyf = defineCard(() => ({
     id: "f979fc86-2c7e-49b3-965e-607a203cbfb1",
     name: "Barrowgoyf",
     rarity: "rare",
@@ -148,4 +147,4 @@ export const barrowgoyf: CardDefinition = {
             ],
         },
     ],
-};
+}));

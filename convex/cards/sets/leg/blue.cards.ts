@@ -4,12 +4,8 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type {
-    CardDefinition,
-    SpellContext,
-    TargetSelection,
-} from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { SpellContext, TargetSelection } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
@@ -22,7 +18,7 @@ import { isBlockingCreature } from "../../combatDamagePrevention";
 // Simplification (tracked-by: #2785): the Oracle says "all damage", but a creature only deals
 // damage to a creature blocking it during the combat-damage step, so the
 // combat-damage-prevention static covers the practical case (CR 615).
-export const wallOfVapor: CardDefinition = {
+export const wallOfVapor = defineCard(() => ({
     id: "6a6c0a27-d410-4ded-a842-70e1656ea21e",
     rarity: "common",
     name: "Wall of Vapor",
@@ -44,7 +40,7 @@ export const wallOfVapor: CardDefinition = {
                 isBlockingCreature(self, damageSource, state),
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Blue free tranche (#372) — every mono-blue Legends card expressible with
@@ -130,7 +126,7 @@ export const wallOfVapor: CardDefinition = {
 //     `recallChoice`. Then Recall exiles itself (CR 608.2).
 // X = 0 discards nothing, returns nothing, and still exiles. A graveyard with
 // fewer cards than the discard count caps the return at what's available.
-export const recall: CardDefinition = {
+export const recall = defineCard(() => ({
     id: "33296718-0625-4422-a65c-b21cf99c52ec",
     rarity: "rare",
     name: "Recall",
@@ -192,12 +188,12 @@ export const recall: CardDefinition = {
             ctx.exileSelf();
         },
     ],
-};
+}));
 
 // --- Vanilla / keyword creatures (CR 702 — pure data) ---------------------
 
 // Azure Drake — flying (CR 702.9).
-export const azureDrake: CardDefinition = {
+export const azureDrake = defineCard(() => ({
     id: "fb5f13a2-0896-4230-8957-6ad1cb2b895b",
     rarity: "uncommon",
     name: "Azure Drake",
@@ -208,10 +204,10 @@ export const azureDrake: CardDefinition = {
     power: 2,
     toughness: 4,
     staticAbilities: ["flying"],
-};
+}));
 
 // Zephyr Falcon — flying, vigilance (CR 702.9, 702.20).
-export const zephyrFalcon: CardDefinition = {
+export const zephyrFalcon = defineCard(() => ({
     id: "25a173fd-e10c-45f8-a6e5-ad7a747a8050",
     rarity: "common",
     name: "Zephyr Falcon",
@@ -222,13 +218,13 @@ export const zephyrFalcon: CardDefinition = {
     power: 1,
     toughness: 1,
     staticAbilities: ["flying", "vigilance"],
-};
+}));
 
 // Undertow — global islandwalk negation (CR 509.1b / 702.14). Twin of Great
 // Wall via the shared parametric `landwalk-negation` static, differing only in
 // the negated subtype (Island). Creatures with islandwalk can be blocked as
 // though they didn't have it, regardless of the defender's Islands.
-export const undertow: CardDefinition = {
+export const undertow = defineCard(() => ({
     id: "cf05e5c9-b7e4-4bd8-ab73-b54565710527",
     rarity: "uncommon",
     name: "Undertow",
@@ -245,10 +241,10 @@ export const undertow: CardDefinition = {
                 "Creatures with islandwalk can be blocked as though they didn't have islandwalk.",
         },
     ],
-};
+}));
 
 // Devouring Deep — islandwalk (CR 702.14 landwalk variant).
-export const devouringDeep: CardDefinition = {
+export const devouringDeep = defineCard(() => ({
     id: "0855a5a8-8c40-4396-9ad1-8fa0fc6a0c59",
     rarity: "common",
     name: "Devouring Deep",
@@ -260,10 +256,10 @@ export const devouringDeep: CardDefinition = {
     power: 1,
     toughness: 2,
     staticAbilities: ["islandwalk"],
-};
+}));
 
 // Segovian Leviathan — islandwalk (CR 702.14).
-export const segovianLeviathan: CardDefinition = {
+export const segovianLeviathan = defineCard(() => ({
     id: "e5a814f1-7f8d-4c2c-b706-ee0ed5892f7b",
     rarity: "uncommon",
     name: "Segovian Leviathan",
@@ -275,14 +271,14 @@ export const segovianLeviathan: CardDefinition = {
     power: 3,
     toughness: 3,
     staticAbilities: ["islandwalk"],
-};
+}));
 
 // --- Activated-ability creatures (CR 605) ----------------------------------
 
 // Psionic Entity — "{T}: This creature deals 2 damage to any target and 3
 // damage to itself." (CR 120.1 / 115.4 — self-damage is a normal damage event
 // to the source permanent.)
-export const psionicEntity: CardDefinition = {
+export const psionicEntity = defineCard(() => ({
     id: "ec082062-5394-4340-bc29-0efd2af4b822",
     rarity: "rare",
     name: "Psionic Entity",
@@ -311,7 +307,7 @@ export const psionicEntity: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Wall of Wonder — Defender; "{2}{U}{U}: This creature gets +4/-4 until end of
 // turn and can attack this turn as though it didn't have defender." (CR 702.3
@@ -319,7 +315,7 @@ export const psionicEntity: CardDefinition = {
 // grant.) Modeled by granting the keyword `can-attack-with-defender` for the
 // turn — combat eligibility honours it the same way Wall of Wonder's text
 // suspends defender.
-export const wallOfWonder: CardDefinition = {
+export const wallOfWonder = defineCard(() => ({
     id: "bcd9af40-b46c-44b4-878e-8eb026c96b51",
     rarity: "uncommon",
     name: "Wall of Wonder",
@@ -359,14 +355,14 @@ export const wallOfWonder: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // --- Auras (CR 303 — Enchant creature) ------------------------------------
 
 // Backfire — "Whenever enchanted creature deals damage to you, this Aura deals
 // that much damage to that creature's controller." (CR 303.4 host trigger →
 // CR 120.1 damage.)
-export const backfire: CardDefinition = {
+export const backfire = defineCard(() => ({
     id: "04bc57aa-d4d9-4bd9-ba09-984370c7e23b",
     rarity: "uncommon",
     name: "Backfire",
@@ -412,7 +408,7 @@ export const backfire: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // --- Counterspells (CR 701.6a) ---------------------------------------------
 
@@ -423,7 +419,7 @@ export const backfire: CardDefinition = {
 // `getManaValue`) is snapshotted at resolution and carried on the delayed
 // trigger's payload; the {C} is added to the caster's pool when their next main
 // phase begins.
-export const manaDrain: CardDefinition = {
+export const manaDrain = defineCard(() => ({
     id: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
     rarity: "uncommon",
     name: "Mana Drain",
@@ -450,7 +446,7 @@ export const manaDrain: CardDefinition = {
         // CR 603.7 — schedule the {C} payoff for the caster's next main phase.
         // `targetPlayerId` gates firing to the caster's own main phase (CR 505).
         ctx.scheduleDelayedTrigger(
-            manaDrain.id,
+            manaDrain().id,
             "mana-drain-add",
             "next-main-phase",
             { controller: ctx.caster, mv: String(mv) },
@@ -473,11 +469,11 @@ export const manaDrain: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Flash Counter — "Counter target instant spell." (CR 701.6a + spellTypeFilter
 // for the instant-only restriction, CR 114.1.)
-export const flashCounter: CardDefinition = {
+export const flashCounter = defineCard(() => ({
     id: "3c3cd450-f1cd-416b-9271-37d95815c089",
     rarity: "common",
     name: "Flash Counter",
@@ -490,10 +486,10 @@ export const flashCounter: CardDefinition = {
         spellTypeFilter: "Instant",
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Remove Soul — "Counter target creature spell." (CR 701.6a, CR 114.1.)
-export const removeSoul: CardDefinition = {
+export const removeSoul = defineCard(() => ({
     id: "63de147c-2e62-41b9-8ada-93406387f08b",
     rarity: "common",
     name: "Remove Soul",
@@ -506,7 +502,7 @@ export const removeSoul: CardDefinition = {
         spellTypeFilter: "Creature",
     },
     effects: [{ op: "counter", target: { target: 0 } }],
-};
+}));
 
 // Force Spike — "Counter target spell unless its controller pays {1}."
 // (CR 701.6a counter-unless-pay, CR 117.3a may-pay against the spell's
@@ -519,7 +515,7 @@ export const removeSoul: CardDefinition = {
 // only when the payment went unpaid (`{ not: { binding: "$paid" } }`). The
 // existing per-card test (`leg/blue.test.ts`) stays green as the migration
 // harness — identical behaviour, no `resolve()`.
-export const forceSpike: CardDefinition = {
+export const forceSpike = defineCard(() => ({
     id: "70e64028-ae96-4950-aa6c-9d347409fad3",
     rarity: "common",
     name: "Force Spike",
@@ -543,12 +539,12 @@ export const forceSpike: CardDefinition = {
             then: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
+}));
 
 // --- Bounce / removal spells -----------------------------------------------
 
 // Boomerang — "Return target permanent to its owner's hand." (CR 400.7.)
-export const boomerang: CardDefinition = {
+export const boomerang = defineCard(() => ({
     id: "b8286edd-644b-4135-8dca-af97f3920de3",
     rarity: "common",
     name: "Boomerang",
@@ -562,11 +558,11 @@ export const boomerang: CardDefinition = {
     // Migrated resolve()→effects[] (ADR 0045, #839): return the targeted
     // permanent to its owner's hand (CR 400.7).
     effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
-};
+}));
 
 // Acid Rain — "Destroy all Forests." (CR 701.8 mass destroy filtered on the
 // Forest land subtype, CR 205.3.)
-export const acidRain: CardDefinition = {
+export const acidRain = defineCard(() => ({
     id: "ba93c50a-2440-4e92-9cba-d97e20b1d29c",
     rarity: "rare",
     name: "Acid Rain",
@@ -584,11 +580,11 @@ export const acidRain: CardDefinition = {
             effects: [{ op: "destroy", target: { ref: "$each" } }],
         },
     ],
-};
+}));
 
 // Flash Flood — modal: "Destroy target red permanent." OR "Return target
 // Mountain to its owner's hand." (CR 700.2 modal spell.)
-export const flashFlood: CardDefinition = {
+export const flashFlood = defineCard(() => ({
     id: "5ae88c06-f28c-4fbc-a28c-5eb203a04722",
     rarity: "common",
     name: "Flash Flood",
@@ -625,14 +621,14 @@ export const flashFlood: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // --- Evasion / pump spells (CR 611.1, end-of-turn duration) ----------------
 
 // Sea Kings' Blessing — "One or more target creatures become blue until end of
 // turn." (CR 305.7 layer 5 colour override, end-of-turn duration; "one or
 // more" = a variable-count target requirement, CR 601.2c.)
-export const seaKingsBlessing: CardDefinition = {
+export const seaKingsBlessing = defineCard(() => ({
     id: "11d1f02d-533e-4b77-a72a-ff5f91ae0626",
     rarity: "uncommon",
     name: "Sea Kings' Blessing",
@@ -664,7 +660,7 @@ export const seaKingsBlessing: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Part Water — "X target creatures gain islandwalk until end of turn."
 // (CR 107.3 X count + 702.19 keyword grant, end-of-turn duration.) Mana cost
@@ -672,7 +668,7 @@ export const seaKingsBlessing: CardDefinition = {
 // same shape as Recall's `{X}{X}{U}` just above), found missing by the
 // widened data/json conformance guard (the stub shipped at half the real
 // per-X price).
-export const partWater: CardDefinition = {
+export const partWater = defineCard(() => ({
     id: "4b659475-c8b7-493d-af63-04f34d8cc3b1",
     rarity: "uncommon",
     name: "Part Water",
@@ -702,12 +698,12 @@ export const partWater: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Teleport — "Target creature can't be blocked this turn." Cast only during
 // the declare attackers step (CR 117.1b cast-phase restriction; CR 509.1b
 // can't-be-blocked on the attacker side).
-export const teleport: CardDefinition = {
+export const teleport = defineCard(() => ({
     id: "18f86e13-f942-423e-b175-930d768cb811",
     rarity: "rare",
     name: "Teleport",
@@ -728,14 +724,14 @@ export const teleport: CardDefinition = {
             target: { target: 0 },
         },
     ],
-};
+}));
 
 // --- Mana / untap utility --------------------------------------------------
 
 // Energy Tap — "Tap target untapped creature you control. If you do, add an
 // amount of {C} equal to that creature's mana value." (CR 701.26a tap +
 // CR 106.1 mana, snapshotting the MV before the tap.)
-export const energyTap: CardDefinition = {
+export const energyTap = defineCard(() => ({
     id: "37e69940-bdc8-48ff-a296-540343910adf",
     rarity: "common",
     name: "Energy Tap",
@@ -764,12 +760,12 @@ export const energyTap: CardDefinition = {
         ctx.tap(target);
         if (mv > 0) ctx.addManaTo(ctx.caster, { C: mv });
     },
-};
+}));
 
 // Reset — "Untap all lands you control." Cast only during an opponent's turn
 // after their upkeep step (CR 117.1b — opponent-turn restriction; the
 // post-upkeep window is approximated (tracked-by: #2785) by excluding the opponent's UPKEEP).
-export const reset: CardDefinition = {
+export const reset = defineCard(() => ({
     id: "1c829d83-d5b8-4be7-80f7-55b42f52b309",
     rarity: "uncommon",
     name: "Reset",
@@ -807,7 +803,7 @@ export const reset: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C6 — Shroud / "can't be the target" static (#382)
@@ -831,7 +827,7 @@ export const reset: CardDefinition = {
 // it's untapped." (CR 702.18 shroud, conditional on the host being untapped —
 // the live guard reads the host's tap state at each targeting gate, so the
 // shroud blinks off the moment the creature taps.)
-export const spectralCloak: CardDefinition = {
+export const spectralCloak = defineCard(() => ({
     id: "7524fd0d-a675-41d6-bc99-bd3ba336893b",
     rarity: "uncommon",
     name: "Spectral Cloak",
@@ -852,13 +848,13 @@ export const spectralCloak: CardDefinition = {
                 target.id === source.attachedTo && !target.isTapped,
         },
     ],
-};
+}));
 
 // Anti-Magic Aura — "Enchant creature\nEnchanted creature can't be the target of
 // spells and can't be enchanted by other Auras." (CR 113.3 — "spells" excludes
 // abilities, so a `targetSourceMustBeSpell` guard; plus a `cantBeEnchanted`
 // guard, CR 303.4, blocking further Auras from attaching.)
-export const antiMagicAura: CardDefinition = {
+export const antiMagicAura = defineCard(() => ({
     id: "ff78eef1-efaa-4a12-bf5d-fec83c14aff8",
     rarity: "common",
     name: "Anti-Magic Aura",
@@ -885,7 +881,7 @@ export const antiMagicAura: CardDefinition = {
             applies: (target, source) => target.id === source.attachedTo,
         },
     ],
-};
+}));
 
 // Venarian Gold — {X}{U}{U} Aura. ETB taps the host and puts X sleep counters
 // on it; the host doesn't untap while it carries a sleep counter; at the
@@ -897,7 +893,7 @@ export const antiMagicAura: CardDefinition = {
 // variable marker) was a typo the widened data/json conformance guard
 // caught: with no announced X the ETB always put zero sleep counters,
 // i.e. this Aura was functionally inert.
-export const venarianGold: CardDefinition = {
+export const venarianGold = defineCard(() => ({
     id: "11fb92c0-bb1e-463a-a6b6-887a5d0cb873",
     rarity: "common",
     name: "Venarian Gold",
@@ -970,13 +966,13 @@ export const venarianGold: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // In the Eye of Chaos — {2}{U} World Enchantment. "Whenever a player casts an
 // instant spell, counter it unless that player pays {X}, where X is its mana
 // value." (CR 601.2i cast trigger restricted to instants → CR 117.3a may-pay
 // taxed at the cast spell's mana value → CR 701.6a counter on decline.)
-export const inTheEyeOfChaos: CardDefinition = {
+export const inTheEyeOfChaos = defineCard(() => ({
     id: "733933dd-c871-4f75-8b08-d7c010dddbe6",
     rarity: "rare",
     name: "In the Eye of Chaos",
@@ -1023,4 +1019,4 @@ export const inTheEyeOfChaos: CardDefinition = {
             },
         }),
     ],
-};
+}));

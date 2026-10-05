@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Satya, Aetherflux Genius — {1}{U}{R}{W} Legendary Creature — Human
 // Artificer, 3/5 (issue #1195, parent #697 Cube CAP: Energy). "Menace, haste.
@@ -97,7 +97,7 @@ import type { CardDefinition } from "../../types";
 // token creation, CR 608.2b "as much as it can" convention for the REST of
 // the ability) — it fires even when nothing was copied (no legal nontoken
 // creature you control, or the controller declined the up-to-one pick).
-export const satyaAetherfluxGenius: CardDefinition = {
+export const satyaAetherfluxGenius = defineCard(() => ({
     id: "3b964bbe-54cc-425c-9cc6-c877f82af7ba",
     rarity: "rare",
     name: "Satya, Aetherflux Genius",
@@ -198,7 +198,7 @@ export const satyaAetherfluxGenius: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Bloodbraid Challenger — {3}{R}{G} Creature — Elf Berserker, 4/3 (issue #3216,
 // parent PRD #1525 Vintage Cube). "Cascade / Haste / Escape—{3}{R}{G}, Exile
@@ -220,7 +220,7 @@ export const satyaAetherfluxGenius: CardDefinition = {
 //     not on the zone it was cast from.
 //
 // compiler-gap: "Escape—{3}{R}{G}, Exile three other cards from your graveyard." (#2693)
-export const bloodbraidChallenger: CardDefinition = {
+export const bloodbraidChallenger = defineCard(() => ({
     id: "fbca967e-578f-4b05-b697-2e2ee1a40dfb",
     name: "Bloodbraid Challenger",
     rarity: "rare",
@@ -234,4 +234,4 @@ export const bloodbraidChallenger: CardDefinition = {
     staticAbilities: ["cascade", "haste"],
     // CR 702.138 — Escape. {3}{R}{G} + exile three OTHER graveyard cards.
     escape: { mana: { X: 3, R: 1, G: 1 }, exile: { count: 3 } },
-};
+}));

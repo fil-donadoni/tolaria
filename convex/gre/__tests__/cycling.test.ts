@@ -73,7 +73,7 @@ function cycleFromHand(
 
 describe("cycling (CR 702.29)", () => {
     it("the ability is usable from hand at instant speed (no phase restriction)", () => {
-        const ability = cyclingAbilityOf(raugrinTriome.id);
+        const ability = cyclingAbilityOf(raugrinTriome().id);
         expect(ability.activateFromHand).toBe(true);
         expect(ability.cost.discardThis).toBe(true);
         expect(ability.useStack).toBe(true);
@@ -86,13 +86,13 @@ describe("cycling (CR 702.29)", () => {
     });
 
     it("pays the cost, discards this card, and draws a card", () => {
-        const triome = makeInstance(raugrinTriome.id, {
+        const triome = makeInstance(raugrinTriome().id, {
             id: "triome-1",
             controllerId: "p1",
             ownerId: "p1",
             zone: "hand",
         });
-        const topOfLibrary = makeInstance(grizzlyBears.id, {
+        const topOfLibrary = makeInstance(grizzlyBears().id, {
             id: "lib-1",
             controllerId: "p1",
             ownerId: "p1",
@@ -110,7 +110,12 @@ describe("cycling (CR 702.29)", () => {
             ],
         });
 
-        const result = cycleFromHand(state, "p1", "triome-1", raugrinTriome.id);
+        const result = cycleFromHand(
+            state,
+            "p1",
+            "triome-1",
+            raugrinTriome().id
+        );
         expect(result).not.toBeNull();
 
         const p1 = state.players[0];
@@ -136,7 +141,7 @@ describe("cycling (CR 702.29)", () => {
     });
 
     it("defers the discard until commit — an uncovered cost leaves the card in hand", () => {
-        const triome = makeInstance(raugrinTriome.id, {
+        const triome = makeInstance(raugrinTriome().id, {
             id: "triome-2",
             controllerId: "p1",
             ownerId: "p1",
@@ -153,7 +158,12 @@ describe("cycling (CR 702.29)", () => {
             ],
         });
 
-        const result = cycleFromHand(state, "p1", "triome-2", raugrinTriome.id);
+        const result = cycleFromHand(
+            state,
+            "p1",
+            "triome-2",
+            raugrinTriome().id
+        );
         // CR 118 — deferred payment: nothing committed while mana is unpaid.
         expect(result).toBeNull();
         const p1 = state.players[0];
@@ -181,7 +191,7 @@ describe("typecycling (CR 702.29e/f)", () => {
         library: { id: string; cardId: string }[],
         extraHand: { id: string; cardId: string }[] = []
     ) {
-        const troll = makeInstance(trollOfKhazadDum.id, {
+        const troll = makeInstance(trollOfKhazadDum().id, {
             id: "troll-hand",
             controllerId: "p1",
             ownerId: "p1",
@@ -215,7 +225,7 @@ describe("typecycling (CR 702.29e/f)", () => {
         // Asserted through `cyclingAbilityOf`, the SAME lookup the plain
         // Cycling tests above use (`a.id === "cycling"`): a typecycling card
         // must be findable by anything that looks for cycling.
-        const ability = cyclingAbilityOf(trollOfKhazadDum.id);
+        const ability = cyclingAbilityOf(trollOfKhazadDum().id);
         expect(ability.cost.discardThis).toBe(true);
         expect(ability.activateFromHand).toBe(true);
         expect(ability.useStack).toBe(true);
@@ -228,14 +238,14 @@ describe("typecycling (CR 702.29e/f)", () => {
     it("pays the cost, discards this card, then searches library → hand and shuffles (CR 702.29e)", () => {
         const state = boardWithTroll([
             { id: "swamp-1", cardId: SWAMP },
-            { id: "bear-1", cardId: grizzlyBears.id },
+            { id: "bear-1", cardId: grizzlyBears().id },
         ]);
 
         const result = cycleFromHand(
             state,
             "p1",
             "troll-hand",
-            trollOfKhazadDum.id
+            trollOfKhazadDum().id
         );
         expect(result).not.toBeNull();
 
@@ -272,10 +282,10 @@ describe("typecycling (CR 702.29e/f)", () => {
 
     it("CR 701.23b — the searcher may fail to find: the library is still looked at and shuffled", () => {
         const state = boardWithTroll([
-            { id: "bear-a", cardId: grizzlyBears.id },
-            { id: "bear-b", cardId: grizzlyBears.id },
+            { id: "bear-a", cardId: grizzlyBears().id },
+            { id: "bear-b", cardId: grizzlyBears().id },
         ]);
-        cycleFromHand(state, "p1", "troll-hand", trollOfKhazadDum.id);
+        cycleFromHand(state, "p1", "troll-hand", trollOfKhazadDum().id);
         expect(resolveTopOfStack(state)).toBeNull();
 
         const head = state.pendingChoices![0];
@@ -302,7 +312,7 @@ describe("typecycling (CR 702.29e/f)", () => {
     });
 
     it("a typecycling ability on a NONPERMANENT card works the same (Lórien Revealed, a sorcery)", () => {
-        const lorien = makeInstance(lorienRevealed.id, {
+        const lorien = makeInstance(lorienRevealed().id, {
             id: "lorien-hand",
             controllerId: "p1",
             ownerId: "p1",
@@ -325,7 +335,7 @@ describe("typecycling (CR 702.29e/f)", () => {
             ],
         });
 
-        cycleFromHand(state, "p1", "lorien-hand", lorienRevealed.id);
+        cycleFromHand(state, "p1", "lorien-hand", lorienRevealed().id);
         expect(resolveTopOfStack(state)).toBeNull();
         const head = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {
@@ -350,13 +360,13 @@ describe("typecycling (CR 702.29e/f)", () => {
         const state = boardWithTroll(
             [
                 { id: "swamp-1", cardId: SWAMP },
-                { id: "bear-1", cardId: grizzlyBears.id },
+                { id: "bear-1", cardId: grizzlyBears().id },
             ],
             // A hand card that was NEVER revealed — the contrast that proves
             // the projection is still hiding what it should.
-            [{ id: "hidden-1", cardId: grizzlyBears.id }]
+            [{ id: "hidden-1", cardId: grizzlyBears().id }]
         );
-        cycleFromHand(state, "p1", "troll-hand", trollOfKhazadDum.id);
+        cycleFromHand(state, "p1", "troll-hand", trollOfKhazadDum().id);
         resolveTopOfStack(state);
         const head = state.pendingChoices![0];
         applyPendingChoiceSubmit(state, {

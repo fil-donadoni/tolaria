@@ -42,14 +42,14 @@ import {
  *  untapped Mountains, and `handLands` Mountains (plus `handOther` non-lands)
  *  in hand. */
 function board(opts: { handLands: number; handOther?: number }): GameState {
-    const bolt = makeInstance(lightningBolt.id, {
+    const bolt = makeInstance(lightningBolt().id, {
         id: "gyBolt",
         zone: "graveyard",
         controllerId: "p1",
         ownerId: "p1",
     });
     const handLands = Array.from({ length: opts.handLands }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `handLand${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -57,7 +57,7 @@ function board(opts: { handLands: number; handOther?: number }): GameState {
         })
     );
     const handOther = Array.from({ length: opts.handOther ?? 0 }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `handOther${i}`,
             zone: "hand",
             controllerId: "p1",
@@ -65,7 +65,7 @@ function board(opts: { handLands: number; handOther?: number }): GameState {
         })
     );
     const lands = Array.from({ length: 2 }, (_, i) =>
-        makeInstance(mountain.id, {
+        makeInstance(mountain().id, {
             id: `bfLand${i}`,
             zone: "battlefield",
             controllerId: "p1",

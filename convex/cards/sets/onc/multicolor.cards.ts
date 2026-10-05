@@ -2,7 +2,7 @@
 // `import * as onc from "./sets/onc/index.cards"` re-exports this module.
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
-import type { CardDefinition, EffectTokenSpec } from "../../types";
+import { defineCard, type EffectTokenSpec } from "../../types";
 
 // The 2/2 red Rebel token Otharri creates (CR 111.1 / 707.2). Deliberately a
 // LOCAL spec, not a `sharedTokens.ts` entry: Otharri is the only Rebel producer
@@ -46,7 +46,7 @@ const REBEL_TOKEN: EffectTokenSpec = {
 // ("… you get an experience counter. THEN create …"), so the Op order below is
 // load-bearing: the increment runs first and the count reads the post-increment
 // total. First attack ⇒ 1 token, second ⇒ 2, and so on.
-export const otharriSunsGlory: CardDefinition = {
+export const otharriSunsGlory = defineCard(() => ({
     id: "80c72839-0fa6-4b5f-83b7-6553ebf09bef",
     name: "Otharri, Suns' Glory",
     rarity: "mythic",
@@ -129,4 +129,4 @@ export const otharriSunsGlory: CardDefinition = {
             ],
         },
     ],
-};
+}));

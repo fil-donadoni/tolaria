@@ -62,7 +62,7 @@ import {
 /** Five filler cards to pay a "exile five other cards" escape cost. */
 function fiveFiller(owner: string): CardInstanceState[] {
     return Array.from({ length: 5 }, (_, i) =>
-        makeInstance(grizzlyBears.id, {
+        makeInstance(grizzlyBears().id, {
             id: `filler-${i}`,
             controllerId: owner,
             ownerId: owner,
@@ -74,7 +74,7 @@ function fiveFiller(owner: string): CardInstanceState[] {
 describe("Escape capability (CR 702.138)", () => {
     describe("escape cost lookup (convex/gre/escape.ts)", () => {
         it("reads the printed escape cost (Uro)", () => {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 zone: "graveyard",
             });
             const state = makeState({
@@ -92,7 +92,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
 
         it("Nethergoyf's escape exile cost is the variable minCardTypes shape", () => {
-            const goyf = makeInstance(nethergoyf.id, { zone: "graveyard" });
+            const goyf = makeInstance(nethergoyf().id, { zone: "graveyard" });
             const state = makeState({
                 players: [
                     makePlayer("p1", { graveyard: [goyf] }),
@@ -105,7 +105,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
 
         it("reads Phlage's printed escape cost and finds it castable in the graveyard", () => {
-            const phlage = makeInstance(phlageTitanOfFiresFury.id, {
+            const phlage = makeInstance(phlageTitanOfFiresFury().id, {
                 id: "phlage",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -127,7 +127,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
 
         it("a card with no escape has no escape cost", () => {
-            const bear = makeInstance(grizzlyBears.id, { zone: "graveyard" });
+            const bear = makeInstance(grizzlyBears().id, { zone: "graveyard" });
             const state = makeState();
             expect(hasEscape(state, bear)).toBe(false);
             expect(getEscapeCost(state, bear)).toBeUndefined();
@@ -136,12 +136,12 @@ describe("Escape capability (CR 702.138)", () => {
 
     describe("Underworld Breach grant (CR 702.138)", () => {
         it("grants escape to a nonland graveyard card (own mana cost + exile 3)", () => {
-            const breach = makeInstance(underworldBreach.id, {
+            const breach = makeInstance(underworldBreach().id, {
                 id: "breach",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const bolt = makeInstance(ancestralRecall.id, {
+            const bolt = makeInstance(ancestralRecall().id, {
                 id: "recall",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -164,13 +164,13 @@ describe("Escape capability (CR 702.138)", () => {
         });
 
         it("does NOT grant escape to a land, or without the enchantment", () => {
-            const land = makeInstance(mountain.id, {
+            const land = makeInstance(mountain().id, {
                 id: "land",
                 controllerId: "p1",
                 ownerId: "p1",
                 zone: "graveyard",
             });
-            const bolt = makeInstance(ancestralRecall.id, {
+            const bolt = makeInstance(ancestralRecall().id, {
                 id: "recall2",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -185,7 +185,7 @@ describe("Escape capability (CR 702.138)", () => {
             // No Underworld Breach on the battlefield yet.
             expect(hasEscape(state, bolt)).toBe(false);
             // Add it; the land still doesn't gain escape ("Each NONLAND card").
-            const breach = makeInstance(underworldBreach.id, {
+            const breach = makeInstance(underworldBreach().id, {
                 id: "breach2",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -199,10 +199,10 @@ describe("Escape capability (CR 702.138)", () => {
     describe("card-type counting (CR 702.138a — Nethergoyf)", () => {
         it("counts DISTINCT card types among a set of cards", () => {
             const cards = [
-                makeInstance(grizzlyBears.id), // Creature
-                makeInstance(mountain.id), // Land
-                makeInstance(ancestralRecall.id), // Instant
-                makeInstance(disenchant.id), // Instant (dup type)
+                makeInstance(grizzlyBears().id), // Creature
+                makeInstance(mountain().id), // Land
+                makeInstance(ancestralRecall().id), // Instant
+                makeInstance(disenchant().id), // Instant (dup type)
             ];
             // Creature, Land, Instant → 3 distinct.
             expect(countDistinctCardTypes(cards)).toBe(3);
@@ -211,7 +211,7 @@ describe("Escape capability (CR 702.138)", () => {
 
     describe("cast-commit seam (game.ts)", () => {
         it("locateCastSource routes an escape card to the graveyard zone", () => {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 id: "uro",
                 zone: "graveyard",
                 controllerId: "p1",
@@ -234,7 +234,7 @@ describe("Escape capability (CR 702.138)", () => {
         });
 
         it("graveyardCastStackFlags marks escaped, NOT exileOnResolve (unlike Flashback)", () => {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 zone: "graveyard",
             });
             const state = makeState({
@@ -254,12 +254,12 @@ describe("Escape capability (CR 702.138)", () => {
             // from the graveyard via the targeted path, which must still demand
             // the "exile N other cards" escape cost — previously only the
             // no-target announce path set it.
-            const breach = makeInstance(underworldBreach.id, {
+            const breach = makeInstance(underworldBreach().id, {
                 id: "breach",
                 controllerId: "p1",
                 ownerId: "p1",
             });
-            const bolt = makeInstance(lightningBolt.id, {
+            const bolt = makeInstance(lightningBolt().id, {
                 id: "bolt",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -302,7 +302,7 @@ describe("Escape capability (CR 702.138)", () => {
                 GameState["pendingCast"]
             >["exileFromGraveyardChoice"]
         ): GameState {
-            const goyf = makeInstance(nethergoyf.id, {
+            const goyf = makeInstance(nethergoyf().id, {
                 id: "goyf",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -310,22 +310,22 @@ describe("Escape capability (CR 702.138)", () => {
             });
             const graveyard = [
                 goyf,
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: "c-creature",
                     ownerId: "p1",
                     zone: "graveyard",
                 }),
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     id: "c-land",
                     ownerId: "p1",
                     zone: "graveyard",
                 }),
-                makeInstance(ancestralRecall.id, {
+                makeInstance(ancestralRecall().id, {
                     id: "c-instant",
                     ownerId: "p1",
                     zone: "graveyard",
                 }),
-                makeInstance(underworldBreach.id, {
+                makeInstance(underworldBreach().id, {
                     id: "c-enchantment",
                     ownerId: "p1",
                     zone: "graveyard",
@@ -392,7 +392,7 @@ describe("Escape capability (CR 702.138)", () => {
 
     describe("escaped marker + resolution (CR 702.138b)", () => {
         function escapeCastUro(escaped: boolean): GameState {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 id: "uro",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -404,7 +404,7 @@ describe("Escape capability (CR 702.138)", () => {
                         graveyard: [uro],
                         // Library to satisfy the value trigger's draw.
                         library: [
-                            makeInstance(mountain.id, {
+                            makeInstance(mountain().id, {
                                 id: "lib1",
                                 ownerId: "p1",
                                 zone: "library",
@@ -460,7 +460,7 @@ describe("Escape capability (CR 702.138)", () => {
                     type: "PERMANENT_ENTERED",
                     instanceId: "uro",
                     controllerId: "p1",
-                    cardId: uroTitanOfNaturesWrath.id,
+                    cardId: uroTitanOfNaturesWrath().id,
                     types: ["Creature"],
                 },
             ]).filter(
@@ -489,7 +489,7 @@ describe("Escape capability (CR 702.138)", () => {
                     type: "PERMANENT_ENTERED",
                     instanceId: "uro",
                     controllerId: "p1",
-                    cardId: uroTitanOfNaturesWrath.id,
+                    cardId: uroTitanOfNaturesWrath().id,
                     types: ["Creature"],
                 },
             ]).filter(
@@ -515,7 +515,7 @@ describe("Escape capability (CR 702.138)", () => {
 
     describe("serialization (CR 702.138b)", () => {
         it("round-trips the escaped flag on a battlefield permanent", () => {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 id: "uro",
                 controllerId: "p1",
                 ownerId: "p1",
@@ -537,7 +537,7 @@ describe("Escape capability (CR 702.138)", () => {
 
     describe("frontend wiring SURFACE (projectPublicState)", () => {
         it("tags the viewer's own escape-castable graveyard card with legalActions", () => {
-            const uro = makeInstance(uroTitanOfNaturesWrath.id, {
+            const uro = makeInstance(uroTitanOfNaturesWrath().id, {
                 id: "uro",
                 controllerId: "p1",
                 ownerId: "p1",

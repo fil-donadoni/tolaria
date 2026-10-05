@@ -1,5 +1,5 @@
 // uds — green cards (ADR 0043 colour split).
-import type { CardDefinition, ManaCost } from "../../types";
+import { defineCard, type ManaCost } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 
 /** CR 105.2 / 202.2 — is a card with this mana cost black? A normal, Phyrexian
@@ -39,7 +39,7 @@ function costIsBlack(cost: ManaCost | undefined): boolean {
 // The "you may" is the cost-free `mayPay` decision (issue #680), Verduran
 // Enchantress's shape (lea/green.cards.ts).
 // hand-tail: "Whenever a black card is put into an opponent's graveyard from anywhere, you may draw a card." (#4195)
-export const compost: CardDefinition = {
+export const compost = defineCard(() => ({
     id: "2523c403-0025-48c7-8ff1-e66ca27ee585", // UDS 102
     rarity: "uncommon",
     name: "Compost",
@@ -111,4 +111,4 @@ export const compost: CardDefinition = {
             ],
         },
     ],
-};
+}));

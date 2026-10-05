@@ -46,7 +46,7 @@ function castLavaBurst(
     x: number,
     target: TargetSelection
 ): void {
-    const item = pushSpell(state, lavaBurst.id, "p1", [target]);
+    const item = pushSpell(state, lavaBurst().id, "p1", [target]);
     item.chosenX = x;
     resolveTopOfStack(state);
 }
@@ -58,7 +58,7 @@ function activateWhippoorwill(
     whipId: string,
     targetId: string
 ): void {
-    const act = pushSpell(state, whippoorwill.id, "p1", [
+    const act = pushSpell(state, whippoorwill().id, "p1", [
         { type: "permanent", id: targetId },
     ]);
     act.abilityId = "whippoorwill-doom";
@@ -72,7 +72,7 @@ function activateWhippoorwill(
 
 describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
     it("beats a CR 615.1 target prevention shield on a creature", () => {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -109,7 +109,7 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
     // protective keywords out and this fixture marked 3 damage — a board state
     // reachable only because the gate could not see protection.
     it("is countered against protection from red rather than dealing unpreventable damage (CR 608.2b)", () => {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -128,12 +128,12 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
         ).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
-            lavaBurst.id
+            lavaBurst().id
         );
     });
 
     it("beats a CR 614.9 transient redirect shield (Mirrorwood Treefolk)", () => {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -186,12 +186,12 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
         // Divine Presence clamps 4+ to 3 (CR 614) — neither prevention nor
         // redirection, so the lock leaves it alone. This is the must-NOT row:
         // a wholesale skip of the CR 614 loop would read as 5 here.
-        const dp = makeInstance(divinePresence.id, {
+        const dp = makeInstance(divinePresence().id, {
             id: "dp",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -210,7 +210,7 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
     });
 
     it("a permanent-bound PREVENTION replacement is suppressed (Callous Giant)", () => {
-        const giant = makeInstance(callousGiant.id, {
+        const giant = makeInstance(callousGiant().id, {
             id: "giant",
             controllerId: "p2",
             ownerId: "p2",
@@ -229,12 +229,12 @@ describe("Lava Burst rider (CR 615.12 / 614.9 / 702.16e)", () => {
     });
 
     it("a permanent-bound 'other' replacement still applies (Lashknife Barrier)", () => {
-        const barrier = makeInstance(lashknifeBarrier.id, {
+        const barrier = makeInstance(lashknifeBarrier().id, {
             id: "barrier",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -265,7 +265,7 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
         unpreventable: boolean;
         unredirectable: boolean;
     }) {
-        const hj = makeInstance(harshJudgment.id, {
+        const hj = makeInstance(harshJudgment().id, {
             id: "hj",
             controllerId: "p2",
             ownerId: "p2",
@@ -277,7 +277,7 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
                 makePlayer("p2", { battlefield: [hj] }),
             ],
         });
-        const src = pushSpell(state, lavaBurst.id, "p1", []);
+        const src = pushSpell(state, lavaBurst().id, "p1", []);
         return runDamageReplacement(
             state,
             src.id,
@@ -322,7 +322,7 @@ describe("unpreventable vs unredirectable are independent (CR 615.12 vs 614.9)",
 describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () => {
     /** A Craw Wurm under p2 behind a 100-point prevention shield. */
     function shieldedBoard(): GameState {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -345,7 +345,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
 
     it("kicked damage is dealt through a prevention shield", () => {
         const state = shieldedBoard();
-        const item = pushSpell(state, urzasRage.id, "p1", [
+        const item = pushSpell(state, urzasRage().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         item.kickerPayments = { kicker: 1 };
@@ -363,7 +363,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
 
     it("UNkicked damage is still prevented by the shield", () => {
         const state = shieldedBoard();
-        pushSpell(state, urzasRage.id, "p1", [
+        pushSpell(state, urzasRage().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
@@ -376,7 +376,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
     // CR 608.2b (issue #2942) — the kicker buys unpreventable DAMAGE, not a
     // legal target. Against protection from red the spell never resolves.
     it("kicked damage still cannot reach a creature with protection from red (CR 608.2b)", () => {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -388,7 +388,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        const item = pushSpell(state, urzasRage.id, "p1", [
+        const item = pushSpell(state, urzasRage().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         item.kickerPayments = { kicker: 1 };
@@ -402,7 +402,7 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
         ).toBeUndefined();
         expect(state.stack).toHaveLength(0);
         expect(state.players[0].graveyard.map((c) => c.card.id)).toContain(
-            urzasRage.id
+            urzasRage().id
         );
     });
 });
@@ -413,12 +413,12 @@ describe("Urza's Rage — unpreventable damage vs prevention (CR 615.12)", () =>
 
 /** Board: Whippoorwill under p1, a Craw Wurm under p2, lock already armed. */
 function lockedBoard(extraP2: ReturnType<typeof makeInstance>[] = []) {
-    const whip = makeInstance(whippoorwill.id, {
+    const whip = makeInstance(whippoorwill().id, {
         id: "whip",
         controllerId: "p1",
         ownerId: "p1",
     });
-    const bear = makeInstance(crawWurm.id, {
+    const bear = makeInstance(crawWurm().id, {
         id: "bear",
         controllerId: "p2",
         ownerId: "p2",
@@ -451,7 +451,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
                 duration: { phase: "end-of-turn" },
             },
         ];
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
@@ -472,7 +472,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
                 duration: { phase: "end-of-turn" },
             },
         ];
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
@@ -493,7 +493,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
         const state = lockedBoard();
         const bear = state.players[1].battlefield.find((c) => c.id === "bear")!;
         bear.staticAbilities = ["protection from red"];
-        pushSpell(state, pyroclasm.id, "p1");
+        pushSpell(state, pyroclasm().id, "p1");
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")!
@@ -506,7 +506,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
     // assertion above would pass just as well if the prevention leg had been
     // deleted outright.
     it("without the lock, protection from red still prevents the same damage (CR 702.16e)", () => {
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -518,7 +518,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
                 makePlayer("p2", { battlefield: [bear] }),
             ],
         });
-        pushSpell(state, pyroclasm.id, "p1");
+        pushSpell(state, pyroclasm().id, "p1");
         resolveTopOfStack(state);
         expect(
             state.players[1].battlefield.find((c) => c.id === "bear")!
@@ -536,7 +536,7 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
                 duration: { phase: "end-of-turn" },
             },
         ];
-        pushSpell(state, lightningBolt.id, "p1", [
+        pushSpell(state, lightningBolt().id, "p1", [
             { type: "permanent", id: "bear" },
         ]);
         resolveTopOfStack(state);
@@ -573,18 +573,18 @@ describe("Whippoorwill's turn-scoped damage lock (CR 615.12 / 614.9)", () => {
 describe("the target-bound lock reaches COMBAT damage (CR 510)", () => {
     /** Blocker `bear` (locked) blocks attacker `atk`; runs the damage step. */
     function combatBoard(setup: (state: GameState) => void) {
-        const whip = makeInstance(whippoorwill.id, {
+        const whip = makeInstance(whippoorwill().id, {
             id: "whip",
             controllerId: "p2",
             ownerId: "p2",
         });
-        const atk = makeInstance(crawWurm.id, {
+        const atk = makeInstance(crawWurm().id, {
             id: "atk",
             controllerId: "p1",
             ownerId: "p1",
             isAttacking: true,
         });
-        const bear = makeInstance(crawWurm.id, {
+        const bear = makeInstance(crawWurm().id, {
             id: "bear",
             controllerId: "p2",
             ownerId: "p2",
@@ -606,7 +606,7 @@ describe("the target-bound lock reaches COMBAT damage (CR 510)", () => {
         });
         // Whippoorwill's controller arms the lock on their OWN blocker so the
         // attacker's combat damage can't be Fogged or redirected away.
-        const act = pushSpell(state, whippoorwill.id, "p2", [
+        const act = pushSpell(state, whippoorwill().id, "p2", [
             { type: "permanent", id: "bear" },
         ]);
         act.abilityId = "whippoorwill-doom";

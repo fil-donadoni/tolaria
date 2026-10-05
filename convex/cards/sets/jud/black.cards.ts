@@ -1,6 +1,6 @@
 // jud — black cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Cabal Therapy — {B} Sorcery. "Choose a nonland card name. Target player
 // reveals their hand and discards all cards with that name." plus
@@ -24,7 +24,7 @@ import type { CardDefinition } from "../../types";
 // explicit pick through the unified sacrifice-choice layer.
 //
 // compiler-gap: Choose a nonland card name. Target player reveals their hand and discards all cards with that name. (#2693)
-export const cabalTherapy: CardDefinition = {
+export const cabalTherapy = defineCard(() => ({
     id: "0a5df970-c6ba-4824-b8ba-67244aec2b82", // JUD 62
     rarity: "uncommon",
     name: "Cabal Therapy",
@@ -49,4 +49,4 @@ export const cabalTherapy: CardDefinition = {
             filter: { name: { ref: "$named" } },
         },
     ],
-};
+}));

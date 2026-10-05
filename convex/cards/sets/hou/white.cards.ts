@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Crested Sunmare — {3}{W}{W} Creature — Horse, 5/5. The demo consumer of the
@@ -31,7 +31,7 @@ import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 //     correctly does NOT satisfy the condition.
 const CRESTED_SUNMARE_ID = "732fa4c9-11da-4bdb-96af-aa37c74be25f";
 
-export const crestedSunmare: CardDefinition = {
+export const crestedSunmare = defineCard(() => ({
     id: CRESTED_SUNMARE_ID,
     name: "Crested Sunmare",
     rarity: "mythic",
@@ -85,4 +85,4 @@ export const crestedSunmare: CardDefinition = {
             ],
         }),
     ],
-};
+}));

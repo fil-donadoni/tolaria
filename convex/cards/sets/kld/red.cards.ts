@@ -1,7 +1,7 @@
 // kld — red cards (ADR 0043 colour split). Modern Scryfall oracle text is
 // authoritative (ADR 0004).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "../../emblems";
 
 // Chandra, Torch of Defiance — {2}{R}{R} Legendary Planeswalker — Chandra,
@@ -19,7 +19,7 @@ import { CHANDRA_TORCH_OF_DEFIANCE_EMBLEM_ID } from "../../emblems";
 //   −3: "Chandra deals 4 damage to target creature." → dealDamage Op.
 //   −7: emblem "Whenever you cast a spell, this emblem deals 5 damage to any
 //       target." → emblem Op + the triggered EmblemDefinition (#1221 / #1478).
-export const chandraTorchOfDefiance: CardDefinition = {
+export const chandraTorchOfDefiance = defineCard(() => ({
     id: "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
     name: "Chandra, Torch of Defiance",
     rarity: "mythic",
@@ -92,4 +92,4 @@ export const chandraTorchOfDefiance: CardDefinition = {
             ],
         },
     ],
-};
+}));

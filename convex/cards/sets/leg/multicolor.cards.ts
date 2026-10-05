@@ -4,8 +4,8 @@
 // generic mana is encoded as `X: n` (e.g. {3}{G}{W} → { X: 3, G: 1, W: 1 }).
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 
-import type { CardDefinition, ManaCost } from "../../types";
-import { EFFECT_AFFECTS_SELF } from "../../types";
+import type { ManaCost } from "../../types";
+import { defineCard, EFFECT_AFFECTS_SELF } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 import { rampageTrigger } from "../../abilities/triggers/rampageTrigger";
@@ -18,7 +18,7 @@ import { damageDealtTrigger } from "../../abilities/triggers/damageDealtTrigger"
 // not gate the card's release.)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const jasmineBoreal: CardDefinition = {
+export const jasmineBoreal = defineCard(() => ({
     id: "db6ef678-4ce9-48d6-aa4f-2afd9a1ad724",
     rarity: "uncommon",
     name: "Jasmine Boreal",
@@ -29,9 +29,9 @@ export const jasmineBoreal: CardDefinition = {
     subtypes: ["Human"],
     power: 4,
     toughness: 5,
-};
+}));
 
-export const ladyOrca: CardDefinition = {
+export const ladyOrca = defineCard(() => ({
     id: "b2779553-74eb-42ba-97d0-96269f48c269",
     rarity: "uncommon",
     name: "Lady Orca",
@@ -42,7 +42,7 @@ export const ladyOrca: CardDefinition = {
     subtypes: ["Demon"],
     power: 7,
     toughness: 4,
-};
+}));
 
 // Untamed Wilds ("search your library for a basic land card, put it onto the
 // battlefield, then shuffle") is SKIPPED here for tranche scope only. The
@@ -118,7 +118,7 @@ export const ladyOrca: CardDefinition = {
 // --- Vanilla / keyword multicolor creatures (CR 110.1, 702 — pure data) ----
 
 // Barktooth Warbeard — vanilla legendary 6/5 (CR 205.4a Legendary supertype).
-export const barktoothWarbeard: CardDefinition = {
+export const barktoothWarbeard = defineCard(() => ({
     id: "0ea52228-f8ad-4623-9e05-f162473bfc03",
     rarity: "uncommon",
     name: "Barktooth Warbeard",
@@ -129,10 +129,10 @@ export const barktoothWarbeard: CardDefinition = {
     subtypes: ["Human", "Warrior"],
     power: 6,
     toughness: 5,
-};
+}));
 
 // Jedit Ojanen — vanilla legendary 5/5.
-export const jeditOjanen: CardDefinition = {
+export const jeditOjanen = defineCard(() => ({
     id: "97b80124-2b59-425c-93cc-9b032e631c6e",
     rarity: "uncommon",
     name: "Jedit Ojanen",
@@ -143,10 +143,10 @@ export const jeditOjanen: CardDefinition = {
     subtypes: ["Cat", "Warrior"],
     power: 5,
     toughness: 5,
-};
+}));
 
 // Jerrard of the Closed Fist — vanilla legendary 6/5.
-export const jerrardOfTheClosedFist: CardDefinition = {
+export const jerrardOfTheClosedFist = defineCard(() => ({
     id: "7f841918-813b-4784-ab57-907185b0a355",
     rarity: "uncommon",
     name: "Jerrard of the Closed Fist",
@@ -157,10 +157,10 @@ export const jerrardOfTheClosedFist: CardDefinition = {
     subtypes: ["Human", "Knight"],
     power: 6,
     toughness: 5,
-};
+}));
 
 // Kasimir the Lone Wolf — vanilla legendary 5/3.
-export const kasimirTheLoneWolf: CardDefinition = {
+export const kasimirTheLoneWolf = defineCard(() => ({
     id: "45b1e60d-54dd-41cd-b9a2-00890725a3df",
     rarity: "uncommon",
     name: "Kasimir the Lone Wolf",
@@ -171,10 +171,10 @@ export const kasimirTheLoneWolf: CardDefinition = {
     subtypes: ["Human", "Warrior"],
     power: 5,
     toughness: 3,
-};
+}));
 
 // Sir Shandlar of Eberyn — vanilla legendary 4/7.
-export const sirShandlarOfEberyn: CardDefinition = {
+export const sirShandlarOfEberyn = defineCard(() => ({
     id: "31570ded-f5e3-44c4-b95f-294ac10b2cd2",
     rarity: "uncommon",
     name: "Sir Shandlar of Eberyn",
@@ -185,10 +185,10 @@ export const sirShandlarOfEberyn: CardDefinition = {
     subtypes: ["Human", "Knight"],
     power: 4,
     toughness: 7,
-};
+}));
 
 // Sivitri Scarzam — vanilla legendary 6/4.
-export const sivitriScarzam: CardDefinition = {
+export const sivitriScarzam = defineCard(() => ({
     id: "9c12ee9e-db13-4b4d-a061-b6566f538f09",
     rarity: "uncommon",
     name: "Sivitri Scarzam",
@@ -199,10 +199,10 @@ export const sivitriScarzam: CardDefinition = {
     subtypes: ["Human"],
     power: 6,
     toughness: 4,
-};
+}));
 
 // The Lady of the Mountain — vanilla legendary 5/5.
-export const theLadyOfTheMountain: CardDefinition = {
+export const theLadyOfTheMountain = defineCard(() => ({
     id: "83717eb2-220e-4086-be09-dee9174798b8",
     rarity: "uncommon",
     name: "The Lady of the Mountain",
@@ -213,10 +213,10 @@ export const theLadyOfTheMountain: CardDefinition = {
     subtypes: ["Giant"],
     power: 5,
     toughness: 5,
-};
+}));
 
 // Tobias Andrion — vanilla legendary 4/4.
-export const tobiasAndrion: CardDefinition = {
+export const tobiasAndrion = defineCard(() => ({
     id: "cac56eda-5ed3-4abd-beec-f5063fbf930a",
     rarity: "uncommon",
     name: "Tobias Andrion",
@@ -227,10 +227,10 @@ export const tobiasAndrion: CardDefinition = {
     subtypes: ["Human", "Advisor"],
     power: 4,
     toughness: 4,
-};
+}));
 
 // Torsten Von Ursus — vanilla legendary 5/5.
-export const torstenVonUrsus: CardDefinition = {
+export const torstenVonUrsus = defineCard(() => ({
     id: "5fd99522-4a91-4ccd-91bf-5f32a6ac3510",
     rarity: "uncommon",
     name: "Torsten Von Ursus",
@@ -241,10 +241,10 @@ export const torstenVonUrsus: CardDefinition = {
     subtypes: ["Human", "Soldier"],
     power: 5,
     toughness: 5,
-};
+}));
 
 // Ramirez DePietro — first strike (CR 702.7) legendary 4/3.
-export const ramirezDePietro: CardDefinition = {
+export const ramirezDePietro = defineCard(() => ({
     id: "e5c66c61-aadf-433b-9958-fc9b44b327b9",
     rarity: "uncommon",
     name: "Ramirez DePietro",
@@ -256,7 +256,7 @@ export const ramirezDePietro: CardDefinition = {
     power: 4,
     toughness: 3,
     staticAbilities: ["first strike"],
-};
+}));
 
 // Livonya Silone — first strike (CR 702.7) + legendary landwalk (CR 702.14).
 // "Legendary landwalk" is landwalk keyed on the land *supertype* Legendary
@@ -265,7 +265,7 @@ export const ramirezDePietro: CardDefinition = {
 // evasion is a parametric registry rule (`LANDWALK_SUPERTYPE_KEYWORDS` →
 // `LANDWALK_SUPERTYPE_RULES`), so the keyword string carries the whole
 // behavior — no per-card resolve() or staticEffect.
-export const livonyaSilone: CardDefinition = {
+export const livonyaSilone = defineCard(() => ({
     id: "b9211949-66a5-4039-ac6d-3e42b008b58e",
     rarity: "rare",
     name: "Livonya Silone",
@@ -278,14 +278,14 @@ export const livonyaSilone: CardDefinition = {
     power: 4,
     toughness: 4,
     staticAbilities: ["first strike", "legendary landwalk"],
-};
+}));
 
 // --- Characteristic-defining P/T (CR 604.3) --------------------------------
 
 // Dakkon Blackblade — "Dakkon Blackblade's power and toughness are each equal
 // to the number of lands you control." (CR 604.3 pt-cda; base 0/0, the CDA
 // supplies the whole value from a land count.)
-export const dakkonBlackblade: CardDefinition = {
+export const dakkonBlackblade = defineCard(() => ({
     id: "fbfd1278-1486-4516-8846-007ce1985ee9",
     rarity: "rare",
     name: "Dakkon Blackblade",
@@ -317,13 +317,13 @@ export const dakkonBlackblade: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // --- Filtered anthem (CR 611 layer 7c) -------------------------------------
 
 // Jacques le Vert — "Green creatures you control get +0/+2." (CR 611 filtered
 // anthem keyed on colour + controller.)
-export const jacquesLeVert: CardDefinition = {
+export const jacquesLeVert = defineCard(() => ({
     id: "ee5a45b1-169b-468e-9251-424c09cd7f0f",
     rarity: "rare",
     name: "Jacques le Vert",
@@ -345,14 +345,14 @@ export const jacquesLeVert: CardDefinition = {
             toughness: 2,
         },
     ],
-};
+}));
 
 // --- Spell-cast trigger (CR 603.2) -----------------------------------------
 
 // Sol'kanar the Swamp King — Swampwalk (CR 702.14) + "Whenever a player casts a
 // black spell, you gain 1 life." (CR 603.2 spell-cast trigger, any caster,
 // colour-filtered → CR 119.3 lifegain.)
-export const solkanarTheSwampKing: CardDefinition = {
+export const solkanarTheSwampKing = defineCard(() => ({
     id: "7a20dcb0-5350-40e0-82d3-c8d0186fc9d2",
     rarity: "rare",
     name: "Sol'kanar the Swamp King",
@@ -378,14 +378,14 @@ export const solkanarTheSwampKing: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
-};
+}));
 
 // --- Activated abilities (CR 602) ------------------------------------------
 
 // Adun Oakenshield — "{B}{R}{G}, {T}: Return target creature card from your
 // graveyard to your hand." (CR 602 activated ability + CR 400.7 graveyard→hand
 // move on a chosen graveyard creature.)
-export const adunOakenshield: CardDefinition = {
+export const adunOakenshield = defineCard(() => ({
     id: "60252226-a102-4d88-9b80-42d021b5184d",
     rarity: "rare",
     name: "Adun Oakenshield",
@@ -415,13 +415,13 @@ export const adunOakenshield: CardDefinition = {
             effects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
         },
     ],
-};
+}));
 
 // Angus Mackenzie — "{G}{W}{U}, {T}: Prevent all combat damage that would be
 // dealt this turn. Activate only before the combat damage step." (CR 602.5b
 // activation-window restriction + CR 615 fog-style global combat-damage
 // prevention.)
-export const angusMackenzie: CardDefinition = {
+export const angusMackenzie = defineCard(() => ({
     id: "57264bd9-94f6-4d4d-baff-2b2900585635",
     rarity: "rare",
     name: "Angus Mackenzie",
@@ -452,12 +452,12 @@ export const angusMackenzie: CardDefinition = {
             effects: [{ op: "preventDamage", mode: "all-combat" }],
         },
     ],
-};
+}));
 
 // Boris Devilboon — "{2}{B}{R}, {T}: Create a 1/1 black and red Demon creature
 // token named Minor Demon." (CR 602 activated ability + CR 111 token
 // creation.)
-export const borisDevilboon: CardDefinition = {
+export const borisDevilboon = defineCard(() => ({
     id: "82ae30e8-2dcd-46b8-925b-cc24e11fb95d",
     rarity: "rare",
     name: "Boris Devilboon",
@@ -498,12 +498,12 @@ export const borisDevilboon: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Kei Takahashi — "{T}: Prevent the next 2 damage that would be dealt to target
 // creature this turn." (CR 602 tap ability + CR 615 prevent-N shield on a
 // chosen target.)
-export const keiTakahashi: CardDefinition = {
+export const keiTakahashi = defineCard(() => ({
     id: "6a4a524a-fdc7-432d-994b-953808528349",
     rarity: "rare",
     name: "Kei Takahashi",
@@ -536,11 +536,11 @@ export const keiTakahashi: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Tuknir Deathlock — Flying (CR 702.9) + "{R}{G}, {T}: Target creature gets
 // +2/+2 until end of turn." (CR 611.1 buff on a chosen target.)
-export const tuknirDeathlock: CardDefinition = {
+export const tuknirDeathlock = defineCard(() => ({
     id: "9dfbcb4d-a9ae-4d76-8dde-7312fbad56b0",
     rarity: "rare",
     name: "Tuknir Deathlock",
@@ -574,11 +574,11 @@ export const tuknirDeathlock: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Xira Arien — Flying (CR 702.9) + "{B}{R}{G}, {T}: Target player draws a
 // card." (CR 602 tap ability + CR 121.1 draw.)
-export const xiraArien: CardDefinition = {
+export const xiraArien = defineCard(() => ({
     id: "cc6c7d89-32e7-4c3f-ac90-7db3a46eed4b",
     rarity: "rare",
     name: "Xira Arien",
@@ -600,12 +600,12 @@ export const xiraArien: CardDefinition = {
             effects: [{ op: "draw", player: { target: 0 }, count: 1 }],
         },
     ],
-};
+}));
 
 // --- Mana abilities (CR 605.1a — useStack: false, resolve immediately) ------
 
 // Princess Lucrezia — "{T}: Add {U}." (CR 605.1a mana ability.)
-export const princessLucrezia: CardDefinition = {
+export const princessLucrezia = defineCard(() => ({
     id: "a1dcf48c-2700-4024-807e-9244e4c649ac",
     rarity: "uncommon",
     name: "Princess Lucrezia",
@@ -626,10 +626,10 @@ export const princessLucrezia: CardDefinition = {
             manaProduced: { U: 1 },
         },
     ],
-};
+}));
 
 // Riven Turnbull — "{T}: Add {B}." (CR 605.1a mana ability.)
-export const rivenTurnbull: CardDefinition = {
+export const rivenTurnbull = defineCard(() => ({
     id: "d11f90e7-ced1-4d80-8083-99acbf459ad7",
     rarity: "uncommon",
     name: "Riven Turnbull",
@@ -650,10 +650,10 @@ export const rivenTurnbull: CardDefinition = {
             manaProduced: { B: 1 },
         },
     ],
-};
+}));
 
 // Sunastian Falconer — "{T}: Add {C}{C}." (CR 605.1a mana ability.)
-export const sunastianFalconer: CardDefinition = {
+export const sunastianFalconer = defineCard(() => ({
     id: "587075f3-a568-4089-83ca-fe1e473c025d",
     rarity: "uncommon",
     name: "Sunastian Falconer",
@@ -674,13 +674,13 @@ export const sunastianFalconer: CardDefinition = {
             manaProduced: { C: 2 },
         },
     ],
-};
+}));
 
 // Chromium — {2}{W}{W}{U}{U}{B}{B} 7/7, Flying, Rampage 2. Elder Dragon Legend.
 // Rampage + Flying shipped with C3 (#380); the C7 (#383) upkeep "sacrifice
 // unless you pay {W}{U}{B}" maintenance cost is wired here via
 // `payOrSacrificeUpkeepTrigger` (see the C7 section at the foot of this file).
-export const chromium: CardDefinition = {
+export const chromium = defineCard(() => ({
     id: "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
     rarity: "rare",
     name: "Chromium",
@@ -702,10 +702,10 @@ export const chromium: CardDefinition = {
             costText: "{W}{U}{B}",
         }),
     ],
-};
+}));
 
 // Hunding Gjornersen — {3}{W}{U}{U} 5/4, Rampage 1. Legendary.
-export const hundingGjornersen: CardDefinition = {
+export const hundingGjornersen = defineCard(() => ({
     id: "07d8e501-6857-4a52-a3b9-2bf0bee5b08c",
     rarity: "uncommon",
     name: "Hunding Gjornersen",
@@ -719,10 +719,10 @@ export const hundingGjornersen: CardDefinition = {
     toughness: 4,
     staticAbilities: ["rampage 1"],
     triggeredAbilities: [rampageTrigger(1)],
-};
+}));
 
 // Marhault Elsdragon — {3}{R}{R}{G} 4/6, Rampage 1. Legendary.
-export const marhaultElsdragon: CardDefinition = {
+export const marhaultElsdragon = defineCard(() => ({
     id: "67330004-6720-46d9-9de0-c79230110583",
     rarity: "uncommon",
     name: "Marhault Elsdragon",
@@ -736,14 +736,14 @@ export const marhaultElsdragon: CardDefinition = {
     toughness: 6,
     staticAbilities: ["rampage 1"],
     triggeredAbilities: [rampageTrigger(1)],
-};
+}));
 
 // Bartel Runeaxe — Legendary 6/5 Giant Warrior, "Vigilance\nBartel Runeaxe can't
 // be the target of Aura spells." (CR 702.18-style untargetability narrowed to
 // AURA SPELLS: a self-targeting guard with `targetSourceMustBeSpell` +
 // `targetSourceSubtypeFilter: ["Aura"]`, CR 109.5 / 113.3. Vigilance is a plain
 // keyword, CR 702.21.)
-export const bartelRuneaxe: CardDefinition = {
+export const bartelRuneaxe = defineCard(() => ({
     id: "f1a42691-98bb-4234-9b56-085e6677f3e4",
     rarity: "rare",
     name: "Bartel Runeaxe",
@@ -767,7 +767,7 @@ export const bartelRuneaxe: CardDefinition = {
             applies: (target, source) => target.id === source.id,
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C6 deferred (need an unbuilt primitive — left for a future batch) (tracked-by: #2785):
@@ -892,7 +892,7 @@ export function payOrSacrificeUpkeepTrigger(args: {
 // (it's a creature its own controller controls). The {W} pump is a plain
 // self-targeting `activatedAbilities` entry via the `pump` Op (CR 611.1),
 // mirroring the sibling Pavel Maliki ability in this same file. Issue #1830.
-export const arcadesSabboth: CardDefinition = {
+export const arcadesSabboth = defineCard(() => ({
     id: "2c1dbc62-ceb5-4540-ae38-901e5deafc75",
     rarity: "rare",
     name: "Arcades Sabboth",
@@ -942,7 +942,7 @@ export const arcadesSabboth: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Nicol Bolas — {2}{U}{U}{B}{B}{R}{R} 7/7 Elder Dragon. Flying + the upkeep
 // "sacrifice unless you pay {U}{B}{R}" tax (CR 603.6a + CR 117.3a). Its
@@ -957,7 +957,7 @@ export const arcadesSabboth: CardDefinition = {
 // "discard", player: { ref: "$event.damagedPlayer" } }` with no `cards`
 // field discards the WHOLE hand (`interpreter.ts`'s `discard` Op, issue
 // #1279's bulk shape), not a player-chosen subset.
-export const nicolBolas: CardDefinition = {
+export const nicolBolas = defineCard(() => ({
     id: "729feb73-4581-4f9d-ba47-bece72481b86",
     rarity: "rare",
     name: "Nicol Bolas",
@@ -991,11 +991,11 @@ export const nicolBolas: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Palladia-Mors — {2}{R}{R}{G}{G}{W}{W} 7/7 Elder Dragon. Flying, trample +
 // the C7 upkeep tax. CR 603.6a + CR 117.3a.
-export const palladiaMors: CardDefinition = {
+export const palladiaMors = defineCard(() => ({
     id: "ad64874d-ce33-4e0a-bcca-723f129ef415",
     rarity: "rare",
     name: "Palladia-Mors",
@@ -1016,14 +1016,14 @@ export const palladiaMors: CardDefinition = {
             costText: "{R}{G}{W}",
         }),
     ],
-};
+}));
 
 // Vaevictis Asmadi — {2}{B}{B}{R}{R}{G}{G} 7/7 Elder Dragon. C7 wires its Flying
 // keyword + the upkeep "sacrifice unless you pay {B}{R}{G}" tax (CR 603.6a +
 // CR 117.3a). Its three single-color +1/+0 pump abilities are free-tranche
 // activated abilities owned by #369's batch — not part of the C7 cluster — and
 // are added there; oracleText is the full card.
-export const vaevictisAsmadi: CardDefinition = {
+export const vaevictisAsmadi = defineCard(() => ({
     id: "22ea73ec-1325-4437-a23f-dcda1767c713",
     rarity: "rare",
     name: "Vaevictis Asmadi",
@@ -1044,14 +1044,14 @@ export const vaevictisAsmadi: CardDefinition = {
             costText: "{B}{R}{G}",
         }),
     ],
-};
+}));
 
 // Rasputin Dreamweaver — {4}{W}{U} Legendary 4/1. Enters with seven dream
 // counters; each removes one for {C} or to prevent 1 damage to it; each upkeep,
 // if it started the turn untapped, it regains one (capped at seven). CR 122
 // named counters, CR 122.6 counter-removal cost, CR 502.1 "started the turn
 // untapped" flag, CR 614 damage prevention.
-export const rasputinDreamweaver: CardDefinition = {
+export const rasputinDreamweaver = defineCard(() => ({
     id: "503256f8-3aab-49d0-b78b-6502aa29ce52",
     rarity: "rare",
     name: "Rasputin Dreamweaver",
@@ -1134,7 +1134,7 @@ export const rasputinDreamweaver: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Halfdane — {1}{W}{U}{B} 3/3 Legendary Shapeshifter. "At the beginning of your
 // upkeep, change Halfdane's base power and toughness to the power and toughness
@@ -1154,7 +1154,7 @@ export const rasputinDreamweaver: CardDefinition = {
 // (`getPower`/`getToughness`), snapshotted and locked at resolution (CR 611.2).
 // The set is scoped to the controller's next upkeep (CR 500.2), reverting
 // Halfdane to 3/3 before the re-fire.
-export const halfdane: CardDefinition = {
+export const halfdane = defineCard(() => ({
     id: "2e939761-3542-4044-9038-d1d30c6a38fc",
     rarity: "rare",
     name: "Halfdane",
@@ -1213,4 +1213,4 @@ export const halfdane: CardDefinition = {
             },
         },
     ],
-};
+}));

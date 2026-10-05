@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 import { resolveCompiledStatic } from "../../compiledStatics";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
@@ -19,7 +19,7 @@ import { chooseColorEffects } from "../../abilities/chooseColor";
 // the effect is DSL-first — no divide-as-you-choose, no `resolve`.) The
 // mandatory "target creature" may be Flametongue Kavu itself when it is the
 // only creature — self is a legal target, the classic FTK self-kill.
-export const flametongueKavu: CardDefinition = {
+export const flametongueKavu = defineCard(() => ({
     id: "e5056bca-bd90-4b50-8630-105558f8ef92", // PLS printing (scryfallId)
     name: "Flametongue Kavu",
     rarity: "uncommon",
@@ -40,7 +40,7 @@ export const flametongueKavu: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 4, to: { target: 0 } }],
         }),
     ],
-};
+}));
 
 // Caldera Kavu — {2}{R} Creature — Kavu, 2/2. "{1}{B}: This creature gets
 // +1/+1 until end of turn.\n{G}: This creature becomes the color of your
@@ -52,7 +52,7 @@ export const flametongueKavu: CardDefinition = {
 // `optionChoice` over the five colors, each mode a single `setColor` Op
 // (Rainbow Crow / Blind Seer precedent, `inv/blue.cards.ts`) — no new choice-kind
 // construct needed (ADR 0045 "generalize, don't add").
-export const calderaKavu: CardDefinition = {
+export const calderaKavu = defineCard(() => ({
     id: "fcad32aa-2ce1-402d-a9d8-ad5c81fe4c5b", // PLS 58
     rarity: "common",
     name: "Caldera Kavu",
@@ -92,11 +92,11 @@ export const calderaKavu: CardDefinition = {
             ),
         },
     ],
-};
+}));
 
 // Implode — {4}{R} Sorcery. "Destroy target land.\nDraw a card." (CR 701.8
 // destroy; CR 121 draw — two already-registered Ops, no new capability.)
-export const implode: CardDefinition = {
+export const implode = defineCard(() => ({
     id: "a76ee318-8126-4ebf-884d-8369ae8726ac", // PLS 62
     rarity: "uncommon",
     name: "Implode",
@@ -108,7 +108,7 @@ export const implode: CardDefinition = {
         { op: "destroy", target: { target: 0 } },
         { op: "draw", player: "controller", count: 1 },
     ],
-};
+}));
 
 // Insolence — {2}{R} Enchantment — Aura. "Enchant creature.\nWhenever
 // enchanted creature becomes tapped, this Aura deals 2 damage to that
@@ -125,7 +125,7 @@ export const implode: CardDefinition = {
 // callback's derived `tapped` payload carries `controllerId` directly, no
 // `getAttachedTo` round-trip needed. Blocked on: a tapped-permanent-controller
 // player selector reachable from a `tappedTrigger` script.
-export const insolence: CardDefinition = {
+export const insolence = defineCard(() => ({
     id: "d8009a37-f966-4a71-9a2a-469127758dc6", // PLS 63
     rarity: "common",
     name: "Insolence",
@@ -156,13 +156,13 @@ export const insolence: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Kavu Recluse — {2}{R} Creature — Kavu, 2/2. "{T}: Target land becomes a
 // Forest until end of turn." (CR 605 activated ability; CR 305.7 land-type
 // change via the censused `setSubtype` Op — the Dream Thrush precedent
 // `inv/blue.cards.ts` — no new capability.)
-export const kavuRecluse: CardDefinition = {
+export const kavuRecluse = defineCard(() => ({
     id: "6f04ac02-3eff-4a66-8320-ee7b4357522f", // PLS 64
     rarity: "common",
     name: "Kavu Recluse",
@@ -189,7 +189,7 @@ export const kavuRecluse: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Keldon Mantle — {1}{R} Enchantment — Aura. "Enchant creature.\n{B}:
 // Regenerate enchanted creature.\n{R}: Enchanted creature gets +1/+0 until
@@ -203,7 +203,7 @@ export const kavuRecluse: CardDefinition = {
 // (the same gap Regeneration / Stonehands document, `lea/green.cards.ts` /
 // `ice/red.cards.ts`). Blocked on: an attached-host object selector (planned-
 // migratable — not a stop-and-issue case, an already-recorded gap).
-export const keldonMantle: CardDefinition = {
+export const keldonMantle = defineCard(() => ({
     id: "35bb73df-f488-468c-a9ad-72f52c8da3dc", // PLS 65
     rarity: "common",
     name: "Keldon Mantle",
@@ -284,7 +284,7 @@ export const keldonMantle: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Magma Burst — {3}{R} Instant. "Kicker—Sacrifice two lands.\nMagma Burst
 // deals 3 damage to any target. If this spell was kicked, it deals 3 damage
@@ -295,7 +295,7 @@ export const keldonMantle: CardDefinition = {
 // here widening `count` rather than the type filter. The second `dealDamage`
 // is gated on `{ kickerCount: true } >= 1`, the standard kicker branch idiom
 // (Overload, `inv/red.cards.ts`) — both damage Ops are already-exercised, no new Op.)
-export const magmaBurst: CardDefinition = {
+export const magmaBurst = defineCard(() => ({
     id: "d9752bc3-0bdf-4657-8750-73c8cbc8e83f", // PLS 66
     rarity: "common",
     name: "Magma Burst",
@@ -324,12 +324,12 @@ export const magmaBurst: CardDefinition = {
             then: [{ op: "dealDamage", amount: 3, to: { target: 1 } }],
         },
     ],
-};
+}));
 
 // Mire Kavu — {3}{R} Creature — Kavu, 3/2. "This creature gets +1/+1 as long
 // as you control a Swamp." (CR 611.3a board-conditional layer-7c buff — the
 // Kird Ape shape `arn/red.cards.ts`, Swamp instead of Forest.)
-export const mireKavu: CardDefinition = {
+export const mireKavu = defineCard(() => ({
     id: "ccdd0086-eb27-48b3-91cb-a113aa1de102", // PLS 67
     rarity: "common",
     name: "Mire Kavu",
@@ -356,13 +356,13 @@ export const mireKavu: CardDefinition = {
             },
         }),
     ],
-};
+}));
 
 // Mogg Jailer — {1}{R} Creature — Goblin, 2/2. "This creature can't attack if
 // defending player controls an untapped creature with power 2 or less." (CR
 // 508.1c card-level attack restriction — the Goblin Mutant precedent
 // `ice/red.cards.ts`, same shape with the inequality flipped to <= 2.)
-export const moggJailer: CardDefinition = {
+export const moggJailer = defineCard(() => ({
     id: "52513235-0e6c-40ea-8ead-a050e6da676e", // PLS 68
     rarity: "uncommon",
     name: "Mogg Jailer",
@@ -388,13 +388,13 @@ export const moggJailer: CardDefinition = {
                 "This creature can't attack if defending player controls an untapped creature with power 2 or less.",
         },
     ],
-};
+}));
 
 // Mogg Sentry — {R} Creature — Goblin Warrior, 1/1. "Whenever an opponent
 // casts a spell, this creature gets +2/+2 until end of turn." (CR 603.2
 // SPELL_CAST trigger via `spellCastTrigger({ scope: "opponents" })`; the pump
 // is the censused `pump` Op.)
-export const moggSentry: CardDefinition = {
+export const moggSentry = defineCard(() => ({
     id: "8536ec54-cebd-4d44-8e52-42344a3e6daa", // PLS 69
     rarity: "rare",
     name: "Mogg Sentry",
@@ -422,7 +422,7 @@ export const moggSentry: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Planeswalker's Fury — {2}{R} Enchantment. "{3}{R}: Target opponent reveals a
 // card at random from their hand. This enchantment deals damage equal to that
@@ -437,7 +437,7 @@ export const moggSentry: CardDefinition = {
 // not expressible with the current Op vocabulary"). The random reveal draws
 // from the seeded PRNG exactly once, in this single non-suspending segment,
 // so it is replay-safe.
-export const planeswalkersFury: CardDefinition = {
+export const planeswalkersFury = defineCard(() => ({
     id: "6fa09e3a-bc7e-4292-aa5d-ce97c1b1f79f", // PLS 70
     rarity: "rare",
     name: "Planeswalker's Fury",
@@ -480,13 +480,13 @@ export const planeswalkersFury: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Singe — {R} Instant. "Singe deals 1 damage to target creature. That
 // creature becomes black until end of turn." (CR 120 damage; CR 613.1e
 // color-set via the censused `setColor` Op — both already-exercised Ops, no
 // new capability.)
-export const singe: CardDefinition = {
+export const singe = defineCard(() => ({
     id: "32323277-db9a-48a7-b9a4-8e6914386e26", // PLS 71
     rarity: "common",
     name: "Singe",
@@ -504,12 +504,12 @@ export const singe: CardDefinition = {
             duration: { phase: "end-of-turn" },
         },
     ],
-};
+}));
 
 // Strafe — {R} Sorcery. "Strafe deals 3 damage to target nonred creature."
 // (CR 120 damage; `excludeColors: "R"` narrows the announced target, CR
 // 202.2.)
-export const strafe: CardDefinition = {
+export const strafe = defineCard(() => ({
     id: "ec8b77cf-9c1e-4c8f-b452-295cc1570d0e", // PLS 73
     rarity: "uncommon",
     name: "Strafe",
@@ -518,7 +518,7 @@ export const strafe: CardDefinition = {
     types: ["Sorcery"],
     targetRequirement: { type: "Creature", count: 1, excludeColors: "R" },
     effects: [{ op: "dealDamage", amount: 3, to: { target: 0 } }],
-};
+}));
 
 // Tahngarth, Talruum Hero — {3}{R}{R} Legendary Creature — Minotaur Warrior,
 // 4/4. "Vigilance\n{1}{R}, {T}: Tahngarth deals damage equal to its power to
@@ -550,7 +550,7 @@ export const strafe: CardDefinition = {
 // Two printings in the same set (ADR 0014): PLS 74 (canonical) and PLS 74★
 // (the foil-only alternate-illustration variant) — one CardDefinition plus
 // one CardPrint, the Skyship Weatherlight precedent `pls/colorless.cards.ts`.
-export const tahngarthTalruumHero: CardDefinition = {
+export const tahngarthTalruumHero = defineCard(() => ({
     id: "c1778f37-af01-4f8c-ab9d-a4c60abf7e78", // PLS 74 (canonical art)
     rarity: "rare",
     name: "Tahngarth, Talruum Hero",
@@ -588,7 +588,7 @@ export const tahngarthTalruumHero: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Thunderscape Battlemage — {2}{R} Creature — Human Wizard, 2/2. "Kicker
 // {1}{B} and/or {G}\nWhen this creature enters, if it was kicked with its
@@ -632,7 +632,7 @@ export const tahngarthTalruumHero: CardDefinition = {
 // `conditionOnSelf` + resolution-time `if { additionalCostPaid }` stays the pair
 // because only the `effects[]` branch also gates a CR 707.10 ability copy; the
 // blink case is locked by a regression test in `__tests__/red.test.ts`.
-export const thunderscapeBattlemage: CardDefinition = {
+export const thunderscapeBattlemage = defineCard(() => ({
     id: "d707243e-7f11-44bc-b8b8-af635ab1dc87", // PLS 75
     rarity: "uncommon",
     name: "Thunderscape Battlemage",
@@ -712,14 +712,14 @@ export const thunderscapeBattlemage: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Thunderscape Familiar — {1}{R} Creature — Kavu, 1/1. "First strike\nBlack
 // spells and green spells you cast cost {1} less to cast." (CR 702.7 first
 // strike; CR 601.2f cost reduction via `cost-modifier` scoped to the
 // controller's own casts — the Andradite Leech precedent `inv/black.cards.ts`,
 // same shape as a reduction instead of a tax, over TWO colours via `.some`.)
-export const thunderscapeFamiliar: CardDefinition = {
+export const thunderscapeFamiliar = defineCard(() => ({
     id: "26c9c0aa-9412-4320-aaee-e05369b8bc7b", // PLS 76
     rarity: "common",
     name: "Thunderscape Familiar",
@@ -742,4 +742,4 @@ export const thunderscapeFamiliar: CardDefinition = {
             costReduction: { X: 1 },
         },
     ],
-};
+}));

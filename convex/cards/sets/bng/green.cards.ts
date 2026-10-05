@@ -1,6 +1,6 @@
 // bng — green cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 
@@ -16,7 +16,7 @@ import { landfallTrigger } from "../../abilities/triggers/landfallTrigger";
 // the graveyard-destination leg are already interpreter-exercised (Reviving
 // Vapors, inv/multicolor.cards.ts, issue #1101) — no hand-written per-card test
 // required (per-Op test regime, gre-development.md).
-export const satyrWayfinder: CardDefinition = {
+export const satyrWayfinder = defineCard(() => ({
     id: "13c5a1ce-932a-4b3d-8b86-ed920e646afc",
     name: "Satyr Wayfinder",
     rarity: "common",
@@ -51,7 +51,7 @@ export const satyrWayfinder: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Courser of Kruphix — {1}{G}{G} Enchantment Creature — Centaur, 2/4.
 // "Play with the top card of your library revealed. You may play lands from the
@@ -77,7 +77,7 @@ export const satyrWayfinder: CardDefinition = {
 //     for EVERY land you control entering, including one played off the top by
 //     the permission above — the trigger keys on the entry, not on the source
 //     zone (CR 603.6a).
-export const courserOfKruphix: CardDefinition = {
+export const courserOfKruphix = defineCard(() => ({
     id: "da5a807f-58e8-4d92-a61c-47bb9b28977f",
     name: "Courser of Kruphix",
     rarity: "rare",
@@ -98,4 +98,4 @@ export const courserOfKruphix: CardDefinition = {
             effects: [{ op: "gainLife", player: "controller", amount: 1 }],
         }),
     ],
-};
+}));

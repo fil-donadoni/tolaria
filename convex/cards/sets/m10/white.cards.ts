@@ -3,7 +3,7 @@
 // Silence's earliest paper printing is M10 (2009-07-17, ADR 0041 home-set
 // convention), not the Duskmourn stub it used to sit under.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Silence — {W} Instant. "Your opponents can't cast spells this turn." (CR
 // 601.3a spell-cast restriction.) FREED 2026-08-25 (#1841 audit, shipped by
@@ -12,7 +12,7 @@ import type { CardDefinition } from "../../types";
 // "defending player can't cast spells this turn" — `player: "opponent"` is
 // exactly that shape (Orim's Chant, `pls/white.cards.ts`, targets a chosen player
 // instead; Xantid Swarm, `scg/green.cards.ts`, uses the same literal "opponent").
-export const silence: CardDefinition = {
+export const silence = defineCard(() => ({
     id: "1559d660-8a9d-422b-95d3-710a046583dd", // M10 31 (earliest paper printing, ADR 0041)
     name: "Silence",
     rarity: "rare",
@@ -20,4 +20,4 @@ export const silence: CardDefinition = {
     manaCost: { W: 1 },
     types: ["Instant"],
     effects: [{ op: "restrictCasting", player: "opponent" }],
-};
+}));

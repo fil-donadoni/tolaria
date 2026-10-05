@@ -1,5 +1,5 @@
 // usg — black cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Exhume — {1}{B} Sorcery. "Each player puts a creature card from their
 // graveyard onto the battlefield." (CR 400.7 reanimation, CR 101.4 APNAP
@@ -11,7 +11,7 @@ import type { CardDefinition } from "../../types";
 // "each player… onto the battlefield" needs no controller override). A
 // player with no creature cards in their graveyard is skipped entirely (CR
 // 608.2b — the choice clamps to zero candidates).
-export const exhume: CardDefinition = {
+export const exhume = defineCard(() => ({
     id: "a88b23ce-ce19-47da-b9f2-055a4d6bdc79",
     name: "Exhume",
     rarity: "common",
@@ -44,7 +44,7 @@ export const exhume: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // Duress — {B} Sorcery (Vintage Cube FREE: edict/discard/hand disruption,
 // issue #682). "Target opponent reveals their hand. You choose a
@@ -54,7 +54,7 @@ export const exhume: CardDefinition = {
 // `targetRequirement.controller: "opponent"` (CR 115 — a real spell-level
 // target, unlike a `TriggeredAbility`'s `"opponent"` ref shortcut) and a
 // two-member `excludeType` array ("noncreature, nonland" — issue #682).
-export const duress: CardDefinition = {
+export const duress = defineCard(() => ({
     id: "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
     name: "Duress",
     rarity: "common",
@@ -82,7 +82,7 @@ export const duress: CardDefinition = {
             cards: { ref: "$picked" },
         },
     ],
-};
+}));
 
 // Yawgmoth's Will — {2}{B} Sorcery. "Until end of turn, you may play lands
 // and cast spells from your graveyard. If a card would be put into your
@@ -99,7 +99,7 @@ export const duress: CardDefinition = {
 // `actions` on `grantGraveyardPlay` defaults to `["play-land", "cast"]`, the exact
 // "play lands AND cast spells" shape this card needs. Vintage Cube FREE
 // tranche, issue #686.
-export const yawgmothsWill: CardDefinition = {
+export const yawgmothsWill = defineCard(() => ({
     id: "6d3e3c3a-d351-4d91-8884-312d4b6f540d", // USG 171
     name: "Yawgmoth's Will",
     rarity: "rare",
@@ -111,4 +111,4 @@ export const yawgmothsWill: CardDefinition = {
         { op: "grantGraveyardPlay", player: "controller" },
         { op: "armGraveyardRedirect", player: "controller" },
     ],
-};
+}));

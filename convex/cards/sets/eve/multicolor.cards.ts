@@ -1,6 +1,6 @@
 // eve — multicolor cards (ADR 0043 colour split).
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 
 // Figure of Destiny — {R/W} Creature — Kithkin, 1/1 (Vintage Cube, issue
 // #1749). "{R/W}: This creature becomes a Kithkin Spirit with base power and
@@ -36,7 +36,7 @@ import type { CardDefinition } from "../../types";
 // it simply does nothing if the condition is false), so they are an `if`
 // predicate inside the script: `objectMatchesFilter` (issue #1747), the
 // live-object predicate that reads the subtype an EARLIER activation granted.
-export const figureOfDestiny: CardDefinition = {
+export const figureOfDestiny = defineCard(() => ({
     id: "0da69523-cece-425a-b08a-fb27fac29374",
     rarity: "rare",
     name: "Figure of Destiny",
@@ -165,4 +165,4 @@ export const figureOfDestiny: CardDefinition = {
             ],
         },
     ],
-};
+}));

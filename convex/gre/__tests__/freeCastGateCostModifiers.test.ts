@@ -82,7 +82,7 @@ const announce = (
 /** Thalia, Guardian of Thraben on p2's board — "Noncreature spells cost {1}
  *  more to cast", any controller, so it reaches p1's spells too. */
 const thalia = () =>
-    makeInstance(thaliaGuardianOfThraben.id, {
+    makeInstance(thaliaGuardianOfThraben().id, {
         id: "thaliaG",
         controllerId: "p2",
         ownerId: "p2",
@@ -104,7 +104,7 @@ describe("the free-exile cast gate folds cost modifiers (CR 118.6a / 118.9d, iss
         pool: number;
         taxed: boolean;
     }): GameState {
-        const exiled = makeInstance(gush.id, {
+        const exiled = makeInstance(gush().id, {
             id: "waivedGush",
             zone: "exile",
             controllerId: "p2",
@@ -202,7 +202,7 @@ describe("a waived cast owes the increase but NOT the printed pips it waived (CR
     // Figure of Destiny ({R/W}) is the discriminating card: printed pip, waived
     // away, under an increase, with exactly enough mana for the increase alone.
     function board(taxed: boolean): GameState {
-        const exiled = makeInstance(figureOfDestiny.id, {
+        const exiled = makeInstance(figureOfDestiny().id, {
             id: "waivedFigure",
             zone: "exile",
             controllerId: "p2",
@@ -218,7 +218,7 @@ describe("a waived cast owes the increase but NOT the printed pips it waived (CR
             players: [
                 makePlayer("p1", {
                     battlefield: [
-                        makeInstance(mountain.id, {
+                        makeInstance(mountain().id, {
                             id: "mtnH",
                             controllerId: "p1",
                             ownerId: "p1",
@@ -282,7 +282,7 @@ describe("the flashback cast gate folds cost modifiers (CR 118.9d / 601.2f, issu
         mountains: number;
         taxed: boolean;
     }): GameState {
-        const inGy = makeInstance(firebolt.id, {
+        const inGy = makeInstance(firebolt().id, {
             id: "gyBolt",
             zone: "graveyard",
             controllerId: "p1",
@@ -291,7 +291,7 @@ describe("the flashback cast gate folds cost modifiers (CR 118.9d / 601.2f, issu
         const lands: CardInstanceState[] = Array.from(
             { length: opts.mountains },
             (_, i) =>
-                makeInstance(mountain.id, {
+                makeInstance(mountain().id, {
                     id: `mtnF-${i}`,
                     controllerId: "p1",
                     ownerId: "p1",

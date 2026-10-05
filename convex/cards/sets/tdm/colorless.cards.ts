@@ -3,8 +3,8 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, EffectOp, TargetRequirement } from "../../types";
-import { PERMANENT_TYPES } from "../../types";
+import type { EffectOp, TargetRequirement } from "../../types";
+import { defineCard, PERMANENT_TYPES } from "../../types";
 import { spellCastTrigger } from "../../abilities/triggers/spellCastTrigger";
 
 // Ugin, Eye of the Storms — {7} Legendary Planeswalker — Ugin, loyalty 7
@@ -97,7 +97,7 @@ const UGIN_EXILE_COLORED: EffectOp[] = [{ op: "exile", target: { target: 0 } }];
 // compiler-gap: "+2: You gain 3 life and draw a card." (#2693)
 // compiler-gap: "0: Add {C}{C}{C}." (#2693)
 // compiler-gap: "-11: Search your library for any number of colorless nonland cards, exile them, then shuffle. Until end of turn, you may cast those cards without paying their mana costs." (#2693)
-export const uginEyeOfTheStorms: CardDefinition = {
+export const uginEyeOfTheStorms = defineCard(() => ({
     id: "64a5d494-efa1-446b-bebe-2ad36e154376",
     name: "Ugin, Eye of the Storms",
     rarity: "mythic",
@@ -192,4 +192,4 @@ export const uginEyeOfTheStorms: CardDefinition = {
             ],
         },
     ],
-};
+}));

@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, ManaCost, MayPayCost } from "../../types";
+import { defineCard, type ManaCost, type MayPayCost } from "../../types";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { makeTapForMana } from "../../abilities";
@@ -76,7 +76,7 @@ function lairManaAbility(
     };
 }
 
-export const crosissCatacombs: CardDefinition = {
+export const crosissCatacombs = defineCard(() => ({
     id: "7caad74f-c0d0-4eca-94be-b89a2c9a3980",
     name: "Crosis's Catacombs",
     rarity: "uncommon",
@@ -91,9 +91,9 @@ export const crosissCatacombs: CardDefinition = {
             [{ U: 1 }, { B: 1 }, { R: 1 }]
         ),
     ],
-};
+}));
 
-export const darigaazsCaldera: CardDefinition = {
+export const darigaazsCaldera = defineCard(() => ({
     id: "752f6f0c-af30-4937-b4a7-48f493e007a0",
     name: "Darigaaz's Caldera",
     rarity: "uncommon",
@@ -108,9 +108,9 @@ export const darigaazsCaldera: CardDefinition = {
             [{ B: 1 }, { R: 1 }, { G: 1 }]
         ),
     ],
-};
+}));
 
-export const dromarsCavern: CardDefinition = {
+export const dromarsCavern = defineCard(() => ({
     id: "85f10cee-6a63-438e-a9df-6b902dd025b8",
     name: "Dromar's Cavern",
     rarity: "uncommon",
@@ -125,9 +125,9 @@ export const dromarsCavern: CardDefinition = {
             { B: 1 },
         ]),
     ],
-};
+}));
 
-export const rithsGrove: CardDefinition = {
+export const rithsGrove = defineCard(() => ({
     id: "740fa25d-9c1f-44eb-9eb4-0dd514cb315a",
     name: "Rith's Grove",
     rarity: "uncommon",
@@ -142,9 +142,9 @@ export const rithsGrove: CardDefinition = {
             { W: 1 },
         ]),
     ],
-};
+}));
 
-export const trevasRuins: CardDefinition = {
+export const trevasRuins = defineCard(() => ({
     id: "8bae2458-b54f-426a-ad40-13529a73c423",
     name: "Treva's Ruins",
     rarity: "uncommon",
@@ -159,7 +159,7 @@ export const trevasRuins: CardDefinition = {
             { U: 1 },
         ]),
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // C6 — Board-derived restricted-colour mana abilities (CR 605.1a, issue #1941).
@@ -194,7 +194,7 @@ const ANY_SINGLE_COLOR: ManaCost[] = [
 // CR 106.4 "could produce" over the controller's own BASIC lands only —
 // `supertypes: "Basic"` is read from the LIVE supertype set, so a
 // non-basic dual never contributes.)
-export const starCompass: CardDefinition = {
+export const starCompass = defineCard(() => ({
     id: "b1d0beb4-c3dd-4bb1-b49b-a48b2d4ad38d",
     rarity: "uncommon",
     name: "Star Compass",
@@ -221,7 +221,7 @@ export const starCompass: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // Meteor Crater — Land. "{T}: Choose a color of a permanent you control. Add
 // one mana of that color." (CR 605.1a mana ability, `useStack: false`. The
@@ -230,7 +230,7 @@ export const starCompass: CardDefinition = {
 // than what it could produce — a Forest contributes nothing, a green creature
 // contributes {G}. Meteor Crater itself is a colourless land, so it never
 // contributes to its own list.)
-export const meteorCrater: CardDefinition = {
+export const meteorCrater = defineCard(() => ({
     id: "043a2299-1cfc-4732-a10a-58c773b9992c",
     rarity: "rare",
     name: "Meteor Crater",
@@ -252,7 +252,7 @@ export const meteorCrater: CardDefinition = {
             },
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // C8f — Random pick from the exile-by-source pile (CR 400.7 / 701.13, issue
@@ -315,7 +315,7 @@ export const meteorCrater: CardDefinition = {
 // disambiguation, the ability is still activatable (its mana/tap cost is
 // still paid) but resolves with no effect, matching the same ruling that
 // the initial search "may choose to not find anything."
-export const skyshipWeatherlight: CardDefinition = {
+export const skyshipWeatherlight = defineCard(() => ({
     id: "63f5498b-bb12-48ec-811b-b52e45ffddaf", // PLS 133 (canonical art)
     rarity: "rare",
     name: "Skyship Weatherlight",
@@ -363,7 +363,7 @@ export const skyshipWeatherlight: CardDefinition = {
             effects: [{ op: "randomExileToHand" }],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PLS free tranche — colourless cards (#1954, parent PRD #1935): Forsaken
@@ -383,7 +383,7 @@ export const skyshipWeatherlight: CardDefinition = {
 // the same hand-leg shape Formidable Speaker's "you may discard a card" uses
 // (ecl/green.ts), substituting `action: "exile"` for `"discard"` (CR 701.13
 // vs 701.9).
-export const forsakenCity: CardDefinition = {
+export const forsakenCity = defineCard(() => ({
     id: "676703fe-bd80-413c-8704-1da5d3248b7e", // PLS 139
     rarity: "rare",
     name: "Forsaken City",
@@ -434,14 +434,14 @@ export const forsakenCity: CardDefinition = {
             manaChoices: ANY_SINGLE_COLOR,
         },
     ],
-};
+}));
 
 // Mana Cylix — {1} Artifact. "{1}, {T}: Add one mana of any color." (Modern
 // Oracle, verified via Scryfall — no "colours already spent this turn"
 // restriction; that recollection was wrong. A plain unrestricted five-colour
 // rock, the SAME `manaChoices: ANY_SINGLE_COLOR` shape Star Compass uses
 // above, with no `manaColorSource` board restriction.)
-export const manaCylix: CardDefinition = {
+export const manaCylix = defineCard(() => ({
     id: "c6f95767-afda-4d74-bbd4-1b702eeae54b", // PLS 132
     rarity: "uncommon",
     name: "Mana Cylix",
@@ -457,7 +457,7 @@ export const manaCylix: CardDefinition = {
             manaChoices: ANY_SINGLE_COLOR,
         },
     ],
-};
+}));
 
 // Terminal Moraine — Land. "{T}: Add {C}.\n{2}, {T}, Sacrifice this land:
 // Search your library for a basic land card, put that card onto the
@@ -465,7 +465,7 @@ export const manaCylix: CardDefinition = {
 // (eld/colorless.cards.ts) exactly — `choice`(search-library, `supertype: "Basic"`)
 // + `moveZone`(cards, `to: "battlefield"`, `tapped: true`) + `libraryLook`
 // (shuffle) — with an added `{2}` mana leg on the activation cost.
-export const terminalMoraine: CardDefinition = {
+export const terminalMoraine = defineCard(() => ({
     id: "353a8ea8-3f1f-4f77-95bc-b09b96996285", // PLS 142
     rarity: "uncommon",
     name: "Terminal Moraine",
@@ -507,7 +507,7 @@ export const terminalMoraine: CardDefinition = {
             ],
         },
     ],
-};
+}));
 
 // ─────────────────────────────────────────────────────────────────────────
 // C3 — Domain-driven cost reduction (CR 601.2f / 702 preamble, issue #1958).
@@ -576,7 +576,7 @@ export const terminalMoraine: CardDefinition = {
 // NOTE the two Domain reads are INDEPENDENT: the cast reduction is evaluated
 // at announcement, the upkeep reduction at each upkeep resolution, off
 // whatever board exists then. Neither is snapshotted from the other.
-export const draco: CardDefinition = {
+export const draco = defineCard(() => ({
     id: "212e3edb-62f1-4680-884f-70323547f8ad", // PLS 131
     rarity: "rare",
     name: "Draco",
@@ -620,13 +620,13 @@ export const draco: CardDefinition = {
             ],
         }),
     ],
-};
+}));
 
 // Stratadon — {10} Artifact Creature — Beast, 5/5 (PLS, uncommon). Modern
 // Scryfall Oracle text is authoritative (ADR 0004). The same self-host Domain
 // reduction as Draco at {1} per basic land type (so {5} at Domain 5), plus
 // plain trample — no upkeep leg.
-export const stratadon: CardDefinition = {
+export const stratadon = defineCard(() => ({
     id: "324bc757-9942-4862-b691-5af42e07f682", // PLS 135
     rarity: "uncommon",
     name: "Stratadon",
@@ -641,4 +641,4 @@ export const stratadon: CardDefinition = {
     selfCostReduction: {
         costReduction: { perCount: { X: 1 }, countMode: "domain" },
     },
-};
+}));

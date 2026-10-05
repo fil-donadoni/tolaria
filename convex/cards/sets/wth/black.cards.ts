@@ -1,5 +1,5 @@
 // wth — black cards (ADR 0043 colour split).
-import type { CardDefinition, SpellContext } from "../../types";
+import { defineCard, type SpellContext } from "../../types";
 
 // Doomsday — {B}{B}{B} Sorcery. "Search your library and graveyard for five
 // cards and exile the rest. Put the chosen cards on top of your library in any
@@ -47,7 +47,7 @@ import type { CardDefinition, SpellContext } from "../../types";
 // across the two zones is reachable. The library prompt's min/max are clamped
 // so the two picks always total five, or as many as exist (CR 701.23d — a
 // search for a QUANTITY of cards must find that many).
-export const doomsday: CardDefinition = {
+export const doomsday = defineCard(() => ({
     id: "5b3c6d87-9383-450b-bba5-33435b6b0d08",
     name: "Doomsday",
     rarity: "rare",
@@ -162,4 +162,4 @@ export const doomsday: CardDefinition = {
             ctx.loseLife(me, Math.max(0, Math.ceil(ctx.getLife(me) / 2)));
         },
     ],
-};
+}));

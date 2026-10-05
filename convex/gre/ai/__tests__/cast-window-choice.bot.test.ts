@@ -82,13 +82,13 @@ describe("Madness cast window as a search node (CR 702.35a, issue #2983)", () =>
      *  for the madness cost and NOT for the printed one, so the same board
      *  proves both the pricing claim and the affordability gate. */
     function ravagerWindow(mountains: number): GameState {
-        const card = makeInstance(anjesRavager.id, {
+        const card = makeInstance(anjesRavager().id, {
             zone: "hand",
             controllerId: "p1",
             ownerId: "p1",
         });
         const lands = Array.from({ length: mountains }, (_, i) =>
-            makeInstance(mountain.id, {
+            makeInstance(mountain().id, {
                 id: `mtn${i}`,
                 zone: "battlefield",
                 controllerId: "p1",
@@ -161,7 +161,7 @@ describe("Madness cast window as a search node (CR 702.35a, issue #2983)", () =>
 
         const p1 = getPlayer(state, "p1");
         // CR 702.35a — "or put it into their graveyard".
-        expect(p1.graveyard.some((c) => c.card.id === anjesRavager.id)).toBe(
+        expect(p1.graveyard.some((c) => c.card.id === anjesRavager().id)).toBe(
             true
         );
         expect(p1.exile).toHaveLength(0);
@@ -215,7 +215,7 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
      *  `hasTarget` deciding whether its free recast has a legal target — the
      *  discriminator for the fail-closed claim. */
     function ephemerateWindow(hasTarget: boolean): GameState {
-        const bear = makeInstance(grizzlyBears.id, {
+        const bear = makeInstance(grizzlyBears().id, {
             id: "bear",
             controllerId: "p1",
             ownerId: "p1",
@@ -229,7 +229,7 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
         });
         const item = pushSpell(
             state,
-            ephemerate.id,
+            ephemerate().id,
             "p1",
             hasTarget ? [{ type: "permanent", id: "bear" }] : []
         );
@@ -277,8 +277,8 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
 
         const p1 = getPlayer(state, "p1");
         // CR 702.88c — "it remains exiled": no zone change, unlike Madness.
-        expect(p1.exile.some((c) => c.card.id === ephemerate.id)).toBe(true);
-        expect(p1.graveyard.some((c) => c.card.id === ephemerate.id)).toBe(
+        expect(p1.exile.some((c) => c.card.id === ephemerate().id)).toBe(true);
+        expect(p1.graveyard.some((c) => c.card.id === ephemerate().id)).toBe(
             false
         );
         expect(state.reboundCastWindow).toBeUndefined();
@@ -321,8 +321,8 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
         expect(after.reboundCastWindow).toBeUndefined();
         expect(after.pendingChoices ?? []).toHaveLength(0);
         const p1 = getPlayer(after, "p1");
-        expect(p1.exile.some((c) => c.card.id === ephemerate.id)).toBe(true);
-        expect(p1.graveyard.some((c) => c.card.id === ephemerate.id)).toBe(
+        expect(p1.exile.some((c) => c.card.id === ephemerate().id)).toBe(true);
+        expect(p1.graveyard.some((c) => c.card.id === ephemerate().id)).toBe(
             false
         );
         // Pure: the caller's state is untouched (this leaf clones).
@@ -340,7 +340,7 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
         // name-only key cannot see.
         const state = ephemerateWindow(true);
         const p1 = getPlayer(state, "p1");
-        const second = makeInstance(grizzlyBears.id, {
+        const second = makeInstance(grizzlyBears().id, {
             id: "bear2",
             controllerId: "p1",
             ownerId: "p1",
@@ -368,7 +368,7 @@ describe("Rebound cast window as a search node (CR 702.88a, issue #2983)", () =>
         const p1 = getPlayer(state, "p1");
         for (let i = 0; i < 9; i++) {
             p1.battlefield.push(
-                makeInstance(grizzlyBears.id, {
+                makeInstance(grizzlyBears().id, {
                     id: `extra${i}`,
                     controllerId: "p1",
                     ownerId: "p1",

@@ -39,14 +39,14 @@ import {
     pendingCastRemainingGeneric,
 } from "~/lib/card-utils";
 
-const BASICS = [plains, island, swamp, mountain, forest];
+const BASICS = [plains(), island(), swamp(), mountain(), forest()];
 
 /** A board where p1 controls `domain` distinct basic land types plus Draco in
  *  hand, with the cast already announced: `pendingCast.manaCost` is produced by
  *  the SAME `getCostModifiers` + `applyCostModifiers` fold the server runs at
  *  announcement, so the number under test is the engine's, not the test's. */
 function announcedDracoState(domain: number, pool: number): GameState {
-    const dracoCard = makeInstance(draco.id, {
+    const dracoCard = makeInstance(draco().id, {
         id: "draco-hand",
         controllerId: "p1",
         ownerId: "p1",
@@ -71,7 +71,7 @@ function announcedDracoState(domain: number, pool: number): GameState {
         activePlayerId: "p1",
         priorityPlayerId: "p1",
     });
-    const manaCost = normalizeManaCost(draco.manaCost ?? {});
+    const manaCost = normalizeManaCost(draco().manaCost ?? {});
     applyCostModifiers(manaCost, getCostModifiers(state, dracoCard, "spell"));
     state.pendingCast = {
         playerId: "p1",

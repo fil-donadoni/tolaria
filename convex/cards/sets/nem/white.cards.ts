@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition } from "../../types";
+import { defineCard } from "../../types";
 import { leftTrigger } from "../../abilities/triggers/leftTrigger";
 import { holdsExileBundle } from "../../abilities/exileBundle";
 
@@ -24,7 +24,7 @@ import { holdsExileBundle } from "../../abilities/exileBundle";
 // leaves trigger returns every card exiled with this enchantment to its owner's
 // control (`returnExiledForSource` iterates every bundle keyed to this source).
 const PARALLAX_WAVE_ID = "cef789e8-e4cc-4f61-bc15-debc2487777f"; // NEM 17
-export const parallaxWave: CardDefinition = {
+export const parallaxWave = defineCard(() => ({
     id: PARALLAX_WAVE_ID,
     name: "Parallax Wave",
     rarity: "rare",
@@ -60,4 +60,4 @@ export const parallaxWave: CardDefinition = {
             effects: [{ op: "returnExiledForSource" }],
         }),
     ],
-};
+}));

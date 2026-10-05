@@ -701,9 +701,9 @@ describe("spell resolution: Lightning Bolt", () => {
     ): StackItem {
         return makeStackItem(
             {
-                id: lightningBolt.id,
-                name: lightningBolt.name,
-                types: lightningBolt.types,
+                id: lightningBolt().id,
+                name: lightningBolt().name,
+                types: lightningBolt().types,
             },
             castById,
             { targets }
@@ -801,9 +801,9 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
         // Step 1: Giant Growth resolves on the elf (+3/+3)
         const growth = makeStackItem(
             {
-                id: giantGrowth.id,
-                name: giantGrowth.name,
-                types: giantGrowth.types,
+                id: giantGrowth().id,
+                name: giantGrowth().name,
+                types: giantGrowth().types,
             },
             "p1",
             { targets: [{ type: "permanent", id: "elf1" }] }
@@ -826,9 +826,9 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
         // Step 2: Lightning Bolt resolves on the elf (3 damage)
         const bolt = makeStackItem(
             {
-                id: lightningBolt.id,
-                name: lightningBolt.name,
-                types: lightningBolt.types,
+                id: lightningBolt().id,
+                name: lightningBolt().name,
+                types: lightningBolt().types,
             },
             "p2",
             { targets: [{ type: "permanent", id: "elf1" }] }
@@ -864,9 +864,9 @@ describe("spell resolution: Giant Growth + Lightning Bolt interaction", () => {
 
         const bolt = makeStackItem(
             {
-                id: lightningBolt.id,
-                name: lightningBolt.name,
-                types: lightningBolt.types,
+                id: lightningBolt().id,
+                name: lightningBolt().name,
+                types: lightningBolt().types,
             },
             "p2",
             { targets: [{ type: "permanent", id: "elf1" }] }
@@ -955,9 +955,9 @@ describe("spell resolution: Ancestral Recall", () => {
     function pushRecall(state: GameState, castBy: string, targetId: string) {
         const item = makeStackItem(
             {
-                id: ancestralRecall.id,
-                name: ancestralRecall.name,
-                types: ancestralRecall.types,
+                id: ancestralRecall().id,
+                name: ancestralRecall().name,
+                types: ancestralRecall().types,
             },
             castBy,
             { targets: [{ type: "player", id: targetId }] }
@@ -985,7 +985,7 @@ describe("spell resolution: Ancestral Recall", () => {
         expect(getPlayer(state, "p1").graveyard).toHaveLength(1);
         expect(
             (getPlayer(state, "p1").graveyard[0].card as { id: string }).id
-        ).toBe(ancestralRecall.id);
+        ).toBe(ancestralRecall().id);
     });
 
     it("targeting self draws three cards", () => {

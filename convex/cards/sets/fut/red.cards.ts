@@ -1,6 +1,5 @@
 // fut — red cards (ADR 0043 colour split).
-import type { CardDefinition } from "../../types";
-import { IS_NONBASIC_LAND } from "../../types";
+import { defineCard, IS_NONBASIC_LAND } from "../../types";
 
 // Magus of the Moon — {2}{R} 2/2 Creature — Human Wizard. "Nonbasic lands are
 // Mountains." Future Sight's "Magus of the ~" cycle reprints an older
@@ -24,7 +23,7 @@ import { IS_NONBASIC_LAND } from "../../types";
 // on nothing, since `IS_NONBASIC_LAND` reads the printed type line and the Basic
 // supertype and neither is anything Urborg writes.
 // compiler-gap: Nonbasic lands are Mountains. (#2693)
-export const magusOfTheMoon: CardDefinition = {
+export const magusOfTheMoon = defineCard(() => ({
     id: "c06a4443-6851-4873-8fb8-2ef76c9d6d2c",
     rarity: "rare",
     name: "Magus of the Moon",
@@ -57,4 +56,4 @@ export const magusOfTheMoon: CardDefinition = {
             reads: [{ characteristic: "supertypes", values: ["Basic"] }],
         },
     ],
-};
+}));
