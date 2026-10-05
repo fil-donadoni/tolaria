@@ -1236,12 +1236,30 @@
                 "name": "Hill Giant",
                 "owner": "opp",
                 "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
+                "name": "Hill Giant",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
             }
         ],
-        "phase": "PRECOMBAT_MAIN",
-        "turn": 5,
-        "landCount": 4,
-        "libraryCount": 20
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 7,
+        "landCount": 6,
+        "libraryCount": 0
     },
     "positive-control: plays its only land on an empty board": {
         "cards": [

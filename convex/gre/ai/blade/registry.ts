@@ -9676,18 +9676,46 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
                 { name: "Ravenous Rats", owner: "me", zone: "hand" },
                 { name: "Grizzly Bears", owner: "opp", zone: "hand" },
                 { name: "Hill Giant", owner: "opp", zone: "hand" },
+                // Issue #4981 — the search re-deals the opponent's hand from
+                // the unseen pool (the Mind Rot entry below, issue #4917):
+                // with twenty filler basics the discard read as a land. The
+                // opponent's library is the same two creatures, the Bot's own
+                // is Swamps.
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                {
+                    name: "Hill Giant",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Swamp", owner: "me", zone: "library", count: 20 },
             ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            landCount: 4,
-            libraryCount: 20,
+            // The LAST main phase of the turn (issue #4981, the shape of
+            // issue #4877 and issue #4882). In the precombat main `pass`
+            // reaches the postcombat one with the same cast still open, and
+            // with no creature on either side the two are the same play: the
+            // edges sat 0.004-0.017 reward apart on seeds 0..9, every pick
+            // `material-tiebreak`, and a ±1% weight jitter or a refit flipped
+            // a seed. Here `pass` hands the opponent a turn with both cards.
+            phase: "POSTCOMBAT_MAIN",
+            turn: 7,
+            // Six lands a side: the opponent can cast both cards next turn
+            // (measured: the cast leads `pass` by 0.013-0.020 reward at four
+            // lands, 0.032-0.036 at six).
+            landCount: 6,
+            libraryCount: 0,
         },
         bot: "me",
         budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 4, 5],
+        seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Ravenous Rats" }] },
-        note: "Issue #4895 (issue #4758 review). Its ETB Ability makes the opponent discard (their pick, CR 701.9b), so the policy probe stops with the trigger in flight; `etbAbilitiesInFlight` credits it. Measured cast on 5/5 seeds. The general opponent-choice limit is issue #4896. Re-seeded 3 → 5 by issue #4934's refit: seed 3 passes on the prior weights, seeds 3 and 9 of 0–12 fail on the refit — noise, owned by issue #4981.",
+        note: "Issue #4895 (issue #4758 review), re-cut by issue #4981. Its ETB Ability makes the opponent discard (their pick, CR 701.9b), answered in the probe, the tree walk and the rollout since issue #4896 and issue #4917. Measured on seeds 0..9 at 400: cast 10/10, 0.032-0.036 reward ahead of `pass`; every pick `mean-reward` because `pass` falls out of the visit band (226-229 visits against 171-174, `visitTol` 0.15), the lead itself being under `outcomeEps`; cast 10/10 at 200 and 800 too, the lead narrowing with budget (0.056-0.070, 0.017-0.019). The same board with an empty opposing hand picks `pass` on 10/10 — the discard is what the cast is for. Seeds back to 0..4: the 3 → 5 swap of issue #4934 hid the precombat tie.",
     },
     {
         label: "opponent's choice: casts Chainer's Edict at the opponent's only creature",
