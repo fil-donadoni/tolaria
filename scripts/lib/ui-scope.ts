@@ -30,6 +30,12 @@
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
  *     modules) → `full`: the shell renders around every surface;
  *   - in one or more surfaces' closures → selects those surfaces;
+ *   - in no closure at all, and SERVER-ONLY (`isServerOnlyPath`: `convex/**`
+ *     or `data/**` outside `convex/_generated/`) → contributes nothing: the
+ *     walk runs the tree's frontend against whatever functions the shared
+ *     deployment serves, and never pushes Convex functions (ADR 0131
+ *     amendment, issue #5074). A module the frontend DOES import is in a
+ *     closure and was placed above;
  *   - otherwise → `full`.
  *
  * A SURFACE'S CLOSURE is its route entries' import closure — except for a
@@ -106,6 +112,23 @@ export function isNonDomPath(path: string): boolean {
         /^scripts\//.test(path) ||
         /\.md$/.test(path)
     );
+}
+
+/** `data/` directories the client loads through `import.meta.glob` (`?url`,
+ *  eager): the import graph follows no glob, so they sit in no closure yet
+ *  ship the card data every screen renders. */
+const GLOB_LOADED_DATA_DIRS = ["data/catalogue/", "data/full-catalogue/"];
+
+/**
+ * A path only the server or tooling reads: `convex/**` or `data/**`, minus
+ * `convex/_generated/**` (the frontend imports `api` from it) and the
+ * glob-loaded catalogue artifacts. Meaningful only for a path no closure
+ * contains — the closure rules run first.
+ */
+export function isServerOnlyPath(path: string): boolean {
+    if (path.startsWith("convex/_generated/")) return false;
+    if (GLOB_LOADED_DATA_DIRS.some((dir) => path.startsWith(dir))) return false;
+    return path.startsWith("convex/") || path.startsWith("data/");
 }
 
 /**
@@ -212,6 +235,7 @@ export function computeUiScope({
         const hits = closures.filter((c) => c.files.has(path));
         if (hits.length === 0) {
             if (typeOnlyReachable(path)) continue;
+            if (isServerOnlyPath(path)) continue;
             return {
                 kind: "full",
                 reason: `${path} is in no surface's closure and no rule places it`,
