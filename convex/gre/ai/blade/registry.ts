@@ -6708,11 +6708,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "known top: plays the creature instead when the known top is a blank",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "known top: digs with a cantrip because it knows the Bolt is there",
             discriminant: {
                 kind: "card",
-                detail: "Lightning Bolt pinned on top in place of the blank",
+                detail: "a blank pinned on top in place of the Lightning Bolt",
             },
         },
         spec: {
@@ -10630,11 +10630,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "ETB Ability spent: holds Skyclave Apparition while its ETB has nothing to exile",
             discriminant: {
                 kind: "card",
-                detail: "no opposing nonland permanent to exile",
+                detail: "an opposing Hill Giant to exile",
             },
         },
         spec: {
@@ -10696,11 +10696,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
             discriminant: {
                 kind: "card",
-                detail: "no opposing creature on the battlefield",
+                detail: "an opposing creature to take the 4 damage",
             },
         },
         spec: {
@@ -11315,9 +11315,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
-        classification: {
-            kind: "conditional",
-            discriminant: { kind: "card", detail: "an empty graveyard" },
+        pairOf: {
+            anchor: "Snapcaster Mage: holds it in its own main phase with an empty graveyard",
+            discriminant: {
+                kind: "card",
+                detail: "Flame Slash in the graveyard and an opposing Serra Angel to kill",
+            },
         },
         spec: {
             cards: [
