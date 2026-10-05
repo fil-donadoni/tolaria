@@ -8,7 +8,7 @@
  * same precedence) and run here against the live definitions: the reference
  * the index-backed catalogue is compared with, pointwise.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import {
     getAllCardNames,
     getAllCards,
@@ -172,15 +172,16 @@ describe("the Definition Index answers what the eager walk answered (issue #4856
         expect(getAllCardNames()).toEqual(eager.names);
         expect(getChooseableCardNames()).toEqual(eager.chooseable);
     });
+});
 
-    it("decodes a printed back face's token id with the declaring card's own triggers (CR 712.8e)", async () => {
-        expect(eager.backFaceOwner.size).toBeGreaterThan(0);
-        // A FRESH module graph: in this worker the setup's freeze walk made
-        // every hand-written card resident, and the registry's scan of
-        // resident cards would answer without the index. Fresh, the owner is
-        // resident only if the index's lookup resolves it.
+describe("a fresh module graph (issue #4856)", () => {
+    // FRESH, because in this worker the setup's freeze walk made every
+    // hand-written card resident — and residency would answer for an index
+    // that does not. The order of the tests below matters: the first one
+    // reads the graph exactly as loading left it.
+    let fresh: typeof import("../index");
+    beforeAll(async () => {
         vi.resetModules();
-        let fresh: typeof import("../index");
         try {
             fresh = await import("../index");
         } finally {
@@ -188,6 +189,18 @@ describe("the Definition Index answers what the eager walk answered (issue #4856
             // inherit this graph from the module cache.
             vi.resetModules();
         }
+    }, 120_000);
+
+    it("loading makes no catalogue card resident", () => {
+        const catalogue = new Set(eager.population.map((d) => d.id));
+        const resident = [...fresh.residentDefinitionIds()].filter((id) =>
+            catalogue.has(id)
+        );
+        expect(resident).toEqual([]);
+    });
+
+    it("decodes a printed back face's token id with the declaring card's own triggers (CR 712.8e)", () => {
+        expect(eager.backFaceOwner.size).toBeGreaterThan(0);
         const rawOwners = new Map(
             [
                 ...fresh.walkHandWrittenDefinitions().map((e) => e.definition),
@@ -202,5 +215,13 @@ describe("the Definition Index answers what the eager walk answered (issue #4856
                 rawOwners.get(owner.id)!.backFace!.triggeredAbilities![0]
             );
         }
-    }, 120_000);
+    });
+
+    it("enumerates every catalogue card through registeredDefinitions, resolved or not", () => {
+        const enumerated = new Set(
+            [...fresh.registeredDefinitions()].map((d) => d.id)
+        );
+        const missing = eager.population.filter((d) => !enumerated.has(d.id));
+        expect(missing.map((d) => d.name)).toEqual([]);
+    });
 });
