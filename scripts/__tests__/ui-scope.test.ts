@@ -169,6 +169,19 @@ describe("computeUiScope — scoped", () => {
         });
     });
 
+    it.each([
+        "data/catalogue/catalogue-abc.json",
+        "data/full-catalogue/full-catalogue-abc.json.gz",
+    ])(
+        "%s is loaded by the client through import.meta.glob — never server-only (issue #5074 review)",
+        (artifact) => {
+            expect(scopeOf(artifact)).toEqual({
+                kind: "full",
+                reason: `${artifact} is in no surface's closure and no rule places it`,
+            });
+        }
+    );
+
     it("a test-only diff selects nothing", () => {
         expect(
             scopeOf(

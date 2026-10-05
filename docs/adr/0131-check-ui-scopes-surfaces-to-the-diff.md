@@ -289,6 +289,10 @@ After the closure and type-only rules, before the `otherwise → full`
 fallback, a path under `convex/` or `data/` that sits in no closure
 **contributes nothing** (`isServerOnlyPath`). Left unchanged:
 
+- `data/catalogue/` and `data/full-catalogue/` are excluded too: the client
+  loads those artifacts through `import.meta.glob` (`?url`, eager), an edge
+  the import graph does not follow, and they carry the card data every screen
+  renders — an unplaced path there still forces FULL;
 - `convex/_generated/**` is excluded from the rule — the frontend imports
   `api` from it — so it keeps whatever placement it had (closure hit, else
   FULL);

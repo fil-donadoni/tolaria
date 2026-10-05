@@ -114,13 +114,20 @@ export function isNonDomPath(path: string): boolean {
     );
 }
 
+/** `data/` directories the client loads through `import.meta.glob` (`?url`,
+ *  eager): the import graph follows no glob, so they sit in no closure yet
+ *  ship the card data every screen renders. */
+const GLOB_LOADED_DATA_DIRS = ["data/catalogue/", "data/full-catalogue/"];
+
 /**
  * A path only the server or tooling reads: `convex/**` or `data/**`, minus
- * `convex/_generated/**` (the frontend imports `api` from it). Meaningful only
- * for a path no closure contains — the closure rules run first.
+ * `convex/_generated/**` (the frontend imports `api` from it) and the
+ * glob-loaded catalogue artifacts. Meaningful only for a path no closure
+ * contains — the closure rules run first.
  */
 export function isServerOnlyPath(path: string): boolean {
     if (path.startsWith("convex/_generated/")) return false;
+    if (GLOB_LOADED_DATA_DIRS.some((dir) => path.startsWith(dir))) return false;
     return path.startsWith("convex/") || path.startsWith("data/");
 }
 
