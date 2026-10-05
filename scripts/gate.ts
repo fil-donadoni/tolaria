@@ -1061,10 +1061,6 @@ function startHeartbeat() {
             // The subtree is working again and nobody has reclaimed it yet
             // (the lock is still ours, checked above): withdraw the
             // declaration before the reclaimer's five minutes run out.
-            console.error(
-                "[gate] RECOVERED — the held subtree is burning CPU again; heartbeating, stall withdrawn."
-            );
-            logEvent({ event: "recovered", subtree_cpu_ms: cpu });
             try {
                 writeJsonAtomic(OWNER_FILE, {
                     ...owner,
@@ -1074,6 +1070,12 @@ function startHeartbeat() {
             } catch {
                 /* lock may be mid-release — never crash the gate for this */
             }
+            // Announced AFTER the write: the line says "withdrawn", so anyone
+            // reading it (a test, an operator) finds the stamp already clean.
+            console.error(
+                "[gate] RECOVERED — the held subtree is burning CPU again; heartbeating, stall withdrawn."
+            );
+            logEvent({ event: "recovered", subtree_cpu_ms: cpu });
             return;
         }
         if (step.verdict === "stalled") {
