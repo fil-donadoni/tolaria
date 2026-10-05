@@ -162,7 +162,7 @@ included.
 
 ### Skills
 
-Intake converges on grill → `/to-prd` → `/to-tickets` → issues labelled
+Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
 `ready-for-agent`; **`/next-issue` drains that queue one issue per session**
 (ADR 0110, single-session pipeline). Pick by where work comes FROM:
 
