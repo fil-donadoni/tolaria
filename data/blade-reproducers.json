@@ -52,7 +52,27 @@
         },
         "libraryCount": 20
     },
-    "activation timing: converts a sacrifice engine at the opponent's end step": null,
+    "activation timing: converts a sacrifice engine at the opponent's end step": {
+        "cards": [
+            {
+                "name": "Zuran Orb",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Titania, Protector of Argoth",
+                "owner": "opp",
+                "zone": "battlefield",
+                "summoningSick": false
+            }
+        ],
+        "phase": "END_STEP",
+        "activePlayer": "me",
+        "priority": "opp",
+        "turn": 5,
+        "landCount": 5,
+        "libraryCount": 20
+    },
     "alternate win: casts Thassa's Oracle when its trigger wins on the spot": {
         "cards": [
             {
@@ -1067,9 +1087,51 @@
         "landCount": 0,
         "libraryCount": 20
     },
-    "keep mana open: casts Accumulated Knowledge at the opponent's end step": null,
-    "keep mana open: casts Containment Priest at the opponent's end step": null,
-    "keep mana open: casts Impulse at the opponent's end step": null,
+    "keep mana open: casts Accumulated Knowledge at the opponent's end step": {
+        "cards": [
+            {
+                "name": "Accumulated Knowledge",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "END_STEP",
+        "activePlayer": "me",
+        "priority": "opp",
+        "turn": 3,
+        "landCount": 2,
+        "libraryCount": 20
+    },
+    "keep mana open: casts Containment Priest at the opponent's end step": {
+        "cards": [
+            {
+                "name": "Containment Priest",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "END_STEP",
+        "activePlayer": "me",
+        "priority": "opp",
+        "turn": 3,
+        "landCount": 2,
+        "libraryCount": 20
+    },
+    "keep mana open: casts Impulse at the opponent's end step": {
+        "cards": [
+            {
+                "name": "Impulse",
+                "owner": "opp",
+                "zone": "hand"
+            }
+        ],
+        "phase": "END_STEP",
+        "activePlayer": "me",
+        "priority": "opp",
+        "turn": 3,
+        "landCount": 2,
+        "libraryCount": 20
+    },
     "known top: digs with a cantrip because it knows the Bolt is there": null,
     "known top: plays the creature instead when the known top is a blank": null,
     "loyalty: activates Liliana's −2 to eat the opponent's only creature": {

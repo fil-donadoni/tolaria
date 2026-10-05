@@ -3,7 +3,7 @@
         {
             "label": "keep mana open: casts Accumulated Knowledge at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Aladdin's Ring": [
@@ -78,7 +78,7 @@
         {
             "label": "keep mana open: casts Containment Priest at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Damnation": [
@@ -213,7 +213,7 @@
         {
             "label": "keep mana open: casts Impulse at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         }
     ],
     "Incinerate": [
@@ -589,7 +589,7 @@
         {
             "label": "activation timing: converts a sacrifice engine at the opponent's end step",
             "tier": "must",
-            "needsSetup": true
+            "needsSetup": false
         },
         {
             "label": "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",

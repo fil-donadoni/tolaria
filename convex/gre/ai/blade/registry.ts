@@ -3556,20 +3556,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         spec: {
             cards: [
-                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
                 {
                     name: "Titania, Protector of Argoth",
-                    owner: "me",
+                    owner: "opp",
                     zone: "battlefield",
                     summoningSick: false,
                 },
             ],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 5,
             landCount: 5,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -3580,12 +3581,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "activation timing: converts a sacrifice engine at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the bot's own precombat main phase",
-            },
+        pairOf: {
+            anchor: "activation timing: holds a sacrifice engine through its own main phase",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [
@@ -3598,15 +3596,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 5,
             landCount: 5,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the seat
-        // holding the engine has to be `opp` for this to be the OPPONENT's end
-        // step from the bot's point of view. The built board hands priority to
-        // the active player; one `pass` walks it to the bot (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 200 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -4242,13 +4239,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
-            cards: [{ name: "Containment Priest", owner: "me", zone: "hand" }],
+            cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4346,13 +4344,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
-            cards: [{ name: "Impulse", owner: "me", zone: "hand" }],
+            cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4363,24 +4362,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Impulse at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "keep mana open: holds Impulse in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [{ name: "Impulse", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -4398,14 +4394,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         spec: {
             cards: [
-                { name: "Accumulated Knowledge", owner: "me", zone: "hand" },
+                { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
             ],
             phase: "PRECOMBAT_MAIN",
+            activePlayer: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        bot: "me",
+        bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
@@ -4416,26 +4413,23 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Accumulated Knowledge at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "keep mana open: holds Accumulated Knowledge in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [
                 { name: "Accumulated Knowledge", owner: "opp", zone: "hand" },
             ],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -4447,24 +4441,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "keep mana open: casts Containment Priest at the opponent's end step",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "step",
-                detail: "the Bot's own precombat main with no threat",
-            },
+        pairOf: {
+            anchor: "flash permanent: holds Containment Priest in its own main with no threat",
+            discriminant: { kind: "step", detail: "the opponent's end step" },
         },
         spec: {
             cards: [{ name: "Containment Priest", owner: "opp", zone: "hand" }],
             phase: "END_STEP",
+            // The opponent's end step (CR 513.1): `me` is the active
+            // player, the bot (`opp`) holds priority.
+            activePlayer: "me",
+            priority: "opp",
             turn: 3,
             landCount: 2,
             libraryCount: 20,
         },
-        // `me` is always the ACTIVE player in a `ScenarioSpec`, so the bot
-        // sits in the `opp` seat for this to be the OPPONENT's end step; one
-        // `pass` walks priority to it (CR 513.1).
-        setup: [{ kind: "pass", seat: "me" }],
         bot: "opp",
         budget: { iterations: 300 },
         seeds: [0xb1ade, 1, 2, 3, 4],
@@ -5676,10 +5667,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2686) — the positive-control
-        // half, `stretch` (see WHY STRETCH below).
+        // half (`must`; it was `stretch` until issue #2939 promoted it).
         //
-        // PAIRED WITH: "discriminating pair: does NOT sacrifice a land to
-        // Zuran Orb for 2 life". Neither half is meaningful alone: a bot that
+        // The right-hand half of the Minimal Pair its `pairOf` declares
+        // (issue #5108). Neither half is meaningful alone: a bot that
         // never activates Zuran Orb passes the other, and a bot that always
         // activates it passes this one. Only the pair distinguishes a bot that
         // prices the land — and only the OTHER half bears the `manaDevelopment`
@@ -5712,7 +5703,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // the promotion its note asked for is taken here.
         //
         // The seats invert for the forced reason every reactive entry inverts
-        // them: `me` is always the ACTIVE player in a `ScenarioSpec`, so the
+        // them: `me` is by default the ACTIVE player in a `ScenarioSpec`, so the
         // seat holding the engine has to be `opp` for this to be the
         // OPPONENT's end step. One `pass` walks priority to the bot.
         //
@@ -5722,12 +5713,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
         // ply later (measured: material margin 427.5 → 654.5 on resolution).
         label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "no Titania, Protector of Argoth on the battlefield",
-            },
+        pairOf: {
+            anchor: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
+            discriminant: TITANIA_PAYOFF,
         },
         spec: {
             cards: [
@@ -5762,12 +5750,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 1 of the discriminating pair (positive control) — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger); the pair still asks the only question #2686 wanted asked — does the bot convert a land when Titania pays it off, and refuse when she is not there. Re-pointed and promoted `stretch` → `must` by issue #2939: the original PRECOMBAT_MAIN window was seed noise (10/12) at the timing ceiling #2687 tracks, and #2939 resolves that ceiling AGAINST the original window (the land keeps tapping for mana until it is given up, so the bot now deterministically holds in its own main phase — the sibling `activation timing: holds a sacrifice engine through its own main phase` asserts exactly that). Moved to the window where the conversion is right, it is deterministic on all 3 original seeds at the original 400-iteration budget. The term-bearing half is still the partner; this one rides the token, not `manaDevWeight`.',
+        note: "Half 1 of the discriminating pair (positive control) — its partner in the declared Minimal Pair. The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger); the pair still asks the only question #2686 wanted asked — does the bot convert a land when Titania pays it off, and refuse when she is not there. Re-pointed and promoted `stretch` → `must` by issue #2939: the original PRECOMBAT_MAIN window was seed noise (10/12) at the timing ceiling #2687 tracks, and #2939 resolves that ceiling AGAINST the original window (the land keeps tapping for mana until it is given up, so the bot now deterministically holds in its own main phase — the sibling `activation timing: holds a sacrifice engine through its own main phase` asserts exactly that). Moved to the window where the conversion is right, it is deterministic on all 3 original seeds at the original 400-iteration budget. The term-bearing half is still the partner; this one rides the token, not `manaDevWeight`.",
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2686).
-        // PAIRED WITH: "discriminating pair: activates Zuran Orb when Titania
-        // pays the land off". Same board minus Titania: sacrificing a land now
+        // The ANCHOR of the Minimal Pair its right-hand half declares (issue
+        // #5108): the half's board and window minus Titania. Sacrificing a land now
         // nets only 2 life for a land the `manaDevelopment` term prices at 29
         // on curve (the hand's 6-MV Craw Wurm still wants that sixth land), a
         // decisive -13 — the blunder the flat eval (17 vs 16) used to leave
@@ -5776,29 +5764,32 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         label: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
         classification: { kind: "conditional", discriminant: TITANIA_PAYOFF },
         spec: {
+            // The partner's board and window (the opponent's end step), minus
+            // Titania: the pair differs by that one card only.
             cards: [
-                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
-                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "hand" },
                 {
                     name: "Grizzly Bears",
-                    owner: "opp",
+                    owner: "me",
                     zone: "battlefield",
                     summoningSick: false,
                 },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "END_STEP",
             turn: 6,
             landCount: 5,
             libraryCount: 20,
         },
-        bot: "me",
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)". Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.',
+        note: "Half 2 of the discriminating pair — its partner in the declared Minimal Pair. Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds.",
     },
     {
         // THE FLOODED READING (issue #2927) — the third leg of the
@@ -6568,11 +6559,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // -----------------------------------------------------------------------
     {
         label: "storm: Grapeshot is lethal because the search counts the spell cast before it",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "storm: does NOT reach for Grapeshot one prior cast short",
             discriminant: {
-                kind: "mana",
-                detail: "one fewer Mountain, no prior cast fits beside Grapeshot",
+                kind: "sequence",
+                detail: "a prior cast this turn, so Grapeshot's storm count is one",
             },
         },
         spec: {
@@ -6624,21 +6615,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         classification: {
             kind: "conditional",
             discriminant: {
-                kind: "mana",
-                detail: "one more Mountain, a prior cast fitting beside Grapeshot",
+                kind: "sequence",
+                detail: "a prior cast this turn, so Grapeshot's storm count is one",
             },
         },
         spec: {
             cards: [
-                // TWO Mountains where half 1 has three — the one field that
-                // makes the prior cast unaffordable ALONGSIDE Grapeshot, so
-                // the storm count stays at zero and Grapeshot deals 1 into a
-                // 2-life opponent.
+                // Three Mountains like half 1, but the prior cast has NOT
+                // happened yet: Grapeshot now is storm count zero, one damage
+                // into a 2-life opponent. The prior cast is the whole
+                // difference (the pair's `sequence` Discriminant).
                 {
                     name: "Mountain",
                     owner: "me",
                     zone: "battlefield",
-                    count: 2,
+                    count: 3,
                     tapped: false,
                 },
                 { name: "Grapeshot", owner: "me", zone: "hand" },
@@ -6656,9 +6647,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: {
-            forbidden: [{ kind: "cast-spell", card: "Grapeshot" }],
+            forbidden: [
+                { kind: "cast-spell", card: "Grapeshot" },
+                { kind: "cast-spell", card: "Grapeshot", target: "opp" },
+            ],
         },
-        note: 'Issue #3026, half 2 — the discriminating twin. Same hand, one fewer Mountain, so no prior cast fits alongside Grapeshot and its storm count is 0: one damage into two life wins nothing and spends the turn, while the same two mana buy a 2/2 body. A bot that reads storm as "always at least one copy" passes half 1 and fails here.',
+        note: "Issue #3026, half 2 — the discriminating twin, re-cut as the ANCHOR of a Minimal Pair (issue #5108): half 1's board with the prior cast not yet made (a `sequence` Discriminant). Grapeshot now is storm count 0: one damage into two life wins nothing and spends the turn. A bot that reads storm as \"always at least one copy\" passes half 1 and fails here. The bot's measured answer is another cast (Ironclaw Orcs) rather than the Raiders-then-Grapeshot line that is lethal this turn — a search shortfall this entry does not assert, since `forbidden` is the claim the pair needs.",
     },
     {
         label: "known top: digs with a cantrip because it knows the Bolt is there",
@@ -6708,11 +6702,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "known top: plays the creature instead when the known top is a blank",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "known top: digs with a cantrip because it knows the Bolt is there",
             discriminant: {
                 kind: "card",
-                detail: "Lightning Bolt pinned on top in place of the blank",
+                detail: "a blank pinned on top in place of the Lightning Bolt",
             },
         },
         spec: {
@@ -10630,11 +10624,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Skyclave Apparition into a permanent worth exiling",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "ETB Ability spent: holds Skyclave Apparition while its ETB has nothing to exile",
             discriminant: {
                 kind: "card",
-                detail: "no opposing nonland permanent to exile",
+                detail: "an opposing Hill Giant to exile",
             },
         },
         spec: {
@@ -10696,11 +10690,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "ETB Ability realized: casts Flametongue Kavu into an opposing creature worth killing",
-        classification: {
-            kind: "conditional",
+        pairOf: {
+            anchor: "ETB Ability spent: holds Flametongue Kavu when its ETB can only hit its own side",
             discriminant: {
                 kind: "card",
-                detail: "no opposing creature on the battlefield",
+                detail: "an opposing creature to take the 4 damage",
             },
         },
         spec: {
@@ -11315,9 +11309,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
     {
         label: "Snapcaster Mage: casts it to flash back a sorcery that kills a Serra Angel",
-        classification: {
-            kind: "conditional",
-            discriminant: { kind: "card", detail: "an empty graveyard" },
+        pairOf: {
+            anchor: "Snapcaster Mage: holds it in its own main phase with an empty graveyard",
+            discriminant: {
+                kind: "card",
+                detail: "Flame Slash in the graveyard and an opposing Serra Angel to kill",
+            },
         },
         spec: {
             cards: [
