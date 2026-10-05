@@ -63,7 +63,13 @@ const FILES: Record<string, string> = {
     "src/components/dialogs/report.tsx": `export const ReportDialog = 1;\n`,
     "src/components/deck-shelf.tsx": `import "./deck-shelf.css";\nexport const DeckShelf = 1;\n`,
     "src/components/deck-shelf.css": `.shelf{}`,
-    "src/components/card.tsx": `export const Card = 1;\n`,
+    "src/components/card.tsx": `import { rank } from "../../convex/gre/pure-rank";\nexport const Card = 1;\n`,
+    // `convex/**` the frontend imports (a pure engine module, ADR 0074) sits
+    // in a surface closure; the mutation and the data file nothing imports
+    // are server-only.
+    "convex/gre/pure-rank.ts": `export const rank = 1;\n`,
+    "convex/game.ts": `export const play = 1;\n`,
+    "data/cards.json": `{}`,
     "src/components/debug/quiz.tsx": `export default 1;\n`,
     "src/components/dead-code.tsx": `export const Dead = 1;\n`,
 };
@@ -134,6 +140,32 @@ describe("computeUiScope — scoped", () => {
         expect(scopeOf("src/components/debug/quiz.tsx")).toEqual({
             kind: "scoped",
             surfaces: ["game-board", "game-debug"],
+        });
+    });
+
+    it("a server-only convex module beside a component selects exactly the component's surfaces (issue #5074)", () => {
+        expect(
+            scopeOf("convex/game.ts", "src/components/deck-shelf.tsx")
+        ).toEqual({ kind: "scoped", surfaces: ["lobby"] });
+    });
+
+    it("a convex module a surface's closure imports still selects that surface (issue #5074)", () => {
+        expect(scopeOf("convex/gre/pure-rank.ts")).toEqual({
+            kind: "scoped",
+            surfaces: ["lobby", "game-board", "game-debug"],
+        });
+    });
+
+    it("a diff of only server-only convex/data paths owes no browser time (issue #5074)", () => {
+        expect(
+            scopeOf("convex/game.ts", "convex/schema.ts", "data/cards.json")
+        ).toEqual({ kind: "scoped", surfaces: [] });
+    });
+
+    it("convex/_generated keeps its placement — never server-only (issue #5074)", () => {
+        expect(scopeOf("convex/_generated/api.d.ts")).toEqual({
+            kind: "full",
+            reason: "convex/_generated/api.d.ts is in no surface's closure and no rule places it",
         });
     });
 
@@ -234,7 +266,7 @@ describe("computeUiScope — full (fail-closed)", () => {
     it("an unplaced path selects full", () => {
         for (const unplaced of [
             "src/components/dead-code.tsx",
-            "convex/game.ts",
+            "tooling/gen.ts",
             "src/components/deleted-since-base.tsx",
         ]) {
             const scope = scopeOf(unplaced);
