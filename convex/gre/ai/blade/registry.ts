@@ -9715,7 +9715,7 @@ export const BLADE_SCENARIOS: BladeScenario[] = [
         seeds: [0xb1ade, 1, 2, 3, 4],
         tier: "must",
         expect: { moves: [{ kind: "cast-spell", card: "Ravenous Rats" }] },
-        note: "Issue #4895 (issue #4758 review), re-cut by issue #4981. Its ETB Ability makes the opponent discard (their pick, CR 701.9b), answered in the probe, the tree walk and the rollout since issue #4896 and issue #4917. Measured on seeds 0..9 at 400: cast 10/10, every pick `mean-reward`, 0.032-0.036 reward ahead of `pass` (226-229 visits against 171-174); cast 10/10 at 200 and 800 too, the lead narrowing with budget (0.056-0.070, 0.017-0.019). The same board with an empty opposing hand picks `pass` on 10/10 — the discard is what the cast is for. Seeds back to 0..4: the 3 → 5 swap of issue #4934 hid the precombat tie.",
+        note: "Issue #4895 (issue #4758 review), re-cut by issue #4981. Its ETB Ability makes the opponent discard (their pick, CR 701.9b), answered in the probe, the tree walk and the rollout since issue #4896 and issue #4917. Measured on seeds 0..9 at 400: cast 10/10, 0.032-0.036 reward ahead of `pass`; every pick `mean-reward` because `pass` falls out of the visit band (226-229 visits against 171-174, `visitTol` 0.15), the lead itself being under `outcomeEps`; cast 10/10 at 200 and 800 too, the lead narrowing with budget (0.056-0.070, 0.017-0.019). The same board with an empty opposing hand picks `pass` on 10/10 — the discard is what the cast is for. Seeds back to 0..4: the 3 → 5 swap of issue #4934 hid the precombat tie.",
     },
     {
         label: "opponent's choice: casts Chainer's Edict at the opponent's only creature",
