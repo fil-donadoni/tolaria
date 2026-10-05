@@ -68,7 +68,7 @@ the Op vocabulary.
   harness) — structural equality for a DSL card; for a closure card, producing
   a definition at all is enough here. (2) Carries
   **`// compiler-gap: <fragment> (#issue)`** in the comment paragraph directly
-  above its `export const … : CardDefinition` anchor (Guard B's
+  above its `x = defineCard(…)` anchor (Guard B's
   `paragraphBounds`, shared). The shape is strict and the FRAGMENT is the
   deliverable — it ranks the next grammar rule (user story 9) — so quote the
   Oracle span, never "the compiler can't do this card". A marker inside the

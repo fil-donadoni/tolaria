@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { scanCardAnchors } from "../lib/compiler-gap-markers";
 import { execFileSync } from "node:child_process";
 import {
     mkdtempSync,
@@ -162,11 +163,18 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
         // {1}{G} → green; every other module is empty (header + `export {}`).
         const { modules } = generate("zzw", [baseCard({})]);
         expect(modules.green).toContain(
-            "export const testBear: CardDefinition"
+            "export const testBear = defineCard(() => ({"
         );
+        expect(modules.green).toContain("}));");
         expect(modules.green).toContain(
-            'import type { CardDefinition } from "../../types";'
+            'import { defineCard } from "../../types";'
         );
+        // Guard C's anchor reads the emitted card (issue #4858).
+        expect(
+            scanCardAnchors(modules.green.split("\n")).anchors.map(
+                (a) => a.name
+            )
+        ).toEqual(["Test Bear"]);
         expect(modules.white).toContain("export {};");
         expect(modules.white).not.toContain("testBear");
     });

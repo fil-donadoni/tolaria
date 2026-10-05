@@ -140,9 +140,9 @@ for (const card of cards) {
     if (!isNaN(toughness)) fields.push(`    toughness: ${toughness}`);
 
     const source = [
-        `export const ${varName}: CardDefinition = {`,
+        `export const ${varName} = defineCard(() => ({`,
         fields.join(",\n") + ",",
-        `};`,
+        `}));`,
     ].join("\n");
 
     // Route each card to its colour module by the colour identity of its mana
@@ -160,7 +160,7 @@ const setsDir = resolve(
     process.env.JSON_TO_CARDS_OUT_DIR ?? "convex/cards/sets"
 );
 // Colour modules live at `sets/<code>/<colour>.cards.ts`, two levels above `cards/`.
-const importLine = `import type { CardDefinition } from "../../types";`;
+const importLine = `import { defineCard } from "../../types";`;
 const setDir = writeSetDirectory(setsDir, setCode, sources, importLine);
 console.log(
     `Written ${seenIds.size} cards → ${setDir}/ (colour-split, ADR 0043)`

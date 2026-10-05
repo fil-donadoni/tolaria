@@ -346,6 +346,24 @@ it("t", () => {
             expect(blocks[0].definitionReads).toEqual([5]);
         });
 
+        it("reads a defineCard factory call like the eager export (issue #4858)", () => {
+            const read = (call: string) =>
+                classifyTestBlocks(
+                    "x.test.ts",
+                    src(`import { giantGrowth } from "../../cards/sets/lea/green";
+it("t", () => {
+    const state = makeState();
+    const def = ${call};
+    expect(def.types).toContain("Instant");
+});`)
+                )[0];
+            const eager = read("giantGrowth");
+            const factory = read("giantGrowth()");
+            expect(eager.definitionReads).toEqual([6]);
+            expect(factory.definitionReads).toEqual(eager.definitionReads);
+            expect(factory.verdict).toBe(eager.verdict);
+        });
+
         it("reports nothing on an identity block — that one is flagged whole", () => {
             const b = classifyTestBlocks(
                 "x.test.ts",

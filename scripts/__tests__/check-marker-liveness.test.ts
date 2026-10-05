@@ -83,6 +83,41 @@ describe("isStubContext — commented-out card stubs are check-stub-coverage.ts'
         expect(isStubContext(lines, 0)).toBe(false);
     });
 
+    it("reads the eager and the defineCard shape alike — stub and active (issue #4858)", () => {
+        const eager = {
+            stub: [
+                "// TODO(issue #676 stub — unbuilt)",
+                "// export const bomb: CardDefinition = {",
+                '//     name: "Bomb",',
+                "// };",
+            ],
+            active: [
+                "// DIVERGENCE (tracked-by: #123): second clause unbuilt.",
+                "export const bomb: CardDefinition = {",
+                '    name: "Bomb",',
+                "};",
+            ],
+        };
+        const factory = {
+            stub: [
+                "// TODO(issue #676 stub — unbuilt)",
+                "// export const bomb = defineCard(() => ({",
+                '//     name: "Bomb",',
+                "// }));",
+            ],
+            active: [
+                "// DIVERGENCE (tracked-by: #123): second clause unbuilt.",
+                "export const bomb = defineCard(() => ({",
+                '    name: "Bomb",',
+                "}));",
+            ],
+        };
+        for (const shape of [eager, factory]) {
+            expect(isStubContext(shape.stub, 0)).toBe(true);
+            expect(isStubContext(shape.active, 0)).toBe(false);
+        }
+    });
+
     it("a marker separated from any stub anchor by a non-comment line is not stub context", () => {
         const lines = [
             "// DIVERGENCE (tracked-by: #123): unrelated note.",
