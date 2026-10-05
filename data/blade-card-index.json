@@ -69,13 +69,6 @@
             "needsSetup": false
         }
     ],
-    "Colossus of Sardia": [
-        {
-            "label": "entomb: buries the reanimation target, not the self-reachable card",
-            "tier": "must",
-            "needsSetup": true
-        }
-    ],
     "Containment Priest": [
         {
             "label": "flash permanent NEGATIVE CONTROL: casts Containment Priest as the only surviving block",
@@ -264,13 +257,6 @@
             "needsSetup": true
         }
     ],
-    "Island Fish Jasconius": [
-        {
-            "label": "entomb: buries the reanimation target, not the self-reachable card",
-            "tier": "must",
-            "needsSetup": true
-        }
-    ],
     "Lightning Bolt": [
         {
             "label": "escape: reaches for a Lightning Bolt Underworld Breach made escapable",
@@ -359,13 +345,6 @@
             "needsSetup": false
         }
     ],
-    "Polar Kraken": [
-        {
-            "label": "entomb: buries the reanimation target, not the self-reachable card",
-            "tier": "must",
-            "needsSetup": true
-        }
-    ],
     "Polluted Delta": [
         {
             "label": "charter: cracks its fetchland for the only answer to a trigger on the stack",
@@ -441,6 +420,13 @@
             "label": "sorcery-speed permanent: deploys a Seal with the mana open and nothing else to do",
             "tier": "must",
             "needsSetup": false
+        }
+    ],
+    "Sengir Vampire": [
+        {
+            "label": "entomb: buries the reanimation target, not one of eight lands",
+            "tier": "must",
+            "needsSetup": true
         }
     ],
     "Serra Angel": [

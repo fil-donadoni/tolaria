@@ -691,7 +691,7 @@
         "landCount": 6,
         "libraryCount": 20
     },
-    "entomb: buries the reanimation target, not the self-reachable card": null,
+    "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "escape: casts Phlage from the graveyard": {
         "cards": [
