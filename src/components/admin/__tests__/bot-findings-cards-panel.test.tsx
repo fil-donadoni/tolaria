@@ -10,6 +10,7 @@ import { render, screen, within, fireEvent } from "@testing-library/react";
 import BotFindingsCardsPanel from "../bot-findings-cards-panel";
 import { findingTraceText, type BotFindingTrace } from "@/lib/botFindings";
 import type { FindingLaunchActions } from "@/lib/ai/bot-finding-launch";
+import bladeReproducers from "../../../../data/blade-reproducers.json";
 
 const answers: Record<string, unknown> = {};
 const onLaunch = vi.fn();
@@ -377,11 +378,15 @@ describe("BotFindingsCardsPanel — the Cards tab (issue #4176/#4177)", () => {
 });
 
 describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
-    // Real committed blade labels: one plain board, one needing setup steps.
-    const PLAIN =
-        "recoverable sweep: casts Armageddon when the Bot keeps its mana in rocks and the opponent has only lands";
-    const SETUP =
-        "keep mana open: casts Accumulated Knowledge at the opponent's end step";
+    // Real committed blade labels, read from the index the panel reads: one
+    // plain board (a spec), one needing setup steps (`null`). Never a
+    // hardcoded label — a registry edit that drops an entry's `setup` turns
+    // it into a launchable board (issue #5115).
+    const reproducers = Object.entries(
+        bladeReproducers as Record<string, unknown>
+    );
+    const PLAIN = reproducers.find(([, spec]) => spec !== null)![0];
+    const SETUP = reproducers.find(([, spec]) => spec === null)![0];
     const writeText = vi.fn(() => Promise.resolve());
 
     beforeEach(() => {
