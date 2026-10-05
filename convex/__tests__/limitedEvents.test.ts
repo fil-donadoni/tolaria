@@ -47,7 +47,6 @@ import {
     generateSealedPools,
     MAX_SEATS,
     releaseSeat,
-    type ResolveCardMeta,
 } from "../limited/eventLogic";
 import {
     projectLimitedEvent,

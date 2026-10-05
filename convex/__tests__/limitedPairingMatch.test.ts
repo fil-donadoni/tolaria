@@ -25,14 +25,13 @@ import {
 } from "../game";
 import { expireRoundDeadline } from "../limitedEvents";
 import type { GameState } from "../gre/state";
-import { resolveDeckCardMeta, tryGetDefinition } from "../cards";
+import { resolveDeckCardMeta } from "../cards";
 import { makeRng } from "../gre/rng";
 import {
     assignFreeSeat,
     buildEmptySeats,
     fillBotSeats,
     generateSealedPools,
-    type ResolveCardMeta,
 } from "../limited/eventLogic";
 import {
     projectLimitedEvent,

@@ -29,8 +29,6 @@ const circleOfProtectionBlack = getDefinition(
     "fa47b4cd-8da4-4544-b011-ba92b7009203"
 );
 const volcanicIsland = getDefinition("0324641d-af55-4c53-b4dc-c8262e967da5");
-const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
-const taiga = getDefinition("60df6592-0b3b-4b87-aeb2-8fa94b4fb7be");
 
 // ---------------------------------------------------------------------------
 // Registry parity (ADR 0014)
