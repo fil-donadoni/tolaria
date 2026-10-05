@@ -266,7 +266,7 @@ async function drivePool(input: {
             finished += 1;
         }
     );
-    return { peak, lanes, growth: sized.growth() };
+    return { peak, lanes, growth: sized.growth(), finalLimit: sized.limit() };
 }
 
 describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
@@ -297,14 +297,30 @@ describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
     it("does NOT shrink when a holder appears mid-run", async () => {
         // Started uncapped; the probe turns "held" after the first finishes.
         const out = await drivePool({
-            count: 5,
-            start: 5,
-            uncapped: 5,
+            count: 12,
+            start: 3,
+            uncapped: 3,
             cappedBy: null,
             holderAt: (finished) => finished >= 1,
         });
-        expect(out.peak).toBe(5);
+        expect(out.finalLimit).toBe(3);
+        expect(new Set(out.lanes.slice(-3)).size).toBe(3);
         expect(out.growth).toBeNull();
+    });
+
+    it("runPool never stops a running lane when the limit answers lower", async () => {
+        let calls = 0;
+        const lanes: number[] = [];
+        await runPool(
+            Array.from({ length: 9 }, (_, i) => i),
+            () => (calls++ === 0 ? 3 : 1),
+            async (_item, _i, lane) => {
+                lanes.push(lane);
+                await new Promise((r) => setTimeout(r, 5));
+            }
+        );
+        // The last three items still run on all three lanes.
+        expect(new Set(lanes.slice(-3)).size).toBe(3);
     });
 
     it("keeps the grown size when the holder comes back", async () => {
@@ -316,6 +332,7 @@ describe("a pool that grows when the heavy holder leaves (issue #5023)", () => {
             holderAt: (finished) => finished === 0 || finished >= 2,
         });
         expect(out.peak).toBe(3);
+        expect(out.finalLimit).toBe(3);
     });
 
     it("never hands a lane index at or above the uncapped size", async () => {
