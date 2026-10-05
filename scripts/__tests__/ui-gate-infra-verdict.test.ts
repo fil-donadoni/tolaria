@@ -1,4 +1,4 @@
-// The Infra Verdict's pure half (issue #3644, CONTEXT.md § Surfaces): a failed
+// The Infra Verdict's pure half (issue #3644, GLOSSARY.md § Surfaces): a failed
 // walk attempt is classified by its signature, retried on a schedule that is a
 // function of the attempt count and the load samples, and stands as INFRA only
 // while the machine is still busy — UNWALKED keeps meaning "the walk could not

@@ -373,7 +373,7 @@ export function resolveTarget(
 // ── Coverage ───────────────────────────────────────────────────────────────
 
 /**
- * Where the tooling stands on a Target card (CONTEXT.md § Coverage
+ * Where the tooling stands on a Target card (GLOSSARY.md § Coverage
  * Invariant) — exactly one per card, computed from the lockfile, the
  * allowlist's claims and the card markers, in this order (issue #3868):
  *

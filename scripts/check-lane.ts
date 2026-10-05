@@ -244,7 +244,7 @@ const CARDS_PATTERNS: RegExp[] = [/^convex\/cards\/sets\//];
 
 /**
  * Prose-only paths: markdown under `docs/**` and the root-level markdown that
- * is resident agent context (`CLAUDE.md`, `CONTEXT.md`, `README.md`).
+ * is resident agent context (`CLAUDE.md`, `GLOSSARY.md`, `README.md`).
  *
  * ANCHORED TO `.md` ON PURPOSE, for the same reason `SKIN_PATTERNS` is
  * anchored to a directory: `docs/` also holds images and stylesheets, and an

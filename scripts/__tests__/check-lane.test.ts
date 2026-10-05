@@ -170,7 +170,7 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("docs/findings/1872-mana.md")).toBe("docs");
         expect(classifyPath("docs/agents/quality-gates.md")).toBe("docs");
         expect(classifyPath("CLAUDE.md")).toBe("docs");
-        expect(classifyPath("CONTEXT.md")).toBe("docs");
+        expect(classifyPath("GLOSSARY.md")).toBe("docs");
         expect(classifyPath("README.md")).toBe("docs");
     });
 
@@ -379,7 +379,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         const plan = classifyLane([
             "docs/adr/0111-extra-phases.md",
             "docs/adr/README.md",
-            "CONTEXT.md",
+            "GLOSSARY.md",
         ]);
         expect(plan.lane).toBe("docs");
         expect(ids(plan.run)).toEqual(["check:docs"]);
@@ -409,7 +409,7 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
 
     it("prose + engine code ⇒ engine, run list ending with the check:docs node files", () => {
         for (const files of [
-            ["CONTEXT.md", "convex/gre/phases.ts"],
+            ["GLOSSARY.md", "convex/gre/phases.ts"],
             ["docs/adr/0111.md", "scripts/check-lane.ts"],
             [
                 "docs/guides/land-and-release.md",
@@ -977,7 +977,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         for (const files of [
             ["docs/adr/0136.md", "convex/gre/engine.ts"],
             ["docs/adr/0136.md", "convex/cards/sets/lea/red.cards.ts"],
-            ["CONTEXT.md", "src/components/board/Card.tsx", "src/CLAUDE.md"],
+            ["GLOSSARY.md", "src/components/board/Card.tsx", "src/CLAUDE.md"],
         ]) {
             const plan = classifyLane(files);
             const re = allowed[plan.lane];
@@ -1112,7 +1112,7 @@ describe("check-lane — every planned check is invokable today (issue #2740)", 
     });
 
     it("every test file node[docs] names exists on disk", () => {
-        const mixed = classifyLane(["CONTEXT.md", "convex/gre/engine.ts"]);
+        const mixed = classifyLane(["GLOSSARY.md", "convex/gre/engine.ts"]);
         const docs = mixed.run.find((c) => c.id === "node[docs]")!;
         const files = docs.command.split(" ").filter((w) => w.endsWith(".ts"));
         expect(files.length).toBeGreaterThan(0);

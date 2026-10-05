@@ -88,4 +88,4 @@ fail-closed (ADR 0105 § 2) — coverage is earned by rules, never by leniency.
 - ADR 0045 (frozen structural grammar), ADR 0046 (registry seam), ADR 0105
   (fail-closed compiler, amended), ADR 0110 (single-session pipeline),
   ADR 0116 (health cadence)
-- `CONTEXT.md`: Fragment, Grammar Rule, Grammar Gap, Compile State, Round-Trip
+- `GLOSSARY.md`: Fragment, Grammar Rule, Grammar Gap, Compile State, Round-Trip

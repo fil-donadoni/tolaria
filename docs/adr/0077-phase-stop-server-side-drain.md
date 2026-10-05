@@ -105,7 +105,7 @@ attackers, blockers or damage.
 
 The two intents are genuinely different and were conflated under one glossary
 term ("Auto-Pass"), now split into **Pass Turn** and **Phase Stop** in
-`CONTEXT.md`. Pass Turn means "I yield the rest of this turn" and legitimately
+`GLOSSARY.md`. Pass Turn means "I yield the rest of this turn" and legitimately
 gives up response windows. A Phase Stop means "don't stop me in upkeep" — a UI
 convenience that must never skip a window the player would have wanted. Without
 the split, an opponent casting a spell in your upkeep would have the drain blow

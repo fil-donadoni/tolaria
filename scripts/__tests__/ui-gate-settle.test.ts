@@ -1,4 +1,4 @@
-// The Settled Screen (issue #3644, CONTEXT.md § Surfaces): the pure predicate
+// The Settled Screen (issue #3644, GLOSSARY.md § Surfaces): the pure predicate
 // over sampled snapshots, the network instrument that feeds it (run as the
 // real source text against a fake socket), and the rule that no fixed sleep is
 // left in the surfaces module. The same predicate is checked in a real

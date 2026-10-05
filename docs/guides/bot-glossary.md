@@ -5,9 +5,9 @@
 words, and then where it lives in this repo. It is a lookup table, not a
 tutorial: read the entry you need and go back to the document you came from.
 The domain terms that are part of the project's shared language (Brain, Blade
-Scenario, Ladder, …) also appear in `CONTEXT.md`; this file is the wider
+Scenario, Ladder, …) also appear in `GLOSSARY.md`; this file is the wider
 working vocabulary around them, including textbook search terms that
-`CONTEXT.md` deliberately leaves out.
+`GLOSSARY.md` deliberately leaves out.
 
 Every entry has an anchor (`bot-glossary.md#the-term`) so other documents can
 link a word straight to its meaning.
@@ -305,7 +305,7 @@ gate.
 <a id="player-verdict"></a>**Verdict (a player's)** — one player's answer to
 one decision the Bot faced: the position, every legal candidate, the right
 one. The unit of training data; definitions of the store, lock, attestation
-and promotion around it live in `CONTEXT.md`. Unrelated to the ladder's
+and promotion around it live in `GLOSSARY.md`. Unrelated to the ladder's
 [IMPROVEMENT / REGRESSION verdict](#verdict).
 
 <a id="held-out-agreement"></a>**Held-out agreement** — the STRENGTH number,

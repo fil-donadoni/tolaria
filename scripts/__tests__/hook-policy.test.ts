@@ -1112,7 +1112,7 @@ describe("deny-guard — no discarding git operations in the shared main checkou
             "git worktree add ../repo-issue-9 -b feat/issue-9",
             // Naming the path cannot pick up a file you did not mean.
             "git add src/foo.ts",
-            "git add docs/adr/0101-x.md CONTEXT.md",
+            "git add docs/adr/0101-x.md GLOSSARY.md",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
@@ -1137,7 +1137,7 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
         // main: a discussion writes its ADR wherever the session happens to be.
         const targets = [
             "docs/adr/0101-something.md",
-            "CONTEXT.md",
+            "GLOSSARY.md",
             "README.md",
             "src/components/board/Hand.tsx",
         ];
@@ -1158,7 +1158,7 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
         // shared tree, and that does exactly the same damage.
         const r = runHook(
             DENY_GUARD,
-            write(path.join(mainCheckout, "CONTEXT.md"), linkedWorktree)
+            write(path.join(mainCheckout, "GLOSSARY.md"), linkedWorktree)
         );
         expect(denied(r)).toBe(true);
     });
@@ -1177,7 +1177,7 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
     });
 
     it("ALLOWS the same write inside a linked worktree — that is the whole point", () => {
-        for (const t of ["docs/adr/0101-something.md", "CONTEXT.md"]) {
+        for (const t of ["docs/adr/0101-something.md", "GLOSSARY.md"]) {
             const r = runHook(
                 DENY_GUARD,
                 write(path.join(linkedWorktree, t), linkedWorktree)
@@ -1213,7 +1213,7 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
     it("ALLOWS everything under the visible escape hatch", () => {
         const r = runHook(
             DENY_GUARD,
-            write(path.join(mainCheckout, "CONTEXT.md"), mainCheckout),
+            write(path.join(mainCheckout, "GLOSSARY.md"), mainCheckout),
             { TOLARIA_ALLOW_MAIN_EDIT: "1" }
         );
         expect(r.code).toBe(0);
@@ -1224,7 +1224,7 @@ describe("deny-guard — nothing authors a versioned file in the main checkout",
             session_id: "s",
             hook_event_name: "PreToolUse",
             tool_name: "Read",
-            tool_input: { file_path: path.join(mainCheckout, "CONTEXT.md") },
+            tool_input: { file_path: path.join(mainCheckout, "GLOSSARY.md") },
             cwd: mainCheckout,
         });
         expect(r.code).toBe(0);

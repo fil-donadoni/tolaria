@@ -21,7 +21,7 @@ Two structural facts about this engine shape the decision:
 1. **Combat is six sibling `Phase` values, not a phase containing steps.** There
    is no `"COMBAT"` value; `END_OF_COMBAT` is last in `PHASE_ORDER`, so the
    step's exit and the combat _phase's_ exit are the same instant (the reasoning
-   is already recorded at phases.ts:3383-3389). CONTEXT.md's **Phase** entry
+   is already recorded at phases.ts:3383-3389). GLOSSARY.md's **Phase** entry
    records the same flattening.
 2. **`GameState.extraTurns` (CR 500.7) is a direct precedent**: an optional
    LIFO array, popped at the turn crossing in `advanceTurn`, listed in

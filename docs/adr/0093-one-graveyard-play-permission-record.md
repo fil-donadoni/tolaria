@@ -81,7 +81,7 @@ one place instead of once per predicate.
 
 **`actions`, not `zones`.** The graveyard IS the zone; `"land" | "spell"` names
 the ACTION the permission licenses — playing a land is a special action that
-uses no stack and consumes the land drop, casting uses the stack. `CONTEXT.md`
+uses no stack and consumes the land drop, casting uses the stack. `GLOSSARY.md`
 already forbids the overloaded reading ("_Avoid_: Play (for spells — 'play' is
 reserved for lands)"), so the shipped `zones` field on `grantGraveyardPlay` is
 renamed with it.

@@ -3,7 +3,7 @@
 ## Status
 
 accepted — grilled 2026-09-24. Plans v2 of ADR 0143 (Amendment III); no code
-yet. Terms in `CONTEXT.md`: **Game Variant**, **Commander Profile**, **Command
+yet. Terms in `GLOSSARY.md`: **Game Variant**, **Commander Profile**, **Command
 Zone**, **Commander**, **Command Slot**, **Color Identity**, **Commander
 Damage**, **Format Compatibility**, **Paranoid Reduction**.
 

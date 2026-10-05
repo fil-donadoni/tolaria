@@ -2,7 +2,7 @@
 
 **Start here when the question is "how do I run this?"** — as opposed to "why
 is it built this way?" (`docs/adr/`) or "what does this term mean?"
-(`CONTEXT.md`).
+(`GLOSSARY.md`).
 
 Everything under `docs/guides/` is written for a human at a terminal: the
 commands, in order, with the failure modes named. Nothing here is loaded into
@@ -28,7 +28,7 @@ Not every document is a guide. Where to look for the other kinds:
 | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | The norms an agent must follow                   | `CLAUDE.md`, `.claude/rules/**` (both loaded into every session automatically)                                                                 |
 | Why a decision was made                          | `docs/adr/` — index at `docs/adr/README.md`                                                                                                    |
-| Domain vocabulary                                | `CONTEXT.md`                                                                                                                                   |
+| Domain vocabulary                                | `GLOSSARY.md`                                                                                                                                  |
 | What the quality gates are and why               | `docs/agents/quality-gates.md`                                                                                                                 |
 | How the issue queue and its labels work          | `docs/agents/issue-tracker.md`, `docs/agents/triage-labels.md`                                                                                 |
 | What the loop costs, measured                    | `docs/agents/workflow-token-economics.md`                                                                                                      |

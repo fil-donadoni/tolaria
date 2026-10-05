@@ -15,7 +15,7 @@
 // and draft surface resolves its Columns here and nowhere else (issues
 // #1622/#1632).
 //
-// Vocabulary (CONTEXT.md): a **Column Layout** is per **Zone** and owns a
+// Vocabulary (GLOSSARY.md): a **Column Layout** is per **Zone** and owns a
 // **Grouping** (which generates predicate-carrying **Columns**), an ordered
 // Column list that may also contain user-created **manual** Columns, a
 // mandatory undeletable **Catch-All Column** in last position, and an

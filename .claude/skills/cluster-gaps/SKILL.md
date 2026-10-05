@@ -12,7 +12,7 @@ ADR 0146 splits Gap Cluster management in two: **adoption is mechanical**
 deciding what belongs together in the first place. This skill is the second
 half. Read `docs/adr/0146-gap-clusters-are-permanent-adoption-mechanical-cut-judgment.md`
 first; its terms (**Gap Cluster**, **Cluster Signature**, **Standalone Gap**,
-**Absorb**, **Re-home**, **Cluster Cut ticket**) are in `CONTEXT.md` and used
+**Absorb**, **Re-home**, **Cluster Cut ticket**) are in `GLOSSARY.md` and used
 here without re-defining them.
 
 `$1` is the kind (`grammar` / `bot` / `hand-tail` / `mechanic` / `scenario`);

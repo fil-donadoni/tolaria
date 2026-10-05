@@ -1690,7 +1690,7 @@ row.
 ## Worktree isolation, and the documentation lane
 
 Measured over the 30 days to 2026-08-17: **~40 documentation-only commits
-landed straight on `main`** — ADRs, PRDs, CONTEXT.md entries, findings notes,
+landed straight on `main`** — ADRs, PRDs, GLOSSARY.md entries, findings notes,
 several with messages like `update context` or `findings allineati`. Two of
 those days also carry a `Merge branch 'main' of …`: local `main` had diverged
 from origin and was reconciled with a merge commit. Meanwhile 31 worktrees had

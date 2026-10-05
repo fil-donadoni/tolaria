@@ -43,7 +43,7 @@ and tests depend on the shape:
 Add `poisonCounters?: number` to `PlayerState` (`convex/gre/state.ts`),
 optional, omitted meaning zero. It is **not** an entry in the object
 `counters[type]` map: CR 122 counters on a player are a different domain object
-from counters on a permanent (see CONTEXT.md → _Poison Counter_), and conflating
+from counters on a permanent (see GLOSSARY.md → _Poison Counter_), and conflating
 them would force player/object polymorphism into the counter helpers for no
 benefit. The field has no cap — it can exceed ten; the threshold lives in the
 SBA, not in the mutation.

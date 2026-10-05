@@ -34,7 +34,7 @@ function announcementFor(phase: Phase, remainingSeconds: number): string {
     return phase === "expired" ? "Auto-picking…" : `${remainingSeconds}s left`;
 }
 
-/** The Pick Timer (glossary term, `CONTEXT.md`; issue #1114/#1243, redesigned
+/** The Pick Timer (glossary term, `GLOSSARY.md`; issue #1114/#1243, redesigned
  *  #2238 for visibility): a full-width bar, mounted directly above the
  *  Booster's card grid, that starts FULL at the beginning of every Pick and
  *  drains to empty by the deadline — so fill level means the same thing at

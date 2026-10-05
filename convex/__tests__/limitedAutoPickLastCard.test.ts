@@ -1,4 +1,4 @@
-// The last card of every pack (issue #2278). `CONTEXT.md` promises of a
+// The last card of every pack (issue #2278). `GLOSSARY.md` promises of a
 // **Draft** that "an optional **Pick Timer** fires an **Auto-Pick** on expiry
 // so an absent human never freezes the table" — and that promise used to have
 // a hole exactly one card wide: the pick-timer schedule returns `null` at 1

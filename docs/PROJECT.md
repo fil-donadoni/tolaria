@@ -17,7 +17,7 @@ Quattro documenti, quattro scopi distinti. Non si sovrappongono.
 | Documento               | Scopo                                                                                         |
 | ----------------------- | --------------------------------------------------------------------------------------------- |
 | `docs/PROJECT.md`       | **questo** — architettura, flussi, confini. Il "come è fatto e perché".                       |
-| `CONTEXT.md`            | glossario di dominio (ubiquitous language). Il significato esatto di ogni termine nel codice. |
+| `GLOSSARY.md`           | glossario di dominio (ubiquitous language). Il significato esatto di ogni termine nel codice. |
 | `docs/adr/README.md`    | indice degli 81 ADR. Ogni decisione non ovvia ha il suo record, con contesto e alternative.   |
 | `CLAUDE.md`/`AGENTS.md` | regole operative: comandi, cadenza dei gate, convenzioni di authoring.                        |
 

@@ -22,6 +22,6 @@ accepted
 
 ## Consequences
 
-- Glossary inverts: per CR/tournament terms, **Match** = best-of-N set of **Games** (CONTEXT.md updated; the old _Avoid: Match_ is dropped).
+- Glossary inverts: per CR/tournament terms, **Match** = best-of-N set of **Games** (GLOSSARY.md updated; the old _Avoid: Match_ is dropped).
 - Cleanup cron deletes by finished Match (cascading its Games + game_states).
 - AI sideboarding is deferred: the bot auto-readies with no swaps for now (real bot sideboard logic is future work).

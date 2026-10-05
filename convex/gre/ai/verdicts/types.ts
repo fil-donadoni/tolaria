@@ -146,7 +146,7 @@ export type VerdictAnswer =
     | { kind: "right"; rightIndexes: number[] }
     | { kind: "forbidden"; forbiddenIndexes: number[] };
 
-/** The kinds a Discriminant is named from (ADR 0148, `CONTEXT.md`
+/** The kinds a Discriminant is named from (ADR 0148, `GLOSSARY.md`
  *  § Discriminant): a closed list, so unsatisfied pairs can be counted by what
  *  they lack, plus `other`, whose `detail` is the judge's own words — a phrase
  *  that recurs under `other` is the kind this list is missing. */

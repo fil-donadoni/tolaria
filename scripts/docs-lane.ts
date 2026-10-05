@@ -2,7 +2,7 @@
 /**
  * The documentation lane — `bun run wt:docs <slug>` and `bun run docs:ship`.
  *
- * WHY. A discussion produces artefacts: an ADR, a PRD, a CONTEXT.md entry, a
+ * WHY. A discussion produces artefacts: an ADR, a PRD, a GLOSSARY.md entry, a
  * findings note. Nobody thinks of a discussion as "work that needs isolating",
  * so those artefacts were written straight into the shared main checkout: ~40
  * documentation-only commits landed directly on `main` over 30 days, two of the
@@ -97,9 +97,9 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
     "scripts/__tests__/check-lane.test.ts":
         "the docs/adr and *.md paths are synthetic changed-path fixtures fed to classifyPath() — the test asserts which lane the classifier picks for them; it reads no repo document",
     "scripts/__tests__/ui-gate-infra-verdict.test.ts":
-        "the CONTEXT.md mention is a header comment citing the glossary term it implements; the test reads no repo document",
+        "the GLOSSARY.md mention is a header comment citing the glossary term it implements; the test reads no repo document",
     "scripts/__tests__/ui-gate-settle.test.ts":
-        "the CONTEXT.md mention is a header comment citing the glossary term it implements; the test reads scripts/ui-gate/surfaces.ts source, no repo document",
+        "the GLOSSARY.md mention is a header comment citing the glossary term it implements; the test reads scripts/ui-gate/surfaces.ts source, no repo document",
     "scripts/__tests__/ui-scope.test.ts":
         "the docs/guides/*.md path is a synthetic changed-path fixture fed to computeUiScope() — the test asserts a markdown path contributes no check:ui surface; it reads no repo document",
     "scripts/__tests__/land.test.ts":
@@ -423,7 +423,7 @@ function cmdShip(argv: string[]): void {
     }
 
     // Rebase before pushing: the two files a documentation change collides on
-    // (docs/adr/README.md, CONTEXT.md) are append-at-the-end, so this is
+    // (docs/adr/README.md, GLOSSARY.md) are append-at-the-end, so this is
     // normally a no-op and a one-line conflict at worst.
     git(["rebase", ORIGIN_BASE], cwd);
     if (

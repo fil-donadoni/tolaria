@@ -28,14 +28,14 @@ Ask at most 3 focused questions per round. Do not proceed until you have enough 
 
 ### Step 3 — Explore the codebase
 
-Read `CONTEXT.md` for domain vocabulary. Search the relevant area:
+Read `GLOSSARY.md` for domain vocabulary. Search the relevant area:
 
 - `convex/gre/` — engine modules
 - `convex/cards/` — card definitions and types
 - `src/components/` — UI components
 - `src/hooks/` — React hooks
 
-Identify current behavior and key types/interfaces involved. Use domain glossary terms from `CONTEXT.md` — never drift to synonyms.
+Identify current behavior and key types/interfaces involved. Use domain glossary terms from `GLOSSARY.md` — never drift to synonyms.
 
 ### Step 4 — Draft the issue
 
@@ -325,7 +325,7 @@ degrade-with-an-escape-hatch shape as the board READ in
 - [ ] Title under 70 characters
 - [ ] Body uses Agent Brief template
 - [ ] No file paths or line numbers in body
-- [ ] Domain terms match `CONTEXT.md` glossary
+- [ ] Domain terms match `GLOSSARY.md` glossary
 - [ ] Acceptance criteria are testable
 - [ ] Out of scope section present
 - [ ] Model label decided — **none** unless escalating (`model:opus` / `model:fable`)

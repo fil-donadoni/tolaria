@@ -38,16 +38,16 @@ precedes every PRD is versioned with the pipeline it feeds. The name is not
 ## Domain discipline
 
 Read `docs/agents/domain.md` for how the docs are consumed; the glossary is
-`CONTEXT.md`, the decisions are `docs/adr/` (index `docs/adr/README.md`).
+`GLOSSARY.md`, the decisions are `docs/adr/` (index `docs/adr/README.md`).
 
 - **Challenge the glossary.** The owner uses a term that conflicts with
-  `CONTEXT.md` → say so immediately and ask which meaning holds.
+  `GLOSSARY.md` → say so immediately and ask which meaning holds.
 - **Sharpen fuzzy words.** A vague or overloaded term gets one precise
   canonical name proposed, with an `_Avoid_` line for the rivals.
 - **Write resolved terms inline.** The moment a term resolves, add it to
-  `CONTEXT.md` (`feedback_update_context_md`) — not at the end, not batched.
+  `GLOSSARY.md` (`feedback_update_context_md`) — not at the end, not batched.
   Format: `**Term**:` then a one-or-two-sentence definition of what it IS, then
-  `_Avoid_: …`. `CONTEXT.md` is a glossary and nothing else: no
+  `_Avoid_: …`. `GLOSSARY.md` is a glossary and nothing else: no
   implementation detail, no spec, no scratch notes. Only terms specific to this
   project, never general programming vocabulary.
 - **Offer an ADR sparingly** — only when ALL three hold: hard to reverse,

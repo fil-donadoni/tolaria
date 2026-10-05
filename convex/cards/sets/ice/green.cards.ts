@@ -1347,7 +1347,7 @@ export const tarpan = defineCard(() => ({
 //
 // SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "if that land was a snow land,
 // you gain 1 life" rider degrades to a no-op — the ICE pool ships NO snow-
-// supertype lands (snow mana is deferred; see CONTEXT.md "Snow" / PRD #628), so
+// supertype lands (snow mana is deferred; see GLOSSARY.md "Snow" / PRD #628), so
 // no target can ever satisfy the snow branch. The destroy is the load-bearing
 // effect and is implemented fully; the lifegain lands the day snow lands exist.
 export const thermokarst = defineCard(() => ({

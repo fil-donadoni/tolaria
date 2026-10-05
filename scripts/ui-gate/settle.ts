@@ -1,5 +1,5 @@
 /**
- * The Settled Screen (CONTEXT.md § Surfaces, ADR 0132, issue #3644): the state
+ * The Settled Screen (GLOSSARY.md § Surfaces, ADR 0132, issue #3644): the state
  * a Walked Surface must reach before anything on it is measured.
  *
  * ONE PREDICATE REPLACES EVERY FIXED SLEEP. A fixed sleep is wrong in both
