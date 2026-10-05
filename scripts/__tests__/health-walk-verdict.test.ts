@@ -5,12 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 import { healthRunInFlight, walkOwedSince } from "../lib/health-cadence";
-import {
-    BOT_HEALTH_SCRIPTS,
-    HEALTH_SCRIPTS,
-    healthGates,
-    splitHealthGates,
-} from "../lib/health-step";
+import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
 import {
     infraCause,
     nextUiWalkLedger,
@@ -208,15 +203,13 @@ describe("the walk's probation — RED only after five non-infra walks", () => {
 });
 
 describe("splitHealthGates — the walk is cut away from the offline gates", () => {
-    it("offline keeps every other gate in order, the Bot gates included", () => {
-        const { offline, walk } = splitHealthGates(
-            healthGates(HEALTH_SCRIPTS, true)
-        );
+    it("offline keeps every other gate in order; the blade audit is not one (issue #5079)", () => {
+        const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
         expect(walk).toEqual(["check:ui --all"]);
-        expect(offline).toEqual([
-            ...HEALTH_SCRIPTS.filter((g) => g !== "check:ui --all"),
-            ...BOT_HEALTH_SCRIPTS,
-        ]);
+        expect(offline).toEqual(
+            HEALTH_SCRIPTS.filter((g) => g !== "check:ui --all")
+        );
+        expect(offline).not.toContain("blade:robustness");
     });
 });
 

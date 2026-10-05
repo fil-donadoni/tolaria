@@ -159,9 +159,12 @@ describe("wiring", () => {
         ).toContain(`ENV.${ROBUSTNESS_LABELS_ENV}`);
     });
 
-    it("health-main hands the mode's env to the audit step and records the mode", () => {
+    it("health-main records the mode and leaves the audit's request (env in the request, issue #5079)", () => {
         const src = read("scripts/health-main.ts");
-        expect(src).toContain("robustnessStepEnv(robustness)");
+        expect(read("scripts/lib/health-robustness-audit.ts")).toContain(
+            "robustnessStepEnv(mode)"
+        );
+        expect(src).toContain("writeAuditRequest(");
         expect(src).toContain("ctx.robustness = describeRobustnessMode");
         // The Bot Findings refresh keeps its own, wider predicate.
         expect(src).toContain("batchTouchesBot(batch)");

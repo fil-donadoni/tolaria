@@ -98,6 +98,7 @@ import {
     type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
+import { readOwedAudit } from "./lib/health-robustness-audit";
 import { recordMachineSaturated } from "./lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -107,6 +108,7 @@ const SELF = resolve(__dirname, "health-cadence.ts");
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const HEALTH_FIX = resolve(__dirname, "health-fix.ts");
 const GATE = resolve(__dirname, "gate.ts");
+const ROBUSTNESS_AUDIT = resolve(__dirname, "health-robustness-audit.ts");
 
 /** Health telemetry directory, relative to the primary checkout — the same
  *  one `health-main.ts` and `health-fix.ts` write. */
@@ -418,6 +420,9 @@ function decideAndRun(root: string, branch: string): Round {
         return { code: 1, ran: true };
     }
     writeCadence(root, action.state);
+    // The verdict (GREEN or RED) is recorded: the audit it owes goes off the
+    // critical path, before a RED handover can keep this process busy.
+    spawnRobustnessAudit(root);
     if (action.kind === "green") {
         console.log(`health-cadence: ${action.reason}`);
         return { code: 0, ran: true };
@@ -431,6 +436,38 @@ function decideAndRun(root: string, branch: string): Round {
     );
     spawnSync("bun", [HEALTH_FIX], { stdio: "inherit", cwd: root });
     return { code: 1, ran: true };
+}
+
+/**
+ * Start the blade robustness audit the verdict left owed (issue #5079):
+ * detached, in its own session, under `gate.ts yield` — the lowest admission
+ * class, so a queued `land` never waits for it — on the tip the verdict is
+ * about. Called only once the verdict is on disk, never waited on here, and
+ * it cannot touch the verdict: the audit writes its own record.
+ */
+function spawnRobustnessAudit(root: string): void {
+    const dir = join(root, HEALTH_DIR);
+    const owed = readOwedAudit(dir, readLast(root));
+    if (owed === null) return;
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.TOLARIA_GATE_HELD;
+    delete env.TOLARIA_ALLOW_FULL_SUITE;
+    delete env.TOLARIA_VITEST_WORKERS;
+    env.TOLARIA_GATE_ROLE = HEALTH_ROLE;
+    const log = openSync(join(dir, "robustness-audit.log"), "a");
+    try {
+        const child = spawn(
+            "bun",
+            [GATE, "yield", `bun ${JSON.stringify(ROBUSTNESS_AUDIT)}`],
+            { cwd: root, env, detached: true, stdio: ["ignore", log, log] }
+        );
+        child.unref();
+        console.log(
+            `health-cadence: blade robustness audit (${owed.mode}) detached as pid ${child.pid}, after the verdict`
+        );
+    } finally {
+        closeSync(log);
+    }
 }
 
 function status(root: string): number {

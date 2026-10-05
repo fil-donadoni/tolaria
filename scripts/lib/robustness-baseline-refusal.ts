@@ -17,7 +17,7 @@
 //
 // What this does NOT catch, by design: a pin created or cleared by a weight or
 // search change whose PR closes no owner. That is the audit's accepted
-// health-only blind spot (`healthGates` in `health-step.ts`). Nor an owner
+// health-only blind spot (the post-verdict audit, `lib/health-robustness-audit.ts`). Nor an owner
 // closed outside the PR body (a sidebar link, a commit message): the body's
 // closing keywords are the same reading the RED gate makes (`closingIssueRefs`).
 //
