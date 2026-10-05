@@ -151,7 +151,12 @@ export function scanCardAnchors(lines: string[]): {
         // source order. Detected off the anchor line's own call rather than a
         // `splitHalves:` search, because the whole point of the helper is that
         // the field is written by it and never by the author.
-        const isSplit = /=\s*defineSplitCard\(/.test(lines[i]);
+        // A `defineCard` factory (issue #4859) puts the call on the NEXT line:
+        // `export const x = defineCard(() =>` / `    defineSplitCard({`.
+        const isSplit =
+            /=\s*defineSplitCard\(/.test(lines[i]) ||
+            (/=\s*defineCard\(/.test(lines[i]) &&
+                /^\s*defineSplitCard\(/.test(lines[i + 1] ?? ""));
         const names: string[] = [];
         for (let j = i + 1; j < lines.length; j++) {
             if (OBJECT_END.test(lines[j]) || CARD_ANCHOR.test(lines[j])) break;
