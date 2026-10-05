@@ -5672,8 +5672,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // DISCRIMINATING PAIR, HALF 1 of 2 (issue #2686) — the positive-control
         // half, `stretch` (see WHY STRETCH below).
         //
-        // PAIRED WITH: "discriminating pair: does NOT sacrifice a land to
-        // Zuran Orb for 2 life". Neither half is meaningful alone: a bot that
+        // The right-hand half of the Minimal Pair its `pairOf` declares
+        // (issue #5108). Neither half is meaningful alone: a bot that
         // never activates Zuran Orb passes the other, and a bot that always
         // activates it passes this one. Only the pair distinguishes a bot that
         // prices the land — and only the OTHER half bears the `manaDevelopment`
@@ -5716,12 +5716,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // `processPendingActionTriggers` stacks Titania's trigger; it resolves a
         // ply later (measured: material margin 427.5 → 654.5 on resolution).
         label: "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "no Titania, Protector of Argoth on the battlefield",
-            },
+        pairOf: {
+            anchor: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
+            discriminant: TITANIA_PAYOFF,
         },
         spec: {
             cards: [
@@ -5756,12 +5753,12 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 1 of the discriminating pair (positive control) — PAIRED WITH "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)". The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger); the pair still asks the only question #2686 wanted asked — does the bot convert a land when Titania pays it off, and refuse when she is not there. Re-pointed and promoted `stretch` → `must` by issue #2939: the original PRECOMBAT_MAIN window was seed noise (10/12) at the timing ceiling #2687 tracks, and #2939 resolves that ceiling AGAINST the original window (the land keeps tapping for mana until it is given up, so the bot now deterministically holds in its own main phase — the sibling `activation timing: holds a sacrifice engine through its own main phase` asserts exactly that). Moved to the window where the conversion is right, it is deterministic on all 3 original seeds at the original 400-iteration budget. The term-bearing half is still the partner; this one rides the token, not `manaDevWeight`.',
+        note: "Half 1 of the discriminating pair (positive control) — its partner in the declared Minimal Pair. The 5/3 token IS simulated (CR 603.10 PERMANENT_LEFT → trigger); the pair still asks the only question #2686 wanted asked — does the bot convert a land when Titania pays it off, and refuse when she is not there. Re-pointed and promoted `stretch` → `must` by issue #2939: the original PRECOMBAT_MAIN window was seed noise (10/12) at the timing ceiling #2687 tracks, and #2939 resolves that ceiling AGAINST the original window (the land keeps tapping for mana until it is given up, so the bot now deterministically holds in its own main phase — the sibling `activation timing: holds a sacrifice engine through its own main phase` asserts exactly that). Moved to the window where the conversion is right, it is deterministic on all 3 original seeds at the original 400-iteration budget. The term-bearing half is still the partner; this one rides the token, not `manaDevWeight`.",
     },
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #2686).
-        // PAIRED WITH: "discriminating pair: activates Zuran Orb when Titania
-        // pays the land off". Same board minus Titania: sacrificing a land now
+        // The ANCHOR of the Minimal Pair its right-hand half declares (issue
+        // #5108): the half's board and window minus Titania. Sacrificing a land now
         // nets only 2 life for a land the `manaDevelopment` term prices at 29
         // on curve (the hand's 6-MV Craw Wurm still wants that sixth land), a
         // decisive -13 — the blunder the flat eval (17 vs 16) used to leave
@@ -5770,29 +5767,32 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         label: "discriminating pair: does NOT sacrifice a land to Zuran Orb for 2 life (issue #2686)",
         classification: { kind: "conditional", discriminant: TITANIA_PAYOFF },
         spec: {
+            // The partner's board and window (the opponent's end step), minus
+            // Titania: the pair differs by that one card only.
             cards: [
-                { name: "Zuran Orb", owner: "me", zone: "battlefield" },
-                { name: "Craw Wurm", owner: "me", zone: "hand" },
+                { name: "Zuran Orb", owner: "opp", zone: "battlefield" },
+                { name: "Craw Wurm", owner: "opp", zone: "hand" },
                 {
                     name: "Grizzly Bears",
-                    owner: "opp",
+                    owner: "me",
                     zone: "battlefield",
                     summoningSick: false,
                 },
             ],
-            phase: "PRECOMBAT_MAIN",
+            phase: "END_STEP",
             turn: 6,
             landCount: 5,
             libraryCount: 20,
         },
-        bot: "me",
+        setup: [{ kind: "pass", seat: "me" }],
+        bot: "opp",
         budget: { iterations: 400 },
         seeds: [0xb1ade, 1, 2],
         tier: "must",
         expect: {
             forbidden: [{ kind: "activate-ability", card: "Zuran Orb" }],
         },
-        note: 'Half 2 of the discriminating pair — PAIRED WITH "discriminating pair: activates Zuran Orb when Titania pays the land off (issue #2686)". Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.',
+        note: "Half 2 of the discriminating pair — its partner in the declared Minimal Pair. Sacrificing a land nets only 2 life (16) for an on-curve land worth 29 under the `manaDevelopment` term, a decisive loss; before the term the flat eval priced a land at 17 vs 2 life at 16 — inside the rollout-noise band — and the bot gave a land away for 2 life on 1/5 seeds. Proven to fail by zeroing `manaDevWeight`.",
     },
     {
         // THE FLOODED READING (issue #2927) — the third leg of the
@@ -7103,100 +7103,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: { moves: [{ kind: "may-pay", accept: false }] },
         note: "Half 2 of the discriminating pair. Accepting empties a twenty-card library, which `libraryTerm` (evaluate.ts, CR 104.3c / 704.5b) scores steeply negative below its 12-card horizon; declining costs nothing. The pair is what proves the answer comes from the search applying the Op, not from the announcement's flat valuation — the valuer scores the two announcements identically.",
     },
-    {
-        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3041).
-        // PAIRED WITH: "entomb: buries the self-reachable card, not the bigger
-        // body". Both halves are the SAME graveyard-bound search; what differs
-        // is which card the searcher can actually get back, and the pair is
-        // what proves the fix is a PRICING fix rather than an "always entomb
-        // the fatty" rule.
-        //
-        // THE OBSERVED BUG (owner, 2026-09-02): the bot cast Entomb and put
-        // Breeding Pool into its graveyard. Every `search-library` candidate
-        // was priced destination-blind — a land by the fetch curve, everything
-        // else by what it would do if CAST — and nothing asked where the source
-        // effect actually PUTS the find. Entomb's own script says
-        // `moveZone … to: "graveyard"` (issue #3041 reads it there), and a land
-        // in a graveyard produces no mana at all.
-        //
-        // WHY THE LIBRARY IS CROWDED, and this is the whole point of the entry.
-        // The generator is SELF-PRUNING: it collapses the pool to distinct card
-        // identities, ranks them by the same worth, and emits only
-        // `CHOICE_TOP_K` (8) leads. On a two-card library a bad PRIOR is
-        // harmless — the search opens both branches and the reward corrects the
-        // order (measured: with the fix reverted, a two-card version of this
-        // entry still passes, so it asserts nothing). Nine distinct identities
-        // is where the bug becomes uncorrectable: destination-blind, each land
-        // prices at 50 (`LAND_SEARCH_BASE - 2 * LAND_SEARCH_STEP`,
-        // `candidateValue.ts`) and Sengir Vampire's 4/4 body at 42, so the
-        // Vampire ranks tenth of nine slots and is never emitted at all. A
-        // candidate that does not exist is one no amount of reward can choose.
-        //
-        // FAIRNESS BY CONSTRUCTION (ADR 0070 §1). Reanimate sits in hand, so
-        // the graveyard is genuinely reachable (`graveyardReach.ts` reach shape
-        // 2): burying the Vampire is a 4/4 flier for {B}, and burying any of
-        // the lands buries nothing — a land is not castable from a graveyard,
-        // and Reanimate returns only a CREATURE card. No plan-quality
-        // judgement, no averages.
-        label: "entomb: buries the reanimation target, not one of eight lands",
-        classification: {
-            kind: "conditional",
-            discriminant: {
-                kind: "card",
-                detail: "the reanimation spell removed from hand",
-            },
-        },
-        spec: {
-            cards: [
-                { name: "Entomb", owner: "me", zone: "hand" },
-                // Reach shape 2 — recursion the searcher HOLDS.
-                { name: "Reanimate", owner: "me", zone: "hand" },
-                { name: "Swamp", owner: "me", zone: "battlefield" },
-                { name: "Swamp", owner: "me", zone: "battlefield" },
-                // The one card worth burying …
-                { name: "Sengir Vampire", owner: "me", zone: "library" },
-                // … and eight DISTINCT land identities to crowd it out of the
-                // top-K under the old pricing. Distinct names, not copies:
-                // `stableCardIdentity` collapses copies of one land to a single
-                // candidate, which prunes nothing.
-                { name: "Breeding Pool", owner: "me", zone: "library" },
-                { name: "Hallowed Fountain", owner: "me", zone: "library" },
-                { name: "Blood Crypt", owner: "me", zone: "library" },
-                { name: "Plains", owner: "me", zone: "library" },
-                { name: "Island", owner: "me", zone: "library" },
-                { name: "Mountain", owner: "me", zone: "library" },
-                { name: "Forest", owner: "me", zone: "library" },
-                { name: "Taiga", owner: "me", zone: "library" },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 3,
-            landCount: 0,
-            libraryCount: 0,
-            life: { me: 20, opp: 20 },
-        },
-        setup: [
-            { kind: "cast", card: "Entomb", by: "me" },
-            { kind: "resolve-top" },
-        ],
-        bot: "me",
-        budget: { iterations: 400 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            // Strictly stronger than the `forbidden` naming the land the issue
-            // asks for: every other legal answer IS a land, so "must be the
-            // Vampire" forbids all of them by construction.
-            moves: [{ kind: "resolution-choice", card: "Sengir Vampire" }],
-        },
-        note: 'Half 1 of the discriminating pair (issue #3041) — PAIRED WITH "entomb: buries the self-reachable card, not the bigger body". The root decision is the live search-library choice (CR 701.23) of a GRAVEYARD-bound tutor, reached by really casting and resolving Entomb. Before the fix, `libraryTargetWorth` priced every land on the LAND FETCH CURVE (50 at two lands in play) against Sengir Vampire\'s prospective body worth (42), so the eight lands filled all eight `CHOICE_TOP_K` slots and the Vampire was pruned out of the candidate set entirely. Proof-of-failure: dropping the `destination` argument at the `choiceCandidates.ts` / `choicePriors.ts` call sites (back to the destination-blind `libraryTargetWorth(state, searcherId, card, ctx)`) reds this entry on every seed.',
-    },
+
     {
         // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3041).
-        // PAIRED WITH: "entomb: buries the reanimation target, not one of eight
-        // lands". Same tutor, same graveyard destination, same crowd — the
-        // recursion is REMOVED from hand and the right answer changes, which is
-        // the whole point: the fix prices a find by whether its owner can REACH
-        // it out of the graveyard, not by how big it is.
+        // The ANCHOR of the Minimal Pair its right-hand half declares
+        // (issue #5108). Same tutor, same graveyard destination, same crowd as
+        // the half, which holds Reanimate: here there is no recursion in hand
+        // and the right answer changes, which is the whole point: the fix
+        // prices a find by whether its owner can REACH it out of the
+        // graveyard, not by how big it is.
         //
         // With nothing to return them, the eight huge creatures are buried
         // dead, however large they are. Lingering Souls' printed Flashback
@@ -7265,7 +7180,104 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         expect: {
             moves: [{ kind: "resolution-choice", card: "Lingering Souls" }],
         },
-        note: 'Half 2 of the discriminating pair (issue #3041) — PAIRED WITH "entomb: buries the reanimation target, not one of eight lands". Removing the recursion from hand flips the correct answer from the largest card to the self-reachable one, which is what proves the change is a destination-and-reachability PRICING fix and not a size rule: half 1 alone passes for a bot that always buries the biggest thing it can find. Proof-of-failure: the same call-site revert reds this entry — destination-blind, the eight bodies (108 to 252) all out-rank Lingering Souls (78.8) and fill every `CHOICE_TOP_K` slot, so the one card that does anything from a graveyard is never emitted and the bot buries a creature it can never get back.',
+        note: "Half 2 of the discriminating pair (issue #3041) — the anchor of the Minimal Pair its right-hand half declares. Removing the recursion from hand flips the correct answer from the largest card to the self-reachable one, which is what proves the change is a destination-and-reachability PRICING fix and not a size rule: half 1 alone passes for a bot that always buries the biggest thing it can find. Proof-of-failure: the same call-site revert reds this entry — destination-blind, the eight bodies (108 to 252) all out-rank Lingering Souls (78.8) and fill every `CHOICE_TOP_K` slot, so the one card that does anything from a graveyard is never emitted and the bot buries a creature it can never get back.",
+    },
+    {
+        // DISCRIMINATING PAIR, HALF 2 of 2 (issue #3041).
+        // The ANCHOR of the Minimal Pair its right-hand half declares
+        // (issue #5108). Same tutor, same graveyard destination, same crowd as
+        // the half, which holds Reanimate: here there is no recursion in hand
+        // and the right answer changes, which is the whole point: the fix
+        // prices a find by whether its owner can REACH it out of the
+        // graveyard, not by how big it is.
+        //
+        // With nothing to return them, the eight huge creatures are buried
+        // dead, however large they are. Lingering Souls' printed Flashback
+        // (CR 702.34) makes it usable from the graveyard on its own
+        // (`graveyardReach.ts` reach shape 1) for {1}{B}, which the two Swamps
+        // can actually pay, so it is two 1/1 fliers rather than nothing. That
+        // is the leg an "always entomb the fatty" rule fails, and it is why the
+        // fix routes through the reachability gate instead of through size.
+        //
+        // THE CROWD IS FATTIES HERE, not lands, and for a measured reason. The
+        // pruning is what makes the bug uncorrectable, so the crowd has to
+        // out-rank the right answer under the OLD blind pricing: Lingering
+        // Souls' blind script worth is 78.8 — ABOVE a land's 50, so a crowd of
+        // lands leaves it admitted second and the reward simply corrects the
+        // order (measured: that version passes with the fix reverted and
+        // asserts nothing). Every creature below has a blind body worth of 108
+        // or more (`permanentWorth`, p² + t² + 10), so blind admission fills
+        // all eight `CHOICE_TOP_K` slots with cards that do nothing in a
+        // graveyard and never emits the one that does.
+        // DISCRIMINATING PAIR, HALF 1 of 2 (issue #3041), re-cut as a
+        // Minimal Pair (issue #5108): the right-hand half of the anchor
+        // below, its position plus ONE card — Reanimate in hand. Same
+        // graveyard-bound search, same crowd of eight fatties, same two
+        // Swamps (one pays Entomb, the other Reanimate): with the recursion
+        // held the graveyard is genuinely reachable, so burying a big body
+        // IS right, and the Lingering Souls the anchor buries is not.
+        //
+        // THE OBSERVED BUG (owner, 2026-09-02): the bot cast Entomb and put
+        // Breeding Pool into its graveyard — every `search-library`
+        // candidate was priced destination-blind. The earlier half of this
+        // pair crowded the Vampire out with eight lands; the anchor now
+        // carries the pruning proof (its Souls are crowded out by eight
+        // fatties under the blind pricing), and this half shows the pricing
+        // is not a size rule: hold Reanimate and the same crowd is right.
+        label: "entomb: buries the reanimation target, not the self-reachable card",
+        pairOf: {
+            anchor: "entomb: buries the self-reachable card, not the bigger body",
+            discriminant: {
+                kind: "card",
+                detail: "a reanimation spell in hand",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Entomb", owner: "me", zone: "hand" },
+                { name: "Reanimate", owner: "me", zone: "hand" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                { name: "Swamp", owner: "me", zone: "battlefield" },
+                // Reach shape 1 — castable out of the graveyard on its own,
+                // for a cost this board can pay.
+                { name: "Lingering Souls", owner: "me", zone: "library" },
+                // Eight far larger bodies, every one of them ranked above
+                // Lingering Souls by the blind pricing and worth nothing in a
+                // graveyard with no recursion anywhere.
+                { name: "Force of Nature", owner: "me", zone: "library" },
+                { name: "Lord of the Pit", owner: "me", zone: "library" },
+                { name: "Colossus of Sardia", owner: "me", zone: "library" },
+                { name: "Polar Kraken", owner: "me", zone: "library" },
+                { name: "Cosmic Horror", owner: "me", zone: "library" },
+                {
+                    name: "Island Fish Jasconius",
+                    owner: "me",
+                    zone: "library",
+                },
+                { name: "Chaos Lord", owner: "me", zone: "library" },
+                { name: "Draco", owner: "me", zone: "library" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 0,
+            life: { me: 20, opp: 20 },
+        },
+        setup: [
+            { kind: "cast", card: "Entomb", by: "me" },
+            { kind: "resolve-top" },
+        ],
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [
+                { kind: "resolution-choice", card: "Polar Kraken" },
+                { kind: "resolution-choice", card: "Island Fish Jasconius" },
+                { kind: "resolution-choice", card: "Colossus of Sardia" },
+            ],
+        },
     },
     {
         // Lifted from the AI-diagnosis harness, episode #9 (issue #2436).
