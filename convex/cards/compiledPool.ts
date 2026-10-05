@@ -52,22 +52,23 @@ export const packedServerCorpus: PackedCorpus | null =
     packedCorpus as unknown as PackedCorpus;
 
 /**
- * THE SWITCH (issue #4165): when on, the server never preloads the compiled
- * rows above, and `getDefinition` falls back to {@link packedServerCorpus}
- * instead — resident entry, then the packed row, then token synthesis.
+ * THE SWITCH (issue #4165): which rendering serves a compiled row on first
+ * request. On, `getDefinition` falls back to {@link packedServerCorpus} —
+ * resident entry, then the packed row, then token synthesis — one block at a
+ * time.
  *
- * Off by default, and off means today's behaviour byte for byte: the literal
- * pool is preloaded and the packed artefact is never read. Turned on per
+ * Off by default: the row is read from the literal pool above, and no packed
+ * block is ever inflated. Nothing is preloaded either way (issue #4856). Turned on per
  * deployment with the `TOLARIA_PACKED_CORPUS_LOOKUP=on` environment variable,
  * read once at module load (a change reaches a request once its module graph
  * is re-evaluated). The `typeof` guard is for the one runtime with no
  * `process` at all; the browser build never evaluates this module (its alias
  * exports `false`).
  *
- * NOT for a real deployment yet: with it on, the catalogue-wide populations
- * fed from compiled rows (the name map behind `tryGetCardByName`, the set
- * codes, `getAllCatalogueCards`) hold none of them until the enumerator slice
- * of PRD #4161 gives each a disposition. Tests and the cloud measurement only.
+ * Either way the catalogue-wide populations (the name lookup behind
+ * `tryGetCardByName`, the Set codes, `getAllCatalogueCards`) come from the
+ * Definition Index this corpus carries (issue #4856), never from the rows —
+ * so neither rendering is walked at load.
  */
 export const PACKED_CORPUS_LOOKUP: boolean =
     typeof process !== "undefined" &&

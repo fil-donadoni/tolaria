@@ -52,15 +52,16 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
 // cache + DB read (ADR 0046) without any consumer noticing, because the
 // return type never changes shape.
 //
-// Hydration-at-entry: the `registry` Map is populated once, synchronously, at
-// module evaluation time — i.e. once per cold Convex isolate, before any
-// mutation runs. Every mutation entry point therefore sees an already-hydrated,
-// in-memory map and reads it synchronously. On the client the registry starts
-// empty and is populated via `preloadDefinitions` before the board renders.
+// Hydration on first request (issue #4856): the `registry` Map starts empty
+// and a catalogue card enters it the first time it is looked up, from the lazy
+// source `catalogue.ts` installs at load (the Definition Index locates it);
+// the lookup stays synchronous, because the data is already in memory and
+// only its registration is deferred. On the client the compiled rows enter
+// through `preloadDefinitions` once fetched, before the board renders.
 
 /** Combined lookup: every `CardDefinition.id` resolves to its definition; a
- *  Print ID resolves to nothing (ADR 0140 §5). Populated at module load (server)
- *  or via `preloadDefinitions` (client). */
+ *  Print ID resolves to nothing (ADR 0140 §5). Filled on first request through
+ *  the lazy source, or via `preloadDefinitions` (client compiled rows). */
 const registry = new Map<string, CardDefinition>();
 
 /** CR 113.6c (issue #2391) — the registry keys whose definition declares
@@ -591,9 +592,10 @@ export const getDefinition = (cardId: string): CardDefinition => {
  *  the SAME object `getDefinition(def.id)` returns.
  *
  *  Only the entry whose key IS the definition's own id is yielded, so a
- *  derived face registered under another key is not repeated. Insertion order
- *  reproduces catalogue load order, which is what makes a "first match wins"
- *  consumer deterministic.
+ *  derived face registered under another key is not repeated. The catalogue
+ *  comes first, in Definition Index order (issue #4856), resolved as it is
+ *  yielded — which is what makes a "first match wins" consumer deterministic
+ *  whatever has been looked up before it.
  *
  *  Lazy on purpose. This is the registry-side sibling of `catalogue.ts`'s
  *  `getAllCards()`, which eagerly expands all ~1900 definitions and — being
@@ -601,9 +603,8 @@ export const getDefinition = (cardId: string): CardDefinition => {
  *  (`client.ts`). A consumer that stops at the first hit should not have to
  *  pull the catalogue in to get one name.
  *
- *  Hydration is the caller's problem, exactly as it is for `getDefinition`:
- *  a Convex isolate hydrates at module load; the client hydrates through
- *  `src/main.tsx`'s catalogue side-effect import. */
+ *  The catalogue's side-effect import is the caller's problem, exactly as it
+ *  is for `getDefinition`: it is what installs the lazy source. */
 export function* registeredDefinitions(): Generator<CardDefinition> {
     // Issue #4856 — the lazy source's ids first: with definitions resolved on
     // first request, the map holds only what has been asked for, and a
