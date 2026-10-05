@@ -63,6 +63,17 @@ describe("parseRegistryEntries", () => {
     });
 });
 
+describe("entryTier", () => {
+    it("reads the entry's own tier, not one named in a comment or a nested object", () => {
+        const block = `// tier: "stretch" in a comment\n{\n    label: "A",\n    spec: { tier: "stretch" },\n    tier: "must",\n}`;
+        expect(entryTier(block)).toBe("must");
+    });
+
+    it("is null when the tier is not a literal", () => {
+        expect(entryTier(`{ label: "A", tier: pick() }`)).toBeNull();
+    });
+});
+
 describe("registryChange", () => {
     const base = registry(entry("A"), entry("B"));
 

@@ -219,10 +219,30 @@ function labelAtDepthOne(
     return null;
 }
 
-/** The `tier` of an entry block, `null` when not a literal. */
+/** The `tier` of an entry block, `null` when not a literal. Read at depth 1
+ *  of the masked block, like the label: a comment or a nested object naming
+ *  `tier: "stretch"` is not the entry's tier. */
 export function entryTier(block: string): "must" | "stretch" | null {
-    const m = /\btier\s*:\s*"(must|stretch)"/.exec(block);
-    return m === null ? null : (m[1] as "must" | "stretch");
+    const m = mask(block);
+    if (m === null) return null;
+    let depth = 0;
+    for (let i = 0; i < m.masked.length; i++) {
+        const c = m.masked[i];
+        if (c === "{" || c === "[" || c === "(") depth++;
+        else if (c === "}" || c === "]" || c === ")") depth--;
+        else if (
+            depth === 1 &&
+            /[\s{,]/.test(m.masked[i - 1] ?? " ") &&
+            m.masked.startsWith("tier", i)
+        ) {
+            const t = /^tier\s*:\s*(["'])/.exec(m.masked.slice(i, i + 20));
+            if (t === null) continue;
+            const at = i + t[0].length;
+            const word = block.slice(at, block.indexOf(t[1], at));
+            return word === "must" || word === "stretch" ? word : null;
+        }
+    }
+    return null;
 }
 
 export type RegistryChange =

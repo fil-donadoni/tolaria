@@ -143,6 +143,39 @@ function git(root: string, args: string[]): string {
     });
 }
 
+/** Source files the import graph can name — the only blobs worth reading. */
+const GRAPH_SOURCE = /^(?:convex|src)\/.*\.(?:ts|tsx|js|jsx|mjs)$/;
+
+/** Every `paths` blob at `rev`, in ONE `git cat-file --batch` process: a
+ *  `git show` per file measured 21.7 s for the audit's 1383-file closure,
+ *  against ~1 s for the whole batch read (issue #5078). */
+function readBlobs(
+    root: string,
+    rev: string,
+    paths: readonly string[]
+): Map<string, string> {
+    const out = execFileSync("git", ["cat-file", "--batch"], {
+        cwd: root,
+        input: paths.map((p) => `${rev}:${p}\n`).join(""),
+        maxBuffer: 512 * 1024 * 1024,
+        stdio: ["pipe", "pipe", "ignore"],
+    });
+    const blobs = new Map<string, string>();
+    let at = 0;
+    for (const path of paths) {
+        const eol = out.indexOf(0x0a, at);
+        const header = out.toString("utf8", at, eol).split(" ");
+        if (header[1] !== "blob") {
+            at = eol + 1; // `<object> missing`: no body follows
+            continue;
+        }
+        const size = Number(header[2]);
+        blobs.set(path, out.toString("utf8", eol + 1, eol + 1 + size));
+        at = eol + 1 + size + 1;
+    }
+    return blobs;
+}
+
 /** The tree at git revision `rev`, read without checking it out. */
 export function gitTreeSource(root: string, rev: string): ImportGraphSource {
     const files = new Set(
@@ -150,9 +183,17 @@ export function gitTreeSource(root: string, rev: string): ImportGraphSource {
             .split("\n")
             .filter((l) => l !== "")
     );
+    let blobs: Map<string, string> | null = null;
     return {
         isFile: (p) => files.has(p),
-        readFile: (p) => git(root, ["show", `${rev}:${p}`]),
+        readFile: (p) => {
+            blobs ??= readBlobs(
+                root,
+                rev,
+                [...files].filter((f) => GRAPH_SOURCE.test(f))
+            );
+            return blobs.get(p) ?? git(root, ["show", `${rev}:${p}`]);
+        },
     };
 }
 
