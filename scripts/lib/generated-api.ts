@@ -82,7 +82,9 @@ export const convexCodegen: Codegen = (root) => {
     const out = `${r.stdout ?? ""}${r.stderr ?? ""}`.trim();
     return {
         ok: r.status === 0,
-        detail: r.error ? String(r.error) : out.split("\n").slice(-1)[0],
+        detail: r.error
+            ? `${String(r.error)} — is \`bun install\` done?`
+            : out.split("\n").slice(-1)[0],
     };
 };
 

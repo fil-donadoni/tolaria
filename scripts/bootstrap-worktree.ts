@@ -160,8 +160,15 @@ if (primary) {
     const outcome = refreshGeneratedApi(cwd);
     const line = refreshReceipt(outcome);
     if (outcome.kind === "failed") failed.push(line);
-    else if (outcome.kind === "regenerated") done.push(line);
-    else skipped.push(line);
+    else if (outcome.kind === "regenerated") {
+        done.push(line);
+        // A primary with no generated API at all was a failed copy above;
+        // the regeneration just produced this tree's own, so it is not one.
+        const gone = failed.findIndex((f) =>
+            f.startsWith("convex/_generated ")
+        );
+        if (gone !== -1) failed.splice(gone, 1);
+    } else skipped.push(line);
 }
 
 // ── build caches seeded from the primary (issue #3776) ──────────────────────
