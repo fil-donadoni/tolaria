@@ -52,6 +52,7 @@
  *
  * Run: bun run check:gaps
  */
+import { loadBladeMustCovered } from "./lib/blade-must-covered";
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -480,9 +481,10 @@ export function liveClusterKeys(
     implemented: readonly string[],
     emitted: ReadonlySet<string>,
     botFindings: ReadonlyMap<string, BotFindingVerdict> | null,
-    handTailMarkers: readonly (CompilerGapMarker & { readonly file: string })[]
+    handTailMarkers: readonly (CompilerGapMarker & { readonly file: string })[],
+    mustCovered?: ReadonlySet<string>
 ): LiveGapKey[] {
-    const computed = computedGapKeys(lock, botFindings);
+    const computed = computedGapKeys(lock, botFindings, mustCovered);
     const keys: LiveGapKey[] = [];
     for (const op of implemented)
         if (!emitted.has(op)) keys.push({ kind: "grammar", key: opGapKey(op) });
@@ -661,7 +663,7 @@ export function render(result: CensusResult): string {
     return lines.join("\n");
 }
 
-function main(): void {
+async function main(): Promise<void> {
     const root = resolve(".");
     const lock = parseLockfile(readFileSync(LOCKFILE_PATH, "utf8"));
     const allowlist = parseAllowlist(readFileSync(ALLOWLIST_PATH, "utf8"));
@@ -681,11 +683,13 @@ function main(): void {
         : null;
     const botMerge = mergeAllBotVerdicts(findings, lock.cards, botHash(root));
     const registry = readTargetRegistry(root);
+    const mustCovered = await loadBladeMustCovered();
     const inScope = inScopeBotGapKeys(
         lock.cards,
         rankedCardIds(registry, resolveContext(root, lock)),
         botMerge.merged,
-        rankedTargetIds(registry)
+        rankedTargetIds(registry),
+        mustCovered
     );
     const claims = parseClaimRows(allowlist, ALLOWLIST_PATH);
     const unclaimed = unclaimedBotGaps(inScope, claims);
@@ -706,7 +710,8 @@ function main(): void {
                 implemented,
                 emitted,
                 botMerge.merged,
-                markers
+                markers,
+                mustCovered
             ),
             claims,
             parseClusterRows(allowlist, ALLOWLIST_PATH)
@@ -721,4 +726,4 @@ function main(): void {
     process.exit(1);
 }
 
-if (import.meta.main) main();
+if (import.meta.main) await main();

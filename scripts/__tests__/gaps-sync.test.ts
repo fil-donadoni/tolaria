@@ -2609,3 +2609,72 @@ describe("the bot kind — a class found only on hand-written cards (issue #4180
         ).toEqual([NEVER_CHOSEN, UNMODELLED]);
     });
 });
+
+describe("the bot kind — a `never-chosen` card a `must` Test Position covers carries no gap (ADR 0143, issue #4825)", () => {
+    const FROZEN_NEVER_CHOSEN = "never-chosen › Artifact › (no Ops)";
+    const lock = {
+        fragments: [],
+        cards: [
+            botRow("c-1", "Covered Card", NEVER_CHOSEN, ["premodern"]),
+            botRow("c-2", "Uncovered Card", NEVER_CHOSEN, ["premodern"]),
+            botRow("c-3", "Covered Unmodelled", UNMODELLED, ["premodern"]),
+            botRow(
+                "c-4",
+                "Covered Frozen",
+                FROZEN_NEVER_CHOSEN,
+                ["premodern"],
+                "frozen"
+            ),
+            ...FILLER,
+        ],
+    };
+    const covered = new Set([
+        "Covered Card",
+        "Covered Unmodelled",
+        "Covered Frozen",
+    ]);
+
+    it("drops the covered card from the key's cards, keeps the uncovered one", () => {
+        const filing = buildBotGapFilings(
+            inputs(lock, { mustCovered: covered })
+        ).find((f) => f.key === NEVER_CHOSEN);
+        expect(filing!.body(1)).toContain("Cards held (1): Uncovered Card");
+    });
+
+    it("closes a key whose every card is covered — no filing, not in scope, not live", () => {
+        const all = new Set(["Covered Card", "Uncovered Card"]);
+        const keys = buildBotGapFilings(inputs(lock, { mustCovered: all })).map(
+            (f) => f.key
+        );
+        expect(keys).not.toContain(NEVER_CHOSEN);
+        expect(
+            inScopeBotGapKeys(
+                lock.cards,
+                inputs(lock).ranked,
+                undefined,
+                undefined,
+                all
+            )
+        ).not.toContain(NEVER_CHOSEN);
+        expect(computedGapKeys(lock, new Map(), all).bot).not.toContain(
+            NEVER_CHOSEN
+        );
+    });
+
+    it("keeps a covered card whose cause is not `never-chosen`, and a covered `frozen` one", () => {
+        const keys = buildBotGapFilings(
+            inputs(lock, { mustCovered: covered })
+        ).map((f) => f.key);
+        expect(keys).toContain(UNMODELLED);
+        expect(keys).toContain(FROZEN_NEVER_CHOSEN);
+    });
+
+    it("without a covered set every card keeps its gap", () => {
+        const filing = buildBotGapFilings(inputs(lock)).find(
+            (f) => f.key === NEVER_CHOSEN
+        );
+        expect(filing!.body(1)).toContain(
+            "Cards held (2): Covered Card, Uncovered Card"
+        );
+    });
+});
