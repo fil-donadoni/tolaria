@@ -43,8 +43,11 @@ import {
     type RobustnessMode,
 } from "./health-robustness-trigger";
 
-/** What `health-main` leaves for the audit, beside `last.json`. */
-export const AUDIT_REQUEST_FILE = "robustness-request.json";
+/** What `health-main` leaves for the audit, beside `last.json`: one file per
+ *  tip, so a later run never deletes or overwrites an earlier tip's request. */
+export function auditRequestFile(sha: string): string {
+    return `robustness-request-${sha.slice(0, 12)}.json`;
+}
 
 /** What the audit leaves for `health:status`, beside `last.json`. */
 export const AUDIT_RECORD_FILE = "robustness-audit.json";
@@ -75,6 +78,8 @@ export interface AuditRecord {
     mode: string;
     startedAt: string;
     finishedAt?: string;
+    /** The audit process: a `running` record whose pid is dead was killed. */
+    pid?: number;
     /** `fileDriftIssues`'s report lines. */
     filed: string[];
     /** `wrong` only: the entries that fail their own seeds. */
@@ -90,14 +95,14 @@ export interface VerdictRecord {
 }
 
 /** Leave the request for the verdict's reader; a batch that owes nothing
- *  removes the previous one, so a stale request never runs on a later tip. */
+ *  removes this tip's own (a re-gate of the same tip that no longer owes it). */
 export function writeAuditRequest(
     dir: string,
     sha: string,
     mode: RobustnessMode,
     owed: boolean
 ): void {
-    const file = join(dir, AUDIT_REQUEST_FILE);
+    const file = join(dir, auditRequestFile(sha));
     if (!owed) {
         rmSync(file, { force: true });
         return;
@@ -111,31 +116,34 @@ export function writeAuditRequest(
     writeFileSync(file, JSON.stringify(request, null, 2));
 }
 
-/** The request the verdict is ready for, or `null`. Read-only. */
+/** The request for tip `sha`, once the verdict for that SAME tip is GREEN or
+ *  RED, or `null`. Read-only. */
 export function readOwedAudit(
     dir: string,
+    sha: string,
     last: VerdictRecord | null
 ): AuditRequest | null {
-    const file = join(dir, AUDIT_REQUEST_FILE);
-    if (!existsSync(file) || last === null) return null;
+    const file = join(dir, auditRequestFile(sha));
+    if (!existsSync(file) || last === null || last.sha !== sha) return null;
     if (last.status !== "green" && last.status !== "red") return null;
     try {
         const request = JSON.parse(readFileSync(file, "utf8")) as AuditRequest;
-        return request.sha === last.sha ? request : null;
+        return request.sha === sha ? request : null;
     } catch {
         return null;
     }
 }
 
-/** Take the request: `readOwedAudit`, then delete it, so two detached
- *  decisions never audit the same tip twice. */
+/** Take the request for `sha`: `readOwedAudit`, then delete it, so two
+ *  detached decisions never audit the same tip twice. */
 export function claimAuditRequest(
     dir: string,
+    sha: string,
     last: VerdictRecord | null
 ): AuditRequest | null {
-    const request = readOwedAudit(dir, last);
+    const request = readOwedAudit(dir, sha, last);
     if (request !== null)
-        rmSync(join(dir, AUDIT_REQUEST_FILE), { force: true });
+        rmSync(join(dir, auditRequestFile(sha)), { force: true });
     return request;
 }
 
@@ -176,6 +184,7 @@ export async function runAudit(opts: {
         sha: request.sha,
         mode: request.mode,
         startedAt: now().toISOString(),
+        pid: process.pid,
         log,
     };
     const write = (record: AuditRecord): AuditRecord => {
@@ -214,13 +223,20 @@ export async function runAudit(opts: {
     });
 }
 
-/** The `health:status` line for the last audit. */
-export function describeAuditRecord(record: AuditRecord): string {
+/** The `health:status` line for the last audit. `alive` says whether the
+ *  record's pid still runs (a `running` record whose process died is
+ *  abandoned, not in progress). */
+export function describeAuditRecord(
+    record: AuditRecord,
+    alive: boolean = true
+): string {
     const filed =
         record.filed.length > 0 ? ` — ${record.filed.join("; ")}` : "";
     const wrong =
         record.wrong && record.wrong.length > 0
             ? ` — fails its own seeds (test:blade reds the tip): ${record.wrong.join(", ")}`
             : "";
-    return `${record.status} @ ${record.sha.slice(0, 8)} (${record.mode})${wrong}${filed}`;
+    const status =
+        record.status === "running" && !alive ? "abandoned" : record.status;
+    return `${status} @ ${record.sha.slice(0, 8)} (${record.mode})${wrong}${filed}`;
 }

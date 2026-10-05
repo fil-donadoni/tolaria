@@ -61,7 +61,12 @@ async function main(): Promise<void> {
     const root = primaryCheckout(process.cwd());
     const dir = join(root, HEALTH_DIR);
     mkdirSync(dir, { recursive: true });
-    const request = claimAuditRequest(dir, readLast(dir));
+    // The tip the cadence decided on, never "whatever last.json says now":
+    // a run that finished meanwhile must not change what this audits.
+    const sha = process.argv
+        .find((a) => a.startsWith("--sha="))
+        ?.slice("--sha=".length);
+    const request = sha ? claimAuditRequest(dir, sha, readLast(dir)) : null;
     if (request === null) {
         console.log(
             "health-robustness-audit: nothing owed (no request for the recorded verdict)"
@@ -74,13 +79,21 @@ async function main(): Promise<void> {
     // `gate.ts heavy` passes through it (`keepHold`).
     const env = healthGateEnv(process.env, { keepHold: true });
     const thresholds = readMachineConfig();
-    git(["worktree", "add", "--detach", wt, request.sha], root);
+    let added = false;
     try {
         const run = async (): Promise<{
             ok: boolean;
             output: string;
             excused: boolean;
         }> => {
+            // Before anything can throw: a worktree or bootstrap failure is
+            // the environment's, not the Bot's — recorded `infra`, never filed.
+            try {
+                git(["worktree", "add", "--detach", wt, request.sha], root);
+                added = true;
+            } catch (err) {
+                return { ok: false, output: String(err), excused: true };
+            }
             const boot = await runHealthStep(
                 {
                     ordinal: 1,
@@ -91,7 +104,7 @@ async function main(): Promise<void> {
                 },
                 { cwd: wt, env, logPath: log }
             );
-            if (!boot.ok) return { ...boot, excused: false };
+            if (!boot.ok) return { ...boot, excused: true };
             const startedAt = Date.now();
             const before = readMachineSample();
             const r = await runHealthStep(
@@ -124,7 +137,10 @@ async function main(): Promise<void> {
             `health-robustness-audit: ${record.status} @ ${request.sha.slice(0, 8)}${record.filed.map((l) => `\n  ${l}`).join("")}`
         );
     } finally {
-        spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
+        if (added)
+            spawnSync("git", ["worktree", "remove", "--force", wt], {
+                cwd: root,
+            });
     }
 }
 

@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     AUDIT_RECORD_FILE,
-    AUDIT_REQUEST_FILE,
+    auditRequestFile,
     claimAuditRequest,
     describeAuditRecord,
     readAuditRecord,
@@ -63,7 +63,7 @@ describe("the audit request", () => {
             true
         );
         const request = JSON.parse(
-            readFileSync(join(dir, AUDIT_REQUEST_FILE), "utf8")
+            readFileSync(join(dir, auditRequestFile(SHA)), "utf8")
         );
         expect(request.sha).toBe(SHA);
         expect(request.env).toEqual({
@@ -73,29 +73,50 @@ describe("the audit request", () => {
 
     it("a batch that owes nothing removes the previous request", () => {
         writeAuditRequest(dir, SHA, FULL, true);
-        writeAuditRequest(dir, "later", { kind: "none", reason: "x" }, false);
-        expect(existsSync(join(dir, AUDIT_REQUEST_FILE))).toBe(false);
+        writeAuditRequest(dir, SHA, { kind: "none", reason: "x" }, false);
+        expect(existsSync(join(dir, auditRequestFile(SHA)))).toBe(false);
+    });
+
+    it("a later tip never deletes or overwrites an earlier tip's request", () => {
+        writeAuditRequest(dir, SHA, FULL, true);
+        writeAuditRequest(dir, "d00dfeed0000bbbb", FULL, true);
+        writeAuditRequest(
+            dir,
+            "feedbead0000cccc",
+            { kind: "none", reason: "x" },
+            false
+        );
+        expect(existsSync(join(dir, auditRequestFile(SHA)))).toBe(true);
+        expect(
+            claimAuditRequest(dir, SHA, { sha: SHA, status: "green" })?.sha
+        ).toBe(SHA);
     });
 
     it("is owed only once the verdict for the SAME tip is green or red", () => {
         writeAuditRequest(dir, SHA, FULL, true);
-        expect(readOwedAudit(dir, null)).toBeNull();
-        expect(readOwedAudit(dir, { sha: SHA, status: "running" })).toBeNull();
-        expect(readOwedAudit(dir, { sha: SHA, status: "infra" })).toBeNull();
+        expect(readOwedAudit(dir, SHA, null)).toBeNull();
         expect(
-            readOwedAudit(dir, { sha: "other", status: "green" })
+            readOwedAudit(dir, SHA, { sha: SHA, status: "running" })
         ).toBeNull();
-        expect(readOwedAudit(dir, { sha: SHA, status: "green" })?.sha).toBe(
+        expect(
+            readOwedAudit(dir, SHA, { sha: SHA, status: "infra" })
+        ).toBeNull();
+        expect(
+            readOwedAudit(dir, SHA, { sha: "other", status: "green" })
+        ).toBeNull();
+        expect(
+            readOwedAudit(dir, SHA, { sha: SHA, status: "green" })?.sha
+        ).toBe(SHA);
+        expect(readOwedAudit(dir, SHA, { sha: SHA, status: "red" })?.sha).toBe(
             SHA
         );
-        expect(readOwedAudit(dir, { sha: SHA, status: "red" })?.sha).toBe(SHA);
     });
 
     it("is claimed once", () => {
         writeAuditRequest(dir, SHA, FULL, true);
         const last = { sha: SHA, status: "green" };
-        expect(claimAuditRequest(dir, last)?.sha).toBe(SHA);
-        expect(claimAuditRequest(dir, last)).toBeNull();
+        expect(claimAuditRequest(dir, SHA, last)?.sha).toBe(SHA);
+        expect(claimAuditRequest(dir, SHA, last)).toBeNull();
     });
 });
 
@@ -189,6 +210,20 @@ describe("runAudit leaves the verdict alone", () => {
         expect(during).toBe("running");
         expect(AUDIT_RECORD_FILE).toBe("robustness-audit.json");
         expect(describeAuditRecord(record)).toContain("clean @ c43c4b5a");
+    });
+});
+
+describe("a dead audit is not shown as running", () => {
+    it("abandoned when the pid is gone", () => {
+        const record = {
+            sha: SHA,
+            status: "running" as const,
+            mode: "full",
+            startedAt: "t",
+            filed: [],
+        };
+        expect(describeAuditRecord(record, true)).toContain("running @");
+        expect(describeAuditRecord(record, false)).toContain("abandoned @");
     });
 });
 

@@ -75,7 +75,10 @@
  * #5078) leaves a request beside `last.json` (`lib/health-robustness-audit.ts`)
  * and `health-cadence` runs it after the verdict, off the critical path. Its
  * only `wrong` — an entry failing its own seeds — is what `test:blade` already
- * reds in this run.
+ * reds in this run. Declared residual: only `health-cadence` starts it, so a
+ * `release` or by-hand run leaves its request unclaimed (per-tip file, never
+ * overwritten) and that batch's audit waits for a later cadence fire to be
+ * re-requested by a triggering batch.
  * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
  * red tip — and neither `land` nor `check:pr` runs them.
  *
@@ -90,7 +93,7 @@
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
  * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
  * `lib/health-robustness-audit.ts` (builtins, `lib/health-robustness-drift.ts`
- * and `lib/health-robustness-trigger.ts`),
+ * and `lib/health-robustness-trigger.ts`, so `lib/gh.ts` too),
  * `lib/health-robustness-trigger.ts` (builtins, `lib/bot-globs.ts`,
  * `lib/import-graph.ts`, `lib/blade-registry-entries.ts`) and
  * `lib/health-bot-refresh.ts` (builtins and the import-free
@@ -364,7 +367,10 @@ function status(root: string): never {
             `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
         );
     const audit = readAuditRecord(dir);
-    if (audit) console.log(`  blade audit: ${describeAuditRecord(audit)}`);
+    if (audit)
+        console.log(
+            `  blade audit: ${describeAuditRecord(audit, pidAlive(audit.pid))}`
+        );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
         console.log(
@@ -373,6 +379,16 @@ function status(root: string): never {
         for (const s of stale) console.log(`    · ${s}`);
     }
     process.exit(red ? 1 : 0);
+}
+
+function pidAlive(pid: number | undefined): boolean {
+    if (pid === undefined) return true;
+    try {
+        process.kill(pid, 0);
+        return true;
+    } catch {
+        return false;
+    }
 }
 
 type Phase = "offline" | "walk" | "all";

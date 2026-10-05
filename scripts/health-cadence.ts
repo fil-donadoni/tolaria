@@ -447,8 +447,9 @@ function decideAndRun(root: string, branch: string): Round {
  */
 function spawnRobustnessAudit(root: string): void {
     const dir = join(root, HEALTH_DIR);
-    const owed = readOwedAudit(dir, readLast(root));
-    if (owed === null) return;
+    const last = readLast(root);
+    const owed = last === null ? null : readOwedAudit(dir, last.sha, last);
+    if (owed === null || last === null) return;
     const env: NodeJS.ProcessEnv = { ...process.env };
     delete env.TOLARIA_GATE_HELD;
     delete env.TOLARIA_ALLOW_FULL_SUITE;
@@ -458,7 +459,11 @@ function spawnRobustnessAudit(root: string): void {
     try {
         const child = spawn(
             "bun",
-            [GATE, "yield", `bun ${JSON.stringify(ROBUSTNESS_AUDIT)}`],
+            [
+                GATE,
+                "yield",
+                `bun ${JSON.stringify(ROBUSTNESS_AUDIT)} --sha=${last.sha}`,
+            ],
             { cwd: root, env, detached: true, stdio: ["ignore", log, log] }
         );
         child.unref();
