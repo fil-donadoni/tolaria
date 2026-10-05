@@ -192,7 +192,10 @@ const FACE_SEPARATOR = " // ";
 
 /** A blade entry names a card by its DEFINITION name — one face of a split or
  *  double-faced card — while the lockfile row carries `Front // Back`. */
-function isMustCovered(name: string, covered: ReadonlySet<string>): boolean {
+export function isMustCovered(
+    name: string,
+    covered: ReadonlySet<string>
+): boolean {
     return (
         covered.has(name) ||
         name.split(FACE_SEPARATOR).some((face) => covered.has(face))

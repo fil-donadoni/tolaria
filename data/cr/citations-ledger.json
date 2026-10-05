@@ -5387,6 +5387,7 @@
         {"id":"118","line":"// `paid` is false when a cost leg could not be met (CR 118 — a","sites":1,"status":"baseline"},
         {"id":"118","line":"// controller is not the discarding player. Discarding it to pay a cost (CR 118,","sites":1,"status":"confirmed","ruleHash":"6ff1520f0edd18df"},
         {"id":"118","line":"// filtered set) + CR 603.6a (your-upkeep trigger) + CR 118 (mana payment).","sites":1,"status":"baseline"},
+        {"id":"118","line":"// punisher cost (CR 118: sacrifice creatures with total power 12 or","sites":1,"status":"confirmed","ruleHash":"6ff1520f0edd18df"},
         {"id":"118","line":"// punisher trigger (CR 118 — \"sacrifice it unless you sacrifice","sites":1,"status":"baseline"},
         {"id":"118","line":"// punisher trigger (CR 118) is ON THE STACK, unresolved — the same","sites":1,"status":"baseline"},
         {"id":"118","line":"// self-ETB punisher (CR 603.6a trigger; CR 118 / 701.21 sacrifice cost). Modern","sites":1,"status":"baseline"},

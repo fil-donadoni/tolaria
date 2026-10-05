@@ -140,6 +140,8 @@ import {
 } from "./lib/coverage-context";
 import {
     buildBotGapFilings,
+    mustCoveredBotCards,
+    pruneCoveredReached,
     buildFragmentGapFilings,
     buildHandTailFilings,
     buildMigrationFilings,
@@ -740,12 +742,20 @@ export function buildAllFilings(
             reached.get(claimId(filing.kind, filing.key)) ?? [],
             index
         );
+    // A `never-chosen` card a `must` Test Position covers carries no Bot Gap
+    // (ADR 0143, issue #4825): it lends neither its name nor its band.
+    const covered =
+        mustCovered === undefined
+            ? new Map<string, string>()
+            : mustCoveredBotCards(lock.cards, botFindings, mustCovered);
+    pruneCoveredReached(reached, covered);
     const nameOf = new Map(lock.cards.map((c) => [c.oracleId, c.name]));
     // Findings-only cards (hand-written, no lockfile row) reach their Bot Gap
     // and lend its band exactly like a lockfile card (issue #4180).
     const lockIds = new Set(lock.cards.map((c) => c.oracleId));
     for (const [oracleId, verdict] of botFindings ?? []) {
         if (lockIds.has(oracleId) || verdict.outcome === "played") continue;
+        if (covered.has(oracleId)) continue;
         if (verdict.gap === undefined) continue;
         nameOf.set(oracleId, verdict.name ?? oracleId);
         const id = claimId("bot", verdict.gap);

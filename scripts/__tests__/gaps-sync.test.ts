@@ -44,6 +44,8 @@ import {
 import {
     botCauseOf,
     buildBotGapFilings,
+    mustCoveredBotCards,
+    pruneCoveredReached,
     buildFragmentGapFilings,
     buildHandTailFilings,
     enforcedCardIds,
@@ -2676,5 +2678,28 @@ describe("the bot kind — a `never-chosen` card a `must` Test Position covers c
         expect(filing!.body(1)).toContain(
             "Cards held (2): Covered Card, Uncovered Card"
         );
+    });
+
+    it("a covered card leaves the reached index (a filing's cards and band), a face name counts, an uncovered card stays", () => {
+        const faces = {
+            fragments: [],
+            cards: [
+                ...lock.cards,
+                botRow("c-5", "Front // Back", NEVER_CHOSEN, ["premodern"]),
+            ],
+        };
+        const dropped = mustCoveredBotCards(
+            faces.cards,
+            undefined,
+            new Set(["Covered Card", "Back"])
+        );
+        expect([...dropped.keys()].sort()).toEqual(["c-1", "c-5"]);
+        const reached = new Map([
+            [claimId("bot", NEVER_CHOSEN), new Set(["c-1", "c-2", "c-5"])],
+        ]);
+        pruneCoveredReached(reached, dropped);
+        expect([...reached.get(claimId("bot", NEVER_CHOSEN))!]).toEqual([
+            "c-2",
+        ]);
     });
 });

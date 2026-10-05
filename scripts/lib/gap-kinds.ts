@@ -31,6 +31,7 @@ import {
     type GapFiling,
 } from "./gap-issues";
 import { gapOf } from "./grammar-gaps";
+import { isMustCovered } from "./target-completed";
 import type { BotFindingVerdict } from "./bot-findings-merge";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import {
@@ -811,6 +812,27 @@ function botVerdictRows(
 }
 
 /**
+ * The cards {@link botVerdictRows} drops for coverage, oracle id → the Bot Gap
+ * key each carried — what a caller holding its own per-Gap card index
+ * (`gaps:sync`'s `reached`, which lends a filing its cards and band) removes
+ * so it agrees with the filer.
+ */
+export function mustCoveredBotCards(
+    cards: readonly CardRow[],
+    findings: ReadonlyMap<string, BotFindingVerdict> | undefined,
+    mustCovered: ReadonlySet<string>
+): Map<string, string> {
+    const kept = new Set(
+        botVerdictRows(cards, findings, mustCovered).map((r) => r.oracleId)
+    );
+    const dropped = new Map<string, string>();
+    for (const row of botVerdictRows(cards, findings))
+        if (!kept.has(row.oracleId) && row.verdict.gap !== undefined)
+            dropped.set(row.oracleId, row.verdict.gap);
+    return dropped;
+}
+
+/**
  * A `never-chosen` card a `must` Test Position covers (ADR 0143 § The v1 gate:
  * "a Test Position closes such a card with a proof instead of a valuation
  * change") carries no Bot Gap. `mustCovered` is `mustCoveredCards`'s set — the
@@ -827,7 +849,7 @@ function isMustCoveredNeverChosen(
         outcome !== "frozen" &&
         gap !== undefined &&
         botCauseOf(gap) === "never-chosen" &&
-        mustCovered.has(row.name)
+        isMustCovered(row.name, mustCovered)
     );
 }
 
@@ -1106,4 +1128,16 @@ export function orphanCardActions(
         });
     }
     return actions;
+}
+
+/**
+ * Remove covered cards from a per-Gap reached index ({@link mustCoveredBotCards}
+ * says which, under which key), in place.
+ */
+export function pruneCoveredReached(
+    reached: Map<string, Set<string>>,
+    covered: ReadonlyMap<string, string>
+): void {
+    for (const [oracleId, key] of covered)
+        reached.get(claimId("bot", key))?.delete(oracleId);
 }
