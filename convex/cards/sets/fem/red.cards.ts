@@ -9,12 +9,7 @@
 // of their mana cost (CR 202.2); lands and artifacts (no coloured cost) live in
 // colorless.ts.
 
-import type {
-    CardDefinition,
-    CardPrint,
-    SpellContext,
-    TokenSpec,
-} from "../../types";
+import type { CardDefinition, SpellContext, TokenSpec } from "../../types";
 import { manaCostForCardId } from "../../manaCostLookup";
 
 function colorsOfView(view: { card?: Record<string, unknown> }): string[] {
@@ -60,27 +55,6 @@ export const goblinWarDrums: CardDefinition = {
     ],
 };
 
-export const goblinWarDrumsFemB: CardPrint = {
-    printId: "5988a3d2-748f-4642-9e33-293ddc568111", // FEM 58b
-    definitionId: goblinWarDrums.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const goblinWarDrumsFemC: CardPrint = {
-    printId: "2232386e-986d-41b5-8b70-e086264f3277", // FEM 58c
-    definitionId: goblinWarDrums.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const goblinWarDrumsFemD: CardPrint = {
-    printId: "2a0185f3-fbc0-44d7-b933-30627cda1bf9", // FEM 58d
-    definitionId: goblinWarDrums.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const goblinGrenade: CardDefinition = {
     id: "8837eaba-9602-4f63-9897-85583fcdcf51", // FEM 56a (canonical art)
     rarity: "common",
@@ -98,20 +72,6 @@ export const goblinGrenade: CardDefinition = {
     // issue #690: the sweep now genuinely covers this script rather than
     // failing on it. Retired by the behavioural gold harness (issue #2703).
     effects: [{ op: "dealDamage", amount: 5, to: { target: 0 } }],
-};
-
-export const goblinGrenadeFemB: CardPrint = {
-    printId: "dee262da-3002-4c08-8043-4e40e1b46822", // FEM 56b
-    definitionId: goblinGrenade.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const goblinGrenadeFemC: CardPrint = {
-    printId: "1befdfc7-a1e3-4a2a-ad68-7d0fee170f3f", // FEM 56c
-    definitionId: goblinGrenade.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const goblinWarrens: CardDefinition = {
@@ -165,20 +125,6 @@ export const goblinWarrens: CardDefinition = {
             },
         },
     ],
-};
-
-export const goblinChirurgeonFemB: CardPrint = {
-    printId: "982115b2-e1e7-4b2f-8eb6-a1633477d4a8", // FEM 54b
-    definitionId: "2b710c21-e9f5-4660-80f6-2104ec65f63f",
-    setCode: "fem",
-    rarity: "uncommon",
-};
-
-export const goblinChirurgeonFemC: CardPrint = {
-    printId: "c9740842-7955-4cf9-8f76-a426858360b1", // FEM 54c
-    definitionId: "2b710c21-e9f5-4660-80f6-2104ec65f63f",
-    setCode: "fem",
-    rarity: "uncommon",
 };
 
 export const goblinKites: CardDefinition = {
@@ -345,27 +291,6 @@ export const brassclawOrcs: CardDefinition = {
     ],
 };
 
-export const brassclawOrcsFemB: CardPrint = {
-    printId: "ac9d0354-9ddd-4fe1-8174-9d3686ca564c", // FEM 49b
-    definitionId: brassclawOrcs.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const brassclawOrcsFemC: CardPrint = {
-    printId: "a2c1e461-f74e-436c-a9df-aff197cf48e1", // FEM 49c
-    definitionId: brassclawOrcs.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const brassclawOrcsFemD: CardPrint = {
-    printId: "50f0f4fe-2dd0-42c1-8f68-5d24a8a9d07d", // FEM 49d
-    definitionId: brassclawOrcs.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const orcishVeteran: CardDefinition = {
     id: "1dbca765-8756-4e28-9faf-25714c9b8838", // FEM 62a (canonical art)
     rarity: "common",
@@ -412,27 +337,6 @@ export const orcishVeteran: CardDefinition = {
     ],
 };
 
-export const orcishVeteranFemB: CardPrint = {
-    printId: "bc37db83-9efc-4d58-90c9-78eef9073ec2", // FEM 62b
-    definitionId: orcishVeteran.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const orcishVeteranFemC: CardPrint = {
-    printId: "334004e6-bf8c-4a4e-a30c-1537a99819c9", // FEM 62c
-    definitionId: orcishVeteran.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const orcishVeteranFemD: CardPrint = {
-    printId: "4990dd4b-2b18-4e4c-81d4-1cd8d746a7dc", // FEM 62d
-    definitionId: orcishVeteran.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
 export const orcishSpy: CardDefinition = {
     id: "cd3890d1-563d-4519-ab8c-913031d71918", // FEM 61a (canonical art)
     rarity: "common",
@@ -465,20 +369,6 @@ export const orcishSpy: CardDefinition = {
             },
         },
     ],
-};
-
-export const orcishSpyFemB: CardPrint = {
-    printId: "8b931cfd-b952-416c-ab2c-271ecaee8e0c", // FEM 61b
-    definitionId: orcishSpy.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const orcishSpyFemC: CardPrint = {
-    printId: "28e08767-7e92-4ff4-b0d8-196565fbc23c", // FEM 61c
-    definitionId: orcishSpy.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const orgg: CardDefinition = {
@@ -590,20 +480,6 @@ export const dwarvenSoldier: CardDefinition = {
             ],
         },
     ],
-};
-
-export const dwarvenSoldierFemB: CardPrint = {
-    printId: "ea7e4c52-dfe1-4b15-a0d6-4f26c294426d", // FEM 53b
-    definitionId: dwarvenSoldier.id,
-    setCode: "fem",
-    rarity: "common",
-};
-
-export const dwarvenSoldierFemC: CardPrint = {
-    printId: "872c5601-f356-4873-adf9-9a39536e7d4a", // FEM 53c
-    definitionId: dwarvenSoldier.id,
-    setCode: "fem",
-    rarity: "common",
 };
 
 export const dwarvenArmorer: CardDefinition = {

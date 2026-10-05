@@ -78,7 +78,6 @@ import * as neo from "./sets/neo/index.cards";
 import * as bok from "./sets/bok/index.cards";
 import * as roe from "./sets/roe/index.cards";
 import * as lci from "./sets/lci/index.cards";
-import * as soc from "./sets/soc/index.cards";
 import * as por from "./sets/por/index.cards";
 import * as p02 from "./sets/p02/index.cards";
 import * as phpr from "./sets/phpr/index.cards";
@@ -143,8 +142,6 @@ import * as ala from "./sets/ala/index.cards";
 import * as otj from "./sets/otj/index.cards";
 import * as hml from "./sets/hml/index.cards";
 import * as scg from "./sets/scg/index.cards";
-import * as fourthEdition from "./sets/4ed/index.cards";
-import * as beatdown from "./sets/btd/index.cards";
 import * as inv from "./sets/inv/index.cards";
 import * as all from "./sets/all/index.cards";
 import * as pcy from "./sets/pcy/index.cards";
@@ -284,7 +281,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "bok", exports: bok },
     { code: "roe", exports: roe },
     { code: "lci", exports: lci },
-    { code: "soc", exports: soc },
     { code: "por", exports: por },
     { code: "p02", exports: p02 },
     { code: "phpr", exports: phpr },
@@ -350,8 +346,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
     { code: "otj", exports: otj },
     { code: "hml", exports: hml },
     { code: "scg", exports: scg },
-    { code: "4ed", exports: fourthEdition },
-    { code: "btd", exports: beatdown },
     { code: "inv", exports: inv },
     { code: "all", exports: all },
     { code: "pcy", exports: pcy },

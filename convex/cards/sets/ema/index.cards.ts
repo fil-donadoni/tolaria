@@ -8,4 +8,3 @@ export * from "./black.cards";
 export * from "./red.cards";
 export * from "./green.cards";
 export * from "./multicolor.cards";
-export * from "./colorless.cards";

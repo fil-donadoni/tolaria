@@ -6,7 +6,6 @@
 import type {
     ActivatedAbilityContext,
     CardDefinition,
-    CardPrint,
     Color,
     DelayedTriggerDef,
     EffectOp,
@@ -477,14 +476,6 @@ export const clairvoyance: CardDefinition = {
         },
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
-};
-// Counterspell — ICE reprint of the LEA instant ("Counter target spell").
-// CardPrint onto the LEA definition (ADR 0014).
-export const counterspellIce: CardPrint = {
-    printId: "aedbcbaa-40f0-485f-8427-778edc2d2ec0",
-    definitionId: "0df55e3f-14de-46ef-b6b1-616618724d9e",
-    setCode: "ice",
-    rarity: "common",
 };
 // Deflection — "Change the target of target spell with a single target."
 // (CR 115.7 — change a spell's target.) Targets a spell on the stack; on
@@ -1848,14 +1839,6 @@ export const portent: CardDefinition = {
     ],
     delayedTriggers: [nextUpkeepDrawTrigger()],
 };
-// Power Sink — ICE reprint of the LEA instant. CardPrint onto the LEA
-// definition (ADR 0014).
-export const powerSinkIce: CardPrint = {
-    printId: "85cbec45-81b4-40cc-b356-d6713a6a9b2b",
-    definitionId: "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
-    setCode: "ice",
-    rarity: "common",
-};
 export const rayOfCommand: CardDefinition = {
     id: "638abe5f-2a8a-42ca-bcdf-a52a3df66946",
     name: "Ray of Command",
@@ -2053,14 +2036,6 @@ export const silverErne: CardDefinition = {
     power: 2,
     toughness: 2,
     staticAbilities: ["flying", "trample"],
-};
-// Sleight of Mind — ICE reprint of the LEA instant (colour-word text change,
-// CR 612). CardPrint onto the LEA definition (ADR 0014).
-export const sleightOfMindIce: CardPrint = {
-    printId: "93dc9f02-11ad-4c4a-8199-9d20c23d31a7",
-    definitionId: "d427790c-e322-446e-8d7d-a6b48ad41a42",
-    setCode: "ice",
-    rarity: "common",
 };
 // "It's blocking and you control a snow land" gate for Snow Devil's
 // conditional first-strike grant (CR 611.2c board-state-conditional

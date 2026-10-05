@@ -3,7 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type { CardDefinition, CardPrint, SpellContext } from "../../types";
+import type { CardDefinition, SpellContext } from "../../types";
 import { resolveCompiledStatic } from "../../compiledStatics";
 import { enteredTrigger } from "../../abilities/triggers/enteredTrigger";
 import { additionalCostPaidCondition } from "../../abilities/triggers/shared";
@@ -588,17 +588,6 @@ export const tahngarthTalruumHero: CardDefinition = {
             ],
         },
     ],
-};
-
-// Tahngarth, Talruum Hero — PLS 74★, the foil-only alternate-illustration
-// variant printed in the SAME set (ADR 0014: one CardDefinition + one
-// CardPrint per artwork). Rarity/mechanics are identical to the canonical
-// print above; only the Scryfall art id differs.
-export const tahngarthTalruumHeroAlt: CardPrint = {
-    printId: "6cdab0f9-7208-4555-b509-e61773ebc1f9", // PLS 74★
-    definitionId: tahngarthTalruumHero.id,
-    setCode: "pls",
-    rarity: "rare",
 };
 
 // Thunderscape Battlemage — {2}{R} Creature — Human Wizard, 2/2. "Kicker

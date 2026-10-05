@@ -3,12 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 
-import type {
-    CardDefinition,
-    CardPrint,
-    Color,
-    TriggeredAbility,
-} from "../../types";
+import type { CardDefinition, Color, TriggeredAbility } from "../../types";
 import { PERMANENT_TYPES } from "../../types";
 import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 import { drawTrigger } from "../../abilities/triggers/drawTrigger";
@@ -1526,13 +1521,6 @@ export const ertaiTheCorrupted: CardDefinition = {
             effects: [{ op: "counter", target: { target: 0 } }],
         },
     ],
-};
-
-export const ertaiTheCorruptedAlt: CardPrint = {
-    printId: "fbbfeb32-1654-4bf6-9a38-891f1a03e02b", // PLS 107★
-    definitionId: ertaiTheCorrupted.id,
-    setCode: "pls",
-    rarity: "rare",
 };
 
 // Questing Phelddagrif — {1}{G}{W}{U} Legendary Creature — Phelddagrif, 4/4.

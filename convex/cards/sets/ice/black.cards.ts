@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
-    CardPrint,
     GameEvent,
     PermanentFilter,
     PermanentView,
@@ -478,14 +477,6 @@ export const darkBanishing: CardDefinition = {
         { op: "destroy", target: { target: 0 }, cantBeRegenerated: true },
     ],
 };
-// Dark Ritual — ICE reprint of the LEA original (ADR 0014). Mechanics live on
-// the existing LEA definition; this is a CardPrint binding the ICE print id.
-export const darkRitualIce: CardPrint = {
-    printId: "4ebcd681-1871-4914-bcd7-6bd95829f6e0",
-    definitionId: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
-    setCode: "ice",
-    rarity: "common",
-};
 // Demonic Consultation — "Choose a card name. Exile the top six cards of your
 // library, then reveal cards from the top of your library until you reveal a
 // card with the chosen name. Put that card into your hand and exile all other
@@ -761,14 +752,6 @@ export const driftOfTheDead: CardDefinition = {
             },
         },
     ],
-};
-// Fear — ICE reprint of the LEA original (ADR 0014). The fear-granting Aura
-// mechanics live on the existing LEA definition; this is a CardPrint.
-export const fearIce: CardPrint = {
-    printId: "5709398f-0744-4780-a1d2-eead96c8f348",
-    definitionId: "0cd927be-e63f-4371-a1d8-7a0489cb187e",
-    setCode: "ice",
-    rarity: "common",
 };
 // Flow of Maggots — "Cumulative upkeep {1}. This creature can't be blocked by
 // non-Wall creatures." (CR 702.24 cumulative upkeep via the shipped
@@ -1158,14 +1141,6 @@ export const hecatomb: CardDefinition = {
             effects: [{ op: "dealDamage", amount: 1, to: { target: 0 } }],
         },
     ],
-};
-// Howl from Beyond — ICE reprint of the LEA original (ADR 0014). The +X/+0
-// pump mechanics live on the existing LEA definition; this is a CardPrint.
-export const howlFromBeyondIce: CardPrint = {
-    printId: "ca9d0d6b-056e-4b94-8de5-a325768f67b6",
-    definitionId: "67ec17e1-174b-4d07-a27f-91a333c4b2fb",
-    setCode: "ice",
-    rarity: "common",
 };
 // Hyalopterous Lemure — "{0}: This creature gets -1/-0 and gains flying until
 // end of turn." (CR 611.2a negative pump + CR 702.9 flying grant.) Pay {0} to

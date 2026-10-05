@@ -5,7 +5,6 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2).
 import type {
     CardDefinition,
-    CardPrint,
     PermanentView,
     SpellContext,
     TargetSelection,
@@ -2156,22 +2155,6 @@ export const sabretoothTiger: CardDefinition = {
     power: 2,
     toughness: 1,
     staticAbilities: ["first strike"],
-};
-// Shatter — ICE reprint of the LEA instant ("Destroy target artifact").
-// CardPrint onto the LEA definition (ADR 0014).
-export const shatterIce: CardPrint = {
-    printId: "7eb18d53-20de-43d7-86f7-97a6d14d54b8",
-    definitionId: "50dc7fc1-cb6a-4c68-b993-1a25cf16226e",
-    setCode: "ice",
-    rarity: "common",
-};
-// Stone Rain — ICE reprint of the LEA sorcery ("Destroy target land").
-// CardPrint onto the LEA definition (ADR 0014).
-export const stoneRainIce: CardPrint = {
-    printId: "5a002e6d-ea59-4694-b3e5-075d6020b0d9",
-    definitionId: "57ff74cb-a2ed-4123-ac42-f72f9820049e",
-    setCode: "ice",
-    rarity: "common",
 };
 // Stone Spirit — 4/3 "can't be blocked by creatures with flying" (CR 509.1b
 // block restriction; the predicate rejects candidate blockers whose

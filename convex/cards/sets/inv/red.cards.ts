@@ -8,7 +8,6 @@ import type {
     CardDefinition,
     ManaCost,
     SpellContext,
-    CardPrint,
     PermanentView,
     StaticEffectStateView,
     StaticEffectContext,
@@ -374,17 +373,6 @@ export const chaoticStrike: CardDefinition = {
     ],
 };
 
-// crownOfFlames — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/red.cards.ts`.
-export const crownOfFlamesInv: CardPrint = {
-    printId: "5a46239c-3de7-48ca-8f5c-b51f307fd0e5", // INV 138
-    definitionId: "f2c82741-2869-41f9-82f4-6ed88756e2fd", // crownOfFlames (Tempest)
-    setCode: "inv",
-    rarity: "common",
-};
-
 // Halam Djinn — {5}{R} Creature — Djinn, 6/5. "Haste. This creature gets
 // -2/-2 as long as red is the most common color among all permanents or is
 // tied for most common." (CR 702.10 haste + CR 611.2c conditional CDA anthem
@@ -519,17 +507,6 @@ export const kavuMonarch: CardDefinition = {
             ],
         }),
     ],
-};
-
-// maniacalRage — INV reprint of the Exodus definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `exo/red.cards.ts`.
-export const maniacalRageInv: CardPrint = {
-    printId: "3d17886c-fffd-4f0d-b4da-4b5fba18b811", // INV 151
-    definitionId: "f3aa840f-6a70-4674-acb7-ded0ea4397d8", // maniacalRage (Exodus)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Pouncing Kavu — {1}{R} Creature — Kavu, 1/1. "Kicker {2}{R}. First strike.
@@ -915,17 +892,6 @@ export const slimyKavu: CardDefinition = {
             ],
         },
     ],
-};
-
-// stun — INV reprint of the Tempest definition (CardPrint).
-// The card was first implemented here, against this printing; its home set is
-// its earliest paper printing (ADR 0041), so the mechanics live in
-// `tmp/red.cards.ts`.
-export const stunInv: CardPrint = {
-    printId: "d22f3ae8-a40b-4dab-abf4-3ab7b05191f7", // INV 162
-    definitionId: "c09c0da6-37a7-42ba-b264-18898ee372f0", // stun (Tempest)
-    setCode: "inv",
-    rarity: "common",
 };
 
 // Tectonic Instability — {2}{R} Enchantment. "Whenever a land enters, tap
