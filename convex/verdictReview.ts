@@ -30,6 +30,7 @@ import {
 import { decidedVerdictIds } from "./gre/ai/verdicts/resolution";
 import type {
     Discriminant,
+    Verdict,
     VerdictAttestation,
     VerdictResolution,
 } from "./gre/ai/verdicts/types";
