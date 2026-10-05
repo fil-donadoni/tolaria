@@ -1886,6 +1886,42 @@ session reads. The contract is three habits in the one document every
 issue-closing session reads, and this command is how anyone checks, after the
 fact, whether they took.
 
+## `/next-issue` — the incidents behind its rules
+
+The `/next-issue` skill states its rules as instructions and cites this
+section for the history; it does not restate it (issue #5100). Rows whose
+owner is elsewhere are pointers.
+
+- **`gh` fields, not pages.** One unfielded `gh issue list` measured 7.6k
+  tokens in a single call; the per-bucket cost (`gh` 919 tokens a call
+  against `git` 512) is in the § Context hygiene baseline above.
+- **Never poll.** 437 `sleep N; echo` round-trips were measured in one week
+  of the § Context hygiene baseline window.
+- **A pass never ends its turn waiting** (issue #4763). Observed four times
+  in two AFK runs, twice leaving a `MERGEABLE` PR that nothing landed: the
+  pass ended its turn "waiting for `oracle:compile`" or on a `land` retry, and
+  under `claude -p` the process went with it, claim held.
+- **Commit before you break anything** (issue #2789). Both failure modes were
+  observed the first time the single-session skill ran for real: reverting a
+  proof-of-failure break with `git checkout` wiped the whole uncommitted
+  implementation of the file, which then had to be rewritten from context;
+  and a second revert left a later break's `perl` substitution matching
+  nothing, so the test passed and a vacuous green nearly got recorded as a
+  proof.
+- **The `cards` short path** (ADR 0136 §8). Best observed: 24 minutes wall,
+  ~4 of them implementing.
+- **Model routing by label only.** Area-based escalation put half the queue
+  on Opus for no measured quality gain: `docs/agents/workflow-token-economics.md`.
+  Underpowered attempts on a labelled issue paid for themselves again in
+  review rounds in the same 2026-08 data; the criterion lives in
+  `docs/agents/triage-labels.md` § Model-routing labels escalate by exception.
+- **No pre-PR gate**: ADR 0136 §1 and § No pre-PR gate above (the base moved
+  at 2.5 PR/h during a pre-PR lane run).
+- **The preset scenario `land` seeds**: ADR 0044 (33 specs silently dropped
+  between ADR 0110 and the wiring, recovered by `bun run seed:backlog`).
+- **`seed:preset --all` after a card-set merge** (issue #3254): the
+  derivation is the header of `scripts/seed-preset-deck.ts`.
+
 ## Latency per issue — the measurement, and what it does to ADR 0110's target
 
 ADR 0110 records a target it never checked: **"a median issue closes in 10-15
