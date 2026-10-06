@@ -44,9 +44,9 @@ that substitute a module's contents in memory:
   definitions match the one-line anchor);
 - the bot test corpus: `gre/ai/blade/registry.ts` replaced by empty exports.
 
-**Caveat: Node is a proxy for the Convex isolate.** The cloud probe in the
-PRD calibrates the ratio; until then, read the numbers as relative, and the
-absolute ones as approximately right.
+**Caveat: Node is a proxy for the Convex isolate.** The cloud probe (issue
+#4852, § Cloud calibration) measured the isolate at ~0.6x the Node heap delta
+(0.65 at most): the Node figures below overstate a call's heap.
 
 Timings were also taken, but the machine load average was 15–31 during the
 session, so eval times are noise and are not used for any conclusion.
@@ -131,6 +131,69 @@ hand-written sets and hydrates a second copy of the compiled catalogue. ADR
 0113 § 3 measured ~30 MB of heap for the whole corpus at 34,890 rows: ~60 MB
 in a game against the Bot, on a phone.
 
+### Cloud calibration: the literal pool on a real isolate (issue #4852, 2026-10-06)
+
+Measured on a throwaway Convex cloud dev deployment with
+`bun scripts/convex-heap-probe.ts` (on demand, never a gate). A mutation whose
+module imports the compiled pool as a JSON object literal (the shape the
+server carried until issue #4168) at 4k, 9k, 12k and 35k synthetic rows,
+beside an empty control mutation, both pushed in the same run.
+
+**How the isolate's heap is read.** A Convex call exposes no heap counter,
+only its failure. So both mutations first allocate `pad` chunks (arrays of
+1,024 or 16,384 numbers), and a doubling-then-bisecting search finds the
+largest padding a call survives — its room. The control's room minus the pool
+module's room is the pool's cost, in chunks. A chunk's isolate size is
+measured, not assumed: the control's room in double chunks (8 B per element
+under every V8 layout) and in integer chunks came out equal, so the isolate
+does NOT compress pointers (same layout as Node; a chunk is 8 B per element in
+both). Node heap: the same module, bundled with the Convex CLI's esbuild
+options, as a delta over the control (§ Method).
+
+| rows   | `pool.json` | cloud result | OOM error text | latency delta, median / p90 | room left (chunks) | isolate heap | Node heap | isolate / Node |
+| ------ | ----------- | ------------ | -------------- | --------------------------- | ------------------ | ------------ | --------- | -------------- |
+| 4,000  | 4.4 MiB     | ok           | —              | +11.0 / +28.1 ms            | 9,904 / 10,559     | 5.1 MiB      | 9.2 MiB   | 0.56           |
+| 9,000  | 9.9 MiB     | ok           | —              | +36.7 / +42.2 ms            | 9,077 / 10,559     | 11.6 MiB     | 20.0 MiB  | 0.58           |
+| 12,000 | 13.3 MiB    | ok           | —              | +50.5 / +60.6 ms            | 8,512 / 10,559     | 16.0 MiB     | 26.5 MiB  | 0.61           |
+| 35,000 | 38.8 MiB    | ok           | —              | +203.1 / +216.4 ms          | 4,596 / 10,559     | 46.7 MiB     | 75.8 MiB  | 0.62           |
+
+Chunks of 1,024 elements (8 KiB, V8 regular space, beside the pool's own
+objects); 20 interleaved rounds per size, 3 discarded. The replication with
+16,384-element chunks (128 KiB, large-object space) gave the same picture:
+ratios 0.65 / 0.65 / 0.65 / 0.63, control room 85.4 MiB, latency medians
++8.1 / +34.5 / +48.2 / +206.8 ms. A padded call past the room fails with
+`JavaScript execution ran out of memory (maximum memory usage: 64 MB)`.
+
+What it says:
+
+- **No size fails on memory, 35k included.** The smallest failing row count
+  is none of those pushed. The projected wall "near 9,000 rows" (§ Heap of one
+  call) was the WHOLE `game.ts` module (engine + hand-written sets + pool)
+  measured in Node, without the ratio. The pool alone takes 46.7 MiB of
+  isolate at 35k.
+- **The Node→isolate ratio is ~0.6** (0.56–0.65 over eight measurements; it
+  rises with size, so it is not a fixed overhead): a Node heap delta
+  overstates the isolate's by ~1.6x. The health heap check applies **0.65**,
+  the highest measured, so it errs on the side of a failure. The ratio was
+  measured on a JSON literal. The engine's code (closures, compiled
+  functions) was not measured separately, which is one more reason to take
+  the high end.
+- **The room is ~83 MiB, not 64.** An empty module's call holds ~83 MiB of V8
+  objects before the "64 MB" error. Whatever the runtime counts as its 64 MB,
+  it is not the V8 heap that Node's `heapUsed` measures. A Node-measured budget
+  is therefore conservative twice over (ratio, then room).
+- **The first wall of the literal pool is TIME, not heap.** At 35k rows the
+  padless call ran 830–840 ms of the 1 s user-code limit (Convex logs the
+  warning) and added ~205 ms of latency per call; the delta grows ~6 ms per
+  1,000 rows. Extrapolated, the time limit falls near ~42k rows of literal pool
+  alone, and the heap room near ~60k. Amendment III's packed corpus answers
+  both.
+- Latency at today's size (4k): +8 to +11 ms per call, within Amendment III's
+  100 ms budget; 35k is over it twice.
+
+The throwaway project was created for this run only. The owner confirms its
+deletion in the PR thread of issue #4852.
+
 ## Checked and fine
 
 - The Bot searches in the client worker; no server function runs a search, so
@@ -182,4 +245,8 @@ The session's scripts were throwaway, but each is a few lines on top of
 4. Bundle attribution: `metafile.outputs[*].inputs[*].bytesInOutput`; glue is
    an output's `bytes` minus the sum of its inputs.
 
-The health guard the PRD adds is this procedure made permanent.
+The health guard the PRD adds is this procedure made permanent. The cloud
+calibration is `bun scripts/convex-heap-probe.ts --deployment dev:<name>`
+(header for flags; `--node-only` runs the Node half with no deployment) on a
+throwaway project created and deleted as `docs/guides/catalogue-cloud-latency.md`
+§ 1 and § 3 describe.

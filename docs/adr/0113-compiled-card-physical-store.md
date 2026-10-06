@@ -720,6 +720,26 @@ download: the packed corpus is 573 KB Brotli against the retired artifact's
 are 6.4 MiB of heap today and ~35 MiB at 35,000 rows: not a game cost, but the
 next client one to bound.
 
+### The cloud calibration (issue #4852, 2026-10-06)
+
+Point 2's ratio, measured on a real Convex cloud isolate by
+`scripts/convex-heap-probe.ts` (on demand). The compiled pool was pushed as an
+object literal at 4k, 9k, 12k and 35k rows, and padding searches read how
+much room each call had left:
+
+- **Node→isolate ratio ~0.6** (0.56–0.65; the health check applies **0.65**,
+  the highest measured). The isolate does not compress pointers, and a call
+  holds ~83 MiB of V8 objects before the runtime's "64 MB" error.
+- **No size failed on memory**, 35k included (46.7 MiB of isolate for the pool
+  alone). The "~9,000 rows" wall above was Node's figure for the whole
+  `game.ts` module, without the ratio.
+- **The literal pool's first wall is the 1 s of user code.** A 35k-row call
+  ran ~835 ms and added ~205 ms of latency, against Amendment III's 100 ms
+  budget. The packed corpus remains the decision, for latency first.
+
+Table and method: `docs/research/convex-server-scale-2026-09-29.md`
+§ Cloud calibration.
+
 ### Exit ladder, one more row
 
 | trigger                                                           | move                                                         |
