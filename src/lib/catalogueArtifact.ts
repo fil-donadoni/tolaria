@@ -31,6 +31,7 @@ import {
     resolveDeckCardMeta,
 } from "@convex/cards/catalogue";
 import { bindDeckCardMetaResolver } from "~/lib/catalogue/deck-card-meta.browser";
+import { fetchJsonAsset } from "~/lib/fetchJsonAsset";
 
 // `convex/formats.ts` gets a late-bound `resolveDeckCardMeta` in the browser
 // build (`vite.config.ts` → `formats-cards-browser-seam`, issue #4854); this
@@ -42,22 +43,6 @@ bindDeckCardMetaResolver(resolveDeckCardMeta);
 export function catalogueArtifactUrl(): string {
     return packedCorpusUrl;
 }
-
-/**
- * How long one attempt may take before it becomes a REJECTION.
- *
- * `fetch` has no deadline of its own, and a request that never settles is the
- * worst shape this module can take: the gate would sit on "Loading cards..."
- * with no Retry (its error branch renders on a rejection, and a pending
- * promise is not one) and the Brain's Worker would post nothing for the rest
- * of the session — every consult expiring on `BRAIN_CONSULT_TIMEOUT_MS` and
- * resolving `move: null`, i.e. a bot that passes every window, which is
- * exactly the issue #2450 symptom. A stall is therefore turned into a
- * rejection, which the gate's Retry and the Worker's re-arm both already
- * handle. Generous on purpose — ~0.9 MB over a slow link is a real download,
- * and this bounds a STALL, not slowness.
- */
-const FETCH_TIMEOUT_MS = 60_000;
 
 let hydration: Promise<number> | null = null;
 
@@ -84,29 +69,7 @@ export function hydrateCatalogue(): Promise<number> {
 
 async function fetchCatalogue(): Promise<number> {
     const url = catalogueArtifactUrl();
-    // An explicit controller rather than `AbortSignal.timeout`: the deadline
-    // has to be an ordinary `setTimeout` so it is one thing a test can drive
-    // and one thing every runtime this module loads in already has.
-    const controller = new AbortController();
-    const deadline = setTimeout(() => {
-        controller.abort(
-            new Error(
-                `catalogue artifact ${url} — no response in ${FETCH_TIMEOUT_MS} ms`
-            )
-        );
-    }, FETCH_TIMEOUT_MS);
-    let response: Response;
-    try {
-        response = await fetch(url, { signal: controller.signal });
-    } finally {
-        clearTimeout(deadline);
-    }
-    if (!response.ok) {
-        throw new Error(
-            `catalogue artifact ${url} — HTTP ${response.status} ${response.statusText}`
-        );
-    }
-    const packed = (await response.json()) as PackedCorpus;
+    const packed = await fetchJsonAsset(url, "catalogue artifact");
     if (!isPackedCorpus(packed)) {
         throw new Error(`catalogue artifact ${url} is not a packed corpus`);
     }

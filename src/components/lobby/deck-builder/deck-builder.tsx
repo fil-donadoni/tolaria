@@ -279,11 +279,12 @@ export default function DeckBuilder({
     // The card search is pre-filtered to the deck's Format allowed sets (issue
     // #514): the builder only surfaces legally-includable prints. Discovery
     // only — the authoritative legality check is `validateDeck`.
-    const { entries, idle } = useCardSearch(
-        filters,
-        deck.format,
-        fullCatalogue
-    );
+    const {
+        entries,
+        idle,
+        loading: searchLoading,
+        error: searchError,
+    } = useCardSearch(filters, deck.format, fullCatalogue);
 
     // The deck's Column Layout (ADR 0075, issue #1622/#1624/#1626), assembled
     // from its TWO homes — the split is the whole point of ADR 0075 §4:
@@ -1176,6 +1177,8 @@ export default function DeckBuilder({
                         <ResultsGrid
                             entries={entries}
                             idle={idle}
+                            loading={searchLoading}
+                            error={searchError}
                             activeSets={filters.sets}
                             allowedSets={FORMAT_RULES[deck.format].allowedSets}
                             enforceAvailability={deck.format !== "manual"}

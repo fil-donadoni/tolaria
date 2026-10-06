@@ -8,6 +8,11 @@ interface ResultsGridProps {
     entries: CardIndexEntry[];
     /** True when no filter is set — show prompt instead of cards. */
     idle: boolean;
+    /** True while the search index loads (issue #4861): an empty result
+     *  then means "not yet", never "no match". */
+    loading?: boolean;
+    /** The search index failed to load. */
+    error?: string | null;
     /** Active set filter — forwarded to each card to pick its default edition. */
     activeSets: string[];
     /** The deck's Format allowed Sets (Old School / Alpha 40), `null` for
@@ -24,6 +29,8 @@ interface ResultsGridProps {
 export default function ResultsGrid({
     entries,
     idle,
+    loading = false,
+    error = null,
     activeSets,
     allowedSets,
     enforceAvailability,
@@ -53,6 +60,22 @@ export default function ResultsGrid({
                 <EmptyState
                     message="Search or pick a filter to see cards."
                     description="Name, color, type, or mana value all narrow the list."
+                    className="text-center"
+                />
+            </div>
+        );
+    }
+
+    if (entries.length === 0 && (loading || error)) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <EmptyState
+                    message={
+                        error
+                            ? "Could not load the card search."
+                            : "Loading cards..."
+                    }
+                    description={error ?? undefined}
                     className="text-center"
                 />
             </div>

@@ -1,12 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { foldAccents } from "@convex/cards/textNormalize";
-import { patchAvailability, type FullCatalogueRow } from "../fullCatalogue";
-import { searchIndex } from "../searchIndex";
+import {
+    availableNameFolds,
+    patchAvailability,
+    type FullCatalogueRow,
+} from "../fullCatalogue";
 
 /**
- * The user-visible payoff of issue #3054, walked end to end: registry →
- * `buildSearchIndex` → `patchAvailability` → the `available` flag the deck
- * builder renders a card dimmed and unselectable on.
+ * The user-visible payoff of issue #3054, walked end to end: the Definition
+ * Index's names (`availableNameFolds`, issue #4861) → `patchAvailability` →
+ * the `available` flag the deck builder renders a card dimmed and
+ * unselectable on.
  *
  * The chain is the point. `patchAvailability` used to be fed by
  * `api.cardIndex.list`, whose population was `getAllCards()` — hand-written
@@ -32,7 +36,7 @@ function row(name: string): FullCatalogueRow {
 }
 
 describe("deck-builder availability spans the whole registry (issue #3054)", () => {
-    const folds = new Set(searchIndex().map((r) => r.nameFold));
+    const folds = availableNameFolds();
 
     it("marks a COMPILED card available — the bug this issue names", () => {
         const [patched] = patchAvailability([row(COEURL)], folds);

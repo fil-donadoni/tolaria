@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { SearchIndexRow } from "@convex/cards/searchIndex";
 import { useSearchIndex } from "~/lib/searchIndex";
 import MatchModePills from "./match-mode-pills";
 import MultiCombobox, {
@@ -22,6 +23,9 @@ const CARD_TYPE_OPTIONS: ComboboxOption[] = [
 
 const CARD_TYPE_VALUES = new Set(CARD_TYPE_OPTIONS.map((o) => o.value));
 
+/** Until the search index arrives the list holds the card types alone. */
+const NO_ROWS: readonly SearchIndexRow[] = [];
+
 interface TypeFilterProps {
     selected: string[];
     onToggle: (type: string) => void;
@@ -35,7 +39,7 @@ export default function TypeFilter({
     mode,
     onChangeMode,
 }: TypeFilterProps) {
-    const all = useSearchIndex();
+    const all = useSearchIndex().rows ?? NO_ROWS;
 
     const groups = useMemo<ComboboxGroup[]>(() => {
         const set = new Set<string>();
