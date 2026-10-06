@@ -572,7 +572,10 @@ const SCORE_COLUMNS = [
 /** The one table that answers "should this vector land?" — every row scored on
  *  the SAME corpus, so the columns are comparable by construction. */
 export function formatScoreComparison(
-    rows: { label: string; score: ReportScore }[]
+    rows: { label: string; score: ReportScore }[],
+    /** Which side of the held-out split the scores are computed on
+     *  (issue #5070); omitted = the whole corpus. */
+    scope = "the same corpus"
 ): string {
     if (rows.length === 0) return "== no vector scored";
     const cells = rows.map(({ label, score }) => [
@@ -595,7 +598,7 @@ export function formatScoreComparison(
             .join("   ")
             .trimEnd()}`;
     return [
-        `== the same corpus, ${rows.length} vectors — ordering, not loss (issue #3406)`,
+        `== ${scope}, ${rows.length} vectors — ordering, not loss (issue #3406)`,
         line(header),
         ...cells.map(line),
     ].join("\n");
