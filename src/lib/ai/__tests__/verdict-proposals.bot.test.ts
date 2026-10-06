@@ -380,7 +380,7 @@ describe("issue #3984 — decision windows follow the decision, not the save", (
         // The Bot's end step, the human holding nothing castable: a trivial
         // pass the Bot's own gate would not think about.
         const endStep = structuredClone(state);
-        endStep.phase = "END";
+        endStep.phase = "END_STEP";
         endStep.activePlayerId = endStep.players[1].id;
         endStep.priorityPlayerId = human;
         endStep.players[0].hand = endStep.players[0].hand.filter(
