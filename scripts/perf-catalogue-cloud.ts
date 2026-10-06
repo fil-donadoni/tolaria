@@ -40,6 +40,7 @@ import {
     mkdtempSync,
     readdirSync,
     readFileSync,
+    realpathSync,
     rmSync,
     symlinkSync,
     writeFileSync,
@@ -48,6 +49,7 @@ import { tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { ConvexHttpClient } from "convex/browser";
 import { makeFunctionReference } from "convex/server";
+import type { CardDefinition } from "../convex/cards/types";
 import {
     PACKED_CORPUS_PATH,
     packCorpus,
@@ -255,7 +257,12 @@ async function main(): Promise<number> {
     const rounds = intFlag("rounds", 40);
     const warmup = intFlag("warmup", 5);
     const dir =
-        flag("work-dir") ?? mkdtempSync(join(tmpdir(), "catalogue-latency-"));
+        // Resolved through symlinks (macOS's tmpdir is `/var` → `/private/var`), or
+        // the decoder's relative import path below would climb out of the wrong root.
+        realpathSync(
+            flag("work-dir") ??
+                mkdtempSync(join(tmpdir(), "catalogue-latency-"))
+        );
 
     const committed = JSON.parse(
         readFileSync(resolve(repoRoot, PACKED_CORPUS_PATH), "utf8")
@@ -272,12 +279,38 @@ async function main(): Promise<number> {
             `${rounds} rounds (+${warmup} warm-up) per block size, harness in ${dir}`
     );
 
+    try {
+        return await sweep(dir, deployment, rows, ids, cases, blocks, {
+            rounds,
+            warmup,
+            sourceHash: committed.sourceHash,
+        });
+    } finally {
+        if (flag("work-dir") === undefined) rmSync(dir, { recursive: true });
+        console.log(
+            `\nThe deployment ${deployment} is still there — delete its throwaway project ` +
+                "(docs/guides/catalogue-cloud-latency.md § Clean up)."
+        );
+    }
+}
+
+/** Push and measure every block size; 0 when every one PASSes, 1 on a FAIL,
+ *  2 — before a single measured round — when the deployment is not cloud. */
+async function sweep(
+    dir: string,
+    deployment: string,
+    rows: readonly CardDefinition[],
+    ids: readonly string[],
+    cases: readonly Case[],
+    blocks: readonly number[],
+    opts: { rounds: number; warmup: number; sourceHash: string }
+): Promise<number> {
     writeHarness(dir, deployment);
-    let anyRefusal: string | null = null;
+    let failed = false;
     const table: string[] = [];
     for (const blockRows of blocks) {
         const bytes = serializePackedCorpus(
-            packCorpus(rows, committed.sourceHash, blockRows)
+            packCorpus(rows, opts.sourceHash, blockRows)
         );
         writeFileSync(join(dir, "convex", "packed.json"), bytes);
         console.log(
@@ -293,11 +326,21 @@ async function main(): Promise<number> {
             "--tail-logs",
             "disable",
         ]);
-        const url = JSON.parse(
-            convexCli(dir, ["run", "empty:where"]).trim() || "null"
-        ) as string | null;
-        const refusal = verdictRefusal(url ?? undefined);
-        anyRefusal ??= refusal;
+        const reported = convexCli(dir, ["run", "empty:where"]).trim();
+        let url: string | undefined;
+        try {
+            url =
+                (JSON.parse(reported || "null") as string | null) ?? undefined;
+        } catch {
+            url = undefined;
+        }
+        // The deployment's own word decides, before anything is measured: a
+        // local or self-hosted number is not worth printing at all.
+        const refusal = verdictRefusal(url);
+        if (refusal !== null) {
+            console.error(`✗ perf:catalogue-cloud: ${refusal}`);
+            return 2;
+        }
         const client = new ConvexHttpClient(url!);
         const check = (await client.mutation(corpusLookup, { ids })) as {
             found: number;
@@ -308,14 +351,19 @@ async function main(): Promise<number> {
                 `harness resolved ${check.found} of ${ids.length} deck ids — the pushed corpus is not the packed one`
             );
         }
-        const summaries = await measure(client, cases, rounds, warmup);
+        const summaries = await measure(
+            client,
+            cases,
+            opts.rounds,
+            opts.warmup
+        );
         for (const s of summaries) {
             console.log(
                 `  ${s.label.padEnd(16)} median ${fmt(s.medianMs).padStart(10)}   p90 ${fmt(s.p90Ms).padStart(10)}`
             );
         }
-        const verdict =
-            refusal === null ? catalogueVerdict(summaries) : "no verdict";
+        const verdict = catalogueVerdict(summaries);
+        failed ||= verdict === "FAIL";
         console.log(
             `  budget ${CATALOGUE_LATENCY_BUDGET_MS} ms (median) — ${verdict}` +
                 ` (${check.inflations} blocks inflated by the deck case)`
@@ -334,16 +382,7 @@ async function main(): Promise<number> {
     );
     console.log(`|${" --- |".repeat(4 + cases.length)}`);
     for (const line of table) console.log(line);
-    if (flag("work-dir") === undefined) rmSync(dir, { recursive: true });
-    console.log(
-        `\nThe deployment ${deployment} is still there — delete its throwaway project ` +
-            "(docs/guides/catalogue-cloud-latency.md § Clean up)."
-    );
-    if (anyRefusal !== null) {
-        console.error(`✗ ${anyRefusal}`);
-        return 2;
-    }
-    return 0;
+    return failed ? 1 : 0;
 }
 
 process.exit(await main());

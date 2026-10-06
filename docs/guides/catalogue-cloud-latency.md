@@ -68,7 +68,8 @@ interleaved [rounds](#g-round) and prints, per case (0, 1 and 76 definitions),
 the median and p90 [added latency](#g-added-latency), the
 [latency budget](#g-latency-budget) and `PASS` / `FAIL`. It ends with a
 Markdown table — block size, packed bytes, bytes per row, every case — ready
-for a PR body. Four block sizes take ~3 minutes.
+for a PR body. Four block sizes take ~3 minutes. Exit 0 when every block
+size passes, 1 on any `FAIL`, 2 on a refusal.
 
 The figures are cloud-side differences, so the dev machine's load barely moves
 them; the p90 is noisier than the median (one slow call of a
@@ -103,7 +104,8 @@ Then `rm -rf ~/catalogue-latency`.
 
 ## Last sweep (issue #4167, 2026-10-06)
 
-35,000 synthetic rows from 4,360 real ones; median / p90 added latency, ms:
+35,000 synthetic rows from 4,360 real ones, the defaults plus a
+`--blocks 4,8,16` replication run (the 4 row); median / p90 added latency, ms:
 
 | block rows | packed bytes | B/row | 0 definitions | 1 definition  | 76 definitions |
 | ---------- | ------------ | ----- | ------------- | ------------- | -------------- |
@@ -113,7 +115,8 @@ Then `rm -rf ~/catalogue-latency`.
 | 32         | 7,136,317    | 204   | +5.6 / +18.0  | +11.3 / +19.5 | +62.1 / +83.5  |
 | 64         | 7,065,237    | 202   | +4.8 / +13.1  | +11.5 / +25.1 | +95.4 / +116.9 |
 
-Every size passes; 8 is the generator's `PACKED_BLOCK_ROWS`
+Every size passes on the median; 64 does so with almost no margin and its p90
+is over the budget. 8 is the generator's `PACKED_BLOCK_ROWS`
 (`scripts/lib/packed-corpus.ts` says why).
 
 ## Glossary
