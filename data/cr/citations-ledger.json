@@ -25781,6 +25781,7 @@
         {"id":"606.3","line":"/** Loyalty activations this effect adds to CR 606.3's default of one.","sites":1,"status":"confirmed","ruleHash":"6a42f010cbbce206"},
         {"id":"606.3","line":"/** The minimum a permanent has to look like for the CR 606.3 allowance to be","sites":1,"status":"confirmed","ruleHash":"6a42f010cbbce206"},
         {"id":"606.3","line":"// (CR 602.2a) and CR 606.3's own empty-stack clause would then be","sites":1,"status":"confirmed","ruleHash":"6a42f010cbbce206"},
+        {"id":"606.3","line":"// (CR 606.3 allows one per turn) would multiply the price of each","sites":1,"status":"confirmed","ruleHash":"6a42f010cbbce206"},
         {"id":"606.3","line":"// - `cost.loyalty` activation gates + payment (CR 606.2/606.3/606.5)","sites":1,"status":"baseline"},
         {"id":"606.3","line":"// ...and CR 606.3's per-permanent lock is set, exactly as the","sites":1,"status":"baseline"},
         {"id":"606.3","line":"// A DIFFERENT ability of the same permanent — CR 606.3 counts per","sites":1,"status":"confirmed","ruleHash":"6a42f010cbbce206"},
