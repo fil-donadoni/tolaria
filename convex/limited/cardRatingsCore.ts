@@ -29,7 +29,7 @@
 import { getPickRating } from "./pickRatings";
 import { getBoosterConfig } from "./registry";
 import { buildCubePool, isCubeSource } from "./cube";
-import { tryGetDefinition } from "../cards";
+import { resolveCardName } from "../cards";
 import type { GetPickRating } from "./botDrafter";
 
 /** Resolves ONE `(scope, cardId)` pair to its DATABASE rating, or `null` when
@@ -132,8 +132,8 @@ export interface ScopeCardRating extends ScopeCard {
  *  reserved `vintage-cube` scope (`isCubeSource`, the SAME special-case
  *  `registry.ts#isDraftableSet` and `limitedEvents.ts` already make — no new
  *  cube branch invented here). A set's sheets are keyed by a printing's
- *  `scryfallId`; resolved to the canonical `CardDefinition.id`/`name` via
- *  `tryGetDefinition` and deduped by id (mirrors `pickRatings.ts`'s
+ *  `scryfallId`; resolved to its `CardDefinition.name` from the Definition
+ *  Index (`resolveCardName`, issue #4861 — nothing decoded) and deduped by id (mirrors `pickRatings.ts`'s
  *  `validatePickRatingFile` sheet walk — the SAME "resolves to a card of the
  *  set" enumeration, reused here for listing instead of validating). `scope`
  *  is case-insensitive, matching every other scope lookup in this module.
@@ -144,9 +144,9 @@ export function listScopeCards(scope: string): ScopeCard[] {
     if (isCubeSource(scope)) {
         const cards: ScopeCard[] = [];
         for (const cardId of buildCubePool()) {
-            const def = tryGetDefinition(cardId);
-            if (!def) continue;
-            cards.push({ cardId: def.id, name: def.name });
+            const name = resolveCardName(cardId);
+            if (name === null) continue;
+            cards.push({ cardId, name });
         }
         return cards;
     }
@@ -158,11 +158,11 @@ export function listScopeCards(scope: string): ScopeCard[] {
     const cards: ScopeCard[] = [];
     for (const sheet of Object.values(config.sheets)) {
         for (const scryfallId of Object.keys(sheet.cards)) {
-            const def = tryGetDefinition(scryfallId);
-            if (!def) continue;
-            if (seen.has(def.id)) continue;
-            seen.add(def.id);
-            cards.push({ cardId: def.id, name: def.name });
+            const name = resolveCardName(scryfallId);
+            if (name === null) continue;
+            if (seen.has(scryfallId)) continue;
+            seen.add(scryfallId);
+            cards.push({ cardId: scryfallId, name });
         }
     }
     return cards;

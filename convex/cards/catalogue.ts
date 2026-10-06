@@ -779,6 +779,24 @@ export const lookupCardNameInIndex = (name: string): IndexedCardName => {
     };
 };
 
+/** The id a NAME resolves to — exactly `tryGetCardByName(name)?.id`, read
+ *  from the name index alone, so nothing is decoded to learn it (issue
+ *  #4861): a whole-pool membership check (the cube pool) costs no block. */
+export const catalogueIdByName = (name: string): string | null =>
+    nameIndex.get(name.toLowerCase()) ?? null;
+
+/** The name of definition `id` — exactly `tryGetDefinition(id)?.name`, but a
+ *  catalogue card's is read from the Definition Index, decoding nothing
+ *  (issue #4861). Only an id the index does not hold (a derived face, a
+ *  token) is resolved through its definition. The existence check of every
+ *  whole-pool reader — Draftability, scope listings, rating and profile
+ *  validation — which would otherwise decode each card it only counts. */
+export const resolveCardName = (id: string): string | null =>
+    handWrittenEntryById.get(id)?.[1] ??
+    compiledNameOf(id) ??
+    tryGetDefinition(id)?.name ??
+    null;
+
 /** CR 715.4 / 715.2c — `tryGetCardByName` restricted to names that can be
  *  PLACED as a card: a printed catalogue card, never an inset spell's twin.
  *

@@ -17,24 +17,20 @@ const props = {
 describe("ResultsGrid while the search index loads (issue #4861)", () => {
     it("says the cards are loading, not that nothing matches", () => {
         render(<ResultsGrid {...props} loading />);
-        expect(screen.getByText("Loading cards...")).toBeInTheDocument();
-        expect(
-            screen.queryByText("No cards match these filters.")
-        ).not.toBeInTheDocument();
+        expect(screen.getByText("Loading cards...")).toBeTruthy();
+        expect(screen.queryByText("No cards match these filters.")).toBeNull();
     });
 
     it("names a failed load instead of an empty match", () => {
         render(<ResultsGrid {...props} error="HTTP 503" />);
         expect(
             screen.getByText("Could not load the card search.")
-        ).toBeInTheDocument();
-        expect(screen.getByText("HTTP 503")).toBeInTheDocument();
+        ).toBeTruthy();
+        expect(screen.getByText("HTTP 503")).toBeTruthy();
     });
 
     it("still says nothing matches once the index has loaded", () => {
         render(<ResultsGrid {...props} />);
-        expect(
-            screen.getByText("No cards match these filters.")
-        ).toBeInTheDocument();
+        expect(screen.getByText("No cards match these filters.")).toBeTruthy();
     });
 });

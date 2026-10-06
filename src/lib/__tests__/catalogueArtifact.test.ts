@@ -8,10 +8,20 @@ import {
     tryGetDefinition,
 } from "@convex/cards/registry";
 import {
+    catalogueIdByName,
     getAllCardNames,
     getAllRawCards,
+    getChooseableCardNames,
+    getDefinitionSetCode,
     packedCorpusInflations,
 } from "@convex/cards/catalogue";
+import { chooseableNamesOf } from "@convex/cards/cardNames";
+import {
+    twinNameEntriesOf,
+    type HandWrittenDefinitionIndex,
+} from "@convex/cards/definitionIndex";
+import { buildCubePool, cubePoolSize } from "@convex/limited/cube";
+import { listDraftableSets } from "@convex/limited/registry";
 import { blockFor, type PackedCorpus } from "@convex/cards/packedCorpus";
 import type { CardDefinition } from "@convex/cards/types";
 import {
@@ -48,6 +58,23 @@ const PACKED_TEXT = readFileSync(
     "utf8"
 );
 const PACKED = JSON.parse(PACKED_TEXT) as PackedCorpus;
+const HAND_INDEX = JSON.parse(
+    readFileSync(resolve(REPO, "data/catalogue/definition-index.json"), "utf8")
+) as HandWrittenDefinitionIndex;
+
+/** The eager client's compiled rows: `catalogue-<hash>.json` minus the
+ *  relocated hand-written rows (`excludeHandWritten`), in the file's order. */
+function eagerRows(): CardDefinition[] {
+    const dir = resolve(REPO, "data/catalogue");
+    const [artifact] = readdirSync(dir).filter(
+        (f) => f.startsWith("catalogue-") && f.endsWith(".json")
+    );
+    const rows = JSON.parse(
+        readFileSync(resolve(dir, artifact!), "utf8")
+    ) as CardDefinition[];
+    const handWritten = new Set(HAND_INDEX.entries.map(([id]) => id));
+    return rows.filter((r) => !handWritten.has(r.id));
+}
 
 function respondWith(body: unknown, init: Partial<Response> = {}) {
     return vi.fn(() =>
@@ -176,6 +203,17 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it("the Draft Lab's whole-pool reads decode nothing", () => {
+        // Draftability counts every card of every Booster Sheet and the cube
+        // pool resolves 542 names: both are membership questions the
+        // Definition Index answers without a block.
+        expect(listDraftableSets().length).toBeGreaterThan(0);
+        expect(cubePoolSize()).toBeGreaterThan(0);
+        const compiled = new Set(PACKED.ids);
+        expect(buildCubePool().some((id) => compiled.has(id))).toBe(true);
+        expect(packedCorpusInflations()).toBe(0);
+    });
+
     it("a game decodes only the blocks holding its own cards", () => {
         // Sixty compiled cards spread across the corpus: a deck's worth.
         const stride = Math.floor(PACKED.ids.length / 60);
@@ -194,15 +232,8 @@ describe("equivalence with the eager hydration it replaces", () => {
         // relocated hand-written rows (`excludeHandWritten`) and registered
         // the rest; `getDefinition` then expanded them. Same file, same drop,
         // same expansion — against what the packed source decodes on demand.
-        const dir = resolve(REPO, "data/catalogue");
-        const [artifact] = readdirSync(dir).filter(
-            (f) => f.startsWith("catalogue-") && f.endsWith(".json")
-        );
-        const rows = JSON.parse(
-            readFileSync(resolve(dir, artifact!), "utf8")
-        ) as CardDefinition[];
         const handWritten = new Set(getAllRawCards().map((c) => c.id));
-        const eager = rows.filter((r) => !handWritten.has(r.id));
+        const eager = eagerRows();
 
         expect(eager.map((r) => r.id).sort()).toEqual([...PACKED.ids].sort());
         for (const row of eager) {
@@ -212,5 +243,43 @@ describe("equivalence with the eager hydration it replaces", () => {
         }
         // The hand-written half is the same module graph on both paths.
         for (const id of handWritten) expect(getDefinition(id).id).toBe(id);
+    });
+
+    it("the name lists and lookups are the ones the eager hydration derived", () => {
+        // `registerCompiledDefinitions` derived these from each fetched row
+        // (`twinNameEntriesOf`, `chooseableNamesOf`), first write winning, in
+        // the artifact's order after the hand-written index. The packed
+        // source reads them from the index instead: same lists, same winners.
+        const eager = eagerRows();
+        const lookups = HAND_INDEX.lookups;
+        expect(getAllCardNames()).toEqual([
+            ...HAND_INDEX.entries.map(([, name]) => name),
+            ...eager.map((r) => r.name),
+        ]);
+        expect(getChooseableCardNames()).toEqual([
+            ...HAND_INDEX.entries.flatMap(
+                ([id, name]) => lookups.chooseableNames[id] ?? [name]
+            ),
+            ...eager.flatMap((r) => chooseableNamesOf(r)),
+        ]);
+
+        const expected = new Map<string, string>();
+        const add = (key: string, id: string) => {
+            if (!expected.has(key)) expected.set(key, id);
+        };
+        for (const [id, name] of HAND_INDEX.entries)
+            add(name.toLowerCase(), id);
+        for (const [id] of HAND_INDEX.entries)
+            for (const [key, twin] of lookups.twinNames[id] ?? [])
+                add(key, twin);
+        for (const row of eager) {
+            add(row.name.toLowerCase(), row.id);
+            for (const [key, twin] of twinNameEntriesOf(row)) add(key, twin);
+        }
+        for (const [key, id] of expected)
+            expect(catalogueIdByName(key), key).toBe(id);
+
+        for (const row of eager)
+            expect(getDefinitionSetCode(row.id)).toBe(row.setCode ?? "");
     });
 });

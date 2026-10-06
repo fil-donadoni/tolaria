@@ -19,7 +19,7 @@
 // every new checked-in Pick Rating file.
 import leaRatingsJson from "../../data/pick-ratings/lea.json";
 import vintageCubeRatingsJson from "../../data/pick-ratings/vintage-cube.json";
-import { tryGetDefinition } from "../cards";
+import { resolveCardName } from "../cards";
 import { CUBE_SOURCE_KEY, buildCubePool } from "./cube";
 import type { BoosterConfig } from "./boosterTypes";
 
@@ -133,8 +133,8 @@ export function validatePickRatingFile(
     const validCardIds = new Set<string>();
     for (const sheet of Object.values(config.sheets)) {
         for (const scryfallId of Object.keys(sheet.cards)) {
-            const def = tryGetDefinition(scryfallId);
-            if (def) validCardIds.add(def.id);
+            if (resolveCardName(scryfallId) !== null)
+                validCardIds.add(scryfallId);
         }
     }
 

@@ -31,7 +31,7 @@
 // pack). Callers pass the frozen array down through `startDraft`/`applyPick`;
 // `buildCubePool()` is only ever read to CREATE that snapshot.
 import { VINTAGE_CUBE_NAMES } from "../cubes/vintageCubeNames";
-import { tryGetCardByName } from "../cards";
+import { catalogueIdByName } from "../cards";
 import { makeRng, shuffleWithRng } from "../gre/rng";
 
 // The cube's identity (key, display name, predicate) lives in the dependency-
@@ -66,11 +66,13 @@ export function buildCubePool(): readonly string[] {
     const pool: string[] = [];
     const seen = new Set<string>();
     for (const name of CUBE_CARD_NAMES) {
-        const def = tryGetCardByName(name);
-        if (!def) continue;
-        if (seen.has(def.id)) continue;
-        seen.add(def.id);
-        pool.push(def.id);
+        // The name index alone: the pool is built without decoding a card
+        // (issue #4861).
+        const id = catalogueIdByName(name);
+        if (id === null) continue;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        pool.push(id);
     }
     cachedPool = pool;
     return pool;
