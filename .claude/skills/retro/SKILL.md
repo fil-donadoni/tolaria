@@ -62,8 +62,7 @@ sentence would have made this session cheaper, or prevented its mistake?**
 
 - **Never proposes a new resident line, and says so.** A candidate that can
   only be a resident line is reported as **"needs a skill or a check"**.
-- **Proposes and stops — the owner picks.** `/retro` runs no
-  `gh issue create` and writes no file outside the session scratchpad. What
+- **Proposes and stops — the owner picks.** `/retro` files no issue itself and writes no file outside the session scratchpad. What
   the owner picks is filed through the project's filing skill
   (`/new-qa-issue`) with the stamp in `docs/agents/triage-labels.md`
   § Every new issue is stamped at filing.
