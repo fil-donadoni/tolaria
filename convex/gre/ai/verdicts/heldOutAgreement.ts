@@ -18,7 +18,8 @@
 // Pure: reads a `VerdictReport` and a corpus, no engine of its own.
 
 import { verdictDecisionClass } from "./coverage";
-import { verdictSidesOf } from "./heldOut";
+import { pairSplitRefusals, verdictSidesOf } from "./heldOut";
+import { verdictIdOf } from "./identity";
 import { SATISFIED_EPS, type VerdictReport } from "./report";
 import type { Verdict } from "./types";
 
@@ -33,7 +34,12 @@ export function heldOutVerdicts(
     testPositions: ReadonlySet<string>
 ): Verdict[] {
     const sideOf = verdictSidesOf(verdicts, testPositions);
-    return verdicts.filter((v) => sideOf.get(v.id) === "held-out");
+    // A Minimal Pair half the split refuses sits beside a board already judged
+    // on the fit side (`pairSplitRefusals`): it is no held-out evidence.
+    const refused = pairSplitRefusals(verdicts, testPositions);
+    return verdicts.filter(
+        (v) => sideOf.get(v.id) === "held-out" && !refused.has(verdictIdOf(v))
+    );
 }
 
 /** One tally: how many of `n` agreed. */
