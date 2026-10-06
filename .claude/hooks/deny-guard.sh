@@ -802,7 +802,7 @@ fi
 # `gh` accepts: `--add-label in-progress`, `--add-label=in-progress`, quoted,
 # first of a comma list. A `--remove-label in-progress` is a release, not a
 # claim — § 6b below polices that one.
-CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?in-progress["'"'"']?([[:space:],]|$)'
+CLAIM_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*gh[[:space:]]+issue[[:space:]]+edit[[:space:]].*--add-label(=|[[:space:]]+)["'"'"']?([^[:space:]"'"'"']*,)?in-progress["'"'"']?([[:space:],]|$)'
 if seg_has "$CLAIM_INVOKE" && ! seg_has 'TOLARIA_ALLOW_MANUAL_CLAIM=1' "$CLAIM_INVOKE"; then
     deny "BLOCKED: hand-typed claim — the claim is one locked act (issue #4375).
 \`queue:plan\` counts the live claims and refuses a plan at \`sessions.cap\`,

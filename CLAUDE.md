@@ -125,13 +125,8 @@ CR ambiguity affecting behavior.
 
 ### Subagent model routing (cost)
 
-**Enforced by `.claude/hooks/spawn-guard.sh`**:
-
-- Every `Agent` spawn MUST pass an explicit `model` (except `fork`):
-  **`model: sonnet` for read-only/mechanical work** (locate, map, survey,
+- **`model: sonnet` for read-only/mechanical work** (locate, map, survey,
   research); session tier only for genuinely hard work.
-- Every `description` MUST be role-prefixed: `implement` / `review` / `fixup` /
-  `investigate` / `research` / `verify` / `migrate` / `audit`.
 - Cavecrew: `caveman:cavecrew-investigator` / `-builder` / `-reviewer`, always
   `model: sonnet`.
 
@@ -258,8 +253,7 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
 - **Session admission** (ADR 0136 §6-7): `queue:plan` refuses a pick while
   live `in-progress` claims hit `sessions.cap` (3 = measured PR/h knee; config,
   not literal; `--no-cap` = announced escape) or a health `RED` marker stands.
-  **Claim = `bun run queue:claim N`, one locked act** re-reading the cap
-  (#4375; hand-typed label denied). Under RED `land` refuses a non-repair PR
+  Under RED `land` refuses a non-repair PR
   without `--red-ok` (#4964).
 - **Machine admission** (issue #4966, `lib/machine-admission.ts`): a heavy
   gate, `check:ui` and `health-main` WAIT while load > `machine.loadMax` or
@@ -273,8 +267,7 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for
-all sessions). `deny-guard.sh` § 0; gitignored paths writable; hatch
-`TOLARIA_ALLOW_MAIN_EDIT=1 claude`. Docs-only: `bun run wt:docs <slug>` →
+all sessions). Docs-only: `bun run wt:docs <slug>` →
 write → `bun run docs:ship` (seconds, no lock); else `bun run wt:new <N>`
 (`quality-gates.md` § Worktree isolation). **Fresh worktree needs
 `bun run worktree:init`** — `216 files failed, 0 tests failed` = missing
@@ -289,8 +282,7 @@ only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh` read it; an
 any directory on it; base/release refused). `land` holds the gate mutex across
 rebase → `check:lane` → push → merge (tree landed = tree gated), refuses a PR
 not based on base; no health per landing (appends tip, detaches batch
-decision). `deny-guard.sh` § 1 denies hand-typed `gh pr merge` (hatch
-`TOLARIA_ALLOW_MANUAL_MERGE=1`); if only the MERGE failed, retry
+decision). If only the MERGE failed, retry
 `bun scripts/pr-merge.ts <PR#>` (second `land` re-pays the gate), **then
 re-run `land`** — on a MERGED PR it only does housekeeping (#4159).
 
