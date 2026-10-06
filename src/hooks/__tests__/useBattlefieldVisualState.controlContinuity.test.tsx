@@ -60,6 +60,9 @@ vi.mock("../../components/board/board-background", () => ({
     default: () => null,
 }));
 vi.mock("../../components/board/vs-ai-driver", () => ({ default: () => null }));
+vi.mock("../../components/board/verdict-proposal-capture", () => ({
+    default: () => null,
+}));
 vi.mock("../../components/board/game-stack", () => ({ default: () => null }));
 vi.mock("../../components/board/priority-indicator", () => ({
     default: () => null,

@@ -68,6 +68,7 @@ vi.mock("../pause-menu-dialog", () => ({ default: () => null }));
 vi.mock("../error-toast", () => ({ default: () => null }));
 vi.mock("../board-background", () => ({ default: () => null }));
 vi.mock("../vs-ai-driver", () => ({ default: () => null }));
+vi.mock("../verdict-proposal-capture", () => ({ default: () => null }));
 vi.mock("../board-arrows", () => ({ default: () => null }));
 vi.mock("../board-piles", () => ({ default: () => null }));
 vi.mock("../board-battlefield", () => ({ default: () => null }));
