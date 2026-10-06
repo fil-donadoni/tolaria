@@ -237,10 +237,11 @@ describe("issue #3984 — the player's move, recovered from what they submitted"
             projectedToGameState(projectPublicState(state, 10, human)),
             human,
             [
-                // The fields `useHandCardCommit` sends, as it sends them.
+                // The fields `useHandCardCommit` sends, as it sends them — on
+                // the hold-priority click, the one the executor never makes.
                 call("announceCast", human, {
                     cardInstanceId: bolt.id,
-                    keepPriority: false,
+                    keepPriority: true,
                     chosenX: undefined,
                     chosenModeIds: undefined,
                     alternativeCostId: undefined,
