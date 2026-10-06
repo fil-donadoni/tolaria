@@ -1271,3 +1271,72 @@ describe("spendsStandingPermanent — a sacrifice-for-MANA outlet is excluded (C
         ).toBe(false);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Issue #4238 — an animation or self-pump that buys a body unable to fight.
+// The blade `manland` entries pin the positions; these pin the arms a blade
+// spec cannot express (haste on the source) and the self-pump lifts.
+// ---------------------------------------------------------------------------
+describe("body that cannot fight (issue #4238)", () => {
+    const FACTORY_PUMP = "mishras-factory-pump";
+    const animateMove = activation("f1", FACTORY_ANIMATE);
+    const pumpMove = (targetId: string): Move => ({
+        kind: "activate-ability",
+        cardInstanceId: "f1",
+        abilityId: FACTORY_PUMP,
+        targets: [{ type: "permanent", id: targetId }],
+        confirmTargets: false,
+        tapPlan: [],
+    });
+    const worker = (extra = {}) =>
+        perm(FACTORY, "f1", {
+            animation: { endsAt: "end-of-turn" },
+            types: ["Land", "Artifact", "Creature"],
+            ...extra,
+        });
+
+    // CR 302.6 / 508.1a / 702.10b — a sick land buys a body that cannot attack.
+    it("a sick source is discouraged at its controller's combat; haste lifts it", () => {
+        const sick = botAt("BEGINNING_OF_COMBAT", [
+            perm(FACTORY, "f1", { isSummoningSick: true }),
+        ]);
+        expect(isDiscouragedRolloutMove(sick, "p1", animateMove)).toBe(true);
+        const hasty = botAt("BEGINNING_OF_COMBAT", [
+            perm(FACTORY, "f1", {
+                isSummoningSick: true,
+                staticAbilities: ["haste"],
+            }),
+        ]);
+        expect(isDiscouragedRolloutMove(hasty, "p1", animateMove)).toBe(false);
+    });
+
+    // CR 508.1a / 509.1a — haste does NOT lift the tapped-body clause.
+    it("a tapped source stays discouraged even with haste", () => {
+        const s = botAt("BEGINNING_OF_COMBAT", [
+            perm(FACTORY, "f1", { isTapped: true, staticAbilities: ["haste"] }),
+        ]);
+        expect(isDiscouragedRolloutMove(s, "p1", animateMove)).toBe(true);
+    });
+
+    // CR 508.1a / 509.1a — the tap spends the body outside combat.
+    it("a self-pump is discouraged unless committed to combat or a response", () => {
+        const idle = botAt("BEGINNING_OF_COMBAT", [worker()]);
+        expect(isDiscouragedRolloutMove(idle, "p1", pumpMove("f1"))).toBe(true);
+        const blocking = botAt("DECLARE_BLOCKERS", [worker()], {
+            combat: {
+                attackerIds: ["a1"],
+                confirmed: true,
+                blockersConfirmed: true,
+                blockerAssignments: { f1: ["a1"] },
+            } as GameState["combat"],
+        });
+        expect(isDiscouragedRolloutMove(blocking, "p2", pumpMove("f1"))).toBe(
+            false
+        );
+        const responding = botAt("BEGINNING_OF_COMBAT", [worker()]);
+        pushSpell(responding, BOLT, "p2");
+        expect(isDiscouragedRolloutMove(responding, "p1", pumpMove("f1"))).toBe(
+            false
+        );
+    });
+});

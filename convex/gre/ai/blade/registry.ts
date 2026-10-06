@@ -466,6 +466,61 @@ function activationIsDiscouraged(
     );
 }
 
+/** The enumerated `activate-ability` moves of ONE ability of the named
+ *  battlefield card, for `seat` (issue #4238). The manland entries read an
+ *  animation and a self-pump of the SAME card apart by ability id, which the
+ *  card-wide helpers above cannot. */
+function abilityMovesOf(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string,
+    abilityId: string
+): Extract<Move, { kind: "activate-ability" }>[] {
+    const pid = state.players[seat === "me" ? 0 : 1].id;
+    const defId = getCardByName(cardName).id;
+    return enumerateMoves(state, pid, { pruneDominatedNoOps: true }).filter(
+        (m): m is Extract<Move, { kind: "activate-ability" }> =>
+            m.kind === "activate-ability" &&
+            m.abilityId === abilityId &&
+            state.players.some((p) =>
+                p.battlefield.some(
+                    (c) =>
+                        c.id === m.cardInstanceId &&
+                        (c.card as { id?: string }).id === defId
+                )
+            )
+    );
+}
+
+/** The ability is NOT worth taking here: never enumerated, or enumerated and
+ *  carrying the rollout-policy penalty on every variant (issue #4238). */
+function abilityIsUnavailableOrDiscouraged(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string,
+    abilityId: string
+): boolean {
+    const pid = state.players[seat === "me" ? 0 : 1].id;
+    return abilityMovesOf(state, seat, cardName, abilityId).every((m) =>
+        isDiscouragedRolloutMove(state, pid, m)
+    );
+}
+
+/** The ability is enumerated and no variant carries the penalty (issue #4238). */
+function abilityStaysAvailable(
+    state: GameState,
+    seat: BladeSeat,
+    cardName: string,
+    abilityId: string
+): boolean {
+    const pid = state.players[seat === "me" ? 0 : 1].id;
+    const moves = abilityMovesOf(state, seat, cardName, abilityId);
+    return (
+        moves.length > 0 &&
+        moves.every((m) => !isDiscouragedRolloutMove(state, pid, m))
+    );
+}
+
 // Discriminants of the registry's declared Minimal Pairs (ADR 0148, issue
 // #4796). Each names WHY the anchor's move is wrong here and right in its
 // half; a half repeats its anchor's constant, which the derivation compares
@@ -3547,6 +3602,445 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 "an extra combat is owed and the animation carries NO rollout-policy penalty, because the body it buys still gets an attack",
         },
         note: "CR 500.8 pair, positive half (issue #2886). Differs from the negative half above in exactly one thing: `state.extraPhases` is non-empty, granted through the real primitive by the `extra-combat` setup step. NOT a strength claim — no structural extra-combat credit is added anywhere (ADR 0111 decision 6): an extra combat is INSIDE the rollout horizon, so its value is measured, not credited.",
+    },
+    {
+        label: "manland animation: declines a summoning-sick Mishra's Factory on its own turn",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the land entered this turn (summoning sick)",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation carries the rollout-policy penalty: a sick body can neither attack nor, on the mover's own turn, block",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Sick-body clause (CR 302.6, CR 508.1a).",
+    },
+    {
+        label: "manland animation: keeps animating a Mishra's Factory that is not summoning sick",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the land entered this turn (summoning sick)",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityStaysAvailable(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation is enumerated with no rollout-policy penalty",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Discriminating control of the sick-body entry: the same board with the flag cleared.",
+    },
+    {
+        label: "manland animation: keeps animating a summoning-sick Mishra's Factory on the opponent's turn",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the turn being the mover's own (a sick body can still block)",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityStaysAvailable(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation is enumerated with no rollout-policy penalty: the flag survives the opponent's turn and a sick body can still block",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Control of the sick-body entry: the flag outlives the controller's turn, and there the body can block.",
+    },
+    {
+        label: "manland animation: declines a tapped Mishra's Factory on its own turn",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "other", detail: "the land being tapped" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation carries the rollout-policy penalty: a tapped body can neither attack nor block (CR 508.1a, CR 509.1a)",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Tapped-body clause, already tapped.",
+    },
+    {
+        label: "manland animation: declines a tapped Mishra's Factory on the opponent's turn",
+        classification: {
+            kind: "conditional",
+            discriminant: { kind: "other", detail: "the land being tapped" },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation carries the rollout-policy penalty on the opponent's turn too: the tap outlives the animation (CR 502.3)",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Tapped-body clause in the opponent's window; its control is the untapped sick-body control above.",
+    },
+    {
+        label: "manland animation: declines when Mishra's Factory is the only source that could pay",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "a second untapped land able to pay",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ),
+            describe:
+                "the animation, whose only possible payment taps the very land it animates, carries the rollout-policy penalty",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Tapped-body clause, self-paid: the Factory is the only source, so the enumerator falls back to the plan that taps it and `isPointlessSelfAnimation` reads that plan.",
+    },
+    {
+        label: "manland animation: pays with the other land, leaving Mishra's Factory untapped",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "a second untapped land able to pay",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mishra's Factory", owner: "me", zone: "battlefield" },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 1,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityStaysAvailable(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ) &&
+                abilityMovesOf(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-animate"
+                ).every((m) =>
+                    m.tapPlan.every(
+                        (t) =>
+                            t.cardInstanceId !==
+                            abilityMovesOf(
+                                state,
+                                "me",
+                                "Mishra's Factory",
+                                "mishras-factory-animate"
+                            )[0]!.cardInstanceId
+                    )
+                ),
+            describe:
+                "the animation is enumerated and its tap plan spends the other land, never the Factory",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Discriminating control of the self-paid entry: one more land.",
+    },
+    {
+        label: "manland self-pump: declines to tap an animated Mishra's Factory to pump itself on its own turn",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the pumped creature being a committed blocker, a response, or another permanent",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    animated: {
+                        power: 2,
+                        toughness: 2,
+                        subtype: "Assembly-Worker",
+                        additionalTypes: ["Artifact"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-pump"
+                ),
+            describe:
+                "the self-pump carries the rollout-policy penalty: the tap spends the body for a bonus it cannot use",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Self-pump clause (`isPointlessSelfPump`).",
+    },
+    {
+        label: "manland self-pump: declines to tap an animated Mishra's Factory to pump itself on the opponent's turn",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the pumped creature being a committed blocker, a response, or another permanent",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    animated: {
+                        power: 2,
+                        toughness: 2,
+                        subtype: "Assembly-Worker",
+                        additionalTypes: ["Artifact"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityIsUnavailableOrDiscouraged(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-pump"
+                ),
+            describe:
+                "the self-pump carries the rollout-policy penalty before blocks: tapped, the body cannot block",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Self-pump clause in the opponent's window.",
+    },
+    {
+        label: "manland self-pump: pumping ANOTHER Assembly-Worker stays available",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the pumped creature being a committed blocker, a response, or another permanent",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    animated: {
+                        power: 2,
+                        toughness: 2,
+                        subtype: "Assembly-Worker",
+                        additionalTypes: ["Artifact"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                },
+                {
+                    name: "Mishra's Factory",
+                    owner: "me",
+                    zone: "battlefield",
+                    animated: {
+                        power: 2,
+                        toughness: 2,
+                        subtype: "Assembly-Worker",
+                        additionalTypes: ["Artifact"],
+                        duration: { phase: "end-of-turn" },
+                    },
+                },
+            ],
+            phase: "BEGINNING_OF_COMBAT",
+            turn: 3,
+            landCount: 2,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (_move, state) =>
+                abilityMovesOf(
+                    state,
+                    "me",
+                    "Mishra's Factory",
+                    "mishras-factory-pump"
+                ).some(
+                    (m) =>
+                        !isDiscouragedRolloutMove(
+                            state,
+                            state.players[0]!.id,
+                            m
+                        ) && m.targets.every((t) => t.id !== m.cardInstanceId)
+                ),
+            describe:
+                "a pump aimed at the other animated Factory carries no rollout-policy penalty",
+        },
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Control of the self-pump entry (c): a second animated Assembly-Worker is on the board and the activation that targets it is untouched.",
     },
     {
         label: "activation timing: holds a sacrifice engine through its own main phase",

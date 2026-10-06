@@ -59,7 +59,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Bonecrusher Giant [adventure:ff984a4c-1818-4f8f-a9d7-fce57e77937d] → Grizzly Bears",
             gameRngCounter: 118,
-            rootDigest: "48fab27febcb3f79",
+            rootDigest: "acc5c155ce78839e",
         },
     },
     {
@@ -68,7 +68,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Fireball (X=3) → Blade P2",
             gameRngCounter: 118,
-            rootDigest: "eac12a795619dfa6",
+            rootDigest: "0ef166d5d2215623",
         },
     },
     {
@@ -77,7 +77,7 @@ const FIXTURES: Fixture[] = [
         expected: {
             chosen: "cast Captain's Maneuver (X=1) → Blade P1, Craw Wurm",
             gameRngCounter: 118,
-            rootDigest: "9df337758b498cd3",
+            rootDigest: "8bc5372745b285a7",
         },
     },
 ];

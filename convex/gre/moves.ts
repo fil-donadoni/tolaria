@@ -4820,20 +4820,32 @@ function enumerateAbilityMoves(
                 getCostModifiers(state, perm, "ability", ability, player.id)
             );
         }
-        const tapPlan = hasDerivedX
-            ? null
-            : planManaPayment(
-                  state,
-                  player,
-                  manaCost,
-                  undefined,
-                  perm,
-                  // CR 602.1 (issue #3081) — the ONLY caller that bars a
-                  // source, and only when the cost really taps it. An ability
-                  // with no `{T}` may still be funded by its own source, as
-                  // before.
-                  ability.cost.tap ? perm.id : undefined
-              );
+        // CR 602.1 (issue #3081) — the source is barred from funding its own
+        // activation when the cost really taps it. An ability with no `{T}`
+        // may still be funded by its own source, as before.
+        //
+        // Issue #4238 — an `animatesSelf` ability PREFERS another source too:
+        // its own mana would tap the land it animates, and a tapped creature
+        // can neither attack nor block (CR 508.1a / 509.1a), the tap outliving
+        // the animation (CR 502.3). Unlike the `{T}` bar this is a preference,
+        // not a legality: with no other source the move stays enumerated on
+        // the self-paying plan, and `isPointlessSelfAnimation` (search.ts)
+        // reads it as the pointless activation it is.
+        const planFunding = (cost: Record<string, number>) => {
+            const barred = planManaPayment(
+                state,
+                player,
+                cost,
+                undefined,
+                perm,
+                ability.cost.tap || ability.animatesSelf ? perm.id : undefined
+            );
+            if (barred !== null || ability.cost.tap || !ability.animatesSelf) {
+                return barred;
+            }
+            return planManaPayment(state, player, cost, undefined, perm);
+        };
+        const tapPlan = hasDerivedX ? null : planFunding(manaCost);
         if (!hasDerivedX && tapPlan === null) continue;
 
         // Modal activated abilities (CR 700.2 / 602.2b, issue #1341): one
@@ -5014,14 +5026,7 @@ function enumerateAbilityMoves(
                             player.id
                         )
                     );
-                    tupleTapPlan = planManaPayment(
-                        state,
-                        player,
-                        costForTuple,
-                        undefined,
-                        perm,
-                        ability.cost.tap ? perm.id : undefined
-                    );
+                    tupleTapPlan = planFunding(costForTuple);
                 }
                 if (tupleTapPlan === null) continue;
                 for (const costPicks of pickVariants) {
