@@ -9,6 +9,8 @@ import {
     CONVEX_CALL_RAM_BYTES,
     PAD_SEARCH_CEILING,
     isMemoryFailure,
+    isSizeOrMemoryPushFailure,
+    isolateCalibration,
     isolatePoolBytes,
     largestSurviving,
     nodeToIsolateRatios,
@@ -47,19 +49,40 @@ describe("largestSurviving — the room a call has left, in chunks", () => {
     });
 });
 
-describe("isolatePoolBytes — the pool's share of the control's room", () => {
-    it("is the wall times the room the pool took", () => {
-        expect(isolatePoolBytes(1000, 750)).toBe(CONVEX_CALL_RAM_BYTES / 4);
-        expect(isolatePoolBytes(1000, 1000)).toBe(0);
+const KIB = 1024;
+// Node's chunk is 128 KiB (no pointer compression); a 64 MiB wall holds 512.
+const SAME = isolateCalibration(400, 128 * KIB); // 50 MiB of room, 14 MiB baseline
+const COMPRESSED = isolateCalibration(800, 128 * KIB); // 100 MiB at Node's size
+
+describe("isolateCalibration — chunks to the isolate's bytes", () => {
+    it("keeps Node's chunk when the room fits the wall, the rest is baseline", () => {
+        expect(SAME.compressed).toBe(false);
+        expect(SAME.chunkBytes).toBe(128 * KIB);
+        expect(SAME.baselineBytes).toBe(CONVEX_CALL_RAM_BYTES - 50 * MIB);
+    });
+
+    it("halves the chunk when only half of it fits (pointer compression)", () => {
+        expect(COMPRESSED.compressed).toBe(true);
+        expect(COMPRESSED.chunkBytes).toBe(64 * KIB);
+        expect(COMPRESSED.baselineBytes).toBe(CONVEX_CALL_RAM_BYTES - 50 * MIB);
+    });
+
+    it("refuses a room even half-size chunks cannot fit, or none", () => {
+        expect(() => isolateCalibration(1100, 128 * KIB)).toThrow(/wall/);
+        expect(() => isolateCalibration(0, 128 * KIB)).toThrow(/control/);
+    });
+});
+
+describe("isolatePoolBytes — the room the pool took, never the baseline", () => {
+    it("is the chunks taken at the isolate's chunk size", () => {
+        expect(isolatePoolBytes(SAME, 300)).toBe(100 * 128 * KIB);
+        expect(isolatePoolBytes(COMPRESSED, 600)).toBe(200 * 64 * KIB);
+        expect(isolatePoolBytes(SAME, 400)).toBe(0);
     });
 
     it("is null for a pool call that failed or never ran", () => {
-        expect(isolatePoolBytes(1000, -1)).toBeNull();
-        expect(isolatePoolBytes(1000, undefined)).toBeNull();
-    });
-
-    it("refuses a control with no room", () => {
-        expect(() => isolatePoolBytes(0, 10)).toThrow(/control/);
+        expect(isolatePoolBytes(SAME, -1)).toBeNull();
+        expect(isolatePoolBytes(SAME, undefined)).toBeNull();
     });
 });
 
@@ -71,8 +94,8 @@ const size = (over: Partial<SizeResult> & { rows: number }): SizeResult => ({
 
 describe("nodeToIsolateRatios", () => {
     it("divides isolate heap by Node heap, skipping sizes without both", () => {
-        const ratios = nodeToIsolateRatios(1000, [
-            size({ rows: 4000, roomChunks: 750 }), // 16 MiB iso / 8 MiB Node
+        const ratios = nodeToIsolateRatios(SAME, [
+            size({ rows: 4000, roomChunks: 272 }), // 128 × 128 KiB = 16 MiB iso / 8 MiB Node
             size({ rows: 9000, roomChunks: -1 }),
             size({ rows: 12000, pushError: "boom" }),
         ]);
@@ -119,10 +142,10 @@ describe("poolJson — the deleted pool file's shape", () => {
 
 describe("resultTable", () => {
     it("has one row per size and escapes error text", () => {
-        const table = resultTable(1000, [
+        const table = resultTable(SAME, [
             size({
                 rows: 4000,
-                roomChunks: 750,
+                roomChunks: 272,
                 latencyMedianMs: 12,
                 latencyP90Ms: 30,
             }),
@@ -140,4 +163,16 @@ describe("resultTable", () => {
         expect(lines[3]).toContain("call fails");
         expect(lines[3]).toContain("out of memory \\| a b");
     });
+});
+
+describe("isSizeOrMemoryPushFailure — a refused push is a result only for size or memory", () => {
+    it.each([
+        "Error: module is too large",
+        "JavaScript execution ran out of memory",
+    ])("accepts %j", (m) => expect(isSizeOrMemoryPushFailure(m)).toBe(true));
+    it.each([
+        "fetch failed",
+        "You are not logged in",
+        "esbuild: Could not resolve",
+    ])("refuses %j", (m) => expect(isSizeOrMemoryPushFailure(m)).toBe(false));
 });

@@ -10,10 +10,16 @@
  * 64 MiB wall. So every harness mutation first allocates `pad` CHUNKS of a
  * fixed shape and then answers; the largest `pad` a call survives is the room
  * its module left. The control module's room minus the pool module's room is
- * what the pool costs the isolate, in chunks — and the control's room is the
- * whole wall, which converts chunks to bytes without assuming the isolate's
- * V8 lays a chunk out as Node's does (pointer compression differs between
- * builds).
+ * what the pool costs the isolate, in chunks.
+ *
+ * Chunks to bytes: a chunk is an array of small integers, 8 B per element
+ * without pointer compression and exactly half with it — the one layout
+ * difference two V8 builds can have for it. Node's chunk size is measured;
+ * the control's room times it either fits under the wall (same layout: the
+ * rest of the wall is the call's baseline) or only its half does (the
+ * isolate compresses pointers, Node does not). `isolateCalibration` decides
+ * which, so the control's own baseline (runtime, `convex/server`, args) is
+ * never billed to the pool.
  */
 
 /** The wall ADR 0113 Amendment IV is drawn against: RAM of one Convex query or
@@ -98,6 +104,16 @@ export function isMemoryFailure(message: string): boolean {
     );
 }
 
+/** Whether a failed PUSH's output says the module is too big or ran out of
+ *  memory while the deployment analysed it — a result; anything else (login,
+ *  network, a bundler error) is not, and stops the run. */
+export function isSizeOrMemoryPushFailure(output: string): boolean {
+    return (
+        isMemoryFailure(output) ||
+        /too large|size limit|exceeds|maximum size|payload/i.test(output)
+    );
+}
+
 /**
  * The largest `pad` in [0, ceiling] for which `survives(pad)` holds, assuming
  * survival is monotone (more padding never helps): `-1` when even 0 fails.
@@ -137,7 +153,8 @@ export interface SizeResult {
     readonly sourceBytes: number;
     /** Node heap delta of the pool module over the control, bytes. */
     readonly nodeHeapBytes: number;
-    /** Push failure text, when the deployment refused the module itself. */
+    /** Push failure text, when the deployment refused the module itself for
+     *  its size or memory (any other push failure stops the run). */
     readonly pushError?: string;
     /** Error text of a padless call that failed, when it failed. */
     readonly callError?: string;
@@ -148,31 +165,67 @@ export interface SizeResult {
     readonly latencyP90Ms?: number;
 }
 
-/** The pool's isolate heap, anchored on the wall: the share of the control's
- *  room the pool took, times the call's RAM. `null` when the pool call has no
- *  room to compare (it failed, or was never pushed). */
-export function isolatePoolBytes(
+/** How chunks convert to the isolate's bytes, from the control's room. */
+export interface Calibration {
+    /** Largest padding the control call survived. */
+    readonly controlRoomChunks: number;
+    /** One chunk's bytes in the isolate. */
+    readonly chunkBytes: number;
+    /** Whether the isolate's chunk is half Node's (pointer compression). */
+    readonly compressed: boolean;
+    /** The wall minus the control's room: what a call holds before padding. */
+    readonly baselineBytes: number;
+}
+
+/** The isolate's chunk layout, from the control's room and Node's chunk: the
+ *  room times Node's chunk fits the wall (same layout), or only half of it
+ *  does (the isolate compresses pointers). Neither → the wall is not 64 MiB,
+ *  or the chunk is not what this module thinks: refuse. */
+export function isolateCalibration(
     controlRoomChunks: number,
-    poolRoomChunks: number | undefined,
+    nodeChunkBytes: number,
     wallBytes: number = CONVEX_CALL_RAM_BYTES
-): number | null {
+): Calibration {
     if (controlRoomChunks <= 0) {
         throw new Error(`the control survived ${controlRoomChunks} chunks`);
     }
-    if (poolRoomChunks === undefined || poolRoomChunks < 0) return null;
-    return (
-        ((controlRoomChunks - poolRoomChunks) / controlRoomChunks) * wallBytes
+    for (const compressed of [false, true]) {
+        const chunkBytes = compressed ? nodeChunkBytes / 2 : nodeChunkBytes;
+        const room = controlRoomChunks * chunkBytes;
+        if (room <= wallBytes) {
+            return {
+                controlRoomChunks,
+                chunkBytes,
+                compressed,
+                baselineBytes: wallBytes - room,
+            };
+        }
+    }
+    throw new Error(
+        `the control survived ${controlRoomChunks} chunks of ${nodeChunkBytes} B — ` +
+            `more than the ${wallBytes} B wall holds even at half that size`
     );
+}
+
+/** The pool's isolate heap: the chunks of room it took from the control,
+ *  at the isolate's chunk size. `null` when the pool call has no room to
+ *  compare (it failed, or was never pushed). */
+export function isolatePoolBytes(
+    cal: Calibration,
+    poolRoomChunks: number | undefined
+): number | null {
+    if (poolRoomChunks === undefined || poolRoomChunks < 0) return null;
+    return (cal.controlRoomChunks - poolRoomChunks) * cal.chunkBytes;
 }
 
 /** Isolate heap over Node heap, for the sizes where both exist. */
 export function nodeToIsolateRatios(
-    controlRoomChunks: number,
+    cal: Calibration,
     sizes: readonly SizeResult[]
 ): { rows: number; ratio: number }[] {
     const out: { rows: number; ratio: number }[] = [];
     for (const s of sizes) {
-        const iso = isolatePoolBytes(controlRoomChunks, s.roomChunks);
+        const iso = isolatePoolBytes(cal, s.roomChunks);
         if (iso === null || s.nodeHeapBytes <= 0) continue;
         out.push({ rows: s.rows, ratio: iso / s.nodeHeapBytes });
     }
@@ -198,7 +251,7 @@ const oneLine = (s: string): string =>
 
 /** The Markdown table the research file and the PR quote. */
 export function resultTable(
-    controlRoomChunks: number,
+    cal: Calibration | null,
     sizes: readonly SizeResult[]
 ): string {
     const lines = [
@@ -206,7 +259,7 @@ export function resultTable(
         "| ---: | ---: | --- | --- | --- | ---: | ---: | ---: | ---: |",
     ];
     for (const s of sizes) {
-        const iso = isolatePoolBytes(controlRoomChunks, s.roomChunks);
+        const iso = cal === null ? null : isolatePoolBytes(cal, s.roomChunks);
         const failed = s.pushError ?? s.callError;
         const result =
             s.pushError !== undefined
@@ -218,7 +271,7 @@ export function resultTable(
             `| ${s.rows.toLocaleString("en-US")} | ${mib(s.sourceBytes)} | ${result} | ` +
                 `${failed === undefined ? "—" : oneLine(failed)} | ` +
                 `${s.latencyMedianMs === undefined ? "—" : `${ms(s.latencyMedianMs)} / ${ms(s.latencyP90Ms)}`} | ` +
-                `${s.roomChunks === undefined || s.roomChunks < 0 ? "—" : `${s.roomChunks} / ${controlRoomChunks}`} | ` +
+                `${s.roomChunks === undefined || s.roomChunks < 0 ? "—" : `${s.roomChunks} / ${cal?.controlRoomChunks ?? "?"}`} | ` +
                 `${iso === null ? "—" : mib(iso)} | ${mib(s.nodeHeapBytes)} | ` +
                 `${iso === null || s.nodeHeapBytes <= 0 ? "—" : (iso / s.nodeHeapBytes).toFixed(2)} |`
         );

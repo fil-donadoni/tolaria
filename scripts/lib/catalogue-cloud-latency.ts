@@ -194,13 +194,15 @@ export const HARNESS_FUNCTIONS: readonly string[] = [
  * REPLACES every function, so a deployment serving anything but the harness
  * — the app's own dev deployment, under a name the repository's env files do
  * not carry — is refused before the first push. A fresh throwaway serves
- * nothing, or the harness of an earlier run.
+ * nothing, or the harness of an earlier run. `harness` is the pushing
+ * script's own list (issue #4852's heap probe passes its own).
  */
 export function foreignFunctionsRefusal(
     deployment: string,
-    deployed: readonly string[]
+    deployed: readonly string[],
+    harness: readonly string[] = HARNESS_FUNCTIONS
 ): string | null {
-    const foreign = deployed.filter((f) => !HARNESS_FUNCTIONS.includes(f));
+    const foreign = deployed.filter((f) => !harness.includes(f));
     if (foreign.length === 0) return null;
     return (
         `refusing ${deployment}: it serves ${foreign.length} function(s) the harness ` +
