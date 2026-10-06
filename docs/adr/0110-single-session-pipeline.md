@@ -4,6 +4,8 @@
 
 accepted (reshapes the fan-out pipeline of ADR 0097/0099; builds on ADR 0109)
 
+Renamed 2026-10-05 (issue #5105): the skill `/next-issue` is now `/next-ticket`; telemetry keeps reading the old name for sessions already recorded.
+
 ## Context
 
 The 2026-08-25→27 cost incident (91% of the weekly allowance in 48h) forced a
