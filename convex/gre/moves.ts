@@ -4820,6 +4820,17 @@ function enumerateAbilityMoves(
                 getCostModifiers(state, perm, "ability", ability, player.id)
             );
         }
+        // CR 602.1 (issue #3081) — the source is barred from funding its own
+        // activation when the cost really taps it. An ability with no `{T}`
+        // may still be funded by its own source, as before.
+        //
+        // Issue #4238 — also an `animatesSelf` ability: its own mana would tap
+        // the land it animates, and a tapped creature can neither attack nor
+        // block (CR 508.1a / 509.1a), the tap outliving the animation
+        // (CR 502.3). Another source pays when there is one; with none the
+        // move is not offered.
+        const fundingBar =
+            ability.cost.tap || ability.animatesSelf ? perm.id : undefined;
         const tapPlan = hasDerivedX
             ? null
             : planManaPayment(
@@ -4828,11 +4839,7 @@ function enumerateAbilityMoves(
                   manaCost,
                   undefined,
                   perm,
-                  // CR 602.1 (issue #3081) — the ONLY caller that bars a
-                  // source, and only when the cost really taps it. An ability
-                  // with no `{T}` may still be funded by its own source, as
-                  // before.
-                  ability.cost.tap ? perm.id : undefined
+                  fundingBar
               );
         if (!hasDerivedX && tapPlan === null) continue;
 
@@ -5020,7 +5027,7 @@ function enumerateAbilityMoves(
                         costForTuple,
                         undefined,
                         perm,
-                        ability.cost.tap ? perm.id : undefined
+                        fundingBar
                     );
                 }
                 if (tupleTapPlan === null) continue;

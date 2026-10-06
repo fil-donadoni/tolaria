@@ -167,9 +167,11 @@ import {
 // Activation-timing discipline (issue #1890): the single authority on whether an
 // activation could just as well happen in a later, better-informed window.
 import {
+    animatedBodyCannotFight,
     effectiveAbilityOf,
     effectiveActivatedAbilityEntryOf,
     isDeferrableStackAbility,
+    isPointlessSelfPump,
     isTransientOnlyAbility,
     spendsStandingPermanent,
 } from "./ai/abilityTiming";
@@ -1616,7 +1618,7 @@ export function isDiscouragedRolloutMove(
 
         // (a) Pointless self-animation after the mover's own combat — issue
         // #1890 item 4, shared with the root tie-break.
-        if (isPointlessSelfAnimation(state, pid, move)) return true;
+        if (isPointlessSelfActivation(state, pid, move)) return true;
 
         // (b) Sorcery-speed window: the mover is in ITS OWN sorcery window — a
         // main phase of its own turn, empty stack, holding priority (CR 307.5,
@@ -1681,6 +1683,18 @@ function isPointlessSelfAnimation(
     move: Move
 ): boolean {
     if (move.kind !== "activate-ability") return false;
+    // Issue #4238 — a body that can do nothing in ANY window it is bought in
+    // (tapped, or summoning-sick on the mover's own turn), before the
+    // phase-scoped "combat is over" reading below.
+    const mover = findPermanent(state, move.cardInstanceId);
+    const moverAbility = mover && effectiveAbilityOf(mover, move.abilityId);
+    if (
+        mover &&
+        moverAbility &&
+        animatedBodyCannotFight(state, pid, mover, moverAbility)
+    ) {
+        return true;
+    }
     if (pid !== state.activePlayerId) return false;
     if (
         state.phase !== "END_OF_COMBAT" &&
@@ -1703,6 +1717,26 @@ function isPointlessSelfAnimation(
     const source = findPermanent(state, move.cardInstanceId);
     if (!source) return false;
     return effectiveAbilityOf(source, move.abilityId)?.animatesSelf === true;
+}
+
+/** The ONE authority both consumers of the pointless-activation reading ask
+ *  (`isDiscouragedRolloutMove` and `selectRootMove`'s hold-trick tie-break), so
+ *  the animation clause and the self-pump clause (issue #4238) cannot fork.
+ *  A real payoff still wins on mean reward and is never overridden. Pure. */
+function isPointlessSelfActivation(
+    state: GameState,
+    pid: string,
+    move: Move
+): boolean {
+    if (isPointlessSelfAnimation(state, pid, move)) return true;
+    if (move.kind !== "activate-ability") return false;
+    const source = findPermanent(state, move.cardInstanceId);
+    const ability = source && effectiveAbilityOf(source, move.abilityId);
+    return (
+        !!source &&
+        !!ability &&
+        isPointlessSelfPump(state, source, ability, move.targets)
+    );
 }
 
 /** The card an `activate-ability` move names, in whichever zone the ability
@@ -4932,7 +4966,7 @@ export function selectRootMove(
         rootState &&
         ruleOn("hold-trick") &&
         (isSorcerySpeedTrickDump(rootState, best.move) ||
-            (!!botId && isPointlessSelfAnimation(rootState, botId, best.move)))
+            (!!botId && isPointlessSelfActivation(rootState, botId, best.move)))
     ) {
         // Hold (`pass`) qualifies when it is outcome-equal on MEAN REWARD (within
         // `OUTCOME_EPS`) — NOT gated on the `VISIT_TOL` visit count the land-drop

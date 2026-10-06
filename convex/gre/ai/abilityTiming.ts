@@ -146,6 +146,85 @@ export function isTransientOnlyScript(effects: readonly EffectOp[]): boolean {
     return opsAllTransient(effects);
 }
 
+/** Whether an `animatesSelf` activation (CR 611.1) buys a body that can do
+ *  nothing in the window it is used in (issue #4238). Two clauses, both read
+ *  off the source's own state and the ability's `animatesSelf` marker — never a
+ *  card name (ADR 0102):
+ *
+ *    * TAPPED body — the source is already tapped, so the creature it becomes
+ *      can neither attack (CR 508.1a) nor block (CR 509.1a) and stays tapped
+ *      until its controller's untap step (CR 502.3), after the animation has
+ *      expired. Pointless in ANY window, the opponent's turn included, and
+ *      haste does not lift it. (The self-PAID half — the activation's own
+ *      mana tapping the source — is closed at the tap plan, see
+ *      `planManaPayment`'s `barredSourceId`.)
+ *    * SICK body, on the mover's OWN turn — a permanent carries the
+ *      control-continuity flag from entry (CR 302.6), so it can't attack
+ *      (CR 508.1a, haste lifts it — CR 702.10b) and an active player never
+ *      blocks. Scoped to the mover's own turn: the flag survives the
+ *      opponent's whole turn, where a sick body can still block.
+ *
+ *  Haste is read the way attack legality reads it: `staticAbilities` (native
+ *  or granted), plus the haste the animation itself grants. */
+export function animatedBodyCannotFight(
+    state: GameState,
+    pid: string,
+    source: CardInstanceState,
+    ability: ActivatedAbility
+): boolean {
+    if (ability.animatesSelf !== true) return false;
+    if (source.isTapped) return true;
+    if (pid !== state.activePlayerId || !source.isSummoningSick) return false;
+    return !source.staticAbilities.includes("haste") && !grantsHaste(ability);
+}
+
+function grantsHaste(ability: ActivatedAbility): boolean {
+    const visit = (ops: readonly EffectOp[]): boolean =>
+        ops.some(
+            (op) =>
+                (
+                    op as { grantedAbilities?: readonly string[] }
+                ).grantedAbilities?.includes("haste") === true ||
+                childOpArrays(op).some(visit)
+        );
+    return ability.effects !== undefined && visit(ability.effects);
+}
+
+/** Whether `ability` is a `{T}` activation whose whole payoff expires this
+ *  turn ({@link isTransientOnlyAbility}) aimed at its OWN source, in a window
+ *  where the source is not committed to combat (issue #4238).
+ *
+ *  The tap spends the body: outside combat it forfeits the attack or block the
+ *  permanent exists for (CR 508.1a / 509.1a — a tapped creature does neither),
+ *  and the bonus lands on a body that can no longer use it. Real value
+ *  survives, so the clause lifts when
+ *
+ *    * the source is a declared blocker, or an attacker (it is untapped, or the
+ *      `{T}` could not have been paid — it stays untapped through combat), or
+ *    * the stack is non-empty: the activation responds to something (toughness
+ *      in response to burn).
+ *
+ *  Pumping ANOTHER permanent is untouched: every target must be the source. */
+export function isPointlessSelfPump(
+    state: GameState,
+    source: CardInstanceState,
+    ability: ActivatedAbility,
+    targets: readonly { type: string; id: string }[]
+): boolean {
+    if (!ability.cost.tap || !isTransientOnlyAbility(ability)) return false;
+    if (targets.length === 0) return false;
+    if (!targets.every((t) => t.type === "permanent" && t.id === source.id)) {
+        return false;
+    }
+    if (state.stack.length > 0) return false;
+    const combat = state.combat;
+    if (combat) {
+        if (combat.attackerIds.includes(source.id)) return false;
+        if (combat.blockerAssignments[source.id]?.length) return false;
+    }
+    return true;
+}
+
 /** Whether `ability`'s cost gives up a permanent that is STILL DOING ITS JOB
  *  while unspent — a sacrifice cost (CR 701.21a, paid at activation per
  *  CR 602.1), either of the source itself or of a permanent matching a filter.
