@@ -279,7 +279,34 @@ async function idle(
 
 const IDLE = ["-e", "setInterval(() => {}, 1000)", "x"];
 
-describe("convex:ensure — something for this deployment is alive but not answering", () => {
+/** Resolves once `c` has exited — a reclaimed process is gone, not merely
+ *  signalled. */
+function exited(c: ChildProcess): Promise<boolean> {
+    if (c.exitCode !== null || c.signalCode !== null) {
+        return Promise.resolve(true);
+    }
+    return new Promise((resolve) => {
+        const t = setTimeout(() => resolve(false), 5_000);
+        c.once("exit", () => {
+            clearTimeout(t);
+            resolve(true);
+        });
+    });
+}
+
+const stillAlive = (c: ChildProcess): boolean =>
+    c.exitCode === null && c.signalCode === null;
+
+/** A stand-in for the `convex dev` CLI wrapper: `node …/convex/bin/main.js
+ *  dev --local` in `cwd`, listening on nothing. */
+async function convexDevIn(cwd: string): Promise<ChildProcess> {
+    const cli = path.join(cwd, "node_modules", "convex", "bin", "main.js");
+    fs.mkdirSync(path.dirname(cli), { recursive: true });
+    fs.writeFileSync(cli, "setInterval(() => {}, 1000);\n");
+    return idle([cli, "dev", "--local"], { cwd });
+}
+
+describe("convex:ensure — something for this deployment is alive but not answering (issue #5138)", () => {
     const wedgedRun = (port: number, instance: string): Promise<Run> =>
         ensure([
             "--url",
@@ -290,54 +317,51 @@ describe("convex:ensure — something for this deployment is alive but not answe
             stubStart(port, 0),
             "--wait-alive-ms",
             "1500",
+            "--reclaim-grace-ms",
+            "3000",
+            "--start-timeout-ms",
+            "15000",
         ]);
 
-    it("a backend for this instance: waits, then fails without starting a second", async () => {
+    it("a silent backend for this instance: waits, reclaims it, then starts one", async () => {
         const port = await freePort();
         const instance = `test-wedged-${process.pid}-${port}`;
         const wedged = await idle([...IDLE, "--instance-name", instance], {
             argv0: "convex-local-backend",
         });
         const r = await wedgedRun(port, instance);
-        expect(r.code).toBe(1);
+        expect(r.code).toBe(0);
         expect(r.stderr).toMatch(
             new RegExp(
-                `backend pid ${wedged.pid} for ${instance} is alive but never answered`
+                `reclaiming backend pid ${wedged.pid} for ${instance} \\(etime [^)]+\\) — never answered in 2 s`
             )
         );
-        expect(starts()).toBe(0);
+        expect(r.stdout).toMatch(
+            new RegExp(`reclaimed pid ${wedged.pid}, started pid \\d+`)
+        );
+        expect(await exited(wedged)).toBe(true);
+        expect(starts()).toBe(1);
+        expect(await answers(`http://127.0.0.1:${port}`)).toBe(true);
     });
 
-    it("an unknown instance counts every live backend: fails closed", async () => {
+    it("a wedged `convex dev` in the primary checkout with no backend child: reclaimed, then one started", async () => {
         const port = await freePort();
-        const other = await idle(
-            [...IDLE, "--instance-name", `test-other-${process.pid}-${port}`],
-            { argv0: "convex-local-backend" }
-        );
-        const r = await wedgedRun(port, "");
-        expect(r.code).toBe(1);
-        expect(r.stderr).toMatch(
-            /backend pid \d+ for .* is alive but never answered/
-        );
-        expect(other.pid).toBeGreaterThan(0);
-        expect(starts()).toBe(0);
-    });
-
-    it("a `convex dev` in the primary checkout still starting: no second start", async () => {
-        const port = await freePort();
-        const cli = path.join(tmp, "node_modules", "convex", "bin", "main.js");
-        fs.mkdirSync(path.dirname(cli), { recursive: true });
-        fs.writeFileSync(cli, "setInterval(() => {}, 1000);\n");
-        const dev = await idle([cli, "dev", "--local"], { cwd: tmp });
+        const dev = await convexDevIn(tmp);
         const r = await wedgedRun(port, `test-none-${process.pid}-${port}`);
-        expect(r.code).toBe(1);
+        expect(r.code).toBe(0);
         expect(r.stderr).toMatch(
-            new RegExp(`convex dev pid ${dev.pid} is alive but never answered`)
+            new RegExp(
+                `reclaiming convex dev pid ${dev.pid} \\(etime [^)]+\\) — no backend child`
+            )
         );
-        expect(starts()).toBe(0);
+        expect(r.stdout).toMatch(
+            new RegExp(`reclaimed pid ${dev.pid}, started pid \\d+`)
+        );
+        expect(await exited(dev)).toBe(true);
+        expect(starts()).toBe(1);
     });
 
-    it("the process convex-dev.pid records, from a start whose wait ran out: no second start", async () => {
+    it("the process convex-dev.pid records, from a start whose wait ran out: reclaimed, then one started", async () => {
         const port = await freePort();
         const earlier = await idle(IDLE);
         fs.mkdirSync(telemetry, { recursive: true });
@@ -349,11 +373,92 @@ describe("convex:ensure — something for this deployment is alive but not answe
             })
         );
         const r = await wedgedRun(port, `test-none-${process.pid}-${port}`);
+        expect(r.code).toBe(0);
+        expect(r.stderr).toMatch(
+            new RegExp(`reclaiming pid ${earlier.pid} .* never answered`)
+        );
+        expect(await exited(earlier)).toBe(true);
+        expect(starts()).toBe(1);
+    });
+
+    it("a foreign listener still holding the port after the reclaim: fails, never starts", async () => {
+        const port = await freePort();
+        // Accepts TCP, never answers HTTP: the probe fails, the port is held.
+        // The probe aborting its request resets the socket: swallow it.
+        const accepted: net.Socket[] = [];
+        const sink = net.createServer((sock) => {
+            accepted.push(sock);
+            sock.on("error", () => {});
+        });
+        await new Promise<void>((r) => sink.listen(port, "127.0.0.1", r));
+        try {
+            const instance = `test-wedged-${process.pid}-${port}`;
+            const wedged = await idle([...IDLE, "--instance-name", instance], {
+                argv0: "convex-local-backend",
+            });
+            const r = await wedgedRun(port, instance);
+            expect(r.code).toBe(1);
+            expect(r.stderr).toMatch(/still listens on .* foreign listener/);
+            expect(await exited(wedged)).toBe(true);
+            expect(starts()).toBe(0);
+        } finally {
+            for (const sock of accepted) sock.destroy();
+            await new Promise((r) => sink.close(r));
+        }
+    });
+
+    it("an unknown instance counts every live backend: fails closed, kills nothing", async () => {
+        const port = await freePort();
+        const other = await idle(
+            [...IDLE, "--instance-name", `test-other-${process.pid}-${port}`],
+            { argv0: "convex-local-backend" }
+        );
+        const r = await wedgedRun(port, "");
         expect(r.code).toBe(1);
         expect(r.stderr).toMatch(
-            new RegExp(`pid ${earlier.pid} .* is alive but never answered`)
+            /backend pid \d+ for .* is alive but never answered .* instance is unknown/
         );
+        expect(r.stderr).not.toMatch(/reclaiming/);
+        expect(stillAlive(other)).toBe(true);
         expect(starts()).toBe(0);
+    });
+});
+
+describe("convex:ensure — another checkout's `convex dev`", () => {
+    it("is reported, never killed, and does not block a start", async () => {
+        const port = await freePort();
+        const foreign = fs.mkdtempSync(
+            path.join(os.tmpdir(), "tolaria-convex-ensure-foreign-")
+        );
+        try {
+            const dev = await convexDevIn(foreign);
+            const r = await ensure([
+                "--url",
+                `http://127.0.0.1:${port}`,
+                "--instance-name",
+                `test-none-${process.pid}-${port}`,
+                "--start-cmd",
+                stubStart(port, 0),
+                "--wait-alive-ms",
+                "1500",
+                "--reclaim-grace-ms",
+                "3000",
+                "--start-timeout-ms",
+                "15000",
+            ]);
+            expect(r.code).toBe(0);
+            expect(r.stderr).toMatch(
+                new RegExp(
+                    `pid ${dev.pid} \\(convex dev, cwd [^)]*\\) is not this checkout's deployment; reported, not killed`
+                )
+            );
+            expect(r.stderr).not.toMatch(/reclaiming/);
+            expect(r.stdout).toMatch(/answers — started pid \d+/);
+            expect(stillAlive(dev)).toBe(true);
+            expect(starts()).toBe(1);
+        } finally {
+            fs.rmSync(foreign, { recursive: true, force: true });
+        }
     });
 });
 
