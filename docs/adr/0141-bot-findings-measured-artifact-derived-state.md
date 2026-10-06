@@ -94,7 +94,7 @@ Four forces shape the design:
    position→card join does not exist and is a project of its own. A Verdict
    enters the dashboard the same way any observation does: as a Reproducer.
 9. **The copy payload depends on the row's state.** With an issue:
-   `/next-issue <N>` plus the context the issue cannot carry (card in focus,
+   `/next-ticket <N>` plus the context the issue cannot carry (card in focus,
    reproducer label, measurement sha and bot hash) and one line naming how the
    loop closes (blade entry for the class, then re-measure). Without an issue:
    a filing-ready brief whose cause prose is READ from `gap-issues.ts`, never a

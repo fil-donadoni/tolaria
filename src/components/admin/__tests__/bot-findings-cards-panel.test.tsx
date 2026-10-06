@@ -440,7 +440,7 @@ describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
         );
     });
 
-    it("the card's copy button puts the /next-issue payload on the clipboard", () => {
+    it("the card's copy button puts the /next-ticket payload on the clipboard", () => {
         render(<BotFindingsCardsPanel actions={ACTIONS} />);
         fireEvent.click(
             rowOf().querySelector(
@@ -449,7 +449,7 @@ describe("BotFindingsCardsPanel — copy and launch (issue #4178)", () => {
         );
         expect(writeText).toHaveBeenCalledTimes(1);
         const text = (writeText.mock.calls[0] as unknown as [string])[0];
-        expect(text.startsWith("/next-issue 4400\n")).toBe(true);
+        expect(text.startsWith("/next-ticket 4400\n")).toBe(true);
         expect(text).toContain("Mystic Denial");
     });
 });

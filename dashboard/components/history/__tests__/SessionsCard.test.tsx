@@ -97,9 +97,9 @@ describe("Sessions table", () => {
     it("filters by COMMAND FAMILY — the first word, so a command's arguments do not split one bucket into three", async () => {
         renderCard();
         fireEvent.change(screen.getByRole("combobox", { name: "command" }), {
-            target: { value: "/next-issue" },
+            target: { value: "/next-ticket" },
         });
-        // Two sessions ran `/next-issue`, with different arguments.
+        // Two sessions ran `/next-ticket`, with different arguments.
         await waitFor(() => expect(order().length).toBe(2));
     });
 

@@ -51,7 +51,7 @@
  * class: queued lands first, ageing so health cannot starve — issue #4965)
  * and `health-main --under-lock` passes its three steps through that single
  * hold rather than queuing three times. The scenarios:
- * `docs/guides/next-issue-flow.md` § 2 A/B/C.
+ * `docs/guides/next-ticket-flow.md` § 2 A/B/C.
  *
  * THE HOLD COVERS THE OFFLINE GATES ONLY (issue #4962). The browser walk
  * (`check:ui --all`, 12–60 min) needs the local deployment and a browser, not

@@ -45,7 +45,7 @@ machine-level one, and a typed `/name` answers "disabled via skillOverrides";
 4. **Synced claude.ai skills are out of reach.** Skills synced from the
    owner's claude.ai account cannot be switched off from committed project
    settings. Hiding them is a documented local step
-   (`docs/guides/next-issue-flow.md` § 5), not a gate.
+   (`docs/guides/next-ticket-flow.md` § 5), not a gate.
 
 ## Consequences
 

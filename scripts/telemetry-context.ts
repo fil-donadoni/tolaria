@@ -3,7 +3,7 @@
  * context-growth breakdown, over an arbitrary day window (issue #3078).
  *
  * This is the measurement half of the context-hygiene contract in
- * `.claude/skills/next-issue/SKILL.md`: the contract is prose, and this is what
+ * `.claude/skills/next-ticket/SKILL.md`: the contract is prose, and this is what
  * makes it checkable after the fact rather than by hand-written SQL. The
  * committed baseline it is compared against lives in
  * `docs/agents/quality-gates.md` § Context hygiene.

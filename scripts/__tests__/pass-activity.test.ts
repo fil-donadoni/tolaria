@@ -82,7 +82,7 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 describe("PassActivityReader — one pass's transcript (issue #4722)", () => {
     it("names the LAST tool the main session called, with its target", () => {
         writeLines(mainPath(), [
-            user("/next-issue 4722"),
+            user("/next-ticket 4722"),
             assistant("m1", [toolUse("Read", { file_path: "/a/b.ts" })]),
             assistant("m2", [
                 { type: "text", text: "now running" },

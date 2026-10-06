@@ -109,7 +109,7 @@ and move | none — <why>>`, declaring whether this issue is expected to add
 
 The model-routing label is an **escalation marker, not a required field**:
 route by exception, and leave the common case unlabelled — the planner falls
-back to `DEFAULT_IMPL_MODEL` (Sonnet), and `/next-issue` runs an unlabelled
+back to `DEFAULT_IMPL_MODEL` (Sonnet), and `/next-ticket` runs an unlabelled
 issue on whatever tier its session has.
 
 **Apply the criterion in `docs/agents/triage-labels.md` § Model-routing labels
@@ -149,7 +149,7 @@ contradiction: it claims to be executable AND to be waiting on a human.
 
 - **`ready-for-agent`** — the draft is complete: area identified, current vs
   desired behavior stated, acceptance criteria testable, out-of-scope drawn. A
-  session could pick it up as-is. `/next-issue` drains this queue.
+  session could pick it up as-is. `/next-ticket` drains this queue.
 - **`needs-triage`** — something still needs a human decision: the repro is
   unconfirmed, the desired behavior is a product call, the scope is unbounded,
   or a criterion can't be written without the maintainer choosing. The issue is

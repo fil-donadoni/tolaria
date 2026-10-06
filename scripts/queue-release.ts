@@ -4,7 +4,7 @@
 // append a `released` row to the claim journal. The decision and the row are
 // `lib/queue-claim.ts`; this file is the I/O.
 //
-// `/next-issue`'s abort step names this verb, and `deny-guard.sh` § 6b denies a
+// `/next-ticket`'s abort step names this verb, and `deny-guard.sh` § 6b denies a
 // hand-typed `--remove-label in-progress` that leaves the assignee behind.
 
 import { appendFileSync, mkdirSync } from "node:fs";

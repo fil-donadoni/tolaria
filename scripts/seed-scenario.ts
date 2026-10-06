@@ -3,7 +3,7 @@
 //
 // This is the step ADR 0110 dropped on the floor. CLAUDE.md § Development
 // cycle step 7 routes the insert to "the orchestrator, post-merge"; ADR 0110
-// retired the orchestrator and `/next-issue` never inherited the job, so
+// retired the orchestrator and `/next-ticket` never inherited the job, so
 // between then and now every emitted spec was written, reviewed, merged and
 // then lost. `land` calls this automatically after a successful merge; run it
 // by hand to replay one PR, or `seed:backlog` to sweep the history.

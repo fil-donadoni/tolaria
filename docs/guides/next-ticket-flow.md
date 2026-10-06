@@ -1,6 +1,6 @@
-# The `/next-issue` flow after ADR 0136
+# The `/next-ticket` flow after ADR 0136
 
-What one session does from `/next-issue` to a closed issue, where the machine
+What one session does from `/next-ticket` to a closed issue, where the machine
 mutex sits, and how three parallel sessions and the batch health gate share
 it. The "before" numbers and the mechanisms they exposed are in ADR 0136
 § Context; this guide draws the flow as decided there. Re-derive the numbers

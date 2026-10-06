@@ -2,13 +2,13 @@
 
 The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
 
-| Label in mattpocock/skills | Label in our tracker | Meaning                                  |
-| -------------------------- | -------------------- | ---------------------------------------- |
-| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue  |
-| `needs-info`               | `needs-info`         | Waiting on reporter for more information |
-| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for `/next-issue` |
-| `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
-| `wontfix`                  | `wontfix`            | Will not be actioned                     |
+| Label in mattpocock/skills | Label in our tracker | Meaning                                   |
+| -------------------------- | -------------------- | ----------------------------------------- |
+| `needs-triage`             | `needs-triage`       | Maintainer needs to evaluate this issue   |
+| `needs-info`               | `needs-info`         | Waiting on reporter for more information  |
+| `ready-for-agent`          | `ready-for-agent`    | Fully specified, ready for `/next-ticket` |
+| `ready-for-human`          | `ready-for-human`    | Requires human implementation             |
+| `wontfix`                  | `wontfix`            | Will not be actioned                      |
 
 When a skill mentions a role (e.g. "apply the agent-ready triage label"), use the corresponding label string from this table.
 
@@ -16,7 +16,7 @@ When a skill mentions a role (e.g. "apply the agent-ready triage label"), use th
 
 `ready-for-agent` and `needs-triage` answer opposite questions and **must never
 appear on the same issue**. `ready-for-agent` asserts the issue is executable
-as written — `/next-issue` could pick it up and land it. `needs-triage` asserts a human still has to decide something
+as written — `/next-ticket` could pick it up and land it. `needs-triage` asserts a human still has to decide something
 (unconfirmed repro, product call, unbounded scope). An issue carrying both
 claims to be executable AND blocked, which is not a state: it lands in the
 queue while reading as un-evaluated.
@@ -60,7 +60,7 @@ P2 — <one-line reason>
 
 `P1`-`P3` or `none — <reason>` (ruled off the road); never `P0`, which is
 hand-set on the board and never written by a filer — with ONE exception: an
-issue a `/next-issue` session files while working another inherits that issue's band, `P0` included,
+issue a `/next-ticket` session files while working another inherits that issue's band, `P0` included,
 copied by `bun run issue:inherit-band <worked> <new>` (ADR 0143 Amendment IV,
 issue #4928). A filer who may not rule the band applies `needs-triage`
 instead. With neither, `backlog:triage`
@@ -81,13 +81,13 @@ issue is parented to its band's umbrella). A script that COPIES an issue
 ## Model-routing labels escalate by exception
 
 **This section is the single authority on model routing, for filing AND for
-pickup.** `model:opus` and `model:fable` decide whether `/next-issue` may run
+pickup.** `model:opus` and `model:fable` decide whether `/next-ticket` may run
 an issue on the session's tier and where its review is routed; `resolveModel` in `scripts/lib/queue-plan.ts` reads the label
 and nothing else. An unlabelled issue runs on the default tier (Sonnet). There
 is deliberately no `model:sonnet` label — absence IS the default.
 
 No skill restates the criterion below in its own words. A second prose copy is
-drift by construction: `/next-issue` § 1 once carried an area-based list
+drift by construction: `/next-ticket` § 1 once carried an area-based list
 ("touches the layer system / bot search…") and it contradicted this section on
 the first bot issue that reached it — the filing skill had correctly left a
 blade-covered bot-search fix unlabelled, and the pickup skill stopped the

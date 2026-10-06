@@ -70,6 +70,7 @@
  *   `SPAN_CLASSIFIER_VERSION` alongside any future classifier change.
  */
 
+import { isPipelineCommand } from "./pipeline-command.ts";
 import { classifyKind } from "./telemetry-db.ts";
 
 /** One assistant message on the main thread. */
@@ -95,7 +96,7 @@ export interface SessionMeta {
     session: string;
     /** PR numbers from `pr-link` events; a session with none landed nothing. */
     prs: number[];
-    /** The first slash-command prompt seen, e.g. `/next-issue 3079`. */
+    /** The first slash-command prompt seen, e.g. `/next-ticket 3079`. */
     cmd: string | null;
 }
 
@@ -413,9 +414,9 @@ export function isIssueClosing(row: SessionLatency): boolean {
     return row.prs > 0;
 }
 
-/** A session opened with `/next-issue` — the ADR 0110 pipeline the 10-15 minute target is about. */
+/** A session opened with `/next-ticket` — the ADR 0110 pipeline the 10-15 minute target is about. */
 export function isNextIssue(row: SessionLatency): boolean {
-    return /^\/next-issue\b/.test(row.cmd ?? "");
+    return isPipelineCommand(row.cmd);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -521,7 +522,7 @@ export function throughputByConcurrency(
 
 /** One review subagent's span — the model it actually ran (`spans.model_req`,
  *  the spawn's explicit `model:`, never the session's default tier), and the
- *  window `/next-issue` §4 waits on it. */
+ *  window `/next-ticket` §4 waits on it. */
 export interface ReviewSpan {
     session: string;
     model: string | null;
@@ -554,7 +555,7 @@ export interface ReviewerModelRow {
 /**
  * A review "blocks" when at least one commit in ITS OWN session lands after
  * the review span ends (and, if the session merged, before that merge):
- * `/next-issue` §4 fixes every blocking finding in-session before opening
+ * `/next-ticket` §4 fixes every blocking finding in-session before opening
  * the PR, so a post-review commit is direct evidence the review found
  * something worth fixing. Grouped by the model the review actually ran under
  * — routing is exactly what a per-model finding rate is meant to judge.

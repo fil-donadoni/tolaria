@@ -1,4 +1,4 @@
-# /next-issue — Abort
+# /next-ticket — Abort
 
 Reached from `SKILL.md` when this issue cannot land in this pass.
 

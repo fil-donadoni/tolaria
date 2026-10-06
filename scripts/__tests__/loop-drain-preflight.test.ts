@@ -38,7 +38,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
     };
 
     it("drains a queue whose head is ESCALATED instead of stalling on it", () => {
-        // The wall this exists to remove: /next-issue §1 stops the pass —
+        // The wall this exists to remove: /next-ticket §1 stops the pass —
         // BEFORE claiming — when the issue's model:* label outranks the
         // session tier. Nothing gets claimed, so the same issue is at the head
         // next pass, and an unattended run dies on no-progress with the queue
@@ -51,7 +51,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
             "arg=opus",
             ...SESSION_ID_ARGV,
             "arg=-p",
-            "arg=/next-issue 2707",
+            "arg=/next-ticket 2707",
         ]);
     });
 
@@ -67,7 +67,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
             "arg=sonnet",
             ...SESSION_ID_ARGV,
             "arg=-p",
-            "arg=/next-issue 3083",
+            "arg=/next-ticket 3083",
         ]);
     });
 
@@ -81,14 +81,14 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(r.stderr).toMatch(/issue #2707 on tier opus/);
         expect(r.stderr).toMatch(
-            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model opus --session-id [0-9a-f-]{36} -p "\/next-issue 2707"/
+            /would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude --model opus --session-id [0-9a-f-]{36} -p "\/next-ticket 2707"/
         );
     });
 
     it("STOPS the run when the planner cannot answer, rather than letting a pass pick for itself (#3088)", () => {
         // The one place the driver's usual "a janitor must not end the night"
         // trade goes the other way. A pass handed the bare prompt picks its
-        // own issue and `/next-issue` knows nothing about HITL, so it would
+        // own issue and `/next-ticket` knows nothing about HITL, so it would
         // implement AND `land` work reserved for a human. Losing the rest of a
         // night is the cheaper failure.
         stubGhCountingFrom(5);
@@ -136,7 +136,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
 
     it("stops rather than trusting a head the planner returned in an unusable shape", () => {
         // A plan whose batch[0].number is not an integer must not reach the
-        // pass as a prompt argument — `/next-issue not-a-number` burns a pass,
+        // pass as a prompt argument — `/next-ticket not-a-number` burns a pass,
         // and unattended it burns one EVERY pass. Two layers reject it (the
         // `bun -e` type check, then the shell revalidation of what it
         // returned) and this stays green with either one alone: it was proven
@@ -232,7 +232,7 @@ describe("pre-flight — WHICH issue, on WHICH tier (#3083)", () => {
             "arg=opus",
             ...SESSION_ID_ARGV,
             "arg=-p",
-            "arg=/next-issue 2288",
+            "arg=/next-ticket 2288",
         ]);
     });
 

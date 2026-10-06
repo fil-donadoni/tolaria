@@ -574,7 +574,7 @@ export function issueFromDescription(desc: string | null): number | null {
  *
  * Deliberately stricter than {@link issueFromDescription}, which reads agent
  * spawn descriptions written to a known template. A session command is free
- * text a human typed (`/next-issue figli di 2064`,
+ * text a human typed (`/next-ticket figli di 2064`,
  * `/process-gh-issues #2469 poi #2468`), so:
  *
  * - it must BE a slash command — an arbitrary prompt that happens to contain a

@@ -19,7 +19,7 @@ installLoopDrainHarness();
 /**
  * Issue #4763: a pass that pushed its PR and then died leaves a `stranded`
  * claim. `queue:plan` names it in `resume`, and the driver hands it to the
- * next pass as `/next-issue N --resume` BEFORE any new pick — once per issue
+ * next pass as `/next-ticket N --resume` BEFORE any new pick — once per issue
  * per run, so one wedged PR cannot eat the whole drain.
  */
 describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
@@ -78,8 +78,8 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
         const r = run({ args: ["--max-passes", "2"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.readFileSync(prompts, "utf8").trim().split("\n")).toEqual([
-            "opus|/next-issue 4506 --resume",
-            "sonnet|/next-issue 101",
+            "opus|/next-ticket 4506 --resume",
+            "sonnet|/next-ticket 101",
         ]);
         expect(r.stderr).toMatch(/resuming stranded claim #4506 \(PR #4760\)/);
     });
@@ -91,7 +91,7 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
         const r = run({ args: ["--max-passes", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.readFileSync(prompts, "utf8").trim()).toBe(
-            "sonnet|/next-issue 4761 --resume"
+            "sonnet|/next-ticket 4761 --resume"
         );
         expect(r.stderr).toMatch(
             /resuming stranded claim #4761 \(pushed branch, no PR\)/
@@ -105,7 +105,7 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
         const r = run({ args: ["--max-passes", "1"] });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(fs.readFileSync(prompts, "utf8").trim()).toBe(
-            "sonnet|/next-issue 101"
+            "sonnet|/next-ticket 101"
         );
         expect(r.stderr).not.toMatch(/resuming stranded/);
     });

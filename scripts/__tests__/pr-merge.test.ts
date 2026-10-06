@@ -167,7 +167,7 @@ describe("pr-merge.ts — followUpNotice", () => {
         // runs the housekeeping and nothing else.
         expect(text).toContain("bun run gate:run land 4153");
         // Keyed on the run key `land` is always invoked with, so the
-        // re-attach documented in /next-issue §5 works from anywhere.
+        // re-attach documented in /next-ticket §5 works from anywhere.
         expect(text).toContain("TOLARIA_GATE_RUN_KEY=land-4153");
     });
 

@@ -95,7 +95,7 @@ This ADR settled WHERE a scenario lives (the DB, deployment-local) and CLAUDE.md
 § Development cycle step 7 settled WHO writes it: a headless agent emits
 `{ label, spec }` in the PR body, and **"the orchestrator registers it
 post-merge"**. ADR 0110 then retired the orchestrator — `/process-gh-issues`'s
-fan-out became `/next-issue`, one session per issue — and the replacement skill
+fan-out became `/next-ticket`, one session per issue — and the replacement skill
 never inherited the registration step. Nothing else picked it up: `land`,
 `pr-merge` and `check-lane` did not mention scenarios at all, so no gate ever
 went red on a missing one and no code path ever performed the insert.

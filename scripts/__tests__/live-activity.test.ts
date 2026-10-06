@@ -108,7 +108,7 @@ beforeAll(() => {
         }),
         JSON.stringify({
             type: "last-prompt",
-            lastPrompt: "/next-issue 3096",
+            lastPrompt: "/next-ticket 3096",
             sessionId: SESSION_A,
         }),
         userLine(NOW - 2 * HOUR, "work on issue #3096 please"),
@@ -197,7 +197,7 @@ describe("live-activity — LiveIndex", () => {
     it("summarises a session: title, last prompt, branch, in-window tokens, subagent count, mentions", () => {
         const a = index.session(SESSION_A)!;
         expect(a.title).toBe("Emrakul");
-        expect(a.lastPrompt).toBe("/next-issue 3096");
+        expect(a.lastPrompt).toBe("/next-ticket 3096");
         expect(a.gitBranch).toBe("feat/issue-3096");
         // r1 (100) + r2 (50) from the main transcript + sub1 (20).
         expect(a.outTok).toBe(170);
@@ -230,7 +230,7 @@ describe("live-activity — LiveIndex", () => {
         ]);
         const hourAgo = (Date.now() - HOUR) / 1000;
         utimesSync(join(dir, `${talker}.jsonl`), hourAgo, hourAgo);
-        writeTranscript(dir, worker, [userLine(NOW, "/next-issue 7000")]);
+        writeTranscript(dir, worker, [userLine(NOW, "/next-ticket 7000")]);
         const idx = new LiveIndex({
             projectsRoot: root,
             projectSlug: "rank-case",
@@ -475,7 +475,7 @@ describe("live-activity — session entrypoint (issue #3144)", () => {
         const plain = "99999999-9999-4999-8999-999999999999";
         const silent = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
         writeTranscript(dir, headless, [
-            userLine(NOW - 60_000, "/next-issue 3096", {
+            userLine(NOW - 60_000, "/next-ticket 3096", {
                 entrypoint: "sdk-cli",
             }),
             assistantLine("e1", NOW - 59_000, 10),

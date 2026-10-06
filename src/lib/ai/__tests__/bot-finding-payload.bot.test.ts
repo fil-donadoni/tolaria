@@ -60,13 +60,13 @@ const MEASUREMENT = {
 } as BotFindingMeasurement;
 
 describe("findingPayload", () => {
-    it("with an issue: opens with /next-issue N and carries the context the issue cannot", () => {
+    it("with an issue: opens with /next-ticket N and carries the context the issue cannot", () => {
         const text = findingPayload(
             finding({ reproducers: ["saved position A"] }),
             cls({ issue: 4321, provingEntry: "blade entry X" }),
             MEASUREMENT
         );
-        expect(text.startsWith("/next-issue 4321\n")).toBe(true);
+        expect(text.startsWith("/next-ticket 4321\n")).toBe(true);
         expect(text).toContain("Grist, the Hunger Tide");
         expect(text).toContain("Reproducer: saved position A");
         expect(text).toContain("Reproducer: blade entry X");
@@ -75,9 +75,9 @@ describe("findingPayload", () => {
         expect(text.endsWith(LOOP_CLOSE_LINE)).toBe(true);
     });
 
-    it("without an issue: a filing-ready brief, not a /next-issue command", () => {
+    it("without an issue: a filing-ready brief, not a /next-ticket command", () => {
         const text = findingPayload(finding(), cls(), MEASUREMENT);
-        expect(text).not.toContain("/next-issue");
+        expect(text).not.toContain("/next-ticket");
         expect(text).toContain(`\`${KEY}\``);
         expect(text).toContain("Reproducer: none attached.");
         expect(text.endsWith(LOOP_CLOSE_LINE)).toBe(true);
@@ -120,7 +120,7 @@ describe("classPayload", () => {
 
     it("names every card of the class — and only that class — in ONE brief", () => {
         const text = classPayload(cls({ issue: 7 }), cards, MEASUREMENT);
-        expect(text.startsWith("/next-issue 7\n")).toBe(true);
+        expect(text.startsWith("/next-ticket 7\n")).toBe(true);
         expect(text).toContain("Cards (2):");
         expect(text.indexOf("Alpha Card")).toBeLessThan(
             text.indexOf("Zed Card")
@@ -130,7 +130,7 @@ describe("classPayload", () => {
 
     it("without an issue: filing-ready, with the filer's prose", () => {
         const text = classPayload(cls(), cards, MEASUREMENT);
-        expect(text).not.toContain("/next-issue");
+        expect(text).not.toContain("/next-ticket");
         expect(text).toContain(botCauseText("never-chosen"));
         expect(text.endsWith(LOOP_CLOSE_LINE)).toBe(true);
     });

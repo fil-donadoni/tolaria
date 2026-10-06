@@ -252,7 +252,7 @@ export function safeSkinReceiptInvalid(cwd: string, prBody: string): boolean {
  * WHY THIS IS A GATE AT ALL. CLAUDE.md § Development cycle step 7 has always
  * required one scenario per new card/gameplay feature, and routed the insert
  * to "the orchestrator, post-merge". ADR 0110 retired the orchestrator and
- * `/next-issue` never inherited the step, so the requirement survived only as
+ * `/next-ticket` never inherited the step, so the requirement survived only as
  * prose — and prose is not where invariants live (CLAUDE.md § Skills). Over
  * the 200 merged PRs before this landed, 42 carried a spec that was never
  * registered anywhere and 17 shipped a gameplay diff with no block and no

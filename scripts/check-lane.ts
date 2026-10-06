@@ -59,7 +59,7 @@
  * `--plan` IS NOT A LANE FLAG (ADR 0136 §8). It suppresses EXECUTION, never
  * classification: the lane still comes from the diff, through the same
  * `classifyLane` call every other mode uses. It exists because
- * `/next-issue` §3 keys its `cards` short path — no hand-written test, no
+ * `/next-ticket` §3 keys its `cards` short path — no hand-written test, no
  * proof-of-failure, no bot or frontend walk — on the lane the diff really
  * classifies as, and a session that had to PAY a lane gate to learn that
  * would be running the pre-PR gate §1 retired. Ask after committing: the
@@ -155,7 +155,7 @@ const FULL_PATTERNS: RegExp[] = [
  * WHY. `^\.claude/` was written when that tree held hooks and rule indexes
  * only, and "a hook can change anything" made forcing `full` the obviously
  * right call. Issues #4087/#4090 then moved every WORKFLOW SKILL in there
- * (`/next-issue`, `/grammar-rule`, `/to-prd`, …), so a one-line `SKILL.md`
+ * (`/next-ticket`, `/grammar-rule`, `/to-prd`, …), so a one-line `SKILL.md`
  * edit paid `check:pr` verbatim — ~440s against ~190s for a lane and seconds
  * for `check:docs`. Measured on the last 30 landings before this change: 3
  * paid `full` for a full-forcing path, 2 of them a `SKILL.md`.
@@ -171,7 +171,7 @@ const FULL_PATTERNS: RegExp[] = [
  * (`.claude/rules/bot-development.md`'s `globs:` feeds
  * `scripts/lib/bot-globs.ts`), `destructive-data-recipes.test.ts` (scans
  * `.claude/skills/**\/*.md`), `gate-rule-parity.test.ts` (the gate rule held
- * in both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts`
+ * in both `deny-guard.sh` and the `/next-ticket` skill), `action-space.test.ts`
  * and `cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger
  * entry). `format:check`'s glob already covers `**\/*.md`, so prettier reaches
  * these too. `docs-lane.test.ts` is what keeps that set honest: its census
@@ -180,7 +180,7 @@ const FULL_PATTERNS: RegExp[] = [
  *
  * ANCHORED TO `.md` IN TWO NAMED DIRECTORIES, for the same reason
  * `DOCS_PATTERNS` is: a directory must never promote a non-prose file into
- * the prose lane. `.claude/skills/next-issue/lib/plan.ts`,
+ * the prose lane. `.claude/skills/next-ticket/lib/plan.ts`,
  * `.claude/hooks/deny-guard.sh`, `.claude/settings.json` and `.claude/CLAUDE.md`
  * all still reach `FULL_PATTERNS` — the first three because they are programs
  * or configuration, the last because it is neither a skill nor a rule index

@@ -7,7 +7,7 @@ import * as path from "path";
 /**
  * Project-skill residency guard.
  *
- * `/next-issue` is the pipeline that implements this repo's issues (ADR 0110;
+ * `/next-ticket` is the pipeline that implements this repo's issues (ADR 0110;
  * its fan-out predecessor `/process-gh-issues` is retired). The predecessor
  * used to live in the USER-level skill directory (`~/.claude/skills/`), outside
  * any git repository. Three consequences, all of which this repo paid for:
@@ -31,7 +31,7 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 /** Skills whose residency is load-bearing. Add a row when a workflow skill
  *  becomes part of this project rather than the machine. */
 const IN_REPO_SKILLS = [
-    "next-issue",
+    "next-ticket",
     "grammar-rule",
     "new-card",
     "to-prd",
@@ -287,13 +287,13 @@ describe("Tolaria is project-skills-only (ADR 0150, issue #5098)", () => {
 
     it("finds a real corpus of instructed skills", () => {
         const names = new Set(instructedSkills().keys());
-        expect(names.has("next-issue")).toBe(true);
+        expect(names.has("next-ticket")).toBe(true);
         expect(names.has("grill")).toBe(true);
     });
 });
 
-describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", () => {
-    const body = (): string => skillCorpus("next-issue");
+describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)", () => {
+    const body = (): string => skillCorpus("next-ticket");
 
     it("tells the session to run the planner, and the script it names exists", () => {
         expect(body()).toMatch(/bun run queue:plan/);
@@ -338,7 +338,7 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         // all. The rule holds at ANY point of the pass, not only in `land`.
         expect(body()).toMatch(/A pass never ends its turn waiting/);
         expect(body()).toMatch(/at ANY point/);
-        expect(body()).toMatch(/\/next-issue N --resume/);
+        expect(body()).toMatch(/\/next-ticket N --resume/);
         expect(body()).toMatch(/wt:new N --resume/);
     });
 
@@ -402,10 +402,16 @@ describe("next-issue consumes the planner (issue #2184, re-homed by ADR 0110)", 
         // exists. A pointer also has to say WHAT the file is and WHEN to read
         // it, or the session must open it to learn whether it needed to.
         const manifest = fs.readFileSync(
-            path.join(REPO_ROOT, ".claude", "skills", "next-issue", "SKILL.md"),
+            path.join(
+                REPO_ROOT,
+                ".claude",
+                "skills",
+                "next-ticket",
+                "SKILL.md"
+            ),
             "utf8"
         );
-        const siblings = skillFiles("next-issue").slice(1);
+        const siblings = skillFiles("next-ticket").slice(1);
         expect(siblings.length).toBeGreaterThan(0);
         const pointers = new Map<string, string>();
         for (const m of manifest.matchAll(
@@ -548,7 +554,7 @@ describe("every queue-facing skill instructs the card-link convention (issue #36
      * Each exemption must stay queue-facing, or it is stale and reds below.
      */
     const EXEMPT: Record<string, string> = {
-        "next-issue": "drains the queue; never drafts an issue body",
+        "next-ticket": "drains the queue; never drafts an issue body",
         "to-prd":
             "MTG-agnostic by design — the calling intake skill hands it the rule",
         "to-tickets":
@@ -606,11 +612,11 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
         "new-op",
         "create-ticket",
         "new-set",
-        "next-issue",
+        "next-ticket",
         "to-prd",
         "to-tickets",
     ];
-    // The whole skill, not its manifest (issue #5100): `/next-issue` keeps
+    // The whole skill, not its manifest (issue #5100): `/next-ticket` keeps
     // its filing procedure one pointer away, in `filing.md`.
     const body = (name: string) => skillCorpus(name);
 

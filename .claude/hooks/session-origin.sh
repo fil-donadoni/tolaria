@@ -34,7 +34,7 @@ session=$(printf '%s' "$payload" | jq -r '.session_id // ""')
 [ -n "$session" ] || exit 0
 
 # `${CLAUDE_PROJECT_DIR:-.}` — the same root `claim-ledger.sh` writes to, so
-# both journals live in one place. In a `/next-issue` session that is the
+# both journals live in one place. In a `/next-ticket` session that is the
 # PRIMARY checkout even after the session cd's into its worktree: the harness
 # fixes the variable at session start.
 dir="${CLAUDE_PROJECT_DIR:-.}/.claude/telemetry"

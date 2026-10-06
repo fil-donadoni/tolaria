@@ -58,7 +58,7 @@
  *
  * ## Attribution — how a row becomes an issue's cost
  *
- * Under ADR 0110 a session IS an issue: `/next-issue N` opens it, one issue
+ * Under ADR 0110 a session IS an issue: `/next-ticket N` opens it, one issue
  * closes in it, and 87% of the cost is main-thread (measured over
  * 2026-08-28 → 2026-09-05: $2093 main vs $314 subagent). So attribution runs at
  * SESSION level — `agent_runs.issue`, which the dashboard's issue table uses,
@@ -74,6 +74,7 @@
  * allowance units (629M of 804M).
  */
 
+import { isPipelineCommand } from "./pipeline-command.ts";
 import { issueFromSessionCommand } from "./telemetry-db.ts";
 import { quantile } from "./telemetry-latency.ts";
 
@@ -149,9 +150,9 @@ export function resolveAllowance(opts: {
     return null;
 }
 
-/** True for a session opened with `/next-issue` — the ADR 0110 pipeline. */
+/** True for a session opened with `/next-ticket` — the ADR 0110 pipeline. */
 export function isNextIssueCommand(cmd: string | null): boolean {
-    return /^\/next-issue\b/.test(cmd ?? "");
+    return isPipelineCommand(cmd);
 }
 
 /** One session, already reduced to its totals. */
@@ -174,7 +175,7 @@ export interface IssueConsumption {
     sessions: number;
     /** `open` | `closed` | `unknown` — from `issue_meta`, absent when never fetched. */
     state: string | null;
-    /** True when at least one of its sessions was a `/next-issue` run. */
+    /** True when at least one of its sessions was a `/next-ticket` run. */
     nextIssue: boolean;
     /** Share of the weekly allowance, percent; null when no allowance is configured. */
     sharePct: number | null;
@@ -267,7 +268,7 @@ export interface Cohort {
 /**
  * Split attributed issues into the cohorts the target is about.
  *
- * `/next-issue` closed issues come first: that is literally the population ADR
+ * `/next-ticket` closed issues come first: that is literally the population ADR
  * 0110's target speaks about. The wider cohorts are there so a reader can see
  * whether the headline is an artifact of the narrower one.
  */
@@ -275,11 +276,11 @@ export function cohorts(issues: readonly IssueConsumption[]): Cohort[] {
     const closed = (r: IssueConsumption) => r.state === "closed";
     return [
         {
-            name: "closed issues run by /next-issue (the ADR 0110 target's population)",
+            name: "closed issues run by /next-ticket (the ADR 0110 target's population)",
             issues: issues.filter((r) => r.nextIssue && closed(r)),
         },
         {
-            name: "all issues run by /next-issue",
+            name: "all issues run by /next-ticket",
             issues: issues.filter((r) => r.nextIssue),
         },
         {

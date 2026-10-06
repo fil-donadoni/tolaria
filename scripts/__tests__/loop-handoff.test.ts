@@ -300,7 +300,7 @@ describe("--prompt — scoping an unattended run to part of the queue", () => {
             env: { TOLARIA_LOOP_TOKEN_BUDGET: "1" },
         }).stdout;
         expect(out).not.toMatch(/claude -p ""/);
-        expect(out).toMatch(/every pass will run: \/next-issue/);
+        expect(out).toMatch(/every pass will run: \/next-ticket/);
     });
 
     it("round-trips a multi-word prompt through the conf into the driver argv", () => {

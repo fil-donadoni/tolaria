@@ -37,7 +37,7 @@ import {
  * count, a clock, two shas.
  *
  * The scenarios these rules exist to satisfy are A/B/C in
- * `docs/guides/next-issue-flow.md` § 2.
+ * `docs/guides/next-ticket-flow.md` § 2.
  */
 
 const T0 = Date.parse("2026-09-17T09:00:00.000Z");

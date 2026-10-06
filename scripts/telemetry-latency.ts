@@ -331,7 +331,7 @@ const cohorts = [
         rows.filter(isIssueClosing)
     ),
     summarise(
-        "/next-issue sessions (the ADR 0110 pipeline)",
+        "/next-ticket sessions (the ADR 0110 pipeline)",
         rows.filter(isNextIssue)
     ),
     summarise("all sessions in window", rows),

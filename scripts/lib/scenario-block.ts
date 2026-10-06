@@ -5,7 +5,7 @@
 // shipping a new card or gameplay feature owes one preset scenario, and that a
 // headless agent must NOT insert it — it emits the spec in the PR body and
 // "the orchestrator registers it post-merge". ADR 0110 then retired the
-// orchestrator: `/process-gh-issues`'s fan-out became `/next-issue`, one
+// orchestrator: `/process-gh-issues`'s fan-out became `/next-ticket`, one
 // session per issue, and the replacement skill never inherited the
 // registration step. Nothing else picked it up either — `land`, `pr-merge` and
 // `check-lane` do not mention scenarios at all, so no gate ever reds on a

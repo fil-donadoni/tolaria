@@ -11,7 +11,7 @@
  *
  * This module owns the decision; `scripts/health-cadence.ts` owns the side
  * effects (the ledger file, the fetch, the detached gate). The scenarios the
- * rules exist to satisfy are A/B/C in `docs/guides/next-issue-flow.md` § 2.
+ * rules exist to satisfy are A/B/C in `docs/guides/next-ticket-flow.md` § 2.
  *
  * Node builtins only — nothing here imports anything at runtime (one
  * erased type import), so `land`'s locked command can reach the CLI around it
@@ -503,7 +503,7 @@ export type ReconcileAction =
  * rejects the verdict of the very run it started: `lastGreenSha` is never
  * written, nothing is pruned, and the next landing fires another full gate —
  * the ADR 0110 regime, one ~10 min gate per landing, reinstated silently.
- * Scenario B in `docs/guides/next-issue-flow.md` § 2 is that case verbatim.
+ * Scenario B in `docs/guides/next-ticket-flow.md` § 2 is that case verbatim.
  *
  * A GREEN is adopted whoever produced it: a proven tip is proven, and a
  * concurrent run or `bun run release` proving it is not a reason to re-prove

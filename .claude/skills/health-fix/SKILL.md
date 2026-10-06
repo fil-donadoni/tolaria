@@ -182,7 +182,7 @@ can defeat each other.
 
 This is the one PR class that lands on a base branch already known to be red,
 so it is not exempt. Spawn exactly **one** reviewer subagent, routed as
-`/next-issue` § 4 routes: `model: opus` for a diff touching `convex/gre/**` or
+`/next-ticket` § 4 routes: `model: opus` for a diff touching `convex/gre/**` or
 `**/ai/**`, `model: sonnet` for anything else with code, no review for a
 docs-only diff. Fix blocking findings here, re-run the targeted tests, and do
 not re-review.

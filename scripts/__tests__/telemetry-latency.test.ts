@@ -322,7 +322,7 @@ describe("allSessionLatencies", () => {
             turns,
             [],
             [
-                { session: "a", cmd: "/next-issue 3079", prs: [3100] },
+                { session: "a", cmd: "/next-ticket 3079", prs: [3100] },
                 { session: "b", cmd: "/triage 42", prs: [] },
             ]
         );
@@ -624,12 +624,12 @@ describe("parseLaneForcingPath (issue #4376)", () => {
     it("a SKILL.md no longer forces the full gate; a hook still does", () => {
         expect(
             parseLaneForcingPath(
-                receipt([".claude/skills/next-issue/SKILL.md"])
+                receipt([".claude/skills/next-ticket/SKILL.md"])
             )
         ).toBeNull();
         expect(
-            parseLaneForcingPath(receipt([".claude/skills/next-issue/run.sh"]))
-        ).toBe(".claude/skills/next-issue/run.sh");
+            parseLaneForcingPath(receipt([".claude/skills/next-ticket/run.sh"]))
+        ).toBe(".claude/skills/next-ticket/run.sh");
     });
 });
 

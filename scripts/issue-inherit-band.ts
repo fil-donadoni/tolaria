@@ -3,7 +3,7 @@
  * `bun run issue:inherit-band <from> <to>` — an issue filed while working
  * `<from>` takes `<from>`'s band as its board `Priority` (issue #4928).
  *
- * A `/next-issue` session that files an issue — an abort prerequisite, a
+ * A `/next-ticket` session that files an issue — an abort prerequisite, a
  * follow-up split off an unmet acceptance criterion — used to leave it with
  * no `Priority`. Issue #4917, split out of P0 issue #4896, sat unprioritised
  * until the owner set it by hand. The owner's rule (2026-10-01): an issue

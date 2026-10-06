@@ -8,14 +8,14 @@ together with the pre-PR gate it protected. Grilled 2026-09-17; the numbers
 below are that session's, re-derivable with `bun run telemetry:latency` and
 the SQL on `.claude/telemetry/telemetry.db` quoted in
 `docs/agents/quality-gates.md`. The decided flow and the three land/health
-scenarios are drawn in `docs/guides/next-issue-flow.md`.
+scenarios are drawn in `docs/guides/next-ticket-flow.md`.
 
 ## Context
 
 The pipeline of ADR 0110 was measured again over 2026-09-03 → 2026-09-17
-(272 `/next-issue` sessions, 300 PRs merged into the base branch):
+(272 `/next-ticket` sessions, 300 PRs merged into the base branch):
 
-| Per `/next-issue` session (median)             |                                                       Value |
+| Per `/next-ticket` session (median)            |                                                       Value |
 | ---------------------------------------------- | ----------------------------------------------------------: |
 | wall                                           |                                                        83 m |
 | machine (tool + model)                         |                                                        65 m |
@@ -28,7 +28,7 @@ The pipeline of ADR 0110 was measured again over 2026-09-03 → 2026-09-17
 
 Three mechanisms explain the gate block, and none is a slow test:
 
-1. **The lane is paid three times per issue.** `/next-issue` §5 runs
+1. **The lane is paid three times per issue.** `/next-ticket` §5 runs
    `check:lane` before the PR; the base branch receives 2.5 PR/h when seven
    sessions run, so the tip moves DURING that gate; the #3286 preflight then
    sends the session back — rebase, lane again — and `land` runs the same
@@ -71,7 +71,7 @@ is not, because each of them then debugs a failure that is not theirs.
 
 ## Decision
 
-1. **No pre-PR lane gate.** `/next-issue` §5 no longer runs `check:lane`
+1. **No pre-PR lane gate.** `/next-ticket` §5 no longer runs `check:lane`
    before opening the PR; the session's own signal is its targeted vitest
    runs and the review round. The #3286 preflight is retired with it: its
    whole purpose was to stop a hand-run pre-PR gate on a stale tree, and there
@@ -131,7 +131,7 @@ is not, because each of them then debugs a failure that is not theirs.
    at the cap: 3 now, 4 once the PR/h-by-concurrency row of
    `telemetry:latency` shows the knee moved. The cap is a measured number
    with its derivation in `docs/agents/quality-gates.md`, never a label.
-8. **A short path for the `cards` lane in `/next-issue` §3**, decided by the
+8. **A short path for the `cards` lane in `/next-ticket` §3**, decided by the
    diff's lane, not by the session: definition, scenario JSON, regenerated
    artefacts, `cr:ledger`; no hand-written test, no proof-of-failure, no bot
    or frontend walk. A session that finds itself writing a test for a
@@ -169,7 +169,7 @@ current at its start, never interrupted once running.
 - Throughput target at cap 3: from 1.44 PR/h measured to ~3 PR/h, the gate
   no longer being the floor (model + non-gate tool ≈ 47 min/issue is).
   Judged by the same telemetry row that set the cap, not by feel.
-- The `/next-issue` skill, `check-lane.ts`, `land.ts`, `queue-plan.ts`,
+- The `/next-ticket` skill, `check-lane.ts`, `land.ts`, `queue-plan.ts`,
   `health-main.ts`, `bootstrap-worktree.ts`, `vitest.config.ts` and
   `check-guards-scope.test.ts` all change; reversing any one item is a
   script change, reversing the shape is not.

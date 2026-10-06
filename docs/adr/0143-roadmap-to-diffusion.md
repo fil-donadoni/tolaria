@@ -352,7 +352,7 @@ Identity**, **Commander Damage**, **Paranoid Reduction**, **Focus View**,
 
 "`P0` … never written or cleared by a script" (§ Bands follow the Targets,
 and Amendment II) is **amended by one exception**, at the owner's ruling. An
-issue a `/next-issue` session files while working issue N takes N's band:
+issue a `/next-ticket` session files while working issue N takes N's band:
 `bun run issue:inherit-band <N> <new>`, run straight after the issue is
 created. Examples are an abort prerequisite, or a follow-up split off an
 acceptance criterion the PR cannot meet. The shape that prompted it: issue

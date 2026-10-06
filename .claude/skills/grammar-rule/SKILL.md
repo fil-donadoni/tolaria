@@ -9,7 +9,7 @@ argument-hint: "<gap key | cluster issue #N>"
 The unit of card work is the **Grammar Rule**, not the card (ADR 0137): one
 clause form accepted by a slot or a shared sub-grammar, delivered with its
 golden fixtures, measured by how many corpus cards it turns `ready`. This skill
-is the sequence one such rule owes. It runs inside `/next-issue` (claim,
+is the sequence one such rule owes. It runs inside `/next-ticket` (claim,
 worktree, review, `land` are that skill's); everything below is §3 of it.
 
 **The ticket is a Grammar Cluster** (the grammar case of a Gap Cluster, ADR
@@ -142,7 +142,7 @@ form decides which:
   (`goldenFixtures.test.ts`: "it clears nothing") — so a form that reaches
   `ready` without one gets the test golden only. Say which in the PR.
 
-**Proof of failure, per fixture.** Commit first (`/next-issue` § 3: a revert on
+**Proof of failure, per fixture.** Commit first (`/next-ticket` § 3: a revert on
 uncommitted work discards the implementation). Then break the rule — drop the
 alternative that reads the form, or the lowering branch — watch that form's
 golden go red, revert. **Assert the break applied** (`grep -c` the broken text
@@ -258,7 +258,7 @@ rule is closed by the PR's own `Closes #N`.)
 
 ## 10. The PR body
 
-Review and `land` are `/next-issue` §4–§5. The body:
+Review and `land` are `/next-ticket` §4–§5. The body:
 
 ````markdown
 Closes #<cluster issue>

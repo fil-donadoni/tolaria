@@ -1,10 +1,10 @@
 ---
-name: next-issue
+name: next-ticket
 description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, land."
 disable-model-invocation: true
 ---
 
-# /next-issue — one context closes one issue
+# /next-ticket — one context closes one issue
 
 One session, one issue, no orchestrator, no implement subagents (ADR 0110).
 Target and baseline: `docs/agents/quality-gates.md` § Latency per issue
@@ -77,7 +77,7 @@ verdict — landed, or a failure reported as a failure.
 
 ## 0. Pick
 
-- `/next-issue 1234` → that issue. Otherwise `bun run queue:plan --cap 1
+- `/next-ticket 1234` → that issue. Otherwise `bun run queue:plan --cap 1
 --pretty` picks the top unclaimed `ready-for-agent` issue (band → standalone
   before slice → own priority → bugs → oldest). The band is the parent
   umbrella's when it carries one; a `priorityBand` echo names it. "Finish PRD #N" is `--lineage <N>`,
@@ -88,7 +88,7 @@ verdict — landed, or a failure reported as a failure.
 - Read the issue and its comments IN FULL. Its `Target files:` section (one
   path per line) is the blast radius: scope reading and the §4 review by it;
   fix a missing or comma-joined section in the issue.
-- **`/next-issue N --resume`** — a stranded claim (a dead pass pushed a
+- **`/next-ticket N --resume`** — a stranded claim (a dead pass pushed a
   branch or opened a PR). Do not start over: `queue:claim N`, then
   `cd "$(bun run --silent wt:new N --resume)"`. Open PR → read it against
   the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
