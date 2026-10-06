@@ -1281,8 +1281,12 @@ describe("body that cannot fight (issue #4238)", () => {
     const FACTORY_PUMP = "mishras-factory-pump";
     const animateMove = activation("f1", FACTORY_ANIMATE);
     const pumpMove = (targetId: string): Move => ({
-        ...activation("f1", FACTORY_PUMP),
+        kind: "activate-ability",
+        cardInstanceId: "f1",
+        abilityId: FACTORY_PUMP,
         targets: [{ type: "permanent", id: targetId }],
+        confirmTargets: false,
+        tapPlan: [],
     });
     const worker = (extra = {}) =>
         perm(FACTORY, "f1", {
