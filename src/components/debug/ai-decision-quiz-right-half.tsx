@@ -15,7 +15,10 @@ import type { PairPosition } from "@convex/gre/ai/verdicts/pairDerivation";
 import { QUIZ_SEAT } from "~/lib/ai/verdict-quiz";
 import DebugButton from "./debug-button";
 import ScenarioSpecBoard from "./scenario-spec-board";
-import { quizSeatLabels } from "./ai-decision-quiz-copy";
+import {
+    quizSeatLabelsFor,
+    type QuizPerspective,
+} from "./ai-decision-quiz-copy";
 
 export type RightHalfStatus =
     | { status: "checking" }
@@ -32,6 +35,7 @@ export default function AiDecisionQuizRightHalf({
     onDefer,
     deferLabel = "Defer the right-hand half",
     onBack,
+    perspective = "bot",
 }: {
     position: PairPosition;
     discriminant: Discriminant;
@@ -47,6 +51,8 @@ export default function AiDecisionQuizRightHalf({
     deferLabel?: string;
     /** Absent once the anchor is stored: the judgement can no longer change. */
     onBack?: () => void;
+    /** Whose decision is judged (issue #3986) — names the board's seats. */
+    perspective?: QuizPerspective;
 }) {
     const refused =
         status.status === "checked" && !status.check.ok ? status.check : null;
@@ -64,7 +70,7 @@ export default function AiDecisionQuizRightHalf({
             <ScenarioSpecBoard
                 spec={position.spec}
                 revealedHands={[QUIZ_SEAT]}
-                seatLabels={quizSeatLabels(QUIZ_SEAT)}
+                seatLabels={quizSeatLabelsFor(QUIZ_SEAT, perspective)}
             />
             {position.setup !== undefined && position.setup.length > 0 && (
                 <p

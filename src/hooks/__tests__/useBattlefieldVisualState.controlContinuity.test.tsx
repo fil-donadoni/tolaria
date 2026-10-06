@@ -89,6 +89,10 @@ vi.mock("@convex/cards", () => ({
         mockInstanceManaCost(c, () => PLAIN_DEF),
     getDefinition: () => PLAIN_DEF,
     tryGetDefinition: () => PLAIN_DEF,
+    // Reached only through the post-game review queue's lazy chunk and
+    // type-only edges (issue #3986) — never called by this suite.
+    getAllCards: () => [],
+    tokenDefinitionId: () => "__tokenDef",
 }));
 
 // The probe: the REAL `useBattlefieldVisualState`, reading the REAL context

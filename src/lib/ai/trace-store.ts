@@ -20,6 +20,7 @@ import type { BrainOutcome } from "./brain-request";
 import type { BrainResult } from "./brain-client";
 import type { BotAction } from "./brain";
 import type { DeckKnowledgeBySeat } from "./state-adapter";
+import type { QuizSubject } from "./verdict-quiz";
 
 /** One traced decision, as the Debug panel shows it. */
 export type AiTraceRecord = {
@@ -145,6 +146,17 @@ export function getAiTraces(): AiTraceRecord[] {
  *  nothing to offer (or the entry has since fallen out of the ring). */
 export function getAiTraceSource(id: number): AiTraceSource | undefined {
     return sources.get(id);
+}
+
+/** The ring's feed to the verdict quiz (issue #3986): the traced decision and
+ *  the board it was taken on, or no feed once that board is no longer held. */
+export function traceQuizSubject(record: AiTraceRecord): QuizSubject {
+    const source = sources.get(record.id);
+    return {
+        id: record.id,
+        ...(record.seq === undefined ? {} : { seq: record.seq }),
+        feed: source ? { kind: "trace", trace: record.trace, source } : null,
+    };
 }
 
 /** Mark a decision judged (issue #3405) — the quiz's own receipt, so the box

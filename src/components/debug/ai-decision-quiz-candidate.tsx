@@ -7,6 +7,8 @@
 export default function AiDecisionQuizCandidate({
     description,
     isBotPick,
+    isPlayerPick = false,
+    botPickLabel = "Bot played this",
     selected,
     disabled,
     onSelect,
@@ -16,6 +18,12 @@ export default function AiDecisionQuizCandidate({
      *  that opens with the Bot's own answer already filled in is a quiz whose
      *  easiest gesture agrees with it. */
     isBotPick: boolean;
+    /** The move the player made, when the decision was theirs (a Verdict
+     *  Proposal, issue #3986). Marked the same way, never pre-selected. */
+    isPlayerPick?: boolean;
+    /** How the Bot's pick is named: on a proposal the Bot never played it,
+     *  it is what the Brain would have played. */
+    botPickLabel?: string;
     selected: boolean;
     disabled: boolean;
     onSelect: () => void;
@@ -34,9 +42,13 @@ export default function AiDecisionQuizCandidate({
                 }`}
             >
                 <span className="min-w-0 break-words">{description}</span>
-                {isBotPick && (
+                {(isBotPick || isPlayerPick) && (
                     <span className="ml-auto shrink-0 text-[10px] text-signal-self">
-                        Bot played this
+                        {isBotPick && isPlayerPick
+                            ? "You and the Bot"
+                            : isPlayerPick
+                              ? "You played this"
+                              : botPickLabel}
                     </span>
                 )}
             </button>

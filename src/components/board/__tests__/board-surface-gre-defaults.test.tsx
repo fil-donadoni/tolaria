@@ -59,6 +59,10 @@ vi.mock("@convex/cards", () => ({
     getDefinition: (id: string) => ({ id, name: id }),
     tryGetDefinition: (id: string) => ({ id, name: id }),
     FACE_DOWN_CARD_ID: "__faceDownDef",
+    // Reached only through the post-game review queue's lazy chunk and
+    // type-only edges (issue #3986) — never called by this suite.
+    getAllCards: () => [],
+    tokenDefinitionId: () => "__tokenDef",
 }));
 
 // Chrome with no bearing on either seam.

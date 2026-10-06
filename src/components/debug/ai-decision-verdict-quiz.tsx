@@ -1,4 +1,7 @@
-// The verdict quiz for one Bot decision (issue #3405, PRD #3397, ADR 0124 §1).
+// The verdict quiz for one decision (issue #3405, PRD #3397, ADR 0124 §1) —
+// a Bot decision from the debug ring, or one of the player's own decisions
+// offered back after the game as a Verdict Proposal (issue #3986). Both reach
+// it as a `QuizSubject`; what it submits does not depend on which.
 //
 // "Which move here?" — the candidate list the decision's position offers, the
 // Bot's own pick marked, and two gestures: confirm it (one tap) or name another
@@ -16,11 +19,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { AiTraceRecord } from "~/lib/ai/trace-store";
-import { getAiTraceSource, markAiTraceJudged } from "~/lib/ai/trace-store";
 import {
     QUIZ_SEAT,
     quizRefusal,
+    type QuizSubject,
     type VerdictQuiz,
     type VerdictQuizRefusal,
 } from "~/lib/ai/verdict-quiz";
@@ -32,7 +34,13 @@ import AiDecisionDroppedNotes from "./ai-decision-dropped-notes";
 import AiDecisionQuizHandReveal from "./ai-decision-quiz-hand-reveal";
 import AiDecisionQuizWrongMove from "./ai-decision-quiz-wrong-move";
 import ScenarioSpecBoard from "./scenario-spec-board";
-import { OWN_HAND_REMINDER, quizSeatLabels } from "./ai-decision-quiz-copy";
+import {
+    OWN_HAND_REMINDER,
+    PROPOSAL_HAND_NOTE,
+    candidateSentence,
+    quizSeatLabelsFor,
+    type QuizPerspective,
+} from "./ai-decision-quiz-copy";
 
 type QuizState =
     | { status: "loading" }
@@ -40,11 +48,19 @@ type QuizState =
     | { status: "ready"; quiz: VerdictQuiz };
 
 export default function AiDecisionVerdictQuiz({
-    record,
+    subject,
+    onJudged,
     onClose,
+    cancelLabel = "Cancel",
 }: {
-    record: AiTraceRecord;
+    subject: QuizSubject;
+    /** Everything the judge owed is stored; `author` is the judge's nickname,
+     *  given only to an admin. */
+    onJudged: (author?: string) => void;
     onClose: () => void;
+    /** The leave-without-judging button's words — "Skip" in the post-game
+     *  queue, where leaving one decision opens the next. */
+    cancelLabel?: string;
 }) {
     const currentUser = useQuery(api.users.currentUser);
     const submitVerdict = useMutation(api.verdicts.submit);
@@ -53,8 +69,12 @@ export default function AiDecisionVerdictQuiz({
     // all, and that is knowable on the first render — so it is the INITIAL
     // state rather than something an effect corrects afterwards. The only
     // asynchronous part is loading the builder chunk below.
+    const { feed } = subject;
+    // Whose decision this is: on a proposal the deciding seat is the reader.
+    const perspective: QuizPerspective =
+        feed?.kind === "proposal" ? "player" : "bot";
     const [state, setState] = useState<QuizState>(() =>
-        getAiTraceSource(record.id)
+        feed
             ? { status: "loading" }
             : {
                   status: "unbuildable",
@@ -80,14 +100,13 @@ export default function AiDecisionVerdictQuiz({
         // A decision pushed without its board — an older ring entry, or a
         // consult that had none. Already said out loud by the initial state
         // above; there is nothing to load.
-        const source = getAiTraceSource(record.id);
-        if (!source) return;
+        if (!feed) return;
         void import("~/lib/ai/verdict-quiz")
             .then(({ buildVerdictQuiz }) => {
                 if (cancelled) return;
                 // A decision taken over a stack lowers like any other since
                 // issue #3514: the stack travels in `spec.stack`.
-                const result = buildVerdictQuiz(record.trace, source);
+                const result = buildVerdictQuiz(feed);
                 setState(
                     result.ok
                         ? { status: "ready", quiz: result.quiz }
@@ -109,15 +128,12 @@ export default function AiDecisionVerdictQuiz({
         return () => {
             cancelled = true;
         };
-    }, [record]);
+    }, [feed]);
 
     function finish() {
         // Who judged it is shown to an admin only — a tester sees nothing
         // but their own judgements, so their own name tells them nothing.
-        markAiTraceJudged(
-            record.id,
-            currentUser?.isAdmin ? currentUser.nickname : undefined
-        );
+        onJudged(currentUser?.isAdmin ? currentUser.nickname : undefined);
         onClose();
     }
 
@@ -126,7 +142,7 @@ export default function AiDecisionVerdictQuiz({
         setSubmitting(true);
         setError(null);
         try {
-            const { gameId } = getStoredSession();
+            const gameId = subject.gameId ?? getStoredSession().gameId;
             await submitVerdict({
                 spec: state.quiz.spec,
                 // The seat the lowering named — one constant, so the spec
@@ -136,7 +152,7 @@ export default function AiDecisionVerdictQuiz({
                 answer: { kind: "right", rightIndexes: [rightIndex] },
                 botPickIndex: state.quiz.botPickIndex,
                 ...(gameId ? { gameId } : {}),
-                ...(record.seq === undefined ? {} : { seq: record.seq }),
+                ...(subject.seq === undefined ? {} : { seq: subject.seq }),
             });
             finish();
         } catch (cause: unknown) {
@@ -163,8 +179,9 @@ export default function AiDecisionVerdictQuiz({
             <AiDecisionQuizRefusal
                 refusal={state.refusal}
                 decision={{
-                    id: record.id,
-                    ...(record.seq === undefined ? {} : { seq: record.seq }),
+                    id: subject.id,
+                    ...(subject.seq === undefined ? {} : { seq: subject.seq }),
+                    ...(perspective === "player" ? { proposal: true } : {}),
                 }}
                 onClose={onClose}
             />
@@ -173,6 +190,7 @@ export default function AiDecisionVerdictQuiz({
 
     const { quiz } = state;
     const botPickIndex = quiz.botPickIndex;
+    const playerPickIndex = quiz.playerPickIndex;
 
     if (ruling && selected !== null) {
         return (
@@ -180,7 +198,11 @@ export default function AiDecisionVerdictQuiz({
                 <AiDecisionQuizWrongMove
                     quiz={quiz}
                     wrongIndex={selected}
-                    seq={record.seq}
+                    seq={subject.seq}
+                    perspective={perspective}
+                    {...(subject.gameId === undefined
+                        ? {}
+                        : { gameId: subject.gameId })}
                     onDone={finish}
                     onBack={() => setRuling(false)}
                 />
@@ -199,16 +221,22 @@ export default function AiDecisionVerdictQuiz({
                 knew. */}
             <ScenarioSpecBoard
                 spec={quiz.spec}
-                revealedHands={handRevealed ? [QUIZ_SEAT] : []}
-                seatLabels={quizSeatLabels(QUIZ_SEAT)}
+                revealedHands={
+                    handRevealed || perspective === "player" ? [QUIZ_SEAT] : []
+                }
+                seatLabels={quizSeatLabelsFor(QUIZ_SEAT, perspective)}
             />
-            <AiDecisionQuizHandReveal
-                revealed={handRevealed}
-                disabled={submitting}
-                onChange={setHandRevealed}
-            />
+            {perspective === "bot" && (
+                <AiDecisionQuizHandReveal
+                    revealed={handRevealed}
+                    disabled={submitting}
+                    onChange={setHandRevealed}
+                />
+            )}
             <p className="break-words text-[10px] text-text-muted">
-                {OWN_HAND_REMINDER}
+                {perspective === "player"
+                    ? PROPOSAL_HAND_NOTE
+                    : OWN_HAND_REMINDER}
             </p>
 
             <DebugButton
@@ -217,13 +245,29 @@ export default function AiDecisionVerdictQuiz({
             >
                 The Bot was right
             </DebugButton>
+            {playerPickIndex !== undefined &&
+                playerPickIndex !== botPickIndex && (
+                    <DebugButton
+                        onClick={() => void submit(playerPickIndex)}
+                        disabled={submitting}
+                    >
+                        My move was right
+                    </DebugButton>
+                )}
 
             <ul className="flex flex-col gap-0.5">
                 {quiz.candidates.map((candidate, index) => (
                     <AiDecisionQuizCandidate
                         key={candidate.key}
-                        description={candidate.description}
+                        description={candidateSentence(
+                            candidate.description,
+                            perspective
+                        )}
                         isBotPick={index === botPickIndex}
+                        isPlayerPick={index === playerPickIndex}
+                        {...(perspective === "player"
+                            ? { botPickLabel: "Bot's pick" }
+                            : {})}
                         selected={index === selected}
                         disabled={submitting}
                         onSelect={() => setSelected(index)}
@@ -265,7 +309,7 @@ export default function AiDecisionVerdictQuiz({
             )}
 
             <DebugButton onClick={onClose} disabled={submitting}>
-                Cancel
+                {cancelLabel}
             </DebugButton>
         </div>
     );

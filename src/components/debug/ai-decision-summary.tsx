@@ -5,8 +5,9 @@
 // numbers. The box used to open on the numbers, which meant a tester could see
 // everything about a decision except what it was.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { AiTraceRecord } from "~/lib/ai/trace-store";
+import { markAiTraceJudged, traceQuizSubject } from "~/lib/ai/trace-store";
 import {
     MECHANISM_SENTENCES,
     isSearchMechanism,
@@ -28,6 +29,7 @@ export default function AiDecisionSummary({
     record: AiTraceRecord;
 }) {
     const [quizOpen, setQuizOpen] = useState(false);
+    const quizSubject = useMemo(() => traceQuizSubject(record), [record]);
     const { trace, via } = record;
     const chosen = trace.candidates.find((c) => c.label === trace.chosen);
     const alternatives = trace.candidates
@@ -136,7 +138,8 @@ export default function AiDecisionSummary({
 
             {quizOpen && !record.judged && (
                 <AiDecisionVerdictQuiz
-                    record={record}
+                    subject={quizSubject}
+                    onJudged={(author) => markAiTraceJudged(record.id, author)}
                     onClose={() => setQuizOpen(false)}
                 />
             )}

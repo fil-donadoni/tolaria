@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
@@ -8,6 +8,14 @@ import { clearSession } from "~/lib/session";
 import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
+import VerdictProposalOffer from "./verdict-proposal-offer";
+
+// The review queue rebuilds positions through the verdict lowering — engine
+// code the board must not load for a dialog most games never open (issue
+// #3986). Its own chunk, fetched on "Review your decisions".
+const VerdictProposalQueue = lazy(
+    () => import("~/components/debug/verdict-proposal-queue")
+);
 
 function SkullIcon() {
     return (
@@ -38,6 +46,9 @@ type GameOverDialogProps = {
     /** The viewer's seat id — carried into the next Game's session so the
      *  client re-points to the same seat across Games of the Match. */
     viewerId: string;
+    /** The finished Game — keys its Verdict Proposals (issue #3986). Absent
+     *  where no game backs the dialog (the design-system specimen). */
+    gameId?: string;
 };
 
 export default function GameOverDialog({
@@ -45,11 +56,15 @@ export default function GameOverDialog({
     allPlayers,
     match,
     viewerId,
+    gameId,
 }: GameOverDialogProps) {
     // Once the player clicks Continue on an undecided Bo3, the interstitial hands
     // off to the Sideboarding step (#395), which owns the swap editor, the
     // play/draw choice, and the Ready gate that builds the next Game.
     const [sideboarding, setSideboarding] = useState(false);
+    // The post-game review queue replaces the result while it is open; leaving
+    // it returns here, with every unanswered proposal recording nothing.
+    const [reviewing, setReviewing] = useState(false);
 
     const winner = allPlayers.find((p) => p.id === gameOver.winnerId);
     const loser = allPlayers.find((p) => p.id === gameOver.loserId);
@@ -115,6 +130,29 @@ export default function GameOverDialog({
         return <SideboardingDialog match={match} viewerId={viewerId} />;
     }
 
+    if (reviewing && gameId) {
+        return (
+            <GameDialog
+                open
+                title={matchOver ? "Match Over" : "Game Over"}
+                dismissable={false}
+            >
+                <Suspense
+                    fallback={
+                        <p className="text-text-disabled text-xs">
+                            Loading the review…
+                        </p>
+                    }
+                >
+                    <VerdictProposalQueue
+                        gameId={gameId}
+                        onClose={() => setReviewing(false)}
+                    />
+                </Suspense>
+            </GameDialog>
+        );
+    }
+
     return (
         <GameDialog
             open
@@ -169,6 +207,12 @@ export default function GameOverDialog({
                     >
                         Continue to Sideboarding
                     </Button>
+                )}
+                {gameId && (
+                    <VerdictProposalOffer
+                        gameId={gameId}
+                        onOpen={() => setReviewing(true)}
+                    />
                 )}
                 <Button
                     type="button"

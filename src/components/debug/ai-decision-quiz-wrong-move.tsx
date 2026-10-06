@@ -42,6 +42,10 @@ import AiDecisionQuizRightHalf, {
     type RightHalfStatus,
 } from "./ai-decision-quiz-right-half";
 import AiDecisionQuizTouchUp from "./ai-decision-quiz-touch-up";
+import {
+    candidateSentence,
+    type QuizPerspective,
+} from "./ai-decision-quiz-copy";
 
 type Stage =
     | { name: "classify" }
@@ -55,6 +59,8 @@ export default function AiDecisionQuizWrongMove({
     seq,
     onDone,
     onBack,
+    perspective = "bot",
+    gameId: subjectGameId,
 }: {
     quiz: VerdictQuiz;
     /** The candidate ruled wrong. */
@@ -64,6 +70,11 @@ export default function AiDecisionQuizWrongMove({
     /** Everything the judge owed is stored: mark the decision judged. */
     onDone: () => void;
     onBack: () => void;
+    /** Whose decision is judged (issue #3986) — voices what is shown. */
+    perspective?: QuizPerspective;
+    /** The game the decision was taken in, when the feed knows it; the
+     *  session's game otherwise. */
+    gameId?: string;
 }) {
     const submitVerdict = useMutation(api.verdicts.submit);
     const [stage, setStage] = useState<Stage>({ name: "classify" });
@@ -84,7 +95,7 @@ export default function AiDecisionQuizWrongMove({
     const buildToken = useRef(0);
 
     const provenance = () => {
-        const { gameId } = getStoredSession();
+        const gameId = subjectGameId ?? getStoredSession().gameId;
         return {
             ...(gameId ? { gameId } : {}),
             ...(seq === undefined ? {} : { seq }),
@@ -212,8 +223,12 @@ export default function AiDecisionQuizWrongMove({
         return (
             <div className="flex flex-col gap-1.5">
                 <span className="text-label">
-                    Is “{quiz.candidates[wrongIndex].description}” wrong always,
-                    or wrong now?
+                    Is “
+                    {candidateSentence(
+                        quiz.candidates[wrongIndex].description,
+                        perspective
+                    )}
+                    ” wrong always, or wrong now?
                 </span>
                 <DebugButton
                     onClick={() =>
@@ -273,7 +288,11 @@ export default function AiDecisionQuizWrongMove({
             <AiDecisionQuizRightHalf
                 position={position}
                 discriminant={choice.discriminant}
-                judgedMove={quiz.candidates[wrongIndex].description}
+                judgedMove={candidateSentence(
+                    quiz.candidates[wrongIndex].description,
+                    perspective
+                )}
+                perspective={perspective}
                 status={halfStatus}
                 disabled={submitting}
                 onConfirm={() => void confirmHalf(choice, position)}
