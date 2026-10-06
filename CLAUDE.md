@@ -163,6 +163,8 @@ Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
   recompile → `ready` delta → graduation
 - `/bot-slice` (any play/draft Bot change): maps AI subsystem, walks seams,
   enforces verification doctrine
+- `/retro` (owner only, after a session): proposes ranked environment
+  changes — checks, pointers, deletions — never a new resident line
 
 **Workflow skills are versioned here** (`.claude/skills/…`): branch + PR +
 gate (`project-skills.test.ts` guards drift to the user-level dir). A rule that
