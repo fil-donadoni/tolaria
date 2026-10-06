@@ -36,7 +36,7 @@ export default function AiDecisionQuizRefusal({
 }: {
     refusal: VerdictQuizRefusal;
     /** The ring entry this refusal is about — what a pasted report names. */
-    decision: { id: number; seq?: number };
+    decision: { id: number; seq?: number; proposal?: boolean };
     onClose: () => void;
 }) {
     const [copied, setCopied] = useState(false);

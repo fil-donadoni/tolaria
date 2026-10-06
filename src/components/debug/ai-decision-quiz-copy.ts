@@ -24,3 +24,48 @@ export function quizSeatLabels(
         ? { me: "Bot", opp: "Opponent" }
         : { me: "Opponent", opp: "Bot" };
 }
+
+/**
+ * Whose decision the quiz is judging (issue #3986): the Bot's, from the debug
+ * ring, or the PLAYER's own, offered back after the game as a Verdict Proposal.
+ * The lowering always names the deciding seat "the Bot" — on a proposal that
+ * seat is the reader, so everything the quiz SHOWS is re-voiced; nothing it
+ * SUBMITS is, so the stored Verdict does not depend on the feed.
+ */
+export type QuizPerspective = "bot" | "player";
+
+/** The board's seat names when the deciding seat is the player. */
+export function quizSeatLabelsFor(
+    botSeat: ScenarioSeat,
+    perspective: QuizPerspective
+): Record<ScenarioSeat, string> {
+    if (perspective === "bot") return quizSeatLabels(botSeat);
+    return botSeat === "me"
+        ? { me: "You", opp: "Bot" }
+        : { me: "Bot", opp: "You" };
+}
+
+const ROLE_NAMES: Record<string, string> = {
+    "the Bot's": "your",
+    "the Bot": "you",
+    "the opponent's": "the Bot's",
+    "the opponent": "the Bot",
+};
+
+/** A candidate's sentence as the reader should hear it: on a proposal, the
+ *  lowering's "the Bot" is the player and "the opponent" is the Bot. */
+export function candidateSentence(
+    description: string,
+    perspective: QuizPerspective
+): string {
+    if (perspective === "bot") return description;
+    return description.replace(
+        /\bthe Bot's|\bthe Bot\b|\bthe opponent's|\bthe opponent\b/g,
+        (role) => ROLE_NAMES[role]
+    );
+}
+
+/** On a proposal the deciding hand is the reader's own: shown, never behind
+ *  the debugging consent, and the hazard is the other way round. */
+export const PROPOSAL_HAND_NOTE =
+    "Your hand is shown; the Bot's stays hidden. Judge on what you could see when you decided.";

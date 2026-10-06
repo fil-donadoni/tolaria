@@ -61,8 +61,12 @@ export type VerdictQuiz = {
  *   while the game is on.
  * - `proposal`: a decision the HUMAN seat made, offered back after the game
  *   (`verdict-proposals.ts`). The "Bot pick" is the Brain's own move on the
- *   same view, so `botPickIndex` means the same thing in both feeds and the
- *   stored Verdict cannot tell them apart.
+ *   same view, so `botPickIndex` names the Brain's choice in both feeds and
+ *   the stored Verdict cannot tell them apart — which the acceptance asks
+ *   for. Know what that costs: here the pick is a COUNTERFACTUAL, a game-end
+ *   consult at `verdictProposals.iterations` and its fixed seed rather than
+ *   the live difficulty budget, and the player's own move is not stored (it
+ *   is only marked on screen, `playerPickIndex`).
  */
 export type QuizFeed =
     | { kind: "trace"; trace: DecisionTrace; source: AiTraceSource }
@@ -74,6 +78,9 @@ export type QuizSubject = {
     id: number;
     /** The state version the decision was taken at, when known. */
     seq?: number;
+    /** The game the decision was taken in, when the feed knows it — a
+     *  proposal does; the ring falls back to the session's game. */
+    gameId?: string;
     /** What to build the quiz from, or `null` when the feed no longer holds
      *  the position (a ring entry pushed without its board). STABLE across
      *  renders: the panel rebuilds whenever it changes. */
@@ -83,11 +90,13 @@ export type QuizSubject = {
 /** The post-game feed: proposal `index` of the game's list. */
 export function proposalQuizSubject(
     proposal: VerdictProposal,
-    index: number
+    index: number,
+    gameId: string
 ): QuizSubject {
     return {
         id: index + 1,
         seq: proposal.source.state.seq,
+        gameId,
         feed: { kind: "proposal", proposal },
     };
 }
@@ -252,7 +261,7 @@ export function quizRefusal(
  */
 export function formatRefusalReport(
     refusal: VerdictQuizRefusal,
-    decision: { id: number; seq?: number }
+    decision: { id: number; seq?: number; proposal?: boolean }
 ): string {
     const { title, trackedBy } = QUIZ_REFUSALS[refusal.kind];
     const lines = [
@@ -261,7 +270,7 @@ export function formatRefusalReport(
         "",
         refusal.detail,
         "",
-        `decision #${decision.id}${
+        `${decision.proposal ? "proposal" : "decision"} #${decision.id}${
             decision.seq === undefined ? "" : ` at seq ${decision.seq}`
         }`,
     ];
@@ -311,12 +320,17 @@ export function buildVerdictQuiz(feed: QuizFeed): VerdictQuizResult {
 
     // The player's own move, carried to the rebuilt list the same way the
     // Bot's is — by lowering it as the pick. An agreeing proposal is the same
-    // candidate; one the rebuild does not offer is simply left unmarked.
-    const played = describeMove(feed.proposal.humanMove, position);
-    const playerPickIndex =
-        feed.proposal.agrees || played === chosen
-            ? outcome.lowered.botPickIndex
-            : lowerPlayerPick(position, source.botId, played);
+    // candidate. A disagreeing one is never collapsed onto the Bot's pick by a
+    // colliding sentence: it is lowered on its own, and left unmarked when
+    // that lands on the Bot's candidate or the rebuild does not offer it.
+    const playerPickIndex = feed.proposal.agrees
+        ? outcome.lowered.botPickIndex
+        : lowerPlayerPick(
+              position,
+              source.botId,
+              describeMove(feed.proposal.humanMove, position),
+              outcome.lowered.botPickIndex
+          );
     return {
         ok: true,
         quiz: {
@@ -329,8 +343,11 @@ export function buildVerdictQuiz(feed: QuizFeed): VerdictQuizResult {
 function lowerPlayerPick(
     position: ReturnType<typeof projectedToGameState>,
     seatId: string,
-    played: string
+    played: string,
+    botPickIndex: number
 ): number | undefined {
     const outcome = lowerDecision(position, seatId, played);
-    return outcome.ok ? outcome.lowered.botPickIndex : undefined;
+    return outcome.ok && outcome.lowered.botPickIndex !== botPickIndex
+        ? outcome.lowered.botPickIndex
+        : undefined;
 }

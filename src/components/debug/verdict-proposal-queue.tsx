@@ -35,8 +35,8 @@ export default function VerdictProposalQueue({
     // Built once per proposal: the quiz rebuilds its position whenever the
     // subject changes identity.
     const subject = useMemo(
-        () => (proposal ? proposalQuizSubject(proposal, index) : null),
-        [proposal, index]
+        () => (proposal ? proposalQuizSubject(proposal, index, gameId) : null),
+        [proposal, index, gameId]
     );
 
     const next = () => setIndex((i) => i + 1);
@@ -64,14 +64,17 @@ export default function VerdictProposalQueue({
                         subject={subject}
                         onJudged={() => setJudged((n) => n + 1)}
                         onClose={next}
+                        // Skipping is the quiz's own leave button: it is
+                        // locked while an answer is being stored, so a skip
+                        // can never race the submission it would orphan.
+                        cancelLabel="Skip"
                     />
-                    <DebugButton onClick={next}>Skip</DebugButton>
                 </>
             ) : (
                 <p className="text-text-disabled">
                     {judged === 0
-                        ? "Nothing judged — no Verdict was recorded."
-                        : `${judged} Verdict${judged === 1 ? "" : "s"} recorded.`}
+                        ? "No decision judged."
+                        : `${judged} decision${judged === 1 ? "" : "s"} judged.`}
                 </p>
             )}
             <DebugButton onClick={onClose}>Done</DebugButton>

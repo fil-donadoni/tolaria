@@ -225,6 +225,21 @@ describe("the post-game review queue (issue #3986)", () => {
         // The player's move and the Bot's are both marked, apart.
         expect(screen.getByText("You played this")).toBeTruthy();
         expect(screen.getByText("Bot's pick")).toBeTruthy();
+        // The deciding seat is the reader: named "You", its own hand shown
+        // with no debugging consent, the Bot's hand a count.
+        expect(
+            screen.getByTestId("scenario-board-seat-me").textContent
+        ).toMatch(/^You/);
+        expect(
+            screen.getByTestId("scenario-board-seat-opp").textContent
+        ).toMatch(/^Bot/);
+        expect(screen.getByTestId("scenario-board-hand-me").dataset.hand).toBe(
+            "cards"
+        );
+        expect(screen.getByTestId("scenario-board-hand-opp").dataset.hand).toBe(
+            "count"
+        );
+        expect(screen.queryByText("Reveal the Bot's hand")).toBeNull();
 
         fireEvent.click(
             screen.getByRole("button", { name: "My move was right" })
@@ -249,7 +264,7 @@ describe("the post-game review queue (issue #3986)", () => {
         expect(row.seq).toBe(SEQ);
         expect(row.author).toBe("Tessa");
         // Answered: the queue moves past it.
-        await screen.findByText("1 Verdict recorded.");
+        await screen.findByText("1 decision judged.");
     });
 
     it("stores the same Verdict the debug quiz stores for the same decision", async () => {
@@ -313,7 +328,7 @@ describe("the post-game review queue (issue #3986)", () => {
         fireEvent.click(screen.getByRole("button", { name: "Skip" }));
         await screen.findByText("2 / 2");
         fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-        await screen.findByText("Nothing judged — no Verdict was recorded.");
+        await screen.findByText("No decision judged.");
         fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
         // Back on the result, with nothing written anywhere.
@@ -338,5 +353,20 @@ describe("the post-game review queue (issue #3986)", () => {
         expect(
             screen.queryByRole("button", { name: /Review your decisions/ })
         ).toBeNull();
+    });
+});
+
+describe("a proposal's sentences, voiced for the player (issue #3986)", () => {
+    it("swaps the lowering's role names, possessives included, both ways at once", async () => {
+        const { candidateSentence } = await import("../ai-decision-quiz-copy");
+        expect(
+            candidateSentence(
+                "Lightning Bolt → the opponent, then the Bot's Bears attack the Bot",
+                "player"
+            )
+        ).toBe("Lightning Bolt → the Bot, then your Bears attack you");
+        expect(candidateSentence("attack the opponent", "bot")).toBe(
+            "attack the opponent"
+        );
     });
 });

@@ -34,7 +34,13 @@ import AiDecisionDroppedNotes from "./ai-decision-dropped-notes";
 import AiDecisionQuizHandReveal from "./ai-decision-quiz-hand-reveal";
 import AiDecisionQuizWrongMove from "./ai-decision-quiz-wrong-move";
 import ScenarioSpecBoard from "./scenario-spec-board";
-import { OWN_HAND_REMINDER, quizSeatLabels } from "./ai-decision-quiz-copy";
+import {
+    OWN_HAND_REMINDER,
+    PROPOSAL_HAND_NOTE,
+    candidateSentence,
+    quizSeatLabelsFor,
+    type QuizPerspective,
+} from "./ai-decision-quiz-copy";
 
 type QuizState =
     | { status: "loading" }
@@ -45,12 +51,16 @@ export default function AiDecisionVerdictQuiz({
     subject,
     onJudged,
     onClose,
+    cancelLabel = "Cancel",
 }: {
     subject: QuizSubject;
     /** Everything the judge owed is stored; `author` is the judge's nickname,
      *  given only to an admin. */
     onJudged: (author?: string) => void;
     onClose: () => void;
+    /** The leave-without-judging button's words — "Skip" in the post-game
+     *  queue, where leaving one decision opens the next. */
+    cancelLabel?: string;
 }) {
     const currentUser = useQuery(api.users.currentUser);
     const submitVerdict = useMutation(api.verdicts.submit);
@@ -60,6 +70,9 @@ export default function AiDecisionVerdictQuiz({
     // state rather than something an effect corrects afterwards. The only
     // asynchronous part is loading the builder chunk below.
     const { feed } = subject;
+    // Whose decision this is: on a proposal the deciding seat is the reader.
+    const perspective: QuizPerspective =
+        feed?.kind === "proposal" ? "player" : "bot";
     const [state, setState] = useState<QuizState>(() =>
         feed
             ? { status: "loading" }
@@ -129,7 +142,7 @@ export default function AiDecisionVerdictQuiz({
         setSubmitting(true);
         setError(null);
         try {
-            const { gameId } = getStoredSession();
+            const gameId = subject.gameId ?? getStoredSession().gameId;
             await submitVerdict({
                 spec: state.quiz.spec,
                 // The seat the lowering named — one constant, so the spec
@@ -168,6 +181,7 @@ export default function AiDecisionVerdictQuiz({
                 decision={{
                     id: subject.id,
                     ...(subject.seq === undefined ? {} : { seq: subject.seq }),
+                    ...(perspective === "player" ? { proposal: true } : {}),
                 }}
                 onClose={onClose}
             />
@@ -185,6 +199,10 @@ export default function AiDecisionVerdictQuiz({
                     quiz={quiz}
                     wrongIndex={selected}
                     seq={subject.seq}
+                    perspective={perspective}
+                    {...(subject.gameId === undefined
+                        ? {}
+                        : { gameId: subject.gameId })}
                     onDone={finish}
                     onBack={() => setRuling(false)}
                 />
@@ -203,16 +221,22 @@ export default function AiDecisionVerdictQuiz({
                 knew. */}
             <ScenarioSpecBoard
                 spec={quiz.spec}
-                revealedHands={handRevealed ? [QUIZ_SEAT] : []}
-                seatLabels={quizSeatLabels(QUIZ_SEAT)}
+                revealedHands={
+                    handRevealed || perspective === "player" ? [QUIZ_SEAT] : []
+                }
+                seatLabels={quizSeatLabelsFor(QUIZ_SEAT, perspective)}
             />
-            <AiDecisionQuizHandReveal
-                revealed={handRevealed}
-                disabled={submitting}
-                onChange={setHandRevealed}
-            />
+            {perspective === "bot" && (
+                <AiDecisionQuizHandReveal
+                    revealed={handRevealed}
+                    disabled={submitting}
+                    onChange={setHandRevealed}
+                />
+            )}
             <p className="break-words text-[10px] text-text-muted">
-                {OWN_HAND_REMINDER}
+                {perspective === "player"
+                    ? PROPOSAL_HAND_NOTE
+                    : OWN_HAND_REMINDER}
             </p>
 
             <DebugButton
@@ -235,10 +259,13 @@ export default function AiDecisionVerdictQuiz({
                 {quiz.candidates.map((candidate, index) => (
                     <AiDecisionQuizCandidate
                         key={candidate.key}
-                        description={candidate.description}
+                        description={candidateSentence(
+                            candidate.description,
+                            perspective
+                        )}
                         isBotPick={index === botPickIndex}
                         isPlayerPick={index === playerPickIndex}
-                        {...(feed?.kind === "proposal"
+                        {...(perspective === "player"
                             ? { botPickLabel: "Bot's pick" }
                             : {})}
                         selected={index === selected}
@@ -282,7 +309,7 @@ export default function AiDecisionVerdictQuiz({
             )}
 
             <DebugButton onClick={onClose} disabled={submitting}>
-                Cancel
+                {cancelLabel}
             </DebugButton>
         </div>
     );
