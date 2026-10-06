@@ -11906,6 +11906,62 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #4217 — the founding position (user on `hard`). A one-card cast permission was priced at the flat `GRANT_CAST_VALUE` (20), so Snapcaster Mage in hand read below its body on the battlefield and the leaf evaluation scored the cast above holding; priced at the fitted `latent.cardAdvantage` unit, holding leads. The search's own cast-over-pass margin then falls inside `OUTCOME_EPS` (0.05) and `last-window-deferral` keeps the Mage for a later window — so a refit that widens that margin past the band reds this entry by drift, not by regression; the leaf ordering itself is pinned by the Eval Pair in `etbAbility.bot.test.ts`. Measured at 500 iterations over 20 seeds: 3 casts before, 0 after (at 400: 15/20 before, 10/20 after — rollout noise the budget here clears). Issue #4931's refit (a cast sorcery keeps its mana value on the curve) put 1/20 casts back at 500 — the drift this note predicts — so the budget is 1000 (0/20), not a seed dropped.",
     },
+    {
+        // STANDING ABILITY OF A NON-CREATURE PERMANENT (issue #5145) — the
+        // opponent's two artifacts are the same mana value, and one is
+        // Nevinyrral's Disk (a board wipe on a stick), the other a Weakstone.
+        // A Shatter in hand is plainly better spent on the Disk.
+        //
+        // WHY IT WAS WRONG. `latentValue` read a non-creature's SPELL script
+        // and dropped its activated/triggered ability scripts, so both
+        // artifacts stood at the same blind `base + MV` floor — and the
+        // removal lens (`permanentRealisedValue`) priced destroying either at
+        // the same number. The pick was the Weakstone on every seed.
+        //
+        // WHY THIS PAIR AND NOT THE #4141 SLICE. Black Vise, Ivory Tower,
+        // Stasis and the rest of that slice read BELOW their `base + MV` floor
+        // (a context-free value of a symmetric tax or lock is small or
+        // negative), and the floor is a deliberate uplift-only rule — so the
+        // ability reading never moves them, by design. The Disk is the first
+        // artifact whose ability script outruns the floor.
+        label: "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Shatter", owner: "me", zone: "hand" },
+                { name: "Weakstone", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Nevinyrral's Disk",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Shatter",
+                    target: "Nevinyrral's Disk",
+                },
+            ],
+        },
+        note: "Issue #5145. Measured at 400 iterations over 20 seeds with the two artifacts in either listing order: Weakstone 20/20 before the change, the Disk 20/20 after. Proof of failure: removing the standing-ability reading from the non-creature branch of `latentValue` (`cardValue.ts`) turns this entry red on every seed.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
