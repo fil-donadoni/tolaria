@@ -14,9 +14,14 @@
 //   1. probe the URL; it answers → exit 0, nothing spawned;
 //   2. take `.claude/telemetry/convex-ensure.lock` (O_EXCL, stale owner by
 //      pid + start stamp) so two callers never both start one; re-probe;
-//   3. a `convex-local-backend` for this `--instance-name` is alive but not
-//      answering → wait for it (bounded); never answers → fail, never start a
-//      second;
+//   3. a process for THIS deployment (`deploymentProcesses()`: a
+//      `convex-local-backend` for its `--instance-name`, a `convex dev` in the
+//      primary checkout, the pid `convex-dev.pid` records) is alive but not
+//      answering → wait for it (bounded); still alive and silent → RECLAIM it
+//      (issue #5138): SIGTERM, bounded grace, SIGKILL, confirm it gone and
+//      the URL's port free, then fall through to 4. "Never two backends on
+//      the same deployment" is kept by killing the wedged one first, never by
+//      handing it to a human. An unknown instance fails closed: no kill;
 //   4. otherwise start `bunx convex dev --local` from the PRIMARY checkout,
 //      detached in its own process group, stdin /dev/null, output to
 //      `.claude/telemetry/convex-dev.log`, pid + start stamp to
@@ -24,7 +29,7 @@
 //      (bounded) or fail with the log tail;
 //   5. report — never kill — Convex processes that belong to another
 //      checkout or deployment, and a backend for this one serving with no
-//      `convex dev` parent (restarting it is out of scope).
+//      `convex dev` parent (it answers, so there is nothing to reclaim).
 //
 // Exit: 0 = the URL answers (already, after a wait, or after a start);
 // 1 = it does not and this run could not safely make it; 2 = usage.
@@ -33,8 +38,10 @@
 // start command, a scratch telemetry dir), never the real deployment:
 //   --url <u> --instance-name <n> --root <dir> --telemetry-dir <dir>
 //   --start-cmd <json argv> --start-timeout-ms <n> --wait-alive-ms <n>
+//   --reclaim-grace-ms <n>
 import { spawn, spawnSync } from "node:child_process";
 import * as fs from "node:fs";
+import * as net from "node:net";
 import * as path from "node:path";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
@@ -53,6 +60,8 @@ export interface EnsureOptions {
     startCommand: string[];
     startTimeoutMs: number;
     waitAliveMs: number;
+    /** SIGTERM → SIGKILL grace, and SIGKILL → gone, when reclaiming. */
+    reclaimGraceMs: number;
     probeTimeoutMs: number;
     pollMs: number;
     log: (line: string) => void;
@@ -62,6 +71,7 @@ export type EnsureOutcome =
     | { kind: "up" }
     | { kind: "waited"; pid: number }
     | { kind: "started"; pid: number }
+    | { kind: "reclaimed"; killed: number[]; pid: number }
     | { kind: "failed"; reason: string };
 
 export interface ProcessRow {
@@ -136,6 +146,15 @@ function samePath(a: string, b: string): boolean {
         }
     };
     return real(a) === real(b);
+}
+
+/** One `ps -o <field>=` column for `pid`; empty when the process is gone. */
+function psField(pid: number, field: string): string {
+    const r = spawnSync("ps", ["-o", `${field}=`, "-p", String(pid)], {
+        encoding: "utf8",
+        timeout: 5_000,
+    });
+    return (r.stdout ?? "").trim();
 }
 
 function alive(pid: number): boolean {
@@ -358,6 +377,167 @@ function describeProcess(
     return `pid ${r.pid} (${r.args.slice(0, 80)})`;
 }
 
+// ── reclaim (issue #5138) ───────────────────────────────────────────────────
+
+/** `pid` and every process below it in `rows`. */
+export function withDescendants(rows: ProcessRow[], pid: number): number[] {
+    const out = [pid];
+    for (let i = 0; i < out.length; i++) {
+        for (const r of rows) {
+            if (r.ppid === out[i] && !out.includes(r.pid)) out.push(r.pid);
+        }
+    }
+    return out;
+}
+
+/** Why a still-silent deployment process is reclaimed: a `convex dev` whose
+ *  tree holds no live backend for the instance is a CLI wrapper whose
+ *  backend died (it retries forever, it never restarts it). */
+export function reclaimReason(
+    rows: ProcessRow[],
+    r: ProcessRow,
+    instanceName: string,
+    waitedMs: number
+): string {
+    if (isConvexDev(r.args)) {
+        const backendChild = withDescendants(rows, r.pid).some((pid) => {
+            const row = rows.find((x) => x.pid === pid);
+            return (
+                row !== undefined &&
+                isBackend(row.args) &&
+                instanceOf(row.args) === instanceName
+            );
+        });
+        if (!backendChild) return "no backend child";
+    }
+    return `never answered in ${Math.round(waitedMs / 1000)} s`;
+}
+
+/** Gone: dead, a zombie awaiting its reaper, or the pid recycled (another
+ *  start stamp). */
+function gone(pid: number, stamp: string): boolean {
+    if (!alive(pid)) return true;
+    if (psField(pid, "stat").startsWith("Z")) return true;
+    const now = startStamp(pid);
+    return now === "" || (stamp !== "" && now !== stamp);
+}
+
+function signal(target: number, sig: NodeJS.Signals): void {
+    try {
+        process.kill(target, sig);
+    } catch {
+        /* already gone */
+    }
+}
+
+/** Something accepts TCP connections on the URL's port — the probe's HTTP
+ *  failing does not mean the port is free. */
+export function portHeld(url: string, timeoutMs: number): Promise<boolean> {
+    const u = new URL(url);
+    const port = Number(u.port || (u.protocol === "https:" ? 443 : 80));
+    return new Promise((resolve) => {
+        const sock = net.connect({ host: u.hostname, port });
+        const done = (held: boolean): void => {
+            sock.destroy();
+            resolve(held);
+        };
+        sock.setTimeout(timeoutMs, () => done(false));
+        sock.once("connect", () => done(true));
+        sock.once("error", () => done(false));
+    });
+}
+
+/** Kill the deployment processes `ours` still alive after the wait, and
+ *  their trees: SIGTERM (the process group too when the process leads its
+ *  own, as a detached start does — never this script's group), the grace,
+ *  SIGKILL the survivors, the grace again. Returns the killed pids, or why
+ *  the deployment is still not safe to start. */
+async function reclaim(
+    o: EnsureOptions,
+    ours: ProcessRow[],
+    instanceName: string,
+    recorded: LockOwner | null
+): Promise<number[] | string> {
+    // `ours` is a snapshot from before the wait: re-attribute on fresh rows,
+    // so a pid that died and was recycled meanwhile is never a root.
+    const rows = listProcesses();
+    const before = new Set(ours.map((r) => r.pid));
+    const roots = deploymentProcesses(rows, o, recorded).filter((r) =>
+        before.has(r.pid)
+    );
+    // A recorded pid with no stamp has no identity: unless its command line
+    // is Convex's own, it may be anything that reused the pid.
+    const unproven = roots.find(
+        (r) =>
+            recorded?.pid === r.pid &&
+            recorded.stamp === "" &&
+            !isBackend(r.args) &&
+            !isConvexDev(r.args)
+    );
+    if (unproven) {
+        return `${describeProcess(unproven, o)} is the pid convex-dev.pid records, but with no start stamp its identity is unproven — not reclaimed, not starting a second backend`;
+    }
+    // Never this script's own chain (`bun run`, `sh`, the loop): a root
+    // above it is refused, an ancestor below a root is skipped.
+    const ancestors = new Set<number>([process.pid]);
+    for (
+        let r = rows.find((x) => x.pid === process.pid);
+        r && r.ppid > 1 && !ancestors.has(r.ppid);
+        r = rows.find((x) => x.pid === r!.ppid)
+    ) {
+        ancestors.add(r.ppid);
+    }
+    const above = roots.find((r) => ancestors.has(r.pid));
+    if (above) {
+        return `${describeProcess(above, o)} is an ancestor of this convex:ensure — not reclaimed, not starting a second backend`;
+    }
+    const ownGroup = psField(process.pid, "pgid");
+    const victims = new Map<number, { stamp: string; group: number | null }>();
+    for (const r of roots) {
+        const pgid = psField(r.pid, "pgid");
+        o.log(
+            `convex:ensure: reclaiming ${describeProcess(r, o)} (etime ${psField(r.pid, "etime") || "?"}) — ${reclaimReason(rows, r, instanceName, o.waitAliveMs)}`
+        );
+        for (const pid of withDescendants(rows, r.pid)) {
+            if (ancestors.has(pid) || victims.has(pid)) continue;
+            victims.set(pid, {
+                stamp: startStamp(pid),
+                group:
+                    pid === r.pid && pgid === String(r.pid) && pgid !== ownGroup
+                        ? r.pid
+                        : null,
+            });
+        }
+    }
+    const survivors = (): number[] =>
+        [...victims].filter(([pid, v]) => !gone(pid, v.stamp)).map(([p]) => p);
+    const send = (sig: NodeJS.Signals): void => {
+        for (const pid of survivors()) {
+            const { group } = victims.get(pid)!;
+            if (group !== null) signal(-group, sig);
+            signal(pid, sig);
+        }
+    };
+    const settle = async (): Promise<void> => {
+        const deadline = Date.now() + o.reclaimGraceMs;
+        while (survivors().length > 0 && Date.now() < deadline) {
+            await sleep(Math.min(o.pollMs, 200));
+        }
+    };
+    send("SIGTERM");
+    await settle();
+    send("SIGKILL");
+    await settle();
+    const left = survivors();
+    if (left.length > 0) {
+        return `could not kill pid ${left.join(", ")} after SIGKILL — not starting a second backend on the same deployment`;
+    }
+    if (await portHeld(o.url, o.probeTimeoutMs)) {
+        return `reclaimed pid ${roots.map((r) => r.pid).join(", ")} but something still listens on ${o.url}'s port without answering it — a foreign listener; not starting a second backend`;
+    }
+    return roots.map((r) => r.pid);
+}
+
 export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
     if (await reachable(o.url, o.probeTimeoutMs)) return { kind: "up" };
 
@@ -375,6 +555,7 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
         const rows = listProcesses();
         reportStrays(rows, o);
         const ours = deploymentProcesses(rows, o, readOwner(pidFile));
+        let killed: number[] = [];
         if (ours.length > 0) {
             const what = describeProcess(ours[0], o);
             const anyAlive = () => ours.some((r) => alive(r.pid));
@@ -384,12 +565,28 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
             if (await pollUntil(o, o.waitAliveMs, anyAlive)) {
                 return { kind: "waited", pid: ours[0].pid };
             }
-            return {
-                kind: "failed",
-                reason: anyAlive()
-                    ? `${what} is alive but never answered ${o.url} — not starting a second backend on the same deployment; kill it by hand if it is wedged`
-                    : `${what} exited without answering ${o.url} — re-run convex:ensure`,
-            };
+            if (!anyAlive()) {
+                return {
+                    kind: "failed",
+                    reason: `${what} exited without answering ${o.url} — re-run convex:ensure`,
+                };
+            }
+            if (o.instanceName === null) {
+                return {
+                    kind: "failed",
+                    reason: `${what} is alive but never answered ${o.url}, and the local instance is unknown (CONVEX_DEPLOYMENT is not local:<name>) — it may be another deployment's backend, so it is not reclaimed and no second is started`,
+                };
+            }
+            const reclaimed = await reclaim(
+                o,
+                ours,
+                o.instanceName,
+                readOwner(pidFile)
+            );
+            if (typeof reclaimed === "string") {
+                return { kind: "failed", reason: reclaimed };
+            }
+            killed = reclaimed;
         }
 
         const out = fs.openSync(logFile, "a");
@@ -428,7 +625,9 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
             `convex:ensure: started ${o.startCommand.join(" ")} (pid ${pid}, cwd ${o.root}, log ${logFile}) — waiting up to ${Math.round(o.startTimeoutMs / 1000)} s for ${o.url}`
         );
         if (await pollUntil(o, o.startTimeoutMs, () => alive(pid))) {
-            return { kind: "started", pid };
+            return killed.length > 0
+                ? { kind: "reclaimed", killed, pid }
+                : { kind: "started", pid };
         }
         return {
             kind: "failed",
@@ -460,6 +659,7 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         "start-cmd",
         "start-timeout-ms",
         "wait-alive-ms",
+        "reclaim-grace-ms",
     ]);
     for (const k of flags.keys()) {
         if (!known.has(k)) return `unknown flag: --${k}`;
@@ -501,6 +701,7 @@ function parseArgs(argv: string[]): EnsureOptions | string {
         startCommand,
         startTimeoutMs: num("start-timeout-ms", 120_000),
         waitAliveMs: num("wait-alive-ms", 60_000),
+        reclaimGraceMs: num("reclaim-grace-ms", 10_000),
         probeTimeoutMs: 3_000,
         pollMs: 500,
         log: (line) => process.stderr.write(`${line}\n`),
@@ -526,6 +727,11 @@ async function main(): Promise<number> {
         case "started":
             console.log(
                 `convex:ensure: ${opts.url} answers — started pid ${outcome.pid}`
+            );
+            return 0;
+        case "reclaimed":
+            console.log(
+                `convex:ensure: ${opts.url} answers — reclaimed pid ${outcome.killed.join(", ")}, started pid ${outcome.pid}`
             );
             return 0;
         case "failed":
