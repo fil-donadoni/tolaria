@@ -81,6 +81,7 @@ export const solitaryConfinement = defineCard(() => ({
                 "At the beginning of your upkeep, sacrifice this enchantment unless you discard a card.",
             prompt: "Discard a card?",
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            declineAiEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
         }),
     ],
 }));

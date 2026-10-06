@@ -735,6 +735,18 @@ export const essenceFlare = defineCard(() => ({
             // The phaseTrigger `effects[]` site is also restricted to
             // `scope: "your"`; this is `host-controller`. Stays resolve() until
             // an attached-object selector exists.
+            // AI shadow (issue #4141, never executed): a -0/-1 counter on the
+            // host every upkeep. `$source` stands in for the host — the valuer
+            // reads only the counter's P/T sign and size, never the object.
+            aiEffects: [
+                {
+                    op: "counters",
+                    action: "add",
+                    counter: "-0/-1",
+                    target: { ref: "$source" },
+                    count: 1,
+                },
+            ],
             resolve: (ctx) => {
                 const hostId = ctx.getAttachedTo(ctx.sourceInstanceId);
                 if (!hostId) return;

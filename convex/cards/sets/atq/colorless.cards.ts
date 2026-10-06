@@ -514,6 +514,26 @@ export const ivoryTower = defineCard(() => ({
                 "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
             phase: "UPKEEP",
             scope: "your",
+            // AI shadow (issue #4141, never executed): the same script the
+            // UNBLOCKED note above describes; `gainLife`'s non-positive guard
+            // is the clamp at 0.
+            aiEffects: [
+                {
+                    op: "gainLife",
+                    player: "controller",
+                    amount: {
+                        difference: {
+                            from: {
+                                count: {
+                                    zone: "hand",
+                                    controller: "controller",
+                                },
+                            },
+                            minus: 4,
+                        },
+                    },
+                },
+            ],
             resolve: (ctx, _event, playerId) => {
                 const x = ctx.getHandSize(playerId) - 4;
                 if (x > 0) ctx.gainLife(playerId, x);
@@ -1712,6 +1732,12 @@ export const theRack = defineCard(() => ({
         "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
     manaCost: { X: 1 },
     types: ["Artifact"],
+    // aiValue (issue #4141) — a genuine protocol shape: "choose an opponent"
+    // has no Op, so the choose half has no honest shadow, and the damage half
+    // is a non-creature permanent ability, which the latent card value never
+    // reads. 18 is the blind `base + MV` worth (8 + 10 × MV 1), kept
+    // explicit rather than guessed higher.
+    aiValue: 18,
     triggeredAbilities: [
         // NOT DSL-migratable (ADR 0045): "choose an opponent" has no Op —
         // `setChosenPlayer`/`getChosenPlayer` are SpellContext-only

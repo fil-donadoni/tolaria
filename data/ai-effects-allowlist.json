@@ -295,12 +295,6 @@
     },
     {
         "class": "card",
-        "cardId": "73e3e0b3-5284-464f-8c62-0f7801c966f5",
-        "name": "Mana Short",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "e2c9f463-d1cc-4f11-aad2-d4a4520aa978",
         "name": "Martyr's Cry",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
@@ -674,13 +668,6 @@
     },
     {
         "class": "ability",
-        "cardId": "2307fb16-8b77-45b5-8a02-51a13214791d",
-        "name": "Arnjlot's Ascent",
-        "abilityId": "arnjlots-ascent-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "587d6ac8-fad8-49e0-862e-636e06628ff9",
         "name": "Artifact Possession",
         "abilityId": "artifact-possession-ability",
@@ -765,13 +752,6 @@
     },
     {
         "class": "ability",
-        "cardId": "76ac72f8-5b1e-4d67-a796-ef69cde27424",
-        "name": "Black Vise",
-        "abilityId": "black-vise-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "9db5d6c2-b11f-442a-b172-c0c99c9bec07",
         "name": "Blastoderm",
         "abilityId": "fading",
@@ -793,30 +773,9 @@
     },
     {
         "class": "ability",
-        "cardId": "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
-        "name": "Blizzard",
-        "abilityId": "blizzard-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "0a5e3d54-4dc4-482b-8ecc-bb819ba03d2c",
         "name": "Bone Shaman",
         "abilityId": "bone-shaman-grant-rider",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
-        "name": "Brand of Ill Omen",
-        "abilityId": "cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "e40c9657-fab4-489d-8eb0-960ba2605add",
-        "name": "Breath of Dreams",
-        "abilityId": "breath-of-dreams-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -957,13 +916,6 @@
         "cardId": "a82c87b1-de37-4423-a1a4-533a1d8108b2",
         "name": "Cocoon",
         "abilityId": "cocoon-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "81b87a58-b20c-4f38-afa3-59d398195740",
-        "name": "Cold Snap",
-        "abilityId": "cold-snap-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1220,13 +1172,6 @@
     },
     {
         "class": "ability",
-        "cardId": "f4c1f5a7-0d28-43ab-9b66-937e963f42cd",
-        "name": "Elephant Grass",
-        "abilityId": "elephant-grass-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "49301c19-55a0-4146-9474-0b86cd320e31",
         "name": "Elkin Bottle",
         "abilityId": "elkin-bottle-exile",
@@ -1262,23 +1207,9 @@
     },
     {
         "class": "ability",
-        "cardId": "3955e358-4285-44e2-9e24-9804346a6e58",
-        "name": "Energy Storm",
-        "abilityId": "energy-storm-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "5f4b6507-89ee-482e-aafd-8e05ada8f1ce",
         "name": "Erosion",
         "abilityId": "erosion-upkeep-tax",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "13ebb5dd-d7f1-4b06-8585-7004045be542",
-        "name": "Essence Flare",
-        "abilityId": "essence-flare-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1332,13 +1263,6 @@
     },
     {
         "class": "ability",
-        "cardId": "6880a4d3-5cbc-4a01-9190-3565617efcc9",
-        "name": "Flow of Maggots",
-        "abilityId": "flow-of-maggots-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "21551cb6-3a53-42dd-9bbd-4bc56304d6d3",
         "name": "Force of Nature",
         "abilityId": "force-of-nature-upkeep",
@@ -1388,13 +1312,6 @@
     },
     {
         "class": "ability",
-        "cardId": "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
-        "name": "Fyndhorn Pollen",
-        "abilityId": "fyndhorn-pollen-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "0e1ae3d6-6d96-4db6-bbc4-cee91bae6cf7",
         "name": "Gaea's Touch",
         "abilityId": "gaeas-touch-forest",
@@ -1440,13 +1357,6 @@
         "cardId": "53ec4a19-0f2f-4713-a869-58832484648d",
         "name": "Giant Shark",
         "abilityId": "giant-shark-no-islands",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "3d23f800-7a6f-40e3-b242-9f5955e47a75",
-        "name": "Glacial Chasm",
-        "abilityId": "glacial-chasm-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1524,13 +1434,6 @@
         "cardId": "2e939761-3542-4044-9038-d1d30c6a38fc",
         "name": "Halfdane",
         "abilityId": "halfdane-copy-pt",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
-        "name": "Halls of Mist",
-        "abilityId": "halls-of-mist-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1647,44 +1550,9 @@
     },
     {
         "class": "ability",
-        "cardId": "ab02268e-01cf-4729-95ca-5773afd40b56",
-        "name": "Illusionary Forces",
-        "abilityId": "illusionary-forces-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "62ef2f37-b8ad-47ad-89ca-d6abcb7ff21b",
         "name": "Illusionary Mask",
         "abilityId": "illusionary-mask-cast",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "aa31efed-4a11-4f59-a623-bac45d20091d",
-        "name": "Illusionary Presence",
-        "abilityId": "illusionary-presence-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "691f4a1b-4706-41aa-82da-ae920739f036",
-        "name": "Illusionary Terrain",
-        "abilityId": "illusionary-terrain-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "6430e8e2-fee3-4744-820e-d6e16cb992bd",
-        "name": "Illusionary Wall",
-        "abilityId": "illusionary-wall-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "17eeeef2-2ced-42b8-a5e0-1095c9e13b02",
-        "name": "Illusions of Grandeur",
-        "abilityId": "illusions-of-grandeur-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1699,13 +1567,6 @@
         "cardId": "733933dd-c871-4f75-8b08-d7c010dddbe6",
         "name": "In the Eye of Chaos",
         "abilityId": "in-the-eye-of-chaos-tax",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "f3475eb3-909d-450b-9597-b241b259b425",
-        "name": "Infernal Darkness",
-        "abilityId": "infernal-darkness-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1748,13 +1609,6 @@
         "cardId": "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
         "name": "Ivory Cup",
         "abilityId": "ivory-cup-life",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "a5f23039-45ca-4c15-af50-bfd40ea26453",
-        "name": "Ivory Tower",
-        "abilityId": "ivory-tower-life",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1971,13 +1825,6 @@
         "class": "ability",
         "cardId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
         "name": "Maddening Wind",
-        "abilityId": "maddening-wind-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
-        "name": "Maddening Wind",
         "abilityId": "maddening-wind-upkeep-damage",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
@@ -2088,13 +1935,6 @@
     },
     {
         "class": "ability",
-        "cardId": "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
-        "name": "Mesmeric Trance",
-        "abilityId": "mesmeric-trance-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "d3ddbe51-cd1a-4b2c-849a-7c82d622122a",
         "name": "Mijae Djinn",
         "abilityId": "mijae-djinn-attack-flip",
@@ -2174,28 +2014,7 @@
         "class": "ability",
         "cardId": "9f8d2247-a10e-413a-b497-2add3918f991",
         "name": "Musician",
-        "abilityId": "musician-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "9f8d2247-a10e-413a-b497-2add3918f991",
-        "name": "Musician",
         "abilityId": "musician-music-counter",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "e35d7f08-0687-41bd-8c53-31a49adabb11",
-        "name": "Mystic Might",
-        "abilityId": "mystic-might-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "58e93dff-b774-4765-b7bd-d3957e42ff4a",
-        "name": "Mystic Remora",
-        "abilityId": "mystic-remora-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2217,13 +2036,6 @@
         "cardId": "06912236-8225-4eb0-8086-c6a163c69892",
         "name": "Nacre Talisman",
         "abilityId": "nacre-talisman-untap",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
-        "name": "Naked Singularity",
-        "abilityId": "naked-singularity-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2389,13 +2201,6 @@
     },
     {
         "class": "ability",
-        "cardId": "aee01e9c-0445-4228-a73a-3e5744844ed3",
-        "name": "Polar Kraken",
-        "abilityId": "polar-kraken-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "62858604-ca5a-4f69-a045-a7515ebfabf2",
         "name": "Power Surge",
         "abilityId": "power-surge-damage",
@@ -2494,13 +2299,6 @@
     },
     {
         "class": "ability",
-        "cardId": "1b7e955c-3de2-430c-93b9-0b39ccea5420",
-        "name": "Reality Twist",
-        "abilityId": "reality-twist-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "d551ff93-d8da-4c21-bc3c-6451c0dde07e",
         "name": "Reflecting Mirror",
         "abilityId": "reflecting-mirror-retarget",
@@ -2511,13 +2309,6 @@
         "cardId": "b7b7aa34-b4f8-41b4-82ce-ab2e204c3bf4",
         "name": "Regeneration",
         "abilityId": "regeneration-regenerate",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
-        "name": "Ritual of Subdual",
-        "abilityId": "ritual-of-subdual-cumulative-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2636,28 +2427,7 @@
         "class": "ability",
         "cardId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
         "name": "Snowfall",
-        "abilityId": "snowfall-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
-        "name": "Snowfall",
         "abilityId": "snowfall-island-mana",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "9fabc7b6-e766-4e3c-816e-04cfeceaff09",
-        "name": "Soldevi Simulacrum",
-        "abilityId": "soldevi-simulacrum-cumulative-upkeep",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386",
-        "name": "Solitary Confinement",
-        "abilityId": "solitary-confinement-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2728,13 +2498,6 @@
         "cardId": "ac86055d-ce08-4b05-a92c-45e007ca0ba4",
         "name": "Spreading Plague",
         "abilityId": "spreading-plague-enters",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "b6cef408-5b4b-49f6-9531-be544815b93f",
-        "name": "Stasis",
-        "abilityId": "stasis-upkeep",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2812,20 +2575,6 @@
         "cardId": "f9ffb265-872f-47b3-974c-92bcbebd557e",
         "name": "The Brute",
         "abilityId": "the-brute-regenerate",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "ec0686ba-1277-4412-a397-7a6227808311",
-        "name": "The Rack",
-        "abilityId": "the-rack-choose-opponent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "ec0686ba-1277-4412-a397-7a6227808311",
-        "name": "The Rack",
-        "abilityId": "the-rack-upkeep-damage",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
