@@ -79,6 +79,7 @@ import MulliganPrompt from "./mulligan-prompt";
 import ErrorToast from "./error-toast";
 import BoardConnectionError from "./board-connection-error";
 import VsAiDriver from "./vs-ai-driver";
+import VerdictProposalCapture from "./verdict-proposal-capture";
 
 type BoardProps = {
     gameId: Id<"games">;
@@ -453,6 +454,13 @@ export default function Board({
                                                 <VsAiDriver
                                                     gameId={gameId}
                                                     botId={botId}
+                                                />
+                                            )}
+                                            {vsAi && (
+                                                <VerdictProposalCapture
+                                                    gameId={gameId}
+                                                    botId={botId}
+                                                    humanId={viewerId}
                                                 />
                                             )}
                                             <BoardSurface

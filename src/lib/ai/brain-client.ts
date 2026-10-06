@@ -379,7 +379,10 @@ export function consultBrain(
     botId: string,
     budget: SearchBudget = DEFAULT_BUDGET,
     deckKnowledge?: DeckKnowledgeBySeat,
-    repetition?: RepetitionHistory
+    repetition?: RepetitionHistory,
+    /** A fixed seed, for a consult that must be reproducible (issue #3984's
+     *  game-end Verdict Proposal judge). Absent, the handler draws one. */
+    seed?: number
 ): Promise<BrainResult> {
     const w = getWorker();
     if (!w) {
@@ -398,6 +401,7 @@ export function consultBrain(
                 budget: exhausted ? clampToFallback(budget) : budget,
                 deckKnowledge,
                 repetition,
+                ...(seed === undefined ? {} : { seed }),
             })
         );
     }
@@ -410,6 +414,7 @@ export function consultBrain(
         budget,
         deckKnowledge,
         repetition,
+        ...(seed === undefined ? {} : { seed }),
     };
     return new Promise<BrainResult>((resolve) => {
         // A consult ALWAYS settles (issue #2284) — see
