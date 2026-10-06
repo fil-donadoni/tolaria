@@ -642,6 +642,14 @@ _Avoid_: Blade Scenario (the former name), AI test, benchmark position, puzzle
 A human's decision that a **Test Position** joins the _must_ tier, made by looking at the board against the forced-loss criterion. Tooling only proposes — an **Admission Candidate** is a **Verdict** attested by enough people whose answer has stayed satisfied across successive **Weight Fits** — and never admits. Distinct from **Promotion**, which is automatic and widens what the **Weight Fit** reads: a promoted **Verdict** teaches the **Evaluation**, an admitted one binds the gate.
 _Avoid_: Promotion (that is the lock's word), approval, graduation
 
+**Admission Candidate**:
+A locked **Verdict** — a whole **Minimal Pair**, never one half — that `verdicts:promote` proposes for an **Admission** look: attested explicitly by enough distinct people (or by the owner alone), kept satisfied by the **Weight Fit** across enough consecutive **Promotions** (its **Promotion Streak**), at no **Contested Position**, and picked correctly by the whole **Brain** on every seed. Every bar is a number in `tolaria.config.json` § admission. The forced-loss check stays the reviewer's.
+_Avoid_: admitted, must candidate
+
+**Promotion Streak**:
+How many consecutive **Promotions** a locked **Verdict** has stayed satisfied by the **Weight Fit** — restarting at zero on an unsatisfied one. Kept in `data/verdicts.streaks.json`, advanced only by a **Promotion** that writes the lock, and read as zero against any lock it was not advanced with.
+_Avoid_: stability score, age
+
 **Charter Scenario**:
 The four **Test Positions** that define _done_ for the credible-opponent effort: Stifle on one's own punisher trigger, fetchland timing and target, modal choice, and lethal-block defence.
 _Avoid_: Acceptance test, milestone scenario
