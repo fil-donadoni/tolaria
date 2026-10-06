@@ -178,7 +178,7 @@ export const SESSIONS: SessionsPayload = {
         {
             session: "0aa11bb2-3333-4444-5555-666677778888",
             title: "port the History view",
-            cmd: "/next-issue 3152",
+            cmd: "/next-ticket 3152",
             t0: 1_756_000_000,
             wall_min: 134,
             impl_min: 96,
@@ -212,7 +212,7 @@ export const SESSIONS: SessionsPayload = {
         {
             session: "5ee55ff6-7777-8888-9999-aaaabbbbcccc",
             title: "one PR",
-            cmd: "/next-issue 3149",
+            cmd: "/next-ticket 3149",
             t0: 1_755_800_000,
             wall_min: 45,
             impl_min: 30,

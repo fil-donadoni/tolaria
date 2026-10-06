@@ -6,7 +6,7 @@ import * as path from "path";
  * ONE rule for running a gate, in TWO files (issue #3698).
  *
  * The bug this closes is not a typo. `.claude/hooks/deny-guard.sh` § 3b denied
- * a backgrounded gate — correctly — while `.claude/skills/next-issue/SKILL.md`
+ * a backgrounded gate — correctly — while `.claude/skills/next-ticket/SKILL.md`
  * told the pass, in its context-hygiene section, to "start it with
  * `run_in_background` and answer the notification". A pass that followed
  * either file to the letter violated the other, and the one that followed the
@@ -27,7 +27,7 @@ const SKILL = path.join(
     REPO_ROOT,
     ".claude",
     "skills",
-    "next-issue",
+    "next-ticket",
     "SKILL.md"
 );
 
@@ -63,7 +63,7 @@ const extractRule = (file: string): string => {
 };
 
 describe("the gate rule is ONE rule (#3698)", () => {
-    it("deny-guard.sh § 3b and the /next-issue skill carry the identical text", () => {
+    it("deny-guard.sh § 3b and the /next-ticket skill carry the identical text", () => {
         const guard = extractRule(DENY_GUARD);
         const skill = extractRule(SKILL);
         expect(guard.length).toBeGreaterThan(200);

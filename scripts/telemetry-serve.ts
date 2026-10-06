@@ -59,7 +59,7 @@ const PROJECTS_ROOT = join(homedir(), ".claude/projects");
 const PROJECT_SLUG = primaryCheckout(PROJECT_DIR).replace(/\//g, "-");
 /** The session-origin journal (issue #3144) — in the PRIMARY checkout, like
  *  `claims.jsonl` beside it: `CLAUDE_PROJECT_DIR` is fixed at session start,
- *  so a `/next-issue` session writes there even after it cd's into its own
+ *  so a `/next-ticket` session writes there even after it cd's into its own
  *  worktree, and a dashboard launched from a worktree must read the same
  *  file. Same reasoning as `PROJECT_SLUG` above. */
 const ORIGIN_LEDGER_PATH = join(

@@ -89,7 +89,7 @@ export interface SessionFilterState {
 export const EMPTY_SESSION_FILTER: SessionFilterState = { cmd: "", text: "" };
 
 /** The COMMAND FAMILY — the first whitespace-delimited word of the command
- *  line. `/next-issue 3152` and `/next-issue 3153` are one bucket, which is
+ *  line. `/next-ticket 3152` and `/next-ticket 3153` are one bucket, which is
  *  the grouping a person filters by; the arguments are per-session noise. */
 export const cmdBase = (c: string | null | undefined): string =>
     (c ?? "").split(/\s/)[0] || "(none)";

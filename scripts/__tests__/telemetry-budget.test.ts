@@ -110,10 +110,12 @@ describe("resolveAllowance", () => {
 });
 
 describe("issueFromSessionCommand", () => {
-    it("reads the issue a /next-issue session opened", () => {
-        expect(issueFromSessionCommand("/next-issue 3080")).toBe(3080);
-        expect(issueFromSessionCommand("/next-issue #3080")).toBe(3080);
-        expect(issueFromSessionCommand("/next-issue figli di 2064")).toBe(2064);
+    it("reads the issue a /next-ticket session opened", () => {
+        expect(issueFromSessionCommand("/next-ticket 3080")).toBe(3080);
+        expect(issueFromSessionCommand("/next-ticket #3080")).toBe(3080);
+        expect(issueFromSessionCommand("/next-ticket figli di 2064")).toBe(
+            2064
+        );
     });
 
     // The legacy batch shape worked several issues in one session and no split
@@ -132,7 +134,7 @@ describe("issueFromSessionCommand", () => {
 
     it("refuses a slash command with no issue number", () => {
         expect(issueFromSessionCommand("/compact")).toBeNull();
-        expect(issueFromSessionCommand("/next-issue")).toBeNull();
+        expect(issueFromSessionCommand("/next-ticket")).toBeNull();
     });
 
     it("ignores numbers outside issue range", () => {
@@ -152,8 +154,8 @@ describe("issueFromSessionCommand", () => {
     });
 
     it("still reads a number delimited by ordinary punctuation", () => {
-        expect(issueFromSessionCommand("/next-issue (3080)")).toBe(3080);
-        expect(issueFromSessionCommand("/next-issue 3080, poi basta")).toBe(
+        expect(issueFromSessionCommand("/next-ticket (3080)")).toBe(3080);
+        expect(issueFromSessionCommand("/next-ticket 3080, poi basta")).toBe(
             3080
         );
     });
@@ -161,8 +163,8 @@ describe("issueFromSessionCommand", () => {
 
 describe("isNextIssueCommand", () => {
     it("recognises the ADR 0110 pipeline and nothing else", () => {
-        expect(isNextIssueCommand("/next-issue 3080")).toBe(true);
-        expect(isNextIssueCommand("/next-issues 3080")).toBe(false);
+        expect(isNextIssueCommand("/next-ticket 3080")).toBe(true);
+        expect(isNextIssueCommand("/next-tickets 3080")).toBe(false);
         expect(isNextIssueCommand("/process-gh-issues 3080")).toBe(false);
         expect(isNextIssueCommand(null)).toBe(false);
     });
@@ -231,8 +233,8 @@ describe("attributeIssues", () => {
     it("sums every session that named the same issue", () => {
         const rows = attributeIssues(
             [
-                session({ session: "a", cmd: "/next-issue 3080", units: 10 }),
-                session({ session: "b", cmd: "/next-issue 3080", units: 5 }),
+                session({ session: "a", cmd: "/next-ticket 3080", units: 10 }),
+                session({ session: "b", cmd: "/next-ticket 3080", units: 5 }),
             ],
             new Map(),
             null
@@ -244,7 +246,7 @@ describe("attributeIssues", () => {
     it("drops sessions no command attributes", () => {
         const rows = attributeIssues(
             [
-                session({ cmd: "/next-issue 3080", units: 10 }),
+                session({ cmd: "/next-ticket 3080", units: 10 }),
                 session({ cmd: null, units: 999 }),
                 session({ cmd: "/process-gh-issues 1 e 2", units: 999 }),
             ],
@@ -257,7 +259,7 @@ describe("attributeIssues", () => {
 
     it("leaves every share null when no allowance is configured", () => {
         const rows = attributeIssues(
-            [session({ cmd: "/next-issue 3080", units: 1e7 })],
+            [session({ cmd: "/next-ticket 3080", units: 1e7 })],
             new Map(),
             null
         );
@@ -266,17 +268,17 @@ describe("attributeIssues", () => {
 
     it("divides units — not dollars — into the allowance", () => {
         const rows = attributeIssues(
-            [session({ cmd: "/next-issue 3080", units: 1e7, usd: 999 })],
+            [session({ cmd: "/next-ticket 3080", units: 1e7, usd: 999 })],
             new Map(),
             ALLOWANCE
         );
         expect(rows[0].sharePct).toBeCloseTo(1, 10);
     });
 
-    it("carries issue state and the /next-issue flag", () => {
+    it("carries issue state and the /next-ticket flag", () => {
         const rows = attributeIssues(
             [
-                session({ cmd: "/next-issue 3080", units: 2 }),
+                session({ cmd: "/next-ticket 3080", units: 2 }),
                 session({ cmd: "/audit-tracker 2000", units: 1 }),
             ],
             new Map([[3080, "closed"]]),
@@ -295,9 +297,9 @@ describe("attributeIssues", () => {
     it("sorts costliest first", () => {
         const rows = attributeIssues(
             [
-                session({ cmd: "/next-issue 44", units: 1 }),
-                session({ cmd: "/next-issue 22", units: 9 }),
-                session({ cmd: "/next-issue 333", units: 5 }),
+                session({ cmd: "/next-ticket 44", units: 1 }),
+                session({ cmd: "/next-ticket 22", units: 9 }),
+                session({ cmd: "/next-ticket 333", units: 5 }),
             ],
             new Map(),
             null
@@ -341,7 +343,7 @@ describe("cohorts", () => {
         ...p,
     });
 
-    it("narrows to closed /next-issue issues first — the target's population", () => {
+    it("narrows to closed /next-ticket issues first — the target's population", () => {
         const rows = [
             issue({ issue: 1, nextIssue: true, state: "closed" }),
             issue({ issue: 2, nextIssue: true, state: "open" }),
@@ -364,8 +366,8 @@ describe("formatReport", () => {
     };
     const rows = attributeIssues(
         [
-            session({ cmd: "/next-issue 3080", units: 1e7, usd: 30 }),
-            session({ cmd: "/next-issue 3079", units: 2e7, usd: 60 }),
+            session({ cmd: "/next-ticket 3080", units: 1e7, usd: 30 }),
+            session({ cmd: "/next-ticket 3079", units: 2e7, usd: 60 }),
         ],
         new Map([
             [3080, "closed"],
@@ -376,7 +378,7 @@ describe("formatReport", () => {
 
     it("says the share is unavailable rather than printing a number", () => {
         const noAllowance = attributeIssues(
-            [session({ cmd: "/next-issue 3080", units: 1e7, usd: 30 })],
+            [session({ cmd: "/next-ticket 3080", units: 1e7, usd: 30 })],
             new Map([[3080, "closed"]]),
             null
         );
@@ -439,7 +441,7 @@ describe("formatReport", () => {
 
     it("calls it MET when the median is inside it", () => {
         const cheap = attributeIssues(
-            [session({ cmd: "/next-issue 3080", units: 1e6, usd: 3 })],
+            [session({ cmd: "/next-ticket 3080", units: 1e6, usd: 3 })],
             new Map([[3080, "closed"]]),
             ALLOWANCE
         );

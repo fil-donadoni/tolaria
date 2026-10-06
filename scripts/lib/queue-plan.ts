@@ -513,7 +513,7 @@ export interface PlanRecord {
     noPriority: boolean;
     /** The umbrella `--lineage <N>` scoped this plan to, or `null` for an
      *  unrestricted pass (issue #2327). On the RECORD and not on `BatchPlan`
-     *  deliberately: stdout's schema is what `/next-issue` and `loop-drain`
+     *  deliberately: stdout's schema is what `/next-ticket` and `loop-drain`
      *  parse and it stays byte-identical, while the durable artefact is where
      *  "which candidate set produced this batch" has to be legible — without
      *  it a scoped plan is indistinguishable, after the fact, from a whole-queue

@@ -1,11 +1,11 @@
 #!/bin/sh
-# scripts/loop-drain.sh — the AFK driver for `/next-issue` (ADR 0097 + 0110).
+# scripts/loop-drain.sh — the AFK driver for `/next-ticket` (ADR 0097 + 0110).
 #
-# `/next-issue` closes exactly ONE issue per process (ADR 0110): the context
+# `/next-ticket` closes exactly ONE issue per process (ADR 0110): the context
 # reset between issues IS the cost-containment mechanism, and the skill's own
 # §6 ends with "one issue per invocation. The user (or the budgeted AFK
 # driver, ADR 0109) decides whether there is a next one." This script is that
-# driver — an OUT-OF-PROCESS loop around a fresh `claude -p "/next-issue N"`
+# driver — an OUT-OF-PROCESS loop around a fresh `claude -p "/next-ticket N"`
 # per pass. All the state a resumed pass needs already survives a process
 # boundary: the `in-progress` GitHub label, the branch/PR, and
 # `.claude/telemetry/green-sha`.
@@ -77,7 +77,7 @@ CLAUDE_ARGS=""
 # invocation, not prompt text. Unlike CLAUDE_ARGS this is ONE argument and
 # stays quoted at the call site: word-splitting it would turn "figli di 2405"
 # into three prompts' worth of stray argv.
-PASS_PROMPT="/next-issue"
+PASS_PROMPT="/next-ticket"
 PROMPT_OVERRIDDEN=0
 DRY_RUN=0
 # A single `claude` crash used to end an overnight run outright. It is now
@@ -229,7 +229,7 @@ is_number() {
 # nobody watching. Reject it at startup rather than discovering it in the
 # morning's telemetry as N passes of `no-progress`.
 if [ -z "$PASS_PROMPT" ]; then
-    echo "loop-drain[error]: --prompt must not be empty (omit it for the default '/next-issue')" >&2
+    echo "loop-drain[error]: --prompt must not be empty (omit it for the default '/next-ticket')" >&2
     exit 2
 fi
 
@@ -533,7 +533,7 @@ reap_orphan_claims() {
 }
 
 # ── pre-flight: WHICH issue, on WHICH tier (#3083) ──────────────────────────
-# `/next-issue` §0 will pick its own issue when handed none, and §1 will STOP
+# `/next-ticket` §0 will pick its own issue when handed none, and §1 will STOP
 # the pass when the issue carries a `model:*` label above the session's tier.
 # Unattended, that combination is a wall rather than a stall: the stopped pass
 # claims nothing, so the same issue is still at the head next pass, and the run
@@ -549,14 +549,14 @@ reap_orphan_claims() {
 #
 # It resolves nothing else. Review routing is untouched and must stay so — the
 # reviewer is a subagent with its own explicit `model`, and escalating above
-# the session tier already works (`/next-issue` §4; the telemetry records
+# the session tier already works (`/next-ticket` §4; the telemetry records
 # sonnet-main sessions spawning opus reviewers).
 #
 # `--exclude-hitl` (#3088). An HITL issue asks for a human to look before it
 # merges; an unattended pass ends in `land`, which merges. So the driver does
 # not "handle" that work carefully — it never considers it, and says so to the
 # planner rather than growing a second, shell-side notion of eligibility here.
-# An interactive `/next-issue` passes no such flag and still sees them.
+# An interactive `/next-ticket` passes no such flag and still sees them.
 #
 # CONSUMED, NOT REIMPLEMENTED. The ordering (priority BAND inherited from the
 # parent PRD, then own priority, then bugs, then oldest lineage), the
@@ -570,7 +570,7 @@ reap_orphan_claims() {
 #
 # FATAL, unlike the orphan-claim sweep — and this is the one place that trade
 # goes the other way (#3088). A pass handed the bare prompt picks its own
-# issue, and `/next-issue` knows nothing about HITL: it would implement an
+# issue, and `/next-ticket` knows nothing about HITL: it would implement an
 # HITL-flagged issue and then `land` it, merging the very thing the flag
 # exists to hold for a human. So "the planner could not answer" must not
 # degrade into "run something anyway". It stops the run, next to `gh-error`,
@@ -583,7 +583,7 @@ reap_orphan_claims() {
 # the turn (`claude -p`), leaving a `stranded` claim: owner gone, work pushed,
 # usually one `land` away. The plan names those as `resume`, and the head is
 # `resume[0]` before `batch[0]` — handed to a fresh pass as
-# `/next-issue N --resume`, not landed here: the observed recoveries needed
+# `/next-ticket N --resume`, not landed here: the observed recoveries needed
 # `oracle:compile --carry-bot`, a catalogue repack and a gold fixup after the
 # rebase, which is judgment a pass has and this script does not. BOUNDED to
 # one resume per issue per run (`RESUMED_THIS_RUN`): a stranded issue whose
@@ -895,7 +895,7 @@ while :; do
             # (#2622); it killed subagents mid-edit (18 of ~34 recorded
             # passes on 2026-08-19).
             # "$pass_prompt" stays QUOTED — it is ONE argument that normally
-            # contains spaces ("/next-issue 3083", or an operator's
+            # contains spaces ("/next-ticket 3083", or an operator's
             # "/process-gh-issues figli di 2405"); splitting it is the exact
             # opposite of what the unquoted $pass_model_arg and $CLAUDE_ARGS
             # beside it deliberately do.

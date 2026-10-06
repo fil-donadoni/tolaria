@@ -252,7 +252,7 @@ if (asJson) {
                     `${(r.sharePct === null ? "n/a" : `${r.sharePct.toFixed(2)}%`).padStart(7)} of week  ` +
                     `list $${r.usd.toFixed(0).padStart(4)}  ` +
                     `${r.sessions} session${r.sessions === 1 ? "" : "s"}  ` +
-                    `${r.state ?? "state unknown"}${r.nextIssue ? "  /next-issue" : ""}`
+                    `${r.state ?? "state unknown"}${r.nextIssue ? "  /next-ticket" : ""}`
             );
         }
     }

@@ -158,10 +158,10 @@ included.
 ### Skills
 
 Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
-`ready-for-agent`; **`/next-issue` drains that queue one issue per session**
+`ready-for-agent`; **`/next-ticket` drains that queue one issue per session**
 (ADR 0110, single-session pipeline). Pick by where work comes FROM:
 
-- `/next-issue` (drain queue): ONE issue, pick → worktree → implement →
+- `/next-ticket` (drain queue): ONE issue, pick → worktree → implement →
   review → land
 - `/new-card` (one card): compile state decides artefacts (`ready`) /
   mechanic / rule / hand tail

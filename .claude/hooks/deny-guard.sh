@@ -608,7 +608,7 @@ fi
 # a piped one's is not quiet — it is never read at all, which is worse.
 #
 # **The rule this guard enforces, stated in full.** It is one rule, and it is
-# the SAME text in `.claude/skills/next-issue/SKILL.md` — a pass told to
+# the SAME text in `.claude/skills/next-ticket/SKILL.md` — a pass told to
 # background its gate by one file and forbidden to by the other is how a pass
 # that followed the guard to the letter died anyway (issue #3698).
 # `scripts/__tests__/gate-rule-parity.test.ts` reds if the copies drift.

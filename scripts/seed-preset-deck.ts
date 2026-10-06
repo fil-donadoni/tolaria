@@ -56,7 +56,7 @@
  * landed by a card slice whose own diff has no idea it was the last one. So
  * the write is now `scripts/lib/seed-preset-run.ts`, shared by both entry
  * points, and the obligation is written into CLAUDE.md § Development cycle and
- * `/next-issue` § Land where the pipeline will meet it.
+ * `/next-ticket` § Land where the pipeline will meet it.
  *
  * The sweep REPORTS the blocked decks rather than failing on them — being
  * blocked is the normal state of a list nobody has finished, and the rejects

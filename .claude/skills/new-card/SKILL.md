@@ -16,7 +16,7 @@ the compiler already do with this card, and what does that answer make owed?
 The answer is a state in a committed artefact, not a judgement — §2 reads it,
 §3–§6 are the four branches, and only §6 writes a `CardDefinition`.
 
-It runs inside `/next-issue` (claim, worktree, review, `land` are that skill's);
+It runs inside `/next-ticket` (claim, worktree, review, `land` are that skill's);
 everything below is §3 of it.
 
 ## The three anti-Forge guards (ADR 0137) still apply here

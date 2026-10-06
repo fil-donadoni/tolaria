@@ -362,7 +362,7 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         // when it merges. A `land` that returns 75 therefore leaves the next
         // call with a cwd that no longer exists, and a call from anywhere else
         // computes a different key and starts a SECOND `land`, re-paying the
-        // whole gate. `/next-issue` shipped a `cd` to the primary checkout as
+        // whole gate. `/next-ticket` shipped a `cd` to the primary checkout as
         // the fix; `land` refused it on the very next landing.
         const starts = path.join(tmp, "starts");
         fixtureScript("slow", `echo x >>"${starts}"\nsleep 20\nexit 0`);

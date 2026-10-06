@@ -305,7 +305,7 @@ import graph contains.
 `^\.claude/` sat in `FULL_PATTERNS` whole. That was right while the tree held
 hooks and rule indexes: a hook or a nested rule file can change anything, so
 forcing the full gate is the fail-closed answer. Issues #4087/#4090 then moved
-every WORKFLOW SKILL in there — `/next-issue`, `/grammar-rule`, `/to-prd`,
+every WORKFLOW SKILL in there — `/next-ticket`, `/grammar-rule`, `/to-prd`,
 `/to-tickets`, … — and a one-line `SKILL.md` edit started paying `check:pr`
 verbatim (~440 s) instead of a lane (~190 s, or seconds for `check:docs`).
 Measured over the last 100 landings before the change: **23 of 100 landings
@@ -332,7 +332,7 @@ budget over `.claude/rules/**`), `agents-md-drift.test.ts` (the generated
 `AGENTS.md` mirror), `bot-globs.test.ts` (`bot-development.md`'s `globs:`
 feeds `scripts/lib/bot-globs.ts`), `destructive-data-recipes.test.ts` (scans
 `.claude/skills/**/*.md`), `gate-rule-parity.test.ts` (the gate rule held in
-both `deny-guard.sh` and the `/next-issue` skill), `action-space.test.ts`,
+both `deny-guard.sh` and the `/next-ticket` skill), `action-space.test.ts`,
 `cr-citation-ledger.test.ts` (a `CR` line in a skill owes a ledger entry) and
 `cr-source.test.ts` (ADR 0098's no-third-party-mirror sweep reads the
 instruction files themselves, and asserts the rules-check skill still points
@@ -566,7 +566,7 @@ real diff — never from the issue's `area:*` label, which is a hypothesis a
 human wrote before the code existed. A batch is admitted lane-homogeneous
 (all `skin`, all `engine`, all `docs`, or all `full`); a candidate whose real lane
 disagrees with the batch's is deferred as a lane mismatch, the same way an
-overlapping target file is deferred today. `/next-issue` lands one issue at a
+overlapping target file is deferred today. `/next-ticket` lands one issue at a
 time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
 with it. What stands in its place (issue #4913) is the full `check:ui --all`
@@ -1318,7 +1318,7 @@ SIGSTOPped, so the lowest class is the only one polling a free mutex, and
 **The claim is one locked act (issue #4375, PRD #4373).** Until then the cap
 was enforced by a READ — `queue:plan` counted the live `in-progress` claims and
 refused a plan at `sessions.cap` — while the claim itself was typed by the
-session in `/next-issue` §2, and nothing sat between the two: `claim-ledger.sh`
+session in `/next-ticket` §2, and nothing sat between the two: `claim-ledger.sh`
 observes and never blocks, `deny-guard.sh` had no rule on the label. The window
 was the whole §0→§2, and `✗ session cap reached — 4/3 live claims` (2026-09-22)
 was that design working as written: the refusal could only describe the
@@ -1797,7 +1797,7 @@ as its start.
 
 ### The committed baseline — 2026-08-28 → 2026-09-05, 121 sessions
 
-This is the state the hygiene contract in `.claude/skills/next-issue/SKILL.md`
+This is the state the hygiene contract in `.claude/skills/next-ticket/SKILL.md`
 was written against. Re-run the command over a later window to say whether it
 held.
 
@@ -1886,9 +1886,9 @@ session reads. The contract is three habits in the one document every
 issue-closing session reads, and this command is how anyone checks, after the
 fact, whether they took.
 
-## `/next-issue` — the incidents behind its rules
+## `/next-ticket` — the incidents behind its rules
 
-The `/next-issue` skill states its rules as instructions and cites this
+The `/next-ticket` skill states its rules as instructions and cites this
 section for the history; it does not restate it (issue #5100). Rows whose
 owner is elsewhere are pointers.
 
@@ -1959,7 +1959,7 @@ latency per issue — 2026-08-28 → 2026-09-05 (sessions over 12h excluded)
   machine (tool + model)        70.0m   126.5m    77.7m
   idle                          22.8m   420.6m   100.5m
 
-  /next-issue sessions (the ADR 0110 pipeline) — 58 sessions
+  /next-ticket sessions (the ADR 0110 pipeline) — 58 sessions
   component                    median      p90     mean
   wall                          85.4m   369.9m   159.4m
   tool                          40.8m    82.9m    48.6m
@@ -2017,7 +2017,7 @@ session cannot go below whatever the human does.
 ### The target, restated against the measurement
 
 **10-15 minutes is not reachable in this pipeline's shape, and no change named
-so far gets close.** At the median `/next-issue` session:
+so far gets close.** At the median `/next-ticket` session:
 
 | Block                          | Median | Can it be cut?                                    |
 | ------------------------------ | -----: | ------------------------------------------------- |
@@ -2041,10 +2041,10 @@ generation alone is 24.0m and shrinks only if the session runs fewer turns,
 which is the context-hygiene lever above, not a latency lever.
 
 So the target recorded in ADR 0110 and repeated in
-`.claude/skills/next-issue/SKILL.md` is replaced by the measured-supported pair:
+`.claude/skills/next-ticket/SKILL.md` is replaced by the measured-supported pair:
 
 - **Today: 85 minutes median wall, 67 minutes median machine**, for a
-  `/next-issue` session.
+  `/next-ticket` session.
 - **Target: 60 minutes median wall**, which is what halving the gate/test/build
   block and removing the median session's idle would buy. Anything below ~40
   minutes needs a change to what a session does, not to how fast it does it.
@@ -2304,14 +2304,14 @@ budget share per issue — 2026-08-28 → 2026-09-05 (9d)
     list price                     $2408  API-equivalent — NOT a share of anything
     non-Claude models                $14  list price only — draws on no Claude allowance
 
-  closed issues run by /next-issue (the ADR 0110 target's population) — 49 issues
+  closed issues run by /next-ticket (the ADR 0110 target's population) — 49 issues
     per issue                     median       p90       max
     allowance units                10.6M     22.2M     31.1M
     share of weekly allowance      0.98%     2.06%     2.88%
     list price (not a share)         $32       $66       $93
     ADR 0110 target — under 0.5% of the week per issue: NOT MET (median 0.98%)
 
-  all issues run by /next-issue — 51 issues
+  all issues run by /next-ticket — 51 issues
     per issue                     median       p90       max
     allowance units                10.2M     21.5M     31.1M
     share of weekly allowance      0.95%     1.99%     2.88%
@@ -2345,20 +2345,20 @@ $59 median — and a mean both hides that and is dragged by it. Each row is its
 own statistic over the cohort, so the rows do not add up, for the same reason
 the latency components do not.
 
-**`closed issues run by /next-issue` is the cohort the target speaks about.**
+**`closed issues run by /next-ticket` is the cohort the target speaks about.**
 The wider cohorts are printed so a reader can see whether the headline is an
 artifact of the narrow one. Here it is not: all three land between 0.74% and
 0.98%.
 
 Issue state comes from `issue_meta`, which `telemetry:ingest` now fills from
 session commands as well as from subagent descriptions — before that widening
-only 20 of 57 `/next-issue` issues had a row at all, and the closed cohort was
+only 20 of 57 `/next-ticket` issues had a row at all, and the closed cohort was
 14 issues instead of 49.
 
 ### The target, restated against the measurement
 
 **0.5% is not met, by a factor of 1.4x to 2.0x, and it is not reachable by any
-change named so far.** The median closed `/next-issue` issue:
+change named so far.** The median closed `/next-ticket` issue:
 
 | Calibration                        | Median share | vs the 0.5% target |
 | ---------------------------------- | -----------: | -----------------: |
@@ -2382,7 +2382,7 @@ per-issue consumption to 79%:
 
 So the target this ADR carries from now on is the measured-supported pair:
 
-- **Today: 0.7-1.0% of the weekly allowance for a median closed `/next-issue`
+- **Today: 0.7-1.0% of the weekly allowance for a median closed `/next-ticket`
   issue**, p90 1.5-2.1%, max 2.1-2.9%.
 - **Target: 0.75% median**, which flattening the context premium buys under the
   conservative calibration. Below that needs a change to what a session DOES —

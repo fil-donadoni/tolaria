@@ -154,8 +154,8 @@ describe("pass header rule", () => {
 
     it("keeps the message of a prompt-scoped pass", () => {
         expect(
-            last([`${S}loop-drain[pass]: pass 2 — prompt "/next-issue 3131".`])
-        ).toMatch(/^10:00:00 ├─ pass 2 — prompt "\/next-issue 3131" ─+$/);
+            last([`${S}loop-drain[pass]: pass 2 — prompt "/next-ticket 3131".`])
+        ).toMatch(/^10:00:00 ├─ pass 2 — prompt "\/next-ticket 3131" ─+$/);
     });
 });
 

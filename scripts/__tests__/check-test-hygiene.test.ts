@@ -195,9 +195,9 @@ describe("check:test-hygiene — the authoring tier names it (issue #4686)", () 
         expect(body).not.toMatch(/allow[-\s]?list[^.]*\bempty\b/i);
     });
 
-    it("/next-issue § 3 Implement tells the author to run the census before the PR", () => {
+    it("/next-ticket § 3 Implement tells the author to run the census before the PR", () => {
         const body = section(
-            ".claude/skills/next-issue/SKILL.md",
+            ".claude/skills/next-ticket/SKILL.md",
             "3. Implement"
         );
         expect(body).toContain("check:test-hygiene");

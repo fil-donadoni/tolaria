@@ -171,7 +171,7 @@ describe("BotFindingsClassesPanel — copy (issue #4178)", () => {
         fireEvent.click(row.querySelector("[data-bot-finding-copy]")!);
         expect(writeText).toHaveBeenCalledTimes(1);
         const text = (writeText.mock.calls[0] as unknown as [string])[0];
-        expect(text.startsWith("/next-issue 4279\n")).toBe(true);
+        expect(text.startsWith("/next-ticket 4279\n")).toBe(true);
         expect(text).toContain("Alpha Card");
         expect(text).toContain("Beta Card");
     });

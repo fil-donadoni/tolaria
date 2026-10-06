@@ -28,7 +28,7 @@ const USER_INVOKED_ONLY = [
     "explain",
     "health-fix",
     "new-set",
-    "next-issue",
+    "next-ticket",
     "retro",
 ];
 
@@ -39,7 +39,7 @@ const USER_INVOKED_ONLY = [
 const INVOKES: Record<string, string[]> = {
     "new-set": ["grill", "cluster-gaps", "rules-check", "grammar-rule"],
     "audit-tracker": ["grill", "to-tickets", "rules-check", "create-ticket"],
-    "next-issue": ["bot-change", "new-op", "create-ticket"],
+    "next-ticket": ["bot-change", "new-op", "create-ticket"],
     "new-card": ["new-op", "grammar-rule"],
     "grammar-rule": ["new-op"],
     "new-op": ["create-ticket"],
@@ -151,6 +151,6 @@ describe("skill invocation follows who reaches the skill (issue #5101)", () => {
             parseSkillFrontmatter("---\nname: x\ndescription: 'a: b'\n---\n")
                 .description
         ).toBe("a: b");
-        expect(manifestText("next-issue")).toMatch(/^---\n/);
+        expect(manifestText("next-ticket")).toMatch(/^---\n/);
     });
 });

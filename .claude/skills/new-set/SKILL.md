@@ -285,7 +285,7 @@ not one).
 Invoke **`to-prd`**. It synthesizes the grill (it does NOT re-interview) into
 one **umbrella GitHub issue** labelled `prd` — and **not** `ready-for-agent`: a
 PRD is a spec, the queue planner refuses `prd`-labelled issues, so the label
-would only make `/next-issue` skip the umbrella forever. If `to-prd` applied it,
+would only make `/next-ticket` skip the umbrella forever. If `to-prd` applied it,
 remove it.
 
 **Tell `to-prd` the card-link rule** — it is MTG-agnostic and will not apply
@@ -412,7 +412,7 @@ the marker each hand-written card owes (`compiler-gap: <fragment> (#issue)` or
 card is now `ready`, and on one whose residual gaps have risen above the
 floor). `enhancement` + `area:cards`, **no `ready-for-agent`**: it authors
 nothing by default, so it is a claim holder and the queue the migration kind
-drains, never a unit of work — labelled, `/next-issue` would pick it and try to
+drains, never a unit of work — labelled, `/next-ticket` would pick it and try to
 hand-write the whole tail. **It claims every card it lists**: one `claims` row
 per card (kind `hand-tail`, key = the card name) in `data/grammar-gaps.json`,
 committed with the cluster rows — that, not the body, is what moves a card from
@@ -510,7 +510,7 @@ nothing.
   reasoning the rollout is bought with. Phases 1–3 are an interactive interview
   plus synthesis over it. Run `/new-set` itself on Opus.
 - **Downstream**: `to-tickets` stamps the type, `area:*` and `model:*` labels, and
-  `/next-issue` routes each ticket's review to that tier (**no label ⇒
+  `/next-ticket` routes each ticket's review to that tier (**no label ⇒
   Sonnet**). The criterion is `docs/agents/triage-labels.md` § Model-routing
   labels, the single authority — this skill does not restate it.
 

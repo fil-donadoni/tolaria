@@ -10,7 +10,7 @@ import { SearchField } from "./SearchField";
  * The Sessions card's own filter row (PRD #3148 S3).
  *
  * One picker — the COMMAND FAMILY, the first word of the command line, so
- * `/next-issue 3152` and `/next-issue 3153` are one bucket — plus a search
+ * `/next-ticket 3152` and `/next-ticket 3153` are one bucket — plus a search
  * over title, command and session id. Same scope call as `IssueFilters`: this
  * state is the table's own and does not round-trip through the URL.
  */

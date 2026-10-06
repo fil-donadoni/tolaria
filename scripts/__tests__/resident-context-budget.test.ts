@@ -95,7 +95,7 @@ const ON_DEMAND_CEILING_BYTES = 24_850;
 /**
  * TIER 3 — SKILL MANIFEST (PRD #5096 D6, issue #5100). A skill's `SKILL.md`
  * enters context in full the moment the skill is invoked, and stays for the
- * rest of that session; `/next-issue` is invoked by every pass of the loop.
+ * rest of that session; `/next-ticket` is invoked by every pass of the loop.
  * Its sibling files (a skill DIRECTORY discloses branch-only material behind
  * pointers) are read on demand and are not budgeted here.
  *
@@ -105,7 +105,7 @@ const ON_DEMAND_CEILING_BYTES = 24_850;
  * a pointer, history to `docs/agents/` — or raise its row in a commit someone
  * signs. Lower a row whenever a manifest shrinks.
  *
- * `next-issue` was 23,658 bytes / 394 lines before issue #5100 split it and
+ * `next-ticket` was 23,658 bytes / 394 lines before issue #5100 split it and
  * 10,807 after; its ceiling keeps ~2% headroom. Every other row is its
  * measured size, no headroom.
  *
@@ -126,7 +126,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 32_806,
-    "next-issue": 11_000,
+    "next-ticket": 11_000,
     retro: 4_760,
     "to-prd": 6_076,
     "to-tickets": 13_587,
@@ -264,7 +264,7 @@ describe("skill manifest budget (PRD #5096 D6, issue #5100)", () => {
         const manifests = skillManifests();
         // A bad glob would pass every ceiling vacuously.
         expect(manifests.size).toBeGreaterThan(10);
-        expect(manifests.has("next-issue")).toBe(true);
+        expect(manifests.has("next-ticket")).toBe(true);
     });
 
     it("every tracked manifest has a ceiling, and every ceiling a manifest", () => {
@@ -326,7 +326,7 @@ describe("skill listing budget (PRD #5096 D8, issue #5101)", () => {
     it("finds the model-facing corpus", () => {
         const listed = modelFacingDescriptions(REPO_ROOT);
         expect(listed.size).toBeGreaterThan(5);
-        expect(listed.has("next-issue")).toBe(false);
+        expect(listed.has("next-ticket")).toBe(false);
         expect(listed.has("grill")).toBe(true);
     });
 

@@ -114,7 +114,7 @@ interface TranscriptLine {
  * Every issue number a chunk of transcript text names. Three spellings,
  * because three producers: `#3096` (prose, PR bodies, `gh` output),
  * `issue-3096` (the worktree and branch names `wt:new` mints), and
- * `issue 3096` / `issue #3096` (the `/next-issue 3096` prompt and the
+ * `issue 3096` / `issue #3096` (the `/next-ticket 3096` prompt and the
  * `issue #NNN` qualification CLAUDE.md mandates). 3–5 digits: this repo's
  * issue numbers, and short enough to exclude a PID or an epoch.
  */
@@ -616,7 +616,7 @@ export class LiveIndex {
      * LIVENESS comes first (a transcript being written to right now beats
      * one idle since this morning, however much the idle one talked about
      * the issue — measured on a real day: a planning conversation that
-     * discussed issue #3048 forty times outranked the `/next-issue 3048`
+     * discussed issue #3048 forty times outranked the `/next-ticket 3048`
      * session actually working it), then whether the branch or the first
      * prompt names the issue outright, then the mention count, then recency.
      * Capped at three; the drawer offers the rest as "+N more".

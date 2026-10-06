@@ -1,4 +1,4 @@
-# /next-issue — `land`'s failure, retry and post-merge modes
+# /next-ticket — `land`'s failure, retry and post-merge modes
 
 Reached from `SKILL.md` § 5 when `land` returns anything but a merge, or
 prints a warning. The command is always the identical

@@ -2,7 +2,7 @@
 # scripts/loop-handoff.sh — the AFK entry point (`bun run loop:afk`).
 #
 # `scripts/loop-drain.sh` (ADR 0097) can already run pass after pass
-# unattended, but nothing ever STARTED it: a pass — `/next-issue` today, the
+# unattended, but nothing ever STARTED it: a pass — `/next-ticket` today, the
 # retired `/process-gh-issues` when this was written — runs exactly one unit of
 # work and exits, so a human had to type the driver command every time.
 # This script closes that gap from both ends:
@@ -80,7 +80,7 @@ DEFAULT_CLAUDE_ARGS="--dangerously-skip-permissions"
 # resolution for every run started through this script.
 #
 # `--prompt` therefore means exactly one thing: SCOPE this run
-# (`/next-issue 3131` = that one issue, instead of letting the driver's
+# (`/next-ticket 3131` = that one issue, instead of letting the driver's
 # pre-flight pick the head of the queue). It is recorded in the conf, and
 # printed by --status, precisely
 # because an armed run that LOOKS unscoped but isn't (or vice versa) is a trap
@@ -129,11 +129,11 @@ loop-handoff — start / stop / inspect the detached AFK driver.
 Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --claude-args <str>          default: --dangerously-skip-permissions
   --prompt <text>              SCOPE the run (default: unset — the driver
-                               drains the queue with /next-issue, one issue and
+                               drains the queue with /next-ticket, one issue and
                                one tier resolved per pass). Setting it turns
                                that pre-flight OFF: you own the whole
                                invocation, e.g.
-                               --prompt "/next-issue 3131"
+                               --prompt "/next-ticket 3131"
   --budget <n> --max-pct <n>   local-proxy token budget guard (see ADR 0097).
                               --budget is what THIS RUN may spend, counted
                               from its launch over its own passes only
@@ -375,7 +375,7 @@ announce_start() {
     if [ -n "$_start_prompt" ]; then
         echo "loop-handoff[run]: every pass will run: claude -p \"$_start_prompt\""
     else
-        echo "loop-handoff[run]: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)"
+        echo "loop-handoff[run]: every pass will run: /next-ticket on the issue and tier the driver resolves for it (unscoped)"
     fi
     case "$(conf_get CLAUDE_ARGS)" in
         *--dangerously-skip-permissions*)
@@ -565,7 +565,7 @@ case "$MODE" in
             if [ -n "$_p" ]; then
                 echo "prompt:     $_p"
             else
-                echo "prompt:     (unscoped — the driver drains the queue with /next-issue, resolving one issue and one tier per pass)"
+                echo "prompt:     (unscoped — the driver drains the queue with /next-ticket, resolving one issue and one tier per pass)"
             fi
         else
             echo "armed:      no — no stored defaults for --start"

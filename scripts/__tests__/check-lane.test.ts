@@ -275,7 +275,9 @@ describe("check-lane — path classification (issue #2740)", () => {
  */
 describe("check-lane — `.claude/**` is split: prose is docs, programs are full (issue #4376)", () => {
     it("a skill's markdown is prose, at any depth under its directory", () => {
-        expect(classifyPath(".claude/skills/next-issue/SKILL.md")).toBe("docs");
+        expect(classifyPath(".claude/skills/next-ticket/SKILL.md")).toBe(
+            "docs"
+        );
         expect(
             classifyPath(".claude/skills/new-card/references/forms.md")
         ).toBe("docs");
@@ -292,7 +294,7 @@ describe("check-lane — `.claude/**` is split: prose is docs, programs are full
      * skill that ships a script is the sharp case — the script runs.
      */
     it("a non-prose file under a skill stays full", () => {
-        expect(classifyPath(".claude/skills/next-issue/lib/plan.ts")).toBe(
+        expect(classifyPath(".claude/skills/next-ticket/lib/plan.ts")).toBe(
             "full"
         );
         expect(classifyPath(".claude/skills/new-set/bin/compile.sh")).toBe(
@@ -319,7 +321,7 @@ describe("check-lane — `.claude/**` is split: prose is docs, programs are full
 
     // The three acceptance cases of issue #4376, as lanes rather than paths.
     it("one SKILL.md alone ⇒ docs, and the lane runs check:docs", () => {
-        const plan = classifyLane([".claude/skills/next-issue/SKILL.md"]);
+        const plan = classifyLane([".claude/skills/next-ticket/SKILL.md"]);
         expect(plan.lane).toBe("docs");
         expect(plan.run.map((c) => c.id)).toEqual(["check:docs"]);
     });
@@ -327,7 +329,7 @@ describe("check-lane — `.claude/**` is split: prose is docs, programs are full
     it("a SKILL.md plus a hook ⇒ full — the program decides", () => {
         expect(
             classifyLane([
-                ".claude/skills/next-issue/SKILL.md",
+                ".claude/skills/next-ticket/SKILL.md",
                 ".claude/hooks/deny-guard.sh",
             ]).lane
         ).toBe("full");
@@ -1463,7 +1465,7 @@ describe("check-lane — execution (issue #2741)", () => {
 
 describe("check-lane — `--plan`: the classification without the gate (ADR 0136 §8, issue #3781)", () => {
     /**
-     * `/next-issue` §3 keys its `cards` short path on the lane the diff
+     * `/next-ticket` §3 keys its `cards` short path on the lane the diff
      * really classifies as. Before `--plan` the only way to read that lane
      * was to RUN the gate, which is the pre-PR gate ADR 0136 §1 retired —
      * so the short path would have been keyed on a session's judgment

@@ -12,7 +12,7 @@ an agent's context automatically — these are read on demand.
 
 | Guide                                           | Answers                                                                                                                                                      |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [next-issue flow](next-issue-flow.md)           | The pipeline after ADR 0136 drawn: one session's stages, the mutex, three sessions with the batch health (normal / peak / RED), before-and-after per landing |
+| [next-ticket flow](next-ticket-flow.md)         | The pipeline after ADR 0136 drawn: one session's stages, the mutex, three sessions with the batch health (normal / peak / RED), before-and-after per landing |
 | [Land and release](land-and-release.md)         | Ship a change: `wt:new`, `check:lane`, the PR, `land` onto the base branch; then `release` to production — every phase, every refusal                        |
 | [Browser verification](browser-verification.md) | Prove a UI change renders: CDP tooling, the viewport matrix, the occlusion probe, the receipt                                                                |
 | [UI runbooks](ui-runbooks.md)                   | Click sequences: solo game from cold, the active-game blocker, deck builder, debug scenarios                                                                 |

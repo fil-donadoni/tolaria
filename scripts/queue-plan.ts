@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// `bun run queue:plan` — print the next batch of the queue as JSON (`/next-issue`
+// `bun run queue:plan` — print the next batch of the queue as JSON (`/next-ticket`
 // consumes it with `--cap 1`).
 //
 // This wrapper holds NO decisions. It fetches, calls `planBatch`, and prints.

@@ -3,7 +3,7 @@
 // `sessions.cap` (ADR 0136 §7, issue #3775) was enforced by a READ: `queue:plan`
 // counted live `in-progress` claims and refused a plan at the cap, and the
 // session typed the claim itself later (`gh issue edit N --add-label
-// in-progress`, `/next-issue` §2). Nothing sat between the read and the write —
+// in-progress`, `/next-ticket` §2). Nothing sat between the read and the write —
 // `claim-ledger.sh` observes and never blocks, `deny-guard.sh` had no rule on
 // the label — so the window was the whole §0→§2 of the skill, and the observed
 // `4/3 live claims` (2026-09-22) was this design working as written: the
@@ -64,7 +64,7 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
             refusal: "claimed",
             message:
                 `issue #${input.issue} is already claimed by a live session — pick the next issue instead ` +
-                `(\`/next-issue\` §2; a claim with no branch and no PR is released by \`loop:doctor\`, not by hand).`,
+                `(\`/next-ticket\` §2; a claim with no branch and no PR is released by \`loop:doctor\`, not by hand).`,
         };
     }
     return capRefusal(
@@ -109,7 +109,7 @@ export interface StaleRuleIssue {
  * The set is a SUPERSET of the planner's `activeClaims`, deliberately: the
  * planner reads only its `ready-for-agent` snapshot and skips a `prd` row,
  * while a live session is a live session whether or not its issue still
- * carries `ready-for-agent` (a hand-picked `/next-issue N`, a slice filed
+ * carries `ready-for-agent` (a hand-picked `/next-ticket N`, a slice filed
  * without the label). So the verb can refuse where the planner admitted —
  * never the reverse, which is the safe direction for a cap.
  */
@@ -232,7 +232,7 @@ export interface ClaimRow {
  * field a reader may use to tell the two writers apart.
  *
  * `planned` is the admitted batch of the latest plan for this session, or
- * `null` when no plan preceded the claim (an interactive `/next-issue N` with
+ * `null` when no plan preceded the claim (an interactive `/next-ticket N` with
  * an explicit number, a hand run). A claim outside the plan is REPORTED in the
  * row, never blocked — the same contract the hook had.
  */

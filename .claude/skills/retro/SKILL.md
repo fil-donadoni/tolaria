@@ -37,7 +37,7 @@ sentence would have made this session cheaper, or prevented its mistake?**
 | Class      | Becomes                                                                                                                                                             |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | mechanical | a gated script, hook or lint, at the tier its measured cost puts it in (`docs/agents/quality-gates.md` § Guard tier is measured cost). Measure it; state the number |
-| judgement  | a standard handed to the reviewer `/next-issue` spawns (`.claude/skills/next-issue/SKILL.md` § 4) — never a resident line                                           |
+| judgement  | a standard handed to the reviewer `/next-ticket` spawns (`.claude/skills/next-ticket/SKILL.md` § 4) — never a resident line                                         |
 | no-op      | a deletion: an instruction nothing in the session obeyed or needed                                                                                                  |
 
 ## Categories — each with its "use when"

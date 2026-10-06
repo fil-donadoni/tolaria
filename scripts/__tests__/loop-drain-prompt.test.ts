@@ -55,7 +55,7 @@ describe("--prompt — the prompt each pass runs", () => {
         return fs.readFileSync(argvFile, "utf8").trim().split("\n");
     };
 
-    it("defaults to /next-issue with the resolved issue appended and its tier injected (#3083)", () => {
+    it("defaults to /next-ticket with the resolved issue appended and its tier injected (#3083)", () => {
         // The default path is the single-session pipeline (ADR 0110), and the
         // pass is HANDED its issue and its tier rather than re-deriving both
         // from inside the model's context. The default `bun` stub answers the
@@ -66,7 +66,7 @@ describe("--prompt — the prompt each pass runs", () => {
             "arg=sonnet",
             ...SESSION_ID_ARGV,
             "arg=-p",
-            "arg=/next-issue 101",
+            "arg=/next-ticket 101",
             "arg=x",
         ]);
     });

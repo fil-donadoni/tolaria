@@ -1,5 +1,5 @@
 2026-09-26 15:53:12 loop-handoff[run]: AFK run armed with CLAUDE_ARGS=--dangerously-skip-permissions
-2026-09-26 15:53:12 loop-handoff[run]: every pass will run: /next-issue on the issue and tier the driver resolves for it (unscoped)
+2026-09-26 15:53:12 loop-handoff[run]: every pass will run: /next-ticket on the issue and tier the driver resolves for it (unscoped)
 2026-09-26 15:53:12 loop-handoff[warn]: WARNING — this run answers every permission prompt automatically.
 2026-09-26 15:53:12 loop-drain[run]: run 1790430792-59822 — budget 140000000 weighted tokens, --max-pct 100% ⇒ effective ceiling 140000000 tokens, counted from this launch over this run's own passes only.
 2026-09-26 15:53:12 loop-drain: waiting 45s before the first pass (handoff grace period).

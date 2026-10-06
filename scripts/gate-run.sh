@@ -35,14 +35,14 @@
 # **The caller still owns the tool timeout.** 480s is under the tool's 600s
 # MAXIMUM, not under its 120s DEFAULT — a call issued without an explicit
 # `timeout` is promoted at 120s however patient this script is. The rule in
-# `.claude/hooks/deny-guard.sh` § 3b and `.claude/skills/next-issue/SKILL.md`
+# `.claude/hooks/deny-guard.sh` § 3b and `.claude/skills/next-ticket/SKILL.md`
 # says to pass `timeout: 600000`; `TOLARIA_GATE_RUN_WAIT_SECS` is the knob for
 # a caller that cannot.
 #
 # WHY NOT `run_in_background`. It throws the verdict away — see
 # `.claude/hooks/deny-guard.sh` § 3b, which denies that shape and names this
 # script as the sanctioned one. The rule is stated identically there and in
-# `.claude/skills/next-issue/SKILL.md`;
+# `.claude/skills/next-ticket/SKILL.md`;
 # `scripts/__tests__/gate-rule-parity.test.ts` fails if the two texts drift.
 #
 # ONE LIVE RUN PER (cwd, script) (issue #4940). The run key is the caller's

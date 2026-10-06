@@ -800,7 +800,7 @@ function refreshIssueMeta(db: Sqlite): number {
     // issue a session worked now lives in its opening slash command, and 87% of
     // the cost is main-thread. Fetching only the agent_runs side left the
     // per-issue budget report (issue #3080) unable to say whether an issue was
-    // even closed — 20 of 57 `/next-issue` issues had a row. Session-named
+    // even closed — 20 of 57 `/next-ticket` issues had a row. Session-named
     // issues are stubbed with a NULL state so the fetch loop below claims them;
     // a number that turns out not to be an issue is stamped 'unknown' by the
     // 404 branch and stops eating fetch slots, exactly as a misread PR ref does.

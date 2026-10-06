@@ -2,7 +2,7 @@
 // #4178): a pure function from a finding or a class to the text a Claude Code
 // session starts from. Two branches, chosen by the class's state:
 //
-//   - the class carries an issue → `/next-issue <N>` plus the context the issue
+//   - the class carries an issue → `/next-ticket <N>` plus the context the issue
 //     cannot carry (the card in focus, the reproducer, the measurement sha and
 //     Bot hash);
 //   - it does not → a filing-ready brief.
@@ -79,7 +79,7 @@ export function findingPayload(
     ];
     if (cls?.issue !== undefined)
         return [
-            `/next-issue ${cls.issue}`,
+            `/next-ticket ${cls.issue}`,
             "",
             "Context the issue cannot carry:",
             ...context.map((line) => (line === "" ? line : `- ${line}`)),
@@ -122,7 +122,7 @@ export function classPayload(
     ];
     if (cls.issue !== undefined)
         return [
-            `/next-issue ${cls.issue}`,
+            `/next-ticket ${cls.issue}`,
             "",
             "Context the issue cannot carry:",
             ...context.map((line) => `- ${line}`),

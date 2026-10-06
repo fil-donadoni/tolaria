@@ -25,7 +25,7 @@ Look for opportunities to prefactor the code to make the implementation easier. 
 
 Break the work into **tracer bullet** tickets.
 
-Tickets may be **HITL** or **AFK**. HITL tickets require human interaction — an architectural decision, a design review, a manual verification step. AFK tickets can be implemented and merged without human interaction (the `/next-issue` driver can grab them). Prefer AFK over HITL where possible.
+Tickets may be **HITL** or **AFK**. HITL tickets require human interaction — an architectural decision, a design review, a manual verification step. AFK tickets can be implemented and merged without human interaction (the `/next-ticket` driver can grab them). Prefer AFK over HITL where possible.
 
 <vertical-slice-rules>
 
@@ -95,7 +95,7 @@ Do **not** put `ready-for-agent` on the umbrella itself — it is a spec, not a 
 
 **Stamp every ticket at filing (GitHub tracker)** — the rule is `docs/agents/triage-labels.md` § Every new issue is stamped at filing, not restated here: a type (`bug` / `enhancement`) and exactly one `area:*` on every ticket, always; a `## Band` section in the body only on a ticket with no prioritised parent — a ticket wired under a prioritised umbrella takes its band from it and needs none. The calling skill hands you the area when it knows it; otherwise pick the one the ticket's files live in. Example: `gh issue create --title "…" --body "…" --label enhancement --label area:workflow --label ready-for-agent`.
 
-**Stamp the implement-model label by complexity (GitHub tracker).** `/next-issue` runs each ticket on the tier named by its `model:*` label, defaulting to **Sonnet** when none is present (`docs/agents/triage-labels.md` § Model-routing labels). Sonnet is safe for the bulk of work and the opus reviewer + full gate + catalogue guards catch correctness regressions — but a diff-review is weak at catching a **wrong abstraction**, so the one thing worth deciding here (where the design context is freshest) is: does this ticket set a pattern others will copy? Apply exactly one label:
+**Stamp the implement-model label by complexity (GitHub tracker).** `/next-ticket` runs each ticket on the tier named by its `model:*` label, defaulting to **Sonnet** when none is present (`docs/agents/triage-labels.md` § Model-routing labels). Sonnet is safe for the bulk of work and the opus reviewer + full gate + catalogue guards catch correctness regressions — but a diff-review is weak at catching a **wrong abstraction**, so the one thing worth deciding here (where the design context is freshest) is: does this ticket set a pattern others will copy? Apply exactly one label:
 
 - `model:opus` — the ticket introduces a **new Op / primitive / cross-layer interaction / a shape later tickets will imitate**. Design mistakes here propagate; pay for the stronger implementer.
 - `model:fable` — **only** for genuinely architecture-setting work (a new subsystem, an ADR-level decision baked into code). Rare.
@@ -161,4 +161,4 @@ Scheduling metadata, NOT implementation spec (exception to the no-file-paths rul
 
 In either form, avoid specific file paths or code snippets — they go stale fast. Exception: if a prototype produced a snippet that encodes a decision more precisely than prose can (state machine, reducer, schema, type shape), inline it and note briefly that it came from a prototype. Trim to the decision-rich parts — not a working demo, just the important bits.
 
-Work the frontier one ticket at a time with `/next-issue`, clearing context between tickets.
+Work the frontier one ticket at a time with `/next-ticket`, clearing context between tickets.

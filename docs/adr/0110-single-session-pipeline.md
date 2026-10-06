@@ -42,7 +42,7 @@ holds**: latency in issue #3079, cost share in issue #3080 — see Consequences.
 
 ## Decision
 
-1. **One session, one issue, no orchestrator.** The `/next-issue` skill runs
+1. **One session, one issue, no orchestrator.** The `/next-ticket` skill runs
    the whole chain in the invoking session: pick (board priority via
    `queue:plan --cap 1`) → claim (`in-progress` label) → ephemeral worktree →
    implement → targeted tests → one review round → fix in-context → PR →
@@ -83,12 +83,12 @@ holds**: latency in issue #3079, cost share in issue #3080 — see Consequences.
   projection held and the "inside the 0.5% target" claim did not** — see the
   cost-share consequence below.
 - `/process-gh-issues` and its fan-out machinery are legacy: kept working for
-  the transition, scheduled for removal once `/next-issue` has drained real
+  the transition, scheduled for removal once `/next-ticket` has drained real
   issues for a while. Receipts, claims-cross-checking and the merge-train
   retire with it.
 - **Latency, measured (issue #3079).** The 10-15 minute target was never
   checked and is not reachable in this shape. Over 2026-08-28 → 2026-09-05,
-  58 `/next-issue` sessions: **85.4m median wall, 67.3m median machine time**
+  58 `/next-ticket` sessions: **85.4m median wall, 67.3m median machine time**
   (tool 40.8m, model 24.0m — each its own median, so the parts do not sum), of
   which 26.6m is gate/test/build and only 14.3m is human idle. Deleting every
   gate still leaves a 40.4m machine floor. The
@@ -104,7 +104,7 @@ holds**: latency in issue #3079, cost share in issue #3080 — see Consequences.
   48h. `bun run telemetry:budget` now reports consumption as a share of a
   declared weekly allowance (absent ⇒ "share unavailable", never a percentage),
   per issue as median/p90/max. Over 2026-08-28 → 2026-09-05, 49 closed
-  `/next-issue` issues: **0.70-0.98% of the weekly allowance at the median**
+  `/next-ticket` issues: **0.70-0.98% of the weekly allowance at the median**
   across the two defensible calibrations of that incident — 1.4x to 2.0x the
   target, with p90 1.5-2.1% and max 2.1-2.9%. A 0.5% median needs an allowance
   of at least 2.12G units, which would put the incident's measured 48h at 46%

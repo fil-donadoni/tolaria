@@ -19,7 +19,7 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/agents-md-drift.test.ts",
     "scripts/__tests__/bot-globs.test.ts",
     // Issue #4686: asserts that `convex/CLAUDE.md` § Card testing convention
-    // and the `/next-issue` skill name the test-hygiene census and its
+    // and the `/next-ticket` skill name the test-hygiene census and its
     // allow-list — prose the docs lane carries on its own, so the lane that
     // merges a rewrite of either has to be the lane that re-runs this.
     "scripts/__tests__/check-test-hygiene.test.ts",
@@ -48,7 +48,7 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/destructive-data-recipes.test.ts",
     "scripts/__tests__/findings.test.ts",
     // The ONE gate-running rule, held in two files at once (issue #3698):
-    // `.claude/hooks/deny-guard.sh` § 3b and the `/next-issue` skill. Both
+    // `.claude/hooks/deny-guard.sh` § 3b and the `/next-ticket` skill. Both
     // copies are prose the docs lane will carry on its own, and the whole
     // point of the guard is that they cannot drift — so the lane that merges
     // an edit to either has to be the lane that re-runs it.

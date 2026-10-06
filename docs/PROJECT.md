@@ -1232,7 +1232,7 @@ scripts/
 ├── bootstrap-worktree.ts   `bun run worktree:init`
 ├── check-card-index.ts check-stub-coverage.ts
 ├── queue-plan.ts queue-claim.ts queue-lint.ts   la coda (ADR 0110/0136)
-├── loop-drain.sh loop-handoff.sh loop-doctor.ts loop-status.ts   il driver AFK di /next-issue
+├── loop-drain.sh loop-handoff.sh loop-doctor.ts loop-status.ts   il driver AFK di /next-ticket
 └── list-to-cards.mjs       importer worklist (ADR 0041)
 
 data/

@@ -1,4 +1,4 @@
-# /next-issue — an issue this session files inherits its band
+# /next-ticket — an issue this session files inherits its band
 
 Reached from `SKILL.md` when you are about to run `gh issue create`.
 

@@ -1,4 +1,4 @@
-# /next-issue — why the context-hygiene habits exist
+# /next-ticket — why the context-hygiene habits exist
 
 Reached from `SKILL.md` when a habit seems not to fit your case. This file
 carries the reasoning; the numbers live with their owners and are cited, not
@@ -8,7 +8,7 @@ restated:
   re-derives both: `docs/agents/quality-gates.md` § Context hygiene — the
   measurement, and why it is not a gate;
 - the incidents behind the pass's own rules: `docs/agents/quality-gates.md`
-  § `/next-issue` — the incidents behind its rules.
+  § `/next-ticket` — the incidents behind its rules.
 
 ## The cost model
 

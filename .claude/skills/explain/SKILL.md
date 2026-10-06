@@ -41,14 +41,14 @@ narrow scope and widens only as far as the learner pulls it.
 Orientation, not a closed list. Whatever the topic, find its entry point
 first, then go to the code.
 
-| Area          | Example topics                                                              | Start from                                                        |
-| ------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| Engine (GRE)  | action flow, stack/priority, PendingChoice, layers, replacements, SBAs      | `docs/PROJECT.md` § 3, § 5; `convex/CLAUDE.md`                    |
-| Cards         | Effect Script DSL, Mechanics Registry, Oracle compiler, Grammar Rules       | `docs/PROJECT.md` § 6; ADR 0045/0046/0137                         |
-| Bot           | Brain, search, `evaluate`, Verdicts → Weight Fit, blade, Held-out Agreement | `/bot-change`, `docs/guides/bot-glossary.md`, ADR 0124/0128/0138  |
-| Frontend      | projections, client reducers, GameContext, check:ui                         | `docs/PROJECT.md` § 7; `src/CLAUDE.md`                            |
-| Data / Convex | `gameStates` + `gameTicks`, serialization, bundle and heap budgets          | `docs/PROJECT.md` § 4; `convex/_generated/ai/guidelines.md`       |
-| Workflow      | queue and claims, worktrees, lanes, `land`, batch health, release           | `docs/guides/next-issue-flow.md`, `land-and-release.md`, ADR 0136 |
+| Area          | Example topics                                                              | Start from                                                         |
+| ------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Engine (GRE)  | action flow, stack/priority, PendingChoice, layers, replacements, SBAs      | `docs/PROJECT.md` § 3, § 5; `convex/CLAUDE.md`                     |
+| Cards         | Effect Script DSL, Mechanics Registry, Oracle compiler, Grammar Rules       | `docs/PROJECT.md` § 6; ADR 0045/0046/0137                          |
+| Bot           | Brain, search, `evaluate`, Verdicts → Weight Fit, blade, Held-out Agreement | `/bot-change`, `docs/guides/bot-glossary.md`, ADR 0124/0128/0138   |
+| Frontend      | projections, client reducers, GameContext, check:ui                         | `docs/PROJECT.md` § 7; `src/CLAUDE.md`                             |
+| Data / Convex | `gameStates` + `gameTicks`, serialization, bundle and heap budgets          | `docs/PROJECT.md` § 4; `convex/_generated/ai/guidelines.md`        |
+| Workflow      | queue and claims, worktrees, lanes, `land`, batch health, release           | `docs/guides/next-ticket-flow.md`, `land-and-release.md`, ADR 0136 |
 
 ## Ground truth — the code at HEAD, never memory
 
@@ -81,7 +81,7 @@ This skill is **read-only**. It explains; it never edits code, opens a
 worktree, or files an issue. Running a read-only command to _show_
 something live (a report, a dry-run, a `--help`) is fine and often the
 best example there is. If the learner wants to change something, that's a
-different session (`/next-issue`, `/bot-change`, `/create-ticket`, …).
+different session (`/next-ticket`, `/bot-change`, `/create-ticket`, …).
 
 ## The teaching arc — concentric rings
 
