@@ -748,6 +748,7 @@ export default function Board({
                                                     allPlayers={allPlayers}
                                                     match={match ?? null}
                                                     viewerId={playerId}
+                                                    gameId={gameId}
                                                 />
                                             )}
                                             <PauseMenuDialog

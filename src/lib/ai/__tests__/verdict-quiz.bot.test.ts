@@ -137,6 +137,15 @@ function traceFor(state: GameState, botId: string, chosen: Move) {
     };
 }
 
+/** The ring's feed (issue #3986): a traced decision and the board it was
+ *  taken on. */
+function quizOfTrace(
+    trace: ReturnType<typeof traceFor>,
+    source: AiTraceSource
+) {
+    return buildVerdictQuiz({ kind: "trace", trace, source });
+}
+
 const MAIN_PHASE: ScenarioSpec = {
     cards: [
         { name: "Mountain", owner: "me", zone: "battlefield" },
@@ -249,10 +258,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             expect(moves.length).toBeGreaterThan(1);
             const chosen = moves.find((m) => m.kind === "pass") ?? moves[0];
 
-            const result = buildVerdictQuiz(
-                traceFor(state, botId, chosen),
-                source
-            );
+            const result = quizOfTrace(traceFor(state, botId, chosen), source);
             expect(result.ok).toBe(true);
             if (!result.ok) return;
             const { quiz } = result;
@@ -304,10 +310,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         // two lists through it refused this whole class of decision.
         expect(describeMove(chosen!, state)).toContain("Tessa");
 
-        const result = buildVerdictQuiz(
-            traceFor(state, botId, chosen!),
-            source
-        );
+        const result = quizOfTrace(traceFor(state, botId, chosen!), source);
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         const { quiz } = result;
@@ -338,7 +341,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         const { state, botId, source } = position(OPPONENT_HOLDS_CARDS);
         const liveOppHand = state.players[1].hand.length;
         expect(liveOppHand).toBe(2);
-        const result = buildVerdictQuiz(
+        const result = quizOfTrace(
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             source
         );
@@ -408,13 +411,10 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         expect(moves.length).toBeGreaterThan(1);
         const chosen = moves.find((m) => m.kind === "pass") ?? moves[0];
 
-        const result = buildVerdictQuiz(
-            traceFor(state, respondingSeat, chosen),
-            {
-                state: projectPublicState(state, SEQ, respondingSeat),
-                botId: respondingSeat,
-            }
-        );
+        const result = quizOfTrace(traceFor(state, respondingSeat, chosen), {
+            state: projectPublicState(state, SEQ, respondingSeat),
+            botId: respondingSeat,
+        });
         expect(result.ok).toBe(true);
         if (!result.ok) return;
         const { quiz } = result;
@@ -471,7 +471,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         const chosen =
             moves.find((m) => m.kind === "declare-blockers") ?? moves[0];
 
-        const result = buildVerdictQuiz(traceFor(state, defenderId, chosen), {
+        const result = quizOfTrace(traceFor(state, defenderId, chosen), {
             state: projectPublicState(state, SEQ, defenderId),
             botId: defenderId,
         });
@@ -506,7 +506,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         // catalogue cannot place would fail HERE, at the tester's gesture, and
         // this is what says it does not.
         const { state, botId, source } = position(OPPONENT_HOLDS_CARDS);
-        const result = buildVerdictQuiz(
+        const result = quizOfTrace(
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             source
         );
@@ -555,7 +555,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
         // produce one, and this is what says so about the list the quiz builds
         // rather than about the enumerator in the abstract.
         const { state, botId, source } = position(DECLARE_ATTACKERS);
-        const result = buildVerdictQuiz(
+        const result = quizOfTrace(
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             source
         );
@@ -604,7 +604,7 @@ describe("buildVerdictQuiz — a judgement the fit can still read (issue #3405)"
             expect: { moves: [] },
         });
         const botId = state.players[0].id;
-        const result = buildVerdictQuiz(
+        const result = quizOfTrace(
             traceFor(state, botId, candidateMoves(state, botId)[0]),
             { state: projectPublicState(state, SEQ, botId), botId }
         );
@@ -650,10 +650,7 @@ describe("buildVerdictQuiz — a face-down card the Bot may not look at (issue #
         const moves = candidateMoves(state, botId);
         expect(moves.length).toBeGreaterThan(1);
 
-        const result = buildVerdictQuiz(
-            traceFor(state, botId, moves[0]),
-            source
-        );
+        const result = quizOfTrace(traceFor(state, botId, moves[0]), source);
 
         expect(result.ok).toBe(false);
         if (result.ok) return;

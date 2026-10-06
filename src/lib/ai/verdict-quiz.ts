@@ -21,7 +21,9 @@ import {
 import type { VerdictCandidate } from "@convex/gre/ai/verdicts/types";
 import type { ScenarioSpec } from "@convex/debugScenarioSpec";
 import type { DecisionTrace } from "@convex/gre";
+import { describeMove } from "@convex/gre/describeMove";
 import type { AiTraceSource } from "./trace-store";
+import type { VerdictProposal } from "./verdict-proposals";
 
 export { QUIZ_SEAT };
 export type { VerdictRefusalKind };
@@ -44,7 +46,51 @@ export type VerdictQuiz = {
      *  on a position missing one of those is a judgement about a DIFFERENT
      *  board, so the quiz shows this rather than burying it. */
     dropped: string[];
+    /** Which candidate the PLAYER made, when the decision being judged was
+     *  theirs (a Verdict Proposal, issue #3986) and the rebuild offers it.
+     *  Display only: it is never submitted, so a Verdict given on a proposal
+     *  is the same record as one given on the Bot's own decision. */
+    playerPickIndex?: number;
 };
+
+/**
+ * Where a quiz's decision comes from (issue #3986) — the two feeds of the one
+ * builder below:
+ *
+ * - `trace`: a Bot decision from the debug ring (`trace-store.ts`), judged
+ *   while the game is on.
+ * - `proposal`: a decision the HUMAN seat made, offered back after the game
+ *   (`verdict-proposals.ts`). The "Bot pick" is the Brain's own move on the
+ *   same view, so `botPickIndex` means the same thing in both feeds and the
+ *   stored Verdict cannot tell them apart.
+ */
+export type QuizFeed =
+    | { kind: "trace"; trace: DecisionTrace; source: AiTraceSource }
+    | { kind: "proposal"; proposal: VerdictProposal };
+
+/** One decision to judge, as the quiz panel takes it (issue #3986). */
+export type QuizSubject = {
+    /** The decision's identity in its feed, named by a copied refusal. */
+    id: number;
+    /** The state version the decision was taken at, when known. */
+    seq?: number;
+    /** What to build the quiz from, or `null` when the feed no longer holds
+     *  the position (a ring entry pushed without its board). STABLE across
+     *  renders: the panel rebuilds whenever it changes. */
+    feed: QuizFeed | null;
+};
+
+/** The post-game feed: proposal `index` of the game's list. */
+export function proposalQuizSubject(
+    proposal: VerdictProposal,
+    index: number
+): QuizSubject {
+    return {
+        id: index + 1,
+        seq: proposal.source.state.seq,
+        feed: { kind: "proposal", proposal },
+    };
+}
 
 /**
  * Why the quiz could not be built — the PANEL's vocabulary, which is the
@@ -234,31 +280,57 @@ export type VerdictQuizResult =
     | { ok: false; refusal: VerdictQuizRefusal };
 
 /**
- * Lower one traced decision into a quiz, or say why it cannot be one.
+ * Lower one decision into a quiz, or say why it cannot be one — from either
+ * feed (issue #3986).
  *
- * `source` is what the consult was called with; the position is reconstructed
- * from it by the same `projectedToGameState` the Brain uses, so the board
- * judged here is the board the search ran on — including what the Bot was not
- * allowed to know.
+ * The position is reconstructed from the feed's source by the same
+ * `projectedToGameState` the Brain uses, so the board judged here is the board
+ * the search ran on — including what the deciding seat was not allowed to know.
+ * A trace already carries its pick as `describeMove`'s sentence; a proposal
+ * carries `Move`s, described here on that same position.
  */
-export function buildVerdictQuiz(
-    trace: DecisionTrace,
-    source: AiTraceSource
-): VerdictQuizResult {
+export function buildVerdictQuiz(feed: QuizFeed): VerdictQuizResult {
+    const source = feed.kind === "trace" ? feed.source : feed.proposal.source;
     const position = projectedToGameState(
         source.state,
         source.knowledge,
         source.botId
     );
-    const outcome = lowerDecision(position, source.botId, trace.chosen);
-    return outcome.ok
-        ? { ok: true, quiz: outcome.lowered }
-        : {
-              ok: false,
-              refusal: quizRefusal(
-                  outcome.kind,
-                  outcome.error,
-                  outcome.dropped
-              ),
-          };
+    const chosen =
+        feed.kind === "trace"
+            ? feed.trace.chosen
+            : describeMove(feed.proposal.brainMove, position);
+    const outcome = lowerDecision(position, source.botId, chosen);
+    if (!outcome.ok) {
+        return {
+            ok: false,
+            refusal: quizRefusal(outcome.kind, outcome.error, outcome.dropped),
+        };
+    }
+    if (feed.kind === "trace") return { ok: true, quiz: outcome.lowered };
+
+    // The player's own move, carried to the rebuilt list the same way the
+    // Bot's is — by lowering it as the pick. An agreeing proposal is the same
+    // candidate; one the rebuild does not offer is simply left unmarked.
+    const played = describeMove(feed.proposal.humanMove, position);
+    const playerPickIndex =
+        feed.proposal.agrees || played === chosen
+            ? outcome.lowered.botPickIndex
+            : lowerPlayerPick(position, source.botId, played);
+    return {
+        ok: true,
+        quiz: {
+            ...outcome.lowered,
+            ...(playerPickIndex === undefined ? {} : { playerPickIndex }),
+        },
+    };
+}
+
+function lowerPlayerPick(
+    position: ReturnType<typeof projectedToGameState>,
+    seatId: string,
+    played: string
+): number | undefined {
+    const outcome = lowerDecision(position, seatId, played);
+    return outcome.ok ? outcome.lowered.botPickIndex : undefined;
 }

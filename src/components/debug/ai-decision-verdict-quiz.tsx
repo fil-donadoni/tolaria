@@ -1,4 +1,7 @@
-// The verdict quiz for one Bot decision (issue #3405, PRD #3397, ADR 0124 §1).
+// The verdict quiz for one decision (issue #3405, PRD #3397, ADR 0124 §1) —
+// a Bot decision from the debug ring, or one of the player's own decisions
+// offered back after the game as a Verdict Proposal (issue #3986). Both reach
+// it as a `QuizSubject`; what it submits does not depend on which.
 //
 // "Which move here?" — the candidate list the decision's position offers, the
 // Bot's own pick marked, and two gestures: confirm it (one tap) or name another
@@ -16,11 +19,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { AiTraceRecord } from "~/lib/ai/trace-store";
-import { getAiTraceSource, markAiTraceJudged } from "~/lib/ai/trace-store";
 import {
     QUIZ_SEAT,
     quizRefusal,
+    type QuizSubject,
     type VerdictQuiz,
     type VerdictQuizRefusal,
 } from "~/lib/ai/verdict-quiz";
@@ -40,10 +42,14 @@ type QuizState =
     | { status: "ready"; quiz: VerdictQuiz };
 
 export default function AiDecisionVerdictQuiz({
-    record,
+    subject,
+    onJudged,
     onClose,
 }: {
-    record: AiTraceRecord;
+    subject: QuizSubject;
+    /** Everything the judge owed is stored; `author` is the judge's nickname,
+     *  given only to an admin. */
+    onJudged: (author?: string) => void;
     onClose: () => void;
 }) {
     const currentUser = useQuery(api.users.currentUser);
@@ -53,8 +59,9 @@ export default function AiDecisionVerdictQuiz({
     // all, and that is knowable on the first render — so it is the INITIAL
     // state rather than something an effect corrects afterwards. The only
     // asynchronous part is loading the builder chunk below.
+    const { feed } = subject;
     const [state, setState] = useState<QuizState>(() =>
-        getAiTraceSource(record.id)
+        feed
             ? { status: "loading" }
             : {
                   status: "unbuildable",
@@ -80,14 +87,13 @@ export default function AiDecisionVerdictQuiz({
         // A decision pushed without its board — an older ring entry, or a
         // consult that had none. Already said out loud by the initial state
         // above; there is nothing to load.
-        const source = getAiTraceSource(record.id);
-        if (!source) return;
+        if (!feed) return;
         void import("~/lib/ai/verdict-quiz")
             .then(({ buildVerdictQuiz }) => {
                 if (cancelled) return;
                 // A decision taken over a stack lowers like any other since
                 // issue #3514: the stack travels in `spec.stack`.
-                const result = buildVerdictQuiz(record.trace, source);
+                const result = buildVerdictQuiz(feed);
                 setState(
                     result.ok
                         ? { status: "ready", quiz: result.quiz }
@@ -109,15 +115,12 @@ export default function AiDecisionVerdictQuiz({
         return () => {
             cancelled = true;
         };
-    }, [record]);
+    }, [feed]);
 
     function finish() {
         // Who judged it is shown to an admin only — a tester sees nothing
         // but their own judgements, so their own name tells them nothing.
-        markAiTraceJudged(
-            record.id,
-            currentUser?.isAdmin ? currentUser.nickname : undefined
-        );
+        onJudged(currentUser?.isAdmin ? currentUser.nickname : undefined);
         onClose();
     }
 
@@ -136,7 +139,7 @@ export default function AiDecisionVerdictQuiz({
                 answer: { kind: "right", rightIndexes: [rightIndex] },
                 botPickIndex: state.quiz.botPickIndex,
                 ...(gameId ? { gameId } : {}),
-                ...(record.seq === undefined ? {} : { seq: record.seq }),
+                ...(subject.seq === undefined ? {} : { seq: subject.seq }),
             });
             finish();
         } catch (cause: unknown) {
@@ -163,8 +166,8 @@ export default function AiDecisionVerdictQuiz({
             <AiDecisionQuizRefusal
                 refusal={state.refusal}
                 decision={{
-                    id: record.id,
-                    ...(record.seq === undefined ? {} : { seq: record.seq }),
+                    id: subject.id,
+                    ...(subject.seq === undefined ? {} : { seq: subject.seq }),
                 }}
                 onClose={onClose}
             />
@@ -173,6 +176,7 @@ export default function AiDecisionVerdictQuiz({
 
     const { quiz } = state;
     const botPickIndex = quiz.botPickIndex;
+    const playerPickIndex = quiz.playerPickIndex;
 
     if (ruling && selected !== null) {
         return (
@@ -180,7 +184,7 @@ export default function AiDecisionVerdictQuiz({
                 <AiDecisionQuizWrongMove
                     quiz={quiz}
                     wrongIndex={selected}
-                    seq={record.seq}
+                    seq={subject.seq}
                     onDone={finish}
                     onBack={() => setRuling(false)}
                 />
@@ -217,6 +221,15 @@ export default function AiDecisionVerdictQuiz({
             >
                 The Bot was right
             </DebugButton>
+            {playerPickIndex !== undefined &&
+                playerPickIndex !== botPickIndex && (
+                    <DebugButton
+                        onClick={() => void submit(playerPickIndex)}
+                        disabled={submitting}
+                    >
+                        My move was right
+                    </DebugButton>
+                )}
 
             <ul className="flex flex-col gap-0.5">
                 {quiz.candidates.map((candidate, index) => (
@@ -224,6 +237,10 @@ export default function AiDecisionVerdictQuiz({
                         key={candidate.key}
                         description={candidate.description}
                         isBotPick={index === botPickIndex}
+                        isPlayerPick={index === playerPickIndex}
+                        {...(feed?.kind === "proposal"
+                            ? { botPickLabel: "Bot's pick" }
+                            : {})}
                         selected={index === selected}
                         disabled={submitting}
                         onSelect={() => setSelected(index)}
