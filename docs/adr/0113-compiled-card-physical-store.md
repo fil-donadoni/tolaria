@@ -711,7 +711,7 @@ same `toSearchIndexRow` the catalogue exposes, gated fresh), fetched only by
 the deck builder. It stays out of the packed corpus because the server reads
 that file per call and searches nothing.
 
-Measured with `bun run check:client-heap` (Node V8, a proxy) for one game load,
+Measured with `bun run measure:client-heap` (Node V8, a proxy) for one game load,
 50 compiled cards resolved: the catalogue costs **3.2 MiB** at 4,360 rows and
 **11.7 MiB** at 35,000 synthetic rows, the same in the page and in the Bot
 worker — against ~30 MB each for the hydration it replaces. The price is the

@@ -33,7 +33,7 @@ import { SEARCH_INDEX_PATH } from "../lib/search-index";
  *
  * WHAT CROSSING MEANS: these are DISCLOSURE triggers at ~2.6x today, not
  * walls. Crossing one means the download has roughly tripled since it was
- * last measured: re-measure (`bun run check:client-heap` for the heap,
+ * last measured: re-measure (`bun run measure:client-heap` for the heap,
  * the browser for the fetch), restate the numbers above, and set the ceiling
  * from that measurement — never raise it to get a green run.
  */
