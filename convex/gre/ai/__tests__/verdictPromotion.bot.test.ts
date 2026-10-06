@@ -15,6 +15,8 @@
 //
 // The guard half — a lock without its weights is red — is in
 // `weightFit.bot.test.ts`, beside the guard.
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { BLADE_SCENARIOS } from "../blade/registry";
@@ -40,8 +42,11 @@ import {
     encodeVerdictPack,
     evalPairsOf,
     formatStoreValidation,
+    EVAL_WEIGHTS_PATH,
+    parsePromotionStreakLedger,
     parseVerdictLock,
     parseVerdictPack,
+    serializePromotionStreakLedger,
     planPromotion,
     positionKeyOf,
     serializeVerdictLock,
@@ -555,6 +560,89 @@ describe("verdicts:testers — the engine step (issue #3585)", () => {
         expect(out.text).toMatch(/contradicted : 1/);
         expect(out.text).toMatch(/quarantined {2}: 1/);
         expect(out.text).toContain("attestation problems: 0");
+    });
+
+    it("verdicts:promote advances the streak ledger and appends the Admission Candidates; a no-op reads the ledger and advances nothing (issue #3985)", async () => {
+        const [held] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        const heldId = await stored(store, held, [
+            ["dev-a:owner1", "explicit"],
+        ]);
+        await putAlias(store, { authors: ["prod-b:owner2", "dev-a:owner1"] });
+        const admission = {
+            minPersons: 2,
+            ownerPersons: ["prod-b:owner2"],
+            minConsecutivePromotions: 1,
+            seeds: [1],
+            iterations: 30,
+        };
+        const snapshot = async () => ({
+            evalWeightsSource: readFileSync(
+                resolve(__dirname, "../../../..", EVAL_WEIGHTS_PATH),
+                "utf8"
+            ),
+            verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+            attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+            aliasObjects: await b64(store, ALIAS_OBJECT_PREFIX),
+            admission,
+        });
+        const registry = JSON.stringify(BLADE_SCENARIOS);
+
+        const first = runVerdictPromotionStep(
+            {
+                mode: "promote",
+                lock: null,
+                streakLedger: null,
+                ...(await snapshot()),
+            },
+            []
+        );
+        if (first.mode !== "promote" || first.noop) {
+            throw new Error("expected a promotion that writes");
+        }
+        const ledger = parsePromotionStreakLedger(first.streakLedgerText);
+        expect(ledger).toEqual({
+            packHash: first.lock.packHash,
+            streaks: { [heldId]: 1 },
+        });
+        expect(first.text).toContain("== Admission Candidates");
+        expect(first.text).toMatch(/locked units\s+: 1/);
+        // The owner's alias cleared the persons bar and the streak bar, so the
+        // whole Bot was asked: one seed, whatever it picked.
+        expect(first.text).toMatch(/refused — persons\s+: 0/);
+        expect(first.text).toMatch(/refused — streak\s+: 0/);
+
+        const again = runVerdictPromotionStep(
+            {
+                mode: "promote",
+                lock: first.lockText,
+                streakLedger: first.streakLedgerText,
+                ...(await snapshot()),
+            },
+            []
+        );
+        expect(again).toMatchObject({ mode: "promote", noop: true });
+        expect(again).not.toHaveProperty("streakLedgerText");
+        expect(again.text).toContain(
+            "streak ledger          : read over the committed lock"
+        );
+        // Nothing the step reads is written back: the registry is code.
+        expect(JSON.stringify(BLADE_SCENARIOS)).toBe(registry);
+
+        const stale = runVerdictPromotionStep(
+            {
+                mode: "promote",
+                lock: first.lockText,
+                streakLedger: serializePromotionStreakLedger({
+                    ...ledger,
+                    packHash: "e".repeat(64),
+                }),
+                ...(await snapshot()),
+            },
+            []
+        );
+        expect(stale.text).toMatch(/every streak restarts at 0/);
+        expect(stale.text).toMatch(/refused — streak\s+: 1/);
     });
 
     it("says unsatisfied is not measured when no lock is committed, and lists an alias that does not read", async () => {

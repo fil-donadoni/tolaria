@@ -402,6 +402,14 @@ async function promoteOne(lever: Verdict) {
         evalWeightsSource: source,
         verdictObjects: await snapshot(VERDICT_OBJECT_PREFIX),
         attestationObjects: await snapshot(ATTESTATION_OBJECT_PREFIX),
+        // A bar no single promotion clears: the proposer searches nothing.
+        admission: {
+            minPersons: 1,
+            ownerPersons: [],
+            minConsecutivePromotions: 1000,
+            seeds: [1],
+            iterations: 1,
+        },
     });
     if (promoted.mode !== "promote" || promoted.noop) {
         throw new Error("expected a promotion that writes");

@@ -34,6 +34,7 @@ import {
     serializeVerdictLock,
 } from "../../convex/gre/ai/verdicts/lockSource";
 import { verdictPackObjectName } from "../../convex/gre/ai/verdicts/pack";
+import { PROMOTION_STREAK_PATH } from "../../convex/gre/ai/verdicts/promotionStreak";
 import {
     EVAL_WEIGHTS_PATH,
     planPromotion,
@@ -62,6 +63,7 @@ import {
 
 const WEIGHTS = "export const DEFAULT_EVAL_WEIGHTS = {};\n";
 const REFIT = "// refit\n";
+const LEDGER = "ledger over ";
 
 const judgement = (turn: number): VerdictJudgement => ({
     spec: { cards: [], phase: "PRECOMBAT_MAIN", turn },
@@ -111,6 +113,7 @@ async function engineStep(
         lock: plan.lock,
         lockText: serializeVerdictLock(plan.lock),
         evalWeightsSource: input.evalWeightsSource + REFIT,
+        streakLedgerText: `${LEDGER}${plan.lock.packHash}\n`,
     };
 }
 
@@ -256,6 +259,68 @@ describe("verdicts:promote — writes (issue #3583)", () => {
     });
 });
 
+describe("verdicts:promote — the streak ledger and the Admission Candidates (issue #3985)", () => {
+    const storeNames = (store: MemoryVerdictStore) =>
+        [...store.objects.keys()].sort();
+
+    it("writes the ledger with the lock and the weights — and nothing into the store but the pack", async () => {
+        const store = createMemoryVerdictStore();
+        await attested(store, 1);
+        const before = storeNames(store);
+        const root = checkout();
+
+        await runVerdictsPromote(ports(root, store).ports);
+
+        const lock = parseVerdictLock(read(root, VERDICT_LOCK_PATH)!);
+        expect(read(root, PROMOTION_STREAK_PATH)).toBe(
+            `${LEDGER}${lock.packHash}\n`
+        );
+        expect(storeNames(store)).toEqual(
+            [...before, verdictPackObjectName(lock.packHash)].sort()
+        );
+    });
+
+    it("leaves the ledger, the lock and the store as they were on a no-op", async () => {
+        const store = createMemoryVerdictStore();
+        await attested(store, 1);
+        const root = checkout();
+        await runVerdictsPromote(ports(root, store).ports);
+        const files = [VERDICT_LOCK_PATH, PROMOTION_STREAK_PATH].map((f) =>
+            read(root, f)
+        );
+        const names = storeNames(store);
+
+        const outcome = await runVerdictsPromote(ports(root, store).ports);
+
+        expect(outcome.wrote).toBe(false);
+        expect(
+            [VERDICT_LOCK_PATH, PROMOTION_STREAK_PATH].map((f) => read(root, f))
+        ).toEqual(files);
+        expect(storeNames(store)).toEqual(names);
+    });
+
+    it("hands the engine the committed ledger, the admission block and the aliases", async () => {
+        const store = createMemoryVerdictStore();
+        await attested(store, 1);
+        const { name } = await putAlias(store, {
+            authors: ["prod-a:alice", "dev-b:alice2"],
+        });
+        const root = checkout();
+        writeFileSync(join(root, PROMOTION_STREAK_PATH), "committed ledger");
+        writeFileSync(
+            join(root, "tolaria.config.json"),
+            JSON.stringify({ admission: { minPersons: 7 } })
+        );
+        const input = await snapshotVerdictStore(store, root, "promote");
+        expect(input.streakLedger).toBe("committed ledger");
+        expect(input.admission).toEqual({ minPersons: 7 });
+        expect(input.aliasObjects?.map((o) => o.name)).toEqual([name]);
+        const validate = await snapshotVerdictStore(store, root, "validate");
+        expect(validate.streakLedger).toBeUndefined();
+        expect(validate.admission).toBeUndefined();
+    });
+});
+
 describe("the store snapshot (issue #3582)", () => {
     it("carries every resolution object beside the verdicts and attestations", async () => {
         // Without them a promotion never sees an admin's decision, and a
@@ -281,7 +346,7 @@ describe("the store snapshot (issue #3582)", () => {
 });
 
 describe("verdicts:testers — the snapshot it hands the engine (issue #3585)", () => {
-    it("carries the author aliases, and only for the per-tester report", async () => {
+    it("carries the author aliases for the per-tester report, never for validate", async () => {
         const store = createMemoryVerdictStore();
         await attested(store, 4);
         const { name } = await putAlias(store, {
