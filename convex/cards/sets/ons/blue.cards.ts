@@ -59,9 +59,8 @@ export const chainOfVapor = defineCard(() => ({
             ctx.returnToHand(target);
         },
         // Step 1 — offer the bounced permanent's controller the optional
-        // "Sacrifice a land" (CR 701.21). On sacrifice, they copy this spell
-        // (CR 707.12) and may choose a new target for the copy (CR 707.10c).
-        // The copy is a fresh resolution that can itself chain again.
+        // "Sacrifice a land" (CR 701.21). A sacrifice is recorded for step 2,
+        // which offers the copy.
         (ctx: SpellContext) => {
             const controller = ctx.recallChoice(
                 "chain-of-vapor-controller"
@@ -84,8 +83,26 @@ export const chainOfVapor = defineCard(() => ({
             });
             if (paid === undefined) return; // suspended on the may-sacrifice
             if (!paid) return; // declined — the chain ends
-            // CR 707.12 — the controller copies THIS spell. The copy is
-            // controlled by that player, who may choose a new target.
+            ctx.noteChoice("chain-of-vapor-sacrificed", [controller]);
+        },
+        // Step 2 — "If the player does, they MAY copy this spell": a second,
+        // independent optional decision (issue #2108), cost-free. Isolated in
+        // its own step so the copy choice's suspension never replays the
+        // sacrifice. On yes, the player copies THIS spell (CR 707.10) and may
+        // choose a new target for the copy (CR 707.10c); the copy is a fresh
+        // resolution that can itself chain again.
+        (ctx: SpellContext) => {
+            const controller = ctx.recallChoice(
+                "chain-of-vapor-sacrificed"
+            )?.[0];
+            if (!controller) return; // no sacrifice — nothing to copy
+            const copy = ctx.requestMayPay({
+                playerId: controller,
+                choiceId: "chain-of-vapor-copy",
+                prompt: "Copy Chain of Vapor? (you may choose a new target for the copy)",
+            });
+            if (copy === undefined) return; // suspended on the may-copy
+            if (!copy) return; // declined — the chain ends
             const copyId = ctx.copyResolvingSpell({ controllerId: controller });
             if (copyId) ctx.requestCopyRetarget(copyId);
         },

@@ -512,15 +512,10 @@ export const crownOfTheAges = defineCard(() => ({
 //   - `moveCardById(caster, id, "library", "exile")` exiles it FACE UP — the
 //     oracle names no face-down exile, so CR 406.3's default holds and both
 //     players may examine it (issue #3001), same as Ice Cauldron.
-//   - `grantCastFromExile(id, caster)` marks it castable from exile by the
-//     controller (CR 601.3 / 305.1-analog) — the shipped impulse-play seam (#666).
-// SIMPLIFICATION (tracked-by: #2785) (flagged, CR 608.2g): the "until the beginning of your next
-// upkeep" window END is not auto-revoked on a timer — the play permission
-// persists while the card remains in exile, matching every other shipped
-// impulse card (Ice Cauldron: no window; Baleful Mastery/STX bottom: rest of
-// turn). A timed revoke needs a play-permission-expiry primitive that isn't
-// built; the observable golden path (exile top card, then cast it from exile)
-// is faithful.
+//   - `grantCastFromExile(id, caster, _, "until-your-next-upkeep")` marks it
+//     playable from exile by the controller (CR 601.3 / 305.1-analog) — the
+//     shipped impulse-play seam (#666) — until the controller's next upkeep
+//     begins (CR 500.4, issue #2108).
 export const elkinBottle = defineCard(() => ({
     id: "49301c19-55a0-4146-9474-0b86cd320e31",
     name: "Elkin Bottle",
@@ -549,12 +544,14 @@ export const elkinBottle = defineCard(() => ({
                 ctx.moveCardById(ctx.caster, cardId, "library", "exile");
                 // CR 601.3 / 305.1-analog — controller may play/cast from exile.
                 // CR 305.9 (issue #1689) — oracle says "you may play that
-                // card", land-inclusive.
+                // card", land-inclusive. CR 500.4 (issue #2108) — "until the
+                // beginning of your next upkeep": the permission lapses as
+                // the caster's next upkeep begins.
                 ctx.grantCastFromExile(
                     cardId,
                     ctx.caster,
                     undefined,
-                    undefined,
+                    "until-your-next-upkeep",
                     {
                         includesLand: true,
                     }

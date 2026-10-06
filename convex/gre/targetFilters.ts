@@ -69,6 +69,7 @@ import {
 } from "./constants";
 import { getInstanceManaCost, tryGetDefinition } from "../cards";
 import { hasControlledSinceTurnStart } from "./controlContinuity";
+import { effectiveTriggeredAbilities } from "./copy";
 
 // ─── Shared low-level predicates (moved from rules.ts) ──────────────────────
 
@@ -845,14 +846,23 @@ const combatPartnerOfDescriptor = defineFilter<string>({
     },
 });
 
+/** CR 702 — does `card` have keyword `kw`? A static keyword lives in
+ *  `staticAbilities`; a TRIGGERED keyword (cumulative upkeep, CR 702.24) is
+ *  a keyword-tagged entry of its effective triggered abilities — printed or
+ *  granted, and gone under a layer-6 "loses all abilities" (issue #2108). */
+function hasKeywordAbility(card: CardInstanceState, kw: string): boolean {
+    return (
+        card.staticAbilities.includes(kw) ||
+        effectiveTriggeredAbilities(card).some((a) => a.keyword === kw)
+    );
+}
+
 // CR 702 — positive keyword filter ("target creature with flying").
 const requireAbilityDescriptor = defineFilter<string>({
     lower: (req) => req.requireAbility,
     checks: {
         permanent: (card, value) =>
-            card.staticAbilities.includes(value)
-                ? null
-                : `Target must have ${value}`,
+            hasKeywordAbility(card, value) ? null : `Target must have ${value}`,
     },
 });
 
@@ -867,7 +877,7 @@ const requireAbilityAnyDescriptor = defineFilter<ReadonlyArray<string>>({
             : undefined,
     checks: {
         permanent: (card, value) =>
-            value.some((kw) => card.staticAbilities.includes(kw))
+            value.some((kw) => hasKeywordAbility(card, kw))
                 ? null
                 : `Target must have ${value.join(" or ")}`,
     },
@@ -878,7 +888,7 @@ const excludeAbilityDescriptor = defineFilter<string>({
     lower: (req) => req.excludeAbility,
     checks: {
         permanent: (card, value) =>
-            card.staticAbilities.includes(value)
+            hasKeywordAbility(card, value)
                 ? `Target must not have ${value}`
                 : null,
     },

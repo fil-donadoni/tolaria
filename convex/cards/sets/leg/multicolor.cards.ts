@@ -440,9 +440,16 @@ export const angusMackenzie = defineCard(() => ({
                 "{G}{W}{U}, {T}: Prevent all combat damage that would be dealt this turn. Activate only before the combat damage step.",
             cost: { mana: { G: 1, W: 1, U: 1 }, tap: true },
             useStack: true,
-            // "before the combat damage step" — legal through the declare-
-            // blockers step at the latest (CR 508–510).
+            // "before the combat damage step": every step/phase that precedes
+            // combat damage, so upkeep, draw and the main phase are legal too
+            // (issue #2108); outside the list the activation is prohibited
+            // (CR 602.5). FIRST_STRIKE_DAMAGE is excluded: it IS a combat
+            // damage step (CR 506.1 — "two combat damage steps"), and its
+            // damage is already dealt when players next get priority.
             activationPhaseRestriction: [
+                "UPKEEP",
+                "DRAW",
+                "PRECOMBAT_MAIN",
                 "BEGINNING_OF_COMBAT",
                 "DECLARE_ATTACKERS",
                 "DECLARE_BLOCKERS",

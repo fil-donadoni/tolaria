@@ -201,6 +201,7 @@ export function clearMadnessMarkers(card: CardInstanceState): void {
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
     delete card.castableFromExileUntilOwnTurn;
+    delete card.castableFromExileUntilOwnUpkeep;
 }
 
 // Re-exported for callers that only need the player type in a madness context.

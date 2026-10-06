@@ -32,6 +32,7 @@ import {
     NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
 import { finalizeTargetSelection } from "../../../../game";
+import { activateAbilityOnState } from "../../../../gre/activation";
 import { checkStateBasedActions } from "../../../../gre/sba";
 import {
     resolveTopOfStack,
@@ -415,6 +416,46 @@ describe("Angus Mackenzie ({G}{W}{U},{T}: fog, CR 615)", () => {
         });
         resolveActivated(state, angus, "angus-mackenzie-fog");
         expect(state.preventAllCombatDamageThisTurn).toBe(true);
+    });
+
+    // CR 602.5 / 506.1 (issue #2108) — "Activate only before the combat
+    // damage step": every step with priority before it is legal (the main
+    // phase included); the combat damage steps and everything after are not.
+    function activateDuring(phase: GameState["phase"]): () => void {
+        const angus = makeInstance(angusMackenzie.id, {
+            id: "angus",
+            controllerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [angus] }),
+                makePlayer("p2"),
+            ],
+        });
+        state.phase = phase;
+        fillManaPool(state);
+        return () =>
+            activateAbilityOnState(state, {
+                playerId: "p1",
+                cardInstanceId: "angus",
+                abilityId: "angus-mackenzie-fog",
+            });
+    }
+
+    it.each(["UPKEEP", "DRAW", "PRECOMBAT_MAIN", "DECLARE_BLOCKERS"] as const)(
+        "can be activated during %s (before the combat damage step)",
+        (phase) => {
+            expect(activateDuring(phase)).not.toThrow();
+        }
+    );
+
+    it.each([
+        "FIRST_STRIKE_DAMAGE",
+        "COMBAT_DAMAGE",
+        "POSTCOMBAT_MAIN",
+        "END_STEP",
+    ] as const)("cannot be activated during %s", (phase) => {
+        expect(activateDuring(phase)).toThrow(/cannot be activated/);
     });
 });
 

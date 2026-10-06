@@ -285,6 +285,11 @@ export const balduvianShaman = defineCard(() => ({
                 count: 1,
                 controller: "you",
                 colorFilter: "W",
+                // "that doesn't have cumulative upkeep" (CR 702.24): printed
+                // or granted — so the Shaman can't stack a second CU on Cold
+                // Snap or on an enchantment it already granted one to
+                // (issue #2108).
+                excludeAbility: "cumulative-upkeep",
             },
             // NOT DSL-migratable (ADR 0045). CORRECTED 2026-08-25 (#1841
             // audit): this comment used to name TWO blockers; only one is
@@ -1637,7 +1642,7 @@ export const mysticRemora = defineCard(() => ({
         // casting opponent, resolved via "opponent" — this engine is
         // 2-player/solo only, so "opponent" of the source's controller is
         // always exactly the spell's caster given `scope: "opponents"`
-        // already gates on that) then, unless paid, the controller draws
+        // already gates on that) then, unless paid, the controller may draw
         // (CR 121.1) through the DSL `draw` Op — the unified suspend-capable
         // draw seam (ADR 0061), so an interactive draw replacement (Zur's
         // Weirding) now offers its pay-choice on this effect draw too.
@@ -1655,10 +1660,29 @@ export const mysticRemora = defineCard(() => ({
                     prompt: "Pay {4} or your opponent draws a card (Mystic Remora)?",
                     bind: "$paid",
                 },
+                // CR 118.12a — "you may draw a card unless that player pays
+                // {4}" reads "that player may pay {4}. If they don't, you may
+                // draw a card": the opponent's payment is offered first, then
+                // the controller's own "may" — declining a draw is a real
+                // choice near an empty library (issue #2108).
                 {
                     op: "if",
                     predicate: { not: { binding: "$paid" } },
-                    then: [{ op: "draw", player: "controller", count: 1 }],
+                    then: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Draw a card (Mystic Remora)?",
+                            bind: "$draw",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$draw" },
+                            then: [
+                                { op: "draw", player: "controller", count: 1 },
+                            ],
+                        },
+                    ],
                 },
             ],
         }),

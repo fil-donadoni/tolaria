@@ -136,6 +136,49 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         ).toEqual([chainOfVapor.id]);
     });
 
+    it("a player who sacrificed may still decline the copy (issue #2108)", () => {
+        const bears = makeInstance(grizzlyBears.id, {
+            id: "p2-bears",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const land = makeInstance(island.id, {
+            id: "p2-island",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bears, land] }),
+            ],
+        });
+        pushSpell(state, chainOfVapor.id, "p1", [
+            { type: "permanent", id: "p2-bears" },
+        ]);
+        resolveTopOfStack(state);
+
+        applyMayPaySubmit(state, {
+            playerId: "p2",
+            accept: true,
+            sacrificeIds: ["p2-island"],
+        });
+        // The sacrifice happened; the copy is a separate "may".
+        expect(
+            state.players[1].graveyard.some((c) => c.id === "p2-island")
+        ).toBe(true);
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+
+        expect(state.stack).toHaveLength(0); // no copy
+        expect(state.pendingTarget).toBeUndefined();
+        expect(
+            state.players[0].graveyard.map((c) => (c.card as { id: string }).id)
+        ).toEqual([chainOfVapor.id]);
+    });
+
     it("sacrificing a land copies the spell; the copy retargets and bounces another permanent (CR 701.21 / 707.12)", () => {
         const bears = makeInstance(grizzlyBears.id, {
             id: "p2-bears",
@@ -176,6 +219,10 @@ describe("Chain of Vapor (CR 400.7 / 608.2 / 701.21 / 707.12)", () => {
         expect(
             state.players[1].graveyard.some((c) => c.id === "p2-island")
         ).toBe(true);
+        // "they MAY copy this spell" — a second, independent choice
+        // (issue #2108); p2 accepts.
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
+        applyMayPaySubmit(state, { playerId: "p2", accept: true });
 
         // A copy controlled by p2 awaits a (new) target; p2 — who sacrificed —
         // chooses (CR 707.10 / 707.10c).

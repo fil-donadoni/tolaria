@@ -9,6 +9,8 @@ import {
     getManaTapOptionsDetailed,
 } from "../../../../gre/constants";
 import {
+    advancePhase,
+    finalizeCleanup,
     untapStep,
     fireDelayedTriggers,
     buildAutoDamageAssignments,
@@ -4154,5 +4156,80 @@ describe("Sunstone ({2}, Sacrifice a snow land: Prevent all combat damage this t
         expect(
             projected.players[1].battlefield.some((c) => c.id === "blk")
         ).toBe(true);
+    });
+});
+
+// Elkin Bottle — "{3}, {T}: Exile the top card of your library. Until the
+// beginning of your next upkeep, you may play that card." CR 500.4
+// (issue #2108): the permission spans the rest of this turn AND the
+// opponent's whole turn, and lapses as the controller's next upkeep begins.
+describe("Elkin Bottle (impulse window until your next upkeep, CR 500.4)", () => {
+    const elkinBottle = getDefinition("49301c19-55a0-4146-9474-0b86cd320e31");
+    function bottled() {
+        const bottle = makeInstance(elkinBottle.id, {
+            id: "bottle",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [bottle],
+                    library: [
+                        vanilla("top", 2, 2, {
+                            id: "top",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        // p2 went first: turn 2 is p1's first turn. The opponent's own turn
+        // count reaching the stamp on THEIR upkeep must not revoke p1's grant.
+        state.turn = 2;
+        state.activePlayerId = "p1";
+        state.players[0].turnsTaken = 1;
+        state.players[1].turnsTaken = 1;
+        resolveActivated(state, bottle, "elkin-bottle-exile");
+        const card = () => state.players[0].exile.find((c) => c.id === "top")!;
+        return { state, card };
+    }
+    /** Enter `active`'s upkeep through the real phase machine. */
+    function enterUpkeepOf(state: GameState, active: "p1" | "p2") {
+        state.turn += 1;
+        state.activePlayerId = active;
+        const player = state.players.find((p) => p.id === active)!;
+        player.turnsTaken = (player.turnsTaken ?? 0) + 1;
+        state.phase = "UNTAP";
+        state.stack = [];
+        advancePhase(state);
+        expect(state.phase).toBe("UPKEEP");
+    }
+
+    it("survives this turn's cleanup and the opponent's whole turn", () => {
+        const { state, card } = bottled();
+        expect(card().castableFromExileBy).toBe("p1");
+        expect(card().castableFromExileIncludesLand).toBe(true);
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBe("p1");
+        enterUpkeepOf(state, "p2");
+        expect(card().castableFromExileBy).toBe("p1");
+        finalizeCleanup(state);
+        expect(card().castableFromExileBy).toBe("p1");
+    });
+
+    it("lapses as the controller's next upkeep begins; the card stays exiled", () => {
+        const { state, card } = bottled();
+        finalizeCleanup(state);
+        enterUpkeepOf(state, "p2");
+        finalizeCleanup(state);
+        enterUpkeepOf(state, "p1");
+        expect(card().castableFromExileBy).toBeUndefined();
+        expect(card().castableFromExileUntilOwnUpkeep).toBeUndefined();
+        expect(card().castableFromExileIncludesLand).toBeUndefined();
+        expect(card().zone).toBe("exile");
     });
 });

@@ -1286,6 +1286,17 @@ export type CardInstanceState = {
      *  `castableFromExileUntilTurn` in practice — each window stamps one or
      *  the other — and a card carrying neither is an open-ended grant. */
     castableFromExileUntilOwnTurn?: number;
+    /** CR 500.4 (issue #2108) — the "until the beginning of YOUR next
+     *  upkeep" window's expiry (Elkin Bottle), stamped like
+     *  {@link castableFromExileUntilOwnTurn} on the GRANTEE's own
+     *  {@link PlayerState.turnsTaken} (`turnsTaken + 1` = "your next turn",
+     *  extra and skipped turns included) but revoked at a different boundary:
+     *  as that turn's UPKEEP begins (`performPhaseEntry`, `gre/phases.ts`),
+     *  not at its cleanup. The permission therefore spans the rest of the
+     *  granting turn and every opponent turn in between, and lapses before
+     *  the grantee ever holds priority on their next turn. Exclusive with the
+     *  other two upper bounds — each window stamps exactly one. */
+    castableFromExileUntilOwnUpkeep?: number;
     /** LOWER turn bound for {@link castableFromExileBy} — the symmetric twin of
      *  {@link castableFromExileUntilTurn}, and the one shape the upper bound
      *  cannot express: the permission exists but has not OPENED yet. While set,

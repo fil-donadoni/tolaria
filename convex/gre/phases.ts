@@ -2232,6 +2232,9 @@ function performPhaseEntry(state: GameState): void {
             // effect's controller via `tickDuration`; entries scoped to
             // end-of-turn / end-of-combat are left untouched here.
             tickAllDurations(state);
+            // Same CR 500.4 boundary for a play-from-exile permission granted
+            // "until the beginning of your next upkeep" (Elkin Bottle).
+            expireUntilYourNextUpkeepExileGrants(state);
             // CR 502.2 / 603.7d — "at the beginning of the next turn's upkeep"
             // delayed triggers (Ice Age cantrips: Blessed Wine, Heal, Flare, …)
             // fire on ENTRY of the very next upkeep regardless of whose turn it
@@ -2669,6 +2672,63 @@ export function finalizeCleanupDiscard(
     drainAutoPasses(state);
 }
 
+/** CR 514.2 / 500.4 — revoke a card's play-from-exile grant and
+ *  every rider that shares its window, while the card stays exiled. Shared by
+ *  the cleanup sweep (`finalizeCleanup`) and the upkeep-entry sweep
+ *  (`expireUntilYourNextUpkeepExileGrants`), so the two expiry boundaries can
+ *  never drift apart on which riders they clear. */
+function revokeExilePlayGrant(card: CardInstanceState): void {
+    delete card.castableFromExileBy;
+    delete card.castableFromExileUntilTurn;
+    delete card.castableFromExileUntilOwnTurn;
+    delete card.castableFromExileUntilOwnUpkeep;
+    // CR 702.185a/b (issue #1268) — the LOWER bound and the
+    // "warped card in exile" referent ride the same permission the
+    // impulse sweep is revoking here.
+    delete card.castableFromExileFromTurn;
+    delete card.warpExiled;
+    // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
+    // the same turn-scoped window; expires together.
+    delete card.castFromExileWithoutPayingManaCost;
+    // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
+    // window as the six above. Left standing it is durable and
+    // zone-independent: a card exiled by its own Adventure, cast from
+    // exile and later bounced would refuse the Adventure from HAND for
+    // the rest of the game (PR #3302 review finding 3).
+    delete card.castFromExileNotAsAdventure;
+    // CR 305.9 (issue #1689) — the land-inclusive marker rides
+    // the same turn-scoped window; expires together.
+    delete card.castableFromExileIncludesLand;
+    // CR 609.4b (issue #2890) — the "spend mana as though any
+    // color/type" marker rides the SAME permission window; consumed
+    // together, so a stale one can never outlive its grant.
+    delete card.castFromExileManaSubstitution;
+    // CR 601.2f (issue #2383) — the object-scoped cost tax rides
+    // the SAME permission window; expires together.
+    delete card.castFromExileCostIncrease;
+}
+
+/** CR 500.4 (issue #2108) — "until the beginning of your next
+ *  upkeep" play-from-exile grants (Elkin Bottle) expire as the GRANTEE's
+ *  upkeep begins: the active player's own turn count has reached the stamped
+ *  `castableFromExileUntilOwnUpkeep`. An opponent's upkeep never revokes it —
+ *  the window spans their whole turn. */
+function expireUntilYourNextUpkeepExileGrants(state: GameState): void {
+    const active = state.players.find((p) => p.id === state.activePlayerId);
+    if (!active) return;
+    for (const p of state.players) {
+        for (const card of p.exile) {
+            if (
+                card.castableFromExileUntilOwnUpkeep !== undefined &&
+                card.castableFromExileBy === active.id &&
+                (active.turnsTaken ?? 0) >= card.castableFromExileUntilOwnUpkeep
+            ) {
+                revokeExilePlayGrant(card);
+            }
+        }
+    }
+}
+
 /** CR 514.2 — runs after the (possibly empty) 514.1 discard. Exported so
  *  the commit handler in `game.ts` can resume CLEANUP after the discards
  *  land. "Until end of turn" effects expire, marked damage is removed from
@@ -2815,33 +2875,7 @@ export function finalizeCleanup(state: GameState): void {
                     state.turn >= card.castableFromExileUntilTurn) ||
                 ownTurnExpired
             ) {
-                delete card.castableFromExileBy;
-                delete card.castableFromExileUntilTurn;
-                delete card.castableFromExileUntilOwnTurn;
-                // CR 702.185a/b (issue #1268) — the LOWER bound and the
-                // "warped card in exile" referent ride the same permission the
-                // impulse sweep is revoking here.
-                delete card.castableFromExileFromTurn;
-                delete card.warpExiled;
-                // issue #1156 — the free-cast waiver (Dauthi Voidwalker) rides
-                // the same turn-scoped window; expires together.
-                delete card.castFromExileWithoutPayingManaCost;
-                // CR 715.3d — the SEVENTH sibling, cleared in the SAME permission
-                // window as the six above. Left standing it is durable and
-                // zone-independent: a card exiled by its own Adventure, cast from
-                // exile and later bounced would refuse the Adventure from HAND for
-                // the rest of the game (PR #3302 review finding 3).
-                delete card.castFromExileNotAsAdventure;
-                // CR 305.9 (issue #1689) — the land-inclusive marker rides
-                // the same turn-scoped window; expires together.
-                delete card.castableFromExileIncludesLand;
-                // CR 609.4b (issue #2890) — the "spend mana as though any
-                // color/type" marker rides the SAME permission window; consumed
-                // together, so a stale one can never outlive its grant.
-                delete card.castFromExileManaSubstitution;
-                // CR 601.2f (issue #2383) — the object-scoped cost tax rides
-                // the SAME permission window; expires together.
-                delete card.castFromExileCostIncrease;
+                revokeExilePlayGrant(card);
             }
         }
     }
