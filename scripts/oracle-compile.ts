@@ -28,7 +28,7 @@
  * (`gate.ts job`, issue #4941); `--check` and `--carry-bot` take nothing.
  *
  * A card the sweep turns `frozen` moves out of `ready`, and the `ready` set is
- * what `data/catalogue/packed-corpus.json` and `data/card-index.json` are built
+ * what `data/oracle-compiled-pool.json` and `data/card-index.json` are built
  * from — so a run whose `frozen` count CHANGES owes `bun run oracle:pool` and
  * a green `bun run check:index` before it lands (review of PR #4057,
  * finding 10).
