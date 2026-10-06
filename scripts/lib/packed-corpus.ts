@@ -57,12 +57,16 @@ export const PACKED_CORPUS_PATH = "data/catalogue/packed-corpus.json";
 /**
  * Rows per deflate block — the trade between bundle bytes (bigger blocks
  * compress better) and the inflate a lookup pays (it inflates the whole
- * block). The spike measured 16 against 64 at 34,890 rows: 24 ms against
- * 67 ms for 76 lookups locally, for +0.2 MB. A later slice of PRD #4161 tunes
- * it from a cloud sweep; it is recorded in the artefact so a decoder never
- * assumes it.
+ * block). Chosen from the CLOUD sweep of issue #4167
+ * (`bun run perf:catalogue-cloud`, 35,000 synthetic rows, median added
+ * latency of a mutation resolving 76 definitions in 76 blocks): 4 → +30 ms /
+ * 7.99 MB, 8 → +38 ms / 7.54 MB, 16 → +48 ms / 7.28 MB, 32 → +62 ms /
+ * 7.14 MB, 64 → +95 ms / 7.07 MB. Each halving below 64 buys fewer
+ * milliseconds for more bytes; 8 is the last step that still buys ~10 ms for
+ * a quarter-megabyte, and bytes are isolate heap on every request. It is
+ * recorded in the artefact so a decoder never assumes it.
  */
-export const PACKED_BLOCK_ROWS = 16;
+export const PACKED_BLOCK_ROWS = 8;
 
 /** The shared dictionary's size. Deflate's window is 32 KiB, so a longer
  *  dictionary would never be referenced. */

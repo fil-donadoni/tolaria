@@ -118,9 +118,18 @@ const DECODER_PATH = resolve(repoRoot, "convex/cards/packedCorpus.ts");
 
 function writeHarness(dir: string, deployment: string): void {
     mkdirSync(join(dir, "convex"), { recursive: true });
+    // The CLI refuses to push from a project that does not depend on `convex`;
+    // the version is the repository's, resolved through the symlink below.
+    const repoPackage = JSON.parse(
+        readFileSync(join(repoRoot, "package.json"), "utf8")
+    ) as { dependencies: Record<string, string> };
     writeFileSync(
         join(dir, "package.json"),
-        JSON.stringify({ name: "catalogue-latency-harness", private: true })
+        JSON.stringify({
+            name: "catalogue-latency-harness",
+            private: true,
+            dependencies: { convex: repoPackage.dependencies.convex },
+        })
     );
     if (!existsSync(join(dir, "node_modules"))) {
         symlinkSync(join(repoRoot, "node_modules"), join(dir, "node_modules"));
