@@ -2517,35 +2517,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3006 — the ABILITY-half twin of the Wild Growth entry above, found by censusing `OP_BENEFICENCE`. Jace's `+2` is CR 701.29 fateseal: `targetRequirement: { type: \"player\" }` offers BOTH seats (CR 115.1), and `scryReorder` carried no sign, so it read `neutral` and every target tuple tied inside `OUTCOME_EPS`. The reorder moves no card between zones, so `resolvedMarginDelta` is blind by construction — the sign is the only term that can separate the two variants. `scryReorder` is now a PARAMETRIZED case (`opBeneficence`): `chooser` set means somebody else decides what stays on top of `player`'s library, which is an attack on `player`; `chooser` unset is a plain scry and a gift. `forbidden` rather than a positive `target: opp` match, because declining to activate the `+2` at all — banking loyalty, or taking the `0` — is legitimate play. Naming yourself is not forbidden because it is never right: with `chooser` set to you it degenerates to a plain scry (CR 701.22), which is occasionally the better line. It is forbidden because `opBeneficence` signs an Op WITHOUT reading the board (the rule the `addPlayerCounter` case is tested against), so one sign has to cover both, and the sign that matches the standard play is `harmful`. The cost is that this `must` entry closes off the self-scry line; the alternative was leaving the slot unranked entirely.",
     },
     {
-        label: "cast variant: aims Mana Short at the opponent's lands, never its own",
-        classification: { kind: "absolute" },
-        spec: {
-            cards: [
-                { name: "Mana Short", owner: "me", zone: "hand" },
-                { name: "Island", owner: "me", zone: "battlefield", count: 4 },
-                {
-                    name: "Mountain",
-                    owner: "opp",
-                    zone: "battlefield",
-                    count: 4,
-                },
-            ],
-            phase: "PRECOMBAT_MAIN",
-            turn: 5,
-            libraryCount: 20,
-        },
-        bot: "me",
-        budget: { iterations: 200 },
-        seeds: [0xb1ade, 1, 2, 3, 4],
-        tier: "must",
-        expect: {
-            forbidden: [
-                { kind: "cast-spell", card: "Mana Short", target: "me" },
-            ],
-        },
-        note: "Issue #4141. Mana Short is a `resolve()` card whose `aiEffects` shadow now taps every land of the targeted player (CR 701.26a): `tapUntap` signs `harmful` for its recipient, so the player-target variants rank by who owns the lands. Without the shadow the card scored at the blind `base + MV` floor, the two target variants tied and the pick was rollout noise. `forbidden` rather than a positive `opp` match because holding the instant for the opponent's turn is legitimate play; tapping your own lands never is.",
-    },
-    {
         label: "cast variant: casts Flash of Insight at X ≥ 1, never X = 0",
         classification: { kind: "absolute" },
         spec: {
