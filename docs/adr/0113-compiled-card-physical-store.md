@@ -698,6 +698,28 @@ the budget below.
    entry points are engine modules; removing them saves 2.3 MiB of bundle and
    nothing per call. Re-open triggers are in the research file.
 
+### The client, as built (issue #4861)
+
+Point 4 shipped with one refinement. The Definition Index answers every
+whole-catalogue question that is about ids, names and Sets — name lists,
+availability, Set filters, Draft Lab's Draftability and cube pool — and those
+now decode nothing. Deck-builder SEARCH also filters on types, colours, mana
+value and oracle text, which the index does not carry: deriving them in the
+browser would decode every block. So `catalogue:pack` writes a third generated
+file, `data/catalogue/search-index.json` (one row per card, derived by the
+same `toSearchIndexRow` the catalogue exposes, gated fresh), fetched only by
+the deck builder. It stays out of the packed corpus because the server reads
+that file per call and searches nothing.
+
+Measured with `bun run check:client-heap` (Node V8, a proxy) for one game load,
+50 compiled cards resolved: the catalogue costs **3.2 MiB** at 4,360 rows and
+**11.7 MiB** at 35,000 synthetic rows, the same in the page and in the Bot
+worker — against ~30 MB each for the hydration it replaces. The price is the
+download: the packed corpus is 573 KB Brotli against the retired artifact's
+311 KB (deflated base64 does not re-compress). The deck builder's search rows
+are 6.4 MiB of heap today and ~35 MiB at 35,000 rows: not a game cost, but the
+next client one to bound.
+
 ### Exit ladder, one more row
 
 | trigger                                                           | move                                                         |

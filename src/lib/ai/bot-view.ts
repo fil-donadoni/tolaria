@@ -902,10 +902,10 @@ function nameCardDefaultFor(
  *  the client bundle outright — `[MISSING_EXPORT] "getAllCards" is not exported
  *  by "convex/cards/client.ts"`, empty `#root`, every route down (#2530).
  *
- *  The two sets agree where it matters. Both client and server hydrate the
- *  registry from the same `allCards` — the isolate at module load, the browser
- *  through `src/main.tsx`'s catalogue side-effect import — so this yields the
- *  same names in the same order. What it yields EXTRA (the face-down sentinel,
+ *  The two sets agree where it matters. On both sides the registry enumerates
+ *  the catalogue's lazy source in Definition Index order (issue #4856), the
+ *  client's compiled half from the packed corpus it fetched (issue #4861), so
+ *  this yields the same names in the same order. What it yields EXTRA (the face-down sentinel,
  *  runtime token definitions) is filtered out by `isLegalNamedCard` itself,
  *  whose `tryGetCardByName` reads the catalogue's name registry: a synthetic
  *  definition is not a legal card name and cannot be returned here. The ONE
@@ -913,8 +913,10 @@ function nameCardDefaultFor(
  *  legal name, because CR 715.5 says a player choosing a card name may choose
  *  an adventurer card's alternative name (ADR 0120).
  *
- *  Lazy, so the common case stops at the first candidate instead of expanding
- *  ~1900 definitions to read one `.name`. */
+ *  Lazy, so the common case stops at the first candidate instead of decoding
+ *  the catalogue to read one `.name`: the hand-written half comes first and
+ *  rung 2's "Plains" already answers almost every head, so a compiled block
+ *  is decoded only for a head no hand-written card satisfies. */
 function firstLegalRegisteredName(
     state: PublicGameState,
     head: PendingChoice

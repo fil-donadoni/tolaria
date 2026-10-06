@@ -271,11 +271,11 @@ const readCommitted = (repoRoot: string, path: string): string | null => {
  * The client's rendering of the SHARED definitions: the artifact's rows minus
  * the relocated hand-written ones.
  *
- * This is `excludeHandWritten` at the CLIENT's own seam — the artifact carries
- * the hand-written rows too and the browser drops them in favour of the
- * modules the engine runs (`convex/cards/compiledCatalogue.ts`). So what is
- * left is exactly the population the server bundles, and it is the only
- * population the two sides can disagree about.
+ * This is `excludeHandWritten` applied to the merged artifact — it carries the
+ * hand-written rows too, and the runtime serves those from the modules the
+ * engine runs (`convex/cards/compiledCatalogue.ts`). So what is left is
+ * exactly the population the packed corpus and the literal pool hold — the
+ * one the eager client used to register before issue #4861.
  */
 export function sharedClientRows(
     rows: readonly CardDefinition[]

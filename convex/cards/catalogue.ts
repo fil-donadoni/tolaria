@@ -399,8 +399,8 @@ const handWrittenEntryById = new Map(
 /** Every hand-written Card ID. A compiled row for one of them never registers
  *  (ADR 0108 — `excludeHandWritten`). The collision is resolved at BUILD
  *  (ADR 0114 §2, issue #3052) — `scripts/catalogue-artifact.ts` excludes a
- *  hand-written oracle id at generation — so on the server the filter has
- *  nothing left to drop. That it never does is asserted in the GATE
+ *  hand-written oracle id at generation — so neither side's packed corpus
+ *  holds one, and the skip in `addCompiled` has nothing left to drop. That it never does is asserted in the GATE
  *  (`scripts/__tests__/catalogue-artifact.test.ts`), never here: see
  *  `excludeHandWritten`'s own comment for why a module-load throw is the wrong
  *  place to notice a stale pool. */

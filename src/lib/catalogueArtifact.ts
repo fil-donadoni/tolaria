@@ -90,8 +90,10 @@ function isPackedCorpus(value: unknown): value is PackedCorpus {
         Array.isArray(p.firstIds) &&
         Array.isArray(p.ids) &&
         Array.isArray(p.names) &&
+        Array.isArray(p.setCodes) &&
         p.ids.length > 0 &&
-        p.ids.length === p.names.length
+        p.ids.length === p.names.length &&
+        p.ids.length === p.setCodes.length
     );
 }
 

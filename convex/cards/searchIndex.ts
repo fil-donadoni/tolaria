@@ -13,13 +13,13 @@
 // decodes a definition on first request (issue #4861), so deriving the index
 // in the browser would decode every block — the whole catalogue made resident
 // to search it. The rows are instead written by `bun run catalogue:pack`
-// (`scripts/catalogue-artifact.ts`) into `data/catalogue/search-index.json`,
-// with THIS module's `buildSearchIndex` — the one derivation, run by the
-// generator on the server catalogue — and the deck builder loads that file
+// into `data/catalogue/search-index.json`, with THIS module's
+// `toSearchIndexRow` run over the rows that generation writes
+// (`scripts/lib/search-index.ts`), and the deck builder loads that file
 // lazily (`src/lib/searchIndex.ts`): only the cards it shows are ever decoded.
 // The freshness gate (`scripts/__tests__/catalogue-artifact.test.ts`) reds a
-// committed index that is not what the tree derives, the same as the
-// Definition Index beside it.
+// committed index that is not what the tree derives AND one that differs from
+// `buildSearchIndex` over the live catalogue — the same derivation twice.
 //
 // WHY `available` MEANS "THE ENGINE HAS THIS CARD". The old query read
 // `getAllCards()`, which is the HAND-WRITTEN population only, so every
@@ -93,7 +93,7 @@ export function toSearchIndexRow(
  * and every token definition an engine run synthesized (CR 111.1), so the deck
  * builder would offer a `token:…` id as an addable card, and only after the
  * user happened to visit a board first. See `catalogue.ts`'s
- * `compiledRegistered` for the whole argument.
+ * `compiledIds` for the whole argument.
  */
 export function buildSearchIndex(): SearchIndexRow[] {
     return getAllCatalogueCards().map((def) => toSearchIndexRow(def));

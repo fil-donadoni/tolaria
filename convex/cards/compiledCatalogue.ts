@@ -61,10 +61,12 @@ export const CATALOGUE_SOURCE_HASH: string = catalogueSource.hash;
  * #4861), so it has nothing to drop either; the catalogue's compiled section
  * skips a hand-written id on both sides all the same (`addCompiled`).
  *
- * The assertion is in the GATE and not here on purpose. This function is
- * called at module load of `convex/cards/catalogue.ts`, which every Convex
- * mutation, the browser bundle and every test file transitively imports;
- * throwing on a stale pool would turn a tree that runs correctly today —
+ * The assertion is in the GATE and not here on purpose. The runtime rule this
+ * function states — a compiled row never stands in for a hand-written card —
+ * is applied at module load of `convex/cards/catalogue.ts` (`addCompiled`),
+ * which every Convex mutation, the browser bundle and every test file
+ * transitively imports; throwing on a stale pool there would turn a tree that
+ * runs correctly today —
  * dropping the compiled twin LEAVES the hand-written definition, which
  * PRD #2693 makes authoritative — into a white screen, a failed deploy and a
  * collection error in every suite at once. A gate that reds with the name of
