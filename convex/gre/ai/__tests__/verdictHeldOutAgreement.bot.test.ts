@@ -93,7 +93,7 @@ describe("held-out eval agreement (issue #3982)", () => {
         expect(text).toBe(
             [
                 "== held-out eval agreement (issue #3982) — pairs the Evaluation orders as the player did, held-out side only",
-                "  burned             : 0 held-out positions admitted to the registry anyway (held-out n = HN, HN before admission)",
+                "  burned             : 0 held-out positions admitted to the registry anyway (held-out n = 5, 5 before admission)",
                 "  all                : 3/5 (60.0%)  n = 5, indicative, not a claim",
                 "  excluded           : 1 timing pairs, 1 incomplete units (not agreement evidence)",
                 "  by Decision Class",
