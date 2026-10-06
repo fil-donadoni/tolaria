@@ -12,14 +12,15 @@
  * its module left. The control module's room minus the pool module's room is
  * what the pool costs the isolate, in chunks.
  *
- * Chunks to bytes: a chunk is an array of small integers, 8 B per element
- * without pointer compression and exactly half with it — the one layout
- * difference two V8 builds can have for it. Node's chunk size is measured;
- * the control's room times it either fits under the wall (same layout: the
- * rest of the wall is the call's baseline) or only its half does (the
- * isolate compresses pointers, Node does not). `isolateCalibration` decides
- * which, so the control's own baseline (runtime, `convex/server`, args) is
- * never billed to the pool.
+ * Chunks to bytes, MEASURED: a chunk is an array of small integers, 8 B per
+ * element without pointer compression and half with it, so its isolate size
+ * is unknown. A DOUBLE chunk (same length, unboxed doubles) is 8 B per
+ * element under both layouts. The control's room in double chunks over its
+ * room in integer chunks is the integer chunk's size in double chunks — no
+ * assumption about the wall's size or the isolate's build, and the control's
+ * own baseline (runtime, `convex/server`, args) is never billed to the pool.
+ * (The first run, 2026-10-06, inferred the layout from the 64 MiB wall
+ * instead; the two readings differ by 2x, so the probe measures it.)
  */
 
 /** The wall ADR 0113 Amendment IV is drawn against: RAM of one Convex query or
@@ -36,6 +37,10 @@ export const DEFAULT_PROBE_ROWS: readonly number[] = [
  *  compression, 128 KiB without. The search resolves to one chunk. */
 export const PAD_CHUNK_ELEMENTS = 16_384;
 
+/** One double chunk's bytes, the same under every V8 layout: unboxed
+ *  doubles, 8 B each (the array header is noise at this length). */
+export const DOUBLE_CHUNK_BYTES = PAD_CHUNK_ELEMENTS * 8;
+
 /** Above any room a 64 MiB call can have, whatever the chunk's layout. */
 export const PAD_SEARCH_CEILING = 4_096;
 
@@ -51,15 +56,28 @@ export function pad(chunks: number): number {
     for (const a of held) total += a.length;
     return total;
 }
+// The same in unboxed doubles: 8 B per element under every V8 layout — the
+// yardstick that sizes the integer chunk.
+export function padDoubles(chunks: number): number {
+    const held: number[][] = [];
+    for (let i = 0; i < chunks; i++) held.push(new Array(${PAD_CHUNK_ELEMENTS}).fill(i + 0.5));
+    let total = 0;
+    for (const a of held) total += a.length;
+    return total;
+}
 `;
 
 /** `convex/empty.ts`: the control — imports nothing but the padding. */
 export const EMPTY_MODULE = `import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
-import { pad } from "./pad";
+import { pad, padDoubles } from "./pad";
 export const run = mutationGeneric({
     args: { pad: v.number() },
     handler: async (_ctx, args) => ({ rows: 0, padded: pad(args.pad) }),
+});
+export const runDoubles = mutationGeneric({
+    args: { pad: v.number() },
+    handler: async (_ctx, args) => ({ rows: 0, padded: padDoubles(args.pad) }),
 });
 // Where the deployment says it is — the verdict's evidence, not the operator's word.
 export const where = queryGeneric({
@@ -86,6 +104,7 @@ export const run = mutationGeneric({
 /** Every function the harness pushes, as `convex function-spec` names them. */
 export const PROBE_FUNCTIONS: readonly string[] = [
     "empty.js:run",
+    "empty.js:runDoubles",
     "empty.js:where",
     "pool.js:run",
 ];
@@ -167,44 +186,39 @@ export interface SizeResult {
 
 /** How chunks convert to the isolate's bytes, from the control's room. */
 export interface Calibration {
-    /** Largest padding the control call survived. */
+    /** Largest integer padding the control call survived. */
     readonly controlRoomChunks: number;
-    /** One chunk's bytes in the isolate. */
+    /** Largest double padding the control call survived. */
+    readonly controlDoubleRoomChunks: number;
+    /** One integer chunk's bytes in the isolate, measured. */
     readonly chunkBytes: number;
-    /** Whether the isolate's chunk is half Node's (pointer compression). */
+    /** Whether that chunk is half a double one (pointer compression). */
     readonly compressed: boolean;
-    /** The wall minus the control's room: what a call holds before padding. */
-    readonly baselineBytes: number;
+    /** The control's room in bytes: the wall minus what a call holds before
+     *  padding. Over 64 MiB means the documented wall is not the real one. */
+    readonly roomBytes: number;
 }
 
-/** The isolate's chunk layout, from the control's room and Node's chunk: the
- *  room times Node's chunk fits the wall (same layout), or only half of it
- *  does (the isolate compresses pointers). Neither → the wall is not 64 MiB,
- *  or the chunk is not what this module thinks: refuse. */
+/** The isolate's integer chunk size, from the control's room in both chunk
+ *  shapes: `doubleRoom` double chunks fill what `room` integer chunks fill. */
 export function isolateCalibration(
     controlRoomChunks: number,
-    nodeChunkBytes: number,
-    wallBytes: number = CONVEX_CALL_RAM_BYTES
+    controlDoubleRoomChunks: number
 ): Calibration {
-    if (controlRoomChunks <= 0) {
-        throw new Error(`the control survived ${controlRoomChunks} chunks`);
+    if (controlRoomChunks <= 0 || controlDoubleRoomChunks <= 0) {
+        throw new Error(
+            `the control survived ${controlRoomChunks} integer / ${controlDoubleRoomChunks} double chunks`
+        );
     }
-    for (const compressed of [false, true]) {
-        const chunkBytes = compressed ? nodeChunkBytes / 2 : nodeChunkBytes;
-        const room = controlRoomChunks * chunkBytes;
-        if (room <= wallBytes) {
-            return {
-                controlRoomChunks,
-                chunkBytes,
-                compressed,
-                baselineBytes: wallBytes - room,
-            };
-        }
-    }
-    throw new Error(
-        `the control survived ${controlRoomChunks} chunks of ${nodeChunkBytes} B — ` +
-            `more than the ${wallBytes} B wall holds even at half that size`
-    );
+    const chunkBytes =
+        (DOUBLE_CHUNK_BYTES * controlDoubleRoomChunks) / controlRoomChunks;
+    return {
+        controlRoomChunks,
+        controlDoubleRoomChunks,
+        chunkBytes,
+        compressed: chunkBytes < 0.75 * DOUBLE_CHUNK_BYTES,
+        roomBytes: controlDoubleRoomChunks * DOUBLE_CHUNK_BYTES,
+    };
 }
 
 /** The pool's isolate heap: the chunks of room it took from the control,

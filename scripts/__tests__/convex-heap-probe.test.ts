@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-    CONVEX_CALL_RAM_BYTES,
+    DOUBLE_CHUNK_BYTES,
     PAD_SEARCH_CEILING,
     isMemoryFailure,
     isSizeOrMemoryPushFailure,
@@ -50,26 +50,27 @@ describe("largestSurviving — the room a call has left, in chunks", () => {
 });
 
 const KIB = 1024;
-// Node's chunk is 128 KiB (no pointer compression); a 64 MiB wall holds 512.
-const SAME = isolateCalibration(400, 128 * KIB); // 50 MiB of room, 14 MiB baseline
-const COMPRESSED = isolateCalibration(800, 128 * KIB); // 100 MiB at Node's size
+// A double chunk is 128 KiB under every layout. Same layout: the control
+// fits as many integer chunks as double ones; compressed: twice as many.
+const SAME = isolateCalibration(400, 400); // 50 MiB of room
+const COMPRESSED = isolateCalibration(800, 400);
 
-describe("isolateCalibration — chunks to the isolate's bytes", () => {
-    it("keeps Node's chunk when the room fits the wall, the rest is baseline", () => {
+describe("isolateCalibration — the integer chunk sized by the double one", () => {
+    it("is a double chunk when both shapes fill the same room", () => {
         expect(SAME.compressed).toBe(false);
-        expect(SAME.chunkBytes).toBe(128 * KIB);
-        expect(SAME.baselineBytes).toBe(CONVEX_CALL_RAM_BYTES - 50 * MIB);
+        expect(SAME.chunkBytes).toBe(DOUBLE_CHUNK_BYTES);
+        expect(SAME.roomBytes).toBe(50 * MIB);
     });
 
-    it("halves the chunk when only half of it fits (pointer compression)", () => {
+    it("is half a double chunk when twice as many fit (pointer compression)", () => {
         expect(COMPRESSED.compressed).toBe(true);
         expect(COMPRESSED.chunkBytes).toBe(64 * KIB);
-        expect(COMPRESSED.baselineBytes).toBe(CONVEX_CALL_RAM_BYTES - 50 * MIB);
+        expect(COMPRESSED.roomBytes).toBe(50 * MIB);
     });
 
-    it("refuses a room even half-size chunks cannot fit, or none", () => {
-        expect(() => isolateCalibration(1100, 128 * KIB)).toThrow(/wall/);
-        expect(() => isolateCalibration(0, 128 * KIB)).toThrow(/control/);
+    it("refuses a control with no room in either shape", () => {
+        expect(() => isolateCalibration(0, 400)).toThrow(/control/);
+        expect(() => isolateCalibration(400, 0)).toThrow(/control/);
     });
 });
 

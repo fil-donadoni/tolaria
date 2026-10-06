@@ -22,9 +22,10 @@
  *      `docs/research/convex-server-scale-2026-09-29.md`, via
  *      `scripts/lib/convex-heap.ts`), as a delta over the control.
  *
- * The control's room, searched once, is the whole 64 MiB wall: the pool's
- * isolate heap is the share of that room it took (`scripts/lib/
- * convex-heap-probe.ts` says why padding). The ratio isolate / Node is printed
+ * The control's room, searched once in integer chunks and once in double
+ * chunks (8 B per element under every V8 layout), sizes the integer chunk in
+ * the isolate; the pool's isolate heap is the integer chunks of room it took
+ * (`scripts/lib/convex-heap-probe.ts` says why padding). The ratio isolate / Node is printed
  * per size, then the Markdown table for the research file.
  *
  * On demand only: outside every suite and every gate (it needs the network
@@ -202,6 +203,7 @@ function push(dir: string): { ok: boolean; output: string } {
 }
 
 const emptyRun = makeFunctionReference<"mutation">("empty:run");
+const emptyRunDoubles = makeFunctionReference<"mutation">("empty:runDoubles");
 const poolRun = makeFunctionReference<"mutation">("pool:run");
 
 const message = (e: unknown): string =>
@@ -476,11 +478,15 @@ async function probeSize(
 
     if (state.cal === null) {
         const control = await largestSurviving(survivor(client, emptyRun));
-        state.cal = isolateCalibration(control, chunk);
+        const doubles = await largestSurviving(
+            survivor(client, emptyRunDoubles)
+        );
+        state.cal = isolateCalibration(control, doubles);
         console.log(
-            `  control room: ${control} chunks of ${(state.cal.chunkBytes / 1024).toFixed(0)} KiB ` +
-                `(${state.cal.compressed ? "pointer-compressed" : "same layout as Node"}); ` +
-                `baseline ${(state.cal.baselineBytes / MIB).toFixed(1)} MiB of ${CONVEX_CALL_RAM_BYTES / MIB}`
+            `  control room: ${control} integer / ${doubles} double chunks → integer chunk ` +
+                `${(state.cal.chunkBytes / 1024).toFixed(0)} KiB in the isolate, ${(chunk / 1024).toFixed(0)} in Node ` +
+                `(${state.cal.compressed ? "the isolate compresses pointers" : "same layout as Node"}); ` +
+                `room ${(state.cal.roomBytes / MIB).toFixed(1)} MiB under the ${CONVEX_CALL_RAM_BYTES / MIB} MiB wall`
         );
     }
 
@@ -545,8 +551,9 @@ function report(state: ProbeState, chunk: number): void {
         `smallest failing size: ${failing === null ? "none of those pushed" : failing.toLocaleString("en-US")}`
     );
     console.log(
-        `control room ${cal.controlRoomChunks} × Node chunk ${(chunk / 1024).toFixed(0)} KiB = ` +
-            `${((cal.controlRoomChunks * chunk) / MIB).toFixed(1)} MiB against the ${CONVEX_CALL_RAM_BYTES / MIB} MiB wall`
+        `control room: ${cal.controlRoomChunks} integer / ${cal.controlDoubleRoomChunks} double chunks = ` +
+            `${(cal.roomBytes / MIB).toFixed(1)} MiB; integer chunk ${(cal.chunkBytes / 1024).toFixed(0)} KiB in the isolate, ` +
+            `${(chunk / 1024).toFixed(0)} KiB in Node`
     );
 }
 
