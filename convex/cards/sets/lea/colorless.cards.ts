@@ -148,7 +148,7 @@ export const blackVise = defineCard(() => ({
             // same class as Clockwork Beast's recharge ability above).
             // AI shadow (issue #4141, never executed): the chosen player is
             // the opponent, and `dealDamage`'s own non-positive guard is the
-            // clamp at 0 (CR 107.1b).
+            // clamp at 0.
             aiEffects: [
                 {
                     op: "dealDamage",

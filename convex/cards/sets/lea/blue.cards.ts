@@ -1162,7 +1162,7 @@ export const stasis = defineCard(() => ({
             cost: { U: 1 },
             prompt: "Pay {U} to keep Stasis?",
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
-            // AI shadow (issue #4141, never executed): the same CR 117.3a
+            // AI shadow (issue #4141, never executed): the same
             // pay-or-sacrifice decision the Echo shadow prices
             // (`abilities/echo.ts`). The skipped-untap lock is a static
             // effect the evaluator already reads off the board.
@@ -1619,8 +1619,8 @@ export const manaShort = defineCard(() => ({
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
     // AI shadow (issue #4141, never executed): every land the target player
-    // controls is tapped (CR 701.26a) — a tempo denial on their whole mana
-    // base. The unspent-mana drain (CR 106.4) has no Op and is worth nothing
+    // controls is tapped — a tempo denial on their whole mana
+    // base. The unspent-mana drain has no Op and is worth nothing
     // beyond the tap on the one stable point the bot casts it at.
     aiEffects: [
         {

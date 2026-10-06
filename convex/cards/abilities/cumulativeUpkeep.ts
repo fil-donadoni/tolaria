@@ -145,10 +145,10 @@ export function cumulativeUpkeepTrigger(
         oracleText: oracle,
         phase: "UPKEEP",
         scope: "your",
-        // AI-only shadow (issue #4141, never executed) — the CR 702.24a
+        // AI-only shadow (issue #4141, never executed) — the cumulative-upkeep
         // decision priced like Echo's (`echo.ts`): pay, or lose the permanent.
         // Priced at the printed one-age-counter cost: the per-counter scaling
-        // (CR 702.24b) and the age counter itself are bookkeeping the valuer
+        // and the age counter itself are bookkeeping the valuer
         // has no context-free way to read, and the search sees the real,
         // scaled payment through the live GRE.
         aiEffects: [

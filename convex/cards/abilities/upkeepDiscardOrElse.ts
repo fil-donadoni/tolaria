@@ -82,8 +82,8 @@ export function upkeepDiscardOrElseTrigger(
         scope: "your",
         ...(args.declineAiEffects
             ? {
-                  // CR 117.3a — the controller MAY discard a card (their
-                  // choice, CR 701.9) instead of taking the decline branch.
+                  // The controller MAY discard a card (their own choice)
+                  // instead of taking the decline branch.
                   aiEffects: [
                       {
                           op: "mayPay" as const,

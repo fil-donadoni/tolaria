@@ -516,7 +516,7 @@ export const ivoryTower = defineCard(() => ({
             scope: "your",
             // AI shadow (issue #4141, never executed): the same script the
             // UNBLOCKED note above describes; `gainLife`'s non-positive guard
-            // is the clamp at 0 (CR 107.1b).
+            // is the clamp at 0.
             aiEffects: [
                 {
                     op: "gainLife",
