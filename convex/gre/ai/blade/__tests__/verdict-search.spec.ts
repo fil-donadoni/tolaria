@@ -14,6 +14,9 @@
 //     entry's own budget and seeds. A locked verdict names no budget, so it
 //     gets BLADE_VERDICT_SEARCH_ITERATIONS (default 400, the registry's most
 //     common budget) on the blade's five seeds.
+//     BLADE_VERDICT_SEARCH_SIDE=held-out restricts the run to the Verdicts the
+//     Weight Fit never read and prints held-out pick agreement (issue #3982):
+//     `bun run verdicts:pick-agreement`, the post-verdict health audit's step.
 //     Options: BLADE_VERDICT_SEARCH_LABEL=<substring> (filter verdict ids),
 //     BLADE_VERDICT_SEARCH_OUT=<path>.json (write rows + text).
 //
@@ -24,8 +27,11 @@ import { BLADE_SCENARIOS } from "../registry";
 import { DEFAULT_BLADE_SEED } from "../runner";
 import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import {
+    formatHeldOutPickAgreement,
     formatVerdictSearchReport,
+    searchHeldOutVerdicts,
     searchVerdict,
+    testPositionKeysOf,
     type VerdictSearchBudget,
 } from "../../verdicts";
 
@@ -85,18 +91,30 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
                 : { iterations, seeds: DEFAULT_SEEDS };
         };
         const { verdicts } = await committedVerdictCorpus(BLADE_SCENARIOS);
+        const heldOut = ENV.BLADE_VERDICT_SEARCH_SIDE === "held-out";
         const selected = verdicts.filter((v) => !label || v.id.includes(label));
-        const rows = selected.map((verdict) => {
-            const row = searchVerdict(verdict, budgetOf(verdict.id));
+        const log = (row: ReturnType<typeof searchVerdict>) => {
             console.log(
                 `${`${row.agreed}/${row.seeds}`.padStart(5)} ${row.timing ? "T" : " "} ${row.verdictId}`
             );
             return row;
-        });
-        const text = formatVerdictSearchReport(
-            rows,
-            `registry entries at their own budget and seeds, locked verdicts at ${iterations} iterations × ${DEFAULT_SEEDS.length} seeds`
-        );
+        };
+        // The split is read over the WHOLE corpus (a Minimal Pair's side is its
+        // unit's); the label filter does not apply to a held-out run.
+        const rows = heldOut
+            ? searchHeldOutVerdicts(
+                  verdicts,
+                  testPositionKeysOf(BLADE_SCENARIOS),
+                  (v) => budgetOf(v.id),
+                  (v, budget) => log(searchVerdict(v, budget))
+              )
+            : selected.map((verdict) =>
+                  log(searchVerdict(verdict, budgetOf(verdict.id)))
+              );
+        const budgetLine = `registry entries at their own budget and seeds, locked verdicts at ${iterations} iterations × ${DEFAULT_SEEDS.length} seeds`;
+        const text = heldOut
+            ? formatHeldOutPickAgreement(rows, budgetLine)
+            : formatVerdictSearchReport(rows, budgetLine);
         console.log(`\n${text}`);
         const outPath = ENV.BLADE_VERDICT_SEARCH_OUT;
         if (outPath) {
@@ -108,6 +126,6 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
                 JSON.stringify({ text, rows }, null, 2) + "\n"
             );
         }
-        expect(rows.length).toBe(selected.length);
+        if (!heldOut) expect(rows.length).toBe(selected.length);
     }, 3_600_000);
 });

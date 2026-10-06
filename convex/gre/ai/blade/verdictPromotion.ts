@@ -20,7 +20,9 @@ import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     collectVerdictReport,
+    formatHeldOutEvalAgreement,
     formatTimingSection,
+    heldOutEvalAgreement,
     evalPairsOf,
     fitInputPairs,
     fitWeights,
@@ -168,6 +170,11 @@ export function runVerdictPromotionStep(
         }),
         "",
         formatTimingSection(after),
+        "",
+        // Re-derived at the FITTED vector, read on the side the fit never saw.
+        formatHeldOutEvalAgreement(
+            heldOutEvalAgreement(after, corpus.verdicts, testPositions)
+        ),
     ].join("\n");
 
     return {

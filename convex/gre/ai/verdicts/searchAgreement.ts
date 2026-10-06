@@ -24,6 +24,11 @@ import { describeMove } from "../../describeMove";
 import { buildVerdictState, scenarioOfVerdict } from "./position";
 import { evalPairsOf, resolveVerdictMoves } from "./evalPairs";
 import { verdictDecisionClass } from "./coverage";
+import {
+    formatAgreementTally,
+    heldOutVerdicts,
+    type AgreementTally,
+} from "./heldOutAgreement";
 import type { Verdict } from "./types";
 
 export type VerdictSearchBudget = { iterations: number; seeds: number[] };
@@ -160,6 +165,64 @@ export function formatVerdictSearchReport(
         if (row.agreed < row.seeds) {
             out.push(`          picks: ${row.picks.join(" | ")}`);
         }
+    }
+    return out.join("\n");
+}
+
+/**
+ * Pick agreement on the held-out side (issue #3982): `searchVerdict` over the
+ * Verdicts the Weight Fit never read, and only those — the side filter
+ * (`heldOutVerdicts`) runs BEFORE any search, so a fit-side Verdict costs
+ * nothing and cannot enter the number. `search` is a port for the test that
+ * proves it.
+ */
+export function searchHeldOutVerdicts(
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>,
+    budgetOf: (verdict: Verdict) => VerdictSearchBudget,
+    search: (
+        verdict: Verdict,
+        budget: VerdictSearchBudget
+    ) => VerdictSearchRow = searchVerdict
+): VerdictSearchRow[] {
+    return heldOutVerdicts(verdicts, testPositions).map((v) =>
+        search(v, budgetOf(v))
+    );
+}
+
+/** Held-out pick agreement: aggregate and per Decision Class, each over `n`
+ *  searched VERDICTS (a verdict that could not be searched is not one) with the
+ *  seed tally beside it, flagged `indicative` under `INDICATIVE_BELOW`. Timing
+ *  verdicts stay in — the search, not the fit, is answerable for them — and are
+ *  read on their own line. */
+export function formatHeldOutPickAgreement(
+    rows: readonly VerdictSearchRow[],
+    budgetLine: string
+): string {
+    const searched = rows.filter((r) => r.error === undefined);
+    // A verdict agrees when the search picked an allowed candidate on every
+    // seed; the seed-level share is printed beside it.
+    const verdictTally = (subset: readonly VerdictSearchRow[]): string => {
+        const t: AgreementTally = {
+            agreed: subset.filter((r) => r.agreed === r.seeds).length,
+            n: subset.length,
+        };
+        const seeds = subset.reduce((n, r) => n + r.seeds, 0);
+        const seedsAgreed = subset.reduce((n, r) => n + r.agreed, 0);
+        return `${formatAgreementTally(t)}  [seeds ${seedsAgreed}/${seeds}]`;
+    };
+    const out = [
+        `== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate, held-out side only, ${budgetLine}`,
+        `  all                : ${verdictTally(searched)}`,
+        `  timing             : ${verdictTally(searched.filter((r) => r.timing))}`,
+        `  everything else    : ${verdictTally(searched.filter((r) => !r.timing))}`,
+        `  unsearchable       : ${rows.length - searched.length} verdicts (errors, not agreement evidence)`,
+        "  by Decision Class",
+    ];
+    for (const cls of [...new Set(searched.map((r) => r.class))].sort()) {
+        out.push(
+            `    ${cls.padEnd(16)} : ${verdictTally(searched.filter((r) => r.class === cls))}`
+        );
     }
     return out.join("\n");
 }
