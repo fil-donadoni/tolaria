@@ -14,7 +14,7 @@
 // Prints the worktree path on its last line, so a caller can `cd "$(…)"`.
 //
 // A worktree is a session about to work, so the MACHINE is asked first (issue
-// #4966): the same decision a session's first prompt and `queue:claim` get
+// #4966): the same decision `queue:claim` gets
 // (`lib/machine-admission.ts`). Refused → exit 1, nothing created; the
 // announced, logged escape is `TOLARIA_OVER_CAP=1`.
 //

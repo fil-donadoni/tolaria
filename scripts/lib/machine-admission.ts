@@ -22,8 +22,8 @@
  *       they WAIT, bounded by `machine.waitMaxS`; past the bound the run is
  *       `refuse`d — recorded `infra` / `machine-saturated`, never RED, never
  *       a red lane (`MACHINE_SATURATED_EXIT`).
- *   session — `sessionAdmission`. A session's first prompt, `queue:claim` and
- *       `wt:new` ask whether the machine has room for one more: the OTHER
+ *   session — `sessionAdmission`. `queue:claim` and `wt:new` (never a
+ *       conversation's prompt, issue #5137) ask whether the machine has room for one more: the OTHER
  *       live project sessions against the effective cap, and the same memory
  *       pressure reading (sustained, and only beside other sessions — the
  *       only session is never refused). A session does not wait — it is
@@ -41,9 +41,9 @@
  *
  * The two differ on LOAD, deliberately. The 1-minute load average is what an
  * admitted gate itself raises: four vitest workers and `tsc -b` hold it above
- * `machine.loadMax` for the whole run. Read at a session's first prompt it
- * would refuse every session opened during a `land`, for a start that adds no
- * load at all. So load gates what is about to ADD load; memory — sustained,
+ * `machine.loadMax` for the whole run. Read at `wt:new` it would refuse
+ * every worktree opened during a `land`, for a start that adds no load at
+ * all. So load gates what is about to ADD load; memory — sustained,
  * and what a session does consume — gates the session.
  *
  * THE HOLDER'S LOAD IS NOT WAITED ON BY WHAT RUNS BESIDE IT (issue #4988).
@@ -85,8 +85,8 @@ import { primaryCheckout } from "./primary-checkout";
  *  it as `infra` / `machine-saturated`; `gate-run.sh` owns 75 and 76. */
 export const MACHINE_SATURATED_EXIT = 77;
 
-/** The announced escape for a SESSION — `TOLARIA_OVER_CAP=1 claude`, the
- *  machine equivalent of `--no-cap`. Every use is logged. It is read by the
+/** The announced escape for a SESSION start (`queue:claim`, `wt:new`) —
+ *  `TOLARIA_OVER_CAP=1`, the machine equivalent of `--no-cap`. Every use is logged. It is read by the
  *  session decision alone: a session started past the cap passes the variable
  *  to every gate it runs, and those must still wait for the machine. */
 export const OVER_CAP_ENV = "TOLARIA_OVER_CAP";
