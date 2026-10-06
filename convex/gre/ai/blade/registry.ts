@@ -3825,17 +3825,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     "me",
                     "Mishra's Factory",
                     "mishras-factory-animate"
-                ) &&
-                abilityMovesOf(
-                    state,
-                    "me",
-                    "Mishra's Factory",
-                    "mishras-factory-animate"
-                ).length === 0,
+                ),
             describe:
-                "the animation is never enumerated: paying {1} would tap the very land it animates",
+                "the animation, whose only possible payment taps the very land it animates, carries the rollout-policy penalty",
         },
-        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Tapped-body clause, self-paid: the barred source (`planManaPayment`) leaves no plan.",
+        note: "Issue #4238 (a manland turned into a body that cannot fight). Position-asserted for the same measured reason as the issue-#1890 siblings: `applyMoveInSearch` never puts an activated ability's effect on the stack, so a chosen-move assertion would ride rollout noise. Placed at BEGINNING_OF_COMBAT, not PRECOMBAT_MAIN: a main phase with an empty stack is already the sorcery-speed window, which discourages every deferrable activation whatever the body is, so a main-phase entry could not tell the new clause from the old one. Tapped-body clause, self-paid: the Factory is the only source, so the enumerator falls back to the plan that taps it and `isPointlessSelfAnimation` reads that plan.",
     },
     {
         label: "manland animation: pays with the other land, leaving Mishra's Factory untapped",

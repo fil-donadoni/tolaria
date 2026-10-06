@@ -173,12 +173,13 @@ describe("collapse — two copies of a card are ONE option (issue #3593)", () =>
         expect(animations(state, true)).toHaveLength(1);
     });
 
-    it("keeps the self-funding animation apart from the one paid by others", () => {
-        // Three Villages and nothing else: two of the candidates tap the
-        // animated Village ITSELF for part of the cost and reach a board where
-        // the 3/3 is tapped; the third taps the other two and leaves the 3/3
-        // untapped. Interchangeable is not "same card name" — the boards
-        // differ, so the collapse must NOT take this from three to one.
+    it("a land never funds its own animation while the others can", () => {
+        // Three Villages and nothing else (issue #4238): every candidate is
+        // paid by tapping the OTHER two (a land does not tap itself to animate
+        // itself while another source can pay), so each reaches an untapped
+        // animated 3/3 on an isomorphic board and the collapse takes three
+        // to one. Before issue #4238 two of the three candidates tapped the
+        // animated Village itself and stayed apart.
         const state = build({
             cards: [
                 { name: "Treetop Village", owner: "me", zone: "battlefield" },
@@ -191,7 +192,7 @@ describe("collapse — two copies of a card are ONE option (issue #3593)", () =>
             libraryCount: 20,
         });
         expect(animations(state, false)).toHaveLength(3);
-        expect(animations(state, true)).toHaveLength(2);
+        expect(animations(state, true)).toHaveLength(1);
     });
 
     it("leaves a hand of DIFFERENT cards untouched", () => {

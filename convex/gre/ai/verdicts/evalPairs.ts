@@ -303,6 +303,17 @@ export function resolveVerdictMoves(
         const key = collapseKeyOf(move);
         if (!byCollapseKey.has(key)) byCollapseKey.set(key, move);
     }
+    // The collapse key of an activation read WITHOUT its payment plan.
+    const planlessKey = (move: Move): string =>
+        collapseKeyOf(
+            move.kind === "activate-ability" ? { ...move, tapPlan: [] } : move
+        );
+    const byPlanlessKey = new Map<string, Move>();
+    for (const move of enumerated) {
+        if (move.kind !== "activate-ability") continue;
+        const key = planlessKey(move);
+        if (!byPlanlessKey.has(key)) byPlanlessKey.set(key, move);
+    }
     const resolveCandidate = (key: string): Move | undefined => {
         const exact = byKey.get(key);
         if (exact) return exact;
@@ -329,7 +340,16 @@ export function resolveVerdictMoves(
         // Only a key naming cards the rebuilt position still holds can be
         // matched this way — `makeInterchangeableKeyer` maps an unresolvable
         // id to itself, so a genuinely stale key stays stale.
-        return byCollapseKey.get(collapseKeyOf(stored));
+        const collapsed = byCollapseKey.get(collapseKeyOf(stored));
+        if (collapsed || stored.kind !== "activate-ability") return collapsed;
+        // Issue #4238 — an activation's `tapPlan` is HOW it is paid, not WHICH
+        // decision it is: a verdict recorded before the planner stopped
+        // spending a manland on its own animation names the old plan, and its
+        // key then resolves against nothing though the activation, its source
+        // and its targets are all still enumerated. Re-read it without the
+        // plan, so a payment-plan change does not retire a judgement about the
+        // activation.
+        return byPlanlessKey.get(planlessKey(stored));
     };
 
     const moves: Move[] = [];

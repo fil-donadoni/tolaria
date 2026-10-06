@@ -1691,7 +1691,11 @@ function isPointlessSelfAnimation(
     if (
         mover &&
         moverAbility &&
-        animatedBodyCannotFight(state, pid, mover, moverAbility)
+        (animatedBodyCannotFight(state, pid, mover, moverAbility) ||
+            // The self-PAID half of the tapped-body clause: the sole source
+            // of the activation's mana is the land it animates.
+            (moverAbility.animatesSelf === true &&
+                move.tapPlan.some((t) => t.cardInstanceId === mover.id)))
     ) {
         return true;
     }
