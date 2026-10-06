@@ -1732,6 +1732,12 @@ export const theRack = defineCard(() => ({
         "As this artifact enters, choose an opponent.\nAt the beginning of the chosen player's upkeep, this artifact deals X damage to that player, where X is 3 minus the number of cards in their hand.",
     manaCost: { X: 1 },
     types: ["Artifact"],
+    // aiValue (issue #4141) — a genuine protocol shape: "choose an opponent"
+    // has no Op, so the choose half has no honest shadow, and the damage half
+    // is a non-creature permanent ability, which the latent card value never
+    // reads. 18 is the blind `base + MV` worth (8 + 10 × MV 1), kept
+    // explicit rather than guessed higher.
+    aiValue: 18,
     triggeredAbilities: [
         // NOT DSL-migratable (ADR 0045): "choose an opponent" has no Op —
         // `setChosenPlayer`/`getChosenPlayer` are SpellContext-only
@@ -1741,11 +1747,6 @@ export const theRack = defineCard(() => ({
             id: "the-rack-choose-opponent",
             oracleText: "As this artifact enters, choose an opponent.",
             scope: "self",
-            // AI shadow (issue #4141, never executed): choosing the opponent
-            // moves no material by itself (a bind-only step, like
-            // `captureBinding`); the damage it enables is priced on the
-            // sibling `the-rack-upkeep-damage` shadow below.
-            aiEffects: [{ op: "captureBinding", ref: "$chosenOpponent" }],
             resolve: (ctx) => {
                 const opponent = singleOpponentId(ctx);
                 if (opponent) ctx.setChosenPlayer(opponent);
@@ -1770,22 +1771,6 @@ export const theRack = defineCard(() => ({
             scope: "each",
             condition: (event, self) =>
                 self.chosenPlayerId === event.activePlayerId,
-            // AI shadow (issue #4141, never executed): the chosen player is
-            // the opponent; `dealDamage`'s non-positive guard is the clamp.
-            aiEffects: [
-                {
-                    op: "dealDamage",
-                    amount: {
-                        difference: {
-                            from: 3,
-                            minus: {
-                                count: { zone: "hand", controller: "opponent" },
-                            },
-                        },
-                    },
-                    to: { player: "opponent" },
-                },
-            ],
             resolve: (ctx, _event, scopedPlayerId) => {
                 const x = 3 - ctx.getHandSize(scopedPlayerId);
                 if (x > 0) {
