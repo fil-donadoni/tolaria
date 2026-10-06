@@ -1,6 +1,6 @@
 ---
 name: grammar-rule
-description: "Close ONE Grammar Cluster: write the Grammar Rule, a golden fixture per accepted form, recompile, graduate round-tripping cards. Use when an issue names a Grammar Gap or a `[Grammar]` cluster ticket, or when `/new-op` Branch A needs its emitting rule."
+description: "Close ONE Grammar Cluster: write the Grammar Rule, a golden fixture per accepted form, recompile, graduate round-tripping cards. Use when an issue names a Grammar Gap, a `[Grammar]` cluster ticket, an `oracle:report` rank or a `compiler-gap:` marker, or when `/new-op` Branch A needs its emitting rule."
 argument-hint: "<gap key | cluster issue #N>"
 ---
 

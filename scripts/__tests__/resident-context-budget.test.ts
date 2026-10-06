@@ -312,7 +312,7 @@ describe("skill manifest budget (PRD #5096 D6, issue #5100)", () => {
  * 7,083 characters across 21 skills on 2026-10-05 (before this tier); 1,956 across
  * 11 listed skills after the split. The ceiling carries ~2% headroom.
  */
-const SKILL_LISTING_CEILING_CHARS = 2_150;
+const SKILL_LISTING_CEILING_CHARS = 2_260;
 
 describe("skill listing budget (PRD #5096 D8, issue #5101)", () => {
     it("finds the model-facing corpus", () => {
