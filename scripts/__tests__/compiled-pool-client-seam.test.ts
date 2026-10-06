@@ -6,14 +6,15 @@ import { join, relative, resolve } from "node:path";
  * The premise the client's catalogue delivery rests on (issue #3053,
  * ADR 0113 §2).
  *
- * `convex/cards/compiledPool.ts` imports `data/oracle-compiled-pool.json` at
- * module load. That is correct on the SERVER — a Convex mutation cannot fetch
- * — and it is exactly what must not reach a browser, where the same ~1.6 MB
- * of card data landed in both the `card-catalogue` chunk and the
- * `brain.worker` bundle on every cold load.
+ * `convex/cards/compiledPool.ts` imports `data/catalogue/packed-corpus.json`
+ * at module load (until issue #4168, the literal `oracle-compiled-pool.json`).
+ * That is correct on the SERVER — a Convex mutation cannot fetch — and it is
+ * exactly what must not be BUNDLED into a browser chunk, where the card data
+ * once landed in both the `card-catalogue` chunk and the `brain.worker`
+ * bundle on every cold load; the client fetches the same file as an asset.
  *
  * `vite.config.ts` takes it out of both graphs by ALIASING the specifier
- * `./compiledPool` to an empty array. A Vite alias matches the import string
+ * `./compiledPool` to an empty stub. A Vite alias matches the import string
  * as written, so the swap only happens for importers that spell it exactly
  * that way — and a `convex/` module has to, because the Convex bundler does
  * not know the `@convex` alias. Two things can therefore silently defeat it,
@@ -45,8 +46,7 @@ const POOL_IMPORT_RE =
  *  itself, which no alias covers and no spelling rule reaches. Only
  *  `convex/cards/compiledPool.ts` may, plus the scripts that generate and
  *  measure it. */
-const POOL_JSON_RE =
-    /["'][^"']*(?:oracle-compiled-pool|catalogue\/packed-corpus)\.json["']/;
+const POOL_JSON_RE = /["'][^"']*catalogue\/packed-corpus\.json["']/;
 const POOL_JSON_ALLOWED = new Set(["convex/cards/compiledPool.ts"]);
 
 interface Hit {
@@ -114,7 +114,7 @@ describe("the compiled pool's client seam (issue #3053)", () => {
 
     it("nothing outside the pool module imports the JSON directly", () => {
         // The alias swaps a MODULE. A new file writing
-        // `import pool from "../../data/oracle-compiled-pool.json"` bypasses
+        // `import pool from "../../data/catalogue/packed-corpus.json"` bypasses
         // it entirely, and only `check:bundle`'s ~10% headroom would notice —
         // in a lane that runs a full `vite build`. Named here instead.
         const offenders: string[] = [];
@@ -145,16 +145,10 @@ describe("the compiled pool's client seam (issue #3053)", () => {
             resolve(ROOT, "convex/cards/compiledPool.ts"),
             "utf8"
         );
-        expect(stub).toMatch(
-            /export const compiledReadyDefinitions: CardDefinition\[\] = \[\];/
-        );
-        // Issue #4165 — the packed corpus and its lookup switch ride the same
-        // seam: no packed byte in a client chunk, the switch never on there.
+        // The packed corpus and its lookup ride the seam (issues #4165,
+        // #4168): no packed byte in a client chunk, no bundled lookup there.
         expect(stub).toMatch(
             /export const packedServerCorpus: PackedCorpus \| null = null;/
-        );
-        expect(stub).toMatch(
-            /export const PACKED_CORPUS_LOOKUP: boolean = false;/
         );
         const names = (text: string) =>
             [...text.matchAll(/^export const (\w+)/gm)].map((m) => m[1]).sort();
@@ -162,6 +156,6 @@ describe("the compiled pool's client seam (issue #3053)", () => {
         expect(stub).toMatch(
             /export const packedCorpusLookup: PackedLookup \| null = null;/
         );
-        expect(stub.match(/^export /gm)).toHaveLength(4);
+        expect(stub.match(/^export /gm)).toHaveLength(2);
     });
 });

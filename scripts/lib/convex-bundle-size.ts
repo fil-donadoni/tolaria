@@ -1,15 +1,19 @@
 /**
  * Measures the size of the Convex function bundle — the artifact
- * `npx convex deploy` pushes, and the one Convex's documented **32 MiB code
- * size** ceiling applies to (issue #3051, ADR 0113 § 2).
+ * `npx convex deploy` pushes, the one Convex DOCUMENTS a **32 MiB code size**
+ * limit for (issue #3051, ADR 0113 § 2). Documented, not enforced: cloud
+ * accepted 36, 40 and 60 MiB pushes, and the ceilings it does enforce are
+ * `MAX_ZIPPED_PACKAGES_SIZE` / `MAX_UNZIPPED_PACKAGES_SIZE` below (ADR 0113
+ * Amendment III). The 32 MiB is the number the WARNING distance is measured
+ * to, never the point where a deploy is refused.
  *
  * WHY THIS EXISTS. ADR 0113 § 2 decided that compiled card definitions stay
  * bundled in the Convex module graph server-side ("zero reads, zero
  * bandwidth, zero billing"), and recorded, in its own words, that the bound
  * on that decision — "the Convex function bundle limit" — "is unverified and
  * must be measured before the corpus grows into it". This module is that
- * measurement, made repeatable so the ceiling is not rediscovered by a
- * refused deploy.
+ * measurement, made repeatable so the enforced ceilings are never discovered
+ * by a refused deploy.
  *
  * WHAT CONVEX COUNTS. `crates/model/src/source_packages/upload_download.rs`
  * in the open-source backend builds the pushed source package by walking the
@@ -217,32 +221,35 @@ export const CONVEX_BUNDLE_WARNING_BYTES = 30 * 1024 * 1024;
 export const CONVEX_USER_MODULE_BUDGET = 3072;
 
 /**
- * Marginal bundled cost of one compiled-pool row, re-measured at issue #4811
- * by re-bundling the real `convex/` tree at +2,000 and +6,000 synthetic rows
- * (uniquified `id` and `name`), linear to four digits across both deltas
- * (1,384.7 and 1,384.5 B/row). It was 1,013 at issue #3444 (1,012.9 and
- * 1,012.7); the rise is the rows, not the bundle layout — the mean raw row
- * grew from 347 B to 527 B in between, and the pool is still one chunk.
- * Still ~2.6x the raw definition: the bundled object literal is fatter than
- * the JSON it came from (Convex sets `minifyWhitespace: false` — it breaks
- * their source maps), and source maps count.
+ * Marginal bundled cost of one compiled row, PACKED (issue #4168): 240 B/row,
+ * measured by re-bundling the real `convex/` tree with the packed corpus
+ * (`data/catalogue/packed-corpus.json`) regenerated at +2,000 and +6,000
+ * synthetic rows — real rows decoded, ids and names uniquified
+ * (`syntheticPackedCorpus` in `./convex-heap`), packed again at the real
+ * block size — linear to three digits across both deltas (240.6 and
+ * 240.1 B/row; the file itself grows 216 B/row, the rest is its source map).
+ * The synthetic-row method is ADR 0113 Amendment II's.
  *
- * It was 2,086 at issue #3051, because the pool was then inlined TWICE — once
- * into the shared isolate chunk, and once into the `"use node"` graph, which
- * esbuild bundles separately. Issue #3444 cut the second copy (the LLM scenario
- * generator reached the card registry by import; it now reaches it by
- * `ctx.runQuery`), and the doubling went with it. If a future `"use node"`
- * module imports the registry again this number is wrong by 2x AGAIN, in the
- * dangerous direction — which is why `scripts/__tests__/convex-node-bundle-seam.test.ts`
- * guards the cut by cause and by effect rather than trusting the budget alone.
+ * HISTORY. While the server bundled the pretty-printed literal pool
+ * (`data/oracle-compiled-pool.json`, retired by issue #4168) a row cost
+ * 1,385 B (issue #4811: 1,384.7 / 1,384.5 at +2,000 / +6,000), 1,013 B at
+ * issue #3444 (smaller rows), and 2,086 B at issue #3051, when the pool was
+ * inlined TWICE — once into the shared isolate chunk, once into the
+ * `"use node"` graph esbuild bundles separately. Issue #3444 cut the second
+ * copy (the LLM scenario generator reached the card registry by import; it
+ * now reaches it by `ctx.runQuery`). If a future `"use node"` module imports
+ * the registry again this number is wrong by 2x AGAIN, in the dangerous
+ * direction — which is why `scripts/__tests__/convex-node-bundle-seam.test.ts`
+ * guards the cut by cause and by effect rather than trusting the budget
+ * alone.
  *
- * Re-measuring it: write the synthetic pool with the SAME 4-space formatting
- * the file ships in. A compact rewrite changes source-map size on its own (VLQ
- * column deltas over one very long line) and the delta stops being linear —
- * 236 B/row at +2,000 against 514 B/row at +6,000, measured, all of it
- * artefact.
+ * Re-measuring it: substitute the packed corpus FILE (not an esbuild plugin
+ * alone — the whole push is measured), measure, restore. The packed file is
+ * one minified line, so the source-map artefact that once bent the literal
+ * pool's numbers (a compact rewrite of a 4-space file, 236 against 514
+ * B/row) does not arise.
  */
-export const MEASURED_BYTES_PER_POOL_ROW = 1385;
+export const MEASURED_BYTES_PER_PACKED_ROW = 240;
 
 /**
  * Entry points in directories that hold no Convex function by construction:
@@ -508,9 +515,10 @@ export function assessConvexBundle(
  *
  * Measured at 669,905 B once the card registry was cut out of the graph — the
  * Anthropic SDK and four small `convex/` modules. 1.5 MiB is 2.3x that, room
- * for the SDK to grow, and less than one re-entry of the compiled pool needs:
- * at the measured {@link MEASURED_BYTES_PER_POOL_ROW} the pool alone is
- * ~2.36 MB today, so the regression this exists to catch cannot hide under it.
+ * for the SDK to grow, and less than one re-entry of the card registry needs:
+ * the engine and the hand-written sets alone are several MiB, plus the packed
+ * corpus (~1 MB at {@link MEASURED_BYTES_PER_PACKED_ROW} B/row), so the
+ * regression this exists to catch cannot hide under it.
  *
  * Deliberately NOT part of `check:convex-bundle`'s total, which is a sum and
  * so cannot say WHICH half grew. Enforced by
@@ -525,7 +533,7 @@ export const CONVEX_NODE_BUNDLE_BUDGET_BYTES = 1.5 * 1024 * 1024;
  * Convex bundles Node actions in a SEPARATE esbuild invocation from the
  * isolate modules, so every module a `"use node"` file reaches is emitted a
  * SECOND time. That is not a rounding error here: one import of `./cards` in
- * `convex/debugScenarioGenerator.ts` inlined `data/oracle-compiled-pool.json`
+ * `convex/debugScenarioGenerator.ts` inlined the then literal compiled pool
  * twice and cost 7,200,356 B of the 30 MiB budget — 23% of the whole push for
  * two name lookups.
  *
@@ -555,10 +563,11 @@ export async function measureConvexNodeBundle(convexDir: string): Promise<{
     };
 }
 
-/** Byte size of the committed compiled pool, for the per-row headroom line. */
+/** Rows of the committed packed corpus, for the per-row headroom line. */
 export function compiledPoolRows(repoRoot: string): number {
-    const path = join(repoRoot, "data", "oracle-compiled-pool.json");
+    const path = join(repoRoot, "data", "catalogue", "packed-corpus.json");
     if (!existsSync(path)) return 0;
     if (statSync(path).size === 0) return 0;
-    return (JSON.parse(readFileSync(path, "utf8")) as unknown[]).length;
+    return (JSON.parse(readFileSync(path, "utf8")) as { rowCount: number })
+        .rowCount;
 }

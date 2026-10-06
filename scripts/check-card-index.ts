@@ -73,7 +73,7 @@ type Entry = {
      *  compiler reached `ready` for it (`scripts/oracle-index-backfill.ts`,
      *  issue #2702) — it has no `CardDefinition` in the hand-written registry
      *  to compare against, by construction (`convex/cards/compiledCatalogue.ts`
-     *  hydrates it through a SEPARATE seam, `data/oracle-compiled-pool.json`).
+     *  hydrates it through a SEPARATE seam, `data/catalogue/packed-corpus.json`).
      *  Excluded below from the "extra / pollution" check, which exists to
      *  catch a stale hand-written entry, not a compiled one. */
     source?: "compiled";

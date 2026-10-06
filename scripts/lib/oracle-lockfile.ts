@@ -145,7 +145,7 @@ export interface CardRow {
      * row and nothing about the rest of the file's bytes.
      *
      * Provenance is on the LOCKFILE, never on the served asset: ADR 0114 §2
-     * keeps `data/oracle-compiled-pool.json` a resolved catalogue with nothing
+     * keeps the served corpus (`data/catalogue/`) a resolved catalogue with nothing
      * left to resolve at runtime, and a marker is read by review, not by the
      * engine.
      */

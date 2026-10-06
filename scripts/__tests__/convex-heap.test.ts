@@ -17,8 +17,10 @@ import {
     heapWarnings,
     measureFileHeap,
     reachesCatalogue,
-    syntheticPool,
+    syntheticPackedCorpus,
 } from "../lib/convex-heap";
+import { PACKED_CORPUS_PATH, unpackCorpus } from "../lib/packed-corpus";
+import type { PackedCorpus } from "../lib/packed-corpus";
 
 /**
  * Issue #4853 (PRD #4849): the heap of one Convex call, measured on `health`.
@@ -67,21 +69,27 @@ describe("measureFileHeap", () => {
 });
 
 describe("synthetic catalogue", () => {
-    it("grows the pool to the requested rows with unique ids and names", () => {
-        const base = [
-            { id: "a", name: "A" },
-            { id: "b", name: "B" },
-        ];
-        const rows = JSON.parse(syntheticPool(base, 5)) as typeof base;
-        expect(rows).toHaveLength(5);
-        expect(new Set(rows.map((r) => r.id)).size).toBe(5);
-        expect(new Set(rows.map((r) => r.name)).size).toBe(5);
+    it("grows the packed corpus to the requested rows with unique ids and names", () => {
+        const base = JSON.parse(
+            readFileSync(
+                resolve(__dirname, "../..", PACKED_CORPUS_PATH),
+                "utf8"
+            )
+        ) as PackedCorpus;
+        const target = base.rowCount + 5;
+        const grown = JSON.parse(
+            syntheticPackedCorpus(base, target)
+        ) as PackedCorpus;
+        expect(grown.rowCount).toBe(target);
+        const rows = unpackCorpus(grown);
+        expect(rows).toHaveLength(target);
+        expect(new Set(rows.map((r) => r.id)).size).toBe(target);
+        expect(new Set(rows.map((r) => r.name)).size).toBe(target);
     });
 });
 
 describe("classification and warnings", () => {
     it("a graph reaching the pool or a set reads the catalogue", () => {
-        expect(reachesCatalogue(["data/oracle-compiled-pool.json"])).toBe(true);
         expect(reachesCatalogue(["convex/cards/sets/lea/red.cards.ts"])).toBe(
             true
         );

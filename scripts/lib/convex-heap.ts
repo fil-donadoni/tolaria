@@ -29,12 +29,16 @@ import {
     discoverEntryPoints,
     nonFunctionEntryPoints,
 } from "./convex-bundle-size";
+import {
+    PACKED_CORPUS_PATH,
+    packCorpus,
+    serializePackedCorpus,
+    unpackCorpus,
+    type PackedCorpus,
+} from "./packed-corpus";
+import { synthesizeRows } from "./catalogue-cloud-latency";
 
 const MIB = 1024 * 1024;
-
-/** The compiled pool's path inside the repo; the one file the synthetic
- *  catalogue replaces. */
-const POOL_PATH = "data/oracle-compiled-pool.json";
 
 /** Rows of the compiled pool at the scale target (PRD #4849). */
 export const TARGET_POOL_ROWS = 35_000;
@@ -60,14 +64,11 @@ export interface ModuleHeap {
 }
 
 /** Whether a bundle's input list reaches a Card Definition: the hand-written
- *  sets, the compiled pool, or the packed server corpus beside it (issue #4164
- *  — the same rows, deflated; the synthetic catalogue scales the pool only). */
+ *  sets or the packed server corpus (`data/catalogue/`, the server's only
+ *  rendering of the compiled rows since issue #4168). */
 export function reachesCatalogue(inputs: string[]): boolean {
     return inputs.some(
-        (i) =>
-            i.endsWith(POOL_PATH) ||
-            i.includes("data/catalogue/") ||
-            i.includes("convex/cards/sets/")
+        (i) => i.includes("data/catalogue/") || i.includes("convex/cards/sets/")
     );
 }
 
@@ -77,34 +78,32 @@ export function heapBudgetBytes(readsCatalogue: boolean): number {
         : HEAP_BUDGET_NO_CATALOGUE_BYTES;
 }
 
-/** The compiled pool grown to `rows` by cycling the existing rows with `id`
- *  and `name` uniquified (the catalogue indexes both at load). */
-export function syntheticPool(base: unknown[], rows: number): string {
-    const out: unknown[] = [];
-    for (let i = 0; i < rows; i++) {
-        const row = base[i % base.length] as Record<string, unknown>;
-        out.push(
-            i < base.length
-                ? row
-                : { ...row, id: `${row.id}-s${i}`, name: `${row.name} s${i}` }
-        );
-    }
-    return JSON.stringify(out, null, 4);
+/** The packed server corpus grown to `rows` rows: the real rows decoded,
+ *  synthesized with unique UUID ids and names (`synthesizeRows`, the cloud
+ *  latency script's method, issue #4167), and packed again with the real
+ *  block size — the file a request would bundle at that catalogue size. */
+export function syntheticPackedCorpus(
+    base: PackedCorpus,
+    rows: number
+): string {
+    return serializePackedCorpus(
+        packCorpus(synthesizeRows(unpackCorpus(base), rows), base.sourceHash)
+    );
 }
 
-/** esbuild plugin that serves the compiled pool at `rows` rows, in memory. */
-export function syntheticPoolPlugin(
+/** esbuild plugin that serves the packed corpus at `rows` rows, in memory. */
+export function syntheticPackedCorpusPlugin(
     repoRoot: string,
     rows: number
 ): esbuild.Plugin {
     const base = JSON.parse(
-        readFileSync(join(repoRoot, POOL_PATH), "utf8")
-    ) as unknown[];
-    const contents = syntheticPool(base, rows);
+        readFileSync(join(repoRoot, PACKED_CORPUS_PATH), "utf8")
+    ) as PackedCorpus;
+    const contents = syntheticPackedCorpus(base, rows);
     return {
-        name: "synthetic-pool",
+        name: "synthetic-packed-corpus",
         setup(build) {
-            build.onLoad({ filter: /oracle-compiled-pool\.json$/ }, () => ({
+            build.onLoad({ filter: /catalogue\/packed-corpus\.json$/ }, () => ({
                 contents,
                 loader: "json",
             }));
@@ -196,7 +195,7 @@ export async function measureConvexHeap(
     const modules = isolateModules(convexDir).filter(
         (m) => !opts.only || m.includes(opts.only)
     );
-    const plugin = syntheticPoolPlugin(
+    const plugin = syntheticPackedCorpusPlugin(
         repoRoot,
         opts.targetRows ?? TARGET_POOL_ROWS
     );

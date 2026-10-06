@@ -38,10 +38,12 @@ import catalogueSource from "../../data/catalogue/source-hash.json";
  * hash mismatch, before any row has to be compared.
  * `scripts/__tests__/catalogue-artifact.test.ts` compares them in the gate.
  *
- * It is NOT a header field on `data/oracle-compiled-pool.json`, deliberately:
- * that file's merge immunity is its bare-array shape
- * (`scripts/lib/generated-artifacts.ts`), and whole-file state in a header is
- * exactly what makes two branches collide on a line neither of them touched.
+ * It was kept OUT of the retired literal pool (`data/oracle-compiled-pool.json`,
+ * issue #4168) deliberately: that file's merge immunity was its bare-array
+ * shape, and whole-file state in a header is exactly what makes two branches
+ * collide on a line neither of them touched. The packed corpus does carry it
+ * (`sourceHash`), and is regenerated rather than merged for that reason
+ * (`scripts/lib/generated-artifacts.ts`).
  */
 export const CATALOGUE_SOURCE_HASH: string = catalogueSource.hash;
 
