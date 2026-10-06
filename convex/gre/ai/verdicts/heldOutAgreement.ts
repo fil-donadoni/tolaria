@@ -18,7 +18,7 @@
 // Pure: reads a `VerdictReport` and a corpus, no engine of its own.
 
 import { verdictDecisionClass } from "./coverage";
-import { pairSplitRefusals, verdictSidesOf } from "./heldOut";
+import { burnedOf, pairSplitRefusals, verdictSidesOf } from "./heldOut";
 import { verdictIdOf } from "./identity";
 import { SATISFIED_EPS, type VerdictReport } from "./report";
 import type { Verdict } from "./types";
@@ -42,6 +42,30 @@ export function heldOutVerdicts(
     );
 }
 
+/** The burned count (`burnedOf`) beside the held-out `n` it reduced. */
+export type BurnedCount = {
+    burned: number;
+    /** Held-out Verdicts that remain (`heldOutVerdicts`). */
+    heldOutN: number;
+};
+
+/** `burnedOf` and the held-out `n` it reduced — printed beside every
+ *  agreement number (issue #3983). */
+export function burnedCountOf(
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>
+): BurnedCount {
+    return {
+        burned: burnedOf(verdicts, testPositions).length,
+        heldOutN: heldOutVerdicts(verdicts, testPositions).length,
+    };
+}
+
+/** The `burned` line of an agreement block. */
+export function formatBurned({ burned, heldOutN }: BurnedCount): string {
+    return `  burned             : ${burned} held-out positions admitted to the registry anyway (held-out n = ${heldOutN}, ${heldOutN + burned} before admission)`;
+}
+
 /** One tally: how many of `n` agreed. */
 export type AgreementTally = { agreed: number; n: number };
 
@@ -55,6 +79,8 @@ export type HeldOutEvalAgreement = {
     /** Held-out (or side-unknown) incomplete units — excluded, never an
      *  argument on their own. */
     excludedIncomplete: number;
+    /** Held-out positions admitted to the registry anyway (issue #3983). */
+    burned: BurnedCount;
 };
 
 /**
@@ -101,6 +127,7 @@ export function heldOutEvalAgreement(
         excludedIncomplete: report.incomplete.filter(
             (u) => sideOf.get(u.verdictId) !== "fit"
         ).length,
+        burned: burnedCountOf(verdicts, testPositions),
     };
 }
 
@@ -119,6 +146,7 @@ export function formatHeldOutEvalAgreement(
 ): string {
     const out = [
         "== held-out eval agreement (issue #3982) — pairs the Evaluation orders as the player did, held-out side only",
+        formatBurned(agreement.burned),
         `  all                : ${formatAgreementTally(agreement.aggregate)}`,
         `  excluded           : ${agreement.excludedTiming} timing pairs, ${agreement.excludedIncomplete} incomplete units (not agreement evidence)`,
         "  by Decision Class",

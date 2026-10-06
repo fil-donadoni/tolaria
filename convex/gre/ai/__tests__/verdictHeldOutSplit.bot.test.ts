@@ -10,8 +10,11 @@
 // true across builds, not only within one run.
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
+import type { BladeScenario } from "../blade/types";
 import {
     HELD_OUT_SPLIT_MODULUS,
+    burnedCountOf,
+    burnedOf,
     fitInputPairs,
     heldOutBucketOf,
     minimalPairStandings,
@@ -352,5 +355,50 @@ describe("a Minimal Pair falls on one side, as one unit (issue #3981, ADR 0148)"
                 pairSplitRefusals([anchor, half], NO_TEST_POSITIONS).size
             ).toBe(0);
         });
+    });
+});
+
+describe("burned: held-out positions admitted to the registry anyway (issue #3983)", () => {
+    const held = boardOnSide("held-out");
+    const entryOf = (v: Verdict): BladeScenario =>
+        ({
+            spec: v.spec,
+            setup: v.setup,
+            bot: v.seat,
+            deckKnowledge: v.deckKnowledge,
+        }) as BladeScenario;
+
+    it("admitting a held-out verdict's scenario moves it fit-side and burns it", () => {
+        const admitted = testPositionKeysOf([entryOf(held)]);
+        expect(verdictSideOf(held, NO_TEST_POSITIONS)).toBe("held-out");
+        expect(burnedOf([held], NO_TEST_POSITIONS)).toEqual([]);
+        expect(verdictSideOf(held, admitted)).toBe("fit");
+        expect(burnedOf([held], admitted)).toEqual([held]);
+        expect(burnedCountOf([held], admitted)).toEqual({
+            burned: 1,
+            heldOutN: 0,
+        });
+    });
+
+    it("never burns a fit-by-hash verdict, nor a registry verdict with no store twin", () => {
+        const fit = boardOnSide("fit");
+        const registry = verdictsFromRegistry(BLADE_SCENARIOS).verdicts;
+        const positions = testPositionKeysOf(BLADE_SCENARIOS);
+        expect(burnedOf([fit], testPositionKeysOf([entryOf(fit)]))).toEqual([]);
+        expect(burnedOf(registry, positions)).toEqual([]);
+    });
+
+    it("burns a store twin of a registry entry hashing held-out", () => {
+        const registry = verdictsFromRegistry(BLADE_SCENARIOS).verdicts;
+        const positions = testPositionKeysOf(BLADE_SCENARIOS);
+        const heldByHash = registry.filter(
+            (v) => heldOutBucketOf(scenarioKeyOf(v)) === 0
+        );
+        const twin: Verdict = {
+            ...heldByHash[0],
+            id: "in-play:twin",
+            source: "in-play",
+        };
+        expect(burnedOf([...registry, twin], positions)).toEqual([twin]);
     });
 });
