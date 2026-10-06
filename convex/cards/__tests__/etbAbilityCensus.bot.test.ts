@@ -1,4 +1,4 @@
-// ETB Ability census (issue #4758, PRD #4754). An **ETB Ability** (CONTEXT.md,
+// ETB Ability census (issue #4758, PRD #4754). An **ETB Ability** (GLOSSARY.md,
 // CR 603.6a "When [this object] enters, …") is SPENT on entering: the Bot's
 // value model counts it in the card's latent Card Value and never in its
 // realized one (`gre/ai/cardScriptValue.ts`). Which triggers ARE one is data —

@@ -4,7 +4,7 @@
 
 ## Context
 
-A **Pending Choice** (CONTEXT.md) is a mid-resolution decision where a
+A **Pending Choice** (GLOSSARY.md) is a mid-resolution decision where a
 **Player** picks N items from an eligible set: discards, untap picks under
 Winter Orb / Smoke, mulligan bottoming (CR 103.5), Library of Leng routing,
 Disrupting Scepter, etc. The chooser clicks cards in the relevant zone; the

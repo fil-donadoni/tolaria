@@ -99,7 +99,7 @@ tagged usable only for cumulative upkeep costs; no new mana machinery.
   Darkness) make a numeric multiplier wrong anyway.
 - The cost union is intentionally ICE-scoped (mana / life / sacrifice). Alliances
   and Coldsnap will add snow-mana CU costs; because snow mana is itself deferred
-  (see CONTEXT.md "Snow"), that extension lands with the set that needs it, not
+  (see GLOSSARY.md "Snow"), that extension lands with the set that needs it, not
   speculatively now.
 - Grantable CU means the keyword must be readable from layer-6 ability grants,
   not just printed triggers — a small amount of extra indirection that pays off

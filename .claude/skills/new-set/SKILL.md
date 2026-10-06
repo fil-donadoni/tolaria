@@ -276,7 +276,7 @@ One question per turn, recommended answer stated each time. Drive it to:
 - **Out-of-scope** — unmodelled layouts; ante/subgame (ADR 0010); 3+ player.
   Named card by card, subtracted from the acceptance denominator explicitly.
 
-`/grill` updates `CONTEXT.md` inline as terms resolve and may create an
+`/grill` updates `GLOSSARY.md` inline as terms resolve and may create an
 ADR for a hard-to-reverse decision (it offers them sparingly — a grammar rule is
 not one).
 

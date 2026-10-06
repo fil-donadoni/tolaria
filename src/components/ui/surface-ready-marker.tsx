@@ -1,4 +1,4 @@
-/** The ready marker of a Settled Screen (CONTEXT.md § Surfaces, issue #3644).
+/** The ready marker of a Settled Screen (GLOSSARY.md § Surfaces, issue #3644).
  *
  *  A walked surface renders this in the branch where its data HAS arrived —
  *  never in a loading branch — so `check:ui` (`scripts/ui-gate/settle.ts`)

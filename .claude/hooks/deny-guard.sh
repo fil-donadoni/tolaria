@@ -48,7 +48,7 @@ deny() {
 # Rule 4 below stops a session from DESTROYING another session's work there.
 # This one stops it from creating the mess in the first place, which telemetry
 # says is the commoner event by far: ~40 documentation-only commits landed
-# straight on `main` over 30 days — ADRs, PRDs, CONTEXT.md updates, findings —
+# straight on `main` over 30 days — ADRs, PRDs, GLOSSARY.md updates, findings —
 # every one of them the residue of a discussion, not of a task anybody would
 # have thought to isolate. Two of those 30 days also carry a
 # `Merge branch 'main' of …` commit: local `main` had diverged from origin.

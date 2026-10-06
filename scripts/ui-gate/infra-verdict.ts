@@ -1,5 +1,5 @@
 /**
- * The Infra Verdict (CONTEXT.md § Surfaces, ADR 0132, issue #3644): the third
+ * The Infra Verdict (GLOSSARY.md § Surfaces, ADR 0132, issue #3644): the third
  * outcome of a Walked Surface at a viewport, beside pass and fail — the walk
  * was cut short by the MACHINE, not by the tree.
  *

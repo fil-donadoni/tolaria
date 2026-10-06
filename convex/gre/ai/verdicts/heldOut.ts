@@ -26,7 +26,7 @@
 // keyed on the registry's ENTRIES, not on the Verdicts they lower to, so an
 // entry the lowering refuses (a `gap`) still claims its scenario.
 //
-// A MINIMAL PAIR IS ONE UNIT (ADR 0148, CONTEXT.md § Held-out Agreement):
+// A MINIMAL PAIR IS ONE UNIT (ADR 0148, GLOSSARY.md § Held-out Agreement):
 // either half alone is half an argument — a "wrong now" fitted without its
 // right-hand half teaches "never", the half alone "always" — so the two halves
 // always fall on the same side. The unit takes its ANCHOR's scenario bucket,

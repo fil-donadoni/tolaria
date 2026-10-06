@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — grilled 2026-09-20. The terms it names are defined in `CONTEXT.md`
+accepted — grilled 2026-09-20. The terms it names are defined in `GLOSSARY.md`
 § Rules Consultant. The service's own repository does not exist yet; this
 record fixes the boundary before it does.
 

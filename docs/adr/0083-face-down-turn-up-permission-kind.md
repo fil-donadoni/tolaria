@@ -15,7 +15,7 @@ the real id survives in `faceDownOf`, and `projectExileCard` /
 
 Illusionary Mask's creature turns face up **automatically**, as a replacement
 effect (`gre/replacements.ts:251`), the moment it would deal or be dealt damage
-or become tapped. Nothing in the engine — and nothing in `CONTEXT.md`, which
+or become tapped. Nothing in the engine — and nothing in `GLOSSARY.md`, which
 says a turn-up happens "never by paying a cost" — models a turn-up the
 controller **chooses** and **pays for**.
 
@@ -74,7 +74,7 @@ Consequences that follow and are part of this decision:
   it cannot be responded to and triggers nothing that watches casts (CR 701.40b).
 - The bot needs the move in its enumeration (`search.ts`), or a manifested
   creature can never be turned up in a vs-AI game.
-- `CONTEXT.md`'s **Turn Face Up** entry loses its "never by paying a cost"
+- `GLOSSARY.md`'s **Turn Face Up** entry loses its "never by paying a cost"
   clause; **Manifest Dread** is added beside it.
 
 ## Consequences

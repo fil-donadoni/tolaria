@@ -343,7 +343,7 @@ The other constructed formats (pauper, legacy, vintage, modern) become v3:
 each is one more Target List over the same grammar and no rule change, so
 they are cheap whenever they come; Commander is cards PLUS two deep rule
 changes, and it is the most-played format by a wide margin — the diffusion
-value sits there. Terms in `CONTEXT.md`: **Game Variant**, **Commander
+value sits there. Terms in `GLOSSARY.md`: **Game Variant**, **Commander
 Profile**, **Command Zone**, **Commander**, **Command Slot**, **Color
 Identity**, **Commander Damage**, **Paranoid Reduction**, **Focus View**,
 **Mosaic View**.

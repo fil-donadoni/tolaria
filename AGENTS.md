@@ -348,7 +348,7 @@ Once deferred, now **shipped** — not out of scope. Unbuilt? Flag explicitly
   (`docs/agents/triage-labels.md`).
 - **Every issue you file is stamped**: `area:*` + a type always, `## Band`
   only with no prioritised parent (`triage-labels.md` § Every new issue).
-- **Domain docs**: `CONTEXT.md` + `docs/adr/`. ADRs not auto-loaded:
+- **Domain docs**: `GLOSSARY.md` + `docs/adr/`. ADRs not auto-loaded:
   `docs/adr/README.md` is the index; **every new ADR MUST add its index row** in
   the same change.
 

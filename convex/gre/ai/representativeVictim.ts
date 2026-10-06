@@ -1,6 +1,6 @@
 // The Representative Victim — the permanent one `boardRemoval` unit takes off
 // the board when no board can say what a removal Op would really hit
-// (CONTEXT.md "Representative Victim", issue #3398).
+// (GLOSSARY.md "Representative Victim", issue #3398).
 //
 // A LEAF module on purpose: the board lens (`latentBoard.ts`, which reads the
 // rules engine) and the context-free ETB valuation (`cardScriptValue.ts`) both

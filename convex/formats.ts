@@ -605,7 +605,7 @@ export function checkOracleLegality(
 // count "by Card ID across printings": two different `printId`s of the same
 // card share ONE budget. `resolveDeckCardMeta` already collapses every printing
 // to its canonical `cardId` (the `CardDefinition.id`); these helpers group on
-// THAT key, never the raw deck-card id. Basic lands are always exempt (CONTEXT
+// THAT key, never the raw deck-card id. Basic lands are always exempt (GLOSSARY
 // "Restricted Card"; ADR 0036) — they are excluded before any count is taken.
 
 /** A counted, named card group: its canonical Card ID, a display name (the

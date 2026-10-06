@@ -4,7 +4,7 @@
 
 ## Context
 
-The UX pass of 2026-08 (PRD #2405, ADR 0101) fixed how the app _behaves_ across five viewports; it did not touch how it _looks_. A measured side-by-side with phase.rs (`preview.phase-rs.dev`, 2026-08-23) showed why a newcomer would pick their client on sight: our warm ground (`#0d0b07`/`#16110a`) under warm gold chrome under warm card art reads as one hue with no figure/ground separation; the lobby is ~5% art against their ~60%; one type size in Beleren small caps carries every title; gold is brand, action, border and title at once; opaque brown boxes with corner brackets sit on an already-dark page. The gap is the **Skin** (CONTEXT.md), not the layout. The bar is raised; the prior "identity stays" clause of the 2026-08 decisions (D1–D15) is withdrawn for the skin.
+The UX pass of 2026-08 (PRD #2405, ADR 0101) fixed how the app _behaves_ across five viewports; it did not touch how it _looks_. A measured side-by-side with phase.rs (`preview.phase-rs.dev`, 2026-08-23) showed why a newcomer would pick their client on sight: our warm ground (`#0d0b07`/`#16110a`) under warm gold chrome under warm card art reads as one hue with no figure/ground separation; the lobby is ~5% art against their ~60%; one type size in Beleren small caps carries every title; gold is brand, action, border and title at once; opaque brown boxes with corner brackets sit on an already-dark page. The gap is the **Skin** (GLOSSARY.md), not the layout. The bar is raised; the prior "identity stays" clause of the 2026-08 decisions (D1–D15) is withdrawn for the skin.
 
 ## Decision
 

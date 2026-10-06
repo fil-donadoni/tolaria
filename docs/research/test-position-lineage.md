@@ -16,7 +16,7 @@ genuine negative result.
 
 ## 1. Blade Scenario → Test Position
 
-### Recommended CONTEXT.md definition
+### Recommended GLOSSARY.md definition
 
 > **Test Position**: a scenario spec plus its asserted-correct move(s) —
 > lineage: chess EPD test positions (`bm`/`am` opcodes) and the classic
@@ -27,9 +27,9 @@ genuine negative result.
 > trigger, fetchland timing and target, modal choice, and lethal-block
 > defence.
 
-(This keeps the existing CONTEXT.md sentence describing what the four
+(This keeps the existing GLOSSARY.md sentence describing what the four
 scenarios test — only the name and its lineage clause change; see the
-current row at `CONTEXT.md:625`.)
+current row at `GLOSSARY.md:625`.)
 
 ### Sources
 
@@ -147,7 +147,7 @@ gain" (statistical, expensive).
 
 ## 2. Discriminating Pair → Minimal Pair
 
-### Recommended CONTEXT.md definition
+### Recommended GLOSSARY.md definition
 
 > **Minimal Pair**: two Test Positions identical except for one card,
 > asserting opposite verdicts — lineage: the linguistic minimal pair
@@ -158,7 +158,7 @@ gain" (statistical, expensive).
 > the pair distinguishes a Brain that reads the consequence from one that
 > always, or never, makes the play.
 
-(Keeps the existing meaning at `CONTEXT.md:634` — only the name and its
+(Keeps the existing meaning at `GLOSSARY.md:634` — only the name and its
 lineage clause change.)
 
 ### Sources
@@ -261,7 +261,7 @@ sets.
 
 ## 3. Held-out agreement
 
-### Recommended CONTEXT.md definition
+### Recommended GLOSSARY.md definition
 
 > **held-out agreement**: agreement between a Brain's verdict and a labelled
 > answer measured on data withheld from anything the Brain (or its tuning)

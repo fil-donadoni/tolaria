@@ -11846,7 +11846,7 @@ export interface TriggeredAbility {
      *  some of them is a static validation failure (`validate.ts`), never a
      *  runtime skip. */
     event: GameEventType | GameEventType[];
-    /** Issue #4758 — is this an **ETB Ability** (CONTEXT.md): "When [this
+    /** Issue #4758 — is this an **ETB Ability** (GLOSSARY.md): "When [this
      *  object] enters, …" (CR 603.6a), fired by its OWN permanent entering and
      *  by nothing else? `true` means it is SPENT on entering: the Bot's value
      *  model counts it in the card's latent Card Value (hand, library,

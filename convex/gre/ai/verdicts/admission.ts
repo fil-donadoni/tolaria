@@ -1,5 +1,5 @@
 // Admission Candidates: the locked Verdicts tooling proposes for a human's
-// Admission look (issue #3985, PRD #3980, ADR 0138; CONTEXT.md § Admission).
+// Admission look (issue #3985, PRD #3980, ADR 0138; GLOSSARY.md § Admission).
 //
 // TOOLING PROPOSES, A HUMAN ADMITS. A candidate is a locked Verdict that has
 // cleared four bars, each a number in `tolaria.config.json` § admission and
@@ -291,7 +291,7 @@ export function formatAdmissionProposal(proposal: AdmissionProposal): string {
         `  locked units           : ${proposal.units.length} (a Minimal Pair is one unit)`,
         ...REFUSALS.map((r) => `  refused — ${r.padEnd(16)}: ${count(r)}`),
         `  candidates             : ${proposal.candidates.length}`,
-        `  the forced-loss check is the reviewer's: admit only a position whose wrong move loses something forced by the rules — a creature, the game — never "worse on average" (CONTEXT.md § Admission)`,
+        `  the forced-loss check is the reviewer's: admit only a position whose wrong move loses something forced by the rules — a creature, the game — never "worse on average" (GLOSSARY.md § Admission)`,
     ];
     for (const unit of proposal.candidates) {
         out.push("");

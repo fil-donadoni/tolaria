@@ -1443,7 +1443,7 @@ describe("queue planner — lane homogeneity (issue #2743, closing PRD #2738)", 
             CONFIG,
             makePort({
                 100: { body: body({ targetFiles: ["docs/adr/0111.md"] }) },
-                200: { body: body({ targetFiles: ["CONTEXT.md"] }) },
+                200: { body: body({ targetFiles: ["GLOSSARY.md"] }) },
             })
         );
         expect(numbers(proseOnly)).toEqual([100, 200]);

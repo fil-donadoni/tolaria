@@ -36,7 +36,7 @@ describe("docs-lane — what the lane will carry", () => {
             "docs/adr/0101-something.md",
             "docs/adr/README.md",
             "docs/findings/1712-note.md",
-            "CONTEXT.md",
+            "GLOSSARY.md",
             "CLAUDE.md",
             ".claude/skills/new-card/SKILL.md",
             "README.md",
@@ -65,9 +65,9 @@ describe("docs-lane — what the lane will carry", () => {
         const { docs, foreign } = classifyChanges([
             "docs/adr/0101-x.md",
             "convex/gre/layers.ts",
-            "CONTEXT.md",
+            "GLOSSARY.md",
         ]);
-        expect(docs).toEqual(["docs/adr/0101-x.md", "CONTEXT.md"]);
+        expect(docs).toEqual(["docs/adr/0101-x.md", "GLOSSARY.md"]);
         expect(foreign).toEqual(["convex/gre/layers.ts"]);
     });
 
@@ -155,7 +155,7 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
      * `DOC_GATE_TESTS_EXCLUDED` with the reason it guards no document.
      */
     const READS_DOCS =
-        /"docs\/|docs\/adr|CONTEXT\.md|\.claude\/|\.md"|README\.md/;
+        /"docs\/|docs\/adr|GLOSSARY\.md|\.claude\/|\.md"|README\.md/;
 
     it("classifies every doc-reading guard as covered or excluded-with-a-reason", () => {
         const unclassified: string[] = [];

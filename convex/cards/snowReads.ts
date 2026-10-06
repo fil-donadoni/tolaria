@@ -2,7 +2,7 @@
 //
 // In the Ice Age block "snow" is referenced only by type ("a snow-covered
 // land", "sacrifice a snow Mountain"); the {S} snow-mana symbol is a later
-// (Coldsnap) addition that ICE never uses (see CONTEXT.md "Snow"). These reads
+// (Coldsnap) addition that ICE never uses (see GLOSSARY.md "Snow"). These reads
 // resolve the LIVE snow status of a permanent: printed supertypes (from the
 // registry via the injected `supertypesForCardId` — cycle-free, mirrors
 // `manaCostForCardId`) overlaid by any `supertype-set` static effect or

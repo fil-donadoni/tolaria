@@ -53,7 +53,7 @@ want to hold for instant-speed response. It changes only _which_ sources within
 the minimal set are chosen.
 
 Among all minimal-tap plans that cover the cost, pick the one that maximizes the
-number of **Demands** (see CONTEXT.md) left satisfiable after payment — the
+number of **Demands** (see GLOSSARY.md) left satisfiable after payment — the
 active player's other castable hand spells and activatable on-board abilities.
 When no Demand discriminates between plans (or the hand is empty), fall back to a
 **flexibility heuristic** that reproduces Arena's "spend colorless/basics first,

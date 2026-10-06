@@ -126,7 +126,7 @@ target types — no new Op, no new `TargetRequirement.type`.
 Replicate (CR 702.56) arrived as the second keyword on this machinery, which
 made the axis of variation visible: the snapshot, the per-copy retarget, the
 copies-on-stack loop and the countered-original ruling are identical, and the
-keywords differ **only in the Cast-Copy Count** (`CONTEXT.md` § Cast-Copy).
+keywords differ **only in the Cast-Copy Count** (`GLOSSARY.md` § Cast-Copy).
 The machinery was renamed in place, without changing behaviour:
 
 - `stormSnapshot` → `castCopySnapshot`, `stormCopiesRemaining` →

@@ -1,4 +1,4 @@
-// An ETB Ability is spent on entering (issue #4758, PRD #4754; CONTEXT.md
+// An ETB Ability is spent on entering (issue #4758, PRD #4754; GLOSSARY.md
 // "ETB Ability"): CR 603.6a "When [this object] enters" — counted in a card's
 // latent Card Value (hand, library, graveyard, playable exile) and never in
 // its realized one on the battlefield, where what it did is already in the

@@ -149,7 +149,7 @@ The two ways to play are labelled **Arena mode** (the GRE enforces the
 rules — vs Bot, solo, multiplayer) and **Cockatrice mode** (a Manual Game: a
 free table, any printed card, the players call the rules), each with a
 three-line tooltip. These are UI labels; the domain terms stay **Game** /
-**Manual Game** (CONTEXT.md). "Tabletop", "Rules enforced", "Classic" are
+**Manual Game** (GLOSSARY.md). "Tabletop", "Rules enforced", "Classic" are
 retired as labels.
 
 ## Considered options

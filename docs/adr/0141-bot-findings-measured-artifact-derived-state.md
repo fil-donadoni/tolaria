@@ -42,7 +42,7 @@ Four forces shape the design:
 3. **One measurement yields one class per card.** `playBotReach` stops where
    the card stops, so a second blocker behind the first is unknowable until
    the first is closed. A "chain of problems" column would be a fabrication.
-4. **A human report is not a Gap.** `CONTEXT.md` reserves Gap for what the
+4. **A human report is not a Gap.** `GLOSSARY.md` reserves Gap for what the
    tooling computed. User-observed bot defects are real but need a different
    admission rule, or the page fills with rows nobody can action.
 
@@ -127,6 +127,6 @@ Four forces shape the design:
   `never-chosen` — a card the Bot does not choose has no follow-through to
   observe — so the list would look complete while being partial.
 - **A second filer on the page** ("open issue" button): duplicate issues on one
-  class within weeks, and it breaks the one-filer invariant in `CONTEXT.md`.
+  class within weeks, and it breaks the one-filer invariant in `GLOSSARY.md`.
 - **A nightly cron re-measure**: always fresh, but spends CPU on a shared
   machine nobody asked for and keeps the measurement out of PR review.

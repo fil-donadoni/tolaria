@@ -62,7 +62,7 @@ So `606.5` is wrong in both directions it is used:
   `src/lib/card-utils.ts:2040`,
   `convex/gre/__tests__/loyalty.test.ts:9,174,212`,
   `convex/cards/sets/mh3/__tests__/blue.test.ts:317`,
-  `docs/adr/0058-loyalty-abilities-as-signed-cost-member.md:50`, `CONTEXT.md:116`.
+  `docs/adr/0058-loyalty-abilities-as-signed-cost-member.md:50`, `GLOSSARY.md:116`.
   26 `.ts`/`.md` sites carry `606.5` in total across B1 and B2.
 
 **Evidence.** All six rule texts above were printed with `bun run cr <id>` against

@@ -59,7 +59,7 @@ read in this session.
 | Source                                     | Use it for                                                           |
 | ------------------------------------------ | -------------------------------------------------------------------- |
 | The code itself                            | What actually happens. Cite `path:line` for every load-bearing claim |
-| `CONTEXT.md`                               | The glossary. Use its terms **exactly**; respect its `_Avoid_` lines |
+| `GLOSSARY.md`                              | The glossary. Use its terms **exactly**; respect its `_Avoid_` lines |
 | `docs/adr/README.md` → the ADR             | Why it is built this way, what alternative was rejected              |
 | `docs/PROJECT.md`                          | The architectural overview                                           |
 | `docs/guides/`                             | "How do I run it": the commands, in order, with failure modes        |
@@ -103,7 +103,7 @@ below) — the learner decides whether to widen, zoom into a door, or stop.
 - **One picture** — the diagram or schema that captures the shape (see
   [Choosing the representation](#choosing-the-representation)).
 - **The minimal vocabulary** — a small table of the 3–7 terms needed to
-  read the picture, each with the `CONTEXT.md` definition compressed and the
+  read the picture, each with the `GLOSSARY.md` definition compressed and the
   type/file where it lives.
 - **Prose that connects them** — two or three short paragraphs walking the
   picture: what flows where, and the one invariant that holds it together.
@@ -323,5 +323,5 @@ Oppure: "chiaro, allarga" · "non mi torna <X>" · "basta così"
 ```
 
 Every `…` above is filled from files read in the session, and every term
-in the diagram was checked against `CONTEXT.md` — the shape is the lesson,
+in the diagram was checked against `GLOSSARY.md` — the shape is the lesson,
 the content always comes from HEAD.

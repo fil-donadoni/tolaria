@@ -4,7 +4,7 @@
 
 accepted — grilled 2026-09-25 (decisions Q1–Q15 of PRD #4673). Amends ADR 0137
 (`gaps:sync` files gap issues) and retires the rule "`gaps:sync` never rewrites
-a cluster's body or moves its parent". Terms in `CONTEXT.md`: **Gap Cluster**,
+a cluster's body or moves its parent". Terms in `GLOSSARY.md`: **Gap Cluster**,
 **Cluster Signature**, **Standalone Gap**, **Absorb**, **Re-home**,
 **Cluster Cut ticket**.
 

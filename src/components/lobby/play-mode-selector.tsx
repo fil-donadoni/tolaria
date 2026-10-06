@@ -5,7 +5,7 @@
 // selected). Mirrors MatchFormatSelector's segmented-control shape (same
 // radiogroup pattern, same test seam via `getByRole("radio", ...)`), plus a
 // three-line tooltip per option (ADR 0101 §10) — labels only, the domain
-// terms stay Game / Manual Game (CONTEXT.md).
+// terms stay Game / Manual Game (GLOSSARY.md).
 
 import { cn } from "~/lib/utils";
 import type { PlayMode } from "~/lib/session";

@@ -1,4 +1,4 @@
-// The **Cast Commit** kernel (CONTEXT.md § Flow) — the server's ONE cast commit
+// The **Cast Commit** kernel (GLOSSARY.md § Flow) — the server's ONE cast commit
 // sequence (issue #4445, PRD #4437): pay the mana leg and capture what it
 // produced, pay the other cost legs, remove the card from the zone it is cast
 // from, build the stack item with its cost record and its Cast Provenance, put
@@ -72,7 +72,7 @@ import type {
     StackItem,
 } from "./state";
 
-/** Cast Provenance (CONTEXT.md): the zone the spell leaves, and the graveyard
+/** Cast Provenance (GLOSSARY.md): the zone the spell leaves, and the graveyard
  *  play permission that licensed the cast when one did (ADR 0093). The owner
  *  of that zone is derived at commit (`castZoneOwner`), never carried: a
  *  cross-player exile grant (issue #1156) removes from the ACTUAL exile owner. */

@@ -6,7 +6,7 @@ proposed
 
 ## Context
 
-A **payment park** (see `CONTEXT.md`) is a cost-payment decision suspended
+A **payment park** (see `GLOSSARY.md`) is a cost-payment decision suspended
 inside the announcement window of a cast or an activated ability (CR 601.2 /
 602.2): which permanent to sacrifice, which card to discard or exile, which
 creatures to tap. The announcement is recorded on `pendingCast` /
