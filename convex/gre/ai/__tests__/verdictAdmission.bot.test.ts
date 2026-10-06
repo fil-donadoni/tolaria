@@ -1,5 +1,5 @@
 // Admission Candidates and the Promotion streak ledger (issue #3985, PRD
-// #3980, ADR 0138; CONTEXT.md § Admission).
+// #3980, ADR 0138; GLOSSARY.md § Admission).
 //
 // Claims:
 //

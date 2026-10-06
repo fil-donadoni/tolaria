@@ -2135,7 +2135,7 @@ export const veldt = defineCard(() =>
 // Snow-Covered Plains — basic land carrying the Snow supertype (CR 205.4a).
 // The intrinsic basic mana ability comes from the Plains subtype
 // (`LAND_SUBTYPE_MANA`); ICE snow is a TYPE reference only — there is no {S}
-// snow mana (that is a later Coldsnap addition; see CONTEXT.md "Snow").
+// snow mana (that is a later Coldsnap addition; see GLOSSARY.md "Snow").
 export const snowCoveredPlains = defineCard(() => ({
     id: "cb3ac778-fb45-4fd3-a9af-8a0791f833e8",
     name: "Snow-Covered Plains",

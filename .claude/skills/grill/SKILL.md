@@ -1,6 +1,6 @@
 ---
 name: grill
-description: 'Grill the owner about a plan or design, one question per turn, until shared understanding; records terms in CONTEXT.md and hard decisions as ADRs. Use when the owner says "grill me" or the intake pipeline calls for a design interview.'
+description: 'Grill the owner about a plan or design, one question per turn, until shared understanding; records terms in GLOSSARY.md and hard decisions as ADRs. Use when the owner says "grill me" or the intake pipeline calls for a design interview.'
 ---
 
 # /grill — the design interview

@@ -4,7 +4,7 @@
 // WHY A LEDGER. The Verdict Lock holds only the current set
 // (`lockSource.ts`), and a promotion's "pairs the fit could not satisfy" is
 // printed, never kept — so "stayed satisfied across successive Weight Fits",
-// the bar an Admission Candidate clears (CONTEXT.md § Admission), had nowhere
+// the bar an Admission Candidate clears (GLOSSARY.md § Admission), had nowhere
 // to be read from. This file is that history, reduced to the one number the
 // proposer reads: the length of each Verdict's current run.
 //

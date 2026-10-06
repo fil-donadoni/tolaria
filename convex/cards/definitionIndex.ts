@@ -1,5 +1,5 @@
 // The DEFINITION INDEX (issue #4856, PRD #4849, ADR 0113 Amendment IV) — its
-// shape and the derivations it carries. CONTEXT.md § Definition Index: the
+// shape and the derivations it carries. GLOSSARY.md § Definition Index: the
 // small, generated, eagerly loaded table of every Card Definition the runtime
 // can serve, and the only part of the catalogue built at load.
 //
