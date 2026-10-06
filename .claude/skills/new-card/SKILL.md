@@ -1,6 +1,6 @@
 ---
 name: new-card
-description: Bring ONE card into the catalogue the grammar-first way (ADR 0137) — ask the Oracle compiler what it already does with the card, and let its compile state decide the work: `ready` owes only the artefact refresh and the Bot read-back, `quarantine` owes the engine a mechanic, an unparsed card whose gap pays for itself owes a Grammar Rule (`/grammar-rule`), and only a card whose every residual gap sits below `handTailFloor` is written by hand, under Guard C with a `hand-tail:` marker. Use when a user names one card, when a Target List needs one card covered, or when a hand-tail issue is picked off the queue.
+description: "Bring ONE card into the catalogue the grammar-first way (ADR 0137): its Oracle compile state decides the work. Use when a user names one card or a hand-tail issue is picked off the queue."
 argument-hint: "<card name>"
 allowed-tools: Bash(curl:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com) Bash(bun run cr:*) Bash(bun run oracle:*) Bash(bun run check:*) Bash(jq:*)
 ---

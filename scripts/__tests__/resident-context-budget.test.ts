@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
+import { modelFacingDescriptions } from "../lib/skill-frontmatter";
 
 /**
  * Agent-context budget, in two tiers (docs/agents/context-residency-audit.md).
@@ -297,5 +298,42 @@ describe("skill manifest budget (PRD #5096 D6, issue #5100)", () => {
                 `to read it, and measurements or history to docs/agents/. A raise is ` +
                 `a row edit in this file, in the same commit.`
         ).toEqual([]);
+    });
+});
+
+/**
+ * TIER 4 — SKILL LISTING (PRD #5096 D8, issue #5101). Every skill's
+ * description is listed into every session and subagent, the way tier 1 is
+ * re-read on every request. Skills only the owner or the driver types set
+ * `disable-model-invocation: true`, and the vendored Convex skills collapse
+ * to `name-only` in `.claude/settings.json`; the budget is the sum of the
+ * descriptions that remain model-facing.
+ *
+ * 7,083 characters across 21 skills on 2026-10-05 (before this tier); 1,956 across
+ * 11 listed skills after the split. The ceiling carries ~2% headroom.
+ */
+const SKILL_LISTING_CEILING_CHARS = 2_260;
+
+describe("skill listing budget (PRD #5096 D8, issue #5101)", () => {
+    it("finds the model-facing corpus", () => {
+        const listed = modelFacingDescriptions(REPO_ROOT);
+        expect(listed.size).toBeGreaterThan(5);
+        expect(listed.has("next-issue")).toBe(false);
+        expect(listed.has("grill")).toBe(true);
+    });
+
+    it("the model-facing descriptions stay under the ceiling", () => {
+        const listed = modelFacingDescriptions(REPO_ROOT);
+        const total = [...listed.values()].reduce((n, d) => n + d.length, 0);
+        const rows = [...listed]
+            .map(([s, d]) => `  ${String(d.length).padStart(5)}  ${s}`)
+            .sort()
+            .join("\n");
+        expect(
+            total,
+            `Skill listing is ${total} chars, ceiling ${SKILL_LISTING_CEILING_CHARS}.\n${rows}\n` +
+                `Prune the description (what it is + one trigger per branch), or make a ` +
+                `skill only the owner types user-invoked-only. A raise is a commit someone signs.`
+        ).toBeLessThanOrEqual(SKILL_LISTING_CEILING_CHARS);
     });
 });

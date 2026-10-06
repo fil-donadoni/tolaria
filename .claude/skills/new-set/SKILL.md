@@ -1,6 +1,7 @@
 ---
 name: new-set
-description: Drive a full MTG set rollout for the Tolaria engine the grammar-first way (ADR 0137) — compile the set with the Oracle compiler, read its ranked Grammar Gap backlog, and cut one ticket per Grammar Cluster (gaps one rule family closes) plus the Guard C residue queue and the set's acceptance ticket. Invoke as "/new-set <3-letter code>", e.g. "/new-set inv".
+description: "Roll out a full MTG set the grammar-first way: compile, rank Grammar Gaps, cut tickets."
+disable-model-invocation: true
 argument-hint: "<set-code>"
 ---
 

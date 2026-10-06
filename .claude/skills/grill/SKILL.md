@@ -1,6 +1,6 @@
 ---
 name: grill
-description: Grill the owner about a plan, design or decision until shared understanding — one question per turn with a recommended answer, facts looked up not asked, resolved terms written into CONTEXT.md inline, hard-to-reverse decisions recorded as an ADR with its index row. Use when the owner says "grill me", wants a plan stress-tested, or when /new-set, /audit-tracker or the intake pipeline (grill → /to-prd → /to-tickets) calls for a design interview.
+description: 'Grill the owner about a plan or design, one question per turn, until shared understanding; records terms in CONTEXT.md and hard decisions as ADRs. Use when the owner says "grill me" or the intake pipeline calls for a design interview.'
 ---
 
 # /grill — the design interview

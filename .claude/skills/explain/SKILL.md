@@ -1,6 +1,7 @@
 ---
 name: explain
-description: Explain how a part of the Tolaria webapp works — so the learner can develop and improve it — the way a good teacher would. Starts from the essence, builds a mental model with diagrams, tables and schemas, traces one real artefact (an action, a Verdict, a PR, an Op, a projection) through the real code, then widens ring by ring following the learner's feedback, opening deep-dives on request and ending each topic with how to change it safely. For a new developer taking over the project or the main developer refreshing a flow or pattern. Use whenever the user invokes /explain, asks "spiegami", "come funziona", "cos'è", "ripassiamo", "explain", "walk me through", "how does X work", "why is it built like this", or wants to understand (not change yet) the engine, the DSL or Oracle compiler, the Bot and its training (Verdicts, Weight Fit, blade), the projections and frontend, the queue, gates, land and release — even if they don't say "explain". Not for MTG rules questions asked as a player (that's /mtg-rules-check).
+description: Teach how a part of Tolaria works, from the essence outward, tracing one real artefact through the code.
+disable-model-invocation: true
 argument-hint: "[flow, pattern, subsystem or file — e.g. 'flusso dei verdetti', 'action flow', 'land']"
 ---
 

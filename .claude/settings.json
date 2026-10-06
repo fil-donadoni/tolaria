@@ -3,6 +3,11 @@
         "superpowers@claude-plugins-official": false
     },
     "skillOverrides": {
+        "convex-create-component": "name-only",
+        "convex-migration-helper": "name-only",
+        "convex-performance-audit": "name-only",
+        "convex-quickstart": "name-only",
+        "convex-setup-auth": "name-only",
         "code-review": "off",
         "grill-with-docs": "off",
         "grilling": "off",

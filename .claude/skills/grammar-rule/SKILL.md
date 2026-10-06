@@ -1,6 +1,6 @@
 ---
 name: grammar-rule
-description: Close ONE Grammar Cluster — the gaps one rule family closes (a single gap is a cluster of one) — read each gap's refused lines and counts, write the Grammar Rule in the right slot or shared sub-grammar, one golden fixture per accepted form with proof of failure, `/new-op` inside the same ticket when the rule needs an Op, recompile, read back the `ready` delta per set and corpus, graduate the hand-written cards that now round-trip out of Guard C's baseline, regenerate the catalogue artefacts, and write the PR body. Use when an issue names a Grammar Gap or a cluster of them (`Grammar Gap: <key>`, a `[Grammar]` cluster ticket's `## Grammar Gaps`, an `oracle:report` rank, a `compiler-gap:` marker's fragment), when `/new-set` v2 cuts a grammar ticket, or when `/new-op` Branch A needs its emitting rule.
+description: "Close ONE Grammar Cluster: write the Grammar Rule, a golden fixture per accepted form, recompile, graduate round-tripping cards. Use when an issue names a Grammar Gap, a `[Grammar]` cluster ticket, an `oracle:report` rank or a `compiler-gap:` marker, or when `/new-op` Branch A needs its emitting rule."
 argument-hint: "<gap key | cluster issue #N>"
 ---
 

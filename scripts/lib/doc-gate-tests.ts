@@ -55,4 +55,5 @@ export const DOC_GATE_TESTS = [
     "scripts/__tests__/gate-rule-parity.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
+    "scripts/__tests__/skill-invocation.test.ts",
 ] as const;

@@ -1,6 +1,7 @@
 ---
 name: next-issue
-description: Close ONE ready-for-agent issue end-to-end in THIS session — the single-session pipeline (ADR 0110). Use when the user says "next issue", "prendi la prossima issue", "close issue N", or invokes /next-issue [N].
+description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, land."
+disable-model-invocation: true
 ---
 
 # /next-issue — one context closes one issue

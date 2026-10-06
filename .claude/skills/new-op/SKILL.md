@@ -1,6 +1,6 @@
 ---
 name: new-op
-description: Add a new Effect Script Op (or a new EffectOp field / construct usage) to the DSL — walk all eight sites — eleven registration points across eight files (lettered sub-sites), two of which no PR-time guard covers, plus the Grammar Rule that emits the Op (or the open Grammar Gap that stops it) — then write the Op's permanent test. Use when a card needs a verb the DSL doesn't have, when adding an entry to EFFECT_OP_REGISTRY, or when a review finds an Op that valuates as neutral / scenario-skips silently.
+description: Add a new Effect Script Op to the DSL across all eight sites, with its emitting Grammar Rule and permanent test. Use when a card needs a verb the DSL lacks, or a review finds an Op that valuates as neutral.
 argument-hint: "<op-name>"
 ---
 

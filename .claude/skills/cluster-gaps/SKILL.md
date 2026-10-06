@@ -1,6 +1,6 @@
 ---
 name: cluster-gaps
-description: Cut named Gap Clusters for one gap kind — the judgment step of ADR 0146 (adoption is mechanical, the cut is judgment). Reads the singles a Cluster Cut ticket lists, groups them by the kind's own axis (grammar slot/sub-grammar, bot cause+Op, hand-tail set+colour, mechanic/scenario family), writes a Cluster Signature (`clusters` row) per family plus a Standalone Gap for a deliberate single, cuts one issue per family (title with no member count), wires it under the right band umbrella, and closes the Cluster Cut ticket — it never closes the singles themselves, `gaps:sync`'s next run absorbs them. Use when a `[Cluster] cut <kind> singles` ticket names this skill, when the user says "cluster the singles" / "cut the Gap Clusters", or when `/new-set` Phase 3 needs the shared family-boundary and long-tail rules for its own ranked backlog.
+description: "Cut named Gap Clusters for one gap kind (ADR 0146): group singles by the kind's axis, write Cluster Signatures, cut one issue per family. Use when a `[Cluster] cut <kind> singles` ticket names it, or when `/new-set` Phase 3 needs its grouping rules."
 argument-hint: "<kind> [Cluster Cut ticket #N]"
 ---
 

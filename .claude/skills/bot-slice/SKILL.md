@@ -1,6 +1,6 @@
 ---
 name: bot-slice
-description: Implement or review a change to the AI — the play Bot (Brain / ISMCTS search / evaluate / Move executor) or the draft Bot (botDrafter / card profiles / pick ratings). Maps the subsystem, walks the seams a change must touch, and enforces the verification doctrine (deterministic blade scenario first, self-play ladder only for strength claims). Use when work touches convex/gre/{search,evaluate,moves,applyMove,ai}, src/lib/ai/, convex/limited/botDrafter, when the bot stalls / plays badly / ignores a new mechanic, or when a new card or Op must become visible to the AI.
+description: "Implement or review a change to the play Bot or draft Bot: maps the subsystem, walks the seams, enforces the verification doctrine. Use when work touches convex/gre/{search,evaluate,moves,applyMove,ai}, src/lib/ai/ or convex/limited/botDrafter, when the Bot stalls, plays badly or ignores a mechanic, or when a new card or Op must become visible to the AI."
 ---
 
 # Bot Slice
