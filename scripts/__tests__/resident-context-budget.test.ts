@@ -127,6 +127,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-qa-issue": 16_518,
     "new-set": 32_806,
     "next-issue": 11_000,
+    retro: 4_600,
     "to-prd": 6_076,
     "to-tickets": 13_587,
 };
