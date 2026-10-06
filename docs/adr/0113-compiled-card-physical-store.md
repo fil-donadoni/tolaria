@@ -727,7 +727,7 @@ Point 2's ratio, measured on a real Convex cloud isolate by
 object literal at 4k, 9k, 12k and 35k rows, and padding searches read how
 much room each call had left:
 
-- **Node→isolate ratio ~0.6** (0.56–0.65; the health check applies **0.65**,
+- **Node→isolate ratio ~0.6** (0.56–0.65; the health check, once armed, applies **0.65**,
   the highest measured). The isolate does not compress pointers, and a call
   holds ~83 MiB of V8 objects before the runtime's "64 MB" error.
 - **No size failed on memory**, 35k included (46.7 MiB of isolate for the pool

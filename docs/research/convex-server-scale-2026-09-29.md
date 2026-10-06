@@ -173,7 +173,7 @@ What it says:
   isolate at 35k.
 - **The Node→isolate ratio is ~0.6** (0.56–0.65 over eight measurements; it
   rises with size, so it is not a fixed overhead): a Node heap delta
-  overstates the isolate's by ~1.6x. The health heap check applies **0.65**,
+  overstates the isolate's by ~1.6x. The health heap check is to apply **0.65**,
   the highest measured, so it errs on the side of a failure. The ratio was
   measured on a JSON literal. The engine's code (closures, compiled
   functions) was not measured separately, which is one more reason to take
