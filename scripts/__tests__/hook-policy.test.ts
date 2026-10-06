@@ -2529,3 +2529,85 @@ describe("session-origin hook — who started this session (issue #3144)", () =>
         expect(fs.readFileSync(journal(), "utf8")).toBe(before);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Resident prose deleted because a hook enforces it (issue #5102, PRD #5096 D7).
+//
+// Each case below stood in for a sentence of `CLAUDE.md` that was deleted: the
+// hook denies the act on its first attempt (one refused tool call — no lost
+// work, nothing outward-facing yet), and the denial message is now the only
+// place the session learns the rule. So the message must carry the FIX, not
+// merely the refusal: a denial that names no way forward turns a deleted
+// sentence into a retry loop. Proof of failure: blank any one message.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("resident prose pruned to its hook — each denial names the fix (issue #5102)", () => {
+    it("`Every Agent spawn MUST pass an explicit model` → spawn-guard Rule 1 names the tiers", () => {
+        const r = runHook(
+            SPAWN_GUARD,
+            spawn({ description: "investigate x", prompt: "x" })
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/model: sonnet/);
+        expect(r.stderr).toMatch(/model: opus/);
+    });
+
+    it("`Every description MUST be role-prefixed` → spawn-guard Rule 2 lists every role", () => {
+        for (const input of [
+            { model: "sonnet" },
+            { model: "sonnet", description: "look around" },
+        ]) {
+            const r = runHook(SPAWN_GUARD, spawn(input));
+            expect(denied(r)).toBe(true);
+            for (const role of [
+                "implement",
+                "review",
+                "fixup",
+                "investigate",
+                "research",
+                "verify",
+                "migrate",
+                "audit",
+            ]) {
+                expect(r.stderr).toMatch(new RegExp(`\\b${role}\\b`));
+            }
+        }
+    });
+
+    it("`Claim = bun run queue:claim N (hand-typed label denied)` → deny-guard §6 names the verb", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh issue edit 5102 --add-label in-progress", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/bun run queue:claim <issue#>/);
+    });
+
+    it("`deny-guard.sh § 0; gitignored paths writable; hatch TOLARIA_ALLOW_MAIN_EDIT=1` → §0 names worktree, exemption and hatch", () => {
+        const r = runHook(DENY_GUARD, {
+            session_id: "sess-1",
+            hook_event_name: "PreToolUse",
+            tool_name: "Write",
+            tool_input: {
+                file_path: path.join(mainCheckout, "docs", "adr", "x.md"),
+                content: "x",
+            },
+            cwd: mainCheckout,
+        });
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/bun run wt:new <issue#>/);
+        expect(r.stderr).toMatch(/bun run wt:docs <task>/);
+        expect(r.stderr).toMatch(/Gitignored paths/);
+        expect(r.stderr).toMatch(/TOLARIA_ALLOW_MAIN_EDIT=1/);
+    });
+
+    it("`deny-guard.sh § 1 denies hand-typed gh pr merge (hatch …)` → §1 names land and the hatch", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash("gh pr merge 5102 --squash", issueWorktree)
+        );
+        expect(denied(r)).toBe(true);
+        expect(r.stderr).toMatch(/bun run land <PR#>/);
+        expect(r.stderr).toMatch(/TOLARIA_ALLOW_MANUAL_MERGE=1/);
+    });
+});
