@@ -2712,7 +2712,7 @@ describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", ()
 // rider used to be dropped on a false "no snow lands in the pool" premise.)
 describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
     const thermokarst = getDefinition("00ae906b-2c4d-48e9-9f2d-217777e22292");
-    const forest = getCardByName("Forest")!;
+    const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b"); // Forest
     function castAt(landDefId: string) {
         const land = makeInstance(landDefId, {
             id: "target-land",
