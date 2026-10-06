@@ -465,14 +465,14 @@ describe("compilerGapCards — the markers `gaps:sync` reports against the floor
         const root = fixtureRoot(
             [
                 "// compiler-gap: draws a card for each (#1)",
-                "export const OWED: CardDefinition = {",
+                "export const OWED = defineCard(() => ({",
                 '    name: "Owed Card",',
-                "};",
+                "}));",
                 "",
                 "// hand-tail: a one-off clause (#2)",
-                "export const TAIL: CardDefinition = {",
+                "export const TAIL = defineCard(() => ({",
                 '    name: "Tail Card",',
-                "};",
+                "}));",
                 "",
             ].join("\n")
         );

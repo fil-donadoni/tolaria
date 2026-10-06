@@ -416,9 +416,9 @@ describe("hand-tail markers name their claim (issue #4514)", () => {
      *  through the real scanner, so attachment is the production rule. */
     const source = (name: string, ...issues: number[]) => [
         ...issues.map((n) => `// hand-tail: some fragment (#${n})`),
-        `export const Card${issues.length}: CardDefinition = {`,
+        `export const Card${issues.length} = defineCard(() => ({`,
         `    name: "${name}",`,
-        "};",
+        "}));",
         "",
     ];
     const markers = (...cards: string[][]) =>
@@ -529,9 +529,9 @@ describe("liveClusterKeys (ADR 0146, issue #4682)", () => {
     const handTailMarker = (card: string, file: string, issue = 4338) =>
         scanCompilerGapMarkers([
             `// hand-tail: some fragment (#${issue})`,
-            `export const Only: CardDefinition = {`,
+            `export const Only = defineCard(() => ({`,
             `    name: "${card}",`,
-            "};",
+            "}));",
         ]).map((m) => ({ ...m, file }));
 
     it("unions the op census with the fragment-level Grammar Gaps", () => {
@@ -630,9 +630,9 @@ describe("liveClusterKeys (ADR 0146, issue #4682)", () => {
             ),
             ...scanCompilerGapMarkers([
                 "// compiler-gap: some fragment (#1)",
-                `export const Only: CardDefinition = {`,
+                `export const Only = defineCard(() => ({`,
                 '    name: "Some Other Card",',
-                "};",
+                "}));",
             ]).map((m) => ({
                 ...m,
                 file: "convex/cards/sets/inv/red.cards.ts",

@@ -437,14 +437,14 @@ describe("the compiler-gap marker format", () => {
         const lines = [
             "// Alpha — a card with a documented gap.",
             "// compiler-gap: some fragment (#2698)",
-            "export const alpha: CardDefinition = {",
+            "export const alpha = defineCard(() => ({",
             '    name: "Alpha",',
-            "};",
+            "}));",
             "",
             "// Beta — no gap of its own.",
-            "export const beta: CardDefinition = {",
+            "export const beta = defineCard(() => ({",
             '    name: "Beta",',
-            "};",
+            "}));",
         ];
         const markers = scanCompilerGapMarkers(lines);
         expect(markers).toHaveLength(1);
@@ -454,10 +454,10 @@ describe("the compiler-gap marker format", () => {
     it("attaches nothing when the marker sits inside the object literal rather than in the doc paragraph", () => {
         const lines = [
             "// Gamma — a card.",
-            "export const gamma: CardDefinition = {",
+            "export const gamma = defineCard(() => ({",
             '    name: "Gamma",',
             "    // compiler-gap: some fragment (#2698)",
-            "};",
+            "}));",
         ];
         const markers = scanCompilerGapMarkers(lines);
         expect(markers).toHaveLength(1);
@@ -468,13 +468,13 @@ describe("the compiler-gap marker format", () => {
         const lines = [
             "// Delta — a card with a gap.",
             "// compiler-gap: some fragment (#2698)",
-            "export const delta: CardDefinition = {",
+            "export const delta = defineCard(() => ({",
             '    name: "Delta",',
-            "};",
+            "}));",
             "// Epsilon — a different card, no marker.",
-            "export const epsilon: CardDefinition = {",
+            "export const epsilon = defineCard(() => ({",
             '    name: "Epsilon",',
-            "};",
+            "}));",
         ];
         const markers = scanCompilerGapMarkers(lines);
         expect(markers.map((m) => m.card)).toEqual(["Delta"]);
@@ -490,9 +490,9 @@ describe("the compiler-gap marker format", () => {
             " * Zeta — a card.",
             " * compiler-gap: some fragment (#2698)",
             " */",
-            "export const zeta: CardDefinition = {",
+            "export const zeta = defineCard(() => ({",
             '    name: "Zeta",',
-            "};",
+            "}));",
         ];
         const markers = scanCompilerGapMarkers(lines);
         expect(markers).toHaveLength(1);
@@ -501,11 +501,11 @@ describe("the compiler-gap marker format", () => {
 
     it("finds a card's name past a long intra-literal comment (the Lutri shape)", () => {
         const lines = [
-            "export const lutri: CardDefinition = {",
+            "export const lutri = defineCard(() => ({",
             ...Array.from({ length: 14 }, (_, i) => `    // note ${i}`),
             '    id: "fb1189c9",',
             '    name: "Lutri, the Spellchaser",',
-            "};",
+            "}));",
         ];
         expect(scanCardAnchors(lines).anchors.map((a) => a.name)).toEqual([
             "Lutri, the Spellchaser",
@@ -541,9 +541,9 @@ describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)
     const card = (name: string, marker: string): string[] => [
         `// ${name} — a hand-written card.`,
         marker,
-        `export const ${name.toLowerCase()}: CardDefinition = {`,
+        `export const ${name.toLowerCase()} = defineCard(() => ({`,
         `    name: "${name}",`,
-        "};",
+        "}));",
         "",
     ];
     const UNPARSED: MarkerVerdict = { ok: false, kind: "unparsed" };
@@ -586,10 +586,10 @@ describe("the hand-tail marker — compiler-gap's terminal sibling (issue #3867)
     it("reds a detached hand-tail marker — inside the object literal", () => {
         const markers = scanCompilerGapMarkers([
             "// Gamma — a card.",
-            "export const gamma: CardDefinition = {",
+            "export const gamma = defineCard(() => ({",
             '    name: "Gamma",',
             "    // hand-tail: Rampage N (#3900)",
-            "};",
+            "}));",
         ]);
         expect(unexemptingMarkers(markers).map((m) => m.problem)).toEqual([
             "attached to no card",

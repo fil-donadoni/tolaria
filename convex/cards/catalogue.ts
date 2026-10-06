@@ -162,8 +162,8 @@ import {
 // the full contract. Registered into the SAME `registry` map hand-written
 // cards use, so `getDefinition`/`tryGetDefinition` never distinguish the two.
 import { excludeHandWritten } from "./compiledCatalogue";
-// A hand-written export is an eager definition or a `defineCard` factory
-// (issue #4857); this is the one reader that tells them apart.
+// A hand-written export is a `defineCard` factory (issue #4857); this is the
+// one reader of it, and the only resolution path (issue #4860).
 import { resolveCardExport } from "./defineCard";
 import { chooseableNamesOf } from "./cardNames";
 import { modalBackFaceParentId } from "./modalDfc";
@@ -356,8 +356,7 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
 //
 // A definition declared with `defineCard` (issue #4857) is not even BUILT at
 // load: its Set module evaluates a factory, which runs on the first request
-// (`handWrittenDefinition`). An eagerly declared one still evaluates its
-// object literal when its Set module is imported, but nothing here reads it.
+// (`handWrittenDefinition`).
 
 const setModuleByCode = new Map(setModules.map((m) => [m.code, m.exports]));
 

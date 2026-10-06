@@ -2,7 +2,7 @@
  * Issue #4857 (PRD #4849, ADR 0113 Amendment IV) — a hand-written Card
  * Definition declared with `defineCard(() => ({ … }))` is a memoised factory:
  * built on the first request, the same object afterwards, and resolved by the
- * catalogue exactly as an eagerly declared definition is.
+ * catalogue. The eager shape is refused (issue #4860).
  *
  * The converted cards cover the three shapes the issue names: Breath of
  * Darigaaz (a `resolve()` card), Aura Blast (an Effect Script) and Witch

@@ -11,9 +11,10 @@
 // does not mind). Identity is stable, so engine code and tests that compare
 // definitions by identity keep working.
 //
-// An eagerly built definition (`export const fooBar: CardDefinition = { … }`)
-// keeps working unchanged; `resolveCardExport` is the one place that tells the
-// two shapes apart.
+// A hand-written definition has ONE shape: this factory. The eager
+// `export const fooBar: CardDefinition = { … }` is refused (issue #4860) —
+// `resolveCardExport` reads only factories, and
+// `__tests__/noEagerDefinition.test.ts` reds on an eager one in a Set module.
 //
 // No imports beyond types: a Set module imports this, and the catalogue reads
 // it, without pulling anything else into either graph.
@@ -60,19 +61,8 @@ export function isCardFactory(value: unknown): value is CardFactory {
 }
 
 /** A Set module export as the definition it declares: a factory's built
- *  object, an eager definition as is, anything else (a helper, a shared
- *  ability template) as `undefined`. */
+ *  object, anything else (a helper, a shared ability template, an eager object
+ *  — refused, issue #4860) as `undefined`. */
 export function resolveCardExport(value: unknown): CardDefinition | undefined {
-    const candidate = isCardFactory(value) ? value() : value;
-    return isCardDefinitionObject(candidate) ? candidate : undefined;
-}
-
-function isCardDefinitionObject(value: unknown): value is CardDefinition {
-    return (
-        typeof value === "object" &&
-        value !== null &&
-        "id" in value &&
-        "name" in value &&
-        "types" in value
-    );
+    return isCardFactory(value) ? value() : undefined;
 }
