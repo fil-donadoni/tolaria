@@ -110,6 +110,11 @@ import {
     REFRESHED_ARTIFACT_NAME,
 } from "./lib/health-bot-refresh";
 import {
+    describePickRecord,
+    readPickRecord,
+    writePickRequest,
+} from "./lib/health-pick-agreement-audit";
+import {
     describeAuditRecord,
     readAuditRecord,
     writeAuditRequest,
@@ -370,6 +375,11 @@ function status(root: string): never {
     if (audit)
         console.log(
             `  blade audit: ${describeAuditRecord(audit, pidAlive(audit.pid))}`
+        );
+    const pick = readPickRecord(dir);
+    if (pick)
+        console.log(
+            `  held-out pick agreement: ${describePickRecord(pick, pidAlive(pick.pid))}`
         );
     const stale = staleWorktrees(root);
     if (stale.length > 0) {
@@ -820,6 +830,14 @@ async function main(): Promise<void> {
     ctx.robustness = describeRobustnessMode(robustness);
     // The audit is asked for here and run after the verdict (issue #5079).
     writeAuditRequest(dir, tip, robustness, robustnessOwed(robustness));
+    // Held-out pick agreement (issue #3982) is owed by the same batches — a
+    // Bot hash input moved — and is likewise measured after the verdict.
+    writePickRequest(
+        dir,
+        tip,
+        describeRobustnessMode(robustness),
+        robustnessOwed(robustness)
+    );
     const scripts = HEALTH_SCRIPTS;
     const gates = scripts;
     const { offline, walk } = splitHealthGates(gates);

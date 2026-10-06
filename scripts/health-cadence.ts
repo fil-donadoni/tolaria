@@ -98,6 +98,7 @@ import {
     type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
+import { readOwedPick } from "./lib/health-pick-agreement-audit";
 import { readOwedAudit } from "./lib/health-robustness-audit";
 import { recordMachineSaturated } from "./lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
@@ -109,6 +110,10 @@ const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const HEALTH_FIX = resolve(__dirname, "health-fix.ts");
 const GATE = resolve(__dirname, "gate.ts");
 const ROBUSTNESS_AUDIT = resolve(__dirname, "health-robustness-audit.ts");
+const PICK_AGREEMENT_AUDIT = resolve(
+    __dirname,
+    "health-pick-agreement-audit.ts"
+);
 
 /** Health telemetry directory, relative to the primary checkout — the same
  *  one `health-main.ts` and `health-fix.ts` write. */
@@ -423,6 +428,7 @@ function decideAndRun(root: string, branch: string): Round {
     // The verdict (GREEN or RED) is recorded: the audit it owes goes off the
     // critical path, before a RED handover can keep this process busy.
     spawnRobustnessAudit(root);
+    spawnPickAgreementAudit(root);
     if (action.kind === "green") {
         console.log(`health-cadence: ${action.reason}`);
         return { code: 0, ran: true };
@@ -469,6 +475,42 @@ function spawnRobustnessAudit(root: string): void {
         child.unref();
         console.log(
             `health-cadence: blade robustness audit (${owed.mode}) detached as pid ${child.pid}, after the verdict`
+        );
+    } finally {
+        closeSync(log);
+    }
+}
+
+/**
+ * Start the held-out pick agreement audit the verdict left owed (issue
+ * #3982): the same detached, `yield`-class, after-the-verdict shape as
+ * `spawnRobustnessAudit`, with its own request, log and record. It measures;
+ * it cannot touch the verdict.
+ */
+function spawnPickAgreementAudit(root: string): void {
+    const dir = join(root, HEALTH_DIR);
+    const last = readLast(root);
+    const owed = last === null ? null : readOwedPick(dir, last.sha, last);
+    if (owed === null || last === null) return;
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    delete env.TOLARIA_GATE_HELD;
+    delete env.TOLARIA_ALLOW_FULL_SUITE;
+    delete env.TOLARIA_VITEST_WORKERS;
+    env.TOLARIA_GATE_ROLE = HEALTH_ROLE;
+    const log = openSync(join(dir, "pick-agreement-audit.log"), "a");
+    try {
+        const child = spawn(
+            "bun",
+            [
+                GATE,
+                "yield",
+                `bun ${JSON.stringify(PICK_AGREEMENT_AUDIT)} --sha=${last.sha}`,
+            ],
+            { cwd: root, env, detached: true, stdio: ["ignore", log, log] }
+        );
+        child.unref();
+        console.log(
+            `health-cadence: held-out pick agreement audit (${owed.reason}) detached as pid ${child.pid}, after the verdict`
         );
     } finally {
         closeSync(log);
