@@ -63,7 +63,7 @@ export function burnedCountOf(
 
 /** The `burned` line of an agreement block. */
 export function formatBurned({ burned, heldOutN }: BurnedCount): string {
-    return `  burned             : ${burned} held-out positions admitted to the registry anyway (held-out n = ${heldOutN}, ${heldOutN + burned} before admission)`;
+    return `  burned             : ${burned} held-out positions admitted to the registry anyway (held-out n = ${heldOutN} remaining)`;
 }
 
 /** One tally: how many of `n` agreed. */
