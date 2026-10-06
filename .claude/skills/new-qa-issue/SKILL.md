@@ -1,6 +1,6 @@
 ---
 name: new-qa-issue
-description: Create a structured GitHub issue from a QA observation. Explores codebase, drafts agent-readable issue with Agent Brief template, posts after confirmation. Use when user says "new issue", "file a bug", "report a bug", "request enhancement", or invokes /new-qa-issue.
+description: "Create a structured GitHub issue from an observation: explore, draft an agent-readable issue, post after confirmation. Use to file a bug or enhancement."
 argument-hint: "<description> [--type bug|enhancement]"
 ---
 

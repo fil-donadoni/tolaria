@@ -1,6 +1,7 @@
 ---
 name: health-fix
-description: Repair a RED base tip — reproduce the failing step in a detached worktree at that tip, fix it forward with a test that closes the CLASS of the failure, land through `bun run land`, and record the verdict the spawner reads back. Use when `bun run release` refuses on RED, when `bun run health:status` shows a standing RED marker, when `bun run health:fix` spawns a session, or when invoked as /health-fix <sha>.
+description: "Repair a RED base tip: reproduce, fix forward, land, record the verdict."
+disable-model-invocation: true
 argument-hint: "<base-tip-sha>"
 ---
 

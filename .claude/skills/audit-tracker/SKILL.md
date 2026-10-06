@@ -1,6 +1,7 @@
 ---
 name: audit-tracker
-description: Audit a roll-up / umbrella / tracker GitHub issue that enumerates missing capabilities — re-verify each listed gap against HEAD, correct the ones whose premise is wrong, grill what's left, cut one slice ticket per survivor, re-point the code's tracked-by markers and retire the tracker. Use when the user points at a tracker issue and asks "what's still missing", "what's left in #N", "split this into tickets", "is this still open", or invokes /audit-tracker <issue>.
+description: Re-verify a roll-up tracker's gaps against HEAD, slice the survivors into tickets, retire the tracker.
+disable-model-invocation: true
 argument-hint: "<issue-number>"
 ---
 

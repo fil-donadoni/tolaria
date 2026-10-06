@@ -1,6 +1,6 @@
 ---
 name: gre-test
-description: Generate vitest tests for GRE modules following project patterns. Creates test files with helpers, fixtures, and CR-referenced test cases.
+description: Generate CR-referenced vitest tests for GRE modules, following project patterns.
 argument-hint: "<module or feature to test>"
 ---
 
