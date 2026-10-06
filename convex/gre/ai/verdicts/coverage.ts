@@ -91,6 +91,14 @@ export const CLASS_OF_MOVE_KIND: Record<Move["kind"], DecisionClass> = {
     "turn-face-up": "protocol",
 };
 
+/** The class of one move already in hand (issue #3984: a Verdict Proposal's
+ *  move is a live `Move`, never a stored key). Total, unlike
+ *  {@link decisionClassOfKey}: a typed move always names a kind the engine
+ *  has. */
+export function decisionClassOfMove(move: Move): DecisionClass {
+    return CLASS_OF_MOVE_KIND[move.kind];
+}
+
 /** The class of one candidate, read off its structural key.
  *
  *  `null` when the key does not parse or names a kind the engine no longer

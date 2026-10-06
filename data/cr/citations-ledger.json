@@ -5268,6 +5268,7 @@
         {"id":"117.3b","line":"describe(\"as-enters resume (CR 117.3b, ADR 0100 D5)\", () => {","sites":1,"status":"baseline"},
         {"id":"117.3b","line":"priority round, precisely the CR 117.3b violation this decision sets out to","sites":1,"status":"baseline"},
         {"id":"117.3b","line":"whereas CR 117.3b gives the active player priority only _after_ the spell or","sites":1,"status":"baseline"},
+        {"id":"117.3c","line":"* (CR 117.3c), which the executor never sends and which changes what the","sites":1,"status":"confirmed","ruleHash":"ae92bc57030920e9"},
         {"id":"117.3c","line":"* (CR 117.3c). Calling the two halves directly here would mean re-implementing","sites":1,"status":"baseline"},
         {"id":"117.3c","line":"* (`declineMadness` / `declineRebound`), followed by the identical CR 117.3c","sites":1,"status":"confirmed","ruleHash":"ae92bc57030920e9"},
         {"id":"117.3c","line":"* / 603.3b), and restart priority at the active player (CR 117.3c) exactly as","sites":1,"status":"baseline"},
