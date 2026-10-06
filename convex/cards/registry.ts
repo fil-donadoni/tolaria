@@ -56,12 +56,13 @@ import { setCardSupertypeLookup } from "./supertypeLookup";
 // and a catalogue card enters it the first time it is looked up, from the lazy
 // source `catalogue.ts` installs at load (the Definition Index locates it);
 // the lookup stays synchronous, because the data is already in memory and
-// only its registration is deferred. On the client the compiled rows enter
-// through `preloadDefinitions` once fetched, before the board renders.
+// only its registration is deferred. The client is no different (issue
+// #4861): its compiled rows are decoded from the fetched packed corpus on
+// first request, through the same lazy source.
 
 /** Combined lookup: every `CardDefinition.id` resolves to its definition; a
  *  Print ID resolves to nothing (ADR 0140 §5). Filled on first request through
- *  the lazy source, or via `preloadDefinitions` (client compiled rows). */
+ *  the lazy source, or via `preloadDefinitions`. */
 const registry = new Map<string, CardDefinition>();
 
 /** Parent id → the ids of the derived faces `preloadDefinitions` registered

@@ -10,9 +10,12 @@
 // The ONE thing it owns is HYDRATION ORDER (ADR 0113 §3, issue #3053). A
 // Worker gets its own module graph, so it has its own registry and its own
 // copy of the catalogue fetch; the card definitions are no longer bundled.
+// Since issue #4861 that fetch is the packed corpus, and the worker decodes a
+// definition the first time the search asks for it — the same source module
+// as the page (`../catalogueArtifact`), never a whole-corpus hydration.
 // `handleBrainRequest` reads `getDefinition`/`tryGetDefinition`
-// SYNCHRONOUSLY, so answering before the artifact has landed would be a bot
-// deciding against a half-empty registry — which `.claude/rules/bot-development.md`
+// SYNCHRONOUSLY, so answering before the corpus has landed would be a bot
+// deciding against a half-empty catalogue — which `.claude/rules/bot-development.md`
 // treats as unshipped, not as a slow start. Requests are therefore chained
 // behind the hydration promise, which also keeps them in FIFO order (an
 // `async` handler would let a later short request overtake an earlier one).
@@ -68,7 +71,7 @@ function toBrainError(cause: unknown): { name: string; message: string } {
 
 /** How long a failed hydration is left failed before another request pays for
  *  a fresh attempt. The driver re-consults on every state change, so an
- *  un-cooled re-arm turns a deploy window into one ~1.4 MB request per
+ *  un-cooled re-arm turns a deploy window into one ~0.9 MB request per
  *  consult; the caller still gets a named error immediately either way. */
 const REARM_COOLDOWN_MS = 5_000;
 let lastFailureAt = 0;

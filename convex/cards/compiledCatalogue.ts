@@ -12,16 +12,14 @@
 // be looked up". See `docs/adr/0108-compiled-card-id-scheme.md` for the id
 // scheme and the getAllCards() exclusion rationale.
 //
-// WHERE THE ROWS COME FROM is asymmetric (ADR 0113 §2, issue #3053): the
-// server reads them from the module graph (`./compiledPool`), the client
-// FETCHES the merged content-addressed artifact at the loading gate
-// (`src/lib/catalogueArtifact.ts`). Both hand the rows to the SAME
-// `registerCompiledDefinitions` in `catalogue.ts`, so the filter below runs
-// identically on both sides.
+// WHERE THE ROWS COME FROM: the server reads the packed corpus from the
+// module graph (`./compiledPool`), the client FETCHES the same file at the
+// loading gate (`src/lib/catalogueArtifact.ts`, issue #4861). Both serve a
+// row on first request through `catalogue.ts`'s compiled section.
 //
-// Size budget: the client asset is budgeted by
-// `scripts/__tests__/catalogue-artifact-size.test.ts` (served bytes) and the
-// two client chunks by `scripts/check-bundle-size.ts`; the server bundle by
+// Size budget: the served corpus is budgeted by
+// `scripts/__tests__/catalogue-artifact-size.test.ts` and the two client
+// chunks by `scripts/check-bundle-size.ts`; the server bundle by
 // `bun run check:convex-bundle` (ADR 0113 § Amendment).
 import type { CardDefinition } from "./types";
 import catalogueSource from "../../data/catalogue/source-hash.json";
@@ -59,11 +57,9 @@ export const CATALOGUE_SOURCE_HASH: string = catalogueSource.hash;
  * So on the SERVER this never has anything to drop, and the assertion that it
  * never does lives in `scripts/__tests__/catalogue-artifact.test.ts`.
  *
- * On the CLIENT it is load-bearing rather than a backstop: the fetched
- * artifact holds the 890 relocated hand-written rows too (issue #3052), and
- * those ids are already in the registry from the module graph, which is the
- * copy the engine runs and the copy the divergence baseline rules
- * authoritative. Same filter, same direction, both sides.
+ * The client fetches the same packed corpus the server bundles (issue
+ * #4861), so it has nothing to drop either; the catalogue's compiled section
+ * skips a hand-written id on both sides all the same (`addCompiled`).
  *
  * The assertion is in the GATE and not here on purpose. This function is
  * called at module load of `convex/cards/catalogue.ts`, which every Convex
