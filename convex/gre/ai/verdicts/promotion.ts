@@ -94,8 +94,16 @@ export type VerdictPromotionInput = {
     /** `resolutions/…` objects (issue #3582). Optional so a snapshot taken
      *  before resolutions existed still reads as "none given". */
     resolutionObjects?: { name: string; base64: string }[];
-    /** `aliases/…` objects (issue #3585) — read for `testers` only. */
+    /** `aliases/…` objects (issue #3585) — read for `testers`, and for
+     *  `promote`'s Admission Candidates (issue #3985). */
     aliasObjects?: { name: string; base64: string }[];
+    /** The committed Promotion streak ledger's contents
+     *  (`PROMOTION_STREAK_PATH`), `null` when there is none — `promote`
+     *  only (issue #3985). */
+    streakLedger?: string | null;
+    /** `tolaria.config.json` § admission, as read — `promote` only; the
+     *  engine step validates it (`parseAdmissionConfig`). */
+    admission?: unknown;
 };
 
 /** What the engine step hands back. A promotion that is not a no-op carries
@@ -111,6 +119,9 @@ export type VerdictPromotionOutput =
           lock: VerdictLock;
           lockText: string;
           evalWeightsSource: string;
+          /** The advanced Promotion streak ledger (issue #3985) — written
+           *  with the lock and the weights, never without them. */
+          streakLedgerText: string;
       };
 
 /** One object as the store listed it. */
@@ -425,6 +436,27 @@ export function validateStoreObjects(
         })),
         quarantine,
     };
+}
+
+/** The position keys where the blade registry judges differently from a
+ *  store verdict the store-only quarantine calls promotable: held out of the
+ *  lock as `contested` by `validateStoreObjects`, though no two STORE
+ *  verdicts disagree there. */
+export function registryContestedKeys(
+    validation: StoreValidation
+): Set<string> {
+    const keyOf = new Map(
+        validation.quarantine.promotable.map((v) => [
+            v.verdictId,
+            v.positionKey,
+        ])
+    );
+    return new Set(
+        validation.rows
+            .filter((r) => r.status === "contested" && r.verdictId !== null)
+            .map((r) => keyOf.get(r.verdictId!))
+            .filter((key): key is string => key !== undefined)
+    );
 }
 
 export type PromotionPlan = {

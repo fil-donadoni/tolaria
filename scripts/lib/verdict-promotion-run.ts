@@ -43,6 +43,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VERDICT_LOCK_PATH } from "../../convex/gre/ai/verdicts/lockSource";
+import { PROMOTION_STREAK_PATH } from "../../convex/gre/ai/verdicts/promotionStreak";
 import {
     EVAL_WEIGHTS_PATH,
     VERDICT_PROMOTION_IN_ENV,
@@ -60,6 +61,9 @@ import {
 import { convexRunErrorMessage } from "./convex-run-error";
 import { resolveSeedTarget } from "./seed-preset-run";
 import { loadLockedVerdicts } from "./verdict-pack-cache";
+
+/** The repository configuration holding the Admission bar (issue #3985). */
+const ADMISSION_CONFIG_FILE = "tolaria.config.json";
 
 /** Parallel GETs while snapshotting — a listing of thousands is thousands of
  *  objects, and an unbounded fan-out is a self-inflicted rate limit. */
@@ -105,12 +109,33 @@ export async function snapshotVerdictStore(
         // An admin's resolutions (issue #3582): without them a resolved
         // position would stay out of the lock forever.
         resolutionObjects: await readPrefix(reader, RESOLUTION_OBJECT_PREFIX),
-        // Author aliases (issue #3585) join one person's accounts — only the
-        // per-tester report reads them, so only it pays the listing.
-        ...(mode === "testers"
+        // Author aliases (issue #3585) join one person's accounts — the
+        // per-tester report and the Admission Candidates (issue #3985) read
+        // them, so only those pay the listing.
+        ...(mode === "testers" || mode === "promote"
             ? { aliasObjects: await readPrefix(reader, ALIAS_OBJECT_PREFIX) }
             : {}),
+        // The Admission Candidates' inputs (issue #3985): the streak ledger a
+        // promotion advances, and the bar it is read against.
+        ...(mode === "promote"
+            ? {
+                  streakLedger: readIfExists(join(root, PROMOTION_STREAK_PATH)),
+                  admission: readAdmissionBlock(root),
+              }
+            : {}),
     };
+}
+
+const readIfExists = (path: string): string | null =>
+    existsSync(path) ? readFileSync(path, "utf8") : null;
+
+/** `tolaria.config.json` § admission as written — validated by the engine
+ *  step, which refuses a missing one (`parseAdmissionConfig`). */
+function readAdmissionBlock(root: string): unknown {
+    const text = readIfExists(join(root, ADMISSION_CONFIG_FILE));
+    return text === null
+        ? undefined
+        : (JSON.parse(text) as { admission?: unknown }).admission;
 }
 
 export type BladeMustResult = { passed: boolean; summary: string };
@@ -189,10 +214,12 @@ export async function runVerdictsPromote(
         store: () => ports.reader,
     });
 
-    // Both files are staged in full before either lands, so a process dying
-    // mid-write cannot leave a checkout holding the lock without its weights.
+    // All three files are staged in full before any lands, so a process dying
+    // mid-write cannot leave a checkout holding the lock without its weights,
+    // or a streak ledger advanced over a lock that never landed.
     const writes: [string, string][] = [
         [join(ports.root, EVAL_WEIGHTS_PATH), output.evalWeightsSource],
+        [join(ports.root, PROMOTION_STREAK_PATH), output.streakLedgerText],
         [join(ports.root, VERDICT_LOCK_PATH), output.lockText],
     ];
     for (const [path, text] of writes) {

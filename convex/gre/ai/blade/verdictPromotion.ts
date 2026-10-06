@@ -48,6 +48,17 @@ import {
     type VerdictAuthorAlias,
     type VerdictPromotionInput,
     type VerdictPromotionOutput,
+    advancePromotionStreaks,
+    formatAdmissionProposal,
+    parseAdmissionConfig,
+    parsePromotionStreakLedger,
+    proposeAdmissionCandidates,
+    registryContestedKeys,
+    searchVerdict,
+    serializePromotionStreakLedger,
+    streaksOverLock,
+    verdictsFromLock,
+    type PromotionStreaks,
 } from "../verdicts";
 import {
     decodeAliasObject,
@@ -102,7 +113,13 @@ export function runVerdictPromotionStep(
 
     const current = input.lock === null ? null : parseVerdictLock(input.lock);
     const plan = planPromotion(current, validation);
+    const committedLedger =
+        input.streakLedger == null
+            ? null
+            : parsePromotionStreakLedger(input.streakLedger);
     if (plan.noop) {
+        // Not a Promotion: the ledger is read over the committed lock, never
+        // advanced.
         return {
             mode: "promote",
             noop: true,
@@ -110,6 +127,13 @@ export function runVerdictPromotionStep(
                 validationText,
                 "",
                 `nothing to promote — the lock already names every promotable verdict (${plan.lock.verdictIds.length}) under pack ${plan.lock.packHash}; nothing rewritten`,
+                "",
+                admissionText(
+                    input,
+                    validation,
+                    verdictsFromLock(plan.lock, plan.entries),
+                    streaksOverLock(committedLedger, current)
+                ),
             ].join("\n"),
         };
     }
@@ -143,6 +167,15 @@ export function runVerdictPromotionStep(
         testPositions,
     });
     const added = new Set(plan.added);
+    // A Promotion advances the streak ledger over the RE-DERIVED pairs: a
+    // locked verdict with any pair the fitted weights leave unsatisfied
+    // restarts at 0 (issue #3985).
+    const advanced = advancePromotionStreaks(
+        committedLedger,
+        current,
+        plan.lock,
+        new Set(after.violated.map((p) => p.verdictId))
+    );
 
     const text = [
         validationText,
@@ -175,6 +208,16 @@ export function runVerdictPromotionStep(
         formatHeldOutEvalAgreement(
             heldOutEvalAgreement(after, corpus.verdicts, testPositions)
         ),
+        "",
+        admissionText(
+            input,
+            validation,
+            corpus.verdicts.filter((v) => v.source === "store"),
+            {
+                streaks: new Map(Object.entries(advanced.ledger.streaks)),
+                reset: advanced.reset,
+            }
+        ),
     ].join("\n");
 
     return {
@@ -187,6 +230,7 @@ export function runVerdictPromotionStep(
             input.evalWeightsSource,
             result
         ),
+        streakLedgerText: serializePromotionStreakLedger(advanced.ledger),
     };
 }
 
@@ -252,14 +296,13 @@ function fitReportOverLock(
     };
 }
 
-/** What `bun run verdicts:testers` prints (issue #3585). An alias that does
- *  not read joins nothing — two authors stay two people, the direction that
- *  never merges strangers — and is listed. */
-function testersText(
-    input: VerdictPromotionInput,
-    validation: StoreValidation,
-    scenarios: readonly BladeScenario[]
-): string {
+/** The snapshot's author aliases. An alias that does not read joins nothing
+ *  — two authors stay two people, the direction that never merges strangers
+ *  — and is listed. */
+function decodeAliases(input: VerdictPromotionInput): {
+    aliases: VerdictAuthorAlias[];
+    problems: string[];
+} {
     const aliases: VerdictAuthorAlias[] = [];
     const problems: string[] = [];
     for (const { name, bytes } of decodeObjects(input.aliasObjects ?? [])) {
@@ -271,25 +314,67 @@ function testersText(
             );
         }
     }
+    return { aliases, problems };
+}
+
+/**
+ * The Admission Candidates section a promotion appends (issue #3985): the
+ * proposer over the store verdicts `lock` names, at the streaks the ledger
+ * holds for it, each candidate searched by the whole Bot at the config's
+ * budget. Reads; writes nothing — the caller writes the ledger it advanced.
+ */
+function admissionText(
+    input: VerdictPromotionInput,
+    validation: StoreValidation,
+    lockedVerdicts: readonly Verdict[],
+    streaks: PromotionStreaks
+): string {
+    const config = parseAdmissionConfig(input.admission);
+    const { aliases, problems } = decodeAliases(input);
+    const locked = new Set(lockedVerdicts.map((v) => v.id));
+    const byId = new Map(lockedVerdicts.map((v) => [v.id, v]));
+    const proposal = proposeAdmissionCandidates({
+        verdicts: validation.quarantine.promotable.filter((v) =>
+            locked.has(v.verdictId)
+        ),
+        contestedPositionKeys: new Set([
+            ...validation.quarantine.contested.map((c) => c.positionKey),
+            // A resolved position WAS contested: "never Contested" outlives
+            // the resolution that let its accepted verdict into the lock.
+            ...validation.quarantine.resolved.map((r) => r.positionKey),
+            ...registryContestedKeys(validation),
+        ]),
+        aliases,
+        streaks: streaks.streaks,
+        streakReset: streaks.reset,
+        config,
+        search: (verdictId, budget) =>
+            searchVerdict(byId.get(verdictId)!, budget),
+    });
+    return [
+        formatAdmissionProposal(proposal),
+        ...(problems.length > 0
+            ? ["", `alias problems: ${problems.length}`, ...problems]
+            : []),
+    ].join("\n");
+}
+
+/** What `bun run verdicts:testers` prints (issue #3585). An alias that does
+ *  not read joins nothing — two authors stay two people, the direction that
+ *  never merges strangers — and is listed. */
+function testersText(
+    input: VerdictPromotionInput,
+    validation: StoreValidation,
+    scenarios: readonly BladeScenario[]
+): string {
+    const { aliases, problems } = decodeAliases(input);
     // A store verdict the blade registry judges differently is held out of the
     // lock as `contested` while the store-only quarantine calls it promotable.
-    const keyOf = new Map(
-        validation.quarantine.promotable.map((v) => [
-            v.verdictId,
-            v.positionKey,
-        ])
-    );
-    const registryContested = new Set(
-        validation.rows
-            .filter((r) => r.status === "contested" && r.verdictId !== null)
-            .map((r) => keyOf.get(r.verdictId!))
-            .filter((key): key is string => key !== undefined)
-    );
     const report = testerQualityOf(
         validation.quarantine,
         aliases,
         fitReportOverLock(input, scenarios),
-        registryContested
+        registryContestedKeys(validation)
     );
     // An attestation or resolution that does not read changes who gave what,
     // so its count is printed beside the numbers it moved.
