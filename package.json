@@ -69,6 +69,7 @@
         "loop:status": "bun scripts/loop-status.ts",
         "markers:lint": "bun scripts/check-marker-liveness.ts",
         "metagame:import": "bun scripts/premodern-metagame-import.ts",
+        "measure:client-heap": "bun scripts/measure-client-heap.ts",
         "oracle:behavioural": "bun scripts/oracle-behavioural.ts",
         "oracle:compile": "bun scripts/oracle-compile.ts",
         "oracle:corpus": "bun scripts/oracle-corpus.ts",

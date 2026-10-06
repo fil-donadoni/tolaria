@@ -8,12 +8,12 @@ import AmbientPageGround from "@/components/ui/ambient-page-ground";
 /**
  * The loading gate for the card catalogue (ADR 0113 §3, issue #3053).
  *
- * The card definitions are no longer in the bundle: they are one
- * content-addressed asset the client FETCHES
- * (`src/lib/catalogueArtifact.ts`). `getDefinition`/`tryGetDefinition` stay
- * synchronous (ADR 0113 §1), which is only true if the registry is FULLY
- * hydrated before any consumer runs — so nothing that reads it may render
- * first. This gate is what makes that a structural property rather than a
+ * The compiled card definitions are not in the bundle: they are one
+ * immutable packed asset the client FETCHES (`src/lib/catalogueArtifact.ts`)
+ * and decodes a block at a time on first request (issue #4861).
+ * `getDefinition`/`tryGetDefinition` stay synchronous (ADR 0113 §1), which is
+ * only true if that packed data is RESIDENT before any consumer runs — so
+ * nothing that reads it may render first. This gate is what makes that a structural property rather than a
  * convention: `RouteOutlet` mounts it around every route that is not a
  * declared `lightSurface`, and its children do not exist as elements until the
  * promise has resolved.

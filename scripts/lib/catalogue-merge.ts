@@ -236,9 +236,9 @@ export interface MergeResult {
      *
      * This is what `data/oracle-compiled-pool.json` holds and what
      * `convex/cards/compiledPool.ts` bundles into every Convex mutation. The
-     * relocated hand-written rows are absent because the server already has
-     * them as modules; the client's copy of the artifact carries them and
-     * `excludeHandWritten` drops them at hydration, so both sides register the
+     * relocated hand-written rows are absent because the runtime already has
+     * them as modules. The packed corpus holds these same rows, and since
+     * issue #4861 the client fetches that file too, so both sides serve the
      * SAME population from the SAME bytes.
      */
     readonly serverRows: readonly CardDefinition[];

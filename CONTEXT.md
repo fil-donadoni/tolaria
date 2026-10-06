@@ -927,8 +927,12 @@ The `ready` slice of the **Oracle Lockfile**, in the shape the runtime consumes,
 _Avoid_: Compiled cards, the JSON, ready set
 
 **Definition Index**:
-The small, generated, eagerly loaded table of every **Card Definition** the runtime can serve — its Card ID, name, **Set** and where the definition itself lives (a block of the packed **Compiled Pool**, or a hand-written export). It is the only part of the catalogue built at load; a definition is decoded or built from it on first request, so what a call costs grows with the cards of the game, never with the catalogue (ADR 0113 Amendment IV). Whole-catalogue features (search, name lists) read the index, never the definitions.
+The small, generated, eagerly loaded table of every **Card Definition** the runtime can serve — its Card ID, name, **Set** and where the definition itself lives (a block of the packed **Compiled Pool**, or a hand-written export). It is the only part of the catalogue built at load; a definition is decoded or built from it on first request, so what a call costs grows with the cards of the game, never with the catalogue (ADR 0113 Amendment IV) — on the server, in the page and in the Bot worker alike. Whole-catalogue features (name lists, availability, Draftability) read the index, never the definitions; deck-builder search reads the **Search Index**.
 _Avoid_: Registry (the lookup API over it), manifest, card list
+
+**Search Index**:
+One generated row per catalogue card — name, types, colours, mana value, searchable oracle text, **Set** — written by `catalogue:pack` beside the **Definition Index** and fetched only by the deck builder, so it searches the whole catalogue without decoding a definition (issue #4861).
+_Avoid_: Card index (that is `data/card-index.json`), search cache
 
 **Card Factory**:
 A hand-written **Card Definition** declared as `defineCard(() => ({ … }))`: its Set module evaluates no definition when imported, the definition is built on the first request (through the **Definition Index**, or a test calling the export) and every later request returns the same object. An eagerly declared definition resolves identically; the factory only defers when it is built.

@@ -1,38 +1,32 @@
-// The deck-builder search index — DERIVED, never transported (issue #3054,
-// ADR 0113 §4).
+// The deck-builder search index — derived from the definitions, never
+// transported per user (issue #3054, ADR 0113 §4), and since issue #4861
+// derived AHEAD OF TIME (ADR 0113 Amendment IV).
 //
 // This used to be `api.cardIndex.list`, a Convex query that mapped
 // `getAllCards()` into rows and shipped them over the wire: measured at 2,051
 // rows / 1,605,676 B raw / 248,393 B gzip, the largest read in the app, paid
-// on every cold load, per user. Every byte of it is a function of definitions
-// the client ALREADY holds, so the read bought nothing.
+// on every cold load, per user. Issue #3054 replaced it with a derivation in
+// the browser, which was free while the client hydrated the whole corpus
+// anyway (ADR 0113 § 3).
 //
-// WHY DERIVED AND NOT AN ASSET. ADR 0113 §3's consequence — "the hot/cold
-// split dissolves client-side" — is what makes this possible: since issue
-// #3053 the client's registry is FULLY hydrated before any consumer renders
-// (hand-written definitions from the module graph, compiled ones from the
-// fetched catalogue artifact), so the index is a pure `map` over data that is
-// already resident. Measured on the merged population: 4,337 rows in 57 ms
-// (6 ms to enumerate + expand, 51 ms to build), against 343 KB gzip to ship
-// the same rows as a second content-addressed asset — more bytes than the
-// Convex query it would have replaced, plus a committed file and a freshness
-// gate to keep in sync. Nothing to transport is strictly better than
-// something cheap to transport.
+// WHY A GENERATED ASSET NOW. The client no longer hydrates the corpus: it
+// decodes a definition on first request (issue #4861), so deriving the index
+// in the browser would decode every block — the whole catalogue made resident
+// to search it. The rows are instead written by `bun run catalogue:pack`
+// into `data/catalogue/search-index.json`, with THIS module's
+// `toSearchIndexRow` run over the rows that generation writes
+// (`scripts/lib/search-index.ts`), and the deck builder loads that file
+// lazily (`src/lib/searchIndex.ts`): only the cards it shows are ever decoded.
+// The freshness gate (`scripts/__tests__/catalogue-artifact.test.ts`) reds a
+// committed index that is not what the tree derives AND one that differs from
+// `buildSearchIndex` over the live catalogue — the same derivation twice.
 //
-// WHY THIS FIXES `available`. The old query read `getAllCards()`, which is
-// the HAND-WRITTEN population only (`compiledCatalogue.ts` documents that
-// exclusion). `src/lib/fullCatalogue.ts` derived a card's availability from
-// membership in it, so every compiled card read as *Unavailable* in the deck
-// builder however well the engine could play it. `getAllCatalogueCards()` is
-// both populations, which is what makes availability mean "the engine has this
-// card" — the distinction was never one the engine drew (`getDefinition` has
-// never told the two apart, PRD #2693); only this index did.
-//
-// WHEN IT IS SAFE TO CALL. After the registry is hydrated, which
-// `src/components/ui/catalogue-gate.tsx` makes structural: it sits above the
-// whole route tree and its children do not exist as elements until
-// `hydrateCatalogue()` has resolved. On the SERVER hydration is a module-load
-// side effect. There is no third case.
+// WHY `available` MEANS "THE ENGINE HAS THIS CARD". The old query read
+// `getAllCards()`, which is the HAND-WRITTEN population only, so every
+// compiled card read as *Unavailable* in the deck builder however well the
+// engine could play it. `getAllCatalogueCards()` is both populations — the
+// distinction was never one the engine drew (`getDefinition` has never told
+// the two apart, PRD #2693); only this index did.
 import { getCardColorIdentity } from "./colors";
 import { aggregateOracleText } from "./oracleAggregator";
 import { getAllCatalogueCards, getDefinitionSetCode } from "./catalogue";
@@ -65,8 +59,13 @@ export interface SearchIndexRow {
 
 /** Project ONE definition into its index row. Pure; the definition must
  *  already be expanded (ADR 0054) — {@link buildSearchIndex} routes every row
- *  through `getAllCatalogueCards`, which expands. */
-export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
+ *  through `getAllCatalogueCards`, which expands. `setCode` is the card's own
+ *  Set, the catalogue's unless the caller holds a fresher one (the generator,
+ *  which derives the rows it is about to write). */
+export function toSearchIndexRow(
+    def: CardDefinition,
+    setCode: string = getDefinitionSetCode(def.id)
+): SearchIndexRow {
     const nameLower = def.name.toLowerCase();
     const oracleText = aggregateOracleText(def).searchable;
     return {
@@ -81,7 +80,7 @@ export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
         manaValue: manaValue(def.manaCost),
         oracleText,
         oracleFold: foldAccents(oracleText),
-        setCode: getDefinitionSetCode(def.id),
+        setCode,
     };
 }
 
@@ -94,8 +93,76 @@ export function toSearchIndexRow(def: CardDefinition): SearchIndexRow {
  * and every token definition an engine run synthesized (CR 111.1), so the deck
  * builder would offer a `token:…` id as an addable card, and only after the
  * user happened to visit a board first. See `catalogue.ts`'s
- * `compiledRegistered` for the whole argument.
+ * `compiledIds` for the whole argument.
  */
 export function buildSearchIndex(): SearchIndexRow[] {
-    return getAllCatalogueCards().map(toSearchIndexRow);
+    return getAllCatalogueCards().map((def) => toSearchIndexRow(def));
+}
+
+/** One row as the committed asset carries it: the fields the generator
+ *  derives, in this order. The lowercased and accent-folded forms are NOT
+ *  shipped — {@link fromSearchIndexWire} recomputes them, so the asset
+ *  carries each text once. */
+export type SearchIndexWireRow = readonly [
+    cardId: string,
+    name: string,
+    types: readonly string[],
+    subtypes: readonly string[],
+    supertypes: readonly string[],
+    colors: readonly string[],
+    manaValue: number,
+    oracleText: string,
+    setCode: string,
+];
+
+/** The committed bytes: one minified line, rows in catalogue order. */
+export function serializeSearchIndex(rows: readonly SearchIndexRow[]): string {
+    const wire: SearchIndexWireRow[] = rows.map((r) => [
+        r.cardId,
+        r.name,
+        r.types,
+        r.subtypes,
+        r.supertypes,
+        r.colors,
+        r.manaValue,
+        r.oracleText,
+        r.setCode,
+    ]);
+    return JSON.stringify(wire) + "\n";
+}
+
+/** The rows back from the asset — exactly what {@link buildSearchIndex}
+ *  returned when the generator ran. */
+export function fromSearchIndexWire(
+    wire: readonly SearchIndexWireRow[]
+): SearchIndexRow[] {
+    return wire.map(
+        ([
+            cardId,
+            name,
+            types,
+            subtypes,
+            supertypes,
+            colors,
+            manaValue,
+            oracleText,
+            setCode,
+        ]) => {
+            const nameLower = name.toLowerCase();
+            return {
+                cardId,
+                name,
+                nameLower,
+                nameFold: foldAccents(nameLower),
+                types: [...types],
+                subtypes: [...subtypes],
+                supertypes: [...supertypes],
+                colors: [...colors],
+                manaValue,
+                oracleText,
+                oracleFold: foldAccents(oracleText),
+                setCode,
+            };
+        }
+    );
 }

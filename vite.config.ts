@@ -49,9 +49,9 @@ export default defineConfig({
             // `card-catalogue` chunk and the `brain.worker` bundle, on every
             // cold load. Swapping the module for an empty array here takes it
             // out of both graphs — `resolve` is shared with the worker build,
-            // unlike `plugins` — and the client fetches the merged,
-            // content-addressed artifact instead
-            // (`src/lib/catalogueArtifact.ts`).
+            // unlike `plugins` — and the client fetches the packed corpus as
+            // an immutable asset instead, decoding a block on first request
+            // (`src/lib/catalogueArtifact.ts`, issue #4861).
             //
             // The `find` matches the RELATIVE specifier because that is what
             // `convex/cards/catalogue.ts` writes (a `convex/` module cannot

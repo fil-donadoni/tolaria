@@ -60,6 +60,10 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     branches that each add a card with a twin name both rewrite that line.
  *     Re-derived by the same
  *     `catalogue:pack` run.
+ *   - `data/catalogue/search-index.json` — IN THIS CLASS (issue #4861). The
+ *     deck-builder search index: ONE minified line of rows, so any two
+ *     branches that regenerate it collide on that line. Re-derived by the
+ *     same `catalogue:pack` run.
  *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
  *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
  *     Its bytes are whole-file state, but two branches that regenerate it
@@ -156,6 +160,14 @@ export const REGENERATED_ARTIFACTS: readonly RegeneratedArtifact[] = [
         wholeFileState: "lookups",
         // The hand-written Definition Index (issue #4856): a walk of the
         // module graph alone — offline, written by the same run.
+        requiresCorpus: false,
+    },
+    {
+        path: "data/catalogue/search-index.json",
+        script: "catalogue:pack",
+        wholeFileState: "rows (one line)",
+        // The deck-builder search index (issue #4861): derived from the same
+        // offline join, written by the same run.
         requiresCorpus: false,
     },
 ] as const;

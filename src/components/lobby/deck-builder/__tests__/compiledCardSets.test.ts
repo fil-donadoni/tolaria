@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { getAllSetCodes, resolveDeckCardMeta } from "@convex/cards/catalogue";
 import { FORMAT_RULES, checkSets, type FormatId } from "@convex/formats";
-import { searchIndex } from "@/lib/searchIndex";
+import {
+    fromSearchIndexWire,
+    type SearchIndexWireRow,
+} from "@convex/cards/searchIndex";
 import {
     indexRowToEntry,
     matchesFormatSets,
@@ -29,7 +32,19 @@ const cardIndex = JSON.parse(
     )
 ) as CardIndexRow[];
 
-const rows = searchIndex().map(indexRowToEntry);
+// The COMMITTED search index (issue #4861) — the asset the deck builder
+// fetches, decoded by the client's own `fromSearchIndexWire`.
+const rows = fromSearchIndexWire(
+    JSON.parse(
+        readFileSync(
+            resolve(
+                __dirname,
+                "../../../../../data/catalogue/search-index.json"
+            ),
+            "utf8"
+        )
+    ) as SearchIndexWireRow[]
+).map(indexRowToEntry);
 const indexedIds = new Set(rows.map((r) => r.cardId));
 
 /** Compiled cards the engine has, by the Set the card-index says they were

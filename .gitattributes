@@ -20,6 +20,7 @@ data/oracle-legality.json merge=regenerated
 data/catalogue/source-hash.json merge=regenerated
 data/catalogue/packed-corpus.json merge=regenerated
 data/catalogue/definition-index.json merge=regenerated
+data/catalogue/search-index.json merge=regenerated
 
 # Committed artifacts that are NOT re-derivable — so out of the class above —
 # but whose conflicts are still never a real disagreement (issue #3768). Each

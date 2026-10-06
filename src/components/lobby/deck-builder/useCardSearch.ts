@@ -367,19 +367,24 @@ export function useCardSearch(
     // not yet loaded), the hook falls back to index-only search (today's behavior).
     fullCatalogue?: FullCatalogueResult
 ): {
-    /** Never `undefined`: the index is derived, not fetched (issue #3054), so
-     *  the search has no loading state and the caller needs no branch for one. */
+    /** Never `undefined`: empty while the search index loads (`loading`). */
     entries: CardIndexEntry[];
     total: number;
     /** True when no filter is set - caller should suppress result rendering
      *  (and the associated image fetches) until the user narrows the set. */
     idle: boolean;
+    /** True while the search index asset loads (issue #4861). */
+    loading: boolean;
+    /** Non-null when the search index failed to load. */
+    error: string | null;
 } {
-    // The pool of implemented cards. Derived from the hydrated registry, not
-    // fetched (issue #3054) — so it is never `undefined` and the search has no
-    // loading state of its own.
-    const indexRows = useSearchIndex();
-    const all = useMemo(() => indexRows.map(indexRowToEntry), [indexRows]);
+    // The pool of implemented cards: the generated search index (issue
+    // #4861), fetched once — no definition is decoded to search.
+    const { rows: indexRows, error } = useSearchIndex();
+    const all = useMemo(
+        () => (indexRows ?? []).map(indexRowToEntry),
+        [indexRows]
+    );
     const catalogueRows = fullCatalogue?.rows;
     const isManual = format === "manual";
 
@@ -554,5 +559,11 @@ export function useCardSearch(
         scryfallText.names,
     ]);
 
-    return { entries, total: all.length, idle };
+    return {
+        entries,
+        total: all.length,
+        idle,
+        loading: indexRows === undefined && error === null,
+        error,
+    };
 }

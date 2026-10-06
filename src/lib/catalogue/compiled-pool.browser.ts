@@ -1,31 +1,31 @@
-// The CLIENT half of ADR 0113 §2's asymmetric delivery (issue #3053).
+// The CLIENT half of ADR 0113 §2's asymmetric delivery (issue #3053), on the
+// shared Definition Source since issue #4861 (ADR 0113 Amendment IV).
 //
 // `vite.config.ts` aliases the specifier `./compiledPool` — imported by
 // `convex/cards/catalogue.ts` and by nothing else — to this module, in BOTH
 // the app graph and the `brain.worker` graph (`resolve.alias` is shared with
-// the worker build; `plugins` are not). The effect is that
-// `data/oracle-compiled-pool.json` never enters a client bundle: the pool
-// leaves the `card-catalogue` chunk and `brain.worker`, and the client gets
-// the same rows — plus the relocated hand-written ones — by FETCHING the
-// merged content-addressed artifact at the loading gate
-// (`src/lib/catalogueArtifact.ts`).
+// the worker build; `plugins` are not). The effect is that neither
+// `data/oracle-compiled-pool.json` nor `data/catalogue/packed-corpus.json`
+// enters a client bundle: the main thread and the worker each FETCH the packed
+// corpus as one immutable asset at the loading gate
+// (`src/lib/catalogueArtifact.ts`) and hand it to `registerPackedCorpus`,
+// which decodes a block on first request — the same rows, the same decoder
+// as the server.
 //
-// It is deliberately empty rather than absent. `catalogue.ts` still calls
-// `registerCompiledDefinitions` at module load with whatever this exports, so
-// the two builds run the same code path and differ only in what it is handed.
+// It is deliberately empty rather than absent: `catalogue.ts` reads these at
+// module load, so the two builds run the same code path and differ only in
+// what it is handed.
 import type { CardDefinition } from "@convex/cards/types";
 import type { PackedCorpus, PackedLookup } from "@convex/cards/packedCorpus";
 
-/** Nothing at module load on the client. The rows arrive from the fetched
- *  artifact, before anything that reads the registry renders. */
+/** No literal pool on the client. */
 export const compiledReadyDefinitions: CardDefinition[] = [];
 
-/** No packed corpus either: the client holds the whole corpus from the fetched
- *  artifact, and a lookup fallback would have nothing to add (issue #4165). */
+/** No BUNDLED corpus: it arrives as a fetched asset, after module load. */
 export const packedServerCorpus: PackedCorpus | null = null;
 
 /** The server-only lookup switch, always off in a client graph. */
 export const PACKED_CORPUS_LOOKUP: boolean = false;
 
-/** No lookup to fall back to. */
+/** No bundled lookup; the client's is built by `registerPackedCorpus`. */
 export const packedCorpusLookup: PackedLookup | null = null;

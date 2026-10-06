@@ -5,11 +5,11 @@
 // It is split out from `compiledCatalogue.ts` for exactly one reason: it is
 // the seam the CLIENT build replaces. `vite.config.ts` aliases the specifier
 // `./compiledPool` to `src/lib/catalogue/compiled-pool.browser.ts` (an empty
-// array), so neither the `card-catalogue` chunk nor the `brain.worker` bundle
-// carries a byte of card definition data; the client fetches the merged,
-// content-addressed artifact instead (`src/lib/catalogueArtifact.ts`,
-// issue #3053). The alias matches a RELATIVE specifier, so this module must
-// keep exactly one importer — pinned by
+// stub), so neither the `card-catalogue` chunk nor the `brain.worker` bundle
+// carries a byte of card definition data; the client FETCHES the packed
+// corpus below as an asset instead (`src/lib/catalogueArtifact.ts`, issue
+// #4861). The alias matches a RELATIVE specifier, so this module must keep
+// exactly one importer — pinned by
 // `scripts/__tests__/compiled-pool-client-seam.test.ts`.
 //
 // A Convex mutation cannot fetch (ADR 0113 § "Server and client have opposite
@@ -75,8 +75,9 @@ export const PACKED_CORPUS_LOOKUP: boolean =
     process.env.TOLARIA_PACKED_CORPUS_LOOKUP === "on";
 
 /** The lookup `getDefinition` falls back to when the switch is on, else
- *  `null`. Built HERE, behind the seam the client build aliases away, so
- *  neither the decoder nor `fflate` enters a client chunk. */
+ *  `null`. Built HERE, behind the seam the client build aliases away; the
+ *  client builds its own from the corpus it fetches (`registerPackedCorpus`,
+ *  issue #4861), so the decoder and `fflate` are in the client graph too. */
 export const packedCorpusLookup: PackedLookup | null = PACKED_CORPUS_LOOKUP
     ? createPackedLookup(packedServerCorpus!)
     : null;

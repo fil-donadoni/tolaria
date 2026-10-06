@@ -29,8 +29,10 @@
  *
  * It is paid HERE, structurally, before any check runs: this script emits
  *
- *   - `data/catalogue/catalogue-<hash>.json` — the CLIENT asset, every merged
- *     row, minified, content-addressed by its own bytes;
+ *   - `data/catalogue/catalogue-<hash>.json` — every merged row, minified,
+ *     content-addressed by its own bytes: the anchor every other rendering
+ *     is compared with. It WAS the client asset until issue #4861; the client
+ *     now fetches the packed corpus below;
  *   - `data/oracle-compiled-pool.json` — the SERVER rendering, `merge.rows`
  *     FILTERED (`merge.serverRows`), never a second join. Until issue #3055
  *     this file had its own generator, `scripts/oracle-pool.ts`, joining the
@@ -43,14 +45,18 @@
  *   - `data/catalogue/packed-corpus.json` — the PACKED server rendering
  *     (issue #4164, ADR 0113 Amendment III): the same `merge.serverRows`,
  *     deflated in blocks against one shared dictionary, with its first-id and
- *     name indexes, carrying the same source hash. Nothing reads it yet; it
- *     sits beside the literal pool until the lookup slice of PRD #4161 swaps
- *     one for the other (`scripts/lib/packed-corpus.ts`). It also carries
- *     the COMPILED section of the Definition Index (issue #4856);
+ *     name indexes, carrying the same source hash
+ *     (`scripts/lib/packed-corpus.ts`). The server reads it behind PRD
+ *     #4161's switch; the CLIENT fetches it as its catalogue and decodes a
+ *     block on first request (issue #4861). It also carries the COMPILED
+ *     section of the Definition Index (issue #4856);
  *   - `data/catalogue/definition-index.json` — the HAND-WRITTEN section of
  *     the Definition Index (issue #4856, `scripts/lib/definition-index.ts`):
  *     every hand-written definition's id, name, Set and export, plus the
- *     lookups the catalogue reads at load instead of walking the modules.
+ *     lookups the catalogue reads at load instead of walking the modules;
+ *   - `data/catalogue/search-index.json` — the deck-builder search index
+ *     (issue #4861, `scripts/lib/search-index.ts`): one row per catalogue
+ *     card, so the client searches the whole catalogue without decoding it.
  *
  * `--check` writes nothing. It compares the two COMMITTED renderings against
  * each other first — byte-for-byte on the definitions they share, naming the
@@ -108,6 +114,7 @@ import {
     buildHandWrittenIndex,
     serializeDefinitionIndex,
 } from "./lib/definition-index";
+import { SEARCH_INDEX_PATH, buildSearchIndexBytes } from "./lib/search-index";
 import {
     BASELINE_KEYS,
     baselineKey,
@@ -146,6 +153,8 @@ export interface CatalogueBuild {
     readonly packedBytes: string;
     /** The hand-written Definition Index's bytes — {@link DEFINITION_INDEX_PATH}. */
     readonly definitionIndexBytes: string;
+    /** The deck-builder search index's bytes — {@link SEARCH_INDEX_PATH}. */
+    readonly searchIndexBytes: string;
     readonly hash: string;
     readonly fileName: string;
     /** `ready` rows the join could not resolve an `id`/`rarity`/`setCode` for. */
@@ -224,6 +233,7 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
     }
 
     const merge = mergeCatalogue(handWritten, compiled);
+    const walk = walkHandWrittenDefinitions();
     const bytes = serializeCatalogue(merge.rows);
     const hash = contentHash(bytes);
     // The hash of the CLIENT asset's bytes is the source hash for both
@@ -238,8 +248,9 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         sourceHashBytes: serializeSourceHash(hash),
         packedBytes: serializePackedCorpus(packCorpus(merge.serverRows, hash)),
         definitionIndexBytes: serializeDefinitionIndex(
-            buildHandWrittenIndex(walkHandWrittenDefinitions())
+            buildHandWrittenIndex(walk)
         ),
+        searchIndexBytes: buildSearchIndexBytes(walk, merge.serverRows),
         hash,
         fileName: artifactFileName(hash),
         unjoinable,
@@ -260,11 +271,11 @@ const readCommitted = (repoRoot: string, path: string): string | null => {
  * The client's rendering of the SHARED definitions: the artifact's rows minus
  * the relocated hand-written ones.
  *
- * This is `excludeHandWritten` at the CLIENT's own seam — the artifact carries
- * the hand-written rows too and the browser drops them in favour of the
- * modules the engine runs (`convex/cards/compiledCatalogue.ts`). So what is
- * left is exactly the population the server bundles, and it is the only
- * population the two sides can disagree about.
+ * This is `excludeHandWritten` applied to the merged artifact — it carries the
+ * hand-written rows too, and the runtime serves those from the modules the
+ * engine runs (`convex/cards/compiledCatalogue.ts`). So what is left is
+ * exactly the population the packed corpus and the literal pool hold — the
+ * one the eager client used to register before issue #4861.
  */
 export function sharedClientRows(
     rows: readonly CardDefinition[]
@@ -443,6 +454,7 @@ function main() {
             [sourceHashPath, build.sourceHashBytes],
             [PACKED_CORPUS_PATH, build.packedBytes],
             [DEFINITION_INDEX_PATH, build.definitionIndexBytes],
+            [SEARCH_INDEX_PATH, build.searchIndexBytes],
         ] as const) {
             if (readCommitted(repoRoot, path) === expected) continue;
             console.error(
@@ -453,7 +465,7 @@ function main() {
         }
         console.log(
             `${GREEN}✓${RESET} ${committed} is current — ${summary}\n` +
-                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
+                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${SEARCH_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
         );
         return;
     }
@@ -475,6 +487,11 @@ function main() {
         build.definitionIndexBytes,
         "utf-8"
     );
+    writeFileSync(
+        resolve(repoRoot, SEARCH_INDEX_PATH),
+        build.searchIndexBytes,
+        "utf-8"
+    );
     console.log(
         `${GREEN}✓${RESET} ${join(CATALOGUE_DIR, build.fileName)} ` +
             `(${(build.bytes.length / 1024).toFixed(0)} KB) — ${summary}\n` +
@@ -486,6 +503,8 @@ function main() {
             `— the SAME rows, packed (issue #4164)\n` +
             `${GREEN}✓${RESET} ${DEFINITION_INDEX_PATH} ` +
             `(${(build.definitionIndexBytes.length / 1024).toFixed(0)} KB) — the hand-written Definition Index (issue #4856)\n` +
+            `${GREEN}✓${RESET} ${SEARCH_INDEX_PATH} ` +
+            `(${(build.searchIndexBytes.length / 1024).toFixed(0)} KB) — the deck-builder search index (issue #4861)\n` +
             `${GREEN}✓${RESET} ${sourceHashPath} — ${build.hash}\n` +
             `${DIM}  provenance stays on the lockfile (ADR 0114 §2); the file name is the content hash${RESET}`
     );

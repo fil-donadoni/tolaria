@@ -2,87 +2,82 @@ import { describe, it, expect } from "vitest";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { brotliCompressSync } from "node:zlib";
-import { CATALOGUE_DIR } from "../lib/catalogue-merge";
-import { committedArtifacts } from "../catalogue-artifact";
+import { PACKED_CORPUS_PATH } from "../lib/packed-corpus";
+import { SEARCH_INDEX_PATH } from "../lib/search-index";
 
 /**
- * Size budget for the SERVED catalogue artifact (issue #3053, ADR 0113 §3).
+ * Size budget for the SERVED catalogue assets (issue #3053, ADR 0113 §3;
+ * subjects changed by issue #4861, ADR 0113 Amendment IV).
  *
- * SUBJECT CHANGED, and that is the point of this file's rename. Its ancestor
- * (`oracle-pool-size.test.ts`, issue #2702) budgeted
- * `data/oracle-compiled-pool.json` as a proxy for a BUNDLE cost: that file was
- * imported at module load into both the `card-catalogue` chunk and the
- * `brain.worker` bundle, so its bytes were cold-load bytes. Issue #3053
- * removed that import — the client fetches
- * `data/catalogue/catalogue-<hash>.json` once, from a content-addressed
- * `immutable` URL — so the pool's committed size no longer describes anything
- * a user pays for. What the user pays for now is this artifact, over the wire
- * once per content hash, and resident in the heap for the session.
+ * Its ancestor (`oracle-pool-size.test.ts`, issue #2702) budgeted the
+ * compiled pool as a BUNDLE cost; issue #3053 moved the rows into a fetched
+ * artifact, `catalogue-<hash>.json`, budgeted here as the whole corpus every
+ * client held in its heap. Issue #4861 changed WHAT a client downloads:
  *
- * WHAT CROSSING THIS MEANS IS ALSO DIFFERENT, and it is NOT "never raise the
- * number". The old budget's message was "build the store, don't raise it".
- * ADR 0113 §3 has since BUILT that store and decided, on measurements, that it
- * carries the WHOLE corpus: at 34,890 rows that is ~13.9 MB raw, ~1.09 MB
- * Brotli, ~29.5 MB of heap and ~100 ms to become resident — all of it
- * deliberate, and all of it roughly 3.5x ABOVE the ceilings below. So these
- * ceilings sit deliberately below the end state the ADR sanctions: they are a
- * DISCLOSURE trigger, and raising them IS the correct outcome of crossing one
- * — but only after the re-measure, never as the way to get a green run.
+ *   - a page that renders a game (and the Bot worker) fetches the PACKED
+ *     corpus, `data/catalogue/packed-corpus.json` — the server's own file —
+ *     and decodes a block on first request: its heap is the packed bytes plus
+ *     the cards of the game, not the corpus;
+ *   - the deck builder also fetches the SEARCH INDEX,
+ *     `data/catalogue/search-index.json`, one row per catalogue card.
  *
- * Concretely, crossing means the cold-load cost has roughly tripled since it
- * was last measured in a real browser. Re-measure fetch/parse/heap
- * (`performance.measureUserAgentSpecificMemory()` under `crossOriginIsolated`,
- * the way ADR 0113 § Measured, not assumed did), restate the ADR's table with
- * the new numbers, and set the ceiling from that measurement. What ENDS the
- * whole-corpus design is heap, at the 45-60 MB ADR 0113 names — not this
- * number, which can be raised as far as that table stays honest.
+ * `catalogue-<hash>.json` is still generated — the anchor every rendering is
+ * compared with — but no client fetches it any more, so it is no longer a
+ * cost anyone pays and no longer budgeted here.
  *
- * Measured 2026-09-06 on the committed artifact, 3,168 rows:
- * 1,461,663 B raw / 181,211 B Brotli (`brotliCompressSync` defaults, i.e.
- * quality 11 — the same setting a CDN serves this with, and the setting the
- * ADR's 12.7x ratio was measured at).
+ * THE TRADE, measured 2026-10-06 at 4,360 compiled rows: the packed corpus is
+ * 929,316 B raw / 573,005 B Brotli against the retired artifact's 2,838,356 B
+ * / 311,433 B — deflated blocks in base64 do not re-compress, so a cold game
+ * load downloads ~260 KB more, in exchange for not parsing (nor holding) the
+ * corpus. The search index is 1,624,112 B / 292,881 B, deck builder only.
+ *
+ * WHAT CROSSING MEANS: these are DISCLOSURE triggers at ~2.6x today, not
+ * walls. Crossing one means the download has roughly tripled since it was
+ * last measured: re-measure (`bun run measure:client-heap` for the heap,
+ * the browser for the fetch), restate the numbers above, and set the ceiling
+ * from that measurement — never raise it to get a green run.
  */
 const REPO_ROOT = resolve(__dirname, "..", "..");
 
-/** ~2.7x today's 1,461,663 B. The heap proxy: raw JSON bytes are what the
- *  parse allocates against, and ADR 0113 measured 1.6 MB of heap for 763,663 B
- *  of rows. */
-const RAW_BUDGET_BYTES = 4_000_000;
-
 /**
- * How long the Brotli assertion below may take.
+ * How long one Brotli assertion may take.
  *
  * NOT a slow test tolerated — a measurement whose cost is the point.
- * `brotliCompressSync` at its default quality 11 is what a CDN serves this
- * with, and it is the setting ADR 0113's 12.7x ratio was measured at, so
- * dropping the quality would make the number stop describing the download.
- * Measured 2026-09-07 on the committed 1,461,663 B artifact, machine idle:
- * **1,826 / 1,833 / 1,851 ms**. Vitest's 5,000 ms default leaves under 3x
- * headroom, which `check:all` spends immediately — it runs the heavy tier at
- * `ncpu - 1` workers, and this file then loses its core for most of the
- * compression. That is not hypothetical: it reds `health:main` while passing
- * in an isolated light run, which is the worst shape a gate can take
- * (2026-09-07, run 017afb33 — `Error: Test timed out in 5000ms`, 1 failed /
- * 19,959 passed; hit again the same day in a `check:lane`).
- *
- * So the ceiling is set from the measurement plus contention headroom, not
- * from a default nobody chose. A run that exceeds THIS is a real signal.
+ * `brotliCompressSync` at its default quality 11 is what a CDN serves these
+ * with, so dropping the quality would make the number stop describing the
+ * download. Measured 2026-09-07 on a 1.46 MB asset, machine idle: ~1.8 s;
+ * `check:all` runs the heavy tier at `ncpu - 1` workers and this file then
+ * loses its core for most of the compression (it timed out at vitest's 5 s
+ * default in `health:main`, run 017afb33). So the ceiling is the measurement
+ * plus contention headroom, not a default nobody chose.
  */
 const BROTLI_TIMEOUT_MS = 60_000;
 
-/** ~2.7x today's 181,211 B. The wire cost, once per content hash — a CDN
- *  serves JSON Brotli-compressed, so this is the number a cold load actually
- *  downloads, not the raw one above. */
-const BROTLI_BUDGET_BYTES = 500_000;
-
-function artifactPath(): string {
-    const committed = committedArtifacts(REPO_ROOT);
-    expect(
-        committed,
-        "data/catalogue/ must hold exactly one artifact — run: bun run catalogue:pack"
-    ).toHaveLength(1);
-    return resolve(REPO_ROOT, CATALOGUE_DIR, committed[0]!);
+interface ServedAsset {
+    readonly path: string;
+    readonly who: string;
+    readonly rawBudgetBytes: number;
+    readonly brotliBudgetBytes: number;
 }
+
+const SERVED: readonly ServedAsset[] = [
+    {
+        path: PACKED_CORPUS_PATH,
+        who: "every game, page and Bot worker",
+        // ~2.7x today's 929,316 B.
+        rawBudgetBytes: 2_500_000,
+        // ~2.6x today's 573,005 B.
+        brotliBudgetBytes: 1_500_000,
+    },
+    {
+        path: SEARCH_INDEX_PATH,
+        who: "the deck builder",
+        // ~2.7x today's 1,624,112 B.
+        rawBudgetBytes: 4_400_000,
+        // ~2.7x today's 292,881 B.
+        brotliBudgetBytes: 800_000,
+    },
+];
 
 describe("Catalogue artifact generation wiring (issue #3053)", () => {
     const pkg = JSON.parse(
@@ -99,48 +94,41 @@ describe("Catalogue artifact generation wiring (issue #3053)", () => {
         ).toBe(true);
     });
 
-    it("ships the artifact itself (committed, not generated per deploy)", () => {
-        expect(existsSync(artifactPath())).toBe(true);
-    });
+    it.each(SERVED)(
+        "ships $path itself (committed, not generated per deploy)",
+        ({ path }) => {
+            expect(existsSync(resolve(REPO_ROOT, path))).toBe(true);
+        }
+    );
 });
 
-describe("Catalogue artifact size budget (issue #3053, ADR 0113 §3)", () => {
-    it(`is at most ${(RAW_BUDGET_BYTES / 1024 / 1024).toFixed(1)} MB raw — past this, re-measure heap in a real browser and restate ADR 0113 §3, don't raise the number`, () => {
-        const size = statSync(artifactPath()).size;
-        console.log(
-            `catalogue artifact: ${(size / 1024).toFixed(1)} KB raw (budget: ${(
-                RAW_BUDGET_BYTES / 1024
-            ).toFixed(0)} KB)`
-        );
-        expect(size).toBeLessThanOrEqual(RAW_BUDGET_BYTES);
-    });
-
-    it(
-        `is at most ${(BROTLI_BUDGET_BYTES / 1024).toFixed(0)} KB Brotli — the bytes a cold load really fetches`,
-        () => {
-            const compressed = brotliCompressSync(readFileSync(artifactPath()));
+describe("Served catalogue asset size budgets (issue #4861, ADR 0113 Amendment IV)", () => {
+    it.each(SERVED)(
+        "$path stays under its raw budget — past it, re-measure and restate, don't raise the number",
+        ({ path, who, rawBudgetBytes }) => {
+            const size = statSync(resolve(REPO_ROOT, path)).size;
             console.log(
-                `catalogue artifact: ${(compressed.length / 1024).toFixed(1)} KB Brotli (budget: ${(
-                    BROTLI_BUDGET_BYTES / 1024
+                `${path} (${who}): ${(size / 1024).toFixed(1)} KB raw (budget: ${(
+                    rawBudgetBytes / 1024
                 ).toFixed(0)} KB)`
             );
-            expect(compressed.length).toBeLessThanOrEqual(BROTLI_BUDGET_BYTES);
+            expect(size).toBeLessThanOrEqual(rawBudgetBytes);
+        }
+    );
+
+    it.each(SERVED)(
+        "$path stays under its Brotli budget — the bytes a cold load really fetches",
+        ({ path, who, brotliBudgetBytes }) => {
+            const compressed = brotliCompressSync(
+                readFileSync(resolve(REPO_ROOT, path))
+            );
+            console.log(
+                `${path} (${who}): ${(compressed.length / 1024).toFixed(1)} KB Brotli (budget: ${(
+                    brotliBudgetBytes / 1024
+                ).toFixed(0)} KB)`
+            );
+            expect(compressed.length).toBeLessThanOrEqual(brotliBudgetBytes);
         },
         BROTLI_TIMEOUT_MS
     );
-
-    it("is a non-empty array of CardDefinition-shaped rows", () => {
-        const rows = JSON.parse(readFileSync(artifactPath(), "utf8")) as Array<{
-            id: string;
-            name: string;
-            types: string[];
-        }>;
-        expect(Array.isArray(rows)).toBe(true);
-        expect(rows.length).toBeGreaterThan(0);
-        for (const row of rows.slice(0, 20)) {
-            expect(typeof row.id).toBe("string");
-            expect(typeof row.name).toBe("string");
-            expect(Array.isArray(row.types)).toBe(true);
-        }
-    });
 });

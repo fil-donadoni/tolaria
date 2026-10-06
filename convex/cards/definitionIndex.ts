@@ -12,9 +12,9 @@
 //     is in both graphs;
 //   - the COMPILED section, carried inside the packed server corpus
 //     (`data/catalogue/packed-corpus.json`, issue #4164) beside the name index
-//     it already had — server only, behind the `./compiledPool` seam the
-//     client build aliases away, because the client's compiled rows arrive
-//     from the fetched artifact and register at runtime.
+//     it already had — bundled by the server behind the `./compiledPool`
+//     seam, FETCHED by the client (the same file, issue #4861), whose
+//     catalogue installs it at hydration.
 //
 // Every catalogue-wide index `catalogue.ts` used to compute by walking the
 // definitions at load — the name lookup, the twin-name keys, Set membership,
@@ -24,9 +24,7 @@
 //
 // No JSON import and no module-load work of its own (it imports the registry
 // for `tokenDefinitionId`, and with it the registry's own load). The
-// generator imports it to write the index, the catalogue to read it, the
-// client's compiled hydration (`registerCompiledDefinitions`) to derive the
-// same entries for a fetched row.
+// generator imports it to write the index, the catalogue to read it.
 import type { CardDefinition } from "./types";
 import { chooseableNamesOf } from "./cardNames";
 import { backFaceAsTokenSpec } from "./backFaceSpec";

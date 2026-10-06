@@ -8,7 +8,7 @@
 // trio) never reach this check: the importer already stripped them from the
 // sheets (`mtgjsonImport.ts` + `adrExclusions.ts`), so they read as "absent
 // from the print run", not "missing implementation".
-import { tryGetDefinition } from "../cards";
+import { resolveCardName } from "../cards";
 import { dropFromSheet } from "./sheetFiltering";
 import type { BoosterConfig, BoosterSheet } from "./boosterTypes";
 
@@ -16,7 +16,9 @@ import type { BoosterConfig, BoosterSheet } from "./boosterTypes";
  *  — for a reprint — the Card ID the config's `printCardIds` names (a Print ID
  *  is not in the registry, ADR 0140 §5). */
 function isImplemented(config: BoosterConfig, id: string): boolean {
-    return tryGetDefinition(config.printCardIds?.[id] ?? id) !== null;
+    // From the Definition Index (issue #4861): Draftability counts every card
+    // of every sheet, and must not decode one to count it.
+    return resolveCardName(config.printCardIds?.[id] ?? id) !== null;
 }
 
 /** Per-sheet Draftability floor (ADR 0059). Deliberately NOT a per-set

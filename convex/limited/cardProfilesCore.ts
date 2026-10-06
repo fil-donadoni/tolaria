@@ -34,7 +34,7 @@
 // shells live in the sibling file.
 import { isRegisteredCapability } from "./capabilityRegistry";
 import { isRegisteredArchetype } from "./archetypeRegistry";
-import { tryGetDefinition } from "../cards";
+import { resolveCardName } from "../cards";
 import { CUBE_SOURCE_KEY } from "./cubeSource";
 import type { ScopeCard } from "./cardRatingsCore";
 import vintageCubeProfilesJson from "../../data/card-profiles/vintage-cube.json";
@@ -225,7 +225,7 @@ export function validateCardProfileFile(
     const errors: string[] = [];
 
     for (const [cardId, profile] of Object.entries(file.profiles)) {
-        if (!tryGetDefinition(cardId)) {
+        if (resolveCardName(cardId) === null) {
             errors.push(
                 `${file.scope}: profiled cardId "${cardId}" does not resolve to a card`
             );
@@ -346,7 +346,7 @@ export function cardProfileWriteErrors(
     profile: CardProfile
 ): string[] {
     const errors: string[] = [];
-    if (!tryGetDefinition(cardId)) {
+    if (resolveCardName(cardId) === null) {
         errors.push(`cardId "${cardId}" does not resolve to a card`);
     }
     for (const capability of profile.provides) {
@@ -371,7 +371,7 @@ export function cardProfileWriteErrors(
         }
     }
     for (const edge of profile.comboEdges ?? []) {
-        if (!tryGetDefinition(edge.cardId)) {
+        if (resolveCardName(edge.cardId) === null) {
             errors.push(
                 `combo edge partner "${edge.cardId}" does not resolve to a card`
             );
