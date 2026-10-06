@@ -381,6 +381,22 @@ describe("convex:ensure — something for this deployment is alive but not answe
         expect(starts()).toBe(1);
     });
 
+    it("a recorded pid with no start stamp and no Convex command line: identity unproven, not killed", async () => {
+        const port = await freePort();
+        const stranger = await idle(IDLE);
+        fs.mkdirSync(telemetry, { recursive: true });
+        fs.writeFileSync(
+            path.join(telemetry, "convex-dev.pid"),
+            JSON.stringify({ pid: stranger.pid, stamp: "" })
+        );
+        const r = await wedgedRun(port, `test-none-${process.pid}-${port}`);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(/identity is unproven/);
+        expect(r.stderr).not.toMatch(/reclaiming/);
+        expect(stillAlive(stranger)).toBe(true);
+        expect(starts()).toBe(0);
+    });
+
     it("a foreign listener still holding the port after the reclaim: fails, never starts", async () => {
         const port = await freePort();
         // Accepts TCP, never answers HTTP: the probe fails, the port is held.

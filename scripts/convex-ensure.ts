@@ -455,19 +455,51 @@ export function portHeld(url: string, timeoutMs: number): Promise<boolean> {
 async function reclaim(
     o: EnsureOptions,
     ours: ProcessRow[],
-    instanceName: string
+    instanceName: string,
+    recorded: LockOwner | null
 ): Promise<number[] | string> {
+    // `ours` is a snapshot from before the wait: re-attribute on fresh rows,
+    // so a pid that died and was recycled meanwhile is never a root.
     const rows = listProcesses();
+    const before = new Set(ours.map((r) => r.pid));
+    const roots = deploymentProcesses(rows, o, recorded).filter((r) =>
+        before.has(r.pid)
+    );
+    // A recorded pid with no stamp has no identity: unless its command line
+    // is Convex's own, it may be anything that reused the pid.
+    const unproven = roots.find(
+        (r) =>
+            recorded?.pid === r.pid &&
+            recorded.stamp === "" &&
+            !isBackend(r.args) &&
+            !isConvexDev(r.args)
+    );
+    if (unproven) {
+        return `${describeProcess(unproven, o)} is the pid convex-dev.pid records, but with no start stamp its identity is unproven — not reclaimed, not starting a second backend`;
+    }
+    // Never this script's own chain (`bun run`, `sh`, the loop): a root
+    // above it is refused, an ancestor below a root is skipped.
+    const ancestors = new Set<number>([process.pid]);
+    for (
+        let r = rows.find((x) => x.pid === process.pid);
+        r && r.ppid > 1 && !ancestors.has(r.ppid);
+        r = rows.find((x) => x.pid === r!.ppid)
+    ) {
+        ancestors.add(r.ppid);
+    }
+    const above = roots.find((r) => ancestors.has(r.pid));
+    if (above) {
+        return `${describeProcess(above, o)} is an ancestor of this convex:ensure — not reclaimed, not starting a second backend`;
+    }
     const ownGroup = psField(process.pid, "pgid");
     const victims = new Map<number, { stamp: string; group: number | null }>();
-    const roots = ours.filter((r) => alive(r.pid));
     for (const r of roots) {
         const pgid = psField(r.pid, "pgid");
         o.log(
             `convex:ensure: reclaiming ${describeProcess(r, o)} (etime ${psField(r.pid, "etime") || "?"}) — ${reclaimReason(rows, r, instanceName, o.waitAliveMs)}`
         );
         for (const pid of withDescendants(rows, r.pid)) {
-            if (pid === process.pid || victims.has(pid)) continue;
+            if (ancestors.has(pid) || victims.has(pid)) continue;
             victims.set(pid, {
                 stamp: startStamp(pid),
                 group:
@@ -545,7 +577,12 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
                     reason: `${what} is alive but never answered ${o.url}, and the local instance is unknown (CONVEX_DEPLOYMENT is not local:<name>) — it may be another deployment's backend, so it is not reclaimed and no second is started`,
                 };
             }
-            const reclaimed = await reclaim(o, ours, o.instanceName);
+            const reclaimed = await reclaim(
+                o,
+                ours,
+                o.instanceName,
+                readOwner(pidFile)
+            );
             if (typeof reclaimed === "string") {
                 return { kind: "failed", reason: reclaimed };
             }
