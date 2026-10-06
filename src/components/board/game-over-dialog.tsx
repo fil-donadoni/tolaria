@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import type { PublicMatch } from "@convex/matches";
 import GameDialog from "~/components/ui/game-dialog";
 import TitleTreatment from "~/components/ui/title-treatment";
@@ -9,7 +9,13 @@ import { lobbyHrefForMatch } from "~/lib/matchNavigation";
 import type { GameOver, Player } from "~/types/game";
 import SideboardingDialog from "./sideboarding-dialog";
 import VerdictProposalOffer from "./verdict-proposal-offer";
-import VerdictProposalQueue from "~/components/debug/verdict-proposal-queue";
+
+// The review queue rebuilds positions through the verdict lowering — engine
+// code the board must not load for a dialog most games never open (issue
+// #3986). Its own chunk, fetched on "Review your decisions".
+const VerdictProposalQueue = lazy(
+    () => import("~/components/debug/verdict-proposal-queue")
+);
 
 function SkullIcon() {
     return (
@@ -131,10 +137,18 @@ export default function GameOverDialog({
                 title={matchOver ? "Match Over" : "Game Over"}
                 dismissable={false}
             >
-                <VerdictProposalQueue
-                    gameId={gameId}
-                    onClose={() => setReviewing(false)}
-                />
+                <Suspense
+                    fallback={
+                        <p className="text-text-disabled text-xs">
+                            Loading the review…
+                        </p>
+                    }
+                >
+                    <VerdictProposalQueue
+                        gameId={gameId}
+                        onClose={() => setReviewing(false)}
+                    />
+                </Suspense>
             </GameDialog>
         );
     }
