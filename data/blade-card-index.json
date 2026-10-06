@@ -436,6 +436,13 @@
             "needsSetup": true
         }
     ],
+    "Shatter": [
+        {
+            "label": "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Sheoldred's Edict": [
         {
             "label": "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict",
