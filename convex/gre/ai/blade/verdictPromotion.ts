@@ -339,6 +339,9 @@ function admissionText(
         ),
         contestedPositionKeys: new Set([
             ...validation.quarantine.contested.map((c) => c.positionKey),
+            // A resolved position WAS contested: "never Contested" outlives
+            // the resolution that let its accepted verdict into the lock.
+            ...validation.quarantine.resolved.map((r) => r.positionKey),
             ...registryContestedKeys(validation),
         ]),
         aliases,

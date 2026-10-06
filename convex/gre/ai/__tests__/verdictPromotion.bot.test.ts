@@ -43,7 +43,9 @@ import {
     evalPairsOf,
     formatStoreValidation,
     EVAL_WEIGHTS_PATH,
+    heldOutBucketOf,
     parsePromotionStreakLedger,
+    scenarioKeyOf,
     parseVerdictLock,
     parseVerdictPack,
     serializePromotionStreakLedger,
@@ -643,6 +645,91 @@ describe("verdicts:testers — the engine step (issue #3585)", () => {
         );
         expect(stale.text).toMatch(/every streak restarts at 0/);
         expect(stale.text).toMatch(/refused — streak\s+: 1/);
+    });
+
+    /** `j` moved to the first later turn whose board falls on `side` of
+     *  the held-out split (no Test Positions: the scenarios are `[]`). */
+    const onSide = (j: VerdictJudgement, side: 0 | "fit"): VerdictJudgement => {
+        for (let later = 1; later < 100; later++) {
+            const moved = {
+                ...j,
+                spec: { ...j.spec, turn: (j.spec.turn ?? 1) + later },
+            };
+            const bucket = heldOutBucketOf(scenarioKeyOf(moved));
+            if (side === 0 ? bucket === 0 : bucket !== 0) return moved;
+        }
+        throw new Error("no later turn lands on that side");
+    };
+
+    const promoteOnce = async (
+        store: MemoryVerdictStore,
+        admission: Record<string, unknown>
+    ) => {
+        const out = runVerdictPromotionStep(
+            {
+                mode: "promote",
+                lock: null,
+                streakLedger: null,
+                evalWeightsSource: readFileSync(
+                    resolve(__dirname, "../../../..", EVAL_WEIGHTS_PATH),
+                    "utf8"
+                ),
+                verdictObjects: await b64(store, VERDICT_OBJECT_PREFIX),
+                attestationObjects: await b64(store, ATTESTATION_OBJECT_PREFIX),
+                resolutionObjects: await b64(store, RESOLUTION_OBJECT_PREFIX),
+                admission,
+            },
+            []
+        );
+        if (out.mode !== "promote" || out.noop) {
+            throw new Error("expected a promotion that writes");
+        }
+        return out;
+    };
+
+    it("verdicts:promote restarts at 0 the streak of a locked verdict the fitted weights leave unsatisfied (issue #3985)", async () => {
+        const [held, flipped] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        const heldId = await stored(store, onSide(held, "fit"));
+        // Held out, so the fit never bends to it — and its answer is the
+        // opposite of the one the fit was just taught on the same board.
+        const flippedId = await stored(store, onSide(flipped, 0));
+        const out = await promoteOnce(store, {
+            minPersons: 1,
+            ownerPersons: [],
+            minConsecutivePromotions: 1000,
+            seeds: [1],
+            iterations: 1,
+        });
+        expect(
+            parsePromotionStreakLedger(out.streakLedgerText).streaks
+        ).toEqual({ [heldId]: 1, [flippedId]: 0 });
+    });
+
+    it("verdicts:promote never proposes a position a resolution decided — it was Contested (issue #3985)", async () => {
+        const [held, flipped] = satisfiedAndFlipped();
+        const store = createMemoryVerdictStore();
+        const accepted = await stored(store, held);
+        const rejected = await stored(store, flipped, [
+            ["prod-b:bob", "explicit"],
+        ]);
+        await putResolution(store, {
+            positionKey: positionKeyOf(held),
+            acceptedVerdictId: accepted,
+            rejected: [{ verdictId: rejected, reason: "the other line" }],
+            author: "prod-a:admin",
+            createdAt: 1,
+        });
+        const out = await promoteOnce(store, {
+            minPersons: 1,
+            ownerPersons: [],
+            minConsecutivePromotions: 1,
+            seeds: [1],
+            iterations: 1,
+        });
+        expect(out.lock.verdictIds).toEqual([accepted]);
+        expect(out.text).toMatch(/refused — contested\s+: 1/);
+        expect(out.text).toMatch(/candidates\s+: 0/);
     });
 
     it("says unsatisfied is not measured when no lock is committed, and lists an alias that does not read", async () => {

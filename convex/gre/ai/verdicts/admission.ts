@@ -12,7 +12,8 @@
 //      `minConsecutivePromotions` consecutive Promotions (the ledger,
 //      `promotionStreak.ts`);
 //   3. NEVER CONTESTED — no other explicit answer at its position, in the
-//      store or in the blade registry;
+//      store or in the blade registry, now or before a resolution accepted
+//      it (the caller names the keys);
 //   4. SEEDS — the whole Bot, through `searchVerdict`, picks an allowed
 //      candidate on every one of `seeds` at `iterations`.
 //

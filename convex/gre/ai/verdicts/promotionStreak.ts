@@ -19,6 +19,11 @@
 // at zero: the direction that can only delay a proposal, never invent one.
 // The reset is reported, never silent.
 //
+// SATISFIED MEANS NO PAIR VIOLATED. A verdict whose every pair is a timing
+// pair (`evalPairs.ts`) gives the fit nothing to violate, so its streak grows
+// with every Promotion: the fit cannot speak for it, and the proposer's seed
+// check — the whole search, the one that answers for timing — is what does.
+//
 // Pure: no store, no clock, no file system.
 
 import { VERDICT_HASH_PATTERN } from "./identity";
