@@ -25,7 +25,10 @@
 //     target list; `toggleAttacker` clicks and one `declareAttackers` are one
 //     attacking set; `selectBlocker`/`assignBlockerTarget` pairs and one
 //     `declareBlockers` are one block assignment.
-//   - EMPTY OPTIONALS. `chosenModeIds: []` and an absent field say the same.
+//   - EMPTY OPTIONALS. `chosenModeIds: []`, `buyback: false` and an absent
+//     field say the same.
+//   - `keepPriority`, the UI's hold-priority flag: it shapes the NEXT
+//     decision, never this one.
 //
 // Anything else the player sent — a cancel, an `endTurn` shortcut, a call no
 // candidate realises — leaves the window unmatched, and an unmatched decision
@@ -58,14 +61,26 @@ const PAYMENT_CALLS: ReadonlySet<string> = new Set([
     "confirmTargets",
 ]);
 
-/** The seat-identity args every call carries — never part of the decision. */
-const IDENTITY_ARGS: ReadonlySet<string> = new Set(["gameId", "playerId"]);
+/** Args that are never part of the decision: the seat identity every call
+ *  carries, and `keepPriority` — the UI's "hold priority after this" flag
+ *  (CR 117.3c), which the executor never sends and which changes what the
+ *  player does NEXT, not what this move is. */
+const FORGOTTEN_ARGS: ReadonlySet<string> = new Set([
+    "gameId",
+    "playerId",
+    "keepPriority",
+]);
+
+/** Calls that are about the client's own automation, not the game. */
+const CLIENT_CALLS: ReadonlySet<string> = new Set(["cancelAutoPass"]);
 
 /** One step of a folded decision. */
 type FoldedStep = { step: string; detail: unknown };
 
 function isEmpty(value: unknown): boolean {
-    if (value === undefined || value === null) return true;
+    // `false` is an unset flag (`buyback`, `payFlashSurcharge`): the UI sends
+    // it explicitly where the executor leaves the field out.
+    if (value === undefined || value === null || value === false) return true;
     if (Array.isArray(value)) return value.length === 0;
     if (typeof value === "object") return Object.keys(value).length === 0;
     return false;
@@ -90,7 +105,7 @@ function canonical(value: unknown): unknown {
 function strip(args: Record<string, unknown>): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(args)) {
-        if (!IDENTITY_ARGS.has(k)) out[k] = v;
+        if (!FORGOTTEN_ARGS.has(k)) out[k] = v;
     }
     return out;
 }
@@ -130,7 +145,7 @@ export function foldDecisionCalls(
         const call = name.startsWith(GAME_MODULE)
             ? name.slice(GAME_MODULE.length)
             : name;
-        if (PAYMENT_CALLS.has(call)) continue;
+        if (PAYMENT_CALLS.has(call) || CLIENT_CALLS.has(call)) continue;
         const a = strip(args);
         if (call === "selectTarget") {
             (targets ??= []).push(a);
@@ -143,9 +158,15 @@ export function foldDecisionCalls(
         flushTargets();
         switch (call) {
             case "toggleAttacker": {
+                // The server's own rule: a declared attacker named again WITH
+                // a planeswalker is retargeted, without one it is withdrawn.
                 const id = a.cardInstanceId as string;
-                if (attack.targets.has(id)) attack.targets.delete(id);
-                else attack.targets.set(id, attackTarget(a.planeswalkerId));
+                const to = attackTarget(a.planeswalkerId);
+                if (!attack.targets.has(id) || a.planeswalkerId !== undefined) {
+                    attack.targets.set(id, to);
+                } else {
+                    attack.targets.delete(id);
+                }
                 continue;
             }
             case "toggleExert": {

@@ -237,7 +237,20 @@ describe("issue #3984 — the player's move, recovered from what they submitted"
             projectedToGameState(projectPublicState(state, 10, human)),
             human,
             [
-                call("announceCast", human, { cardInstanceId: bolt.id }),
+                // The fields `useHandCardCommit` sends, as it sends them.
+                call("announceCast", human, {
+                    cardInstanceId: bolt.id,
+                    keepPriority: false,
+                    chosenX: undefined,
+                    chosenModeIds: undefined,
+                    alternativeCostId: undefined,
+                    kickerPayments: undefined,
+                    buyback: undefined,
+                    payFlashSurcharge: false,
+                    phyrexianLifePips: undefined,
+                    additionalCostLegId: undefined,
+                    chosenXColors: undefined,
+                }),
                 call("selectTarget", human, {
                     targetType: "permanent",
                     targetId: bears.id,
@@ -287,6 +300,105 @@ describe("issue #3984 — the player's move, recovered from what they submitted"
             seats
         );
         expect(clicks).toBe(batch);
+    });
+});
+
+/** The human attacking: two Bears able to attack, the declaration owed. */
+const HUMAN_DECLARES_ATTACKERS: ScenarioSpec = {
+    cards: [
+        { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+        { name: "Llanowar Elves", owner: "opp", zone: "hand" },
+    ],
+    phase: "DECLARE_ATTACKERS",
+    turn: 3,
+    landCount: 0,
+    libraryCount: 20,
+};
+
+describe("issue #3984 — decision windows follow the decision, not the save", () => {
+    it("one attack clicked creature by creature is ONE decision, identified as that attack", async () => {
+        const { state, human } = board(HUMAN_DECLARES_ATTACKERS);
+        const [a, b] = state.players[0].battlefield.map((c) => c.id);
+        startHumanCapture(GAME, human, { limit: 10, seed: 1 });
+        // Every click is a save, and the engine still owes the declaration
+        // after each — the views the subscription delivers in between.
+        observeHumanWindow(
+            GAME,
+            projectPublicState(state, 20, human),
+            human,
+            undefined
+        );
+        recordHumanCall(
+            GAME,
+            call("toggleAttacker", human, { cardInstanceId: a })
+        );
+        observeHumanWindow(
+            GAME,
+            projectPublicState(state, 21, human),
+            human,
+            undefined
+        );
+        recordHumanCall(
+            GAME,
+            call("toggleAttacker", human, { cardInstanceId: b })
+        );
+        observeHumanWindow(
+            GAME,
+            projectPublicState(state, 22, human),
+            human,
+            undefined
+        );
+        recordHumanCall(GAME, call("confirmAttackers", human));
+        const decisions = takeHumanDecisions(GAME);
+        expect(decisions).toHaveLength(1);
+        const move = await identifyHumanMove(
+            projectedToGameState(decisions[0].source.state),
+            human,
+            decisions[0].calls
+        );
+        expect(move?.kind).toBe("declare-attackers");
+        expect(JSON.stringify(move)).toContain(`"${a}"`);
+        expect(JSON.stringify(move)).toContain(`"${b}"`);
+    });
+
+    it("a window that is no decision closes the open one: an auto-pass there joins nothing", () => {
+        const { state, human } = board();
+        startHumanCapture(GAME, human, { limit: 10, seed: 1 });
+        observeHumanWindow(
+            GAME,
+            projectPublicState(state, 30, human),
+            human,
+            undefined
+        );
+        const land = handCard(state, human, "Mountain");
+        recordHumanCall(
+            GAME,
+            call("playCard", human, { cardInstanceId: land.id })
+        );
+        // The Bot's end step, the human holding nothing castable: a trivial
+        // pass the Bot's own gate would not think about.
+        const endStep = structuredClone(state);
+        endStep.phase = "END";
+        endStep.activePlayerId = endStep.players[1].id;
+        endStep.priorityPlayerId = human;
+        endStep.players[0].hand = endStep.players[0].hand.filter(
+            (c) => c.id === land.id
+        );
+        expect(
+            observeHumanWindow(
+                GAME,
+                projectPublicState(endStep, 31, human),
+                human,
+                undefined
+            )
+        ).toBe(false);
+        recordHumanCall(GAME, call("passPriority", human));
+        const decisions = takeHumanDecisions(GAME);
+        expect(decisions).toHaveLength(1);
+        expect(decisions[0].calls.map((c) => c.name)).toEqual([
+            "game:playCard",
+        ]);
     });
 });
 

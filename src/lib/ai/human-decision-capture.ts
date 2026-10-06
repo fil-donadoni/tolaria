@@ -35,6 +35,8 @@ export type CapturedDecision = {
     /** Every mutation the seat submitted from this decision until its next
      *  one (or the game's end), in order. */
     calls: TappedMutation[];
+    /** The declaration this decision is (see `captureHumanDecision`). */
+    continuation?: string;
 };
 
 type GameCapture = {
@@ -108,7 +110,11 @@ function close(c: GameCapture): void {
  */
 export function captureHumanDecision(
     gameId: string,
-    source: AiTraceSource
+    source: AiTraceSource,
+    /** Names a declaration several saves belong to (a combat step: one save
+     *  per attacker clicked). A state naming the SAME declaration as the open
+     *  decision continues it instead of opening a second one. */
+    continuation?: string
 ): boolean {
     const c = capture;
     if (!c || c.gameId !== gameId || c.seatId !== source.botId) return false;
@@ -118,9 +124,27 @@ export function captureHumanDecision(
     }
     if (c.lastSeq === source.state.seq) return false;
     c.lastSeq = source.state.seq;
+    if (
+        continuation !== undefined &&
+        c.current?.continuation === continuation
+    ) {
+        return false;
+    }
     close(c);
-    c.current = { source, calls: [] };
+    c.current = {
+        source,
+        calls: [],
+        ...(continuation === undefined ? {} : { continuation }),
+    };
     return true;
+}
+
+/** The seat owes something that is no decision worth a question: the open
+ *  decision is finished, and calls until the next one belong to none. */
+export function closeHumanDecision(gameId: string): void {
+    const c = capture;
+    if (!c || c.gameId !== gameId) return;
+    close(c);
 }
 
 /** One mutation the seat submitted — appended to its current decision. A
