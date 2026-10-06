@@ -24,6 +24,7 @@ import {
     dslAbilityScriptValue,
     dslEtbAbilityInFlightValue,
     dslLatentDelayedTemplateValue,
+    dslStandingAbilityScriptValue,
     etbSelfSacrificeWeight,
     type LatentCastRoute,
     dslRealizedAbilityScriptValue,
@@ -167,6 +168,13 @@ export function latentValue(chars: {
      *  rest (`candidateValue.ts`'s no-script floor takes the same shape for the
      *  same reason). */
     dslDelayedTemplateValue?: number;
+    /** Issue #5145 — the (latent-discounted, signed) value of a NON-CREATURE
+     *  permanent's own standing ability scripts, delayed templates and ETB
+     *  Abilities excluded (the former ride in `dslDelayedTemplateValue`, the
+     *  latter are spent on entering). Undefined when the card carries no
+     *  readable ability script or is not a permanent worth one (land, instant,
+     *  sorcery — see `dslLatentPieces`). Read by the NON-CREATURE branch only. */
+    dslStandingAbilityValue?: number;
     /** Issue #3398 — true when `dslSpellValue` was MEASURED against a real
      *  board (a targeted, board-affecting Op priced by its best legal victim)
      *  rather than assumed from a representative one. Lifts the `base + MV`
@@ -232,18 +240,48 @@ export function latentValue(chars: {
     // carries the same templates inside `dslAbilityValue`, so this is the
     // non-creature branch's only reading.
     const delayed = chars.dslDelayedTemplateValue ?? 0;
+    // Issue #5145 — a permanent's standing ability scripts compose ADDITIVELY
+    // with its spell script (an artifact with a cast effect AND an activated
+    // ability earns both) and inside the same clamp and floor: they are one
+    // more readable script of the card, so the `base + MV` floor stays a
+    // strict uplift (an ability script the Op vocabulary undervalues never
+    // drops the card below it) and a NEGATIVE ability — a tax both players
+    // pay, an upkeep cost on its controller — nets against the other scripts
+    // instead of being lifted into a bonus. The battlefield face needs no
+    // second reading: `nonCreatureBodyValue` (`evaluate.ts`) scores a
+    // permanent in play through this same function, so the hand and board
+    // faces of such a permanent are one number and casting it is never a
+    // value loss this composition causes.
+    const standing = chars.dslStandingAbilityValue;
+    if (standing !== undefined && chars.dslSpellValue === undefined) {
+        return Math.max(
+            fallback,
+            Math.min(standing + delayed, MAX_LATENT_SCRIPT_VALUE)
+        );
+    }
     if (chars.dslSpellValue !== undefined) {
         // Clamp BEFORE the floor comparison (issue #1508) — an ordinary
         // script's value is always well under the cap, so this is a no-op for
         // every real card except the rare "if always assumes then" / literal
         // sentinel-amount outliers the cap exists to bound.
         const bounded = Math.min(
-            chars.dslSpellValue + delayed,
+            chars.dslSpellValue + (standing ?? 0) + delayed,
             MAX_LATENT_SCRIPT_VALUE
         );
         return Math.max(fallback, bounded);
     }
     return Math.min(fallback + delayed, MAX_LATENT_SCRIPT_VALUE);
+}
+
+/** Issue #5145 — true for a non-creature PERMANENT card other than a land: the
+ *  class whose standing ability scripts are part of its latent worth. */
+function carriesStandingAbilityWorth(def: CardDefinition): boolean {
+    return (
+        !def.types.includes("Creature") &&
+        !def.types.includes("Land") &&
+        !def.types.includes("Instant") &&
+        !def.types.includes("Sorcery")
+    );
 }
 
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free
@@ -273,6 +311,7 @@ export function dslLatentPieces(
     dslSpellValue?: number;
     dslAbilityValue?: number;
     dslDelayedTemplateValue?: number;
+    dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     etbSelfSacrificeWeight?: number;
 } {
@@ -305,6 +344,15 @@ export function dslLatentPieces(
             contextFreeGrounding(latent)
         ),
         etbSelfSacrificeWeight: selfSacrificeWeight,
+        // Issue #5145 — only a NON-CREATURE PERMANENT reads it: a creature
+        // already carries its abilities in `dslAbilityValue`, a land's mana
+        // abilities are scored by the mana term (counting them here would
+        // double it), and an instant/sorcery has no standing abilities on the
+        // battlefield to value (flashback-style grants are not a permanent's
+        // worth).
+        dslStandingAbilityValue: carriesStandingAbilityWorth(def)
+            ? dslStandingAbilityScriptValue(def, contextFreeGrounding(latent))
+            : undefined,
         // Only a value the lens actually ANSWERED counts as measured — a
         // board that could not resolve the card's target slots leaves the
         // pre-#3398 representative valuation, floor included.
@@ -328,6 +376,7 @@ export function dslLatentPiecesById(
     dslSpellValue?: number;
     dslAbilityValue?: number;
     dslDelayedTemplateValue?: number;
+    dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     etbSelfSacrificeWeight?: number;
 } {
