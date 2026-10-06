@@ -4,10 +4,10 @@
 // `vite.config.ts` aliases the specifier `./compiledPool` — imported by
 // `convex/cards/catalogue.ts` and by nothing else — to this module, in BOTH
 // the app graph and the `brain.worker` graph (`resolve.alias` is shared with
-// the worker build; `plugins` are not). The effect is that neither
-// `data/oracle-compiled-pool.json` nor `data/catalogue/packed-corpus.json`
-// enters a client bundle: the main thread and the worker each FETCH the packed
-// corpus as one immutable asset at the loading gate
+// the worker build; `plugins` are not). The effect is that
+// `data/catalogue/packed-corpus.json` never enters a client bundle: the main
+// thread and the worker each FETCH the packed corpus as one immutable asset
+// at the loading gate
 // (`src/lib/catalogueArtifact.ts`) and hand it to `registerPackedCorpus`,
 // which decodes a block on first request — the same rows, the same decoder
 // as the server.
@@ -15,17 +15,10 @@
 // It is deliberately empty rather than absent: `catalogue.ts` reads these at
 // module load, so the two builds run the same code path and differ only in
 // what it is handed.
-import type { CardDefinition } from "@convex/cards/types";
 import type { PackedCorpus, PackedLookup } from "@convex/cards/packedCorpus";
-
-/** No literal pool on the client. */
-export const compiledReadyDefinitions: CardDefinition[] = [];
 
 /** No BUNDLED corpus: it arrives as a fetched asset, after module load. */
 export const packedServerCorpus: PackedCorpus | null = null;
-
-/** The server-only lookup switch, always off in a client graph. */
-export const PACKED_CORPUS_LOOKUP: boolean = false;
 
 /** No bundled lookup; the client's is built by `registerPackedCorpus`. */
 export const packedCorpusLookup: PackedLookup | null = null;

@@ -174,21 +174,17 @@ import {
 // both sides: every hand-written definition is in both graphs.
 import definitionIndexJson from "../../data/catalogue/definition-index.json";
 // The packed corpus's decoder (issue #4165). The server reaches it through
-// `./compiledPool`'s switch; the CLIENT through `registerPackedCorpus` below,
-// with the corpus it fetched (issue #4861).
+// `./compiledPool`; the CLIENT through `registerPackedCorpus` below, with the
+// corpus it fetched (issue #4861).
 import { createPackedLookup, type PackedCorpus } from "./packedCorpus";
-// The pool as a BUNDLED module. On the SERVER this is
-// `data/oracle-compiled-pool.json`; in a CLIENT build `vite.config.ts`
+// The packed corpus as a BUNDLED module. On the SERVER this is
+// `data/catalogue/packed-corpus.json`; in a CLIENT build `vite.config.ts`
 // aliases this exact relative specifier to an empty stub and the packed
 // corpus arrives as a fetched asset instead (ADR 0113 Amendment IV, issue
 // #4861). Keep it the only importer of `./compiledPool` — pinned by
-// `scripts/__tests__/compiled-pool-client-seam.test.ts`. The packed corpus
-// beside it carries the COMPILED section of the Definition Index.
-import {
-    compiledReadyDefinitions,
-    packedCorpusLookup,
-    packedServerCorpus,
-} from "./compiledPool";
+// `scripts/__tests__/compiled-pool-client-seam.test.ts`. The corpus carries
+// the COMPILED section of the Definition Index beside its rows.
+import { packedCorpusLookup, packedServerCorpus } from "./compiledPool";
 
 // Set modules paired with their lowercase set code.
 const setModules: { code: string; exports: Record<string, unknown> }[] = [
@@ -436,27 +432,18 @@ type CompiledRowSource = (id: string, row: number) => CardDefinition | null;
 
 const compiledRow = new Map<string, number>();
 let compiledRowSource: CompiledRowSource | null = null;
-/** The packed lookup serving the compiled rows, when one does: the server's
- *  with the switch on, the client's always. */
+/** The packed lookup serving the compiled rows: the server's bundled one,
+ *  the client's once it has fetched its corpus. */
 let activePackedLookup = packedCorpusLookup;
 
-/** The compiled definition for `id`, from the ONE source this graph holds:
- *  the packed corpus's row (the server with the switch on, issue #4165; the
- *  client, issue #4861), else the server's literal pool — the same row
- *  index, because every rendering is `merge.serverRows` in order. An id the
- *  index does not hold inflates nothing. */
+/** The compiled definition for `id`, from the packed corpus's row — the
+ *  server's bundled one (issue #4168), the client's fetched one (issue
+ *  #4861). An id the index does not hold inflates nothing. */
 function compiledDefinition(id: string): CardDefinition | null {
     const row = compiledRow.get(id);
     if (row === undefined || compiledRowSource === null) return null;
     return compiledRowSource(id, row);
 }
-
-/** The server's literal pool, by row (the switch off). */
-const literalPoolRow: CompiledRowSource = (id, row) => {
-    const def = compiledReadyDefinitions[row];
-    if (def?.id !== id) throw staleIndex(`compiled row ${row} is not ${id}`);
-    return def;
-};
 
 /** A catalogue card's definition exactly as declared, unexpanded: the Set
  *  module's object, or the compiled row.
@@ -619,16 +606,14 @@ function installCompiledSection(
 }
 
 // The SERVER's compiled section, at load: the packed corpus's index, its rows
-// read from the packed blocks with the switch on (issue #4165), else from the
-// literal pool. A client graph has no bundled corpus (`./compiledPool` is
-// aliased to a stub) and installs its section in `registerPackedCorpus`.
+// read from the packed blocks on first request (issue #4168 retired the
+// literal pool this used to fall back to). A client graph has no bundled
+// corpus (`./compiledPool` is aliased to a stub) and installs its section in
+// `registerPackedCorpus`.
 const bundledIndex = readCompiledIndex(packedServerCorpus);
-if (bundledIndex !== null) {
-    const packed = packedCorpusLookup;
-    installCompiledSection(
-        bundledIndex,
-        packed !== null ? (id) => packed.lookup(id) : literalPoolRow
-    );
+const bundledLookup = packedCorpusLookup;
+if (bundledIndex !== null && bundledLookup !== null) {
+    installCompiledSection(bundledIndex, (id) => bundledLookup.lookup(id));
 }
 
 /** Every Card ID the catalogue serves, in catalogue order. */
@@ -697,8 +682,7 @@ export function walkHandWrittenDefinitions(): HandWrittenExport[] {
     return walk;
 }
 
-/** How many packed blocks this module graph has inflated — `0` on a server
- *  with the switch off. The observable a test bounds a request (issue #4165)
+/** How many packed blocks this module graph has inflated. The observable a test bounds a request (issue #4165)
  *  or a client game load (issue #4861) by. */
 export const packedCorpusInflations = (): number =>
     activePackedLookup?.inflations() ?? 0;

@@ -11,7 +11,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { getCardByName, tryGetDefinition } from "@convex/cards";
-import { compiledReadyDefinitions } from "@convex/cards/compiledPool";
+import { packedServerCorpus } from "@convex/cards/compiledPool";
 import CardPreviewEngineTree from "../card-preview-engine-tree";
 import { buildEngineViewTree } from "~/lib/engine-view-tree";
 import type { CardDefinition } from "@convex/cards/types";
@@ -64,16 +64,15 @@ describe("CardPreviewEngineTree (issue #2704)", () => {
     it("a compiled `ready` card walks the same path as a hand-written one", () => {
         // The contract of PRD #2693: "consumers never learn whether a
         // definition was compiled or hand-written". Slinking Skirge is a
-        // compiled row (`data/oracle-compiled-pool.json`) registered through
+        // compiled row (`data/catalogue/packed-corpus.json`) registered through
         // the SAME `preloadDefinitions` seam, so it is fetched here the same
         // way — by id, out of the one registry — and produces the same node
         // kinds. There is deliberately no compiled-vs-hand-written branch in
         // `buildEngineViewTree` for this test to exercise.
-        const pooled = compiledReadyDefinitions.find(
-            (d) => d.name === "Slinking Skirge"
-        );
-        expect(pooled).toBeTruthy();
-        const def = tryGetDefinition(pooled!.id);
+        const corpus = packedServerCorpus!;
+        const row = corpus.names.indexOf("Slinking Skirge");
+        expect(row).toBeGreaterThanOrEqual(0);
+        const def = tryGetDefinition(corpus.ids[row]!);
         expect(def).toBeTruthy();
 
         const { container, getByText } = renderTree(def!);
