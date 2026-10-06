@@ -37,13 +37,13 @@ const USER_INVOKED_ONLY = [
  * Each callee must stay model-reachable, or the chain silently severs.
  */
 const INVOKES: Record<string, string[]> = {
-    "new-set": ["grill", "cluster-gaps", "mtg-rules-check", "grammar-rule"],
-    "audit-tracker": ["grill", "to-tickets", "mtg-rules-check", "new-qa-issue"],
-    "next-issue": ["bot-slice", "new-op", "new-qa-issue"],
+    "new-set": ["grill", "cluster-gaps", "rules-check", "grammar-rule"],
+    "audit-tracker": ["grill", "to-tickets", "rules-check", "create-ticket"],
+    "next-issue": ["bot-change", "new-op", "create-ticket"],
     "new-card": ["new-op", "grammar-rule"],
     "grammar-rule": ["new-op"],
-    "new-op": ["new-qa-issue"],
-    "bot-slice": ["new-op"],
+    "new-op": ["create-ticket"],
+    "bot-change": ["new-op"],
     grill: ["to-prd", "to-tickets"],
     "to-prd": ["to-tickets"],
     "cluster-gaps": [],

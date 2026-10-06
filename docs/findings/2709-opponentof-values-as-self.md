@@ -46,7 +46,7 @@ ref is `$event.caster` — the caster of a spell that has not been cast yet.
 Context-free, the honest answer is that the recipient is UNKNOWN (either seat),
 so neither `+74` nor `−154` is correct, and the fix has to decide whether an
 unresolvable `opponentOf` should complement the assumption or drop the term to
-neutral. That is a design call in `convex/gre/ai/**`, under `/bot-slice`
+neutral. That is a design call in `convex/gre/ai/**`, under `/bot-change`
 discipline with its own `must` blade entry — not something to smuggle into a
 card slice.
 

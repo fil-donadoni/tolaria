@@ -46,7 +46,7 @@ class, at scale.
 
 **Why it may not deserve its own issue.** It is comments and test names only — no
 runtime behaviour is wrong, and no card is affected. The cost is future readers
-being taught the wrong rule id, and a `/mtg-rules-check` pass anchoring on it.
+being taught the wrong rule id, and a `/rules-check` pass anchoring on it.
 Against that: a correct fix needs a per-site judgement call across ~136
 occurrences (modal vs target-legality vs the compound form), which is a real
 review pass, not a `sed`. It may be better as a line on a docs-hygiene tracker,

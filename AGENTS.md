@@ -167,17 +167,17 @@ Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
   mechanic / rule / hand tail
 - `/new-set` (set rollout): compile-first scope, ranked Grammar Gap tickets,
   residue, umbrella PRD
-- `/new-qa-issue` (observed bug/enhancement): explore, draft one
+- `/create-ticket` (observed bug/enhancement): explore, draft one
   agent-readable issue, post after confirmation
 - `/audit-tracker <N>` (stale roll-up): re-verify gaps vs HEAD, slice
   survivors, retire tracker
-- `/mtg-rules-check` (before any mechanic): CR text + implementation status
+- `/rules-check` (before any mechanic): CR text + implementation status
 - `/gre-test` (GRE logic): vitest tests per project patterns
 - `/new-op` (missing DSL verb): all eight Op sites (+ emitting Grammar Rule) +
   permanent test
 - `/grammar-rule` (one Grammar Cluster): rules + golden fixture per form →
   recompile → `ready` delta → graduation
-- `/bot-slice` (any play/draft Bot change): maps AI subsystem, walks seams,
+- `/bot-change` (any play/draft Bot change): maps AI subsystem, walks seams,
   enforces verification doctrine
 - `/retro` (owner only, after a session): proposes ranked environment
   changes — checks, pointers, deletions — never a new resident line
@@ -190,7 +190,7 @@ not invariants.
 ### Development cycle
 
 1. **Discuss** — user describes the feature/rule
-2. **Verify rules** — `/mtg-rules-check`: CR text + current status
+2. **Verify rules** — `/rules-check`: CR text + current status
 3. **Plan** — scope: implement now vs defer
 4. **Implement** — DSL-first (§ Card Definition System)
 5. **Test** — **the LANE decides what is owed** (ADR 0136 §8,
@@ -365,7 +365,7 @@ training data). Skills: `npx convex ai-files install`.
 
 # Bot Development Rules
 
-You are in the Bot — read `/bot-slice` first (full seam map + doctrine).
+You are in the Bot — read `/bot-change` first (full seam map + doctrine).
 
 - Every behaviour change ships a `must` blade entry in the same PR
   (`convex/gre/ai/blade/`) — a discriminating pair when the fix is a

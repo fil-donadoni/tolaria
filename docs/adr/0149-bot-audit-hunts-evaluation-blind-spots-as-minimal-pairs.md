@@ -91,7 +91,7 @@ work removes the one place a human sets direction.
 ## Considered options
 
 - **Issues alone, as on 2026-09-30.** Cheapest, and half of them would be
-  "plausible, never reproduced" — bot-slice Phase 0's own warning. Rejected
+  "plausible, never reproduced" — bot-change Phase 0's own warning. Rejected
   on ADR 0141 §7.
 - **The pair inside the issue body, entering the registry only with the fix.**
   No red in the tree, but a spec in prose rots (card names, spec fields) and

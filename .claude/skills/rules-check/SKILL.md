@@ -1,5 +1,5 @@
 ---
-name: mtg-rules-check
+name: rules-check
 description: Look up the MTG Comprehensive Rules and cross-reference the GRE implementation. Use before implementing a card, ability or mechanic.
 argument-hint: "[rule number, keyword, or card name]"
 allowed-tools: Bash(bun run cr:*) Bash(bun scripts/cr.ts:*) WebFetch(domain:api.scryfall.com) WebFetch(domain:scryfall.com)

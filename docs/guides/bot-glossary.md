@@ -473,4 +473,4 @@ eval); ADR 0015 (horizon), 0016 (choices), 0018 (evaluation), 0020 (timing),
 0070 (blade admission), 0074 (authority); research
 `docs/research/ismcts-choice-nodes.md`, `docs/research/decision-telemetry.md`
 and `mcts-small-budget-strength.md` (branch `research/mcts-small-budget`).
-Operating procedure for changing the Bot: `.claude/skills/bot-slice/SKILL.md`.
+Operating procedure for changing the Bot: `.claude/skills/bot-change/SKILL.md`.

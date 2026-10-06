@@ -49,7 +49,7 @@ node with a multi-mana untapped source in play, the castability gates, and the
 reactive-flexibility term simultaneously, across two files with a documented
 "mirror" relationship that must move together. That is a real re-tuning /
 re-validation effort (full blade suite + a strength-claim self-play ladder
-pass, per the bot-slice doctrine — a leaf-value shift is exactly the kind of
+pass, per the bot-change doctrine — a leaf-value shift is exactly the kind of
 change that doctrine reserves the ladder for), not a small fix, and #2247 did
 not surface a concrete SYMPTOM of it beyond the ranking bug already fixed
 locally. Worth a ticket once/if a real game shows the bot mis-valuing a

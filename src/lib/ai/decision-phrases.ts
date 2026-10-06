@@ -5,7 +5,7 @@
 // That is the right artifact for someone who already knows the engine, and it
 // is unreadable for the person the box was opened for — a TESTER, who can say
 // whether a play was right but cannot say what `Md` is. Without a reading in
-// words, "the bot blundered" arrives as an anecdote (`/bot-slice` phase 0),
+// words, "the bot blundered" arrives as an anecdote (`/bot-change` phase 0),
 // and an anecdote cannot become a Verdict.
 //
 // Two tables, both exhaustive BY TYPE so a new member is a build error rather
@@ -94,7 +94,7 @@ const TERMINAL_TOTAL = WIN_SCORE / 2;
 
 /** What a comparison says when no term moved past its floor. Not an absence of
  *  information: two candidates the evaluator cannot tell apart is the exact
- *  signature `/bot-slice` phase 0 calls the "tie variant", where the pick falls
+ *  signature `/bot-change` phase 0 calls the "tie variant", where the pick falls
  *  to a tie-break (or to rollout noise) rather than to the evaluation. */
 export const NO_DIFFERENCE_PHRASE = "much the same position";
 

@@ -92,5 +92,5 @@ whose predicate entries the fit could not see.
   Shortcut (PRD issue #2687) P2 — of the 25 premodern archetypes only Aluren
   loops, and its loop is finite and playable by hand; opponent model (PRD
   issue #2787) P2; a blunder from a tester is always a Verdict, at once.
-- `.claude/rules/bot-development.md` and `/bot-slice` still state the ladder
+- `.claude/rules/bot-development.md` and `/bot-change` still state the ladder
   debt; rewording them is a separate ticket (not a docs-lane change).

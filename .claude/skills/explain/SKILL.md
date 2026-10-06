@@ -17,7 +17,7 @@ patterns, data pipelines and tooling — how it works and how to develop and
 improve it. MTG rules enter only as what the code implements; when a rule
 matters to understand the code, print it (`bun run cr <id>`) and move on.
 A question like "how does trample work" is a player's question for
-`/mtg-rules-check`; "how does the engine assign trample damage, and where
+`/rules-check`; "how does the engine assign trample damage, and where
 would I fix a bug in it" belongs here.
 
 Two audiences, same skill:
@@ -45,7 +45,7 @@ first, then go to the code.
 | ------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | Engine (GRE)  | action flow, stack/priority, PendingChoice, layers, replacements, SBAs      | `docs/PROJECT.md` § 3, § 5; `convex/CLAUDE.md`                    |
 | Cards         | Effect Script DSL, Mechanics Registry, Oracle compiler, Grammar Rules       | `docs/PROJECT.md` § 6; ADR 0045/0046/0137                         |
-| Bot           | Brain, search, `evaluate`, Verdicts → Weight Fit, blade, Held-out Agreement | `/bot-slice`, `docs/guides/bot-glossary.md`, ADR 0124/0128/0138   |
+| Bot           | Brain, search, `evaluate`, Verdicts → Weight Fit, blade, Held-out Agreement | `/bot-change`, `docs/guides/bot-glossary.md`, ADR 0124/0128/0138  |
 | Frontend      | projections, client reducers, GameContext, check:ui                         | `docs/PROJECT.md` § 7; `src/CLAUDE.md`                            |
 | Data / Convex | `gameStates` + `gameTicks`, serialization, bundle and heap budgets          | `docs/PROJECT.md` § 4; `convex/_generated/ai/guidelines.md`       |
 | Workflow      | queue and claims, worktrees, lanes, `land`, batch health, release           | `docs/guides/next-issue-flow.md`, `land-and-release.md`, ADR 0136 |
@@ -81,7 +81,7 @@ This skill is **read-only**. It explains; it never edits code, opens a
 worktree, or files an issue. Running a read-only command to _show_
 something live (a report, a dry-run, a `--help`) is fine and often the
 best example there is. If the learner wants to change something, that's a
-different session (`/next-issue`, `/bot-slice`, `/new-qa-issue`, …).
+different session (`/next-issue`, `/bot-change`, `/create-ticket`, …).
 
 ## The teaching arc — concentric rings
 

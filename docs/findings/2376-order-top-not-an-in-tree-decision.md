@@ -26,7 +26,7 @@ default is the whole policy. Promoting it is **not** a valuer change: the `resol
 Move (`convex/gre/moves.ts:192`) carries a single `cardInstanceIds` list, while
 an `order-top` submission needs BOTH the kept ids and `secondZoneIds`
 (`convex/gre/pendingChoiceSubmit.ts:1038`). That is a Move-union widening, which
-by the bot-slice seam table drags in `applyMove.ts`, `src/lib/ai/executor.ts`,
+by the bot-change seam table drags in `applyMove.ts`, `src/lib/ai/executor.ts`,
 `describeMove.ts` and `botActionRealisation` in `src/hooks/useVsAiDriver.ts`.
 
 **Triaged 2026-09-01 → #2996**, a sub-issue of the bot map #1892, blocked by

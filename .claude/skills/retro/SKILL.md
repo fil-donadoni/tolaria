@@ -64,7 +64,7 @@ sentence would have made this session cheaper, or prevented its mistake?**
   only be a resident line is reported as **"needs a skill or a check"**.
 - **Proposes and stops — the owner picks.** `/retro` files no issue itself and writes no file outside the session scratchpad. What
   the owner picks is filed through the project's filing skill
-  (`/new-qa-issue`) with the stamp in `docs/agents/triage-labels.md`
+  (`/create-ticket`) with the stamp in `docs/agents/triage-labels.md`
   § Every new issue is stamped at filing.
 - **Ranked by severity, capped**: at most 8 candidates, worst first
   (a mistake that reached a PR > wasted turns > wasted tokens), one line each

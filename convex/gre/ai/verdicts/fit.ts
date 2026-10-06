@@ -118,7 +118,7 @@ import { DISCRIMINANT_KINDS, type Discriminant, type Verdict } from "./types";
  * stay under one ceiling:
  *
  *   - above the TIE floor. Two candidates inside `outcomeEps` of each other
- *     are decided by rollout noise (`/bot-slice` phase 0, step 2), and the
+ *     are decided by rollout noise (`/bot-change` phase 0, step 2), and the
  *     smallest real material distinction the evaluation draws — one permanent
  *     — is 5 points. A margin of that order asks the evaluation only to have
  *     an opinion, not to hold it.

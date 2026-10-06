@@ -713,7 +713,7 @@ export function writeReceipt(
     // `parseReceipt` (see that function's closing comment): a work receipt
     // touching the Bot subsystem must declare a verification decision — a
     // blade entry or a reasoned "none" — or the whole doctrine in
-    // `.claude/skills/bot-slice/SKILL.md` stays opt-in prose nothing
+    // `.claude/skills/bot-change/SKILL.md` stays opt-in prose nothing
     // enforces. `BOT_GLOBS` (`bot-globs.ts`) is the SAME list
     // `.claude/rules/bot-development.md`'s frontmatter carries — see that
     // file's header comment for why there is only one copy. Scoped to

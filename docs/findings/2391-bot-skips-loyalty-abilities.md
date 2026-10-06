@@ -37,6 +37,6 @@ the board presence a planeswalker defends).
 **Why it may not deserve its own issue.** It may already be exactly what issue
 #700 / ADR 0058 tracks as the "bot planeswalker play" follow-up, in which case
 this is a line on that issue rather than a new one. It is also genuinely a
-`/bot-slice` job — enumeration, funding, valuation and a deterministic blade
+`/bot-change` job — enumeration, funding, valuation and a deterministic blade
 scenario — not a patch, so cutting it as a ticket only helps if someone intends
 to run that slice. Worth checking #700's current scope before filing.

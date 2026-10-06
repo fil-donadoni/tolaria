@@ -70,7 +70,7 @@ import type { Verdict, VerdictGap } from "./types";
 
 /** How much of a gap counts as "ordered correctly". Strictly positive: a tie
  *  is not a correct ordering — it is exactly the shape where the pick falls to
- *  rollout noise (`/bot-slice` phase 0, step 2). Exported so a caller reading
+ *  rollout noise (`/bot-change` phase 0, step 2). Exported so a caller reading
  *  RE-DERIVED pairs (real engine deltas, not the fit's own margin-scaled
  *  `FitPairOutcome`) can use the SAME bar `VerdictRow.ok` and `violated` use
  *  here — `fit.ts`'s `minimalPairFitOutcomes` is one such reader. */

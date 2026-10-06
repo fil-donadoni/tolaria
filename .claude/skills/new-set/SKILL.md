@@ -38,7 +38,7 @@ out-of-scope` was a judgement call per card, re-derived by hand every
   colour-module scaffold, no commented stubs, no free tranche per colour, no
   capability cluster. Those survive only inside the **residue** — the cards the
   grammar genuinely does not reach, hand-written under Guard C with a marker.
-- **`/mtg-rules-check` still gates every mechanic**, and the evidence steps
+- **`/rules-check` still gates every mechanic**, and the evidence steps
   (A–E′) survive — rescoped from "which bucket is this card in?" to "does this
   ranked gap need an Op that does not exist?" (Phase 0.5).
 
@@ -520,7 +520,7 @@ nothing.
   amendment), ADR 0045/0046 (frozen constructs, registry seam), ADR 0041
   (worklist/import), ADR 0014 (prints vs defs), ADR 0010 (ante/subgame)
 - Skills: `/grammar-rule` (implements one cluster ticket), `/new-op` (inside a gap
-  ticket when its rule needs an Op), `/mtg-rules-check`,
+  ticket when its rule needs an Op), `/rules-check`,
   `{grill,to-prd,to-tickets}`
 - Commands: `oracle:report` (`--set` / `--pool` / `--targets` / `--gap` /
   `--gaps` / `--delta`), `oracle:compile`, `oracle:index`, `catalogue:pack`,

@@ -10,7 +10,7 @@ points at, and every `§` anchor cited from the codebase resolves here.
 - **CR-compliance is the default — never ask whether to follow the CR.**
   Implement exactly what the CR specifies; question only genuine ambiguity,
   intentional simplification, or choices the CR doesn't dictate. Verify with
-  `/mtg-rules-check` first.
+  `/rules-check` first.
 - **Print the rule, never recall it** (ADR 0098): `bun run cr <id>` /
   `bun run cr grep` on the vendored text (root `CLAUDE.md` § Rules
   Implementation Process). `cr:lint` (`check:guards`, #2429) reds an id that

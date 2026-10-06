@@ -241,7 +241,7 @@ export const SUB_ISSUE_CAP = 100;
  *  engine, the grammar, the Bot or the catalogue does not have yet — a
  *  quarantined card is held back BEFORE it ships, so nothing a player had
  *  stops working. A regression of shipped behaviour is a `bug`, and it is
- *  never computed: it reaches the tracker through `/new-qa-issue` or
+ *  never computed: it reaches the tracker through `/create-ticket` or
  *  `/health-fix`. */
 export const GAP_LABELS: Readonly<Record<GapKind, readonly string[]>> = {
     grammar: ["ready-for-agent", "enhancement", "area:mechanics"],

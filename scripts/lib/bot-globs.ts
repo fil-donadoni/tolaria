@@ -1,5 +1,5 @@
 // Single source of truth for "is this file part of the Bot subsystem" — the
-// set of paths the Bot verification doctrine (`.claude/skills/bot-slice/`)
+// set of paths the Bot verification doctrine (`.claude/skills/bot-change/`)
 // applies to.
 //
 // Two OTHER places need this exact list and must never drift from it or each

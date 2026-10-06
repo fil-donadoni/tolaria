@@ -10,7 +10,7 @@ ADR 0004 settled _which_ rules text wins (modern Oracle + current CR). It never
 settled _where that text comes from_, and the answer drifted into three
 different habits, all of them wrong in a different way:
 
-1. **Third-party mirrors.** `/mtg-rules-check` named `yawgatog.com` as the
+1. **Third-party mirrors.** `/rules-check` named `yawgatog.com` as the
    fetch target, and the permission allowlists also carried
    `ancestral.vision` — a site whose own home page says it is current as of
    **7 October 2022**, i.e. roughly four years of rules changes behind. A
@@ -65,7 +65,7 @@ vendored into the repo and read locally.**
 
 **Mirrors are removed, not demoted.** `yawgatog.com` and `ancestral.vision` are
 gone from the skills' `allowed-tools` and from the permission allowlists;
-`/mtg-rules-check` now instructs Bash-slicing the vendored file. Scryfall stays
+`/rules-check` now instructs Bash-slicing the vendored file. Scryfall stays
 — it is the Oracle-text source (ADR 0004), a different question.
 
 **Never cite a rule number that has not been printed.** If `bun run cr <id>`

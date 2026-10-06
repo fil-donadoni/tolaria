@@ -1,5 +1,5 @@
 ---
-name: new-qa-issue
+name: create-ticket
 description: "Create a structured GitHub issue from an observation: explore, draft an agent-readable issue, post after confirmation. Use to file a bug or enhancement."
 argument-hint: "<description> [--type bug|enhancement]"
 ---
@@ -102,7 +102,7 @@ What should happen after the fix. Be specific about edge cases.
   (issue #2688) — the area is picked in Step 5b, after this draft exists, so
   add it retroactively once the area is known: `Blade: <expected position
 and move | none — <why>>`, declaring whether this issue is expected to add
-  or change a blade entry (`.claude/rules/bot-development.md`, `/bot-slice`)
+  or change a blade entry (`.claude/rules/bot-development.md`, `/bot-change`)
   or deliberately carries none.
 
 ### Step 5 — Pick a model label (only to ESCALATE)

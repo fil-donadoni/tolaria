@@ -107,7 +107,7 @@ is more work than the Op". Then:
    `bun run oracle:report --gaps` prints it. `bun run gaps:sync` files only the
    Op-census allowlist rows (a closed set, `scripts/lib/gap-issues.ts`), which
    a new Op never enters; until it files fragment gaps too (issue #3869), open
-   the issue through `/new-qa-issue`, titled `Grammar Gap: <key>`, under the
+   the issue through `/create-ticket`, titled `Grammar Gap: <key>`, under the
    Grammar Rules umbrella of its band (`docs/agents/issue-tracker.md` §
    Umbrellas partition by band). Its filing stamp
    (`docs/agents/triage-labels.md` § Every new issue is stamped at filing) is

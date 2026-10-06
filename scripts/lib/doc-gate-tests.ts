@@ -30,7 +30,7 @@ export const DOC_GATE_TESTS = [
     // the test is what keeps the gate honest if that wiring changes).
     "scripts/__tests__/cr-citation-ledger.test.ts",
     // ADR 0098's no-third-party-mirror sweep READS the instruction files that
-    // tell an agent where rules come from — `.claude/skills/{mtg-rules-check,
+    // tell an agent where rules come from — `.claude/skills/{rules-check,
     // new-card,new-set}/SKILL.md`, `.claude/rules/gre-development.md`,
     // `CLAUDE.md` — and asserts the rules-check skill still points at the
     // vendored document. Those are exactly the paths the docs lane carries

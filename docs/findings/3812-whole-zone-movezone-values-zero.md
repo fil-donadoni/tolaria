@@ -20,7 +20,7 @@ priced 0; the delayed return is priced by the same valuer at 0 too.
 single sign fits the Op), so the sign cannot carry it either.
 
 **Why not fixed here.** A valuation change is a Bot behaviour change: it owes
-`/bot-slice` and a discriminating `must` blade pair
+`/bot-change` and a discriminating `must` blade pair
 (`.claude/rules/bot-development.md`), and the fix is a CLASS decision (every
 whole-zone move whose `player` is not the controller), not a Suppress one. The
 search still reaches the cast through `enumerateMoves` and evaluates the

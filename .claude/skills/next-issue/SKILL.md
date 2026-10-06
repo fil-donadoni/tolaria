@@ -150,7 +150,7 @@ The short path is keyed on the LANE, never on how simple the card reads.
 - A new guard's tier is its MEASURED cost (≤ 10 s → `check:lane`, else
   `HEALTH_ONLY_GUARDS`); the PR states the number.
 - Touching the Bot (`convex/gre/{search,evaluate,moves,applyMove,ai}`,
-  `src/lib/ai/`, `convex/limited/botDrafter`) → `/bot-slice` FIRST, find
+  `src/lib/ai/`, `convex/limited/botDrafter`) → `/bot-change` FIRST, find
   your row in its Seams table.
 - **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure = break → run →
   revert against a committed baseline; `git checkout <file>` on uncommitted
