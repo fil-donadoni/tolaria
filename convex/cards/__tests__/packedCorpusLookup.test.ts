@@ -19,15 +19,22 @@ import type * as CardsIndex from "../index";
 import { blockFor, createPackedLookup } from "../packedCorpus";
 import { packedServerCorpus } from "../compiledPool";
 import { TREASURE_TOKEN } from "../sharedTokens";
+import { parentIdOfTwin } from "../twinId";
 
 type CardsModule = typeof CardsIndex;
 
 let packed: CardsModule;
+/** A second fresh graph, every compiled row resolved PARENT FIRST, so each
+ *  derived face is minted from a resident parent — the order the retired
+ *  literal path's eager preload used. */
+let parentFirst: CardsModule;
 
 beforeAll(async () => {
     vi.resetModules();
     try {
         packed = (await import("../index")) as CardsModule;
+        vi.resetModules();
+        parentFirst = (await import("../index")) as CardsModule;
     } finally {
         // The next file in this worker must not inherit this graph's memo.
         vi.resetModules();
@@ -99,5 +106,36 @@ describe("the packed lookup's memo (issue #4165)", () => {
         const lookup = createPackedLookup(corpus);
         for (const id of compiledIds) expect(lookup.lookup(id)?.id).toBe(id);
         expect(lookup.inflations()).toBe(corpus.firstIds.length);
+    });
+});
+
+describe("derived faces of packed rows (issues #4165, #4168)", () => {
+    const canonical = (value: unknown): string =>
+        JSON.stringify(value, (_key, v: unknown) =>
+            typeof v === "function" ? `fn:${String(v)}` : v
+        );
+
+    it("a face resolved before its parent equals the face minted from a resident parent", () => {
+        // The packed rows' bytes are proven by the generator's decode-equality
+        // guard; what it cannot see is the lazy DERIVATION of a split half,
+        // adventure spell or modal back face (CR 709.3b / 715.2 / 712.8f)
+        // from a packed parent. Faces are asked of `packed` FIRST, so each
+        // resolves through a parent that is not yet resident.
+        for (const id of compiledIds) parentFirst.getDefinition(id);
+        const faces = [...parentFirst.registeredDefinitions()]
+            .map((def) => def.id)
+            .filter((id) => {
+                const parent = parentIdOfTwin(id);
+                return parent !== undefined && compiledIdSet.has(parent);
+            });
+        expect(faces.length).toBeGreaterThan(0);
+        const mismatches = faces.filter((id) => {
+            const got = packed.tryGetDefinition(id);
+            return (
+                got === null ||
+                canonical(got) !== canonical(parentFirst.getDefinition(id))
+            );
+        });
+        expect(mismatches.slice(0, 5)).toEqual([]);
     });
 });

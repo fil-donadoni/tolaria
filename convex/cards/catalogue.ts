@@ -682,7 +682,7 @@ export function walkHandWrittenDefinitions(): HandWrittenExport[] {
     return walk;
 }
 
-/** How many packed blocks this module graph has inflated. The observable a test bounds a request (issue #4165)
+/** How many packed blocks this module graph has inflated: the observable a test bounds a request (issue #4165)
  *  or a client game load (issue #4861) by. */
 export const packedCorpusInflations = (): number =>
     activePackedLookup?.inflations() ?? 0;
