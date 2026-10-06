@@ -88,6 +88,76 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
             expect(latentValue(base)).toBe(38);
         });
 
+        // Issue #5145 — a non-creature permanent's standing ability scripts.
+        describe("non-creature standing ability value (issue #5145)", () => {
+            it("an ability script above the base+MV floor lifts the card above it", () => {
+                expect(
+                    latentValue({ ...base, dslStandingAbilityValue: 85 })
+                ).toBe(85);
+            });
+
+            it("an ability script below the floor, or a negative one, stays AT the floor", () => {
+                expect(
+                    latentValue({ ...base, dslStandingAbilityValue: 12 })
+                ).toBe(38);
+                expect(
+                    latentValue({ ...base, dslStandingAbilityValue: -40 })
+                ).toBe(38);
+            });
+
+            it("composes additively with the spell script, and a negative ability nets against it", () => {
+                expect(
+                    latentValue({
+                        ...base,
+                        dslSpellValue: 100,
+                        dslStandingAbilityValue: 30,
+                    })
+                ).toBe(130);
+                expect(
+                    latentValue({
+                        ...base,
+                        dslSpellValue: 100,
+                        dslStandingAbilityValue: -30,
+                    })
+                ).toBe(70);
+            });
+
+            it("is bounded by the latent-script clamp and still beaten by aiValue", () => {
+                expect(
+                    latentValue({ ...base, dslStandingAbilityValue: 100_000 })
+                ).toBe(300);
+                expect(
+                    latentValue({
+                        ...base,
+                        aiValue: 7,
+                        dslStandingAbilityValue: 85,
+                    })
+                ).toBe(7);
+            });
+
+            it("never reads the field on a creature (its abilities ride in dslAbilityValue)", () => {
+                const creature = {
+                    ...base,
+                    isCreature: true,
+                    power: 2,
+                    toughness: 2,
+                };
+                expect(
+                    latentValue({ ...creature, dslStandingAbilityValue: 85 })
+                ).toBe(latentValue(creature));
+            });
+
+            it("a real card: Nevinyrral's Disk outranks a script-less artifact of equal mana value", () => {
+                const disk = cardValueById(
+                    "12926dc8-8e6f-4a47-a12b-4d674189615a"
+                );
+                const weakstone = cardValueById(
+                    "46adf48f-99d2-440e-9129-794584c1ea21"
+                );
+                expect(disk).toBeGreaterThan(weakstone);
+            });
+        });
+
         // Issue #1508 — a latent (in-hand) script value is clamped so no single
         // card can saturate the material signal. The `winGame` valuer returns
         // 100 000 and context-free grounding always assumes the `then` branch,
