@@ -21,15 +21,13 @@ import type { Id } from "@convex/_generated/dataModel";
 import { useResilientQuery } from "./useResilientQuery";
 import { tapClientMutations } from "~/lib/ai/mutation-tap";
 import {
-    captureHumanDecision,
     capturingGame,
     clearHumanCapture,
-    ownDeckKnowledge,
     recordHumanCall,
     startHumanCapture,
     takeHumanDecisions,
 } from "~/lib/ai/human-decision-capture";
-import { isHumanDecisionStart } from "~/lib/ai/human-decision-start";
+import { observeHumanWindow } from "~/lib/ai/human-decision-start";
 import {
     clearVerdictProposals,
     setVerdictProposals,
@@ -85,15 +83,12 @@ export function useVerdictProposalCapture(
 
     useEffect(() => {
         if (!active || !humanState || humanState.gameOver) return;
-        if (!isHumanDecisionStart(humanState, humanId!)) return;
-        captureHumanDecision(gameId, {
-            state: humanState,
-            botId: humanId!,
-            knowledge: ownDeckKnowledge(
-                humanId!,
-                humanDeck?.cards.map((c) => c.cardId)
-            ),
-        });
+        observeHumanWindow(
+            gameId,
+            humanState,
+            humanId!,
+            humanDeck?.cards.map((c) => c.cardId)
+        );
     }, [active, gameId, humanId, humanState, humanDeck]);
 
     useEffect(() => {

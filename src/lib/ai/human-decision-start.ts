@@ -19,6 +19,10 @@ import type { PublicGameState } from "@convex/gameProjections";
 import { buildBotView } from "./bot-view";
 import { botActionRealisation, decideBotAction } from "./brain";
 import { projectedToGameState } from "./state-adapter";
+import {
+    captureHumanDecision,
+    ownDeckKnowledge,
+} from "./human-decision-capture";
 
 export function isHumanDecisionStart(
     state: PublicGameState,
@@ -31,4 +35,27 @@ export function isHumanDecisionStart(
     if (botActionRealisation(action.kind) !== "worker") return false;
     if (action.kind !== "pass") return true;
     return shouldThink(projectedToGameState(state), seatId);
+}
+
+/**
+ * The whole PLAY-TIME path of the capture, in one call: when `state` opens a
+ * fresh decision for `seatId`, capture it as the seat's own view with the
+ * seat's own decklist. Returns whether a decision was captured.
+ *
+ * Everything the vs-Bot game does for the human seat while the game is on goes
+ * through here and through `recordHumanCall` — and neither ever consults the
+ * Brain (the guarding test watches the search's own root-decision sink).
+ */
+export function observeHumanWindow(
+    gameId: string,
+    state: PublicGameState,
+    seatId: string,
+    ownDeckCardIds: readonly string[] | undefined
+): boolean {
+    if (!isHumanDecisionStart(state, seatId)) return false;
+    return captureHumanDecision(gameId, {
+        state,
+        botId: seatId,
+        knowledge: ownDeckKnowledge(seatId, ownDeckCardIds),
+    });
 }
