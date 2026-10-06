@@ -447,7 +447,7 @@ export function dslAbilityScriptOpValue(
  *  `"realized"` reads every ability EXCEPT the ETB Abilities (plus the
  *  delayed-trigger templates); `"etb"` reads the ETB Abilities alone. The
  *  latent reader sums the two at different discounts. */
-type AbilitySelection = "realized" | "etb";
+type AbilitySelection = "realized" | "etb" | "standing";
 
 function abilityScriptOpValue(
     def: CardDefinition,
@@ -466,6 +466,7 @@ function abilityScriptOpValue(
         activateFromGraveyard?: boolean;
         etbAbility?: boolean;
         targetRequirement?: TargetRequirement;
+        cost?: { sacrifice?: boolean; exileThis?: boolean };
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
@@ -476,6 +477,20 @@ function abilityScriptOpValue(
         // unclassified trigger stays realized (fail-closed, the census in
         // `etbAbilityCensus.bot.test.ts` keeps the catalogue classified).
         if ((ability.etbAbility === true) !== (selection === "etb")) continue;
+        // Issue #5145 — an ability whose cost sacrifices or exiles its OWN source is
+        // consumed by use: the permanent and the effect it buys are one asset,
+        // so reading the ability as STANDING worth would charge the permanent's
+        // worth twice (once held, once as the effect) and make using it read as
+        // a loss — Seal of Cleansing worth 86 in play would never trade itself
+        // for a 48-point artifact. Such a card keeps its `base + MV` worth; the
+        // effect is priced where it is spent (the move that activates it).
+        if (
+            selection === "standing" &&
+            (ability.cost?.sacrifice === true ||
+                ability.cost?.exileThis === true)
+        ) {
+            continue;
+        }
         // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
         // sourced ability's `$source` denotes a GRAVEYARD card, not a
         // battlefield permanent, on EITHER ability shape: a `TriggeredAbility`
@@ -530,7 +545,7 @@ function abilityScriptOpValue(
     // Un-gated and un-discounted, matching the inline `delayedTrigger` Op's
     // own valuer; the latent (in-hand) reader below discounts the merged total
     // exactly as it discounts an ability script.
-    if (selection === "etb") return acc;
+    if (selection !== "realized") return acc;
     const templates = delayedTriggerTemplateOpValue(def, ctx);
     if (templates) acc = acc ? mergeOpValue(acc, templates) : templates;
     return acc;
@@ -823,4 +838,23 @@ export function dslAbilityScriptValue(
     ctx: GroundingContext = contextFreeGrounding()
 ): number {
     return dslLatentAbilityScriptOpValue(def, ctx)?.points ?? 0;
+}
+
+/** Issue #5145 — the latent worth of a NON-CREATURE permanent's own standing
+ *  ability scripts (activated + triggered, real `effects[]` else `aiEffects`
+ *  shadow), at `ABILITY_SCRIPT_DISCOUNT`: the "standing" reading is
+ *  `"realized"` minus the delayed-trigger templates (`latentValue` adds those
+ *  through its own field, so reading them here too would count them twice)
+ *  and, like it, minus the ETB Abilities (spent on entering — a permanent that
+ *  is still valued on the battlefield by this same number must not keep
+ *  charging for an effect that already happened). Signed: a symmetric or
+ *  self-harming ability (a tax, an upkeep cost) reads negative, which
+ *  `latentValue` nets against the card's other scripts and then floors.
+ *  `undefined` when the card carries no readable ability script. */
+export function dslStandingAbilityScriptValue(
+    def: CardDefinition,
+    ctx: GroundingContext = contextFreeGrounding()
+): number | undefined {
+    const standing = abilityScriptOpValue(def, ctx, undefined, "standing");
+    return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
 }
