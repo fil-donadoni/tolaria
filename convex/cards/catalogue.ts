@@ -481,13 +481,30 @@ const rawCatalogueDefinition = (id: string): CardDefinition | null =>
  *  search index did, offering `token:Soldier|Creature|…` in the deck
  *  builder). */
 const compiledIds: string[] = [];
-const compiledNames: string[] = [];
-const compiledIdSet = new Set<string>();
-const compiledNameById = new Map<string, string>();
 
-/** definitionId → home Set code: a hand-written card's module, a compiled
- *  row's first printing (issue #4363). */
+/** The installed compiled section, whose `names` and `setCodes` a compiled
+ *  card's row indexes into. Read through {@link compiledRow} rather than
+ *  copied into per-id maps: on the client the index is the resident cost of
+ *  the whole catalogue, and at 35k cards every per-id map is ~1 MiB of heap
+ *  (issue #4861). */
+let compiledSection: CompiledDefinitionIndex | null = null;
+
+const compiledNameOf = (id: string): string | undefined => {
+    const row = compiledRow.get(id);
+    return row === undefined ? undefined : compiledSection?.names[row];
+};
+
+/** HAND-WRITTEN definitionId → home Set code (its module). A compiled
+ *  card's Set — its first printing (issue #4363) — is its index row's. */
 const definitionSetCode = new Map<string, string>();
+
+const setCodeOf = (id: string): string | undefined => {
+    const own = definitionSetCode.get(id);
+    if (own !== undefined) return own;
+    const row = compiledRow.get(id);
+    const code = row === undefined ? undefined : compiledSection?.setCodes[row];
+    return code ? code : undefined;
+};
 
 /** Lowercase name → the id of the definition it names. The definition
  *  itself is resolved on lookup (`resolveNamed`).
@@ -552,17 +569,11 @@ function addCompiled(
     id: string,
     row: number,
     name: string,
-    setCode: string | undefined,
     twinNames: readonly NameEntry[]
 ): void {
-    if (handWrittenIds.has(id) || compiledIdSet.has(id)) return;
-    compiledIdSet.add(id);
+    if (handWrittenIds.has(id) || compiledRow.has(id)) return;
     compiledIds.push(id);
-    compiledNames.push(name);
-    compiledNameById.set(id, name);
     compiledRow.set(id, row);
-    if (setCode && !definitionSetCode.has(id))
-        definitionSetCode.set(id, setCode);
     addName([name.toLowerCase(), id]);
     for (const entry of twinNames) addName(entry);
 }
@@ -591,12 +602,12 @@ function installCompiledSection(
 ): number {
     if (compiledRowSource !== null) return 0;
     compiledRowSource = source;
+    compiledSection = index;
     index.ids.forEach((id, row) =>
         addCompiled(
             id,
             row,
             index.names[row]!,
-            index.setCodes[row],
             ownEntries(index.lookups.twinNames, id) ?? []
         )
     );
@@ -725,7 +736,7 @@ export const tryGetCardByName = (name: string): CardDefinition | null => {
 // built to read them (issue #4856).
 export const getAllCardNames = (): string[] => [
     ...handWrittenIndex.entries.map(([, name]) => name),
-    ...compiledNames,
+    ...compiledIds.map((id) => compiledNameOf(id)!),
 ];
 
 /** What the Definition Index alone says about a NAME (issue #4166):
@@ -755,8 +766,7 @@ export const lookupCardNameInIndex = (name: string): IndexedCardName => {
     const id = nameIndex.get(name.toLowerCase());
     if (id === undefined) return { kind: "unknown" };
     if (isTwinDefinitionId(id)) return { kind: "twin" };
-    const printed =
-        handWrittenEntryById.get(id)?.[1] ?? compiledNameById.get(id);
+    const printed = handWrittenEntryById.get(id)?.[1] ?? compiledNameOf(id);
     if (printed === undefined) return { kind: "unknown" };
     const choosable = chooseableById.get(id) ?? [printed];
     return {
@@ -837,9 +847,8 @@ export const getChooseableCardNames = (): string[] => {
     // client) means both sides build this same list from the compiled
     // population once hydrated, so the submit gate and the button's
     // candidate list still agree.
-    compiledIds.forEach((id, i) =>
-        names.push(...(chooseableById.get(id) ?? [compiledNames[i]!]))
-    );
+    for (const id of compiledIds)
+        names.push(...(chooseableById.get(id) ?? [compiledNameOf(id)!]));
     return names;
 };
 
@@ -911,17 +920,21 @@ export interface CardPrinting {
 /** A Card Definition's own (first-printing) Set code — the one Set the
  *  registry knows without a printing list. Empty when unknown. */
 export const getDefinitionSetCode = (definitionId: string): string =>
-    definitionSetCode.get(definitionId) ?? "";
+    setCodeOf(definitionId) ?? "";
 
 export const isPrintedInSet = (cardId: string, setCode: string): boolean => {
     const def = tryGetDefinition(cardId);
     if (!def) return false;
-    return definitionSetCode.get(def.id) === setCode;
+    return setCodeOf(def.id) === setCode;
 };
 
 export const getAllSetCodes = (): string[] => {
     const codes = new Set<string>();
     for (const code of definitionSetCode.values()) codes.add(code);
+    for (const id of compiledIds) {
+        const code = setCodeOf(id);
+        if (code) codes.add(code);
+    }
     return [...codes].sort();
 };
 
@@ -950,7 +963,7 @@ export const resolveDeckCardMeta = (cardId: string): DeckCardMeta | null => {
     return {
         cardId: def.id,
         name: def.name,
-        setCode: definitionSetCode.get(def.id) ?? "",
+        setCode: setCodeOf(def.id) ?? "",
         rarity: def.rarity,
         isBasic,
     };
