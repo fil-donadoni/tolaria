@@ -234,12 +234,12 @@ export interface MergeResult {
      * by `id`, and the exact same objects — `rows.filter(...)`, never a second
      * derivation (issue #3055).
      *
-     * This is what `data/oracle-compiled-pool.json` holds and what
-     * `convex/cards/compiledPool.ts` bundles into every Convex mutation. The
-     * relocated hand-written rows are absent because the runtime already has
-     * them as modules. The packed corpus holds these same rows, and since
-     * issue #4861 the client fetches that file too, so both sides serve the
-     * SAME population from the SAME bytes.
+     * This is what the packed corpus (`data/catalogue/packed-corpus.json`)
+     * holds and what `convex/cards/compiledPool.ts` bundles into every Convex
+     * mutation. The relocated hand-written rows are absent because the
+     * runtime already has them as modules. Since issue #4861 the client
+     * fetches the same file, so both sides serve the SAME population from the
+     * SAME bytes.
      */
     readonly serverRows: readonly CardDefinition[];
     readonly relocated: number;
@@ -333,31 +333,10 @@ export function mergeCatalogue(
 
 /** The artifact's bytes: minified, newline-terminated, deterministic. The
  *  committed shape is NOT prettified — `data/catalogue/` is in
- *  `.prettierignore` for the same reason `data/oracle-compiled-pool.json` is
- *  (ADR 0105), and ~60% of that file's bytes are prettier whitespace. */
+ *  `.prettierignore` (ADR 0105): ~60% of the retired pretty-printed pool's
+ *  bytes were whitespace. */
 export function serializeCatalogue(rows: readonly CardDefinition[]): string {
     return JSON.stringify(rows) + "\n";
-}
-
-/**
- * The SERVER rendering's bytes: `data/oracle-compiled-pool.json`.
- *
- * Four-space, not minified, and a BARE ARRAY with no header — both deliberate
- * and both load-bearing. The indentation is the shape the retired
- * `scripts/oracle-pool.ts` wrote before this generator absorbed it (issue
- * #3055), kept so the change
- * that made the two renderings one source moved no committed byte; the bare
- * array is the merge-conflict immunity `scripts/lib/generated-artifacts.ts`
- * records and `scripts/__tests__/generated-artifact-merge.test.ts` pins — a
- * header field holding a hash or a tally is whole-file state, and two branches
- * that both regenerate would then collide on a line neither of them touched.
- *
- * So the source hash is NOT in here. It rides in
- * {@link SOURCE_HASH_FILE} beside the artifact, which the server bundles
- * through `convex/cards/compiledCatalogue.ts`.
- */
-export function serializePool(rows: readonly CardDefinition[]): string {
-    return JSON.stringify(rows, null, 4) + "\n";
 }
 
 /** The server's copy of the source hash — one generated file, so the hash is

@@ -197,7 +197,7 @@ export const getScenarioPromptForRegen = internalQuery({
 // The LLM generator runs in a `"use node"` action, whose esbuild graph is
 // SEPARATE from the isolate one — so anything it imports is bundled a SECOND
 // time into the pushed artifact. Importing the card registry there inlined
-// `data/oracle-compiled-pool.json` twice and pushed `bun run check:convex-bundle`
+// the then literal compiled pool twice and pushed `bun run check:convex-bundle`
 // over its 30 MiB budget (ADR 0113 § Amendment). The two queries below are the
 // seam that fixes it: the registry answers from the ISOLATE bundle, where it is
 // already resident, and the action reaches them by `ctx.runQuery`.

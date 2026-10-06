@@ -32,7 +32,13 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { buildDefine } from "./build-define";
-import { packCorpus, serializePackedCorpus } from "./packed-corpus";
+import {
+    PACKED_CORPUS_PATH,
+    packCorpus,
+    serializePackedCorpus,
+    unpackCorpus,
+    type PackedCorpus,
+} from "./packed-corpus";
 import type { CardDefinition } from "../../convex/cards/types";
 
 const MIB = 1024 * 1024;
@@ -94,12 +100,14 @@ export function syntheticRows(
     return out.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
-/** The committed compiled rows (the server's literal pool — the same rows the
- *  packed corpus holds). */
+/** The committed compiled rows, decoded from the packed corpus (the server's
+ *  only rendering since issue #4168 retired the literal pool). */
 export function committedRows(repoRoot: string): CardDefinition[] {
-    return JSON.parse(
-        readFileSync(join(repoRoot, "data/oracle-compiled-pool.json"), "utf8")
-    ) as CardDefinition[];
+    return unpackCorpus(
+        JSON.parse(
+            readFileSync(join(repoRoot, PACKED_CORPUS_PATH), "utf8")
+        ) as PackedCorpus
+    );
 }
 
 /** The browser build's substitutions, as one esbuild plugin. */

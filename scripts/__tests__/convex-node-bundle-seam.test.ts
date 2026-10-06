@@ -12,7 +12,9 @@ import {
  * isolate modules, so every module a `"use node"` file reaches is emitted a
  * SECOND time into the pushed artifact. `convex/debugScenarioGenerator.ts`
  * imported `./cards` for two name lookups; that pulled the card registry and
- * with it `convex/cards/compiledPool.ts` -> `data/oracle-compiled-pool.json`,
+ * with it `convex/cards/compiledPool.ts` -> the compiled pool (since issue
+ * #4168 `data/catalogue/packed-corpus.json`, then the literal
+ * `data/oracle-compiled-pool.json`),
  * and the duplicate cost **7,200,356 B** — 23% of the whole push, and the
  * 117,487 B that put `bun run check:convex-bundle` over its 30 MiB budget on
  * `origin/staging` itself.
@@ -25,7 +27,8 @@ import {
  *
  *   - by CAUSE — the node graph does not reach the card registry at all;
  *   - by EFFECT — the node half stays under a budget a single re-entry of the
- *     pool (~6 MB at the measured 1,385 B/row, issue #4811) cannot fit beneath.
+ *     catalogue cannot fit beneath (the packed corpus alone is ~1 MB, and
+ *     the hand-written sets and the engine come with it).
  *
  * It runs in the light lane: one esbuild pass over one entry point, ~1 s.
  */
@@ -37,7 +40,7 @@ const CONVEX_DIR = resolve(__dirname, "../../convex");
  *  them makes the failure say WHICH import did it rather than only that the
  *  bytes moved. */
 const FORBIDDEN = [
-    "data/oracle-compiled-pool.json",
+    "data/catalogue/packed-corpus.json",
     "convex/cards/compiledPool.ts",
     "convex/cards/catalogue.ts",
     "convex/cards/registry.ts",

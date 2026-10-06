@@ -32,13 +32,13 @@
  * the lane test.
  *
  * The receipt prints the per-row headroom because that is the number ADR 0113
- * actually turns on. Marginal cost of one compiled-pool row, re-measured at
- * issue #4811 by re-bundling at +2,000 and +6,000 synthetic rows:
- * **1,385 B/row**, linear to four digits (1,013 at issue #3444; the rows grew,
- * see `MEASURED_BYTES_PER_POOL_ROW`). It was
- * 2,086 while the pool was inlined TWICE — once into the shared isolate chunk,
- * once into the `"use node"` graph esbuild bundles separately; #3444 cut the
- * second copy and the doubling with it.
+ * actually turns on. Marginal cost of one compiled row in the PACKED corpus,
+ * measured at issue #4168 by re-bundling at +2,000 and +6,000 synthetic rows:
+ * **240 B/row**, linear to three digits (`MEASURED_BYTES_PER_PACKED_ROW`).
+ * The retired literal pool cost 1,385 B/row (issue #4811), and 2,086 while it
+ * was inlined TWICE — once into the shared isolate chunk, once into the
+ * `"use node"` graph esbuild bundles separately; #3444 cut the second copy
+ * and the doubling with it.
  *
  * A WARN line is the signal to ask what is IN the bundle, not to move the
  * number (ADR 0113 Amendments II and III).
@@ -53,7 +53,7 @@ import {
     CONVEX_MAX_USER_MODULES,
     CONVEX_MAX_ZIPPED_PACKAGES_SIZE,
     CONVEX_USER_MODULE_BUDGET,
-    MEASURED_BYTES_PER_POOL_ROW,
+    MEASURED_BYTES_PER_PACKED_ROW,
     assessConvexBundle,
     compiledPoolRows,
     measureConvexBundle,
@@ -95,10 +95,10 @@ async function main(): Promise<void> {
     console.log(
         `[check:convex-bundle] headroom ${fmt(toDocumented)} B to the documented 32 MiB, ` +
             `${fmt(toHard)} B to the hard bound — at the measured ` +
-            `${fmt(MEASURED_BYTES_PER_POOL_ROW)} B per compiled-pool row, ` +
-            `${fmt(Math.floor(toDocumented / MEASURED_BYTES_PER_POOL_ROW))} rows and ` +
-            `${fmt(Math.floor(toHard / MEASURED_BYTES_PER_POOL_ROW))} rows ` +
-            `(pool is ${fmt(rows)} rows today)`
+            `${fmt(MEASURED_BYTES_PER_PACKED_ROW)} B per packed compiled row, ` +
+            `${fmt(Math.floor(toDocumented / MEASURED_BYTES_PER_PACKED_ROW))} rows and ` +
+            `${fmt(Math.floor(toHard / MEASURED_BYTES_PER_PACKED_ROW))} rows ` +
+            `(packed corpus is ${fmt(rows)} rows today)`
     );
     console.log(
         `[check:convex-bundle] user modules ${fmt(m.userModules)} ` +

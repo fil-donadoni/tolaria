@@ -1,17 +1,17 @@
 /**
- * The PACKED server corpus — the third rendering of the one catalogue merge
- * (issue #4164, ADR 0113 Amendment III, PRD issue #4161).
+ * The PACKED server corpus — the server's rendering of the one catalogue
+ * merge (issue #4164, ADR 0113 Amendment III, PRD issue #4161).
  *
- * Today the server bundles the compiled rows as an object literal
- * (`data/oracle-compiled-pool.json` through `convex/cards/compiledPool.ts`),
- * and module globals do not survive a request: every mutation and query
- * evaluates the whole literal again, +9.6 ms on cloud at 3,144 rows and growing
- * with every row. The packed form costs nothing until a definition is asked
- * for, and then only the block holding it.
+ * Until issue #4168 the server bundled the compiled rows as an object literal
+ * (`data/oracle-compiled-pool.json`), and module globals do not survive a
+ * request: every mutation and query evaluated the whole literal again,
+ * +9.6 ms on cloud at 3,144 rows and growing with every row. The packed form
+ * costs nothing until a definition is asked for, and then only the block
+ * holding it.
  *
  * ── The shape ──────────────────────────────────────────────────────────────
  *
- * The SAME rows as the literal pool (`merge.serverRows`: compiled-only, sorted
+ * The catalogue's server rows (`merge.serverRows`: compiled-only, sorted
  * by id), each serialised exactly as the client asset serialises it, grouped
  * into {@link PACKED_BLOCK_ROWS}-row blocks. Each block is raw-deflated against
  * ONE shared dictionary sampled from the rows, base64-encoded, and the blocks
@@ -23,8 +23,8 @@
  *   - `names` — every row's name in row order, so a name is validated, and its
  *     block found, without inflating anything.
  *
- * The server reads it through `getDefinition`'s packed fallback, behind the
- * switch in `convex/cards/compiledPool.ts` (issue #4165).
+ * The server reads it through `getDefinition`'s packed lookup, built in
+ * `convex/cards/compiledPool.ts` (issue #4165; unconditional since #4168).
  *
  * ── Deterministic by construction ──────────────────────────────────────────
  *

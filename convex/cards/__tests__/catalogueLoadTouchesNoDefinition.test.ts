@@ -12,8 +12,10 @@
  *     whose every trap throws — the module is still
  *     evaluated, its non-definition exports pass through, but reading so much
  *     as `"id" in def` names the definition and fails;
- *   - every row of the compiled pool (`data/oracle-compiled-pool.json`)
- *     replaced by the same throwing Proxy;
+ *   - the rows of the packed compiled corpus
+ *     (`data/catalogue/packed-corpus.json`, the server's only rendering since
+ *     issue #4168) — its block string and dictionary — replaced by getters
+ *     that throw the same error, its Definition Index left real;
  *
  * and imported in a fresh Node. It must load. Then, as the positive control,
  * asking for the hand-written population must throw the stub's error — so a
@@ -32,11 +34,20 @@ import { bundleModule } from "../../../scripts/lib/convex-heap";
 const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 const CATALOGUE = join(REPO_ROOT, "convex/cards/catalogue.ts");
 const SET_CARD_MODULE = /convex\/cards\/sets\/[^/]+\/[^/]+\.cards\.ts$/;
-const COMPILED_POOL = /data\/oracle-compiled-pool\.json$/;
+const PACKED_CORPUS = /data\/catalogue\/packed-corpus\.json$/;
 const REAL = "?real";
 const TOUCHED = "definition touched at load";
 /** A card declared with `defineCard` (issue #4857). */
 const FACTORY_CARD = "Aura Blast";
+/** A compiled card: its definition is a packed row. */
+const COMPILED_CARD = (
+    JSON.parse(
+        readFileSync(
+            join(REPO_ROOT, "data/catalogue/packed-corpus.json"),
+            "utf8"
+        )
+    ) as { names: string[] }
+).names[0]!;
 
 /** A Proxy every one of whose traps throws, naming `what`. */
 const THROWING_STUB = `
@@ -56,7 +67,7 @@ const untouchable = (what, v) =>
 `;
 
 /** Counts what the plugin substituted, so a test can refuse a vacuous load. */
-const substituted = { definitionModules: 0, poolRows: 0 };
+const substituted = { definitionModules: 0, packedRows: 0 };
 
 const untouchableDefinitions: esbuild.Plugin = {
     name: "untouchable-definitions",
@@ -95,15 +106,23 @@ const untouchableDefinitions: esbuild.Plugin = {
                 resolveDir: dirname(args.path),
             };
         });
-        build.onLoad({ filter: COMPILED_POOL }, (args) => {
-            const rows = (
-                JSON.parse(readFileSync(args.path, "utf8")) as unknown[]
-            ).length;
-            substituted.poolRows = rows;
+        build.onLoad({ filter: PACKED_CORPUS }, (args) => {
+            // Every compiled row lives in `blocks`, inflated against
+            // `dictionary`: reading either is reading a row.
+            const corpus = JSON.parse(readFileSync(args.path, "utf8")) as {
+                rowCount: number;
+                blocks?: string;
+                dictionary?: string;
+            };
+            substituted.packedRows = corpus.rowCount;
+            delete corpus.blocks;
+            delete corpus.dictionary;
+            const touched = (what: string) =>
+                `get ${what}() { throw new Error(${JSON.stringify(TOUCHED)} + ": packed ${what}"); }`;
             return {
                 contents:
-                    THROWING_STUB +
-                    `export default Array.from({ length: ${rows} }, (_, i) => stub("compiled row " + i));`,
+                    `export default { ...${JSON.stringify(corpus)}, ` +
+                    `${touched("blocks")}, ${touched("dictionary")} };`,
                 loader: "js",
             };
         });
@@ -120,9 +139,10 @@ try {
     console.log("LOAD-FAILED " + String(error?.stack ?? error).split("\\n").slice(0, 6).join(" | "));
     process.exit(0);
 }
-// Two controls: the hand-written population, and one \`defineCard\` factory
+// Three controls: the hand-written population, one \`defineCard\` factory
 // card by name (issue #4857) — a factory the stub failed to recognise would
-// build its real definition here instead of throwing.
+// build its real definition here instead of throwing — and one compiled card
+// by name, whose packed row must be unreadable.
 const control = (what, ask) => {
     try {
         ask();
@@ -135,6 +155,7 @@ const control = (what, ask) => {
 console.log(
     control("population", () => catalogue.getAllCards()) ??
         control("factory", () => catalogue.getCardByName(${JSON.stringify(FACTORY_CARD)})) ??
+        control("compiled", () => catalogue.getCardByName(${JSON.stringify(COMPILED_CARD)})) ??
         "LOADED"
 );
 `;
@@ -149,7 +170,7 @@ describe("loading the catalogue (issue #4856)", () => {
         // Not vacuous: every hand-written colour module and every compiled
         // row was replaced.
         expect(substituted.definitionModules).toBeGreaterThan(300);
-        expect(substituted.poolRows).toBeGreaterThan(1000);
+        expect(substituted.packedRows).toBeGreaterThan(1000);
 
         const probe = join(dir, "probe.mjs");
         writeFileSync(probe, PROBE);

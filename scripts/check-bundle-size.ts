@@ -6,7 +6,8 @@
  * HISTORY, because the budgets only make sense with it. Round-1 review of
  * issue #2702 measured an undisclosed, unguarded client cost: `src/main.tsx`
  * eagerly imports `@convex/cards/catalogue`, which imported
- * `data/oracle-compiled-pool.json` at module load — paid on every cold load,
+ * `data/oracle-compiled-pool.json` (the literal pool, retired server-side too
+ * by issue #4168) at module load — paid on every cold load,
  * in BOTH the main app bundle (`card-catalogue` chunk, `vite.config.ts`'s
  * `manualChunks`) and the separate Web Worker bundle (`brain.worker`,
  * `src/lib/ai/brain-client.ts`), since a Worker gets its own module graph.

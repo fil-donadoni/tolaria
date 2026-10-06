@@ -168,12 +168,12 @@ differently reds it. Adjudicate — do not relax:
 ```bash
 bun run oracle:compile >"$SCRATCHPAD/compile.log" 2>&1; echo "exit=$?"      # the lockfile
 bun run oracle:index   >"$SCRATCHPAD/index.log"   2>&1; echo "exit=$?"      # card-index rows for newly ready cards (Scryfall; retry on 503)
-bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # data/catalogue/* + oracle-compiled-pool.json
+bun run catalogue:pack >"$SCRATCHPAD/pack.log"    2>&1; echo "exit=$?"      # data/catalogue/*
 bun run check:oracle && bun run catalogue:check && bun run check:index && bun run check:gaps && bun run cr:lint
 ```
 
 Never hand-edit a generated file (`oracle-compiled.json`, `card-index.json`,
-`oracle-compiled-pool.json`, `data/catalogue/*`) — regenerate. If the rule
+`data/catalogue/*`) — regenerate. If the rule
 makes an allowlisted Op emitted for the first time, `check:gaps` reds on its
 now-stale `data/grammar-gaps.json` row: delete the row (the allowlist only
 shrinks) and close the gap's issue with the PR.
@@ -292,7 +292,7 @@ Graduated to `ready`: <names>. Quarantined instead: <names — reason>.
 ## Census read-back
 
 `check:oracle` · `catalogue:check` · `check:index` · `check:gaps` · `cr:lint` — <each: green / what it said>.
-Artefacts regenerated: `oracle-compiled.json`, `card-index.json` (+N compiled rows), `oracle-compiled-pool.json`, `data/catalogue/*`.
+Artefacts regenerated: `oracle-compiled.json`, `card-index.json` (+N compiled rows), `data/catalogue/*`.
 Guard C: <names> round-trip → baseline rows removed, `BASELINE_CEILING` <old> → <new>.
 Gold: <no new divergence | adjudication>.
 

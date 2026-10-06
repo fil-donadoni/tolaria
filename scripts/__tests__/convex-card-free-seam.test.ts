@@ -54,7 +54,7 @@ function engineInputs(inputs: string[]): string[] {
             i.includes("convex/gre/") ||
             i.includes("convex/cards/") ||
             i.includes("convex/limited/botDrafter") ||
-            i.includes("data/oracle-compiled-pool.json")
+            i.includes("data/catalogue/")
     );
 }
 

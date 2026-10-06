@@ -19,7 +19,7 @@ import {
     tryGetCardByName,
     walkHandWrittenDefinitions,
 } from "../catalogue";
-import { compiledReadyDefinitions } from "../compiledPool";
+import { packedCorpusLookup, packedServerCorpus } from "../compiledPool";
 import { chooseableNamesOf } from "../cardNames";
 import { backFaceTriggerTokenId } from "../definitionIndex";
 import { insetSpellDefinitionId } from "../insetSpell";
@@ -31,6 +31,14 @@ import {
     splitHalfDefinitionId,
 } from "../splitCard";
 import type { CardDefinition } from "../types";
+
+/** The compiled population, every row read through the SAME memoised lookup
+ *  the catalogue serves compiled rows from — so a row here is the very object
+ *  `getDefinition` expands, as the literal pool's rows were before issue
+ *  #4168 retired it. */
+const compiledRows = packedServerCorpus!.ids.map(
+    (id) => packedCorpusLookup!.lookup(id)!
+);
 
 /** The pre-#4856 `twinNameEntries`, verbatim: twins looked up in the
  *  registry, a half whose twin did not hydrate contributing nothing. */
@@ -78,7 +86,7 @@ function eagerCatalogue() {
             if (!nameRegistry.has(key)) nameRegistry.set(key, twin);
         }
     }
-    for (const card of compiledReadyDefinitions) {
+    for (const card of compiledRows) {
         if (card.setCode !== undefined && !definitionSetCode.has(card.id)) {
             definitionSetCode.set(card.id, card.setCode);
         }
@@ -88,7 +96,7 @@ function eagerCatalogue() {
             if (!nameRegistry.has(twinKey)) nameRegistry.set(twinKey, twin);
         }
     }
-    const population = [...allCards, ...compiledReadyDefinitions];
+    const population = [...allCards, ...compiledRows];
     // `printedBackFaceTriggers`' scan over the printed definitions: the first
     // card whose nonmodal back face carries triggers, per token id.
     const backFaceOwner = new Map<string, CardDefinition>();
@@ -204,7 +212,7 @@ describe("a fresh module graph (issue #4856)", () => {
         const rawOwners = new Map(
             [
                 ...fresh.walkHandWrittenDefinitions().map((e) => e.definition),
-                ...compiledReadyDefinitions,
+                ...compiledRows,
             ].map((def) => [def.id, def])
         );
         for (const [tokenId, owner] of eager.backFaceOwner) {

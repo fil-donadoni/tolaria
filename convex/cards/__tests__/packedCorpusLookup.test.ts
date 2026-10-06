@@ -1,40 +1,42 @@
-// `getDefinition` falls back to the PACKED corpus behind a switch, and over the
-// whole pool it returns what the literal path returns (issue #4165, PRD #4161,
-// ADR 0113 Amendment III).
+// `getDefinition` reads a compiled row from the PACKED corpus, one block at a
+// time, on first request (issue #4165; the only path since issue #4168, PRD
+// #4161, ADR 0113 Amendment III).
 //
-// Two module graphs side by side in one file: the LITERAL one is this file's
-// static imports (switch off, the compiled pool preloaded as it always was);
-// the PACKED one is loaded fresh with `TOLARIA_PACKED_CORPUS_LOOKUP=on`, so its
-// registry starts with no compiled row and every compiled id it is asked for
-// goes through the lazy source. A definition carries closures (the keyword
-// expanders' `resolve` hooks), and two graphs mint two copies of each, so
-// "deep-equal" here is the canonical serialisation below — every data field
-// compared, every function compared by its source.
+// The catalogue is loaded FRESH here (`vi.resetModules` + a dynamic import),
+// so its registry starts with no compiled row and its block memo empty,
+// whatever an earlier file in this worker (`isolate: false`) resolved.
 //
-// Test ORDER is load-bearing, and deliberate: the packed graph's memo grows as
-// the file runs, so the cold-start claims come first and the whole-pool
-// equivalence — which ends with every block inflated — comes last.
+// That the packed rows ARE the catalogue's compiled rows is not asserted here:
+// the generator's decode-equality guard (`packedCorpusDrift`,
+// `scripts/lib/packed-corpus.ts`, run by `catalogue:check` and
+// `scripts/__tests__/catalogue-artifact.test.ts`) is the standing proof — it
+// decodes every block and compares it with the merge it was written from.
+//
+// Test ORDER is load-bearing, and deliberate: the memo grows as the file runs,
+// so the cold-start claims come first.
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import * as literal from "../index";
-import { compiledReadyDefinitions } from "../compiledPool";
+import type * as CardsIndex from "../index";
 import { blockFor, createPackedLookup } from "../packedCorpus";
 import { packedServerCorpus } from "../compiledPool";
-import { parentIdOfTwin } from "../twinId";
 import { TREASURE_TOKEN } from "../sharedTokens";
+import { parentIdOfTwin } from "../twinId";
 
-type CardsModule = typeof literal;
+type CardsModule = typeof CardsIndex;
 
 let packed: CardsModule;
+/** A second fresh graph, every compiled row resolved PARENT FIRST, so each
+ *  derived face is minted from a resident parent — the order the retired
+ *  literal path's eager preload used. */
+let parentFirst: CardsModule;
 
 beforeAll(async () => {
-    vi.stubEnv("TOLARIA_PACKED_CORPUS_LOOKUP", "on");
     vi.resetModules();
     try {
         packed = (await import("../index")) as CardsModule;
+        vi.resetModules();
+        parentFirst = (await import("../index")) as CardsModule;
     } finally {
-        vi.unstubAllEnvs();
-        // The next file in this worker (`isolate: false`) must not inherit the
-        // switched-on graph from the module cache.
+        // The next file in this worker must not inherit this graph's memo.
         vi.resetModules();
     }
 }, 120_000);
@@ -43,38 +45,13 @@ afterAll(() => {
     vi.resetModules();
 });
 
-const canonical = (value: unknown): string =>
-    JSON.stringify(value, (_key, v: unknown) =>
-        typeof v === "function" ? `fn:${String(v)}` : v
-    );
-
-const compiledIds = compiledReadyDefinitions.map((row) => row.id);
-const compiledIdSet = new Set(compiledIds);
 const corpus = packedServerCorpus!;
+const compiledIds = corpus.ids;
+const compiledIdSet = new Set(compiledIds);
 
-/** Every derived face (CR 715.2 / 709.3b / 712.8f) the literal path minted
- *  for a compiled row. */
-const derivedFaceIds = (): string[] =>
-    [...literal.registeredDefinitions()]
-        .map((def) => def.id)
-        .filter((id) => {
-            const parent = parentIdOfTwin(id);
-            return parent !== undefined && compiledIdSet.has(parent);
-        });
-
-describe("the switch (issue #4165)", () => {
-    it("is off by default: the literal graph serves every compiled row and inflates nothing", () => {
-        // Issue #4856: off, a compiled row is served from the literal pool on
-        // first request (the Definition Index locates it) — no longer
-        // preloaded at load, and still never from a packed block.
-        const unresolved = compiledIds.filter(
-            (id) => literal.tryGetDefinition(id)?.id !== id
-        );
-        expect(unresolved).toEqual([]);
-        expect(literal.packedCorpusInflations()).toBe(0);
-    });
-
-    it("switched on, loading the catalogue preloads no compiled row and inflates no block", () => {
+describe("loading the catalogue (issue #4165)", () => {
+    it("preloads no compiled row and inflates no block", () => {
+        expect(compiledIds.length).toBeGreaterThan(1000);
         expect(packed.packedCorpusInflations()).toBe(0);
         const preloaded = [...packed.residentDefinitionIds()].filter((id) =>
             compiledIdSet.has(id)
@@ -82,18 +59,14 @@ describe("the switch (issue #4165)", () => {
         expect(preloaded).toEqual([]);
     });
 
-    it("hand-written definitions and tokens resolve exactly as before and inflate nothing", () => {
-        const handWritten = literal.getAllRawCards().map((def) => def.id);
+    it("hand-written definitions and tokens resolve without inflating a block", () => {
+        const handWritten = packed.getAllRawCards().map((def) => def.id);
         expect(handWritten.length).toBeGreaterThan(500);
         for (const id of handWritten) {
-            expect(canonical(packed.getDefinition(id))).toBe(
-                canonical(literal.getDefinition(id))
-            );
+            expect(packed.getDefinition(id).id).toBe(id);
         }
-        const token = literal.tokenDefinitionId(TREASURE_TOKEN);
-        expect(canonical(packed.getDefinition(token))).toBe(
-            canonical(literal.getDefinition(token))
-        );
+        const token = packed.tokenDefinitionId(TREASURE_TOKEN);
+        expect(packed.getDefinition(token).id).toBe(token);
         expect(packed.packedCorpusInflations()).toBe(0);
     });
 });
@@ -126,34 +99,43 @@ describe("the packed lookup's memo (issue #4165)", () => {
                 `Card not found: ${id}`
             );
             expect(packed.tryGetDefinition(id)).toBeNull();
-            expect(literal.tryGetDefinition(id)).toBeNull();
         }
     });
 
-    it("a fresh lookup inflates each block at most once across the whole pool", () => {
+    it("a fresh lookup serves every compiled row, inflating each block once", () => {
         const lookup = createPackedLookup(corpus);
         for (const id of compiledIds) expect(lookup.lookup(id)?.id).toBe(id);
         expect(lookup.inflations()).toBe(corpus.firstIds.length);
     });
 });
 
-describe("equivalence over the whole pool (issue #4165)", () => {
-    it("every derived face and every compiled row resolves deep-equal to the literal path", () => {
-        // Derived faces FIRST, so each resolves through a parent that is not
-        // yet resident: the lazy derivation, not the eager one, is what runs.
-        const faces = derivedFaceIds();
+describe("derived faces of packed rows (issues #4165, #4168)", () => {
+    const canonical = (value: unknown): string =>
+        JSON.stringify(value, (_key, v: unknown) =>
+            typeof v === "function" ? `fn:${String(v)}` : v
+        );
+
+    it("a face resolved before its parent equals the face minted from a resident parent", () => {
+        // The packed rows' bytes are proven by the generator's decode-equality
+        // guard; what it cannot see is the lazy DERIVATION of a split half,
+        // adventure spell or modal back face (CR 709.3b / 715.2 / 712.8f)
+        // from a packed parent. Faces are asked of `packed` FIRST, so each
+        // resolves through a parent that is not yet resident.
+        for (const id of compiledIds) parentFirst.getDefinition(id);
+        const faces = [...parentFirst.registeredDefinitions()]
+            .map((def) => def.id)
+            .filter((id) => {
+                const parent = parentIdOfTwin(id);
+                return parent !== undefined && compiledIdSet.has(parent);
+            });
         expect(faces.length).toBeGreaterThan(0);
-        const mismatches: string[] = [];
-        const compare = (id: string): void => {
+        const mismatches = faces.filter((id) => {
             const got = packed.tryGetDefinition(id);
-            const want = literal.getDefinition(id);
-            if (got === null || canonical(got) !== canonical(want)) {
-                mismatches.push(`${want.name} (${id})`);
-            }
-        };
-        for (const id of faces) compare(id);
-        for (const id of compiledIds) compare(id);
+            return (
+                got === null ||
+                canonical(got) !== canonical(parentFirst.getDefinition(id))
+            );
+        });
         expect(mismatches.slice(0, 5)).toEqual([]);
-        expect(packed.packedCorpusInflations()).toBe(corpus.firstIds.length);
     });
 });

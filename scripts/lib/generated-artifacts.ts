@@ -31,9 +31,6 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     resolve()->effects[] migration PR had to hand-edit, and that any two
  *     concurrent ones collided in. Re-derived (prune-only) by `ai:allowlist`.
  *     `scripts/__tests__/generated-artifact-merge.test.ts` pins its shape too.
- *   - `data/oracle-compiled-pool.json` — IMMUNE BY SHAPE. A bare array of
- *     resolved card rows; no header, no hash, no tally (ADR 0114 §2 keeps it a
- *     catalogue with nothing left to resolve at runtime).
  *   - `data/catalogue/source-hash.json` — IN THIS CLASS (issue #3055). One
  *     line of whole-file state on a STABLE path: the hash of the catalogue
  *     source both renderings are generated from. Two branches that both
@@ -42,18 +39,15 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     name — which is the drift ADR 0113 §2 makes the whole guard about.
  *     Re-derived by `catalogue:pack`, which needs no corpus and which also
  *     resolves the two-artifact case named next.
- *   - `data/oracle-compiled-pool.json` is re-derived by that SAME run (issue
- *     #3055 made the two one generator), so it needs no row of its own: its
- *     bare-array shape means git merges it correctly per row, and the one
- *     thing that could still go wrong — a merge producing a pool that no
- *     longer matches the artifact — is what `catalogue:pack` regenerating
- *     alongside the hash fixes.
  *   - `data/catalogue/packed-corpus.json` — IN THIS CLASS (issue #4164). The
  *     packed server corpus is ONE base64 string of deflated blocks plus
  *     indexes and the source hash: every regeneration rewrites the whole
  *     line, so two branches that both regenerate always collide, and no
  *     hunk-picking can yield bytes that decode. Re-derived by the same
- *     `catalogue:pack` run as the source hash.
+ *     `catalogue:pack` run as the source hash. It is the server's ONLY
+ *     rendering of the compiled rows since issue #4168 retired
+ *     `data/oracle-compiled-pool.json`, the bare-array pool that was immune
+ *     by shape and so needed no row here.
  *   - `data/catalogue/definition-index.json` — IN THIS CLASS (issue #4856).
  *     The hand-written Definition Index: one entry per line, which git could
  *     merge, but its derived `lookups` are ONE line of whole-file state: two

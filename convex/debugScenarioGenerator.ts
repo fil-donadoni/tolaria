@@ -9,8 +9,8 @@
 //
 // It reaches the card registry by `ctx.runQuery` and NEVER imports it (issue
 // #3444). A `"use node"` module gets its own esbuild graph, so an import of
-// `./cards` here inlines `data/oracle-compiled-pool.json` a SECOND time into the
-// pushed bundle — ~2.4 MB of the 30 MiB budget for two lookups, which is what
+// `./cards` here inlines the card registry and the compiled pool a SECOND time
+// into the pushed bundle — ~2.4 MB of the 30 MiB budget for two lookups, which is what
 // pushed `bun run check:convex-bundle` red (ADR 0113 § Amendment). The seam is
 // `internal.debugScenarios.scenarioAllowList` /
 // `unresolvedGeneratedCardNames`, and

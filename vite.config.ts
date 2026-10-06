@@ -42,12 +42,13 @@ export default defineConfig({
                 replacement: path.resolve(__dirname, "convex"),
             },
             // ADR 0113 §2, issue #3053 — the asymmetric delivery of the card
-            // catalogue. `convex/cards/compiledPool.ts` imports
-            // `data/oracle-compiled-pool.json` at module load, which is right
-            // on the SERVER (a Convex mutation cannot fetch) and wrong in a
-            // browser: it landed the same ~1.6 MB of card data in BOTH the
-            // `card-catalogue` chunk and the `brain.worker` bundle, on every
-            // cold load. Swapping the module for an empty array here takes it
+            // catalogue. `convex/cards/compiledPool.ts` imports the packed
+            // corpus (`data/catalogue/packed-corpus.json`) at module load,
+            // which is right on the SERVER (a Convex mutation cannot fetch)
+            // and wrong in a browser bundle: its card data once landed (as
+            // the literal pool) in BOTH the `card-catalogue` chunk and the
+            // `brain.worker` bundle, on every cold load. Swapping the module
+            // for an empty stub here takes it
             // out of both graphs — `resolve` is shared with the worker build,
             // unlike `plugins` — and the client fetches the packed corpus as
             // an immutable asset instead, decoding a block on first request
