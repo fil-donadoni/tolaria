@@ -33,25 +33,34 @@ export const DEFAULT_PROBE_ROWS: readonly number[] = [
     4_000, 9_000, 12_000, 35_000,
 ];
 
-/** Elements per padding chunk: 16,384 small integers — 64 KiB under pointer
- *  compression, 128 KiB without. The search resolves to one chunk. */
+/** Elements per padding chunk by default: 16,384 — 64 KiB of small integers
+ *  under pointer compression, 128 KiB without; above V8's regular-object
+ *  size, so it lives in large-object space (`--chunk-elements 1024` keeps it
+ *  in regular space, beside the pool's objects). The search resolves to one
+ *  chunk. */
 export const PAD_CHUNK_ELEMENTS = 16_384;
 
 /** One double chunk's bytes, the same under every V8 layout: unboxed
  *  doubles, 8 B each (the array header is noise at this length). */
-export const DOUBLE_CHUNK_BYTES = PAD_CHUNK_ELEMENTS * 8;
+export const doubleChunkBytes = (elements: number = PAD_CHUNK_ELEMENTS) =>
+    elements * 8;
 
 /** Above any room a 64 MiB call can have, whatever the chunk's layout. */
 export const PAD_SEARCH_CEILING = 4_096;
 
+/** The ceiling for a chunk of `elements`: the default's, scaled. */
+export const padSearchCeiling = (elements: number): number =>
+    Math.ceil((PAD_SEARCH_CEILING * PAD_CHUNK_ELEMENTS) / elements);
+
 /** `convex/pad.ts` of the harness — shared by the control and the pool module
  *  so both pay the same padding code. Distinct arrays, each filled with its own
  *  index, so nothing is shared or folded away. */
-export const PAD_MODULE = `// Allocates \`chunks\` arrays of ${PAD_CHUNK_ELEMENTS} small integers and keeps them
+export function padModule(elements: number = PAD_CHUNK_ELEMENTS): string {
+    return `// Allocates \`chunks\` arrays of ${elements} small integers and keeps them
 // reachable until the call returns: the room a call has left, in chunks.
 export function pad(chunks: number): number {
     const held: number[][] = [];
-    for (let i = 0; i < chunks; i++) held.push(new Array(${PAD_CHUNK_ELEMENTS}).fill(i));
+    for (let i = 0; i < chunks; i++) held.push(new Array(${elements}).fill(i));
     let total = 0;
     for (const a of held) total += a.length;
     return total;
@@ -60,12 +69,13 @@ export function pad(chunks: number): number {
 // yardstick that sizes the integer chunk.
 export function padDoubles(chunks: number): number {
     const held: number[][] = [];
-    for (let i = 0; i < chunks; i++) held.push(new Array(${PAD_CHUNK_ELEMENTS}).fill(i + 0.5));
+    for (let i = 0; i < chunks; i++) held.push(new Array(${elements}).fill(i + 0.5));
     let total = 0;
     for (const a of held) total += a.length;
     return total;
 }
 `;
+}
 
 /** `convex/empty.ts`: the control — imports nothing but the padding. */
 export const EMPTY_MODULE = `import { mutationGeneric, queryGeneric } from "convex/server";
@@ -203,21 +213,22 @@ export interface Calibration {
  *  shapes: `doubleRoom` double chunks fill what `room` integer chunks fill. */
 export function isolateCalibration(
     controlRoomChunks: number,
-    controlDoubleRoomChunks: number
+    controlDoubleRoomChunks: number,
+    elements: number = PAD_CHUNK_ELEMENTS
 ): Calibration {
+    const double = doubleChunkBytes(elements);
     if (controlRoomChunks <= 0 || controlDoubleRoomChunks <= 0) {
         throw new Error(
             `the control survived ${controlRoomChunks} integer / ${controlDoubleRoomChunks} double chunks`
         );
     }
-    const chunkBytes =
-        (DOUBLE_CHUNK_BYTES * controlDoubleRoomChunks) / controlRoomChunks;
+    const chunkBytes = (double * controlDoubleRoomChunks) / controlRoomChunks;
     return {
         controlRoomChunks,
         controlDoubleRoomChunks,
         chunkBytes,
-        compressed: chunkBytes < 0.75 * DOUBLE_CHUNK_BYTES,
-        roomBytes: controlDoubleRoomChunks * DOUBLE_CHUNK_BYTES,
+        compressed: chunkBytes < 0.75 * double,
+        roomBytes: controlDoubleRoomChunks * double,
     };
 }
 

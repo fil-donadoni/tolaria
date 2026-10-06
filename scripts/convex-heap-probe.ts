@@ -39,6 +39,8 @@
  *   --rounds 20               measured latency rounds per size
  *   --warmup 3                discarded rounds after each push
  *   --work-dir <dir>          where the harness project is written
+ *   --chunk-elements 16384    padding chunk length (1024 keeps it out of
+ *                             V8's large-object space)
  *   --node-only               the Node half alone, no deployment
  */
 import { spawnSync } from "node:child_process";
@@ -78,7 +80,8 @@ import {
     DEFAULT_PROBE_ROWS,
     EMPTY_MODULE,
     PAD_CHUNK_ELEMENTS,
-    PAD_MODULE,
+    padModule,
+    padSearchCeiling,
     POOL_MODULE,
     PROBE_FUNCTIONS,
     isMemoryFailure,
@@ -94,6 +97,9 @@ import {
 } from "./lib/convex-heap-probe";
 
 const repoRoot = resolve(import.meta.dir, "..");
+
+/** `--chunk-elements`: the padding chunk's length (set once, in `main`). */
+let chunkElements = PAD_CHUNK_ELEMENTS;
 const MIB = 1024 * 1024;
 
 function flag(name: string): string | undefined {
@@ -164,7 +170,7 @@ function writeHarness(dir: string, deployment: string): void {
         join(dir, ".env.harness"),
         `CONVEX_DEPLOYMENT=${deployment}\n`
     );
-    writeFileSync(join(dir, "convex", "pad.ts"), PAD_MODULE);
+    writeFileSync(join(dir, "convex", "pad.ts"), padModule(chunkElements));
     writeFileSync(join(dir, "convex", "empty.ts"), EMPTY_MODULE);
     writeFileSync(join(dir, "convex", "pool.ts"), POOL_MODULE);
 }
@@ -289,7 +295,7 @@ function nodeChunkBytes(dir: string): number {
     mkdirSync(out, { recursive: true });
     writeFileSync(join(out, "package.json"), '{"type":"module"}');
     const held = (n: number) =>
-        `const held = []; for (let i = 0; i < ${n}; i++) held.push(new Array(${PAD_CHUNK_ELEMENTS}).fill(i)); globalThis.__held = held;\n`;
+        `const held = []; for (let i = 0; i < ${n}; i++) held.push(new Array(${chunkElements}).fill(i)); globalThis.__held = held;\n`;
     writeFileSync(join(out, "none.mjs"), held(0));
     writeFileSync(join(out, "some.mjs"), held(256));
     return (
@@ -342,6 +348,7 @@ async function main(): Promise<number> {
     }
     const rounds = intFlag("rounds", 20);
     const warmup = intFlag("warmup", 3);
+    chunkElements = intFlag("chunk-elements", PAD_CHUNK_ELEMENTS);
     const workDir = flag("work-dir");
     // A project directory's own `.env.local` (the guide's § 1 one) could win
     // over `.env.harness` and point the push elsewhere.
@@ -477,11 +484,15 @@ async function probeSize(
     const client = new ConvexHttpClient(url!);
 
     if (state.cal === null) {
-        const control = await largestSurviving(survivor(client, emptyRun));
-        const doubles = await largestSurviving(
-            survivor(client, emptyRunDoubles)
+        const control = await largestSurviving(
+            survivor(client, emptyRun),
+            padSearchCeiling(chunkElements)
         );
-        state.cal = isolateCalibration(control, doubles);
+        const doubles = await largestSurviving(
+            survivor(client, emptyRunDoubles),
+            padSearchCeiling(chunkElements)
+        );
+        state.cal = isolateCalibration(control, doubles, chunkElements);
         console.log(
             `  control room: ${control} integer / ${doubles} double chunks → integer chunk ` +
                 `${(state.cal.chunkBytes / 1024).toFixed(0)} KiB in the isolate, ${(chunk / 1024).toFixed(0)} in Node ` +
@@ -503,9 +514,16 @@ async function probeSize(
         return null;
     }
     const lat = await latency(client, rounds, warmup);
-    let room = await largestSurviving(survivor(client, poolRun));
+    let room = await largestSurviving(
+        survivor(client, poolRun),
+        padSearchCeiling(chunkElements)
+    );
     // A padless call just succeeded: a -1 here is one flaky call, not a wall.
-    if (room < 0) room = await largestSurviving(survivor(client, poolRun));
+    if (room < 0)
+        room = await largestSurviving(
+            survivor(client, poolRun),
+            padSearchCeiling(chunkElements)
+        );
     console.log(
         `  ok — latency +${lat.medianMs.toFixed(1)} / +${lat.p90Ms.toFixed(1)} ms (median / p90), ` +
             `room ${room} of ${state.cal.controlRoomChunks} chunks`

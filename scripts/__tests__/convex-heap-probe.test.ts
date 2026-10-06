@@ -6,8 +6,10 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-    DOUBLE_CHUNK_BYTES,
+    doubleChunkBytes,
     PAD_SEARCH_CEILING,
+    padModule,
+    padSearchCeiling,
     isMemoryFailure,
     isSizeOrMemoryPushFailure,
     isolateCalibration,
@@ -58,7 +60,7 @@ const COMPRESSED = isolateCalibration(800, 400);
 describe("isolateCalibration — the integer chunk sized by the double one", () => {
     it("is a double chunk when both shapes fill the same room", () => {
         expect(SAME.compressed).toBe(false);
-        expect(SAME.chunkBytes).toBe(DOUBLE_CHUNK_BYTES);
+        expect(SAME.chunkBytes).toBe(doubleChunkBytes());
         expect(SAME.roomBytes).toBe(50 * MIB);
     });
 
@@ -176,4 +178,13 @@ describe("isSizeOrMemoryPushFailure — a refused push is a result only for size
         "You are not logged in",
         "esbuild: Could not resolve",
     ])("refuses %j", (m) => expect(isSizeOrMemoryPushFailure(m)).toBe(false));
+});
+
+describe("chunk length — a smaller chunk scales the yardstick and the ceiling", () => {
+    it("sizes a 1,024-element chunk at 8 KiB of doubles and scales the ceiling", () => {
+        const cal = isolateCalibration(10_000, 10_000, 1024);
+        expect(cal.chunkBytes).toBe(8 * 1024);
+        expect(padSearchCeiling(1024)).toBe(PAD_SEARCH_CEILING * 16);
+        expect(padModule(1024)).toContain("new Array(1024)");
+    });
 });
