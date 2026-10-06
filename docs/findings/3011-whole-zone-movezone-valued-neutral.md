@@ -25,5 +25,5 @@ through `enumerateMoves` but has no reason to choose it.
 from "unscripted" to "scripted at 0". Pricing the shape properly means making
 the value depend on the recipient (it helps when aimed at your own graveyard
 and hurts when aimed at an opponent's) and on the graveyard's contents. That is
-a `/bot-slice` change with a blade pair, and it probably belongs under the Bot
+a `/bot-change` change with a blade pair, and it probably belongs under the Bot
 roadmap's valuation umbrella rather than as a standalone ticket.

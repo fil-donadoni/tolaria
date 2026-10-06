@@ -74,7 +74,7 @@ describe('debugSetupScenario — which seat renders as "me" (issue #3786)', () =
 /**
  * The bug itself (issue #3786): `buildStateFromScenario` used to resolve
  * `"me"` as `players[0]` of the LIVE snapshot, which a `bot: "me"` Blade
- * Scenario load (`bot-slice`, issue #3443) reorders to put the Bot first.
+ * Scenario load (`bot-change`, issue #3443) reorders to put the Bot first.
  * From then on every Debug scenario loaded into the same game rendered
  * mirrored — its `"me"` cards, life, hand and turn holder on the Bot's seat.
  *

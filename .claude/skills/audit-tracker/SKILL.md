@@ -99,7 +99,7 @@ For each `open` gap, before writing a ticket:
 2. **Read the actual CR subrule**, don't paraphrase from memory. The current
    rules text is one download:
    `curl -s -o /tmp/cr.txt https://media.wizards.com/<...>/MagicCompRules%20<date>.txt`
-   (or `/mtg-rules-check`). Grep the keyword-action section.
+   (or `/rules-check`). Grep the keyword-action section.
 3. **Re-check the engine for the capability the CR text actually implies** —
    not the one the tracker's prose named. This is where `wrong-premise`
    verdicts come from, and they are common: a tracker written during
@@ -312,6 +312,6 @@ convex/cards/__tests__/divergenceMarkers.test.ts` (every marker paragraph must
 
 - Conventions inherited: `.claude/skills/new-set/SKILL.md` § "What you already know"
 - Marker rules: `.claude/rules/gre-development.md` § Guard B (documented-divergence-needs-issue)
-- Related skills: `/mtg-rules-check`, `/grill`, `/to-tickets`, `/new-qa-issue`
+- Related skills: `/rules-check`, `/grill`, `/to-tickets`, `/create-ticket`
 - Worked example: **#1097** (10 gaps → 6 shipped, 2 `wrong-premise`, 4 tickets
   #2139–#2142, markers re-pointed in #2143)

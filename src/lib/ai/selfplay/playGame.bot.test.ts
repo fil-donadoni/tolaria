@@ -7,7 +7,7 @@
 // graveyard pick fell through to the no-zone fallback and always came back
 // empty. Both are exercised directly against `listCandidates`, not indirectly
 // through a full self-play game, per the per-decision-function testing
-// doctrine (`.claude/skills/bot-slice/SKILL.md` § Verification doctrine #2).
+// doctrine (`.claude/skills/bot-change/SKILL.md` § Verification doctrine #2).
 
 import { describe, it, expect } from "vitest";
 import { createInitialGameState } from "@convex/gre";

@@ -36,7 +36,7 @@ already expresses.
 **Why it may not deserve its own issue.** These are ADR 0018 heuristics,
 explicitly documented as "crude" — `predictCombatOutcome`'s own doc comment says
 toughness-only chumps are not modelled at all. Making them CR-exact would be a
-behaviour change to the bot's evaluation surface, which per `/bot-slice` needs a
+behaviour change to the bot's evaluation surface, which per `/bot-change` needs a
 deterministic blade scenario and a strength claim, not a drive-by edit. It may
 be better as a line on the bot-AI wayfinder tracker (#1254) than a ticket of its
 own — unless someone can show a concrete misplay (a deathtouch blocker the bot

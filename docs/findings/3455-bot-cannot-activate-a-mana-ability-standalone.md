@@ -26,7 +26,7 @@ enumerator); `convex/gre/constants.ts` `isAutoPayableManaAbilityCost` +
 `NEVER_AUTO_PAYABLE_COST_LEGS`. Issue #3455 closed the ENGINE half — the
 activation is now payable end to end from all three CR 605.3a windows — and
 deliberately did not touch the bot: the seam is `convex/gre/moves.ts`, which is
-`/bot-slice` territory, and the fix is class-wide (every mana ability whose
+`/bot-change` territory, and the fix is class-wide (every mana ability whose
 activation is a decision), not a property of the filtered give-up shape.
 
 **Why it may not deserve its own issue.** It is pre-existing and class-wide, and

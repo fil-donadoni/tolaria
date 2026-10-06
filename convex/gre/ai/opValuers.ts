@@ -1435,7 +1435,7 @@ const hideaway: Valuer<"hideaway"> = () => ({
 // of the library, or onto the battlefield (issue #3249 — all beat a random
 // topdeck, and the sign is what the search needs); a card-shaped refinement
 // (e.g. weighing library-top lower once a second `keepTo` consumer exists)
-// is a future bot-slice concern, not this issue's scope.
+// is a future bot-change concern, not this issue's scope.
 const lookDistribute: Valuer<"lookDistribute"> = (op, ctx) => {
     const { amount, scaling } = op.take
         ? ctx.value(op.take)

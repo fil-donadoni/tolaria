@@ -6,7 +6,7 @@
 // creature" against the board in front of them, and cannot check `r0.53`. When
 // the terms separate the two candidates by nothing at all, that IS the reading
 // — `NO_DIFFERENCE_PHRASE` says so, because a tie is the signature of a pick
-// made by a tie-break rather than by the evaluation (`/bot-slice` phase 0).
+// made by a tie-break rather than by the evaluation (`/bot-change` phase 0).
 
 import type { CandidateTrace } from "@convex/gre";
 import { comparePositions } from "~/lib/ai/decision-phrases";

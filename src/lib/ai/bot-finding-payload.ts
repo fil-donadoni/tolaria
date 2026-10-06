@@ -21,7 +21,7 @@ import {
 
 /** How the loop closes — the last line of every payload. */
 export const LOOP_CLOSE_LINE =
-    "Close the loop: land a `must` blade entry for the class (`/bot-slice`), then re-measure with `bun run bot:reach` and `bun run seed:bot-findings`.";
+    "Close the loop: land a `must` blade entry for the class (`/bot-change`), then re-measure with `bun run bot:reach` and `bun run seed:bot-findings`.";
 
 /** The reproducer labels naming a finding's position: the ones a human
  *  attached, then the class's proving `must` entry. Distinct, in that order. */

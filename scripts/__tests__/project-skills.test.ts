@@ -459,7 +459,7 @@ describe("every skill is discoverable on a case-sensitive filesystem", () => {
         // works perfectly on this machine and is invisible everywhere else:
         // Claude Code looks for `SKILL.md`, so on Linux the skill simply does
         // not exist — no error, no warning, the slash command is just absent.
-        // Four were in that state (gre-test, mtg-rules-check, new-card,
+        // Four were in that state (gre-test, rules-check, new-card,
         // new-set) and it surfaced only because a CI-only test corpus came back
         // smaller than the local one.
         const tracked = execFileSync("git", ["ls-files", ".claude/skills/"], {
@@ -604,7 +604,7 @@ describe("every filing skill points at the filing stamp (issue #4457)", () => {
         "health-fix",
         "new-card",
         "new-op",
-        "new-qa-issue",
+        "create-ticket",
         "new-set",
         "next-issue",
         "to-prd",

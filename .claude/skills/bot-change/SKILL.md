@@ -1,5 +1,5 @@
 ---
-name: bot-slice
+name: bot-change
 description: "Implement or review a change to the play Bot or draft Bot: maps the subsystem, walks the seams, enforces the verification doctrine. Use when work touches convex/gre/{search,evaluate,moves,applyMove,ai}, src/lib/ai/ or convex/limited/botDrafter, when the Bot stalls, plays badly or ignores a mechanic, or when a new card or Op must become visible to the AI."
 ---
 

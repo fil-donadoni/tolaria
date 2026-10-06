@@ -289,7 +289,7 @@ describe("template, lint hint and reader name the same form (issue #3535)", () =
         "..",
         ".claude",
         "skills",
-        "new-qa-issue",
+        "create-ticket",
         "SKILL.md"
     );
 

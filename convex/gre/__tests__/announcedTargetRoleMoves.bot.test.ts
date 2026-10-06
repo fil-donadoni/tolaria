@@ -6,7 +6,7 @@
 // hand and deals 2 damage to slot 1, so `[angel, bears]` and `[bears, angel]`
 // are two different spells. `combinations` emits each SET once, in board
 // order, so the Bot could only ever announce one of the two — the "Move that
-// was never enumerated" suspect from `/bot-slice`, not an evaluation gap: no
+// was never enumerated" suspect from `/bot-change`, not an evaluation gap: no
 // weight can pick a line the search never sees.
 //
 // The symmetric half matters just as much. Permuting every group would

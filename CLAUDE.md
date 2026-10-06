@@ -151,17 +151,17 @@ Intake converges on `/grill` → `/to-prd` → `/to-tickets` → issues labelled
   mechanic / rule / hand tail
 - `/new-set` (set rollout): compile-first scope, ranked Grammar Gap tickets,
   residue, umbrella PRD
-- `/new-qa-issue` (observed bug/enhancement): explore, draft one
+- `/create-ticket` (observed bug/enhancement): explore, draft one
   agent-readable issue, post after confirmation
 - `/audit-tracker <N>` (stale roll-up): re-verify gaps vs HEAD, slice
   survivors, retire tracker
-- `/mtg-rules-check` (before any mechanic): CR text + implementation status
+- `/rules-check` (before any mechanic): CR text + implementation status
 - `/gre-test` (GRE logic): vitest tests per project patterns
 - `/new-op` (missing DSL verb): all eight Op sites (+ emitting Grammar Rule) +
   permanent test
 - `/grammar-rule` (one Grammar Cluster): rules + golden fixture per form →
   recompile → `ready` delta → graduation
-- `/bot-slice` (any play/draft Bot change): maps AI subsystem, walks seams,
+- `/bot-change` (any play/draft Bot change): maps AI subsystem, walks seams,
   enforces verification doctrine
 - `/retro` (owner only, after a session): proposes ranked environment
   changes — checks, pointers, deletions — never a new resident line
@@ -182,14 +182,14 @@ Frontmatter `globs:` do NOT gate loading; nesting does.
 - `convex/**`: `gre-development.md` → `convex/CLAUDE.md`
 - `src/**`: `frontend-components.md` + `chrome-debug.md` → `src/CLAUDE.md`
 - Bot: `bot-development.md` (whole; its `globs:` feed
-  `scripts/lib/bot-globs.ts`) → `/bot-slice`
+  `scripts/lib/bot-globs.ts`) → `/bot-change`
 
 Resident only if acting without it is a mistake **before** opening any file.
 
 ### Development cycle
 
 1. **Discuss** — user describes the feature/rule
-2. **Verify rules** — `/mtg-rules-check`: CR text + current status
+2. **Verify rules** — `/rules-check`: CR text + current status
 3. **Plan** — scope: implement now vs defer
 4. **Implement** — DSL-first (§ Card Definition System)
 5. **Test** — **the LANE decides what is owed** (ADR 0136 §8,

@@ -996,7 +996,7 @@ export function buildBotGapFilings(inputs: KindInputs): GapFiling[] {
                     "",
                     `Cards held (${held.length}): ${held.slice(0, 60).join(", ")}${held.length > 60 ? `, … (+${held.length - 60})` : ""}`,
                     "",
-                    "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it. A behaviour change to the Bot owes a `must` blade entry (`/bot-slice`).",
+                    "The gap disappears when the sweep's next verdict plays every card above — `oracle:compile` re-plays a card whenever its definition or the Bot changes. This issue closes through the PR that does it, or at the next landing's `gaps:sync` once no card carries it. A behaviour change to the Bot owes a `must` blade entry (`/bot-change`).",
                 ].join("\n"),
         });
     }

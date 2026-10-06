@@ -8,7 +8,7 @@ globs:
 
 # Bot Development Rules
 
-You are in the Bot — read `/bot-slice` first (full seam map + doctrine).
+You are in the Bot — read `/bot-change` first (full seam map + doctrine).
 
 - Every behaviour change ships a `must` blade entry in the same PR
   (`convex/gre/ai/blade/`) — a discriminating pair when the fix is a

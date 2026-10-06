@@ -763,7 +763,7 @@ describe("AC #5 — the bot CHOOSES to pay when paying is right (Burst Lightning
     // turn (Burst Lightning is the only card in hand), so kicking strictly
     // dominates — same card, same turn, opponent's only creature dies
     // instead of surviving. A deterministic single scenario + a root-move
-    // assertion (`.claude/rules/gre-development.md` / bot-slice doctrine),
+    // assertion (`.claude/rules/gre-development.md` / bot-change doctrine),
     // never self-play.
     function board() {
         return makeState({

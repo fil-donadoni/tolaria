@@ -72,7 +72,7 @@ see — the same shape as
 
 **Why it may not deserve its own issue.** Comments and test names only: no
 runtime behaviour is wrong and no card is affected. The cost is that a future
-`/mtg-rules-check` pass anchors on the wrong rule while building a cast-trigger
+`/rules-check` pass anchors on the wrong rule while building a cast-trigger
 or graveyard-ability feature. Against a ticket: the fix is a per-site judgement
 call across ~42 occurrences (Aura-host vs stack-function vs graveyard-count), so
 it belongs on a docs-hygiene tracker next to #1324's finding rather than in the

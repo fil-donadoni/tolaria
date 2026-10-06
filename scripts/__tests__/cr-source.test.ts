@@ -141,13 +141,13 @@ describe("no third-party CR mirror in the workflow (ADR 0098)", () => {
      * recording, the instruction is not.
      */
     const INSTRUCTION_FILES = [
-        ".claude/skills/mtg-rules-check/SKILL.md",
+        ".claude/skills/rules-check/SKILL.md",
         ".claude/skills/new-card/SKILL.md",
         ".claude/skills/new-set/SKILL.md",
         ".claude/rules/gre-development.md",
         ".claude/settings.json",
         ".claude/settings.local.json",
-        ".opencode/skills/mtg-rules-check/skill.md",
+        ".opencode/skills/rules-check/skill.md",
         ".opencode/skills/new-card/skill.md",
         ".opencode/settings.local.json",
         "CLAUDE.md",
@@ -164,7 +164,7 @@ describe("no third-party CR mirror in the workflow (ADR 0098)", () => {
             () => {
                 const text = fs.readFileSync(full, "utf8");
                 for (const mirror of MIRRORS) {
-                    // The mtg-rules-check skill names them once, in the prohibition.
+                    // The rules-check skill names them once, in the prohibition.
                     const asTarget = new RegExp(
                         `(WebFetch\\(domain:${mirror.replace(".", "\\.")}\\)|https?://[\\w.]*${mirror.replace(".", "\\.")})`,
                         "i"
@@ -180,7 +180,7 @@ describe("no third-party CR mirror in the workflow (ADR 0098)", () => {
 
     it("the rules-check skill points at the vendored document", () => {
         const skill = fs.readFileSync(
-            path.join(REPO_ROOT, ".claude/skills/mtg-rules-check/SKILL.md"),
+            path.join(REPO_ROOT, ".claude/skills/rules-check/SKILL.md"),
             "utf8"
         );
         expect(skill).toContain("data/cr/comprehensive-rules.txt");

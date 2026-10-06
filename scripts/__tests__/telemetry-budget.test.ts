@@ -140,11 +140,11 @@ describe("issueFromSessionCommand", () => {
         expect(issueFromSessionCommand("/x 123456")).toBeNull();
     });
 
-    // A `\b` boundary reads `/mtg-rules-check 704.5a` as issue 704 and merges
+    // A `\b` boundary reads `/rules-check 704.5a` as issue 704 and merges
     // that session's whole cost into a real issue #704 — inside the very cohort
     // ADR 0110's target is measured against.
     it("refuses a number that is a fragment of a longer token", () => {
-        expect(issueFromSessionCommand("/mtg-rules-check 704.5a")).toBeNull();
+        expect(issueFromSessionCommand("/rules-check 704.5a")).toBeNull();
         expect(issueFromSessionCommand("/cr 605.1a")).toBeNull();
         expect(issueFromSessionCommand("/loop 45m /foo")).toBeNull();
         expect(issueFromSessionCommand("/x v2 and 1.3.9")).toBeNull();

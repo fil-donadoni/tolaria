@@ -580,7 +580,7 @@ export function issueFromDescription(desc: string | null): number | null {
  * - it must BE a slash command — an arbitrary prompt that happens to contain a
  *   number is not an issue claim;
  * - the number must STAND ALONE, not be a fragment of a longer token. A plain
- *   `\b` boundary reads `/mtg-rules-check 704.5a` as issue 704 and merges that
+ *   `\b` boundary reads `/rules-check 704.5a` as issue 704 and merges that
  *   session's whole cost into a real issue #704, inside the very cohort ADR
  *   0110's target is measured against. Dots and word characters on either side
  *   therefore disqualify a match, which also rejects CR ids (`605.1a`),

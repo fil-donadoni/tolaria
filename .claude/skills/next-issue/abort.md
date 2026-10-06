@@ -8,7 +8,7 @@ An abort is two acts, in this order (issue #4752):
 
 1. **A prerequisite is WIRED, never suggested.** When the session names work
    that must land first, link the existing issue — or file it
-   (`/new-qa-issue`, then `filing.md` for its band) — and wire this issue
+   (`/create-ticket`, then `filing.md` for its band) — and wire this issue
    `blocked-by` it in BOTH stores: the native edge
    (`gh issue edit N --add-blocked-by <M>`, read back) AND a `- #M — why`
    line under `## Blocked by` in the body. `bun run queue:lint N` must come
