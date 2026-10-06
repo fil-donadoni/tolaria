@@ -217,6 +217,8 @@ export const CARD_FIELD_LIFECYCLE = {
     // cleanup, conditionally on the turn it names (`gre/phases.ts`).
     castableFromExileBy:        { codec: "scalar",  reset: ["custom:turn"] },
     castableFromExileUntilOwnTurn: { codec: "defined", reset: ["custom:turn"] },
+    // Same family, revoked as the grantee's upkeep begins instead.
+    castableFromExileUntilOwnUpkeep: { codec: "defined", reset: ["custom:turn"] },
     castableFromExileUntilTurn: { codec: "defined", reset: ["custom:turn"] },
     castableFromExileFromTurn:  { codec: "defined", reset: ["custom:turn"] },
     warpExiled:                 { codec: "flag",    reset: ["custom:turn"] },

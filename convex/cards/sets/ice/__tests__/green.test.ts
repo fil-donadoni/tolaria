@@ -2706,3 +2706,46 @@ describe("Hot Springs (CR 611 activated-grant prevention on enchanted land)", ()
         expect(state.players[0].life).toBe(18);
     });
 });
+
+// Thermokarst — "Destroy target land. If that land was a snow land, you gain
+// 1 life." (CR 701.8 destroy; CR 205.4a snow supertype; issue #2108 — the
+// rider used to be dropped on a false "no snow lands in the pool" premise.)
+describe("Thermokarst (destroy target land; snow land → gain 1 life)", () => {
+    const thermokarst = getDefinition("00ae906b-2c4d-48e9-9f2d-217777e22292");
+    const forest = getCardByName("Forest")!;
+    function castAt(landDefId: string) {
+        const land = makeInstance(landDefId, {
+            id: "target-land",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { life: 20 }),
+                makePlayer("p2", { battlefield: [land] }),
+            ],
+        });
+        pushSpell(state, thermokarst.id, "p1", [
+            { type: "permanent", id: "target-land" },
+        ]);
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("destroys a snow land and its caster gains 1 life", () => {
+        const state = castAt(snowCoveredForest.id);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "target-land")
+        ).toBe(false);
+        expect(state.players[0].life).toBe(21);
+    });
+
+    it("destroys a non-snow land with no life gain", () => {
+        const state = castAt(forest.id);
+        expect(
+            state.players[1].battlefield.some((c) => c.id === "target-land")
+        ).toBe(false);
+        expect(state.players[0].life).toBe(20);
+    });
+});

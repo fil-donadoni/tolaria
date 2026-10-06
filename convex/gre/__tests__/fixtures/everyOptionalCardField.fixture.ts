@@ -184,6 +184,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         castFromExileCostIncrease: { generic: 2 },
         castableFromExileUntilTurn: 20,
         castableFromExileUntilOwnTurn: 21,
+        castableFromExileUntilOwnUpkeep: 23,
         castableFromExileFromTurn: 22,
         castFromExileWithoutPayingManaCost: true,
         castFromExileNotAsAdventure: true,

@@ -777,9 +777,10 @@ export interface TargetRequirement {
      *  Used by Nettling Imp ("target non-Wall creature"). Single string is
      *  shorthand for one subtype. */
     excludeSubtypes?: string | string[];
-    /** Restricts legal permanent targets to those whose `staticAbilities`
-     *  include this keyword (CR 702). Used by Island of Wak-Wak ("target
-     *  creature with flying"). Ignored for player / spell targets. */
+    /** Restricts legal permanent targets to those that have this keyword
+     *  (CR 702): in `staticAbilities`, or as a keyword-tagged triggered
+     *  ability (`TriggeredAbility.keyword`). Used by Island of Wak-Wak
+     *  ("target creature with flying"). Ignored for player / spell targets. */
     requireAbility?: string;
     /** Restricts legal permanent targets to those whose `staticAbilities`
      *  include AT LEAST ONE of these keywords (CR 702 — OR semantics, the
@@ -788,10 +789,11 @@ export interface TargetRequirement {
      *  with trample or haste" (Minsc & Boo, Timeless Heroes). Ignored for
      *  player / spell targets. */
     requireAbilityAny?: ReadonlyArray<string>;
-    /** Excludes legal permanent targets whose `staticAbilities` include this
-     *  keyword (CR 702 — the negative of `requireAbility`). Used by Flood
-     *  ("tap target creature without flying"). Ignored for player / spell
-     *  targets. */
+    /** Excludes legal permanent targets that have this keyword (CR 702 — the
+     *  negative of `requireAbility`), static or keyword-tagged triggered
+     *  (issue #2108). Used by Flood ("tap target creature without flying")
+     *  and Balduvian Shaman ("that doesn't have cumulative upkeep"). Ignored
+     *  for player / spell targets. */
     excludeAbility?: string;
     /** Excludes specific permanent instance ids. Used for "target creature
      *  other than ~" via a dynamic `getTargetRequirement` that injects the
@@ -5015,6 +5017,12 @@ export interface SpellContext {
      *      instant-speed discard) — see `untilNextEndStepTurn` in
      *      `gre/state.ts`. Stamps an absolute turn number, same underlying
      *      field (`castableFromExileUntilTurn`) as "this-turn".
+     *    - "until-your-next-upkeep" (issue #2108): "Until the beginning of
+     *      your next upkeep, you may play that card" (Elkin Bottle). Spans
+     *      the rest of this turn and every opponent turn in between; revoked
+     *      as `playerId`'s next upkeep BEGINS (CR 500.4), stamped on their
+     *      own turn count so extra/skipped turns cannot bend it
+     *      (`castableFromExileUntilOwnUpkeep`).
      *
      *  `opts.withoutPayingManaCost` (CR 601.3 / 118.9, issue #1156) —
      *  ALSO waives the card's mana cost entirely (Dauthi Voidwalker: "you
@@ -5044,7 +5052,8 @@ export interface SpellContext {
             | "this-turn"
             | "while-exiled"
             | "until-next-end-step"
-            | "until-end-of-your-next-turn",
+            | "until-end-of-your-next-turn"
+            | "until-your-next-upkeep",
         opts?: {
             withoutPayingManaCost?: boolean;
             includesLand?: boolean;
@@ -11829,6 +11838,16 @@ export interface TriggeredAbility {
      *  keyword's trigger factory; absent on every ability that is not one
      *  half of such a pair, which is almost all of them. */
     additionalCostTwin?: AdditionalCostTwin;
+    /** CR 702.1d (issue #2108) — this triggered ability IS a keyword ability
+     *  (cumulative upkeep, CR 702.24), named by its Mechanics Registry
+     *  `binding` string — the same spelling a static keyword carries in
+     *  `staticAbilities`. Stamped by the keyword's trigger factory, so a
+     *  "with/without <keyword>" target filter (`requireAbility` /
+     *  `excludeAbility`) sees a triggered keyword exactly like a static one,
+     *  printed or granted ("target white enchantment … that doesn't have
+     *  cumulative upkeep", Balduvian Shaman). Absent on every non-keyword
+     *  trigger. */
+    keyword?: string;
     /** Which event kind(s) can fire this ability — used to index-filter before
      *  `matches()`. A scalar for the common single-event case; an ARRAY when a
      *  single Oracle sentence spans several engine events (CR 603.2), e.g.

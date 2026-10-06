@@ -140,7 +140,7 @@ export function cumulativeUpkeepTrigger(
     const oracle =
         args.oracleText ??
         `Cumulative upkeep ${args.costLabel} (At the beginning of your upkeep, put an age counter on this permanent, then sacrifice it unless you pay its upkeep cost for each age counter on it.)`;
-    return phaseTrigger({
+    const trigger = phaseTrigger({
         id: args.id ?? "cumulative-upkeep",
         oracleText: oracle,
         phase: "UPKEEP",
@@ -183,4 +183,7 @@ export function cumulativeUpkeepTrigger(
             },
         ],
     });
+    // CR 702.24 — tagged as the keyword it is, so "doesn't have cumulative
+    // upkeep" target filters see it, printed or granted (issue #2108).
+    return { ...trigger, keyword: "cumulative-upkeep" };
 }

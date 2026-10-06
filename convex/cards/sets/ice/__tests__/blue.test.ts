@@ -1087,6 +1087,54 @@ describe("Balduvian Shaman (single-target CU grant — CR 113.1/611.2c/702.24)",
     });
 });
 
+describe('Balduvian Shaman — "that doesn\'t have cumulative upkeep" (CR 702.24, issue #2108)', () => {
+    const coldSnap = getDefinition("81b87a58-b20c-4f38-afa3-59d398195740");
+    const req = balduvianShaman.activatedAbilities![0].targetRequirement!;
+    function board() {
+        const shaman = makeInstance(balduvianShaman.id, {
+            id: "shaman",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const plain = makeInstance(hallowedGround.id, {
+            id: "plain-ench",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const printedCu = makeInstance(coldSnap.id, {
+            id: "printed-cu",
+            controllerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [shaman, plain, printedCu] }),
+                makePlayer("p2"),
+            ],
+        });
+        return { state, shaman };
+    }
+    const legalIds = (state: ReturnType<typeof makeState>) =>
+        getLegalTargets(state, req, NO_TARGETING_SOURCE, "p1")
+            .filter((t) => t.type === "permanent")
+            .map((t) => t.id);
+
+    it("never offers a white enchantment with PRINTED cumulative upkeep (Cold Snap)", () => {
+        const { state } = board();
+        const ids = legalIds(state);
+        expect(ids).toContain("plain-ench");
+        expect(ids).not.toContain("printed-cu");
+    });
+
+    it("never offers an enchantment that was already GRANTED cumulative upkeep", () => {
+        const { state, shaman } = board();
+        resolveActivated(state, shaman, "balduvian-shaman-grant", [
+            { type: "permanent", id: "plain-ench" },
+        ]);
+        expect(legalIds(state)).not.toContain("plain-ench");
+    });
+});
+
 describe("Dreams of the Dead (reanimate + granted CU {2} + exile-on-leave)", () => {
     it("reanimates a white/black creature card, grants CU {2}, and sets exile-on-leave", () => {
         const state = makeState();
@@ -2127,7 +2175,45 @@ describe("Mystic Remora (opponent noncreature-cast draw tax, CR 603.2)", () => {
         // The pay choice belongs to the OPPONENT (the caster), not the source.
         expect(state.pendingChoices?.[0]?.playerId).toBe("p2");
         applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        // CR 118.12a — unpaid, the controller's own "you may draw" is asked
+        // next (issue #2108); accepting draws.
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: true });
         expect(state.players[0].hand.map((c) => c.id)).toContain("draw1");
+    });
+
+    it("the controller may decline the draw after the opponent declines to pay (CR 118.12a, issue #2108)", () => {
+        const remora = makeInstance(mysticRemora.id, {
+            id: "remora",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "battlefield",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [remora],
+                    library: [
+                        vanilla("draw1", 1, 1, {
+                            id: "draw1",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "library",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        resolveTrigger(state, remora, "mystic-remora-draw-tax", {
+            type: "SPELL_CAST",
+            casterId: "p2",
+        } as StackItem["triggerEvent"]);
+        applyMayPaySubmit(state, { playerId: "p2", accept: false });
+        expect(state.pendingChoices?.[0]?.playerId).toBe("p1");
+        applyMayPaySubmit(state, { playerId: "p1", accept: false });
+        expect(state.players[0].hand).toHaveLength(0);
+        expect(state.players[0].library.map((c) => c.id)).toEqual(["draw1"]);
     });
 
     it("paying {4} stops the draw", () => {

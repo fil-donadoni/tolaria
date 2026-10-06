@@ -816,15 +816,13 @@ export const freyalisesWinds = defineCard(() => ({
 //   • Snow-matters — Snowblind / Whiteout / Woolly Mammoths / Rime Dryad
 //     (snow-land counting, snow landwalk evasion, snow-land sac recursion). No
 //     snow supertype filter / snow-evasion plumbing yet — snow cluster.
-//     (Thermokarst is now active; its snow-land lifegain rider degrades to a
-//     no-op until snow lands exist.)
 //   • Forgotten Lore / Freyalise Supplicant / Freyalise's Winds — blocked
 //     one-offs owned by later clusters.
 //
 // FLAGGED SIMPLIFICATIONS (no new primitive) (tracked-by: #2785): Blizzard drops its snow cast-
 // condition (no snow lands in pool); Dire Wolves grants banding unconditionally
 // (the "as long as you control a Plains" gate needs a board-aware keyword-grant
-// predicate the engine lacks); Thermokarst's snow-land lifegain is a no-op.
+// predicate the engine lacks).
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Fyndhorn Elder — "{T}: Add {G}{G}." Mana dork (CR 605.1a mana ability,
@@ -1345,11 +1343,12 @@ export const tarpan = defineCard(() => ({
 // Thermokarst — {1}{G}{G} Sorcery. "Destroy target land. If that land was a snow
 // land, you gain 1 life." (CR 701.8 destroy.)
 //
-// SIMPLIFICATION (tracked-by: #2785) (flagged, no engine change): the "if that land was a snow land,
-// you gain 1 life" rider degrades to a no-op — the ICE pool ships NO snow-
-// supertype lands (snow mana is deferred; see GLOSSARY.md "Snow" / PRD #628), so
-// no target can ever satisfy the snow branch. The destroy is the load-bearing
-// effect and is implemented fully; the lifegain lands the day snow lands exist.
+// The snow rider reads the land's LIVE supertypes (CR 205.4a, layer-aware) via
+// `objectMatchesFilter` BEFORE the destroy: "was a snow land" is a question
+// about the land as it stood on resolution, and the lifegain does not depend
+// on the destroy happening (an indestructible or regenerated snow land still
+// grants the life). An illegal target means the spell doesn't resolve at all
+// (CR 608.2b), so neither half happens.
 export const thermokarst = defineCard(() => ({
     id: "00ae906b-2c4d-48e9-9f2d-217777e22292",
     name: "Thermokarst",
@@ -1359,9 +1358,17 @@ export const thermokarst = defineCard(() => ({
     manaCost: { X: 1, G: 2 },
     types: ["Sorcery"],
     targetRequirement: { type: "Land", count: 1 },
-    // Snow-land lifegain rider is a no-op in the current pool (no snow lands),
-    // so the whole effect is a single destroy of the announced target land.
-    effects: [{ op: "destroy", target: { target: 0 } }],
+    effects: [
+        {
+            op: "if",
+            predicate: {
+                objectMatchesFilter: { target: 0 },
+                filter: { supertype: "Snow" },
+            },
+            then: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+        { op: "destroy", target: { target: 0 } },
+    ],
 }));
 // Thoughtleech — {G}{G} Enchantment. "Whenever an Island an opponent controls
 // becomes tapped, you may gain 1 life." (CR 603.2 becomes-tapped trigger via

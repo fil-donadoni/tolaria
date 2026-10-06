@@ -13660,6 +13660,7 @@ export function buildSpellContext(
                 | "while-exiled"
                 | "until-next-end-step"
                 | "until-end-of-your-next-turn"
+                | "until-your-next-upkeep"
                 | "after-this-turn" = "while-exiled",
             opts?: {
                 /** CR 601.3 / 118.9 (issue #1156) — also waive the card's
@@ -13741,6 +13742,15 @@ export function buildSpellContext(
                     state,
                     playerId
                 );
+            } else if (window === "until-your-next-upkeep") {
+                //   - "until-your-next-upkeep" (issue #2108): "Until the
+                //     beginning of your next upkeep, you may play that card"
+                //     (Elkin Bottle). Same own-turn stamp as the window above
+                //     — "your next turn" survives extra/skipped turns — but
+                //     revoked as that turn's UPKEEP begins (CR 500.4), not at
+                //     its cleanup; see `castableFromExileUntilOwnUpkeep`.
+                card.castableFromExileUntilOwnUpkeep =
+                    untilEndOfYourNextOwnTurn(state, playerId);
             } else if (window === "until-next-end-step") {
                 card.castableFromExileUntilTurn = untilNextEndStepTurn(
                     state,
@@ -13749,10 +13759,14 @@ export function buildSpellContext(
             } else {
                 delete card.castableFromExileUntilTurn;
             }
-            // The two upper bounds are alternatives, never both: a re-grant
-            // under a different window must not leave the other one standing.
+            // The three upper bounds are alternatives, never two at once: a
+            // re-grant under a different window must not leave another one
+            // standing.
             if (window !== "until-end-of-your-next-turn") {
                 delete card.castableFromExileUntilOwnTurn;
+            }
+            if (window !== "until-your-next-upkeep") {
+                delete card.castableFromExileUntilOwnUpkeep;
             }
             if (window !== "this-turn" && window !== "until-next-end-step") {
                 delete card.castableFromExileUntilTurn;
@@ -19115,6 +19129,7 @@ export function moveCard(
         delete card.castableFromExileBy;
         delete card.castableFromExileUntilTurn;
         delete card.castableFromExileUntilOwnTurn;
+        delete card.castableFromExileUntilOwnUpkeep;
         // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
         // exile" referent ride the same permission window as the seven riders
         // beside them; a card pulled back out of exile keeps neither.
@@ -19423,6 +19438,7 @@ export function removeFromZone(
     delete card.castableFromExileBy;
     delete card.castableFromExileUntilTurn;
     delete card.castableFromExileUntilOwnTurn;
+    delete card.castableFromExileUntilOwnUpkeep;
     // CR 702.185a/b (issue #1268) — the LOWER bound and the "warped card in
     // exile" referent are consumed with the permission they ride, exactly like
     // the upper bound directly above: the card is on the stack now, and a warp
