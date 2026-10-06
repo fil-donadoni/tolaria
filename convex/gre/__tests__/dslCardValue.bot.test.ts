@@ -27,8 +27,13 @@ import {
     makeInstance,
 } from "../../cards/__tests__/setup.helper";
 import { cardValueById, latentValue } from "../cardValue";
+import { registeredDefinitions } from "../../cards";
+import { manaValue } from "../constants";
 import { projectPublicState } from "../../gameProjections";
-import { dslSpellScriptValue } from "../ai/cardScriptValue";
+import {
+    dslSpellScriptValue,
+    dslStandingAbilityScriptValue,
+} from "../ai/cardScriptValue";
 import type { CardDefinition, EffectOp } from "../../cards/types";
 
 // Real, registered cards of equal mana value (probed from the catalogue):
@@ -145,6 +150,20 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                 expect(
                     latentValue({ ...creature, dslStandingAbilityValue: 85 })
                 ).toBe(latentValue(creature));
+            });
+
+            it("an ability that sacrifices its own source is not standing worth (Seal of Cleansing stays at its floor)", () => {
+                const seal = [...registeredDefinitions()].find(
+                    (d) => d.name === "Seal of Cleansing"
+                );
+                expect(seal).toBeDefined();
+                expect(dslStandingAbilityScriptValue(seal!)).toBeUndefined();
+                expect(cardValueById(seal!.id)).toBe(
+                    latentValue({
+                        ...base,
+                        manaValue: manaValue(seal!.manaCost),
+                    })
+                );
             });
 
             it("a real card: Nevinyrral's Disk outranks a script-less artifact of equal mana value", () => {
