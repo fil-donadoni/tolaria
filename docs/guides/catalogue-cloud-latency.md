@@ -21,7 +21,9 @@ The [harness](#g-harness) replaces every function on its target, so the target
 is a [throwaway deployment](#g-throwaway-deployment) in a project of its own.
 The script refuses anything not named `dev:<name>` (never `prod:`, `preview:`,
 `local:` or a deploy key), and any deployment the repository's own `.env*`
-files name.
+files name, and — before the first push — any deployment already serving a
+function the [harness](#g-harness) does not (the app's own dev deployment,
+say): a fresh project serves nothing.
 
 ## 1. Create the throwaway project
 
@@ -80,6 +82,8 @@ them; the p90 is noisier than the median (one slow call of a
 
 - `refusing "<x>"` (exit 2, nothing pushed): not a `dev:<name>` selector, or a
   deployment the repository's env files name.
+- `refusing dev:<name>: it serves N function(s) the harness does not`
+  (exit 2, nothing pushed): not a throwaway — create one (§ 1).
 - `no verdict: … is not Convex cloud` (exit 2): the deployment reported a local
   or self-hosted URL — measure on cloud.
 - `In order to push, add convex to your package.json dependencies`: a stale
