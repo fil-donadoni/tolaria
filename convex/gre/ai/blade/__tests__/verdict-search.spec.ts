@@ -27,6 +27,7 @@ import { BLADE_SCENARIOS } from "../registry";
 import { DEFAULT_BLADE_SEED } from "../runner";
 import { committedVerdictCorpus } from "../../__tests__/committedVerdictCorpus.fixture";
 import {
+    burnedCountOf,
     formatHeldOutPickAgreement,
     formatVerdictSearchReport,
     searchHeldOutVerdicts,
@@ -113,7 +114,11 @@ describe.runIf(RUN)("verdicts through the search (runner)", () => {
               );
         const budgetLine = `registry entries at their own budget and seeds, locked verdicts at ${iterations} iterations × ${DEFAULT_SEEDS.length} seeds`;
         const text = heldOut
-            ? formatHeldOutPickAgreement(rows, budgetLine)
+            ? formatHeldOutPickAgreement(
+                  rows,
+                  budgetLine,
+                  burnedCountOf(verdicts, testPositionKeysOf(BLADE_SCENARIOS))
+              )
             : formatVerdictSearchReport(rows, budgetLine);
         console.log(`\n${text}`);
         const outPath = ENV.BLADE_VERDICT_SEARCH_OUT;

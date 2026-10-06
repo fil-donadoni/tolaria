@@ -173,6 +173,39 @@ export function verdictSidesOf(
 }
 
 /**
+ * The BURNED Verdicts: store Verdicts whose unit hashes into the held-out
+ * bucket but which the Test Position override makes fit-side — held-out
+ * positions a human admitted to the registry anyway (issue #3983, PRD #3980).
+ * Each is a position the held-out side can no longer grade.
+ *
+ * DERIVED, never stored: Admission is a hand edit of the registry, so there is
+ * no event to count — the corpus and the registry say it all. A Minimal Pair
+ * half is judged by its ANCHOR's bucket (the unit's, `verdictSidesOf`).
+ *
+ * The choice the issue leaves open: a registry entry with no store Verdict
+ * about its scenario is NOT burned. It was never a judgement on the held-out
+ * side, so `source: "registry"` Verdicts are excluded — only a store Verdict
+ * the override moved counts. A pair half whose anchor is absent has no known
+ * unit, hence no bucket, and is not burned.
+ */
+export function burnedOf(
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>,
+    modulus: number = HELD_OUT_SPLIT_MODULUS
+): Verdict[] {
+    const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
+    const byHash = new Map(verdicts.map((v) => [verdictIdOf(v), v]));
+    return verdicts.filter((v) => {
+        if (v.source === "registry" || sideOf.get(v.id) !== "fit") return false;
+        const unitAnchor = v.pairOf ? byHash.get(v.pairOf.anchorId) : v;
+        return (
+            unitAnchor !== undefined &&
+            heldOutBucketOf(scenarioKeyOf(unitAnchor), modulus) === 0
+        );
+    });
+}
+
+/**
  * The Minimal Pairs the split refuses, by the right-hand half's verdict id
  * (`verdictIdOf`), each with its reason (ADR 0148 § Split).
  *

@@ -26,8 +26,10 @@ import { evalPairsOf, resolveVerdictMoves } from "./evalPairs";
 import { verdictDecisionClass } from "./coverage";
 import {
     formatAgreementTally,
+    formatBurned,
     heldOutVerdicts,
     type AgreementTally,
+    type BurnedCount,
 } from "./heldOutAgreement";
 import type { Verdict } from "./types";
 
@@ -197,7 +199,8 @@ export function searchHeldOutVerdicts(
  *  read on their own line. */
 export function formatHeldOutPickAgreement(
     rows: readonly VerdictSearchRow[],
-    budgetLine: string
+    budgetLine: string,
+    burned: BurnedCount
 ): string {
     const searched = rows.filter((r) => r.error === undefined);
     // A verdict agrees when the search picked an allowed candidate on every
@@ -213,6 +216,7 @@ export function formatHeldOutPickAgreement(
     };
     const out = [
         `== held-out pick agreement (issue #3982) — verdicts whose every seed picked an allowed candidate, held-out side only, ${budgetLine}`,
+        formatBurned(burned),
         `  all                : ${verdictTally(searched)}`,
         `  timing             : ${verdictTally(searched.filter((r) => r.timing))}`,
         `  everything else    : ${verdictTally(searched.filter((r) => !r.timing))}`,
