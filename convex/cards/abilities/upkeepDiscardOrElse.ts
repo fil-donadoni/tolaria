@@ -47,7 +47,7 @@
 // present when the alternative is unavailable, so no prompt is shown at all.
 // Mirrors Oath of Lim-Dûl's own `handIds.length > 0` gate.
 
-import type { SpellContext, TriggeredAbility } from "../types";
+import type { EffectOp, SpellContext, TriggeredAbility } from "../types";
 import { phaseTrigger } from "./triggers/phaseTrigger";
 
 export interface UpkeepDiscardOrElseArgs {
@@ -62,6 +62,11 @@ export interface UpkeepDiscardOrElseArgs {
      *  `ctx.sacrifice(ctx.sourceInstanceId)` (CR 701.21); a `destroy` variant
      *  is legal too (mirrors `payOrSacrificeUpkeepTrigger`'s `consequence`). */
     onDecline: (ctx: SpellContext) => void;
+    /** AI-only shadow of the decline branch (issue #4141): `onDecline` is
+     *  opaque to the valuer, so the caller states what declining costs (e.g.
+     *  `[{ op: "sacrifice", target: { ref: "$source" } }]`). The factory wraps
+     *  it in the discard-or-else decision. Never executed. */
+    declineAiEffects?: EffectOp[];
 }
 
 /** Builds the "sacrifice this unless you discard a card" upkeep triggered
@@ -75,6 +80,41 @@ export function upkeepDiscardOrElseTrigger(
         oracleText: args.oracleText,
         phase: "UPKEEP",
         scope: "your",
+        ...(args.declineAiEffects
+            ? {
+                  // CR 117.3a — the controller MAY discard a card (their
+                  // choice, CR 701.9) instead of taking the decline branch.
+                  aiEffects: [
+                      {
+                          op: "mayPay" as const,
+                          player: "controller" as const,
+                          prompt: args.prompt,
+                          bind: "$discarded",
+                      },
+                      {
+                          op: "if" as const,
+                          predicate: { binding: "$discarded" },
+                          then: [
+                              {
+                                  op: "choice" as const,
+                                  kind: "discard-hand" as const,
+                                  player: "controller" as const,
+                                  zone: "hand" as const,
+                                  count: 1,
+                                  prompt: "Discard a card.",
+                                  bind: "$discards",
+                              },
+                              {
+                                  op: "discard" as const,
+                                  player: "controller" as const,
+                                  cards: { ref: "$discards" },
+                              },
+                          ],
+                          else: args.declineAiEffects,
+                      },
+                  ],
+              }
+            : {}),
         resolve: (ctx, _event, scopedPlayerId) => {
             // CR 117.3a — only offer the discard alternative when a card
             // exists to discard; an empty hand has no real choice, so

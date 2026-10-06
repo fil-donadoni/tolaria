@@ -145,6 +145,26 @@ export function cumulativeUpkeepTrigger(
         oracleText: oracle,
         phase: "UPKEEP",
         scope: "your",
+        // AI-only shadow (issue #4141, never executed) — the CR 702.24a
+        // decision priced like Echo's (`echo.ts`): pay, or lose the permanent.
+        // Priced at the printed one-age-counter cost: the per-counter scaling
+        // (CR 702.24b) and the age counter itself are bookkeeping the valuer
+        // has no context-free way to read, and the search sees the real,
+        // scaled payment through the live GRE.
+        aiEffects: [
+            {
+                op: "mayPay",
+                player: "controller",
+                cost: args.cost,
+                prompt: `Pay cumulative upkeep (${args.costLabel}) to keep this permanent?`,
+                bind: "$paid",
+            },
+            {
+                op: "if",
+                predicate: { not: { binding: "$paid" } },
+                then: [{ op: "sacrifice", target: { ref: "$source" } }],
+            },
+        ],
         // CR 608.2 — step 0 adds the age counter (irreversible: must not re-run
         // when step 1's may-pay suspends), step 1 offers the scaled payment.
         resolveSteps: [

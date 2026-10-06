@@ -146,6 +146,23 @@ export const blackVise = defineCard(() => ({
             // for (literal | ref | count only; no subtraction, no clamp).
             // Blocked on: an X/arithmetic EffectValue member (planned-migratable,
             // same class as Clockwork Beast's recharge ability above).
+            // AI shadow (issue #4141, never executed): the chosen player is
+            // the opponent, and `dealDamage`'s own non-positive guard is the
+            // clamp at 0 (CR 107.1b).
+            aiEffects: [
+                {
+                    op: "dealDamage",
+                    amount: {
+                        difference: {
+                            from: {
+                                count: { zone: "hand", controller: "opponent" },
+                            },
+                            minus: 4,
+                        },
+                    },
+                    to: { player: "opponent" },
+                },
+            ],
             resolve: (ctx, _event, scopedPlayerId) => {
                 const handSize = ctx.getHandSize(scopedPlayerId);
                 const damage = handSize - 4;

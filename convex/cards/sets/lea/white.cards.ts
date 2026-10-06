@@ -10,6 +10,7 @@
 import type {
     CardDefinition,
     Color,
+    EffectOp,
     ManaCost,
     PermanentFilter,
     Rarity,
@@ -1362,12 +1363,17 @@ export function makeUpkeepPayOrElse(args: {
     cost: ManaCost;
     prompt: string;
     onDecline: (ctx: SpellContext) => void;
+    /** AI-only shadow of the whole pay-or-else decision (issue #4141) — the
+     *  `onDecline` callback is opaque to the valuer, so each caller states
+     *  what its own decline branch costs. Never executed. */
+    aiEffects?: EffectOp[];
 }): TriggeredAbility {
     return phaseTrigger({
         id: args.id,
         oracleText: args.oracleText,
         phase: "UPKEEP",
         scope: "your",
+        ...(args.aiEffects ? { aiEffects: args.aiEffects } : {}),
         resolve: (ctx) => {
             const accept = ctx.requestMayPay({
                 playerId: ctx.controller,

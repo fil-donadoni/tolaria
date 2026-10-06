@@ -1162,6 +1162,24 @@ export const stasis = defineCard(() => ({
             cost: { U: 1 },
             prompt: "Pay {U} to keep Stasis?",
             onDecline: (ctx) => ctx.sacrifice(ctx.sourceInstanceId),
+            // AI shadow (issue #4141, never executed): the same CR 117.3a
+            // pay-or-sacrifice decision the Echo shadow prices
+            // (`abilities/echo.ts`). The skipped-untap lock is a static
+            // effect the evaluator already reads off the board.
+            aiEffects: [
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: { U: 1 },
+                    prompt: "Pay {U} to keep Stasis?",
+                    bind: "$paid",
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: "$paid" } },
+                    then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                },
+            ],
         }),
     ],
 }));
@@ -1600,6 +1618,24 @@ export const manaShort = defineCard(() => ({
     manaCost: { X: 2, U: 1 },
     types: ["Instant"],
     targetRequirement: { type: "player", count: 1 },
+    // AI shadow (issue #4141, never executed): every land the target player
+    // controls is tapped (CR 701.26a) — a tempo denial on their whole mana
+    // base. The unspent-mana drain (CR 106.4) has no Op and is worth nothing
+    // beyond the tap on the one stable point the bot casts it at.
+    aiEffects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                controller: { target: 0 },
+                filter: { type: "Land" },
+            },
+            effects: [
+                { op: "tapUntap", action: "tap", target: { ref: "$each" } },
+            ],
+        },
+    ],
     resolve: (ctx: SpellContext) => {
         const targetPlayerId = ctx.targets[0]?.id;
         if (targetPlayerId === undefined) return; // CR 608.2b (issue #2985)
