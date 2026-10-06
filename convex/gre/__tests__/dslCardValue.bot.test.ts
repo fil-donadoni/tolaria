@@ -26,7 +26,7 @@ import {
     makeState,
     makeInstance,
 } from "../../cards/__tests__/setup.helper";
-import { cardValueById, latentValue } from "../cardValue";
+import { cardValueById, dslLatentPieces, latentValue } from "../cardValue";
 import { registeredDefinitions } from "../../cards";
 import { manaValue } from "../constants";
 import { projectPublicState } from "../../gameProjections";
@@ -164,6 +164,26 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                         manaValue: manaValue(seal!.manaCost),
                     })
                 );
+            });
+
+            it("an ability that exiles its own source is not standing worth (Brittle Effigy)", () => {
+                const effigy = [...registeredDefinitions()].find(
+                    (d) => d.name === "Brittle Effigy"
+                );
+                expect(effigy).toBeDefined();
+                expect(dslStandingAbilityScriptValue(effigy!)).toBeUndefined();
+            });
+
+            it("a planeswalker carries no standing ability value (the loyalty model prices it)", () => {
+                const walkers = [...registeredDefinitions()].filter((d) =>
+                    d.types.includes("Planeswalker")
+                );
+                expect(walkers.length).toBeGreaterThan(0);
+                for (const w of walkers) {
+                    expect(dslLatentPieces(w).dslStandingAbilityValue).toBe(
+                        undefined
+                    );
+                }
             });
 
             it("a real card: Nevinyrral's Disk outranks a script-less artifact of equal mana value", () => {

@@ -279,6 +279,12 @@ function carriesStandingAbilityWorth(def: CardDefinition): boolean {
     return (
         !def.types.includes("Creature") &&
         !def.types.includes("Land") &&
+        // A planeswalker's loyalty abilities are priced by the loyalty model
+        // (`ai/loyaltyValue.ts`, ADR 0107), and `nonCreatureBodyValue` scales
+        // its worth by current/starting loyalty: summing every loyalty ability
+        // (CR 606.3 allows one per turn) would multiply the price of each
+        // counter several times over.
+        !def.types.includes("Planeswalker") &&
         !def.types.includes("Instant") &&
         !def.types.includes("Sorcery")
     );

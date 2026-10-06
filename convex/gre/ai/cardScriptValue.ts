@@ -466,7 +466,7 @@ function abilityScriptOpValue(
         activateFromGraveyard?: boolean;
         etbAbility?: boolean;
         targetRequirement?: TargetRequirement;
-        cost?: { sacrifice?: boolean };
+        cost?: { sacrifice?: boolean; exileThis?: boolean };
     }[] = [
         ...(def.activatedAbilities ?? []),
         ...(def.triggeredAbilities ?? []),
@@ -477,14 +477,18 @@ function abilityScriptOpValue(
         // unclassified trigger stays realized (fail-closed, the census in
         // `etbAbilityCensus.bot.test.ts` keeps the catalogue classified).
         if ((ability.etbAbility === true) !== (selection === "etb")) continue;
-        // Issue #5145 — an ability whose cost sacrifices its OWN source is
+        // Issue #5145 — an ability whose cost sacrifices or exiles its OWN source is
         // consumed by use: the permanent and the effect it buys are one asset,
         // so reading the ability as STANDING worth would charge the permanent's
         // worth twice (once held, once as the effect) and make using it read as
         // a loss — Seal of Cleansing worth 86 in play would never trade itself
         // for a 48-point artifact. Such a card keeps its `base + MV` worth; the
         // effect is priced where it is spent (the move that activates it).
-        if (selection === "standing" && ability.cost?.sacrifice === true) {
+        if (
+            selection === "standing" &&
+            (ability.cost?.sacrifice === true ||
+                ability.cost?.exileThis === true)
+        ) {
             continue;
         }
         // CR 603.6e / 602.5b / issue #1964 (review round 1) — a GRAVEYARD-
