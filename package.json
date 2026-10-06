@@ -15,6 +15,7 @@
         "check:all:inner": "(bun run format:check || (printf '\\033[31m✗ Formatting drift — run: bun run format\\033[0m\\n' && exit 1)) && bun run lint && bun run check:ts && bun run check:index && bun run check:stubs && bun run check:oracle && bun run check:bundle && bun run check:convex-bundle && printf '\\033[32m✓ All checks passed\\033[0m\\n' || (printf '\\033[31m✗ Checks failed\\033[0m\\n' && exit 1)",
         "check:bundle": "bun scripts/check-bundle-size.ts",
         "check:convex-bundle": "bun scripts/check-convex-bundle-size.ts",
+        "check:client-heap": "bun scripts/check-client-heap.ts",
         "check:convex-heap": "bun scripts/check-convex-heap.ts",
         "check:docs": "bun scripts/gate.ts light 'bun run check:docs:inner'",
         "check:docs:inner": "bun run format:check && bun run cr:lint && vitest run --project node-engine --project node-tooling scripts/__tests__/action-space.test.ts scripts/__tests__/adr-index.test.ts scripts/__tests__/agents-md-drift.test.ts scripts/__tests__/bot-globs.test.ts scripts/__tests__/check-test-hygiene.test.ts scripts/__tests__/cr-citation-ledger.test.ts scripts/__tests__/cr-source.test.ts scripts/__tests__/destructive-data-recipes.test.ts scripts/__tests__/findings.test.ts scripts/__tests__/gate-rule-parity.test.ts scripts/__tests__/project-skills.test.ts scripts/__tests__/resident-context-budget.test.ts",

@@ -71,10 +71,10 @@ vi.mock("convex/react", () => ({
     useQuery: (ref: unknown) => h.resolveQuery(ref),
 }));
 
-// The search index is DERIVED from the hydrated card registry (issue #3054),
-// not fetched — so it is stubbed as a module, not as a query result.
+// The search index is a generated asset (issue #4861), fetched by its own
+// module — stubbed here as already loaded, not as a query result.
 vi.mock("~/lib/searchIndex", () => ({
-    useSearchIndex: () => h.index,
+    useSearchIndex: () => ({ rows: h.index, error: null }),
 }));
 vi.mock("~/hooks/useSurfaceClass", () => ({
     useSurfaceClass: () => h.surface,

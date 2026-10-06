@@ -88,6 +88,13 @@ import {
     buildHandWrittenIndex,
     serializeDefinitionIndex,
 } from "../lib/definition-index";
+import { SEARCH_INDEX_PATH } from "../lib/search-index";
+import {
+    buildSearchIndex,
+    fromSearchIndexWire,
+    serializeSearchIndex,
+    type SearchIndexWireRow,
+} from "../../convex/cards/searchIndex";
 import {
     CATALOGUE_SOURCE_HASH,
     excludeHandWritten,
@@ -147,6 +154,23 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
                 buildHandWrittenIndex(walkHandWrittenDefinitions())
             )
         ).toBe(BUILD.definitionIndexBytes);
+    });
+
+    it("the search index is current, and IS the runtime derivation (issue #4861)", () => {
+        const committed = readFileSync(
+            join(REPO_ROOT, SEARCH_INDEX_PATH),
+            "utf-8"
+        );
+        expect(committed).toBe(BUILD.searchIndexBytes);
+        // The generator derives from the rows it is about to write; the
+        // catalogue derives from the rows it serves. On a current tree they
+        // are the same rows, so the two derivations must agree byte for byte
+        // — and the client's decoder must give back exactly those rows.
+        const live = buildSearchIndex();
+        expect(serializeSearchIndex(live)).toBe(committed);
+        expect(
+            fromSearchIndexWire(JSON.parse(committed) as SearchIndexWireRow[])
+        ).toEqual(live);
     });
 
     it("is minified — the committed shape is not the prettified one", () => {
