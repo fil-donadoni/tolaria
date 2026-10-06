@@ -38,6 +38,7 @@ import {
     improvesOnIncumbent,
     pasteInstruction,
     scoreVerdictReport,
+    sideReportOf,
     testPositionKeysOf,
     type EvalPair,
     type FittableWeightKey,
@@ -171,8 +172,16 @@ describe.runIf(RUN)("weight fit (runner)", () => {
                   gaps,
                   weights: DEFAULT_EVAL_WEIGHTS,
               });
-        const fittedScore = scoreVerdictReport(after);
-        const incumbentScore = scoreVerdictReport(incumbent);
+        // The paste decision reads the FIT side only (issue #5070): a vector
+        // is never picked by the Verdicts the split holds out. The held-out
+        // side is scored beside it, for information, and decides nothing.
+        const testPositions = testPositionKeysOf(BLADE_SCENARIOS);
+        const onSide = (report: typeof after, side: "fit" | "held-out") =>
+            scoreVerdictReport(
+                sideReportOf(report, verdicts, testPositions, side)
+            );
+        const fittedScore = onSide(after, "fit");
+        const incumbentScore = onSide(incumbent, "fit");
         const better = improvesOnIncumbent(fittedScore, incumbentScore);
 
         const text = [
@@ -184,14 +193,35 @@ describe.runIf(RUN)("weight fit (runner)", () => {
             "== AFTER (fitted weights, re-derived through the engine)",
             formatVerdictReport(after, performance.now() - t0),
             "",
-            formatScoreComparison([
-                {
-                    label: "prior (FIT_BASE)",
-                    score: scoreVerdictReport(before),
-                },
-                { label: "committed (DEFAULT)", score: incumbentScore },
-                { label: "fitted (this run)", score: fittedScore },
-            ]),
+            formatScoreComparison(
+                [
+                    {
+                        label: "prior (FIT_BASE)",
+                        score: onSide(before, "fit"),
+                    },
+                    { label: "committed (DEFAULT)", score: incumbentScore },
+                    { label: "fitted (this run)", score: fittedScore },
+                ],
+                "FIT side only — the paste decision"
+            ),
+            "",
+            formatScoreComparison(
+                [
+                    {
+                        label: "prior (FIT_BASE)",
+                        score: onSide(before, "held-out"),
+                    },
+                    {
+                        label: "committed (DEFAULT)",
+                        score: onSide(incumbent, "held-out"),
+                    },
+                    {
+                        label: "fitted (this run)",
+                        score: onSide(after, "held-out"),
+                    },
+                ],
+                "HELD-OUT side — informational, decides nothing"
+            ),
             "",
             "== the fitted vector, as the DEFAULT_EVAL_WEIGHTS literal",
             formatFittedWeights(result),
@@ -233,8 +263,13 @@ describe.runIf(RUN)("weight fit (runner)", () => {
                             contradictions: result.contradictions.length,
                             blindBefore: before.blind.length,
                             blindAfter: after.blind.length,
+                            // Both on the FIT side (issue #5070).
                             incumbent: incumbentScore,
                             fitted: fittedScore,
+                            heldOut: {
+                                incumbent: onSide(incumbent, "held-out"),
+                                fitted: onSide(after, "held-out"),
+                            },
                             improvesOnIncumbent: better,
                         },
                         stillViolated: result.violated.map((v) => ({

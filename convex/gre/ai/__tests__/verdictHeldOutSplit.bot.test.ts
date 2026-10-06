@@ -21,6 +21,9 @@ import {
     pairSplitRefusals,
     positionKeyOf,
     scenarioKeyOf,
+    improvesOnIncumbent,
+    scoreVerdictReport,
+    sideReportOf,
     testPositionKeysOf,
     verdictIdOf,
     verdictSideOf,
@@ -28,6 +31,7 @@ import {
     verdictsFromRegistry,
     type EvalPair,
     type Verdict,
+    type VerdictReport,
 } from "../verdicts";
 
 const BASE: Verdict = {
@@ -400,5 +404,99 @@ describe("burned: held-out positions admitted to the registry anyway (issue #398
             source: "in-play",
         };
         expect(burnedOf([...registry, twin], positions)).toEqual([twin]);
+    });
+});
+
+describe("the fit:weights paste decision reads the fit side only (issue #5070)", () => {
+    const fitV = { ...boardOnSide("fit"), id: "v:fit" };
+    const heldV = { ...boardOnSide("held-out"), id: "v:held" };
+    const corpus = [fitV, heldV];
+
+    /** A report whose verdicts are ordered or not, one pair each. */
+    const reportOf = (fitOk: boolean, heldOk: boolean): VerdictReport => {
+        const mk = (id: string, ok: boolean) => ({
+            row: {
+                verdictId: id,
+                kind: "right" as const,
+                candidates: 2,
+                pairs: 1,
+                violated: ok ? 0 : 1,
+                timing: 0,
+                ok,
+            },
+            pair: {
+                verdictId: id,
+                kind: "right",
+                delta: ok ? 5 : -5,
+            } as EvalPair,
+        });
+        const parts = [mk(fitV.id, fitOk), mk(heldV.id, heldOk)];
+        const pairs = parts.map((p) => p.pair);
+        return {
+            verdicts: 2,
+            rows: parts.map((p) => p.row),
+            pairs,
+            satisfied: pairs.filter((p) => p.delta > 0),
+            violated: pairs.filter((p) => p.delta <= 0),
+            contradictions: [],
+            timing: [],
+            contradictionsWithTiming: 0,
+            blind: [],
+            gaps: [],
+            errors: [],
+            incomplete: [],
+        };
+    };
+
+    const scoreOn = (report: VerdictReport, side: "fit" | "held-out") =>
+        scoreVerdictReport(
+            sideReportOf(report, corpus, NO_TEST_POSITIONS, side)
+        );
+
+    it("a held-out-only improvement cannot flip the decision", () => {
+        const incumbent = reportOf(true, false);
+        const fitted = reportOf(true, true);
+        // The whole corpus would say PASTE…
+        expect(
+            improvesOnIncumbent(
+                scoreVerdictReport(fitted),
+                scoreVerdictReport(incumbent)
+            )
+        ).toBe(true);
+        // …the fit side, which decides, sees no improvement.
+        expect(
+            improvesOnIncumbent(
+                scoreOn(fitted, "fit"),
+                scoreOn(incumbent, "fit")
+            )
+        ).toBe(false);
+        // The improvement is real, and is reported on its own side.
+        expect(
+            improvesOnIncumbent(
+                scoreOn(fitted, "held-out"),
+                scoreOn(incumbent, "held-out")
+            )
+        ).toBe(true);
+    });
+
+    it("a held-out-only regression cannot veto a fit-side improvement", () => {
+        const incumbent = reportOf(false, true);
+        const fitted = reportOf(true, false);
+        expect(
+            improvesOnIncumbent(
+                scoreOn(fitted, "fit"),
+                scoreOn(incumbent, "fit")
+            )
+        ).toBe(true);
+    });
+
+    it("keeps a contradiction only when both of its pairs are on the side", () => {
+        const base = reportOf(false, false);
+        const [a, b] = base.pairs;
+        const report = { ...base, contradictions: [{ a, b }] };
+        expect(
+            sideReportOf(report, corpus, NO_TEST_POSITIONS, "fit")
+                .contradictions
+        ).toHaveLength(0);
     });
 });

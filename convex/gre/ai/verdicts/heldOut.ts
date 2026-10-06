@@ -45,6 +45,12 @@
 // The rest of a report (rebuild errors, unsatisfied pairs, Minimal Pairs)
 // still reads the whole corpus.
 //
+// THE PASTE DECISION reads the same narrowing: `sideReportOf` restricts a
+// whole-corpus report to one side, and `fit:weights` scores the fitted and the
+// incumbent vectors on the FIT side only (issue #5070) — a vector is never
+// chosen by the Verdicts the split holds out. The held-out side is scored
+// beside it, for information.
+//
 // Pure: no I/O, no engine import (the registry is a type here).
 
 import type { BladeScenario } from "../blade/types";
@@ -55,6 +61,7 @@ import {
     VERDICT_CANONICALISATION,
 } from "./identity";
 import type { VerdictJudgement } from "./identity";
+import type { VerdictReport } from "./report";
 import type { Verdict } from "./types";
 
 /** One Verdict in `HELD_OUT_SPLIT_MODULUS` is held out — 5, i.e. 20%. */
@@ -296,4 +303,43 @@ export function fitInputPairs(
         }
         return side === "fit";
     });
+}
+
+/**
+ * `report` restricted to the Verdicts of one side of the split (issue #5070):
+ * rows, pairs and every classification of them. A contradiction stays only
+ * when BOTH its pairs are on the side; a Verdict or pair of unknown side
+ * (`verdictSidesOf` has no entry) belongs to neither. Gaps, errors and
+ * incomplete entries carry through unchanged — they say what the corpus held,
+ * not how a vector scores on it. Scoring the result (`scoreVerdictReport`)
+ * therefore reads one side's Verdicts and nothing else.
+ */
+export function sideReportOf(
+    report: VerdictReport,
+    verdicts: readonly Verdict[],
+    testPositions: ReadonlySet<string>,
+    side: VerdictSide,
+    modulus: number = HELD_OUT_SPLIT_MODULUS
+): VerdictReport {
+    const sideOf = verdictSidesOf(verdicts, testPositions, modulus);
+    const onSide = (verdictId: string) => sideOf.get(verdictId) === side;
+    const pairsOf = (pairs: readonly EvalPair[]) =>
+        pairs.filter((p) => onSide(p.verdictId));
+    const keep = new Set<EvalPair>(
+        report.pairs.filter((p) => onSide(p.verdictId))
+    );
+    const contradictions = report.contradictions.filter(
+        (c) => keep.has(c.a) && keep.has(c.b)
+    );
+    return {
+        ...report,
+        verdicts: verdicts.filter((v) => onSide(v.id)).length,
+        rows: report.rows.filter((r) => onSide(r.verdictId)),
+        pairs: pairsOf(report.pairs),
+        satisfied: pairsOf(report.satisfied),
+        violated: pairsOf(report.violated),
+        contradictions,
+        timing: pairsOf(report.timing),
+        blind: pairsOf(report.blind),
+    };
 }
