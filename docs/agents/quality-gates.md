@@ -1505,43 +1505,39 @@ On the batch path the gate that never starts is `gate.ts yield`, and
 otherwise `health:status` would go on showing the previous verdict for a tip
 nothing gated.
 
-**Session.** A session's first prompt (`.claude/hooks/session-admission.sh`, a
-`UserPromptSubmit` hook: exit 2 blocks the prompt), `queue:claim` and `wt:new`
-take the same decision: the OTHER live project sessions against the effective
-cap, plus memory pressure. Pressure refuses a session only BESIDE others —
-alone it is the session that would relieve it — and only when sustained: the
-kernel's level flickers (one reading at 2, then six at 1 over thirty seconds,
-2026-10-02), so a reading past normal is taken up to three times half a second
-apart and the calmest stands. A session is refused, not queued, and the refusal
-names every live session (pid, cwd, age) and the one escape —
-`TOLARIA_OVER_CAP=1 claude`, announced and logged like `--no-cap`. A live
-project session is a `claude` process whose cwd is the primary checkout or one
-of its worktrees; the cwd is what excludes the background daemon (`$HOME`), its
-pty hosts and an unclaimed spare (the daemon's scratch directory), and a
-session on another project. Once admitted a session is stamped under
-`~/.cache/tolaria/sessions/` with the pid of its `claude` process, and is not
-asked again while that process lives: `claude --resume` keeps the session id
-and is a new process — a new arrival on the machine — so it is asked again.
+**Session.** `queue:claim` and `wt:new` take the session decision: the OTHER
+live project sessions against the effective cap, plus memory pressure.
+Pressure refuses only BESIDE others — alone it is the session that would
+relieve it — and only when sustained: the kernel's level flickers (one reading
+at 2, then six at 1 over thirty seconds, 2026-10-02), so a reading past normal
+is taken up to three times half a second apart and the calmest stands. A start
+is refused, not queued, and the refusal names every live session (pid, cwd,
+age) and the one escape — `TOLARIA_OVER_CAP=1`, announced and logged like
+`--no-cap`. A live project session is a `claude` process whose cwd is the
+primary checkout or one of its worktrees; the cwd is what excludes the
+background daemon (`$HOME`), its pty hosts and an unclaimed spare (the daemon's
+scratch directory), and a session on another project.
 
-Two callers that are not a person at a terminal. `health:fix` starts its fixer
-with `TOLARIA_OVER_CAP=1`: a RED tip is repaired first, and a repair refused
-because three sessions are stacking work on that tip is the cap defeating its
-own purpose. An AFK pass (`claude -p`) gets no exemption — it is a session —
-so a pass refused at its first prompt ends having done nothing, which
-`loop-drain` already bounds (its error and no-progress streaks).
+**A conversation is never refused** (issue #5137). Issue #4966 also gated a
+session's first prompt (`UserPromptSubmit` hook, exit 2); under memory
+pressure it locked the owner out of talking to Claude at all — including to
+the session that would relieve the pressure — while adding no load. What
+saturates the machine is gates, and those already wait on it. `health:fix`
+still starts its fixer with `TOLARIA_OVER_CAP=1`, so its claim and worktree
+pass the cap: a RED tip is repaired first.
 
 **Saturated means two things, and swap is not one of them.**
 
-| Signal          | Saturated when                        | Gates |   Sessions    |
-| --------------- | ------------------------------------- | :---: | :-----------: |
-| 1-minute load   | over `machine.loadMax`                |  yes  |      no       |
-| Memory pressure | the kernel's level is past 1 (normal) |  yes  | beside others |
-| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |      yes      |
-| Swap in use     | never — recorded beside every run     |  no   |      no       |
+| Signal          | Saturated when                        | Gates | Claims / worktrees |
+| --------------- | ------------------------------------- | :---: | :----------------: |
+| 1-minute load   | over `machine.loadMax`                |  yes  |         no         |
+| Memory pressure | the kernel's level is past 1 (normal) |  yes  |   beside others    |
+| Reclaimable RAM | holds no further `sessionBudgetMb`    |  no   |        yes         |
+| Swap in use     | never — recorded beside every run     |  no   |         no         |
 
 Load gates what is about to ADD load. An admitted gate itself holds the
-1-minute average past `loadMax` for its whole run, so a session's first prompt
-read against it would be refused during every `land` — for a start that adds
+1-minute average past `loadMax` for its whole run, so a `wt:new` read against
+it would be refused during every `land` — for a start that adds
 no load at all. Memory is what a session does consume, and it is sustained:
 that is what gates the session.
 

@@ -13,8 +13,8 @@
 //
 // Before any of it, the MACHINE is asked (issue #4966): the claim cap counts
 // claims, and a claim taken beside three sessions that hold none is a fourth
-// session at work. `lib/machine-admission.ts` decides — the same decision a
-// session's first prompt and `wt:new` get — and `--no-cap` (or
+// session at work. `lib/machine-admission.ts` decides — the same decision
+// `wt:new` gets — and `--no-cap` (or
 // `TOLARIA_OVER_CAP=1`) is the announced, logged escape for both caps.
 //
 // `queue:plan` stays read-only. `deny-guard.sh` § 5 counts planner runs

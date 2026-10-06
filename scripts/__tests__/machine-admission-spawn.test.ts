@@ -11,7 +11,7 @@ import { EMPTY_CADENCE, serializeCadence } from "../lib/health-cadence";
 
 /**
  * Machine admission, driven for real (issue #4966): the gate's bounded wait,
- * the `run` row, the session hook, and a whole `health-main` on a machine
+ * the `run` row, and a whole `health-main` on a machine
  * that never calms. Every child reads an INJECTED probe
  * (`TOLARIA_MACHINE_PROBE`) and a bound in milliseconds — the one exception is
  * the `run` row, which must carry the real machine's numbers.
@@ -20,7 +20,6 @@ const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
 const HEALTH_CADENCE = path.join(REPO_ROOT, "scripts", "health-cadence.ts");
-const HOOK = path.join(REPO_ROOT, ".claude", "hooks", "session-admission.sh");
 
 const BUSY = JSON.stringify({
     load1: 14.5,
@@ -29,7 +28,6 @@ const BUSY = JSON.stringify({
     reclaimableMb: 6400,
     sessions: [],
 });
-const session = (pid: number, cwd: string) => ({ pid, cwd, ageS: 600 });
 const probe = (sessions: unknown[], extra: object = {}) =>
     JSON.stringify({
         load1: 1,
@@ -308,143 +306,6 @@ describe("check:ui lane — the lane is not the machine (issue #4966)", () => {
         });
         expect(fs.existsSync(path.join(root, "ui.lock"))).toBe(true);
         hold.release();
-    });
-});
-
-describe("session-admission.sh — the cap applies to every session (issue #4966)", () => {
-    const three = [
-        session(101, "/repo"),
-        session(102, "/repo"),
-        session(103, "/repo-issue-7"),
-    ];
-    const prompt = (sessionId: string, env: Record<string, string>) => {
-        const full: NodeJS.ProcessEnv = {
-            ...process.env,
-            TOLARIA_GATE_LOCK_ROOT: path.join(tmp, "locks"),
-            CLAUDE_PROJECT_DIR: tmp,
-            ...env,
-        };
-        if (!("TOLARIA_OVER_CAP" in env)) delete full.TOLARIA_OVER_CAP;
-        return spawnSync("sh", [HOOK], {
-            input: JSON.stringify({
-                session_id: sessionId,
-                hook_event_name: "UserPromptSubmit",
-                prompt: "hello",
-            }),
-            env: full,
-            encoding: "utf8",
-            timeout: 30_000,
-        });
-    };
-    const stamp = (id: string) => path.join(tmp, "locks", "sessions", id);
-    const logRows = () =>
-        fs
-            .readFileSync(
-                path.join(
-                    tmp,
-                    ".claude",
-                    "telemetry",
-                    "session-admission.jsonl"
-                ),
-                "utf8"
-            )
-            .trim()
-            .split("\n")
-            .map((l) => JSON.parse(l) as Record<string, unknown>);
-
-    it("blocks a fourth session's first prompt, listing the three live ones", () => {
-        const r = prompt("s-4", { TOLARIA_MACHINE_PROBE: probe(three) });
-        expect(r.status).toBe(2);
-        expect(r.stderr).toContain("3 live project session(s) at the cap of 3");
-        expect(r.stderr).toContain("pid 101 · /repo · up 10m");
-        expect(r.stderr).toContain("pid 103 · /repo-issue-7 · up 10m");
-        expect(r.stderr).toContain("TOLARIA_OVER_CAP=1 claude");
-        expect(r.stdout).toBe("");
-        // Not stamped: it is asked again on its next prompt.
-        expect(fs.existsSync(stamp("s-4"))).toBe(false);
-        expect(logRows().at(-1)).toMatchObject({
-            event: "refused",
-            session: "s-4",
-            others: [101, 102, 103],
-        });
-    });
-
-    it("admits it under the escape hatch, and logs the override", () => {
-        const r = prompt("s-4", {
-            TOLARIA_MACHINE_PROBE: probe(three),
-            TOLARIA_OVER_CAP: "1",
-        });
-        expect(r.status).toBe(0);
-        expect(r.stdout).toMatch(
-            /machine admission OVERRIDDEN by TOLARIA_OVER_CAP=1/
-        );
-        expect(fs.existsSync(stamp("s-4"))).toBe(true);
-        expect(logRows().at(-1)).toMatchObject({
-            event: "override",
-            session: "s-4",
-            reasons: ["3 live project session(s) at the cap of 3"],
-        });
-    });
-
-    it("admits a third session silently, and never asks it again", () => {
-        const first = prompt("s-3", {
-            TOLARIA_MACHINE_PROBE: probe(three.slice(0, 2)),
-        });
-        expect(first.status).toBe(0);
-        expect(first.stdout).toBe("");
-        expect(fs.existsSync(stamp("s-3"))).toBe(true);
-        // Three OTHERS now, and this session is already in: its later
-        // prompts pass on the stamp alone.
-        const later = prompt("s-3", { TOLARIA_MACHINE_PROBE: probe(three) });
-        expect(later.status).toBe(0);
-    });
-
-    it("honours a stamp only while the admitted `claude` process lives — a resumed session is asked again", () => {
-        fs.mkdirSync(path.dirname(stamp("s-9")), { recursive: true });
-        // The stamped process is alive (this test's own): admitted, unasked.
-        fs.writeFileSync(stamp("s-9"), `${process.pid}\n`);
-        expect(
-            prompt("s-9", { TOLARIA_MACHINE_PROBE: probe(three) }).status
-        ).toBe(0);
-        // `claude --resume`: same session id, and the process that was
-        // admitted is gone. A pid no process holds stands in for it.
-        const gone = spawnSync("sh", ["-c", "echo $$"], {
-            encoding: "utf8",
-            timeout: 10_000,
-        }).stdout.trim();
-        fs.writeFileSync(stamp("s-9"), `${gone}\n`);
-        const resumed = prompt("s-9", { TOLARIA_MACHINE_PROBE: probe(three) });
-        expect(resumed.status).toBe(2);
-        expect(resumed.stderr).toContain("3 live project session(s)");
-    });
-
-    it("refuses under memory pressure beside another session, never the only one", () => {
-        const beside = prompt("s-2", {
-            TOLARIA_MACHINE_PROBE: probe([three[0]], { pressure: 2 }),
-        });
-        expect(beside.status).toBe(2);
-        expect(beside.stderr).toContain("memory pressure WARNING");
-        const alone = prompt("s-1", {
-            TOLARIA_MACHINE_PROBE: probe([], { pressure: 2 }),
-        });
-        expect(alone.status).toBe(0);
-    });
-
-    it("fails open when the probe throws — and does not stamp, so it is asked again", () => {
-        const r = prompt("s-5", { TOLARIA_MACHINE_PROBE: "{not json" });
-        expect(r.status).toBe(0);
-        expect(r.stderr).toMatch(/session-admission: the probe failed/);
-        expect(fs.existsSync(stamp("s-5"))).toBe(false);
-    });
-
-    it("fails open on a payload with no session id", () => {
-        const r = spawnSync("sh", [HOOK], {
-            input: "{}",
-            env: { ...process.env, TOLARIA_MACHINE_PROBE: probe(three) },
-            encoding: "utf8",
-            timeout: 30_000,
-        });
-        expect(r.status).toBe(0);
     });
 });
 

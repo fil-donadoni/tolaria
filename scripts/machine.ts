@@ -8,27 +8,15 @@
 // `machine.sessionBudgetMb` is derived from
 // (`docs/agents/quality-gates.md` § Machine admission).
 //
-// `bun scripts/machine.ts admit-session <session-id>` is the verb
-// `.claude/hooks/session-admission.sh` calls on a session's first prompt:
-// exit 0 admits (and stamps the session, so later prompts are not asked),
-// exit 2 refuses with the reason on stderr. The decision is
-// `lib/machine-admission.ts`'s, the same one `queue:claim` and `wt:new` take.
+// No session is refused at its prompt (issue #5137): a conversation adds no
+// load. Heavy gates wait on the machine; `queue:claim` and `wt:new` take the
+// session decision (`lib/machine-admission.ts`).
 
-import {
-    mkdirSync,
-    readdirSync,
-    rmSync,
-    statSync,
-    writeFileSync,
-} from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
-import { cpus, homedir, totalmem } from "node:os";
-import { join } from "node:path";
+import { cpus, totalmem } from "node:os";
 import {
-    OVER_CAP_ENV,
     admitSessionNow,
     consumerLines,
-    logSessionAdmission,
     memorySaturation,
     parseProcRows,
     readConsumers,
@@ -37,73 +25,8 @@ import {
     sampleLine,
     saturation,
     sessionLine,
-    sessionRefusal,
     subtreeRssMb,
 } from "./lib/machine-admission";
-
-/** Where an admitted session is stamped — beside the gate's locks, outside
- *  the repo, so every worktree's hook reads the same stamps. */
-function stampDir(): string {
-    return join(
-        process.env.TOLARIA_GATE_LOCK_ROOT ??
-            join(homedir(), ".cache", "tolaria"),
-        "sessions"
-    );
-}
-
-/** A week is far past any session, and keeps the directory from growing. */
-const STAMP_TTL_MS = 7 * 24 * 3600 * 1000;
-
-/**
- * Stamp an admitted session with the `claude` PROCESS that was admitted. The
- * hook honours a stamp only while that pid is alive: `claude --resume` keeps
- * the session id and is a new process — a new arrival on the machine — so it
- * is asked again. `-` when the caller runs under no `claude` (an injected
- * probe, an unread process table): honoured for the stamp's lifetime.
- */
-function stampSession(session: string, pid: number | null): void {
-    const dir = stampDir();
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, session), `${pid ?? "-"}\n`);
-    for (const name of readdirSync(dir)) {
-        try {
-            if (Date.now() - statSync(join(dir, name)).mtimeMs > STAMP_TTL_MS)
-                rmSync(join(dir, name), { force: true });
-        } catch {
-            /* raced with another session's sweep */
-        }
-    }
-}
-
-function admitSession(session: string): number {
-    if (!/^[A-Za-z0-9_-]+$/.test(session)) {
-        console.error(
-            "usage: bun scripts/machine.ts admit-session <session-id>"
-        );
-        return 1;
-    }
-    const now = admitSessionNow({
-        override: process.env[OVER_CAP_ENV] === "1",
-    });
-    logSessionAdmission(process.env.CLAUDE_PROJECT_DIR ?? process.cwd(), now, {
-        source: "session",
-        session,
-    });
-    const others = now.census?.others ?? [];
-    if (now.decision.verdict === "refuse") {
-        console.error(sessionRefusal(now.decision.reasons, others));
-        return 2;
-    }
-    // A UserPromptSubmit hook's stdout is added to the session's context:
-    // the one thing worth saying there is that this session runs past the
-    // cap, on whose word.
-    if (now.decision.overridden.length > 0)
-        console.log(
-            `machine admission OVERRIDDEN by ${OVER_CAP_ENV}=1 — ${now.decision.overridden.join("; ")}. This session runs past what the machine was measured to carry; the override is logged.`
-        );
-    stampSession(session, now.census?.self ?? null);
-    return 0;
-}
 
 function report(): number {
     const t0 = performance.now();
@@ -163,7 +86,7 @@ function report(): number {
         for (const line of consumerLines(top)) console.log(`  ${line}`);
     }
     console.log(
-        `  a new session    ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
+        `  a claim/worktree ${now.decision.verdict === "admit" ? "is admitted" : `is REFUSED — ${now.decision.reasons.join("; ")}`}${census?.self != null ? " (counted from this session: the others)" : ""}`
     );
     return 0;
 }
@@ -202,11 +125,5 @@ async function measure(argv: string[]): Promise<number> {
 
 if (import.meta.main) {
     const [, , verb, ...args] = process.argv;
-    process.exit(
-        verb === "admit-session"
-            ? admitSession(args[0] ?? "")
-            : verb === "measure"
-              ? await measure(args)
-              : report()
-    );
+    process.exit(verb === "measure" ? await measure(args) : report());
 }
