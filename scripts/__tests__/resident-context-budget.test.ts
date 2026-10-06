@@ -62,8 +62,9 @@ const RESIDENT = ["CLAUDE.md", ".claude/rules"];
  * Ratcheted 2026-10-06 (issue #5102, PRD #5096 D6/D7): 28,710 → 28,158 bytes
  * once the sentences `deny-guard.sh` / `spawn-guard.sh` already enforce were
  * deleted (their denial messages, asserted in `hook-policy.test.ts`, now carry
- * the fix). The ceiling follows the size down, keeping ~2% headroom — the slack
- * the old 35,500 left was room for regrowth, not for norms.
+ * the fix). The ceiling follows the size down and headroom drops from the ~7%
+ * above to ~2%: the slack the old 35,500 left was room for regrowth, not for
+ * norms.
  */
 const RESIDENT_CEILING_BYTES = 28_700;
 

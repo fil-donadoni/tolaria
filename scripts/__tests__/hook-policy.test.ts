@@ -2550,6 +2550,10 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
         expect(denied(r)).toBe(true);
         expect(r.stderr).toMatch(/model: sonnet/);
         expect(r.stderr).toMatch(/model: opus/);
+        expect(r.stderr).toMatch(/`model:\*` label verbatim/);
+        // An unescaped backtick in the shell string runs as a command and
+        // garbles the very message that now teaches the rule.
+        expect(r.stderr).not.toMatch(/command not found/);
     });
 
     it("`Every description MUST be role-prefixed` → spawn-guard Rule 2 lists every role", () => {
@@ -2575,12 +2579,17 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
     });
 
     it("`Claim = bun run queue:claim N (hand-typed label denied)` → deny-guard §6 names the verb", () => {
-        const r = runHook(
-            DENY_GUARD,
-            bash("gh issue edit 5102 --add-label in-progress", issueWorktree)
-        );
-        expect(denied(r)).toBe(true);
-        expect(r.stderr).toMatch(/bun run queue:claim <issue#>/);
+        // The comma-list form too: a claim riding behind another label was
+        // allowed until this sentence's deletion made the hook its only copy.
+        for (const cmd of [
+            "gh issue edit 5102 --add-label in-progress",
+            "gh issue edit 5102 --add-label bug,in-progress",
+            'gh issue edit 5102 --add-label "model:opus,in-progress"',
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toMatch(/bun run queue:claim <issue#>/);
+        }
     });
 
     it("`deny-guard.sh § 0; gitignored paths writable; hatch TOLARIA_ALLOW_MAIN_EDIT=1` → §0 names worktree, exemption and hatch", () => {

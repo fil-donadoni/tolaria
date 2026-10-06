@@ -60,8 +60,8 @@ sweep. Pass it explicitly:
   model: opus     genuinely hard implementation, reasoning, or review
   model: haiku    trivial mechanical work
 
-For an issue, take the tier from its `model:*` label (`queue:plan` prints it)
-(\`bun run queue:plan\`) verbatim — never re-decide it per run."
+For an issue, take the tier from its \`model:*\` label verbatim (\`bun run
+queue:plan\` prints it) — never re-decide it per run."
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
