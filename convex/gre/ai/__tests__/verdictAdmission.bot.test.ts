@@ -298,13 +298,21 @@ function deepFreeze<T>(value: T): T {
 
 describe("Admission Candidates — the proposer writes nothing", () => {
     it("runs over frozen inputs and says 'eligible for an Admission look', never 'admit'", () => {
-        const j = right(1);
-        const q = deepFreeze(attested([[j, ["prod-o:owner"]]]));
-        const streaks = new Map([[verdictIdOf(j), 3]]);
+        const js = [right(1), right(2)];
+        const ids = js.map(verdictIdOf).sort();
+        // Two verdicts, handed over in DESCENDING id order: a proposer that
+        // sorted, or otherwise wrote into, its input array would throw here.
+        const q = deepFreeze(attested(js.map((j) => [j, ["prod-o:owner"]])));
+        const verdicts = deepFreeze(
+            [...q.promotable].sort((a, b) =>
+                a.verdictId < b.verdictId ? 1 : -1
+            )
+        );
+        const streaks = new Map(ids.map((id) => [id, 3]));
         const contested = new Set<string>();
         const p = proposeAdmissionCandidates(
             deepFreeze({
-                verdicts: q.promotable,
+                verdicts,
                 contestedPositionKeys: contested,
                 aliases: [],
                 streaks,
@@ -313,9 +321,9 @@ describe("Admission Candidates — the proposer writes nothing", () => {
                 search: searchPort().search,
             })
         );
-        expect(proposedIds(p)).toEqual([[verdictIdOf(j)]]);
+        expect(proposedIds(p)).toEqual(ids.map((id) => [id]));
         // Map and Set contents are not frozen by Object.freeze: read them back.
-        expect([...streaks]).toEqual([[verdictIdOf(j), 3]]);
+        expect([...streaks]).toEqual(ids.map((id) => [id, 3]));
         expect(contested.size).toBe(0);
         const text = formatAdmissionProposal(p);
         expect(text).toContain("eligible for an Admission look");
