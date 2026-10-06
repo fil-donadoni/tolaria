@@ -65,6 +65,7 @@ import {
     catalogueVerdict,
     deckIds,
     deploymentRefusal,
+    foreignFunctionsRefusal,
     summarizeCase,
     synthesizeRows,
     verdictRefusal,
@@ -306,6 +307,17 @@ async function sweep(
     opts: { rounds: number; warmup: number; sourceHash: string }
 ): Promise<number> {
     writeHarness(dir, deployment);
+    const spec = JSON.parse(convexCli(dir, ["function-spec"])) as {
+        functions: { identifier: string }[];
+    };
+    const foreign = foreignFunctionsRefusal(
+        deployment,
+        spec.functions.map((f) => f.identifier)
+    );
+    if (foreign !== null) {
+        console.error(`✗ perf:catalogue-cloud: ${foreign}`);
+        return 2;
+    }
     let failed = false;
     const table: string[] = [];
     for (const blockRows of blocks) {

@@ -11,6 +11,7 @@ import {
     catalogueVerdict,
     deckIds,
     deploymentRefusal,
+    foreignFunctionsRefusal,
     quantile,
     summarizeCase,
     synthesizeRows,
@@ -47,6 +48,27 @@ describe("deploymentRefusal — only a named throwaway cloud dev deployment", ()
         expect(deploymentRefusal("dev:app-dev-1", ["dev:app-dev-1"])).toMatch(
             /env files target it/
         );
+    });
+});
+
+describe("foreignFunctionsRefusal — never replace a deployment's functions", () => {
+    it("accepts a fresh deployment or an earlier harness", () => {
+        expect(foreignFunctionsRefusal("dev:x", [])).toBeNull();
+        expect(
+            foreignFunctionsRefusal("dev:x", [
+                "empty.js:run",
+                "corpus.js:lookup",
+            ])
+        ).toBeNull();
+    });
+
+    it("refuses a deployment serving anything else", () => {
+        expect(
+            foreignFunctionsRefusal("dev:x", [
+                "empty.js:run",
+                "game.js:passPriority",
+            ])
+        ).toMatch(/game\.js:passPriority/);
     });
 });
 

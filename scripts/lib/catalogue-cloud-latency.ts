@@ -180,3 +180,30 @@ export function catalogueVerdict(
 ): "PASS" | "FAIL" {
     return cases.every((c) => c.medianMs <= budgetMs) ? "PASS" : "FAIL";
 }
+
+/** Every function the harness pushes, as `convex function-spec` names them. */
+export const HARNESS_FUNCTIONS: readonly string[] = [
+    "corpus.js:lookup",
+    "empty.js:run",
+    "empty.js:where",
+];
+
+/**
+ * Why the deployment already serving `deployed` (its `function-spec`
+ * identifiers) may not take the harness, or `null` when it may. A push
+ * REPLACES every function, so a deployment serving anything but the harness
+ * — the app's own dev deployment, under a name the repository's env files do
+ * not carry — is refused before the first push. A fresh throwaway serves
+ * nothing, or the harness of an earlier run.
+ */
+export function foreignFunctionsRefusal(
+    deployment: string,
+    deployed: readonly string[]
+): string | null {
+    const foreign = deployed.filter((f) => !HARNESS_FUNCTIONS.includes(f));
+    if (foreign.length === 0) return null;
+    return (
+        `refusing ${deployment}: it serves ${foreign.length} function(s) the harness ` +
+        `does not (first: ${foreign[0]}) — a push would replace them; use a throwaway project`
+    );
+}
