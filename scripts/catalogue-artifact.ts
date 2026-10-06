@@ -33,22 +33,20 @@
  *     content-addressed by its own bytes: the anchor every other rendering
  *     is compared with. It WAS the client asset until issue #4861; the client
  *     now fetches the packed corpus below;
- *   - `data/oracle-compiled-pool.json` — the SERVER rendering, `merge.rows`
- *     FILTERED (`merge.serverRows`), never a second join. Until issue #3055
- *     this file had its own generator, `scripts/oracle-pool.ts`, joining the
- *     same two sources by slightly different rules — two derivations of one
- *     population, which is the drift class itself;
  *   - `data/catalogue/source-hash.json` — the ONE source hash, which the
  *     server bundles through `convex/cards/compiledCatalogue.ts` and the
  *     client carries in the artifact's file NAME. Two independently written
  *     records of one generation, so taking one side of a merge is visible;
- *   - `data/catalogue/packed-corpus.json` — the PACKED server rendering
- *     (issue #4164, ADR 0113 Amendment III): the same `merge.serverRows`,
- *     deflated in blocks against one shared dictionary, with its first-id and
- *     name indexes, carrying the same source hash
- *     (`scripts/lib/packed-corpus.ts`). The server reads it behind PRD
- *     #4161's switch; the CLIENT fetches it as its catalogue and decodes a
- *     block on first request (issue #4861). It also carries the COMPILED
+ *   - `data/catalogue/packed-corpus.json` — the SERVER rendering (issue
+ *     #4164, ADR 0113 Amendment III): `merge.rows` FILTERED
+ *     (`merge.serverRows`), never a second join, deflated in blocks against
+ *     one shared dictionary, with its first-id and name indexes, carrying the
+ *     same source hash (`scripts/lib/packed-corpus.ts`). The server bundles
+ *     it and reads a block on first request — its ONLY rendering of the
+ *     compiled rows since issue #4168 retired the pretty-printed literal pool
+ *     (`data/oracle-compiled-pool.json`, itself the heir of the retired
+ *     `scripts/oracle-pool.ts`, issue #3055); the CLIENT fetches the same
+ *     file as its catalogue (issue #4861). It also carries the COMPILED
  *     section of the Definition Index (issue #4856);
  *   - `data/catalogue/definition-index.json` — the HAND-WRITTEN section of
  *     the Definition Index (issue #4856, `scripts/lib/definition-index.ts`):
@@ -59,9 +57,10 @@
  *     card, so the client searches the whole catalogue without decoding it.
  *
  * `--check` writes nothing. It compares the two COMMITTED renderings against
- * each other first — byte-for-byte on the definitions they share, naming the
- * first card that differs — and only then compares each of the three against a
- * fresh regeneration. Identity first because a stale rendering fails both and
+ * each other first — the packed corpus DECODED, every block, against the
+ * anchor's shared rows, naming the first card that differs
+ * (`packedCorpusDrift`, the decode-equality guard) — and only then compares
+ * every file against a fresh regeneration. Identity first because a stale rendering fails both and
  * the first message is the one the reader gets: "Venerable Knight is TWO
  * definitions" is a diagnosis, "the pool is not what the tree generates" is
  * not. That is the identity + freshness guard
@@ -92,11 +91,8 @@ import {
     SOURCE_HASH_FILE,
     artifactFileName,
     contentHash,
-    describeIdentityDrift,
-    firstIdentityDrift,
     mergeCatalogue,
     serializeCatalogue,
-    serializePool,
     serializeSourceHash,
     type CompiledCard,
     type HandWrittenCard,
@@ -145,11 +141,9 @@ export interface CatalogueBuild {
     readonly merge: MergeResult;
     /** The CLIENT asset's bytes. */
     readonly bytes: string;
-    /** The SERVER rendering's bytes — `data/oracle-compiled-pool.json`. */
-    readonly poolBytes: string;
     /** The source hash sidecar's bytes — `data/catalogue/source-hash.json`. */
     readonly sourceHashBytes: string;
-    /** The PACKED server rendering's bytes — {@link PACKED_CORPUS_PATH}. */
+    /** The SERVER rendering's bytes, packed — {@link PACKED_CORPUS_PATH}. */
     readonly packedBytes: string;
     /** The hand-written Definition Index's bytes — {@link DEFINITION_INDEX_PATH}. */
     readonly definitionIndexBytes: string;
@@ -244,7 +238,6 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
     return {
         merge,
         bytes,
-        poolBytes: serializePool(merge.serverRows),
         sourceHashBytes: serializeSourceHash(hash),
         packedBytes: serializePackedCorpus(packCorpus(merge.serverRows, hash)),
         definitionIndexBytes: serializeDefinitionIndex(
@@ -256,11 +249,6 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         unjoinable,
     };
 }
-
-/** The SERVER rendering's path. One importer,
- *  `convex/cards/compiledPool.ts` (pinned by
- *  `scripts/__tests__/compiled-pool-client-seam.test.ts`). */
-export const POOL_PATH = "data/oracle-compiled-pool.json";
 
 const readCommitted = (repoRoot: string, path: string): string | null => {
     const full = resolve(repoRoot, path);
@@ -274,8 +262,8 @@ const readCommitted = (repoRoot: string, path: string): string | null => {
  * This is `excludeHandWritten` applied to the merged artifact — it carries the
  * hand-written rows too, and the runtime serves those from the modules the
  * engine runs (`convex/cards/compiledCatalogue.ts`). So what is left is
- * exactly the population the packed corpus and the literal pool hold — the
- * one the eager client used to register before issue #4861.
+ * exactly the population the packed corpus holds — the one the eager client
+ * used to register before issue #4861.
  */
 export function sharedClientRows(
     rows: readonly CardDefinition[]
@@ -285,35 +273,18 @@ export function sharedClientRows(
 }
 
 /**
- * Compare the two COMMITTED renderings — the question ADR 0113 §2 poses, asked
- * of the bytes on disk rather than of a regeneration (issue #3055).
+ * Compare the two COMMITTED renderings — the question ADR 0113 §2 poses,
+ * asked of the bytes on disk rather than of a regeneration (issue #3055):
+ * does the packed server corpus decode to exactly the anchor's shared rows,
+ * under the same source hash, with true indexes (issue #4164)? One line naming
+ * the first differing card, or `null`.
+ *
+ * This decode-equality guard is the standing proof that the server's rows are
+ * the catalogue's (issue #4168): it inflates every block, where a request
+ * inflates one.
  *
  * `null` when a file is missing: that is the freshness check's failure to
  * report, and reporting it twice would name the wrong remedy.
- */
-export function committedIdentityDrift(repoRoot: string) {
-    const pool = readCommitted(repoRoot, POOL_PATH);
-    const artifacts = committedArtifacts(repoRoot);
-    if (pool === null || artifacts.length !== 1) return null;
-    const artifact = readCommitted(
-        repoRoot,
-        join(CATALOGUE_DIR, artifacts[0]!)
-    );
-    if (artifact === null) return null;
-    return firstIdentityDrift(
-        JSON.parse(pool) as CardDefinition[],
-        sharedClientRows(JSON.parse(artifact) as CardDefinition[])
-    );
-}
-
-/**
- * Compare the COMMITTED packed rendering against the COMMITTED client asset —
- * the same question {@link committedIdentityDrift} asks of the literal pool,
- * asked of the third rendering (issue #4164): does it decode to exactly the
- * client's shared rows, under the same source hash, with true indexes? One
- * line naming the first differing card, or `null`.
- *
- * `null` when a file is missing, for the same reason as above.
  */
 export function committedPackedDrift(repoRoot: string): string | null {
     const packed = readCommitted(repoRoot, PACKED_CORPUS_PATH);
@@ -429,28 +400,18 @@ function main() {
         // way and the Brain planning against another. Running freshness first
         // made the per-card diagnosis unreachable for the single-sided
         // mutation that is the whole failure mode (review of issue #3055).
-        const drift = committedIdentityDrift(repoRoot);
-        if (drift !== null) {
+        const packedDrift = committedPackedDrift(repoRoot);
+        if (packedDrift !== null) {
             console.error(
-                `${RED}✗ the server-bundled definitions and the client artifact DIVERGE (ADR 0113 §2)${RESET}\n` +
-                    `    ${describeIdentityDrift(drift)}\n` +
+                `${RED}✗ the server-bundled packed corpus and the catalogue artifact DIVERGE (ADR 0113 §2)${RESET}\n` +
+                    `    ${packedDrift}\n` +
                     "  The server would resolve this card one way and the client's Brain plan\n" +
                     "  against another. Run: bun run catalogue:pack"
             );
             process.exit(1);
         }
-        const packedDrift = committedPackedDrift(repoRoot);
-        if (packedDrift !== null) {
-            console.error(
-                `${RED}✗ the packed server corpus and the client artifact DIVERGE (ADR 0113 Amendment III)${RESET}\n` +
-                    `    ${packedDrift}\n` +
-                    `  Run: bun run catalogue:pack`
-            );
-            process.exit(1);
-        }
         for (const [path, expected] of [
             [committed, build.bytes],
-            [POOL_PATH, build.poolBytes],
             [sourceHashPath, build.sourceHashBytes],
             [PACKED_CORPUS_PATH, build.packedBytes],
             [DEFINITION_INDEX_PATH, build.definitionIndexBytes],
@@ -465,7 +426,7 @@ function main() {
         }
         console.log(
             `${GREEN}✓${RESET} ${committed} is current — ${summary}\n` +
-                `${DIM}  ${POOL_PATH} + ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${SEARCH_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
+                `${DIM}  ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${SEARCH_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
         );
         return;
     }
@@ -475,7 +436,6 @@ function main() {
         if (stale !== build.fileName) rmSync(join(dir, stale));
     }
     writeFileSync(join(dir, build.fileName), build.bytes, "utf-8");
-    writeFileSync(resolve(repoRoot, POOL_PATH), build.poolBytes, "utf-8");
     writeFileSync(join(dir, SOURCE_HASH_FILE), build.sourceHashBytes, "utf-8");
     writeFileSync(
         resolve(repoRoot, PACKED_CORPUS_PATH),
@@ -495,12 +455,9 @@ function main() {
     console.log(
         `${GREEN}✓${RESET} ${join(CATALOGUE_DIR, build.fileName)} ` +
             `(${(build.bytes.length / 1024).toFixed(0)} KB) — ${summary}\n` +
-            `${GREEN}✓${RESET} ${POOL_PATH} ` +
-            `(${(build.poolBytes.length / 1024).toFixed(0)} KB, ${build.merge.serverRows.length} row(s)) ` +
-            `— the SAME rows, filtered (issue #3055)\n` +
             `${GREEN}✓${RESET} ${PACKED_CORPUS_PATH} ` +
-            `(${build.packedBytes.length} B, ${(build.packedBytes.length / Math.max(1, build.merge.serverRows.length)).toFixed(0)} B/row) ` +
-            `— the SAME rows, packed (issue #4164)\n` +
+            `(${build.packedBytes.length} B, ${build.merge.serverRows.length} row(s), ${(build.packedBytes.length / Math.max(1, build.merge.serverRows.length)).toFixed(0)} B/row) ` +
+            `— the SAME rows, filtered and packed (issues #3055, #4164)\n` +
             `${GREEN}✓${RESET} ${DEFINITION_INDEX_PATH} ` +
             `(${(build.definitionIndexBytes.length / 1024).toFixed(0)} KB) — the hand-written Definition Index (issue #4856)\n` +
             `${GREEN}✓${RESET} ${SEARCH_INDEX_PATH} ` +

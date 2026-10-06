@@ -29,11 +29,14 @@
 //     only a view, but the Brain decides moves)". Since #3055 both renderings
 //     come out of ONE generator carrying ONE source hash, and the assertions
 //     below compare the BYTES the two sides actually hold — the server's
-//     bundled `compiledReadyDefinitions`, imported through the real module
-//     seam, against the committed artifact minus its hand-written rows.
-//  5. THE PACKED CORPUS (issue #4164, ADR 0113 Amendment III). The third
-//     rendering decodes to exactly the client's shared rows, under the same
-//     source hash, and packing is byte-deterministic.
+//     bundled packed corpus, imported through the real module seam and
+//     decoded whole, against the committed artifact minus its hand-written
+//     rows.
+//  5. THE PACKED CORPUS (issue #4164, ADR 0113 Amendment III). The server's
+//     only rendering since issue #4168 decodes to exactly the client's shared
+//     rows, under the same source hash, and packing is byte-deterministic.
+//     That decode-equality guard (`packedCorpusDrift`) is the standing proof
+//     that the server's rows are the catalogue's.
 //
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each assertion below was driven red by breaking the thing it guards, and
@@ -42,10 +45,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import {
-    POOL_PATH,
     buildCatalogue,
     committedArtifacts,
-    committedIdentityDrift,
     committedPackedDrift,
     sharedClientRows,
     unbaselinedDivergences,
@@ -99,11 +100,14 @@ import {
     CATALOGUE_SOURCE_HASH,
     excludeHandWritten,
 } from "../../convex/cards/compiledCatalogue";
-import { compiledReadyDefinitions } from "../../convex/cards/compiledPool";
+import { packedServerCorpus } from "../../convex/cards/compiledPool";
 import type { CardDefinition } from "../../convex/cards/types";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
 const BUILD = buildCatalogue(REPO_ROOT);
+/** What a Convex mutation holds: the bundled packed corpus, through the real
+ *  module seam, decoded whole. */
+const serverRows = unpackCorpus(packedServerCorpus!);
 
 /** A vacuity floor, not a target: every assertion here passes trivially on an
  *  empty merge, and this is the one that would not. */
@@ -125,13 +129,10 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
         expect(BUILD.fileName).toBe(artifactFileName(contentHash(BUILD.bytes)));
     });
 
-    it("the OTHER two renderings are current too (issue #3055)", () => {
-        // One generator writes three files; freshness that covered only one of
+    it("the server's rendering and the source hash are current too (issue #3055)", () => {
+        // One generator writes them all; freshness that covered only one of
         // them would let a regeneration reach the client and not the server,
         // which is the exact drift ADR 0113 §2 prices.
-        expect(readFileSync(join(REPO_ROOT, POOL_PATH), "utf-8")).toBe(
-            BUILD.poolBytes
-        );
         expect(
             readFileSync(
                 join(REPO_ROOT, CATALOGUE_DIR, SOURCE_HASH_FILE),
@@ -174,8 +175,8 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
     });
 
     it("is minified — the committed shape is not the prettified one", () => {
-        // ~60% of `data/oracle-compiled-pool.json`'s bytes are prettier
-        // whitespace (ADR 0114's measurement). A newline per row would mean
+        // ~60% of the retired `data/oracle-compiled-pool.json`'s bytes were
+        // prettier whitespace (ADR 0114's measurement). A newline per row would mean
         // the generator's output had been re-formatted by something, which
         // also breaks the hash in the name.
         expect(BUILD.bytes.split("\n")).toHaveLength(2);
@@ -395,19 +396,19 @@ describe("catalogue artifact — the runtime backstop never fires", () => {
         // Here it names the card and stays one red test.
         const handWrittenIds = new Set(getAllCards().map((c) => c.id));
         expect(
-            compiledReadyDefinitions
+            serverRows
                 .filter((c) => handWrittenIds.has(c.id))
                 .map((c) => `${c.name} (${c.id})`)
         ).toEqual([]);
-        expect(
-            excludeHandWritten(compiledReadyDefinitions, handWrittenIds)
-        ).toHaveLength(compiledReadyDefinitions.length);
+        expect(excludeHandWritten(serverRows, handWrittenIds)).toHaveLength(
+            serverRows.length
+        );
     });
 });
 
 describe("catalogue artifact — the two renderings are byte-identical (issue #3055)", () => {
     // ADR 0113 §2's asymmetry has ONE price: the server reads the compiled
-    // rows from the module graph (`data/oracle-compiled-pool.json`) and the
+    // rows from the module graph (`data/catalogue/packed-corpus.json`) and the
     // client fetches the artifact and drops its hand-written rows. Until
     // issue #3055 those two populations had two GENERATORS joining the same
     // sources by slightly different rules, and only their `id` sequence was
@@ -415,18 +416,16 @@ describe("catalogue artifact — the two renderings are byte-identical (issue #3
     // sides with no red anywhere. The client is only a view, but the Brain
     // decides moves off this registry.
     //
-    // `compiledReadyDefinitions` is imported through the real module seam, so
-    // this is what a Convex mutation actually holds, not a rebuild of it.
+    // `serverRows` is the bundled corpus imported through the real module
+    // seam, so this is what a Convex mutation actually holds, not a rebuild
+    // of it.
     const clientRows = () => {
         const handWrittenIds = new Set(getAllRawCards().map((c) => c.id));
         return excludeHandWritten(BUILD.merge.rows, handWrittenIds);
     };
 
     it("every shared definition agrees BYTE for byte, and the check names the card", () => {
-        const drift = firstIdentityDrift(
-            compiledReadyDefinitions,
-            clientRows()
-        );
+        const drift = firstIdentityDrift(serverRows, clientRows());
         expect(drift === null ? null : describeIdentityDrift(drift)).toBeNull();
     });
 
@@ -435,8 +434,7 @@ describe("catalogue artifact — the two renderings are byte-identical (issue #3
         // implies this. Asked directly anyway, because it is the question
         // ADR 0113 §2 poses — "the bytes agree NOW" — and it survives a future
         // generator change that made one rendering a second derivation again.
-        const drift = committedIdentityDrift(REPO_ROOT);
-        expect(drift === null ? null : describeIdentityDrift(drift)).toBeNull();
+        expect(committedPackedDrift(REPO_ROOT)).toBeNull();
     });
 
     it("both renderings carry the SAME source hash", () => {

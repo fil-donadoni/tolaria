@@ -224,17 +224,13 @@ describe("generated-artifact class — what is NOT in it (issue #3069 asks for t
         expect(text).toBe(serializeBaseline(rows));
     });
 
-    it("the compiled pool is immune by shape: a bare array, no header", () => {
-        const pool = JSON.parse(
-            readFileSync(
-                join(REPO_ROOT, "data", "oracle-compiled-pool.json"),
-                "utf8"
-            )
-        ) as unknown;
-        expect(Array.isArray(pool)).toBe(true);
-        expect(REGENERATED_ARTIFACTS.map((a) => a.path)).not.toContain(
-            "data/oracle-compiled-pool.json"
-        );
+    it("the retired literal pool stays retired (issue #4168)", () => {
+        // The packed corpus is the server's only rendering of the compiled
+        // rows; a pool file reappearing (a stale branch's merge, a revived
+        // generator branch) would be a second, unguarded rendering.
+        expect(
+            existsSync(join(REPO_ROOT, "data", "oracle-compiled-pool.json"))
+        ).toBe(false);
     });
 });
 
