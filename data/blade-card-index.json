@@ -305,6 +305,11 @@
             "label": "opponent's choice: casts Mind Rot into a two-card hand",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "opponent's choice: Mind Rot strips a lone Sacred Ground",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Monk Realist": [
