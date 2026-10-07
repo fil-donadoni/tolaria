@@ -258,14 +258,7 @@ describe("damage trigger heads — goldens (issue #4131)", () => {
 
 describe("damage trigger heads — refusals (fail-closed, ADR 0105)", () => {
     it("refuses a recipient the head table does not carry", () => {
-        expect(
-            refused(
-                creature(
-                    "Test A",
-                    "Whenever this creature deals damage to a player, draw a card."
-                )
-            )
-        ).toBe(true);
+        // "to a player" has a row since issue #4544; the disjunction does not.
         expect(
             refused(
                 creature(
@@ -287,12 +280,12 @@ describe("damage trigger heads — refusals (fail-closed, ADR 0105)", () => {
         ).toBe(true);
     });
 
-    it("refuses 'this creature is dealt damage' — only the Aura host's row exists", () => {
+    it("refuses 'this creature is dealt damage' qualified by a source — only the unqualified self row exists (issue #4544)", () => {
         expect(
             refused(
                 creature(
                     "Test D",
-                    "Whenever this creature is dealt damage, you gain 1 life."
+                    "Whenever this creature is dealt damage by a creature, you gain 1 life."
                 )
             )
         ).toBe(true);

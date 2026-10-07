@@ -181,7 +181,14 @@ describe("gold round-trip — precision", () => {
         // + `exileOnDeath`, while both hand-written modes are `resolve()`
         // closures — the same move as the entries above, out of "the compiler
         // refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(31);
+        //
+        // 30 -> 33 by issue #4544 (combat and damage trigger heads): Abyssal
+        // Specter ("deals damage to a player"), Fungusaur and Jackal Pup ("is
+        // dealt damage") are now compiled while their hand-written sides are
+        // `damageDealtTrigger` / `damageTakenTrigger` `resolve()` closures — the
+        // same move as the entries above, out of "the compiler refuses it" and
+        // into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(34);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
