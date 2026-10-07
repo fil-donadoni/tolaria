@@ -659,8 +659,8 @@ export type EffectSentenceIR =
       }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
     /**
-     * CR 509.1b — "<target creature> can't block / be
-     * blocked this turn": a turn-scoped combat restriction on ONE announced
+     * CR 509.1b — "<target creature> can't block / be blocked
+     * this turn": a turn-scoped combat restriction on ONE announced
      * creature. A sweep ("Creatures can't block this turn") is a different
      * rule — it also binds creatures that arrive later — and is refused.
      */
@@ -1119,7 +1119,7 @@ export type RestrictionIR =
      *  (`ActivatedAbility.activateFromGraveyard`, Ashen Ghoul's shape.) */
     | { readonly kind: "activate-from-graveyard" };
 
-/** The three turn-scoped combat restrictions one creature can carry. */
+/** The two turn-scoped combat restrictions one announced creature can carry. */
 export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
 
 /** A sentence that modifies the sentence before it rather than acting itself. */

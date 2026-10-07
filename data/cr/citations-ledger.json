@@ -16206,7 +16206,7 @@
         {"id":"509.1b","line":"* CR 508.1c — \"Enchanted creature can't attack.\" / CR 509.1b — \"…can't","sites":1,"status":"confirmed","ruleHash":"b1cf3adae366bc0a"},
         {"id":"509.1b","line":"* CR 509.1b applies EVERY restriction, so when several rules match the same","sites":1,"status":"baseline"},
         {"id":"509.1b","line":"* CR 509.1b — \"<subject> can't block|be blocked this","sites":1,"status":"confirmed","ruleHash":"b1cf3adae366bc0a"},
-        {"id":"509.1b","line":"* CR 509.1b — \"<target creature> can't block / be","sites":1,"status":"confirmed","ruleHash":"b1cf3adae366bc0a"},
+        {"id":"509.1b","line":"* CR 509.1b — \"<target creature> can't block / be blocked","sites":1,"status":"confirmed","ruleHash":"b1cf3adae366bc0a"},
         {"id":"509.1b","line":"* CR basis: 508.1 (attack eligibility), 509.1b (block eligibility).","sites":1,"status":"baseline"},
         {"id":"509.1b","line":"* Takes the MAXIMUM over every matching rule: CR 509.1b applies every","sites":1,"status":"baseline"},
         {"id":"509.1b","line":"* by creatures whose subtypes include `subtype` (CR 509.1b). Read on the","sites":1,"status":"baseline"},
