@@ -1971,8 +1971,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › this permanent is an enchantment",
+            "issue": 5218
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Add one mana of any color",
             "issue": 4593
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Counter it",
+            "issue": 5220
         },
         {
             "kind": "grammar",
@@ -2051,8 +2061,18 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice this creature",
+            "issue": 5219
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Sacrifice this creature unless you discard a card",
             "issue": 4548
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice this enchantment",
+            "issue": 5221
         },
         {
             "kind": "grammar",
