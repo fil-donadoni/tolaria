@@ -881,9 +881,21 @@ function cell(text: string): string {
     return text.replace(/\|/g, "\\|");
 }
 
+/** The closing rule a Gap Cluster's managed block states, per kind. A Grammar
+ *  Cluster closes when its accepted forms compile (ADR 0152 § 5, amending ADR
+ *  0146 § 6 for `grammar`); every other kind closes when every key is closed. */
+function closingRule(kind: ClusterKind): string {
+    return kind === "grammar"
+        ? "The cluster closes when its accepted forms compile (ADR 0152 § 5); keys still live then are re-homed into singles (ADR 0146 § 5), which feed the family's next Cluster Cut. Forms past the ~10-form cap are outside this cluster."
+        : "The cluster closes when every key is closed.";
+}
+
 /** The managed block itself, markers included — sorted by key, so the same
  *  rows render the same bytes. */
-export function renderAdoptedBlock(entries: readonly AdoptedEntry[]): string {
+export function renderAdoptedBlock(
+    entries: readonly AdoptedEntry[],
+    kind: ClusterKind
+): string {
     const rows = [...entries]
         .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
         .map((e) => {
@@ -902,7 +914,7 @@ export function renderAdoptedBlock(entries: readonly AdoptedEntry[]): string {
         ADOPTED_BLOCK_START,
         "## Adopted gaps",
         "",
-        "Every gap key this Gap Cluster claims in `data/grammar-gaps.json`, hand-listed or adopted by its Cluster Signature (ADR 0146). The cluster closes when every key is closed.",
+        `Every gap key this Gap Cluster claims in \`data/grammar-gaps.json\`, hand-listed or adopted by its Cluster Signature (ADR 0146). ${closingRule(kind)}`,
         "",
         ...(rows.length === 0
             ? ["None yet."]
@@ -922,6 +934,7 @@ export function renderAdoptedBlock(entries: readonly AdoptedEntry[]): string {
 export function withAdoptedBlock(
     body: string,
     entries: readonly AdoptedEntry[],
+    kind: ClusterKind,
     issue = 0
 ): string {
     const count = (marker: string): number => body.split(marker).length - 1;
@@ -929,7 +942,7 @@ export function withAdoptedBlock(
     const ends = count(ADOPTED_BLOCK_END);
     const at = body.indexOf(ADOPTED_BLOCK_START);
     const end = body.indexOf(ADOPTED_BLOCK_END);
-    const block = renderAdoptedBlock(entries);
+    const block = renderAdoptedBlock(entries, kind);
     if (starts === 0 && ends === 0) {
         if (body === "") return block;
         return `${body}${body.endsWith("\n") ? "\n" : "\n\n"}${block}`;
@@ -1014,7 +1027,7 @@ export function syncAdoptedBlocks(
                     : { key: f.key, live: true, cards: f.cards, band: f.band }
             );
         }
-        const next = withAdoptedBlock(state.body, entries, row.issue);
+        const next = withAdoptedBlock(state.body, entries, row.kind, row.issue);
         if (next === state.body) continue;
         tracker.updateBody(row.issue, next);
         rewritten.push(row.issue);

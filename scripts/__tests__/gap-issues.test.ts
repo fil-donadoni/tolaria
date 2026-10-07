@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import type { Allowlist } from "../check-gaps";
 import { rankTargetBands } from "../lib/backlog-triage";
 import {
+    CLUSTER_KINDS,
     parseClusterRows,
     readTargetRegistry,
     type ClusterRow,
@@ -1359,27 +1360,31 @@ describe("withAdoptedBlock — the managed block of a Gap Cluster", () => {
     ];
 
     it("appends after the hand-written text, which stays byte-identical", () => {
-        const out = withAdoptedBlock(HAND, entries);
+        const out = withAdoptedBlock(HAND, entries, "bot");
         expect(out.startsWith(HAND)).toBe(true);
-        expect(out.slice(HAND.length)).toBe(`\n${renderAdoptedBlock(entries)}`);
+        expect(out.slice(HAND.length)).toBe(
+            `\n${renderAdoptedBlock(entries, "bot")}`
+        );
     });
 
     it("regenerates between the markers, touching nothing outside them", () => {
         const before = `${HAND}\n${ADOPTED_BLOCK_START}\nstale rows\n${ADOPTED_BLOCK_END}\n\nTrailing notes.`;
-        const out = withAdoptedBlock(before, entries);
+        const out = withAdoptedBlock(before, entries, "bot");
         expect(out).toBe(
-            `${HAND}\n${renderAdoptedBlock(entries)}\n\nTrailing notes.`
+            `${HAND}\n${renderAdoptedBlock(entries, "bot")}\n\nTrailing notes.`
         );
     });
 
     it("is idempotent — a second run returns the same bytes", () => {
-        const once = withAdoptedBlock(HAND, entries);
-        expect(withAdoptedBlock(once, entries)).toBe(once);
-        expect(withAdoptedBlock(once, [...entries].reverse())).toBe(once);
+        const once = withAdoptedBlock(HAND, entries, "bot");
+        expect(withAdoptedBlock(once, entries, "bot")).toBe(once);
+        expect(withAdoptedBlock(once, [...entries].reverse(), "bot")).toBe(
+            once
+        );
     });
 
     it("lists key, cards (capped) and band; a closed key says so", () => {
-        const block = renderAdoptedBlock(entries);
+        const block = renderAdoptedBlock(entries, "bot");
         expect(block).toContain(
             "| `a › x` | C1, C2, C3, C4, C5 (+1 more) | residue |"
         );
@@ -1388,14 +1393,35 @@ describe("withAdoptedBlock — the managed block of a Gap Cluster", () => {
         expect(block.indexOf("a › x")).toBeLessThan(block.indexOf("b › y"));
     });
 
+    it("states the closing rule: accepted forms for grammar (ADR 0152 § 5), every key for the rest", () => {
+        const grammar = renderAdoptedBlock(entries, "grammar");
+        expect(grammar).toContain(
+            "The cluster closes when its accepted forms compile (ADR 0152 § 5); keys still live then are re-homed into singles (ADR 0146 § 5), which feed the family's next Cluster Cut. Forms past the ~10-form cap are outside this cluster."
+        );
+        expect(grammar).not.toContain("closes when every key is closed");
+        for (const kind of CLUSTER_KINDS.filter((k) => k !== "grammar")) {
+            const block = renderAdoptedBlock(entries, kind);
+            expect(block).toContain(
+                "The cluster closes when every key is closed."
+            );
+            expect(block).not.toContain("ADR 0152");
+        }
+    });
+
     it("refuses broken markers rather than guess where the block ends", () => {
         expect(() =>
-            withAdoptedBlock(`${HAND}${ADOPTED_BLOCK_START}\nrows`, entries, 42)
+            withAdoptedBlock(
+                `${HAND}${ADOPTED_BLOCK_START}\nrows`,
+                entries,
+                "bot",
+                42
+            )
         ).toThrow(/issue #42.*markers are broken/);
         expect(() =>
             withAdoptedBlock(
                 `${ADOPTED_BLOCK_END}\n${ADOPTED_BLOCK_START}`,
-                entries
+                entries,
+                "bot"
             )
         ).toThrow(/markers are broken/);
     });
