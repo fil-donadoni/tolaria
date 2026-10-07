@@ -2012,6 +2012,42 @@ function lowerSentenceBody(
             if (!target.ok) return target;
             return lowered([{ op: "explore", target: target.value }]);
         }
+        case "delayed-draw-next-upkeep": {
+            // CR 603.7a — the controller of the resolving ability controls the
+            // delayed trigger; its body is the draw alone, so the shown text
+            // is rebuilt from the one printed count.
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            if (count.value !== 1)
+                return unlowerable(
+                    "only a one-card delayed draw has a printed body"
+                );
+            return lowered([
+                {
+                    op: "delayedTrigger",
+                    timing: "next-upkeep",
+                    oracleText:
+                        "At the beginning of the next turn's upkeep, draw a card.",
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ]);
+        }
+        case "look-hand":
+        case "look-random-hand": {
+            // CR 400.2 — a private look: `looker` is omitted, so it defaults
+            // to the resolving controller (CR 113.7).
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                {
+                    op:
+                        sentence.kind === "look-hand"
+                            ? "lookHand"
+                            : "lookRandomHand",
+                    player: player.value,
+                },
+            ]);
+        }
         case "discard-at-random": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;

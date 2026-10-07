@@ -739,6 +739,35 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 603.7a — "You draw N cards at the beginning of the next turn's
+           * upkeep": a delayed triggered ability created by the resolving
+           * effect (CR 603.7), fired once at the next upkeep step of ANY
+           * player. The body is the draw alone; other delayed bodies and
+           * timings are other forms.
+           */
+          readonly kind: "delayed-draw-next-upkeep";
+          readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 400.2 — "Look at <player>'s hand": a PRIVATE look at the whole
+           * hand (a hand is a hidden zone), shown to the controller alone. The
+           * public "reveals their hand" is a different game action (CR 701.20a)
+           * with a different audience and is not read here.
+           */
+          readonly kind: "look-hand";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
+           * CR 400.2 — "Look at a card at random in <player>'s hand": the
+           * one-card private look, the card picked by the game's seeded PRNG.
+           */
+          readonly kind: "look-random-hand";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 701.9a — "<player> discards N cards": by default the affected
            * player CHOOSES which cards (CR 701.9b), the counterpart of
            * `discard-at-random`, which lets the game pick.
@@ -2110,6 +2139,13 @@ const DAMAGE_EQUAL_OWN_POWER = /^(.+) deals damage equal to its power to (.+)$/;
 const DRAIN = /^(.+) loses (\S+) life and (you gain \S+ life)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
+/** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
+const DELAYED_DRAW_NEXT_UPKEEP =
+    /^You draw (\S+) cards? at the beginning of the next turn(?:'|’)s upkeep$/;
+/** CR 400.2 — "Look at target player's hand": the owner is a possessive. */
+const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
+/** CR 400.2 — "Look at a card at random in target player's hand". */
+const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
 /**
@@ -3611,6 +3647,39 @@ function effectSentence(
         return ok({
             kind: "explore" as const,
             subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── delayed draw at the next upkeep (CR 603.7a) ────────────────────────
+    const delayedDraw = span.match(DELAYED_DRAW_NEXT_UPKEEP);
+    if (delayedDraw !== null) {
+        const count = readAmount(delayedDraw[1]!);
+        if (count === null)
+            return fail(`"${delayedDraw[1]}" is not a count`, span);
+        return ok({
+            kind: "delayed-draw-next-upkeep" as const,
+            count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── private look at a hand (CR 400.2) ──────────────────────────────────
+    const lookRandom = span.match(LOOK_RANDOM_HAND);
+    if (lookRandom !== null) {
+        const player = playerSubject(lookRandom[1]!, ctx);
+        if (player === null)
+            return fail(`"${lookRandom[1]}" is not a player`, span);
+        return ok({
+            kind: "look-random-hand" as const,
+            player,
+        } satisfies EffectSentenceIR);
+    }
+    const look = span.match(LOOK_HAND);
+    if (look !== null) {
+        const player = playerSubject(look[1]!, ctx);
+        if (player === null) return fail(`"${look[1]}" is not a player`, span);
+        return ok({
+            kind: "look-hand" as const,
+            player,
         } satisfies EffectSentenceIR);
     }
 
