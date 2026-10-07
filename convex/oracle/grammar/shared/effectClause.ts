@@ -2089,25 +2089,23 @@ function requirementTypes(requirement: TargetRequirement): readonly string[] {
 }
 
 /**
- * CR 701.3a / 301.5 — the card types the SOURCE may be attached to: an
- * Equipment equips a creature; an Aura enchants what its Enchant line names,
- * read only when that line is a bare type ("Enchant creature") so that every
- * permanent of the type is one the Aura could enchant. A qualified Enchant
- * line ("Enchant creature you control") and any other source are refused:
- * CR 701.3b makes an attach to an illegal object do nothing, and the `attach`
- * Op checks no enchant restriction to make it so.
+ * CR 701.3a — the card types the SOURCE may be attached to: an Aura enchants
+ * what its Enchant line names, read only when that line is a bare type
+ * ("Enchant creature") so that every permanent of the type is one the Aura
+ * could enchant. A qualified Enchant line ("Enchant creature you control") is
+ * refused: CR 701.3b makes an attach to an illegal object do nothing, and the
+ * `attach` Op checks no enchant restriction to make it so.
+ *
+ * An Equipment's "Attach this Equipment to target creature …" is refused too,
+ * for want of evidence rather than of meaning: every corpus card printing it
+ * also prints an Equip line no rule reads yet, so no whole-card golden can
+ * pin the form.
  */
 function attachableTypes(
     ctx: ParseContext
 ): { ok: true; value: readonly string[] } | { ok: false; reason: string } {
-    const subtypes = ctx.typeLine.subtypes;
-    if (subtypes.includes("Equipment"))
-        return { ok: true, value: ["Creature"] };
-    if (!subtypes.includes("Aura"))
-        return {
-            ok: false,
-            reason: "only an Aura or an Equipment is attached (CR 701.3b)",
-        };
+    if (!ctx.typeLine.subtypes.includes("Aura"))
+        return { ok: false, reason: "only an Aura's attach is read" };
     const enchant = (ctx.card.oracleText ?? "")
         .split("\n")
         .filter((line) => line.startsWith(ENCHANT_HEAD));
