@@ -44,6 +44,10 @@ export const chainOfVapor = defineCard(() => ({
         count: 1,
         excludeTypes: "Land",
     },
+    // AI shadow (issue #4142, never executed): the bounce of the announced
+    // permanent. The sacrifice-a-land-to-copy chain is the bounced permanent's
+    // controller's option and has no Op, so it is not priced.
+    aiEffects: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
     resolveSteps: [
         // Step 0 — capture "that permanent's controller" (CR 611 / 608.2h) THEN
         // return the permanent to its owner's hand (CR 400.7). The

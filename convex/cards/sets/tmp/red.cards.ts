@@ -78,6 +78,13 @@ export const jackalPup = defineCard(() => ({
                 kind: "permanent",
                 filter: { controllerRelation: "self" },
             },
+            // AI shadow (issue #4142, never executed): the damage taken comes
+            // back at the controller. The event's amount has no value ref, so
+            // the sketch prices one point per trigger — the drawback's sign and
+            // order of magnitude, not its exact size.
+            aiEffects: [
+                { op: "dealDamage", amount: 1, to: { player: "controller" } },
+            ],
             resolve: (ctx, _event, damage) => {
                 if (damage.amount <= 0) return;
                 ctx.dealDamage(

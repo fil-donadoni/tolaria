@@ -537,6 +537,17 @@ export function makeCircleOfProtection(args: {
                 cost: { mana: activationCost },
                 useStack: true,
                 targetRequirement,
+                // AI shadow (issue #4142, never executed): a flat shield
+                // against the chosen source. The "next time, to you" scope has
+                // no Op (`all-from-source` also covers other recipients), so
+                // the sketch prices the protection, not its exact reach.
+                aiEffects: [
+                    {
+                        op: "preventDamage",
+                        mode: "all-from-source",
+                        source: { target: 0 },
+                    },
+                ],
                 resolve: (ctx: SpellContext) => {
                     const [target] = ctx.targets;
                     if (!target) return;
