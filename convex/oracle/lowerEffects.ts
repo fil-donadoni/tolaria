@@ -1846,6 +1846,29 @@ function lowerSentenceBody(
                     : []),
             ]);
         }
+        // CR 613.1b — the effect's controller gains control of the announced
+        // permanent; CR 611.2b's "for as long as you control <this>" is the
+        // `while-you-control-source` condition, absent = indefinite.
+        case "gain-control": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "gainControl",
+                    target: target.value,
+                    controller: "controller",
+                    ...(sentence.whileYouControlSource
+                        ? { duration: "while-you-control-source" as const }
+                        : {}),
+                },
+            ]);
+        }
+        // CR 701.3a — the source attaches to the announced permanent.
+        case "attach": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([{ op: "attach", target: target.value }]);
+        }
         case "life": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
