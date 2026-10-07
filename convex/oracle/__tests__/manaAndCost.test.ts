@@ -283,6 +283,13 @@ describe("variable payment — refused neighbours", () => {
         expect(
             enchantment("When this enchantment enters, you may pay {X}.").state
         ).toBe("unparsed");
+        // Behind an effect that DOES parse, only the unfinished payment is left
+        // to refuse the line.
+        expect(
+            enchantment(
+                "When this enchantment enters, draw a card. You may pay {X}."
+            ).state
+        ).toBe("unparsed");
     });
 
     it('"If you do" without a payment names nothing', () => {

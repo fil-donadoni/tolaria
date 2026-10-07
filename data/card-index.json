@@ -796,6 +796,16 @@
         "source": "compiled"
     },
     {
+        "name": "Akki Rockspeaker",
+        "scryfallId": "9c8b6685-2c74-4026-aef0-73ca7bc43306",
+        "oracleId": "01cd52f9-7fac-4396-bec7-d06bf683e011",
+        "firstSet": "chk",
+        "firstPrintId": "9c8b6685-2c74-4026-aef0-73ca7bc43306",
+        "firstPrintSet": "chk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Akki Scrapchomper",
         "scryfallId": "b0e02737-0193-46e4-a506-cec86a44dc99",
         "oracleId": "baea7cc5-15ec-4229-ad8b-d4b34c2e21e8",
@@ -7148,6 +7158,16 @@
         "source": "compiled"
     },
     {
+        "name": "Burning-Tree Emissary",
+        "scryfallId": "899d5f35-3613-4c69-9176-13baf442fb50",
+        "oracleId": "327d9679-0049-4401-8dab-e0fb362306bd",
+        "firstSet": "gtc",
+        "firstPrintId": "899d5f35-3613-4c69-9176-13baf442fb50",
+        "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Burnt Offering",
         "scryfallId": "1dae52a2-3af7-4b97-9d2e-2448b7c413fb",
         "oracleId": "86eb30a0-0beb-42db-9ddf-cf8be6c99dd3",
@@ -8084,6 +8104,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cathodion",
+        "scryfallId": "28def495-1806-40ec-b170-ca727c914f30",
+        "oracleId": "fcd4f816-2de1-4b30-82fb-cb87f45747ea",
+        "firstSet": "usg",
+        "firstPrintId": "28def495-1806-40ec-b170-ca727c914f30",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Caustic Caterpillar",
         "scryfallId": "f03d4e0d-bddd-4835-91b8-11c2f15e54c3",
         "oracleId": "45d35128-76e6-43f9-8d23-41f7506c3a71",
@@ -8450,6 +8480,16 @@
         "firstSet": "lea",
         "firstPrintId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Channel the Suns",
+        "scryfallId": "7bf574c8-a7e0-482e-bb41-680454988097",
+        "oracleId": "d1b1be96-b2aa-4386-97d2-eb0a8cc47210",
+        "firstSet": "5dn",
+        "firstPrintId": "7bf574c8-a7e0-482e-bb41-680454988097",
+        "firstPrintSet": "5dn",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Channeler Initiate",
@@ -11010,6 +11050,16 @@
         "source": "compiled"
     },
     {
+        "name": "Culling the Weak",
+        "scryfallId": "50c33f18-0a5c-4e46-ab0d-6e450915594f",
+        "oracleId": "6385fd0d-256d-4400-9319-afa8170024db",
+        "firstSet": "exo",
+        "firstPrintId": "50c33f18-0a5c-4e46-ab0d-6e450915594f",
+        "firstPrintSet": "exo",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Cultbrand Cinder",
         "scryfallId": "f6b80a10-a9a9-445e-8040-6cc0155271d8",
         "oracleId": "cbb030aa-ba4f-4d9e-920d-001a40982f5e",
@@ -12356,6 +12406,16 @@
         "firstSet": "ptk",
         "firstPrintId": "bdb63768-2d8a-4a74-a312-b981dd462cdc",
         "firstPrintSet": "ptk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deconstruct",
+        "scryfallId": "53face79-d2bf-43dd-aa4e-d724c2b68c49",
+        "oracleId": "36a8ceb1-148b-41e0-a7bf-ceb879bf08e7",
+        "firstSet": "mrd",
+        "firstPrintId": "53face79-d2bf-43dd-aa4e-d724c2b68c49",
+        "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
     },
@@ -26438,6 +26498,16 @@
         "source": "compiled"
     },
     {
+        "name": "Infernal Plunge",
+        "scryfallId": "b3f50e17-c29c-4d2c-b3e7-45d1216b81ea",
+        "oracleId": "0b67dff0-5bb7-44fe-a72b-d3b1a6c0ee72",
+        "firstSet": "isd",
+        "firstPrintId": "b3f50e17-c29c-4d2c-b3e7-45d1216b81ea",
+        "firstPrintSet": "isd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Infernal Scarring",
         "scryfallId": "d1ead8cc-5b7d-4a6d-a56f-95da91a958d2",
         "oracleId": "3fc640dd-6292-4d36-82fb-bd366bc00bd3",
@@ -30483,6 +30553,16 @@
         "firstPrintId": "c69742a8-cc6d-457b-8d99-81d05ab1bf0b",
         "firstPrintSet": "ody",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Liturgy of Blood",
+        "scryfallId": "3532105d-c550-4c20-8465-a6a19169efbd",
+        "oracleId": "aabea4a2-5107-4abd-a0c7-ac0024d98ae0",
+        "firstSet": "m14",
+        "firstPrintId": "3532105d-c550-4c20-8465-a6a19169efbd",
+        "firstPrintSet": "m14",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -34793,6 +34873,16 @@
         "firstPrintId": "4a1af62e-d566-4f39-a467-244602c9240b",
         "firstPrintSet": "dst",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Myr Moonvessel",
+        "scryfallId": "af0515cc-bf2d-4674-b339-4f4eefbc943d",
+        "oracleId": "3e922661-80df-4e84-a12a-524bc74e6c9d",
+        "firstSet": "dst",
+        "firstPrintId": "af0515cc-bf2d-4674-b339-4f4eefbc943d",
+        "firstPrintSet": "dst",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -39696,6 +39786,16 @@
         "source": "compiled"
     },
     {
+        "name": "Priest of Gix",
+        "scryfallId": "64166899-fcc6-4000-9994-643f5a4cd214",
+        "oracleId": "d93f82ce-0eed-45cc-a7b1-50fd4cbb6152",
+        "firstSet": "usg",
+        "firstPrintId": "64166899-fcc6-4000-9994-643f5a4cd214",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Priest of Iroas",
         "scryfallId": "013ec9f5-8bf3-4067-a942-d535d011af82",
         "oracleId": "706f7d56-f4da-48ba-ac94-fc09580beec7",
@@ -39713,6 +39813,16 @@
         "firstPrintId": "118ba6f2-a2f0-4554-ad87-a932c951cdd4",
         "firstPrintSet": "ori",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Priest of Urabrask",
+        "scryfallId": "d0a9f49c-f15c-4b2d-b6a5-8efc3c430d87",
+        "oracleId": "e4bd8910-770b-4220-8a26-2673491f4a3e",
+        "firstSet": "nph",
+        "firstPrintId": "d0a9f49c-f15c-4b2d-b6a5-8efc3c430d87",
+        "firstPrintSet": "nph",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -40326,6 +40436,16 @@
         "firstSet": "inv",
         "firstPrintId": "6c030108-2995-4fb0-9b80-efdfdd0f11e0",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Pyretic Ritual",
+        "scryfallId": "1e577638-a7ed-4bcc-90fb-0cffe87d5a28",
+        "oracleId": "86ef6474-613f-41fb-931c-d4279b03ed99",
+        "firstSet": "m11",
+        "firstPrintId": "1e577638-a7ed-4bcc-90fb-0cffe87d5a28",
+        "firstPrintSet": "m11",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Pyrite Spellbomb",
@@ -41191,6 +41311,16 @@
         "firstPrintId": "2d37fc42-0a7c-46b3-9270-333d370e479f",
         "firstPrintSet": "xln",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rapturous Moment",
+        "scryfallId": "21afe19d-881a-48cb-863e-22942bea5ebe",
+        "oracleId": "c997afb7-82cb-4579-885e-3628cb1b51e4",
+        "firstSet": "sos",
+        "firstPrintId": "21afe19d-881a-48cb-863e-22942bea5ebe",
+        "firstPrintSet": "sos",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -45686,6 +45816,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Seething Song",
+        "scryfallId": "9213d580-7953-455f-abbe-99d3db2705cf",
+        "oracleId": "64bf8929-f5f2-4d50-8667-13b1d007bcfc",
+        "firstSet": "mrd",
+        "firstPrintId": "9213d580-7953-455f-abbe-99d3db2705cf",
+        "firstPrintSet": "mrd",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Segovian Angel",
         "scryfallId": "b5dbaec5-502d-48c2-9e71-c12cd0bccc6a",
         "oracleId": "50372c54-359c-4ee6-9e21-1e40ba53652d",
@@ -45740,6 +45880,16 @@
         "firstSet": "zen",
         "firstPrintId": "20365082-6102-4e3b-8791-c9b66846270d",
         "firstPrintSet": "zen",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Seismic Spike",
+        "scryfallId": "b9caddbe-1329-4ac2-9071-6fc5059d4dec",
+        "oracleId": "25ec6309-0ccb-4f27-80f1-ec6dcc6461fa",
+        "firstSet": "rav",
+        "firstPrintId": "b9caddbe-1329-4ac2-9071-6fc5059d4dec",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -58108,6 +58258,16 @@
         "firstSet": "sos",
         "firstPrintId": "6fa9cd18-3181-4373-ab65-49bf9de9487f",
         "firstPrintSet": "sos"
+    },
+    {
+        "name": "Vigil for the Lost",
+        "scryfallId": "4a87b48b-2ae9-4753-8719-62411f94ca87",
+        "oracleId": "87a4caa4-cb08-4a0c-b57a-d6d8474b1f5e",
+        "firstSet": "som",
+        "firstPrintId": "4a87b48b-2ae9-4753-8719-62411f94ca87",
+        "firstPrintSet": "som",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Vigilance",
