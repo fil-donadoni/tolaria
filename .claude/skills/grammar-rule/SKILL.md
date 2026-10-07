@@ -26,8 +26,9 @@ Family, any number of keys; it is capped at **~10 accepted forms**, ordered by
 corpus cards. Forms past the cap are outside the cluster: **do not grow them
 into the PR**, even when the rule nearly reads them — name them in the PR's
 Grammar Gaps table as `past cap`. Keys still live when the cluster closes are
-re-homed by `gaps:sync` into singles (ADR 0146 § 5), which feed the family's
-next Cluster Cut; nothing to move by hand. A member gap that turns out out of
+re-homed by the first `gaps:sync` after it closes (ADR 0146 § 5) — into another
+open cluster whose signature matches, else into singles, which feed the
+family's next Cluster Cut; nothing to move by hand. A member gap that turns out out of
 reach (step 3) is refused and named in the PR with why — it does not hold the
 rest back, and the same re-home takes its claim, so it is never left
 `unclaimed`. **Do not widen a cluster mid-ticket** to a gap that is not in its
