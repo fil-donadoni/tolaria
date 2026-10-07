@@ -186,7 +186,23 @@ export type SlotIR =
      */
     | { readonly kind: "additional-cost"; readonly cost: ActivationCostIR }
     /** CR 702.34a — a "Flashback [cost]" line (a graveyard-cast permission). */
-    | { readonly kind: "flashback"; readonly cost: FlashbackCostIR };
+    | { readonly kind: "flashback"; readonly cost: FlashbackCostIR }
+    /**
+     * CR 702.29a — a "Cycling [cost]" line: an activated ability usable from
+     * the hand, lowered through the `cyclingAbility` factory the catalogue
+     * uses, so the compiled ability IS the hand-written one.
+     */
+    | { readonly kind: "cycling"; readonly cost: ManaCost }
+    /**
+     * CR 702.35a — a "Madness [cost]" line: the cost to cast the card when it
+     * is discarded, lowered onto `CardDefinition.madness`.
+     */
+    | { readonly kind: "madness"; readonly cost: ManaCost }
+    /**
+     * CR 702.37e — a "Morph [cost]" line: the cost to turn the permanent face
+     * up, lowered onto `CardDefinition.morph`.
+     */
+    | { readonly kind: "morph"; readonly cost: ManaCost };
 
 /** A line, the slot that consumed it, and what it means. */
 export interface LineParse {

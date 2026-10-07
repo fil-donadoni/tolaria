@@ -51,7 +51,7 @@ import type {
  *  typecycling ability IS a cycling ability, so anything that ever comes to
  *  identify a cycling ability by its id finds the typecycling one too. A card
  *  never prints two cycling abilities, so the id stays unique per card. */
-const CYCLING_ABILITY_ID = "cycling";
+export const CYCLING_ABILITY_ID = "cycling";
 
 /** Renders a cycling cost as its reminder-text label (CR 107.4 / 202.1 — the
  *  mana symbols of the cost, generic pip first, then coloured pips in WUBRG
@@ -72,7 +72,11 @@ const CYCLING_ABILITY_ID = "cycling";
  *  be a guess. */
 function cyclingCostLabel(cost: ManaCost): string {
     const parts: string[] = [];
-    const generic = cost.generic ?? 0;
+    // A numeric `X` IS fixed generic mana (`ManaCost.X`); only the string
+    // marker "X" is the variable pip. The Oracle compiler writes generic
+    // there, the catalogue writes `generic` — one label for both.
+    const generic =
+        (cost.generic ?? 0) + (typeof cost.X === "number" ? cost.X : 0);
     if (generic > 0) parts.push(`{${generic}}`);
     for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
         const n = cost[color] ?? 0;
