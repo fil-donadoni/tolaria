@@ -2,8 +2,11 @@
 // "…deals damage to a player", "…attacks and isn't blocked" (issue #4544,
 // CR 120.3 / 508.3a / 509.1h / 603.2).
 //
-//  1. GOLDENS — every accepted form is a real corpus card, compiled whole and
-//     compared with `sortKeys` equality. Jackal Pup (a `dealDamage` reading
+//  1. GOLDENS — every accepted form is the trigger line of a real corpus card,
+//     compiled and compared with `sortKeys` equality. Only the trigger line is
+//     fed in: the keyword and static lines beside it (Abyssal Specter's flying,
+//     Wall of Hope's defender, Merchant Ship's Island clause) are other rules'
+//     business, and Merchant Ship stays `unparsed` on that clause. Jackal Pup (a `dealDamage` reading
 //     "that much") is also a `GOLDEN_FIXTURES` row: the canned smoke scenario
 //     cannot stage an `$event.amount`, so the fixture is what lets the form
 //     reach `ready` (`goldenFixtures.test.ts` compares it whole).
