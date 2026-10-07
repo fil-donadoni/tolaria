@@ -84,6 +84,8 @@ export { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
  * says so below.
  */
 export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
+    "scripts/__tests__/convex-heap.test.ts":
+        "the .md mention asserts an over-budget failure line names the research file's method; it reads no repo document",
     "scripts/__tests__/hook-policy.test.ts":
         "writes a throwaway README.md into a temp git fixture; reads no repo document",
     "scripts/__tests__/cr-audit.test.ts":
