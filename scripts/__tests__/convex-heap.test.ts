@@ -148,19 +148,20 @@ describe("classification and warnings", () => {
         expect(over(55 * MIB)).toHaveLength(1);
     });
 
-    it("does not fail a module Node could not measure", () => {
-        expect(
-            heapFailures([
-                {
-                    module: "x.ts",
-                    readsCatalogue: false,
-                    error: "boom",
-                    todayBytes: 0,
-                    targetBytes: 0,
-                    budgetBytes: heapBudgetBytes(false),
-                },
-            ])
-        ).toHaveLength(0);
+    it("fails a module Node could not measure: the budget is unproven", () => {
+        const lines = heapFailures([
+            {
+                module: "x.ts",
+                readsCatalogue: false,
+                error: "boom",
+                todayBytes: 0,
+                targetBytes: 0,
+                budgetBytes: heapBudgetBytes(false),
+            },
+        ]);
+        expect(lines).toHaveLength(1);
+        expect(lines[0]).toContain("x.ts: not measured");
+        expect(lines[0]).toContain("boom");
     });
 });
 

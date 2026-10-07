@@ -264,16 +264,21 @@ export const HEAP_CAUSE_METHOD =
     "§ Method (bundle attribution: metafile.outputs[*].inputs[*].bytesInOutput)";
 
 /** One failure line per module whose target-scale isolate heap is over its
- *  budget: the module, its heap, the budget, and how to find the cause. */
+ *  budget: the module, its heap, the budget, and how to find the cause. A
+ *  module that could not be measured fails too — an armed budget never passes
+ *  on a module it did not see. */
 export function heapFailures(report: ModuleHeap[]): string[] {
     return report
-        .filter((m) => !m.error && isolateBytes(m.targetBytes) > m.budgetBytes)
-        .map(
-            (m) =>
-                `${m.module}: ${(isolateBytes(m.targetBytes) / MIB).toFixed(1)} MiB of isolate heap ` +
-                `at target scale (${(m.targetBytes / MIB).toFixed(1)} MiB in Node x ${NODE_TO_ISOLATE_RATIO}) > ` +
-                `${(m.budgetBytes / MIB).toFixed(0)} MiB budget ` +
-                `(${m.readsCatalogue ? "reads the catalogue" : "reads no Card Definition"}, ` +
-                `${(isolateBytes(m.todayBytes) / MIB).toFixed(1)} MiB today); ${HEAP_CAUSE_METHOD}`
-        );
+        .map((m) =>
+            m.error
+                ? `${m.module}: not measured, so its ${(m.budgetBytes / MIB).toFixed(0)} MiB budget is unproven — ${m.error.split("\n")[0]}`
+                : isolateBytes(m.targetBytes) > m.budgetBytes
+                  ? `${m.module}: ${(isolateBytes(m.targetBytes) / MIB).toFixed(1)} MiB of isolate heap ` +
+                    `at target scale (${(m.targetBytes / MIB).toFixed(1)} MiB in Node x ${NODE_TO_ISOLATE_RATIO}) > ` +
+                    `${(m.budgetBytes / MIB).toFixed(0)} MiB budget ` +
+                    `(${m.readsCatalogue ? "reads the catalogue" : "reads no Card Definition"}, ` +
+                    `${(isolateBytes(m.todayBytes) / MIB).toFixed(1)} MiB today); ${HEAP_CAUSE_METHOD}`
+                  : ""
+        )
+        .filter(Boolean);
 }
