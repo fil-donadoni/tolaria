@@ -3787,4 +3787,83 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 201.4 + CR 701.9a — "Choose a nonland card name. Target player reveals
+    // their hand and discards all cards with that name": exhibits `nameCard`
+    // and the discard that reads its pick back as a `$named` name filter, a
+    // runtime binding the canned smoke scenario cannot build (issue #4528).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "018107d1-ebf7-4657-bc91-c8374af55cc5",
+            name: "Cabal Therapy",
+            manaCost: "{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Choose a nonland card name. Target player reveals their hand and discards all cards with that name.\nFlashback—Sacrifice a creature. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cabal Therapy",
+            types: ["Sorcery"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Choose a nonland card name. Target player reveals their hand and discards all cards with that name.\nFlashback—Sacrifice a creature. (You may cast this card from your graveyard for its flashback cost. Then exile it.)",
+            effects: [
+                {
+                    op: "nameCard",
+                    player: "controller",
+                    prompt: "Choose a nonland card name.",
+                    bind: "$named",
+                    nameRestriction: "no-land",
+                },
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    filter: { name: { ref: "$named" } },
+                },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+            flashback: { sacrifice: { types: ["Creature"] } },
+        },
+    },
+    // CR 201.4 + CR 701.20a — "Choose a card name other than a basic land card
+    // name. Reveal the top seven cards ... put all of them with that name into
+    // your hand. Exile the rest.": exhibits `nameCard` read back by
+    // `digMatchingToHand`'s `$named` filter (issue #4528).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "308b49ad-ebab-41c4-9e09-44202549bafc",
+            name: "Desperate Research",
+            manaCost: "{1}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Choose a card name other than a basic land card name. Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Desperate Research",
+            types: ["Sorcery"],
+            manaCost: { X: 1, B: 1 },
+            oracleText:
+                "Choose a card name other than a basic land card name. Reveal the top seven cards of your library and put all of them with that name into your hand. Exile the rest.",
+            effects: [
+                {
+                    op: "nameCard",
+                    player: "controller",
+                    prompt: "Choose a card name other than a basic land card name.",
+                    bind: "$named",
+                    nameRestriction: "no-basic-land",
+                },
+                {
+                    op: "digMatchingToHand",
+                    player: "controller",
+                    look: 7,
+                    filter: { name: { ref: "$named" } },
+                    destination: "exile",
+                },
+            ],
+        },
+    },
 ]);

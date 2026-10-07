@@ -188,7 +188,7 @@ import {
 // Colossus round-trips once "If <self> would be put into a graveyard from
 // anywhere, reveal <self> and shuffle it into its owner's library instead"
 // reads as the `shuffleFromAnywhere` flag its hand-written entry expands from.
-const BASELINE_CEILING = 1497;
+const BASELINE_CEILING = 1493;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

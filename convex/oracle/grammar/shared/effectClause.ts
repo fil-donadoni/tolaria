@@ -32,7 +32,7 @@ import type {
     TargetRequirement,
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
-import type { CardType } from "../../../cards/types";
+import type { CardType, NameRestriction } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import {
     fail,
@@ -739,6 +739,65 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 603.7a — "You draw N cards at the beginning of the next turn's
+           * upkeep": a delayed triggered ability created by the resolving
+           * effect (CR 603.7), fired once at the next upkeep step of ANY
+           * player. The body is the draw alone; other delayed bodies and
+           * timings are other forms.
+           */
+          readonly kind: "delayed-draw-next-upkeep";
+          readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 201.4 — "Choose a [nonland] card name": the pick the SAME
+           * ability's later sentence reads as "that name" (a `discard-named-
+           * from-hand` or `dig-named-to-hand`). `prompt` is the printed
+           * sentence, shown to the chooser; `restriction` is CR 201.4a's
+           * narrowing of the legal names.
+           */
+          readonly kind: "name-card";
+          readonly prompt: string;
+          readonly restriction?: NameRestriction;
+      }
+    | {
+          /**
+           * CR 701.20a + CR 701.9a — "<player> reveals their hand and
+           * discards all cards with that name": reads the pick of a
+           * preceding `name-card`.
+           */
+          readonly kind: "discard-named-from-hand";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
+           * CR 701.20a — "Reveal the top N cards of your library
+           * and put all of them with that name into your hand. Exile the
+           * rest.": reads the pick of a preceding `name-card`.
+           */
+          readonly kind: "dig-named-to-hand";
+          readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 400.2 — "Look at <player>'s hand": a PRIVATE look at the whole
+           * hand (a hand is a hidden zone), shown to the controller alone. The
+           * public "reveals their hand" is a different game action (CR 701.20a)
+           * with a different audience and is not read here.
+           */
+          readonly kind: "look-hand";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
+           * CR 400.2 — "Look at a card at random in <player>'s hand": the
+           * one-card private look, the card picked by the game's seeded PRNG.
+           */
+          readonly kind: "look-random-hand";
+          readonly player: PlayerRefIR;
+      }
+    | {
+          /**
            * CR 701.9a — "<player> discards N cards": by default the affected
            * player CHOOSES which cards (CR 701.9b), the counterpart of
            * `discard-at-random`, which lets the game pick.
@@ -1080,6 +1139,10 @@ export type SentenceIR =
           readonly role: "then-chain";
           readonly effects: readonly EffectSentenceIR[];
       }
+    /** The window half of a `dig-named-to-hand` (see there). */
+    | { readonly role: "named-dig"; readonly count: AmountIR }
+    /** The routing half of a `dig-named-to-hand`: "Exile the rest." */
+    | { readonly role: "exile-rest" }
     /** The window half of a `look-distribute` (see there). */
     | {
           readonly role: "library-look";
@@ -1207,6 +1270,11 @@ export function assembleSentences(
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
+    // CR 201.4 — a chosen card name must be read back by a later sentence of
+    // the same ability ("that name"); `namedDig` waits for "Exile the rest."
+    let namePending = false;
+    let nameRead = false;
+    let namedDig: Extract<SentenceIR, { role: "named-dig" }> | null = null;
     // CR 700.3 — a pile division in progress: "needs-picker" after the
     // one-sentence window+split, "ready" once an opponent has split/chosen.
     let piles: {
@@ -1310,6 +1378,48 @@ export function assembleSentences(
                 };
             awaitingColorChoice = true;
             continue;
+        }
+        if (namedDig !== null) {
+            if (sentence.role !== "exile-rest")
+                return {
+                    ok: false,
+                    reason: "a named library reveal is not followed by where the rest goes",
+                };
+            effects.push({ kind: "dig-named-to-hand", count: namedDig.count });
+            namedDig = null;
+            nameRead = true;
+            continue;
+        }
+        if (sentence.role === "named-dig") {
+            if (!namePending)
+                return {
+                    ok: false,
+                    reason: '"with that name" follows no "Choose a card name."',
+                };
+            namedDig = sentence;
+            continue;
+        }
+        if (sentence.role === "exile-rest")
+            return {
+                ok: false,
+                reason: '"Exile the rest." follows no named library reveal',
+            };
+        if (sentence.role === "effect") {
+            if (sentence.effect.kind === "name-card") {
+                if (namePending)
+                    return {
+                        ok: false,
+                        reason: "a second card name is chosen before the first is read",
+                    };
+                namePending = true;
+            } else if (sentence.effect.kind === "discard-named-from-hand") {
+                if (!namePending)
+                    return {
+                        ok: false,
+                        reason: '"with that name" follows no "Choose a card name."',
+                    };
+                nameRead = true;
+            }
         }
         if (revealUntil !== null) {
             if (sentence.role !== "reveal-until-route")
@@ -1573,6 +1683,16 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a library reveal is not followed by where its cards go",
+        };
+    if (namedDig !== null)
+        return {
+            ok: false,
+            reason: "a named library reveal is not followed by where the rest goes",
+        };
+    if (namePending && !nameRead)
+        return {
+            ok: false,
+            reason: "a chosen card name is never read back",
         };
     if (awaitingColorChoice)
         return {
@@ -2110,6 +2230,22 @@ const DAMAGE_EQUAL_OWN_POWER = /^(.+) deals damage equal to its power to (.+)$/;
 const DRAIN = /^(.+) loses (\S+) life and (you gain \S+ life)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
+/** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
+const DELAYED_DRAW_NEXT_UPKEEP =
+    /^You draw (\S+) cards? at the beginning of the next turn(?:'|’)s upkeep$/;
+/** CR 201.4a — "Choose a card name" and its two printed restrictions. */
+const NAME_CARD =
+    /^Choose a (nonland )?card name( other than a basic land card name)?$/;
+/** CR 201.4 — a sentence that reads the pick as "that name". */
+const DISCARD_NAMED =
+    /^(.+) reveals their hand and discards all cards with that name$/;
+const DIG_NAMED =
+    /^Reveal the top (\S+) cards of your library and put all of them with that name into your hand$/;
+const EXILE_REST = /^Exile the rest$/;
+/** CR 400.2 — "Look at target player's hand": the owner is a possessive. */
+const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
+/** CR 400.2 — "Look at a card at random in target player's hand". */
+const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
 /**
@@ -2500,6 +2636,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         if (INSTEAD.test(span)) return insteadRule.run(span, ctx);
 
+        const named = chosenNameSentence(span, ctx);
+        if (named !== null) return named;
+
         const library = libraryHalf(span);
         if (library !== null) return library;
 
@@ -2711,6 +2850,53 @@ export function signedModifier(printed: string): number {
  * The two halves of a CR 401.4 look-and-route (`look-distribute`), each a
  * sentence role `assembleSentences` pairs up. `null` = neither half's head.
  */
+/**
+ * CR 201.4 — the sentences of a chosen card name: the pick itself, and the
+ * two sentences that read it back as "that name". `null` = not one of them.
+ */
+function chosenNameSentence(span: string, ctx: unknown) {
+    const name = span.match(NAME_CARD);
+    if (name !== null) {
+        // "a nonland card name" and "other than a basic land card name" are
+        // two printed strengths, never printed together.
+        if (name[1] !== undefined && name[2] !== undefined)
+            return fail("two name restrictions on one pick", span);
+        const restriction: NameRestriction | undefined =
+            name[1] !== undefined
+                ? "no-land"
+                : name[2] !== undefined
+                  ? "no-basic-land"
+                  : undefined;
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "name-card" as const,
+                prompt: `${span}.`,
+                ...(restriction === undefined ? {} : { restriction }),
+            },
+        } satisfies SentenceIR);
+    }
+    const discard = span.match(DISCARD_NAMED);
+    if (discard !== null) {
+        const player = playerSubject(discard[1]!, ctx);
+        if (player === null)
+            return fail(`"${discard[1]}" is not a player`, span);
+        return ok({
+            role: "effect" as const,
+            effect: { kind: "discard-named-from-hand" as const, player },
+        } satisfies SentenceIR);
+    }
+    const dig = span.match(DIG_NAMED);
+    if (dig !== null) {
+        const count = readAmount(dig[1]!);
+        if (count === null) return fail(`"${dig[1]}" is not a count`, span);
+        return ok({ role: "named-dig" as const, count } satisfies SentenceIR);
+    }
+    if (EXILE_REST.test(span))
+        return ok({ role: "exile-rest" as const } satisfies SentenceIR);
+    return null;
+}
+
 function libraryHalf(span: string) {
     const look = span.match(LIBRARY_LOOK);
     if (look !== null) {
@@ -3611,6 +3797,39 @@ function effectSentence(
         return ok({
             kind: "explore" as const,
             subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── delayed draw at the next upkeep (CR 603.7a) ────────────────────────
+    const delayedDraw = span.match(DELAYED_DRAW_NEXT_UPKEEP);
+    if (delayedDraw !== null) {
+        const count = readAmount(delayedDraw[1]!);
+        if (count === null)
+            return fail(`"${delayedDraw[1]}" is not a count`, span);
+        return ok({
+            kind: "delayed-draw-next-upkeep" as const,
+            count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── private look at a hand (CR 400.2) ──────────────────────────────────
+    const lookRandom = span.match(LOOK_RANDOM_HAND);
+    if (lookRandom !== null) {
+        const player = playerSubject(lookRandom[1]!, ctx);
+        if (player === null)
+            return fail(`"${lookRandom[1]}" is not a player`, span);
+        return ok({
+            kind: "look-random-hand" as const,
+            player,
+        } satisfies EffectSentenceIR);
+    }
+    const look = span.match(LOOK_HAND);
+    if (look !== null) {
+        const player = playerSubject(look[1]!, ctx);
+        if (player === null) return fail(`"${look[1]}" is not a player`, span);
+        return ok({
+            kind: "look-hand" as const,
+            player,
         } satisfies EffectSentenceIR);
     }
 
