@@ -68,10 +68,12 @@ const FUNERAL_CHARM: OracleCard = {
     layout: "normal",
 };
 
-function compiled(card: OracleCard) {
+function compiled(card: OracleCard): Record<string, unknown> | undefined {
     const result = compileCard(card);
     expect(result.state).toBe("ready");
-    return result.state === "ready" ? sortKeys(result.definition) : undefined;
+    return result.state === "ready"
+        ? (sortKeys(result.definition) as Record<string, unknown>)
+        : undefined;
 }
 
 describe("landwalk keyword line (CR 702.14)", () => {
