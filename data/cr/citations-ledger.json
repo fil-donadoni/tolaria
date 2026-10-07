@@ -25277,7 +25277,7 @@
         {"id":"605.1a","line":"// CR 605.1a — the mana DESCRIPTOR is what makes this an ability the","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — the mana is added as the ability resolves; the sacrifice","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — the rider grammar reads a tap ping, a draw and the","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
-        {"id":"605.1a","line":"// CR 605.1a — the unconditional ping (Ancient Tomb).","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
+        {"id":"605.1a","line":"// CR 605.1a — the unconditional ping (Ancient Tomb). The engine","sites":1,"status":"confirmed","ruleHash":"ab1518e4c1e43bc2"},
         {"id":"605.1a","line":"// CR 605.1a — this adds mana and isn't a tap ability: it's a mana","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a — verifies the OTHER commit path this rider is wired into","sites":1,"status":"baseline"},
         {"id":"605.1a","line":"// CR 605.1a's cost is `{T}, Sacrifice this artifact` — the token","sites":1,"status":"baseline"},
