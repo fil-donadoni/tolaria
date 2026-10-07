@@ -72,11 +72,9 @@ async function main(): Promise<void> {
                 `${m.readsCatalogue ? "" : "  (no Card Definition)"}`
         );
     }
-    for (const m of report.filter((r) => r.error))
-        console.log(
-            `[check:convex-heap] WARN ${m.module}: not measured — ${m.error?.split("\n")[0]}`
-        );
     const failures = heapFailures(report);
+    if (report.length === 0)
+        failures.push(`--only ${only ?? ""} matched no isolate module`);
     for (const f of failures) console.error(`[check:convex-heap] FAIL ${f}`);
 
     const clientReport: ClientHeap[] = [];
