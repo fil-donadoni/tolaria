@@ -30,7 +30,9 @@ function testFiles(dir: string): string[] {
 /** Recursive `rmSync(…, { recursive: true … })` calls lacking `maxRetries`. */
 export function bareRecursiveRmSyncs(source: string): number[] {
     const offenders: number[] = [];
-    const re = /rmSync\(/g;
+    // `require("fs").rmSync(` is script text run BY the child (a deliberate
+    // deletion under test), not this test's own teardown.
+    const re = /(?<!\)\.)rmSync\(/g;
     for (let m = re.exec(source); m; m = re.exec(source)) {
         let depth = 1;
         let i = m.index + m[0].length;
