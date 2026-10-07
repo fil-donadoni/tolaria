@@ -294,6 +294,11 @@ export function lowerStaticClause(
                 },
             };
         }
+        case "enters-with-counters":
+            return {
+                ok: true,
+                lowered: { entersWithCounters: clause.counters },
+            };
         case "enters-tapped":
             return {
                 ok: true,

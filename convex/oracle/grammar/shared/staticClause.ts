@@ -136,6 +136,12 @@ export type StaticClauseIR =
           readonly withoutPayingManaCost?: true;
           readonly asThoughFlash?: true;
       }
+    /** CR 614.1c / 122.1 — "<self> enters with N <kind> counters on it":
+     *  the entry replacement with no other rider (Gemstone Mine). */
+    | {
+          readonly kind: "enters-with-counters";
+          readonly counters: { readonly type: string; readonly count: number };
+      }
     /** CR 614.1c / 122.1 — how this permanent enters. */
     | {
           readonly kind: "enters-tapped";
@@ -846,6 +852,39 @@ const entersTappedWithCounters: Rule<StaticClauseIR> = pattern(
     }
 );
 
+const ENTERS_WITH = /^(.+) enters with (\S+) (\S+) counters? on it$/;
+
+/**
+ * "<self> enters with N <kind> counters on it" — the unconditional entry
+ * replacement (CR 614.1c / 122.1), the plain sibling of `entersTappedWithCounters`
+ * above. Anchored on "on it" with nothing after: the kicked forms below carry
+ * their own gate ("If … was kicked, it enters with …", "… for each time it was
+ * kicked") and are read by their own rules, so a tail here is another form and
+ * refuses, never reads as this one.
+ */
+const entersWithCounters: Rule<StaticClauseIR> = pattern(
+    "enters with counters",
+    ENTERS_WITH,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(uncapitalise(match[1]!)))
+            return fail(
+                `"${match[1]}" is not this permanent (CR 109.2)`,
+                match[1]!
+            );
+        const count = readNumberWord(match[2]!);
+        if (count === null)
+            return fail(`"${match[2]}" is not a number word`, match[2]!);
+        // CR 122.1 — "no counters" is not a printed count, and a rider that
+        // places nothing would be a silent no-op.
+        if (count < 1)
+            return fail(`"${match[2]}" places no counters`, match[2]!);
+        return ok({
+            kind: "enters-with-counters" as const,
+            counters: { type: match[3]!, count },
+        });
+    }
+);
+
 // ── Frame: as-enters creature-type choice (CR 614.1c / 614.12a) ────────────
 
 const AS_ENTERS_CHOOSE_CREATURE_TYPE =
@@ -1419,6 +1458,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
+        entersWithCounters,
         asEntersChooseCreatureType,
         kickedEntersWithRule,
         entersWithEachKickRule,

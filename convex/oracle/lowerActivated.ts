@@ -329,5 +329,36 @@ export function lowerManaAbility(input: {
             ability.dealsDamageToControllerOnColoredTap =
                 input.produces.dealsDamageToControllerOnColoredTap;
     }
+    for (const rider of input.produces.riders ?? []) {
+        switch (rider.kind) {
+            // CR 605.1a — the unconditional ping (Ancient Tomb).
+            case "damage-to-controller":
+                ability.dealsDamageToControllerOnTap = rider.amount;
+                break;
+            // CR 121.1 / 605.1a — the draw rides the same stackless resolution.
+            case "draw-card":
+                ability.drawsCardOnTap = 1;
+                break;
+            // CR 122.1 / 701.21a — the engine sacrifices once the cost's
+            // counter leg has been paid and none of that kind remain, so a
+            // sentence naming a kind the cost never removes would read a
+            // counter nobody spends: refuse rather than emit a dead rider.
+            case "sacrifice-without-counters":
+                if (cost.value.removeCounter?.type !== rider.counter)
+                    return {
+                        ok: false,
+                        reason: `"if there are no ${rider.counter} counters, sacrifice it" without a cost that removes a ${rider.counter} counter`,
+                    };
+                ability.sacrificesSourceWhenNoCountersRemain = rider.counter;
+                break;
+            default: {
+                const never: never = rider;
+                return {
+                    ok: false,
+                    reason: `no lowering for mana rider ${JSON.stringify(never)}`,
+                };
+            }
+        }
+    }
     return { ok: true, ability };
 }

@@ -76,7 +76,7 @@ import {
 import type { ParseContext } from "../../types";
 import { activationCostRule } from "../shared/cost";
 import { readNumberWord } from "../shared/quantity";
-import type { ManaProductionIR, SlotIR } from "../ir";
+import type { ManaProductionIR, ManaRiderIR, SlotIR } from "../ir";
 
 export const MANA_ABILITY_SLOT = "mana-ability";
 
@@ -200,6 +200,53 @@ function readPainlandDamage(span: string): number | null {
     return damage !== null && damage > 0 ? damage : null;
 }
 
+/**
+ * CR 121.1 / 605.1a — "Draw a card" after a production: the draw rides the
+ * same stackless resolution (`drawsCardOnTap`, Chromatic Sphere and the
+ * Invasion eggs). Scoped to ONE card: "Draw two cards" is a different count
+ * the field could carry but no printed ability needs.
+ */
+const DRAW_RIDER = "Draw a card";
+
+/**
+ * CR 122.1 / 701.21a — "If there are no depletion counters on this land,
+ * sacrifice it", the Mercadian Masques depletion lands' second sentence
+ * (`sacrificesSourceWhenNoCountersRemain`). The counter kind is read, not
+ * assumed (Gemstone Mine prints "mining"); `lowerManaAbility` ties it to the
+ * cost's own counter leg.
+ */
+const NO_COUNTERS_SACRIFICE_RIDER =
+    /^If there are no (\S+) counters on this land, sacrifice it$/;
+
+/**
+ * CR 605.1a — the rider sentence after a production this grammar reads, for
+ * the production it follows. Fail-closed: the sentence must be one of the
+ * three printed forms below; the painland damage form is owned by the CHOICE
+ * production (`readPainlandDamage`), the unconditional form by the FIXED one.
+ */
+function readManaRider(
+    head: ManaProductionIR,
+    span: string
+): ManaProductionIR | null {
+    const rider = ((): ManaRiderIR | null => {
+        if (span === DRAW_RIDER) return { kind: "draw-card" };
+        const sacrifice = NO_COUNTERS_SACRIFICE_RIDER.exec(span);
+        if (sacrifice !== null)
+            return {
+                kind: "sacrifice-without-counters",
+                counter: sacrifice[1]!,
+            };
+        if (head.kind === "fixed") {
+            const damage = readPainlandDamage(span);
+            if (damage !== null)
+                return { kind: "damage-to-controller", amount: damage };
+        }
+        return null;
+    })();
+    if (rider === null) return null;
+    return { ...head, riders: [rider] };
+}
+
 /** CR 106.1 / 605.1a — the effect half: "Add <mana>". */
 const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
     if (!span.startsWith("Add "))
@@ -222,6 +269,8 @@ const addEffect: Rule<ManaProductionIR> = rule("add effect", (span, ctx) => {
                 dealsDamageToControllerOnColoredTap: damage,
             });
     }
+    const withRider = readManaRider(head.value, riderSpan);
+    if (withRider !== null) return ok(withRider);
     return fail(r.reason, r.fragment, {
         path: [MANA_ABILITY_RIDER],
         span: riderSpan,
