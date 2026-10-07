@@ -81,10 +81,32 @@ export interface KickerIR {
 }
 
 /** What a mana ability adds (CR 605.1a). */
+/**
+ * CR 605.1a — a rider SENTENCE after a mana production: a non-mana additional
+ * effect the ability carries and still resolves without the stack (the Wall of
+ * Roots / Chromatic Sphere shape). Each lowers to the one `ActivatedAbility`
+ * field the engine already reads for it.
+ */
+export type ManaRiderIR =
+    /** "This land deals N damage to you" after a FIXED production
+     *  (`dealsDamageToControllerOnTap`, Ancient Tomb). */
+    | { readonly kind: "damage-to-controller"; readonly amount: number }
+    /** CR 121.1 — "Draw a card" (`drawsCardOnTap`, Chromatic Sphere). */
+    | { readonly kind: "draw-card" }
+    /** CR 122.1 / 701.21 — "If there are no <kind> counters on this land,
+     *  sacrifice it" (`sacrificesSourceWhenNoCountersRemain`, the depletion
+     *  lands). */
+    | { readonly kind: "sacrifice-without-counters"; readonly counter: string };
+
 export type ManaProductionIR =
-    | { readonly kind: "fixed"; readonly mana: ManaCost }
+    | {
+          readonly kind: "fixed";
+          readonly mana: ManaCost;
+          readonly riders?: readonly ManaRiderIR[];
+      }
     | {
           readonly kind: "choice";
+          readonly riders?: readonly ManaRiderIR[];
           readonly options: readonly ManaCost[];
           /**
            * CR 605.1a — the painland rider: "This land deals N damage to

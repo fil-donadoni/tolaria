@@ -18,7 +18,7 @@
 //     text compiles to its own definition, exactly (Guard C).
 //  3. REFUSALS — what the rule must NOT do: a fixed production's identical
 //     rider sentence (Ancient Tomb's unconditional `dealsDamageToControllerOnTap`,
-//     a different field) stays unparsed; a plain choice with no rider carries
+//     a different field, issue #4542) never writes the coloured-only field; a plain choice with no rider carries
 //     no spurious damage field; two mana lines with DIFFERENT costs do not
 //     merge into one ability.
 
@@ -112,14 +112,16 @@ describe("gold — the Ice Age painland cycle round-trips through its own text",
 });
 
 describe("refusals — what the rider rule must not do", () => {
-    it("a FIXED production's identical sentence stays unparsed (Ancient Tomb — a different field)", () => {
-        const outcome = compileCard(
+    it("a FIXED production's identical sentence is the unconditional ping, never the coloured-only field (Ancient Tomb)", () => {
+        const compiled = compiledOf(
             land(
                 "Ancient Tomb",
                 "{T}: Add {C}{C}. This land deals 2 damage to you."
             )
         );
-        expect(outcome.state).toBe("unparsed");
+        const ability = compiled.activatedAbilities![0]!;
+        expect(ability.dealsDamageToControllerOnTap).toBe(2);
+        expect(ability.dealsDamageToControllerOnColoredTap).toBeUndefined();
     });
 
     it("a plain two-way choice with no rider carries no damage field", () => {

@@ -464,7 +464,7 @@ describe("the activated and mana-ability slots do not overlap (CR 605.1a)", () =
     });
 
     it("a line that adds mana AND does something else is consumed by neither", () => {
-        const line = "{T}: Add {C}{C}. Draw a card.";
+        const line = "{T}: Add {C}{C}. You gain 1 life.";
         expect(manaAbilitySlot.run(line, land).ok).toBe(false);
         expect(activatedSlot.run(line, land).ok).toBe(false);
         expect(routeLine(line, land).ok).toBe(false);

@@ -1042,7 +1042,7 @@
         {
             "kind": "grammar",
             "key": "mana-ability › mana ability rider › During your next untap step, as you untap your permanents, return this land to its owner's hand",
-            "issue": 4542
+            "issue": 5214
         },
         {
             "kind": "grammar",
@@ -2177,7 +2177,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › that spell and put a depletion counter on this enchantment",
-            "issue": 4542
+            "issue": 5215
         },
         {
             "kind": "grammar",

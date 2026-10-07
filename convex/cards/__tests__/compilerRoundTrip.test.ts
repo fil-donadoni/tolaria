@@ -206,7 +206,10 @@ import {
 // Empress Galina and Thrull Champion round-trip through the new
 // `gain-control` sentence ("Gain control of target …", with or without
 // "for as long as you control this creature").
-const BASELINE_CEILING = 1430;
+//
+// Lowered 1430 -> 1426 by issue #4542 (mana ability riders and entry counters):
+// Ancient Tomb, Chromatic Sphere, Icatian Javelineers and Triskelion round-trip.
+const BASELINE_CEILING = 1426;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
