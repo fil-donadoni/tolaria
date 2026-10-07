@@ -35,10 +35,9 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     line of whole-file state on a STABLE path: the hash of the catalogue
  *     source both renderings are generated from. Two branches that both
  *     regenerate collide on it, and taking a side would leave the server's
- *     record of the hash disagreeing with the artifact that carries it in its
- *     name — which is the drift ADR 0113 §2 makes the whole guard about.
- *     Re-derived by `catalogue:pack`, which needs no corpus and which also
- *     resolves the two-artifact case named next.
+ *     record of the hash disagreeing with the packed corpus that carries it
+ *     too — which is the drift ADR 0113 §2 makes the whole guard about.
+ *     Re-derived by `catalogue:pack`, which needs no corpus.
  *   - `data/catalogue/packed-corpus.json` — IN THIS CLASS (issue #4164). The
  *     packed server corpus is ONE base64 string of deflated blocks plus
  *     indexes and the source hash: every regeneration rewrites the whole
@@ -58,15 +57,11 @@ import { LEDGER_PATH } from "./cr-ledger";
  *     deck-builder search index: ONE minified line of rows, so any two
  *     branches that regenerate it collide on that line. Re-derived by the
  *     same `catalogue:pack` run.
- *   - `data/catalogue/catalogue-<hash>.json` — CONTENT-ADDRESSED BY NAME, and
- *     so outside this class for a different reason (issue #3052, ADR 0114 §2).
- *     Its bytes are whole-file state, but two branches that regenerate it
- *     produce two DIFFERENTLY NAMED files, so git sees an add/add of unrelated
- *     paths rather than a textual conflict — and the merged tree then holds two
- *     artifacts, which `scripts/__tests__/catalogue-artifact.test.ts` reds on
- *     by name before it ever compares bytes. The remedy is the same
- *     (`bun run catalogue:pack`); what differs is that the merge driver has
- *     nothing to drive.
+ *   - `data/catalogue/catalogue-<hash>.json` — RETIRED (issue #5124): the
+ *     merged rows are held in memory and only their renderings above are
+ *     committed. A branch cut before the retirement that regenerates it
+ *     brings back a file `scripts/__tests__/catalogue-artifact.test.ts` reds
+ *     on by name; `bun run catalogue:pack` deletes it.
  *   - `data/full-catalogue/full-catalogue-<hash>.json.gz` — CONTENT-ADDRESSED
  *     BY NAME too (issue #3500), and outside this class for the same reason
  *     plus a stronger one: it is a gzip BLOB, so git cannot produce a textual

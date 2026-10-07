@@ -28,10 +28,11 @@ import catalogueSource from "../../data/catalogue/source-hash.json";
  * The source hash the SERVER's rendering was generated from — the server half
  * of ADR 0113 §2's identity guard (issue #3055).
  *
- * `scripts/catalogue-artifact.ts` writes both renderings in one run and stamps
- * this same hash on both: the client carries it in the artifact's FILE NAME
- * (`catalogue-<hash>.json`, which is that file's own content hash), the server
- * carries it here, bundled into every Convex mutation with the pool it labels.
+ * `scripts/catalogue-artifact.ts` writes every rendering in one run and stamps
+ * this same hash on them: the packed corpus carries it as `sourceHash`, the
+ * server carries it here, bundled into every Convex mutation with the pool it
+ * labels. (The client once carried it in the merged artifact's FILE NAME,
+ * `catalogue-<hash>.json`, retired by issue #5124.)
  *
  * Two independently written records of ONE generation, which is the point: a
  * merge or a hand-edit that takes one side and not the other shows up as a

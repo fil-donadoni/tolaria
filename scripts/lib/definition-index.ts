@@ -20,8 +20,9 @@ import {
     type HandWrittenIndexEntry,
 } from "../../convex/cards/definitionIndex";
 
-/** Beside the packed corpus, under a name the client's `catalogue-*.json`
- *  glob does not match. `data/catalogue/` is in `.prettierignore`. */
+/** Beside the packed corpus, under a name the stale-artifact sweep
+ *  (`catalogue-*.json`) does not match. `data/catalogue/` is in
+ *  `.prettierignore`. */
 export const DEFINITION_INDEX_PATH = "data/catalogue/definition-index.json";
 
 /**

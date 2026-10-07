@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import {
@@ -22,7 +22,12 @@ import {
 } from "@convex/cards/definitionIndex";
 import { buildCubePool, cubePoolSize } from "@convex/limited/cube";
 import { listDraftableSets } from "@convex/limited/registry";
-import { blockFor, type PackedCorpus } from "@convex/cards/packedCorpus";
+import {
+    blockFor,
+    decodeBase64,
+    inflateBlock,
+    type PackedCorpus,
+} from "@convex/cards/packedCorpus";
 import type { CardDefinition } from "@convex/cards/types";
 import {
     catalogueArtifactUrl,
@@ -62,18 +67,19 @@ const HAND_INDEX = JSON.parse(
     readFileSync(resolve(REPO, "data/catalogue/definition-index.json"), "utf8")
 ) as HandWrittenDefinitionIndex;
 
-/** The eager client's compiled rows: `catalogue-<hash>.json` minus the
- *  relocated hand-written rows (`excludeHandWritten`), in the file's order. */
+/** The eager client's compiled rows: every block of the packed corpus
+ *  inflated at once, in the file's order. Until issue #5124 these were read
+ *  from the committed `catalogue-<hash>.json` minus its relocated hand-written
+ *  rows; that file is retired, and the rows it held are exactly what the
+ *  packed corpus decodes to — proved on the generator's side, against the
+ *  regenerated merge, by `scripts/__tests__/catalogue-artifact.test.ts`
+ *  (`committedPackedDrift`). What this file proves is the other half: that
+ *  decoding ON DEMAND through the registry gives back the eager rows. */
 function eagerRows(): CardDefinition[] {
-    const dir = resolve(REPO, "data/catalogue");
-    const [artifact] = readdirSync(dir).filter(
-        (f) => f.startsWith("catalogue-") && f.endsWith(".json")
+    const dictionary = decodeBase64(PACKED.dictionary);
+    return PACKED.firstIds.flatMap((_, k) =>
+        inflateBlock(PACKED, k, dictionary)
     );
-    const rows = JSON.parse(
-        readFileSync(resolve(dir, artifact!), "utf8")
-    ) as CardDefinition[];
-    const handWritten = new Set(HAND_INDEX.entries.map(([id]) => id));
-    return rows.filter((r) => !handWritten.has(r.id));
 }
 
 function respondWith(body: unknown, init: Partial<Response> = {}) {
@@ -228,10 +234,11 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
 
 describe("equivalence with the eager hydration it replaces", () => {
     it("every Card ID of the Definition Index decodes to the definition the eager hydration produced", () => {
-        // The eager client fetched `catalogue-<hash>.json`, dropped its
-        // relocated hand-written rows (`excludeHandWritten`) and registered
-        // the rest; `getDefinition` then expanded them. Same file, same drop,
-        // same expansion — against what the packed source decodes on demand.
+        // The eager client fetched `catalogue-<hash>.json` (retired by issue
+        // #5124), dropped its relocated hand-written rows and registered the
+        // rest — the rows `eagerRows` inflates whole; `getDefinition` then
+        // expanded them. Same rows, same expansion — against what the packed
+        // source decodes on demand.
         const handWritten = new Set(getAllRawCards().map((c) => c.id));
         const eager = eagerRows();
 

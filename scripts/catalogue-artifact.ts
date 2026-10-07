@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
 /**
- * `bun run catalogue:pack` — writes THE catalogue artifact (issue #3052,
- * ADR 0113 §2, ADR 0114 §2/§3).
+ * `bun run catalogue:pack` — runs THE catalogue merge and writes its
+ * renderings (issue #3052, ADR 0113 §2, ADR 0114 §2/§3).
  *
- * One merged, minified, content-addressed, committed file under
- * `data/catalogue/`, holding:
+ * One merge, holding:
  *
  *   - every hand-written definition that is plain data end to end, relocated
  *     VERBATIM (a move, not a recompile — proved by a JSON round-trip that is
@@ -29,14 +28,12 @@
  *
  * It is paid HERE, structurally, before any check runs: this script emits
  *
- *   - `data/catalogue/catalogue-<hash>.json` — every merged row, minified,
- *     content-addressed by its own bytes: the anchor every other rendering
- *     is compared with. It WAS the client asset until issue #4861; the client
- *     now fetches the packed corpus below;
- *   - `data/catalogue/source-hash.json` — the ONE source hash, which the
- *     server bundles through `convex/cards/compiledCatalogue.ts` and the
- *     client carries in the artifact's file NAME. Two independently written
- *     records of one generation, so taking one side of a merge is visible;
+ *   - `data/catalogue/source-hash.json` — the ONE source hash: the truncated
+ *     sha256 of the merged rows' minified serialisation, computed in memory
+ *     and never written as a file of its own. The server bundles it through
+ *     `convex/cards/compiledCatalogue.ts` and the packed corpus below carries
+ *     it too: two independently written records of one generation, so taking
+ *     one side of a merge is visible;
  *   - `data/catalogue/packed-corpus.json` — the SERVER rendering (issue
  *     #4164, ADR 0113 Amendment III): `merge.rows` FILTERED
  *     (`merge.serverRows`), never a second join, deflated in blocks against
@@ -56,14 +53,28 @@
  *     (issue #4861, `scripts/lib/search-index.ts`): one row per catalogue
  *     card, so the client searches the whole catalogue without decoding it.
  *
- * `--check` writes nothing. It compares the two COMMITTED renderings against
- * each other first — the packed corpus DECODED, every block, against the
- * anchor's shared rows, naming the first card that differs
+ * ── The merged artifact is NOT a file (issue #5124) ─────────────────────────
+ *
+ * Until issue #5124 the merge was also committed whole, as
+ * `data/catalogue/catalogue-<hash>.json` (2.8 MB, every merged row, named by
+ * its own content hash). It was the client asset until issue #4861 moved the
+ * client onto the packed corpus; after that nothing fetched it, and it
+ * survived only as the anchor the committed packed corpus was compared with
+ * and as the carrier of the source hash in its name. Both roles are now held
+ * without it: the anchor is the REGENERATION (`merge.serverRows`, a pure join
+ * of committed inputs, so it is as available as a committed copy of itself),
+ * and the hash lives in `source-hash.json` and the packed corpus alone. A
+ * stray `catalogue-*.json` left by a branch cut before the retirement is
+ * deleted by `catalogue:pack` and refused by `--check`.
+ *
+ * `--check` writes nothing. It compares the COMMITTED packed corpus first —
+ * DECODED, every block, against the regenerated server rows, under the source
+ * hash `source-hash.json` commits, naming the first card that differs
  * (`packedCorpusDrift`, the decode-equality guard) — and only then compares
- * every file against a fresh regeneration. Identity first because a stale rendering fails both and
- * the first message is the one the reader gets: "Venerable Knight is TWO
- * definitions" is a diagnosis, "the pool is not what the tree generates" is
- * not. That is the identity + freshness guard
+ * every file against a fresh regeneration. Identity first because a stale
+ * rendering fails both and the first message is the one the reader gets:
+ * "Venerable Knight is TWO definitions" is a diagnosis, "the pool is not what
+ * the tree generates" is not. That is the identity + freshness guard
  * `scripts/__tests__/catalogue-artifact.test.ts` runs in the gate: it is what
  * makes ADR 0114 §2's claim true, that a hand-written card added without
  * regenerating is CAUGHT rather than filtered away in silence, and ADR 0113
@@ -89,7 +100,6 @@ import type { CardDefinition } from "../convex/cards/types";
 import {
     CATALOGUE_DIR,
     SOURCE_HASH_FILE,
-    artifactFileName,
     contentHash,
     mergeCatalogue,
     serializeCatalogue,
@@ -139,7 +149,8 @@ interface ReadyRow {
 
 export interface CatalogueBuild {
     readonly merge: MergeResult;
-    /** The CLIENT asset's bytes. */
+    /** Every merged row, minified — the source hash's preimage. Held in
+     *  memory, never written (issue #5124). */
     readonly bytes: string;
     /** The source hash sidecar's bytes — `data/catalogue/source-hash.json`. */
     readonly sourceHashBytes: string;
@@ -150,7 +161,6 @@ export interface CatalogueBuild {
     /** The deck-builder search index's bytes — {@link SEARCH_INDEX_PATH}. */
     readonly searchIndexBytes: string;
     readonly hash: string;
-    readonly fileName: string;
     /** `ready` rows the join could not resolve an `id`/`rarity`/`setCode` for. */
     readonly unjoinable: number;
 }
@@ -241,8 +251,8 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
     const walk = walkHandWrittenDefinitions();
     const bytes = serializeCatalogue(merge.rows);
     const hash = contentHash(bytes);
-    // The hash of the CLIENT asset's bytes is the source hash for both
-    // renderings: those bytes are the whole merged source, and the server's
+    // The hash of the merged rows' bytes is the source hash for every
+    // rendering: those bytes are the whole merged source, and the server's
     // rendering is a filter of it. A hash of the server half alone would move
     // for a subset of the changes and agree across the rest — the drift this
     // guards is exactly a regeneration that reached one side only.
@@ -256,7 +266,6 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         ),
         searchIndexBytes: buildSearchIndexBytes(walk, merge.serverRows),
         hash,
-        fileName: artifactFileName(hash),
         unjoinable,
     };
 }
@@ -267,10 +276,10 @@ const readCommitted = (repoRoot: string, path: string): string | null => {
 };
 
 /**
- * The client's rendering of the SHARED definitions: the artifact's rows minus
- * the relocated hand-written ones.
+ * The SHARED definitions: the merged rows minus the relocated hand-written
+ * ones.
  *
- * This is `excludeHandWritten` applied to the merged artifact — it carries the
+ * This is `excludeHandWritten` applied to the merge — it carries the
  * hand-written rows too, and the runtime serves those from the modules the
  * engine runs (`convex/cards/compiledCatalogue.ts`). So what is left is
  * exactly the population the packed corpus holds — the one the eager client
@@ -284,11 +293,17 @@ export function sharedClientRows(
 }
 
 /**
- * Compare the two COMMITTED renderings — the question ADR 0113 §2 poses,
- * asked of the bytes on disk rather than of a regeneration (issue #3055):
- * does the packed server corpus decode to exactly the anchor's shared rows,
- * under the same source hash, with true indexes (issue #4164)? One line naming
- * the first differing card, or `null`.
+ * Does the COMMITTED packed corpus — the bytes the server bundles and the
+ * client fetches — decode to exactly the rows the tree generates, under the
+ * source hash `source-hash.json` commits, with true indexes (issue #4164)?
+ * One line naming the first differing card, or `null`.
+ *
+ * The anchor was the committed merged artifact until issue #5124 retired it;
+ * it is now the regeneration, which that artifact only ever copied. Two
+ * single-sided regenerations stay distinguishable: a packed corpus regenerated
+ * without its source-hash sidecar (or the reverse, or a merge that took one
+ * side of each) is named by its hash before any row is compared; a card edited
+ * without regenerating anything is named by the card.
  *
  * This decode-equality guard is the standing proof that the server's rows are
  * the catalogue's (issue #4168): it inflates every block, where a request
@@ -297,20 +312,20 @@ export function sharedClientRows(
  * `null` when a file is missing: that is the freshness check's failure to
  * report, and reporting it twice would name the wrong remedy.
  */
-export function committedPackedDrift(repoRoot: string): string | null {
+export function committedPackedDrift(
+    repoRoot: string,
+    build: CatalogueBuild
+): string | null {
     const packed = readCommitted(repoRoot, PACKED_CORPUS_PATH);
-    const artifacts = committedArtifacts(repoRoot);
-    if (packed === null || artifacts.length !== 1) return null;
-    const artifact = readCommitted(
+    const sourceHash = readCommitted(
         repoRoot,
-        join(CATALOGUE_DIR, artifacts[0]!)
+        join(CATALOGUE_DIR, SOURCE_HASH_FILE)
     );
-    if (artifact === null) return null;
-    const hash = artifacts[0]!.slice("catalogue-".length, -".json".length);
+    if (packed === null || sourceHash === null) return null;
     return packedCorpusDrift(
         JSON.parse(packed) as PackedCorpus,
-        sharedClientRows(JSON.parse(artifact) as CardDefinition[]),
-        hash
+        build.merge.serverRows,
+        (JSON.parse(sourceHash) as { hash: string }).hash
     );
 }
 
@@ -318,8 +333,9 @@ export function committedPackedDrift(repoRoot: string): string | null {
 export const unbaselinedDivergences = (build: CatalogueBuild) =>
     build.merge.divergences.filter((d) => !BASELINE_KEYS.has(baselineKey(d)));
 
-/** The artifact files currently committed under `data/catalogue/`. */
-export function committedArtifacts(repoRoot: string): string[] {
+/** Merged-artifact files (`catalogue-<hash>.json`) still under
+ *  `data/catalogue/` — retired by issue #5124, so any is stale. */
+export function retiredArtifacts(repoRoot: string): string[] {
     const dir = resolve(repoRoot, CATALOGUE_DIR);
     if (!existsSync(dir)) return [];
     return readdirSync(dir)
@@ -384,17 +400,15 @@ function main() {
         `(${merge.withheld.length} compiled twin(s) withheld with them)\n` +
         `  ${build.unjoinable} ready row(s) unjoinable (a stop, not a tally — see above)`;
 
-    const existing = committedArtifacts(repoRoot);
+    const retired = retiredArtifacts(repoRoot);
     const dir = resolve(repoRoot, CATALOGUE_DIR);
     const sourceHashPath = join(CATALOGUE_DIR, SOURCE_HASH_FILE);
 
     if (check) {
-        const committed = join(CATALOGUE_DIR, build.fileName);
-        if (existing.length !== 1 || existing[0] !== build.fileName) {
+        if (retired.length > 0) {
             console.error(
-                `${RED}✗ catalogue artifact is stale${RESET}\n` +
-                    `  expected exactly: ${committed}\n` +
-                    `  found: ${existing.length === 0 ? "(nothing)" : existing.join(", ")}\n` +
+                `${RED}✗ the merged catalogue artifact is retired (issue #5124)${RESET}\n` +
+                    `  found: ${retired.map((f) => join(CATALOGUE_DIR, f)).join(", ")}\n` +
                     `  Run: bun run catalogue:pack`
             );
             process.exit(1);
@@ -411,10 +425,10 @@ function main() {
         // way and the Brain planning against another. Running freshness first
         // made the per-card diagnosis unreachable for the single-sided
         // mutation that is the whole failure mode (review of issue #3055).
-        const packedDrift = committedPackedDrift(repoRoot);
+        const packedDrift = committedPackedDrift(repoRoot, build);
         if (packedDrift !== null) {
             console.error(
-                `${RED}✗ the server-bundled packed corpus and the catalogue artifact DIVERGE (ADR 0113 §2)${RESET}\n` +
+                `${RED}✗ the committed packed corpus and the catalogue DIVERGE (ADR 0113 §2)${RESET}\n` +
                     `    ${packedDrift}\n` +
                     "  The server would resolve this card one way and the client's Brain plan\n" +
                     "  against another. Run: bun run catalogue:pack"
@@ -422,7 +436,6 @@ function main() {
             process.exit(1);
         }
         for (const [path, expected] of [
-            [committed, build.bytes],
             [sourceHashPath, build.sourceHashBytes],
             [PACKED_CORPUS_PATH, build.packedBytes],
             [DEFINITION_INDEX_PATH, build.definitionIndexBytes],
@@ -436,17 +449,14 @@ function main() {
             process.exit(1);
         }
         console.log(
-            `${GREEN}✓${RESET} ${committed} is current — ${summary}\n` +
+            `${GREEN}✓${RESET} the catalogue is current — ${summary}\n` +
                 `${DIM}  ${PACKED_CORPUS_PATH} + ${DEFINITION_INDEX_PATH} + ${SEARCH_INDEX_PATH} + ${sourceHashPath} agree with it, hash ${build.hash}${RESET}`
         );
         return;
     }
 
     mkdirSync(dir, { recursive: true });
-    for (const stale of existing) {
-        if (stale !== build.fileName) rmSync(join(dir, stale));
-    }
-    writeFileSync(join(dir, build.fileName), build.bytes, "utf-8");
+    for (const stale of retired) rmSync(join(dir, stale));
     writeFileSync(join(dir, SOURCE_HASH_FILE), build.sourceHashBytes, "utf-8");
     writeFileSync(
         resolve(repoRoot, PACKED_CORPUS_PATH),
@@ -464,8 +474,7 @@ function main() {
         "utf-8"
     );
     console.log(
-        `${GREEN}✓${RESET} ${join(CATALOGUE_DIR, build.fileName)} ` +
-            `(${(build.bytes.length / 1024).toFixed(0)} KB) — ${summary}\n` +
+        `${GREEN}✓${RESET} catalogue merged — ${summary}\n` +
             `${GREEN}✓${RESET} ${PACKED_CORPUS_PATH} ` +
             `(${build.packedBytes.length} B, ${build.merge.serverRows.length} row(s), ${(build.packedBytes.length / Math.max(1, build.merge.serverRows.length)).toFixed(0)} B/row) ` +
             `— the SAME rows, filtered and packed (issues #3055, #4164)\n` +
@@ -474,7 +483,7 @@ function main() {
             `${GREEN}✓${RESET} ${SEARCH_INDEX_PATH} ` +
             `(${(build.searchIndexBytes.length / 1024).toFixed(0)} KB) — the deck-builder search index (issue #4861)\n` +
             `${GREEN}✓${RESET} ${sourceHashPath} — ${build.hash}\n` +
-            `${DIM}  provenance stays on the lockfile (ADR 0114 §2); the file name is the content hash${RESET}`
+            `${DIM}  provenance stays on the lockfile (ADR 0114 §2); the source hash is the merged rows' content hash${RESET}`
     );
 }
 

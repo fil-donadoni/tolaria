@@ -1,5 +1,7 @@
 /**
  * The ONE catalogue artifact, merged at BUILD (ADR 0113 §2, ADR 0114 §2/§3).
+ * Since issue #5124 the merge is held in memory and only its renderings are
+ * committed (`scripts/catalogue-artifact.ts`).
  *
  * Today the same card can exist twice — a hand-written module under
  * `convex/cards/sets/**` and a compiled `ready` row in the Oracle lockfile —
@@ -62,20 +64,17 @@ import {
 } from "../../convex/oracle/gold";
 import { sortKeys } from "../../convex/oracle/gates";
 
-/** Where the merged artifact lives. Content-addressed FILE NAME, so the
- *  directory holds exactly one file and its name is its own checksum. */
+/** Where the merge's renderings live. The merge itself is not one of them:
+ *  the committed `catalogue-<hash>.json` was retired by issue #5124. */
 export const CATALOGUE_DIR = "data/catalogue";
 
-/** How many hex characters of the sha256 go in the file name. 64 bits is
+/** How many hex characters of the sha256 the source hash keeps. 64 bits is
  *  past any collision that could arise from a repo's worth of regenerations,
  *  and short enough to read in a diff. */
 const HASH_CHARS = 16;
 
-export const artifactFileName = (hash: string): string =>
-    `catalogue-${hash}.json`;
-
-/** sha256 of the artifact's own bytes, truncated. The name IS the provenance
- *  the asset carries; everything else stays on the lockfile (ADR 0114 §2). */
+/** sha256 of the merged rows' bytes, truncated: the source hash every
+ *  rendering carries. Everything else stays on the lockfile (ADR 0114 §2). */
 export function contentHash(bytes: string): string {
     return createHash("sha256")
         .update(bytes, "utf-8")
@@ -227,7 +226,7 @@ export interface CompiledCard {
 }
 
 export interface MergeResult {
-    /** The artifact's rows, sorted by `id` — the CLIENT rendering. */
+    /** The merged rows, sorted by `id` — the source hash's preimage. */
     readonly rows: readonly CardDefinition[];
     /**
      * The SERVER rendering: the compiled-only subset of {@link rows}, sorted
@@ -331,18 +330,14 @@ export function mergeCatalogue(
     };
 }
 
-/** The artifact's bytes: minified, newline-terminated, deterministic. The
- *  committed shape is NOT prettified — `data/catalogue/` is in
- *  `.prettierignore` (ADR 0105): ~60% of the retired pretty-printed pool's
- *  bytes were whitespace. */
+/** The merged rows' bytes — the source hash's preimage, held in memory since
+ *  issue #5124: minified, newline-terminated, deterministic. */
 export function serializeCatalogue(rows: readonly CardDefinition[]): string {
     return JSON.stringify(rows) + "\n";
 }
 
 /** The server's copy of the source hash — one generated file, so the hash is
- *  never a literal a human can edit out of agreement with the bytes. Sits
- *  inside {@link CATALOGUE_DIR}, which the client's `catalogue-*.json` glob
- *  does not match. */
+ *  never a literal a human can edit out of agreement with the bytes. */
 export const SOURCE_HASH_FILE = "source-hash.json";
 
 export const serializeSourceHash = (hash: string): string =>
