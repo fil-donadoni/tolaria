@@ -159,9 +159,8 @@ const ENCHANT_HEAD = "Enchant ";
  *    Aura one that "can't target permanents and can't be attached to
  *    permanents", a different attachment branch (`auraEnchantsPlayers`) that
  *    no hand-written Aura exercises through this seam yet;
- *  - a CARD in a zone ("Enchant creature card in a graveyard") — the Aura's
- *    host is not a permanent at all, and what it enchants after it resolves is
- *    the card's own text (Animate Dead), not this restriction;
+ *  - a CARD outside a graveyard — only "creature card in a graveyard" is
+ *    printed (Animate Dead, CR 303.4a), and it is read, not refused;
  *  - a PLURAL noun — "Enchant creatures" is not a printed shape, so reading
  *    one means the line was misread.
  *  - a COMBAT ROLE ("attacking creature") — likewise not a printed shape.
@@ -183,9 +182,22 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     // card means. Reading one means the line was misread.
     if (d.combatRole !== undefined)
         return fail("an enchant filter never names a combat role", phrase);
-    if (d.card === true || d.zone !== undefined)
+    // CR 303.4a — an Aura spell's target is defined by its enchant ability, so
+    // "Enchant creature card in a graveyard" is the Aura's cast-time target: a
+    // creature CARD in any graveyard, which is exactly the `zone: "graveyard"`
+    // target requirement the hand-written graveyard Auras carry. What the Aura
+    // does with that card afterwards is its own text, read (or refused) by the
+    // lines that print it. Any other zone, card type or owner is not a
+    // printed shape.
+    const graveyardCard =
+        d.card === true &&
+        d.zone === "graveyard" &&
+        d.zoneOwner === "any" &&
+        d.types?.length === 1 &&
+        d.types[0] === "Creature";
+    if (!graveyardCard && (d.card === true || d.zone !== undefined))
         return fail(
-            "an Aura that enchants a card outside the battlefield is not a permanent filter",
+            "an Aura enchants a permanent or a card in a graveyard, no other zone",
             phrase
         );
     const requirement: RuleResult<TargetRequirement> =

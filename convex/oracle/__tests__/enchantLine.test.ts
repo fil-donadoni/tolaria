@@ -287,10 +287,10 @@ describe("keyword line — Enchant gold over the hand-written Auras", () => {
                 def.name
             ).toEqual(sortKeys(canonicaliseShorthands(def.targetRequirement)));
         }
-        // The refusals are the graveyard Auras — their host is a CARD, and
-        // what they enchant afterwards is their own text (CR 702.5a names an
-        // object; "creature card in a graveyard" is not a permanent filter).
-        expect(refused.sort()).toEqual(["Animate Dead", "Dance of the Dead"]);
+        // The graveyard Auras' enchant line is read too (CR 303.4a): their
+        // cast-time target is a creature CARD in a graveyard, which is the
+        // `zone: "graveyard"` requirement Animate Dead is written with.
+        expect(refused).toEqual([]);
         expect(accepted).toBeGreaterThan(100);
     });
 });
@@ -301,7 +301,8 @@ describe("keyword line — Enchant refusals", () => {
     it.each([
         ["Enchant player", "a player, CR 702.5d"],
         ["Enchant opponent", "a player, CR 702.5d"],
-        ["Enchant creature card in a graveyard", "a card, not a permanent"],
+        ["Enchant creature card in your graveyard", "your graveyard only"],
+        ["Enchant creature card in exile", "no other zone"],
         ["Enchant creatures", "a plural noun"],
         ["Enchant attacking creature", "a combat role"],
         ["Enchant red or green creature", "a multi-colour filter"],
