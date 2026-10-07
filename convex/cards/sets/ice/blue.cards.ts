@@ -1841,6 +1841,19 @@ export const portent = defineCard(() => ({
     manaCost: { U: 1 },
     types: ["Sorcery"],
     targetRequirement: { type: "player", count: 1 },
+    // AI shadow (issue #4143, never executed): the three-card reorder of the
+    // targeted library (the plain-scry shape, so the sign follows whose
+    // library it is — the caster's own is the gift worth taking) plus the
+    // next-upkeep cantrip. The optional shuffle has no Op and is not priced.
+    aiEffects: [
+        {
+            op: "scryReorder",
+            player: { target: 0 },
+            count: 3,
+            destination: "none",
+        },
+        { op: "draw", player: "controller", count: 1 },
+    ],
     resolveSteps: [
         (ctx: SpellContext) => {
             const t = ctx.targets[0];

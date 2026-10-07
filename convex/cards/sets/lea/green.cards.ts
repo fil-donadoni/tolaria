@@ -1316,6 +1316,9 @@ export const wildGrowth = defineCard(() => ({
             },
             scope: "any",
             forMana: true,
+            // AI shadow (issue #4143, never executed): the extra {G} the
+            // enchanted land's controller adds on every mana tap.
+            aiEffects: [{ op: "addMana", mana: { G: 1 } }],
             condition: (event, self) =>
                 !!self.attachedTo && event.permanentId === self.attachedTo,
             resolve: (ctx, _event, tapped) => {

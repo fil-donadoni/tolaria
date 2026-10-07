@@ -103,6 +103,13 @@ export interface SpellCastTriggerArgs {
      *  effect does NOT read the firing spell (e.g. Argothian Enchantress'
      *  mandatory "draw a card"). Mutually exclusive with `resolve`. */
     effects?: EffectOp[];
+    /** aiEffects shadow script (PRD #1423, issue #1431/#1519) — a
+     *  valuation-only Effect Script, NEVER executed, walked by the same
+     *  `OP_VALUERS` a real `effects[]` script uses. Plugs the AI-blind gap
+     *  for a `resolve()`-bodied cast trigger (a bare `resolve` gives the
+     *  bot's card-quality signal nothing to walk). Only meaningful alongside
+     *  `resolve` — a trigger already on `effects[]` doesn't need it. */
+    aiEffects?: EffectOp[];
 }
 
 /** Reusable "this is exactly the caster's Nth spell this turn" trigger
@@ -184,6 +191,7 @@ export function spellCastTrigger(args: SpellCastTriggerArgs): TriggeredAbility {
     if (args.effects !== undefined) {
         built.effects = args.effects;
     } else {
+        if (args.aiEffects !== undefined) built.aiEffects = args.aiEffects;
         const resolveFn = args.resolve!;
         built.resolve = (ctx, event) => {
             if (event.type !== "SPELL_CAST") return;
