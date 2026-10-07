@@ -126,6 +126,13 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         head.kind === "damage-dealt" && head.recipient === "opponent"
             ? { ref: "$event.damagedPlayer" }
             : null;
+    // CR 102.1 — "deals damage to A PLAYER" names the damaged player too, but
+    // not as an opponent: either player can be the one dealt damage, so "that
+    // opponent" stays unbound behind this head.
+    const damagedPlayer =
+        head.kind === "damage-dealt" && head.recipient === "player"
+            ? { ref: "$event.damagedPlayer" }
+            : null;
     return {
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
@@ -133,6 +140,7 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(damagedOpponent !== null
             ? { player: damagedOpponent, opponent: damagedOpponent }
             : {}),
+        ...(damagedPlayer !== null ? { player: damagedPlayer } : {}),
         // CR 120.3 — "that much" after a damage head is the damage dealt.
         ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
             ? { amount: { ref: "$event.amount" } }
