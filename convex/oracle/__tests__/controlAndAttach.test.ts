@@ -15,6 +15,7 @@ import type { CardDefinition } from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import { routeLine } from "../grammar/router";
+import { sentenceRule } from "../grammar/shared/effectClause";
 import { oracleCard, parseContext } from "./oracle.fixture";
 
 function compiled(card: ReturnType<typeof oracleCard>) {
@@ -303,5 +304,42 @@ describe("Control and attachment — refused neighbours", () => {
         const line =
             "{G}{G}: Attach this Equipment to target creature you control.";
         expect(routeLine(line, parseContext(HORNED_HELM)).ok).toBe(false);
+    });
+
+    // The sentence alone, so the refusal is this rule's and not a later
+    // sentence's: each is the opening sentence of a real corpus card.
+    it.each([
+        [
+            "an 'until end of turn' steal (Act of Treason)",
+            "Gain control of target creature until end of turn",
+        ],
+        ["a spell target (Aethersnatch)", "Gain control of target spell"],
+        [
+            "a variable-count target group (Mass Manipulation)",
+            "Gain control of X target creatures and/or planeswalkers",
+        ],
+    ])("gain control refuses %s", (_label, span) => {
+        expect(sentenceRule.run(span, parseContext()).ok).toBe(false);
+    });
+
+    // CR 701.3a — an Aura attaches only to what its Enchant line names. No
+    // printed card asks for anything else, so this is Felidar Umbra with its
+    // target retyped: the one place the type-subset check is reachable.
+    it("an Aura's attach to a permanent its Enchant line excludes is refused (Felidar Umbra, target retyped to land)", () => {
+        const card = oracleCard({
+            name: "Felidar Umbra",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature has lifelink.\n{1}{W}: Attach this Aura to target land you control.",
+            power: undefined,
+            toughness: undefined,
+        });
+        expect(
+            routeLine(
+                "{1}{W}: Attach this Aura to target land you control.",
+                parseContext(card)
+            ).ok
+        ).toBe(false);
     });
 });
