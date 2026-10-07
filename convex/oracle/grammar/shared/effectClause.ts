@@ -814,6 +814,44 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.20a — "Reveal the top card of your library and put that
+           * card into your hand." One sentence, one card: nothing is left over
+           * to route, so it is no `look-distribute`. `lifeLoss` is the
+           * "You lose life equal to its mana value." sentence behind it, folded
+           * on by `assembleSentences` because "its" reads the revealed card
+           * (CR 608.2c) and means nothing alone.
+           */
+          readonly kind: "reveal-top-to-hand";
+          readonly lifeLoss: boolean;
+      }
+    | {
+          /**
+           * CR 701.20a / CR 400.7 — "Reveal cards from the top of your library
+           * until you reveal a <card>. Put that card <where> and the rest
+           * <elsewhere>." Two printed sentences, one effect: the first names
+           * what ends the reveal, the second where the first match and all the
+           * others go. Folded by `assembleSentences`; either half alone is
+           * refused.
+           */
+          readonly kind: "reveal-until";
+          readonly filter: EffectCardFilter;
+          readonly match: UntilRouteDestination;
+          readonly rest: UntilRouteDestination;
+      }
+    | {
+          /**
+           * CR 701.20a / CR 701.21 — a pile division of a revealed library
+           * window: "Reveal the top N cards of your library. An opponent
+           * separates those cards into two piles. Put one pile into your hand
+           * and the other into your graveyard." The three printed sentences
+           * (or the "separate them … An opponent chooses one of those piles"
+           * variant) are one effect, folded by `assembleSentences`.
+           */
+          readonly kind: "divide-library-piles";
+          readonly count: AmountIR;
+      }
+    | {
+          /**
            * CR 401.4 — "Look at the top N cards of <player>'s library, then
            * put them back in any order." One sentence: no card leaves the
            * top of the library, the looker only re-arranges it.
@@ -919,6 +957,13 @@ export type LibraryRouteIR =
               | "graveyard";
       };
 
+/** Where a `reveal-until` sentence sends a card (the Op's own vocabulary). */
+export type UntilRouteDestination =
+    | "hand"
+    | "battlefield"
+    | "graveyard"
+    | "exile";
+
 /** CR 602.5 — a clause restricting WHEN the ability may be activated. */
 export type RestrictionIR =
     /** CR 602.5d — "Activate only as a sorcery." */
@@ -992,6 +1037,28 @@ export type SentenceIR =
       }
     /** CR 401.4 — the routing half of a `look-distribute` (see there). */
     | { readonly role: "library-route"; readonly route: LibraryRouteIR }
+    /** CR 701.20a — the window half of a `reveal-until` (see there). */
+    | { readonly role: "reveal-until"; readonly filter: EffectCardFilter }
+    /** The routing half of a `reveal-until` (see there). */
+    | {
+          readonly role: "reveal-until-route";
+          readonly match: UntilRouteDestination;
+          readonly rest: UntilRouteDestination;
+      }
+    /**
+     * CR 701.21 — the pile-division sentences of `divide-library-piles`.
+     * `pile-split` follows a revealed window ("An opponent separates those
+     * cards into two piles"); `pile-split-window` is the window and the split
+     * in one sentence ("Reveal the top N cards of your library and separate
+     * them into two piles"), which `pile-opponent-picks` ("An opponent
+     * chooses one of those piles") must follow; `pile-route` ends the run.
+     */
+    | { readonly role: "pile-split" }
+    | { readonly role: "pile-split-window"; readonly count: AmountIR }
+    | { readonly role: "pile-opponent-picks" }
+    | { readonly role: "pile-route"; readonly pronoun: "one" | "that" }
+    /** CR 119.3 — "You lose life equal to its mana value." (see `reveal-top-to-hand`). */
+    | { readonly role: "mana-value-life-loss" }
     /**
      * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
      * replacement half of an `upgrade-if-controls`, folded onto the effect in
@@ -1088,6 +1155,16 @@ export function assembleSentences(
         SentenceIR,
         { role: "flashback-grant" }
     > | null = null;
+    // CR 701.20a — a reveal-until window waits for the sentence that routes it.
+    let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
+        null;
+    // CR 701.21 — a pile division in progress: "needs-picker" after the
+    // one-sentence window+split, "ready" once an opponent has split/chosen.
+    let piles: {
+        readonly count: AmountIR;
+        readonly stage: "needs-picker" | "ready";
+        readonly form: "separates" | "chooses";
+    } | null = null;
     for (const sentence of sentences) {
         if (flashbackGrant !== null) {
             if (sentence.role !== "flashback-cost")
@@ -1183,6 +1260,106 @@ export function assembleSentences(
                     reason: "an effect sentence follows an activation restriction",
                 };
             awaitingColorChoice = true;
+            continue;
+        }
+        if (revealUntil !== null) {
+            if (sentence.role !== "reveal-until-route")
+                return {
+                    ok: false,
+                    reason: "a reveal-until window is not followed by where its cards go",
+                };
+            effects.push({
+                kind: "reveal-until",
+                filter: revealUntil.filter,
+                match: sentence.match,
+                rest: sentence.rest,
+            });
+            revealUntil = null;
+            continue;
+        }
+        if (sentence.role === "reveal-until") {
+            if (restrictions.length > 0)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            revealUntil = sentence;
+            continue;
+        }
+        if (sentence.role === "reveal-until-route")
+            return {
+                ok: false,
+                reason: "a reveal-until routing follows no reveal-until window",
+            };
+        if (piles !== null) {
+            if (piles.stage === "needs-picker") {
+                if (sentence.role !== "pile-opponent-picks")
+                    return {
+                        ok: false,
+                        reason: "a pile split is not followed by an opponent's pick",
+                    };
+                piles = { ...piles, stage: "ready" };
+                continue;
+            }
+            if (
+                sentence.role !== "pile-route" ||
+                sentence.pronoun !==
+                    (piles.form === "separates" ? "one" : "that")
+            )
+                return {
+                    ok: false,
+                    reason: "a pile division is not followed by where its piles go",
+                };
+            effects.push({ kind: "divide-library-piles", count: piles.count });
+            piles = null;
+            continue;
+        }
+        if (window !== null && sentence.role === "pile-split") {
+            // CR 701.20a — the piles are made of the window's cards, which only
+            // a REVEAL puts in front of the opponent who splits them.
+            if (!window.reveal)
+                return {
+                    ok: false,
+                    reason: "a pile division of a look, not a reveal, is not in this grammar",
+                };
+            piles = { count: window.count, stage: "ready", form: "separates" };
+            window = null;
+            continue;
+        }
+        if (sentence.role === "pile-split-window") {
+            if (restrictions.length > 0 || window !== null)
+                return {
+                    ok: false,
+                    reason: "an effect sentence follows an activation restriction",
+                };
+            piles = {
+                count: sentence.count,
+                stage: "needs-picker",
+                form: "chooses",
+            };
+            continue;
+        }
+        if (
+            sentence.role === "pile-split" ||
+            sentence.role === "pile-opponent-picks" ||
+            sentence.role === "pile-route"
+        )
+            return {
+                ok: false,
+                reason: "a pile sentence follows no revealed window it divides",
+            };
+        if (sentence.role === "mana-value-life-loss") {
+            const previous = effects[effects.length - 1];
+            if (
+                previous === undefined ||
+                previous.kind !== "reveal-top-to-hand" ||
+                previous.lifeLoss
+            )
+                return {
+                    ok: false,
+                    reason: '"its mana value" follows no revealed card it could read',
+                };
+            effects[effects.length - 1] = { ...previous, lifeLoss: true };
             continue;
         }
         if (window !== null) {
@@ -1334,6 +1511,11 @@ export function assembleSentences(
         return {
             ok: false,
             reason: "a library look is not followed by where its cards go",
+        };
+    if (revealUntil !== null || piles !== null)
+        return {
+            ok: false,
+            reason: "a library reveal is not followed by where its cards go",
         };
     if (awaitingColorChoice)
         return {
@@ -1913,6 +2095,32 @@ const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
 /** The window: "Look at [or Reveal] the top four cards of your library". */
 const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
+/** CR 701.20a — "Reveal the top card of your library and put that card into your hand". */
+const REVEAL_TOP_TO_HAND =
+    /^Reveal the top card of your library and put that card into your hand$/;
+/** CR 119.3 — the life-loss tail; "its", "that card's" and "the card's" all read the card just revealed. */
+const MANA_VALUE_LIFE_LOSS =
+    /^You lose life equal to (?:its|that card's|the card's) mana value$/;
+/** CR 701.20a — the reveal-until window: what ends the reveal. */
+const REVEAL_UNTIL =
+    /^Reveal cards from the top of your library until you reveal (a basic land card|a land card|a creature card|a white card)$/;
+/** CR 400.7 — the reveal-until routing: the first match, then every other card. */
+const REVEAL_UNTIL_ROUTE =
+    /^Put that card (into your hand|onto the battlefield) and (?:(?:put )?(?:all other cards revealed this way|the rest) into your (graveyard)|(exile) all other cards revealed this way)$/;
+/** CR 701.21 — a pile division of a revealed window. */
+const PILE_SPLIT = /^An opponent separates those cards into two piles$/;
+const PILE_SPLIT_WINDOW =
+    /^Reveal the top (\S+) cards of your library and separate them into two piles$/;
+const PILE_OPPONENT_PICKS = /^An opponent chooses one of those piles$/;
+const PILE_ROUTE =
+    /^Put (one|that) pile into your hand and the other into your graveyard$/;
+
+const REVEAL_UNTIL_FILTERS = new Map<string, EffectCardFilter>([
+    ["a basic land card", { type: "Land", supertype: "Basic" }],
+    ["a land card", { type: "Land" }],
+    ["a creature card", { type: "Creature" }],
+    ["a white card", { color: "W" }],
+]);
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
@@ -2434,6 +2642,42 @@ function libraryHalf(span: string) {
             count,
         } satisfies SentenceIR);
     }
+    const until = span.match(REVEAL_UNTIL);
+    if (until !== null) {
+        return ok({
+            role: "reveal-until" as const,
+            filter: REVEAL_UNTIL_FILTERS.get(until[1]!)!,
+        } satisfies SentenceIR);
+    }
+    const untilRoute = span.match(REVEAL_UNTIL_ROUTE);
+    if (untilRoute !== null) {
+        return ok({
+            role: "reveal-until-route" as const,
+            match: untilRoute[1] === "into your hand" ? "hand" : "battlefield",
+            rest: untilRoute[3] !== undefined ? "exile" : "graveyard",
+        } satisfies SentenceIR);
+    }
+    if (PILE_SPLIT.test(span)) return ok({ role: "pile-split" as const });
+    const splitWindow = span.match(PILE_SPLIT_WINDOW);
+    if (splitWindow !== null) {
+        const count = readAmount(splitWindow[1]!);
+        if (count === null)
+            return fail(`"${splitWindow[1]}" is not a count`, span);
+        return ok({
+            role: "pile-split-window" as const,
+            count,
+        } satisfies SentenceIR);
+    }
+    if (PILE_OPPONENT_PICKS.test(span))
+        return ok({ role: "pile-opponent-picks" as const });
+    const pileRoute = span.match(PILE_ROUTE);
+    if (pileRoute !== null)
+        return ok({
+            role: "pile-route" as const,
+            pronoun: pileRoute[1] as "one" | "that",
+        } satisfies SentenceIR);
+    if (MANA_VALUE_LIFE_LOSS.test(span))
+        return ok({ role: "mana-value-life-loss" as const });
     const all = span.match(ROUTE_ALL_OF_SUBTYPE);
     if (all !== null) {
         // CR 205.3m — a creature type; anything else ("land", "creature")
@@ -2465,6 +2709,10 @@ function effectSentence(
     span: string,
     ctx: unknown
 ): RuleResult<EffectSentenceIR> {
+    // ── reveal the top card into hand (CR 701.20a) ─────────────────────────
+    if (REVEAL_TOP_TO_HAND.test(span))
+        return ok({ kind: "reveal-top-to-hand" as const, lifeLoss: false });
+
     // ── choose a creature type (CR 205.3m) ─────────────────────────────────
     // An EXACT match, not a prefix: the whole sentence is the instruction, and
     // anything appended to it ("Choose a creature type other than Wall") is a
