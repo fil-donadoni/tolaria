@@ -36,7 +36,7 @@ function cardNamed(name: string): CardDefinition {
 
 /** The next-upkeep cantrip rider (CR 603.7a) — the shipped INCLUDED shape:
  *  a body with no scheduling-time capture, armed unconditionally by the
- *  card's own resolution (Clairvoyance, Portent, Mishra's Bauble) or by its
+ *  card's own resolution (Clairvoyance, Mishra's Bauble) or by its
  *  tap-mana rider (Barbed Sextant, `armsDelayedTriggerOnTap`, ADR 0040). */
 const NEXT_UPKEEP_DRAW: EffectOp[] = [
     { op: "draw", player: "controller", count: 1 },
@@ -49,7 +49,6 @@ const INCLUDED: Record<string, string> = {
     "Mishra's Bauble":
         "capture-free `draw` body; the activated ability's resolution arms it unconditionally",
     Clairvoyance: "capture-free `draw` body; the spell's resolution arms it",
-    Portent: "capture-free `draw` body; the spell's resolution arms it",
     "Barbed Sextant":
         "capture-free `draw` body armed declaratively on every tap for mana (ADR 0040)",
 };
@@ -63,6 +62,8 @@ const EXCLUDED: Record<string, string> = {
         "body reads `$targetId` — `destroy` on the controller's OWN creature would price as opponent removal",
     "Krovikan Elementalist":
         "body reads `$targetId` — charges an optional ability's cost while its `resolve()` benefit stays unseen",
+    Portent:
+        "carries an `aiEffects` shadow (issue #4143) that already prices the next-upkeep `draw` — a template on top would count it twice",
 };
 
 /** Every catalogue template carrying a real `effects[]`, as `card → body`. */
