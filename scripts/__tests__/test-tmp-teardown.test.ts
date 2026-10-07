@@ -3,7 +3,7 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Class guard for the `rmSync(tmp)` teardown race (issue #5168, RED tip
+ * Class guard for the `rmSync(tmp)` teardown race (issue #5169, RED tip
  * 9d4c59403): a test that spawns child processes (`child_process`) can still
  * have a detached descendant writing into its tmp tree — a gate lock's
  * `gate.waiters`, a log — when `afterEach` removes it, so a bare recursive
@@ -45,7 +45,7 @@ export function bareRecursiveRmSyncs(source: string): number[] {
     return offenders;
 }
 
-describe("test tmp teardown survives a live child (issue #5168)", () => {
+describe("test tmp teardown survives a live child (issue #5169)", () => {
     it("the scanner flags a bare recursive rmSync and accepts maxRetries", () => {
         const bare = `rmSync(tmp, { recursive: true, force: true });`;
         const ok = `rmSync(tmp, { recursive: true, force: true, maxRetries: 10 });`;
