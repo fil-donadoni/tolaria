@@ -243,6 +243,7 @@ function lowerAmount(
  *  name, which `validateEffectScript` rejects as a duplicate bind — the
  *  correct answer, since no printed card does it). */
 const CHOSEN_TYPE_BINDING = "$chosenType";
+const NAMED_CARD_BINDING = "$named";
 
 function lowerCountedSet(
     set: CountedSetIR,
@@ -2011,6 +2012,50 @@ function lowerSentenceBody(
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([{ op: "explore", target: target.value }]);
+        }
+        case "name-card":
+            // CR 201.3 — the controller names the card; the binding is the one
+            // the later "that name" sentence reads back as a name filter.
+            return lowered([
+                {
+                    op: "nameCard",
+                    player: "controller",
+                    prompt: sentence.prompt,
+                    bind: NAMED_CARD_BINDING,
+                    ...(sentence.restriction === undefined
+                        ? {}
+                        : { nameRestriction: sentence.restriction }),
+                },
+            ]);
+        case "discard-named-from-hand": {
+            // CR 701.20a — the hand is revealed first, so the discard reads
+            // cards every player has seen; CR 701.9a — ALL cards with the name.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                { op: "reveal", player: player.value, zone: "hand" },
+                {
+                    op: "discard",
+                    player: player.value,
+                    filter: { name: { ref: NAMED_CARD_BINDING } },
+                },
+            ]);
+        }
+        case "dig-named-to-hand": {
+            // CR 701.20a / CR 401.4 — "your library": the controller's.
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            if (typeof count.value !== "number")
+                return unlowerable("a named reveal of a variable count");
+            return lowered([
+                {
+                    op: "digMatchingToHand",
+                    player: "controller",
+                    look: count.value,
+                    filter: { name: { ref: NAMED_CARD_BINDING } },
+                    destination: "exile",
+                },
+            ]);
         }
         case "delayed-draw-next-upkeep": {
             // CR 603.7a — the controller of the resolving ability controls the
