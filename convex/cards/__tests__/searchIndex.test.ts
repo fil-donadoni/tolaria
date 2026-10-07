@@ -6,7 +6,11 @@ import {
     tryGetDefinition,
     withTemporaryDefinition,
 } from "../registry";
-import { buildSearchIndex } from "../searchIndex";
+import {
+    buildSearchIndex,
+    fromSearchIndexWire,
+    type SearchIndexWireRow,
+} from "../searchIndex";
 import { foldAccents } from "../textNormalize";
 import type { CardDefinition } from "../types";
 
@@ -100,12 +104,71 @@ describe("the search index population (issue #3054)", () => {
     });
 
     it("carries no printing list, only the card's own Set (Card Prints, issue #4118)", () => {
-        const rows = buildSearchIndex();
-        expect(rows.filter((r) => "prints" in r).map((r) => r.name)).toEqual(
-            []
+        // `prints` is the one HOME printing, derived from `setCode` — the
+        // deck builder's entry shape (issue #5125), never a printing list.
+        const wrong = buildSearchIndex().filter(
+            (r) =>
+                typeof r.setCode !== "string" ||
+                r.prints.length !== 1 ||
+                r.prints[0]!.printId !== r.cardId ||
+                r.prints[0]!.setCode !== r.setCode
         );
-        expect(
-            rows.filter((r) => typeof r.setCode !== "string").map((r) => r.name)
-        ).toEqual([]);
+        expect(wrong.map((r) => r.name)).toEqual([]);
+    });
+});
+
+describe("the decoded index shares its arrays (issue #5125)", () => {
+    const wire: SearchIndexWireRow[] = [
+        [
+            "a",
+            "Air Elemental",
+            ["Creature"],
+            ["Elemental"],
+            [],
+            ["U"],
+            5,
+            "flying",
+            "lea",
+        ],
+        [
+            "b",
+            "Water Elemental",
+            ["Creature"],
+            ["Elemental"],
+            [],
+            ["U"],
+            5,
+            "",
+            "lea",
+        ],
+        ["c", "Ancestral Recall", ["Instant"], [], [], ["U"], 1, "draw", "lea"],
+    ];
+
+    it("gives every row with the same value the SAME frozen array", () => {
+        const [air, water, recall] = fromSearchIndexWire(wire);
+        expect(water!.types).toBe(air!.types);
+        expect(water!.subtypes).toBe(air!.subtypes);
+        expect(recall!.colors).toBe(air!.colors);
+        expect(recall!.subtypes).toBe(air!.supertypes);
+        expect(Object.isFrozen(air!.types)).toBe(true);
+        expect(recall!.types).toEqual(["Instant"]);
+    });
+
+    it("decodes the same rows the generator derived", () => {
+        expect(fromSearchIndexWire(wire)[0]).toEqual({
+            cardId: "a",
+            name: "Air Elemental",
+            nameLower: "air elemental",
+            nameFold: "air elemental",
+            types: ["Creature"],
+            subtypes: ["Elemental"],
+            supertypes: [],
+            colors: ["U"],
+            manaValue: 5,
+            oracleText: "flying",
+            oracleFold: "flying",
+            setCode: "lea",
+            prints: [{ printId: "a", setCode: "lea" }],
+        });
     });
 });
