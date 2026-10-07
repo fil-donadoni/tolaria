@@ -11350,6 +11350,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Dark Tutelage",
+        "scryfallId": "9ec3dd9f-3969-4fd7-97f7-e9868eb19a64",
+        "oracleId": "0c6ce7c9-316b-4171-a8fa-ca26af1eecb7",
+        "firstSet": "m11",
+        "firstPrintId": "9ec3dd9f-3969-4fd7-97f7-e9868eb19a64",
+        "firstPrintSet": "m11",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Darkbore Pathway // Slitherbore Pathway",
         "scryfallId": "87a4e5fe-161f-42da-9ca2-67c8e8970e94",
         "oracleId": "868e6e68-4367-4073-a864-235d5961ae56",
@@ -24043,6 +24053,16 @@
         "firstPrintId": "8321888a-a450-4c15-9461-255cfaa05367",
         "firstPrintSet": "usg",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Hermit Druid",
+        "scryfallId": "3efc0622-ac2c-4722-ba05-961cc98c5940",
+        "oracleId": "16f6438d-2a29-41cb-bf0c-4d02bd66112b",
+        "firstSet": "sth",
+        "firstPrintId": "3efc0622-ac2c-4722-ba05-961cc98c5940",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -42982,6 +43002,16 @@
         "firstPrintSet": "sth"
     },
     {
+        "name": "Sacred Guide",
+        "scryfallId": "7f10c37d-d25a-47d6-83b0-dbe0a9cfc938",
+        "oracleId": "de9e8b71-897d-4a9d-942b-af10f31e0425",
+        "firstSet": "tmp",
+        "firstPrintId": "7f10c37d-d25a-47d6-83b0-dbe0a9cfc938",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Sacred Nectar",
         "scryfallId": "484d1b31-5363-49ef-9b13-2005568636c1",
         "oracleId": "30870ee5-6ad7-48a9-983e-d3b018f2344f",
@@ -48422,6 +48452,16 @@
         "source": "compiled"
     },
     {
+        "name": "Sphinx of Uthuun",
+        "scryfallId": "a290648a-63c3-400b-98d3-5a5aa5505027",
+        "oracleId": "4b4f268d-34ae-416d-a412-66f4fe37659c",
+        "firstSet": "m12",
+        "firstPrintId": "a290648a-63c3-400b-98d3-5a5aa5505027",
+        "firstPrintSet": "m12",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Spider-Woman, Stunning Savior",
         "scryfallId": "bc9b2a76-3cce-4fd0-a4ef-932747cb11b2",
         "oracleId": "be2b9c6d-4ecb-49ec-b276-4aa93c5dfc00",
@@ -49425,6 +49465,16 @@
         "firstPrintId": "30ae7001-4d0f-4160-b41c-2fcb83fdb60b",
         "firstPrintSet": "rtr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Steam Augury",
+        "scryfallId": "6eb69801-b574-4b5f-82e7-8fd34cdadf74",
+        "oracleId": "0aa556a6-66aa-42f1-ba41-0001e10c20a4",
+        "firstSet": "ths",
+        "firstPrintId": "6eb69801-b574-4b5f-82e7-8fd34cdadf74",
+        "firstPrintSet": "ths",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

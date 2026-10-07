@@ -2055,6 +2055,90 @@ function lowerSentenceBody(
         }
         case "look-distribute":
             return lowerLookDistribute(sentence, site);
+        case "reveal-top-to-hand": {
+            // CR 701.20a — the one card revealed always goes to hand; the
+            // match-all `filter` leaves nothing for `destination`, so its
+            // value is inert (`destination` is required by the Op's shape).
+            const dig: EffectOp = {
+                op: "digMatchingToHand",
+                player: "controller",
+                look: 1,
+                filter: {},
+                destination: "graveyard",
+            };
+            if (!sentence.lifeLoss) return lowered([dig]);
+            // CR 119.3 — "equal to its mana value" reads the card just put
+            // into hand, snapshotted under the Op's own `bind`.
+            return lowered([
+                { ...dig, bind: "$revealed" },
+                {
+                    op: "loseLife",
+                    player: "controller",
+                    amount: { manaValue: { of: { ref: "$revealed" } } },
+                },
+            ]);
+        }
+        case "reveal-until":
+            // CR 701.20a — "your library": the controller's.
+            return lowered([
+                {
+                    op: "revealUntilMatch",
+                    player: "controller",
+                    filter: sentence.filter,
+                    match: sentence.match,
+                    rest: sentence.rest,
+                },
+            ]);
+        case "divide-library-piles": {
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            // CR 700.3 — the opponent splits the revealed window, the
+            // controller takes one pile to hand and the other goes to the
+            // graveyard.
+            return lowered([
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "library-top",
+                        player: "controller",
+                        count: count.value,
+                    },
+                    divider:
+                        sentence.form === "separates"
+                            ? "opponent"
+                            : "controller",
+                    chooser:
+                        sentence.form === "separates"
+                            ? "controller"
+                            : "opponent",
+                    dividePrompt: "Separate the revealed cards into two piles.",
+                    pickPrompt:
+                        sentence.form === "separates"
+                            ? "Choose a pile: it goes to your hand, the other to your graveyard."
+                            : "Choose a pile: it goes to the other player's hand, the rest to their graveyard.",
+                    chosenBind: "$chosenPile",
+                    otherBind: "$otherPile",
+                    chosenEffect: [
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$chosenPile" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                    ],
+                    otherEffect: [
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$otherPile" },
+                            player: "controller",
+                            from: "library",
+                            to: "graveyard",
+                        },
+                    ],
+                },
+            ]);
+        }
         case "look-reorder": {
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;

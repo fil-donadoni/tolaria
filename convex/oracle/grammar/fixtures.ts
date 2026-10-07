@@ -3447,4 +3447,200 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.20a + CR 700.3 (issue #4524) — a pile division of a revealed
+    // library window. Exhibits the "suspends for two different players' picks"
+    // and "moves cards between zones" forms the canned smoke scenario cannot
+    // run: this fixture is the evidence the Op the grammar emits is the one the
+    // hand-written catalogue writes (Fact or Fiction round-trips, Guard C).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Fact or Fiction",
+            manaCost: "{3}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+            oracleId: "437b2dab-15e0-4b9a-a204-58622d37a3b3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Fact or Fiction",
+            types: ["Instant"],
+            manaCost: {
+                X: 3,
+                U: 1,
+            },
+            oracleText:
+                "Reveal the top five cards of your library. An opponent separates those cards into two piles. Put one pile into your hand and the other into your graveyard.",
+            effects: [
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "library-top",
+                        player: "controller",
+                        count: 5,
+                    },
+                    divider: "opponent",
+                    chooser: "controller",
+                    dividePrompt: "Separate the revealed cards into two piles.",
+                    pickPrompt:
+                        "Choose a pile: it goes to your hand, the other to your graveyard.",
+                    chosenBind: "$chosenPile",
+                    otherBind: "$otherPile",
+                    chosenEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$chosenPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                    ],
+                    otherEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$otherPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "graveyard",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.20a + CR 119.3 (issue #4524) — reveal the top card into hand, then
+    // lose life equal to its mana value. Exhibits the "amount reads a selected
+    // object's mana value" form the canned scenario cannot size; the output is
+    // the hand-written Dark Confidant's (Guard C).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Dark Confidant",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.",
+            power: "2",
+            toughness: "1",
+            oracleId: "2068185c-1b50-47d0-aa3f-bf505d199428",
+            layout: "normal",
+        },
+        expected: {
+            name: "Dark Confidant",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: {
+                X: 1,
+                B: 1,
+            },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "dark-confidant-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, reveal the top card of your library and put that card into your hand. You lose life equal to its mana value.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "your",
+                    },
+                    effects: [
+                        {
+                            op: "digMatchingToHand",
+                            player: "controller",
+                            look: 1,
+                            filter: {},
+                            destination: "graveyard",
+                            bind: "$revealed",
+                        },
+                        {
+                            op: "loseLife",
+                            player: "controller",
+                            amount: {
+                                manaValue: {
+                                    of: {
+                                        ref: "$revealed",
+                                    },
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.20a + CR 700.3 (issue #4524) — the caster separates, an opponent
+    // chooses (`divider` and `chooser` swapped against Fact or Fiction). A
+    // distinct card-dependent form: the smoke generator cannot run the
+    // two-player pick either way.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Steam Augury",
+            manaCost: "{2}{U}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Reveal the top five cards of your library and separate them into two piles. An opponent chooses one of those piles. Put that pile into your hand and the other into your graveyard.",
+            oracleId: "0aa556a6-66aa-42f1-ba41-0001e10c20a4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Steam Augury",
+            types: ["Instant"],
+            manaCost: {
+                X: 2,
+                U: 1,
+                R: 1,
+            },
+            oracleText:
+                "Reveal the top five cards of your library and separate them into two piles. An opponent chooses one of those piles. Put that pile into your hand and the other into your graveyard.",
+            effects: [
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "library-top",
+                        player: "controller",
+                        count: 5,
+                    },
+                    divider: "controller",
+                    chooser: "opponent",
+                    dividePrompt: "Separate the revealed cards into two piles.",
+                    pickPrompt:
+                        "Choose a pile: it goes to the other player's hand, the rest to their graveyard.",
+                    chosenBind: "$chosenPile",
+                    otherBind: "$otherPile",
+                    chosenEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$chosenPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                    ],
+                    otherEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$otherPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "graveyard",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

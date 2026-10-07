@@ -55,7 +55,7 @@
         {
             "key": "(op) › chooseCategorized",
             "op": "chooseCategorized",
-            "issue": 4524
+            "issue": 5166
         },
         {
             "key": "(op) › coinFlip",
@@ -76,16 +76,6 @@
             "key": "(op) › delayedTrigger",
             "op": "delayedTrigger",
             "issue": 4531
-        },
-        {
-            "key": "(op) › digMatchingToHand",
-            "op": "digMatchingToHand",
-            "issue": 4524
-        },
-        {
-            "key": "(op) › divideIntoPiles",
-            "op": "divideIntoPiles",
-            "issue": 4524
         },
         {
             "key": "(op) › emblem",
@@ -235,7 +225,7 @@
         {
             "key": "(op) › rangedTopdeck",
             "op": "rangedTopdeck",
-            "issue": 4524
+            "issue": 5166
         },
         {
             "key": "(op) › recallCapturedBinding",
@@ -275,17 +265,12 @@
         {
             "key": "(op) › revealAndCategorize",
             "op": "revealAndCategorize",
-            "issue": 4524
+            "issue": 5166
         },
         {
             "key": "(op) › revealTopAndRoute",
             "op": "revealTopAndRoute",
-            "issue": 4524
-        },
-        {
-            "key": "(op) › revealUntilMatch",
-            "op": "revealUntilMatch",
-            "issue": 4524
+            "issue": 5166
         },
         {
             "key": "(op) › setBasePT",
