@@ -1783,6 +1783,54 @@ function lowerSentenceBody(
             if (!target.ok) return target;
             return lowered([{ op: "regenerate", target: target.value }]);
         }
+        case "combat-restriction": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "restrictCombat",
+                    restriction: sentence.restriction,
+                    target: target.value,
+                },
+            ]);
+        }
+        case "prevent-regeneration": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                { op: "preventRegeneration", target: target.value },
+            ]);
+        }
+        case "player-lock": {
+            // CR 102.2 — this engine is two-player, so "your opponents" is the
+            // one opponent; the lock Op takes the relative player directly.
+            const player: Lowered<EffectPlayerRef> =
+                sentence.player === "opponents"
+                    ? lowered("opponent")
+                    : playerRef(
+                          { kind: "target", opponent: false },
+                          slots,
+                          site
+                      );
+            if (!player.ok) return player;
+            return lowered([
+                sentence.casting === "all"
+                    ? { op: "restrictCasting", player: player.value }
+                    : {
+                          op: "restrictCasting",
+                          player: player.value,
+                          cardTypes: [...sentence.casting],
+                      },
+                ...(sentence.activation
+                    ? [
+                          {
+                              op: "restrictActivation" as const,
+                              player: player.value,
+                          },
+                      ]
+                    : []),
+            ]);
+        }
         case "life": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;

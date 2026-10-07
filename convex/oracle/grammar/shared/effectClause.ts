@@ -658,6 +658,35 @@ export type EffectSentenceIR =
           readonly subject: SubjectIR;
       }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
+    /**
+     * CR 509.1b — "<target creature> can't block / be
+     * blocked this turn": a turn-scoped combat restriction on ONE announced
+     * creature. A sweep ("Creatures can't block this turn") is a different
+     * rule — it also binds creatures that arrive later — and is refused.
+     */
+    | {
+          readonly kind: "combat-restriction";
+          readonly restriction: CombatRestrictionIR;
+          readonly subject: SubjectIR;
+      }
+    /**
+     * CR 701.19c — "<target creature> can't be regenerated this turn": the
+     * turn-scoped suppression of a regeneration shield, on an announced
+     * creature. The modifier form ("It can't be regenerated.") is
+     * `ModifierIR`, folded into the destroy before it.
+     */
+    | { readonly kind: "prevent-regeneration"; readonly subject: SubjectIR }
+    /**
+     * CR 101.2 + CR 601.2 / 602.2 — a turn-scoped lock on what a player may
+     * cast or activate. `casting` is `"all"` (every spell) or the printed
+     * card types the lock names; `activation` is the non-mana-ability half.
+     */
+    | {
+          readonly kind: "player-lock";
+          readonly player: "opponents" | "target";
+          readonly casting: "all" | readonly CardType[];
+          readonly activation: boolean;
+      }
     | {
           readonly kind: "life";
           readonly action: "gain" | "lose";
@@ -1089,6 +1118,9 @@ export type RestrictionIR =
     /** CR 113.6/602.5b — "Activate only if this card is in your graveyard."
      *  (`ActivatedAbility.activateFromGraveyard`, Ashen Ghoul's shape.) */
     | { readonly kind: "activate-from-graveyard" };
+
+/** The three turn-scoped combat restrictions one creature can carry. */
+export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
 
 /** A sentence that modifies the sentence before it rather than acting itself. */
 export type ModifierIR =
@@ -2427,6 +2459,43 @@ function isPreventionShieldRecipient(requirement: TargetRequirement): boolean {
 const REDIRECT_NEXT_DAMAGE =
     /^The next (\d+|X) damage that would be dealt to (.+?) (this turn) is dealt to (.+?) instead$/;
 
+/**
+ * CR 509.1b — "<subject> can't block|be blocked this
+ * turn". The subject is read by `subjectRule`; the verb is a closed set, so
+ * "can't attack or block" (two restrictions in one sentence, Off Balance) is
+ * refused rather than read as one, and "can't attack" is refused until a
+ * standalone corpus card gives it a fixture (Change of Heart carries Buyback).
+ */
+const COMBAT_RESTRICTION = /^(.+) can't (block|be blocked) this turn$/;
+const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
+    new Map([
+        ["block", "cant-block"],
+        ["be blocked", "cant-be-blocked"],
+    ]);
+/** CR 701.19c — the regeneration lock's printed form. */
+const CANT_BE_REGENERATED_THIS_TURN = /^(.+) can't be regenerated this turn$/;
+/** CR 101.2 + CR 601.2 — the opponents' whole-turn cast lock, whole. */
+const OPPONENTS_CANT_CAST = "Your opponents can't cast spells this turn";
+/**
+ * CR 101.2 + CR 601.2 + CR 602.2 — a targeted player's cast lock (instants and
+ * sorceries) AND activation lock (non-mana abilities), whole. Both clauses
+ * name the same player, so they are one sentence with one announcement.
+ */
+const TARGET_PLAYER_CANT_CAST_OR_ACTIVATE =
+    "Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities";
+
+/**
+ * The subject a one-creature restriction reads: an announced creature, with
+ * no "another" exclusion (a restriction has no earlier target to exclude).
+ */
+function isAnnouncedCreature(subject: SubjectIR): boolean {
+    return (
+        subject.kind === "target" &&
+        subject.requirement.type === "Creature" &&
+        subject.another === undefined
+    );
+}
+
 const KEYWORDS = keywordVocabulary();
 
 /**
@@ -3540,6 +3609,55 @@ function effectSentence(
             subject: subject.value,
         } satisfies EffectSentenceIR);
     }
+
+    // ── combat restriction (CR 509.1b) ──────────────────────────
+    const combat = span.match(COMBAT_RESTRICTION);
+    if (combat !== null) {
+        const subject = subjectRule.run(combat[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (!isAnnouncedCreature(subject.value))
+            return fail(
+                "a combat restriction names one announced creature (a sweep also binds later arrivals)",
+                span
+            );
+        return ok({
+            kind: "combat-restriction" as const,
+            restriction: COMBAT_RESTRICTION_WORDS.get(combat[2]!)!,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── regeneration lock (CR 701.19c) ─────────────────────────────────────
+    const noRegen = span.match(CANT_BE_REGENERATED_THIS_TURN);
+    if (noRegen !== null) {
+        const subject = subjectRule.run(noRegen[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (!isAnnouncedCreature(subject.value))
+            return fail(
+                "a regeneration lock names one announced creature",
+                span
+            );
+        return ok({
+            kind: "prevent-regeneration" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── cast / activation lock on a player (CR 101.2, CR 601.2, CR 602.2) ──
+    if (span === OPPONENTS_CANT_CAST)
+        return ok({
+            kind: "player-lock" as const,
+            player: "opponents" as const,
+            casting: "all" as const,
+            activation: false,
+        } satisfies EffectSentenceIR);
+    if (span === TARGET_PLAYER_CANT_CAST_OR_ACTIVATE)
+        return ok({
+            kind: "player-lock" as const,
+            player: "target" as const,
+            casting: ["Instant", "Sorcery"] as const,
+            activation: true,
+        } satisfies EffectSentenceIR);
 
     // ── regenerate (CR 701.19a) ────────────────────────────────────────────
     if (span.startsWith("Regenerate ")) {
