@@ -1672,6 +1672,24 @@ describe("syncGaps adopts a new gap into the matching Gap Cluster (ADR 0146)", (
             expect(body).not.toContain("elsewhere");
         });
 
+        it("states the row's own kind's closing rule (ADR 0152 § 5)", () => {
+            const bot = trackerWithCluster();
+            syncAdoptedBlocks([signature], recorded, [botFiling()], bot);
+            expect(bot.issues.get(CLUSTER)!.body).toContain(
+                "closes when every key is closed"
+            );
+            const grammar = trackerWithCluster();
+            syncAdoptedBlocks(
+                [{ ...signature, kind: "grammar" }],
+                recorded,
+                [botFiling()],
+                grammar
+            );
+            expect(grammar.issues.get(CLUSTER)!.body).toContain(
+                "closes when its accepted forms compile (ADR 0152 § 5)"
+            );
+        });
+
         it("a second run writes nothing", () => {
             const tracker = trackerWithCluster();
             syncAdoptedBlocks([signature], recorded, [botFiling()], tracker);
