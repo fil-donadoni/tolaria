@@ -277,7 +277,25 @@ describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => 
         expect(clauseHead("Destroy all green creatures")).toBe(
             "Destroy all <colour> <type>"
         );
+        // Folds inside the head, not merely clipped away past it.
+        expect(clauseHead("Destroy target noncreature permanent")).toBe(
+            "Destroy target <type> permanent"
+        );
+        expect(clauseHead("Destroy target red permanent")).toBe(
+            "Destroy target <colour> permanent"
+        );
+        expect(clauseHead("Exile all sorceries")).toBe("Exile all <type>");
+        // A lead that is itself a fold word folds; a keyword never does.
+        expect(clauseHead("Creatures you control get +N/+N")).toBe(
+            clauseHead("Artifacts you control get +N/+N")
+        );
+        expect(clauseHead("White creatures get +N/+N")).toBe(
+            "<colour> <type> get <pt>"
+        );
         // A capital that opens a sentence is not a subtype.
+        expect(clauseHead('Sacrifice it." Then draw')).toBe(
+            'Sacrifice it." Then draw'
+        );
         expect(clauseHead("Landfall — Whenever a land")).toBe(
             "Landfall — Whenever a"
         );

@@ -190,7 +190,7 @@ const FOLD_OF = new Map<string, string>(
 const PT = /^[+\-−]?(?:N|X|\*)\/[+\-−]?(?:N|X|\*)$/;
 
 /** A word after one of these opens a sentence: its capital is not a subtype. */
-const SENTENCE_BREAK = /(?:[.:•]|—)$/;
+const SENTENCE_BREAK = /[.:•—]["”')]*$/;
 
 /** One head word folded — the word's trailing punctuation dropped. */
 function foldWord(raw: string, opensSentence: boolean): string {
@@ -211,7 +211,18 @@ function foldWord(raw: string, opensSentence: boolean): string {
     return word;
 }
 
-/** A span's head: its leading word literal, the rest folded, then clipped. */
+/**
+ * The leading word: a keyword or ability word stays literal, but a lead that
+ * is itself a fold word — "Creatures you control", "White creatures", "You
+ * may" — folds, or every colour and type would open its own family.
+ */
+function foldLead(raw: string): string {
+    const word = raw.replace(/[.,;:]+$/, "");
+    const folded = foldWord(word, true);
+    return folded.startsWith("<") ? folded : word;
+}
+
+/** A span's head: its leading keyword literal, the rest folded, clipped. */
 export function clauseHead(shape: string): string {
     const words = shape.split(/\s+/).filter((w) => w.length > 0);
     const [lead, ...rest] = words;
@@ -219,7 +230,7 @@ export function clauseHead(shape: string): string {
     const folded = rest.map((w, i) =>
         foldWord(w, SENTENCE_BREAK.test(words[i]!))
     );
-    return [lead.replace(/[.,;:]+$/, ""), ...folded]
+    return [foldLead(lead), ...folded]
         .slice(0, CLAUSE_FAMILY_HEAD_WORDS)
         .join(" ");
 }

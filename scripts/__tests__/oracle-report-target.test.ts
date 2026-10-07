@@ -80,4 +80,10 @@ describe("oracle:report --families (issue #5197, ADR 0152)", () => {
         expect(out).toMatch(/corpus c\/r {2}forms/);
         expect(out).toMatch(/^ {6}head: /m);
     }, 180_000);
+
+    it("refuses --targets beside it rather than dropping --families", () => {
+        const { code, out } = report("--families", "--targets");
+        expect(code).toBe(1);
+        expect(out).toContain("--families ranks a Ranking Target");
+    }, 180_000);
 });

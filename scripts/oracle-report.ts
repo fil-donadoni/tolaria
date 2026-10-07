@@ -694,6 +694,14 @@ async function main(): Promise<void> {
         return;
     }
     const targetsAt = process.argv.indexOf("--targets");
+    if (targetsAt !== -1 && process.argv.includes("--families")) {
+        // `--targets` is the COVERAGE report; a family ranking for one Target
+        // is `--families --target <id>`. Never drop a flag silently.
+        process.stderr.write(
+            "oracle:report — --families ranks a Ranking Target (--set, --pool, --target), not --targets\n"
+        );
+        process.exit(1);
+    }
     if (targetsAt !== -1) {
         const only = process.argv[targetsAt + 1];
         await reportTargets(
