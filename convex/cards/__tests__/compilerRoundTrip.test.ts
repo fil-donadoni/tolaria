@@ -206,7 +206,12 @@ import {
 // Empress Galina and Thrull Champion round-trip through the new
 // `gain-control` sentence ("Gain control of target …", with or without
 // "for as long as you control this creature").
-const BASELINE_CEILING = 1438;
+//
+// Lowered 1438 -> 1434 by issue #4544 (combat and damage trigger heads): Abyssal
+// Specter ("deals damage to a player"), Fungusaur and Jackal Pup ("is dealt
+// damage"; both compile to a `damageTakenTrigger`/`resolve` twin, hence
+// `incomparable`) and Murk Dwellers ("attacks and isn't blocked") round-trip.
+const BASELINE_CEILING = 1434;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
