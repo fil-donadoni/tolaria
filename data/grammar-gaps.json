@@ -1571,6 +1571,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › target filter › object descriptor › creature with mana value X or less",
+            "issue": 5208
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › target filter › object descriptor › noncreature spell",
             "issue": 4586
         },
@@ -3713,6 +3718,11 @@
             "kind": "migration",
             "key": "triggered",
             "issue": 4034
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"attach\" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement",
+            "issue": 5209
         },
         {
             "kind": "scenario",
