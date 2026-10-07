@@ -4762,6 +4762,16 @@
         "source": "compiled"
     },
     {
+        "name": "Beast Whisperer",
+        "scryfallId": "9da6f595-41b2-4e52-b15a-6ad18e4232c7",
+        "oracleId": "5da7eea8-bb9e-47ce-a554-8a1ee058bd7a",
+        "firstSet": "grn",
+        "firstPrintId": "9da6f595-41b2-4e52-b15a-6ad18e4232c7",
+        "firstPrintSet": "grn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Beast-Kin Ranger",
         "scryfallId": "0102e0be-5783-4825-9489-713b1b1df0b2",
         "oracleId": "db794af5-ba2e-4b10-b213-e481e8a50432",
@@ -5461,6 +5471,16 @@
         "firstPrintId": "4cf3eb65-0f52-49c1-8243-14ce05de9f3b",
         "firstPrintSet": "dom",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Blessed Spirits",
+        "scryfallId": "150dd602-5f61-4f1e-a422-e64c079de141",
+        "oracleId": "5fb899c1-3a2f-4b5e-a82d-fece51bdf786",
+        "firstSet": "ori",
+        "firstPrintId": "150dd602-5f61-4f1e-a422-e64c079de141",
+        "firstPrintSet": "ori",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -12601,6 +12621,16 @@
         "firstPrintId": "76e80656-6bcb-4d99-8bd2-ca5f75f40daf",
         "firstPrintSet": "ecl",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dawnhart Geist",
+        "scryfallId": "a1d27617-2d3d-44a1-b93f-0694253b6774",
+        "oracleId": "ed7a2ee0-289d-4e5f-92e0-1539395baf33",
+        "firstSet": "vow",
+        "firstPrintId": "a1d27617-2d3d-44a1-b93f-0694253b6774",
+        "firstPrintSet": "vow",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -21866,6 +21896,16 @@
         "source": "compiled"
     },
     {
+        "name": "Generous Visitor",
+        "scryfallId": "d1066ccd-a932-4d05-98da-11ae4675364e",
+        "oracleId": "0629747e-8dd8-4150-95ee-9d860264ccb0",
+        "firstSet": "neo",
+        "firstPrintId": "d1066ccd-a932-4d05-98da-11ae4675364e",
+        "firstPrintSet": "neo",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Geothermal Crevice",
         "scryfallId": "e744b593-13fe-4967-b492-ac02f5815e57",
         "oracleId": "83f9d84a-a011-4fa9-a3a4-51eb39159c54",
@@ -25833,6 +25873,16 @@
         "firstPrintId": "ce9ed217-8378-4a58-a00d-fa4e4cb27c9d",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Herald of the Pantheon",
+        "scryfallId": "ffeca7a7-2a14-4166-9e89-0f4eb94b79f5",
+        "oracleId": "9ef24a79-fade-4c38-b63c-22983206b4ad",
+        "firstSet": "ori",
+        "firstPrintId": "ffeca7a7-2a14-4166-9e89-0f4eb94b79f5",
+        "firstPrintSet": "ori",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -34724,6 +34774,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mesa Enchantress",
+        "scryfallId": "4037d6de-f30b-483c-83a8-9a4e2978f7fc",
+        "oracleId": "8f4b8a19-72f4-48ed-ac05-62a7c7525797",
+        "firstSet": "plc",
+        "firstPrintId": "4037d6de-f30b-483c-83a8-9a4e2978f7fc",
+        "firstPrintSet": "plc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mesa Falcon",
         "scryfallId": "7c2c7004-691b-4385-ad9b-60b93d474ebd",
         "oracleId": "bc4c5f33-0f3d-4815-9974-fb12ac725d08",
@@ -38602,6 +38662,16 @@
         "source": "compiled"
     },
     {
+        "name": "Oketra's Monument",
+        "scryfallId": "104503a6-bca5-48d7-88b1-424f98985d75",
+        "oracleId": "0370afa0-07d3-4787-8a5b-10272cb3a486",
+        "firstSet": "akh",
+        "firstPrintId": "104503a6-bca5-48d7-88b1-424f98985d75",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Okina, Temple to the Grandfathers",
         "scryfallId": "ee8cf7aa-388c-47ec-be59-6ba98f3853cb",
         "oracleId": "3ad69bfb-2e51-4fe9-8d2f-7d071a4f1c69",
@@ -38768,6 +38838,16 @@
         "firstSet": "unf",
         "firstPrintId": "b96e3f29-bb0d-49d0-9649-19c3c9b9f40d",
         "firstPrintSet": "unf",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Onslaught",
+        "scryfallId": "0afaf142-dbca-45bf-aea2-01c53bda635a",
+        "oracleId": "ae9ca82c-e07e-4a41-a387-0ef7d6df14b6",
+        "firstSet": "exo",
+        "firstPrintId": "0afaf142-dbca-45bf-aea2-01c53bda635a",
+        "firstPrintSet": "exo",
         "rarity": "common",
         "source": "compiled"
     },
@@ -41915,6 +41995,16 @@
         "firstPrintId": "e1a866e6-4108-4290-9680-8f1652fbcf77",
         "firstPrintSet": "tmt",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Primordial Sage",
+        "scryfallId": "5e11e6d8-d375-4278-8cb0-94deeecaeeca",
+        "oracleId": "499f1e1e-d96e-481f-a5d9-eb38da927cd7",
+        "firstSet": "rav",
+        "firstPrintId": "5e11e6d8-d375-4278-8cb0-94deeecaeeca",
+        "firstPrintSet": "rav",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -46966,6 +47056,16 @@
         "firstPrintSet": "m3c"
     },
     {
+        "name": "Satyr Enchanter",
+        "scryfallId": "e31c544f-a748-4180-8366-9bb1622bb99d",
+        "oracleId": "aa321138-b1a7-4b8e-a2ca-b9ce65704e92",
+        "firstSet": "m19",
+        "firstPrintId": "e31c544f-a748-4180-8366-9bb1622bb99d",
+        "firstPrintSet": "m19",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Satyr Grovedancer",
         "scryfallId": "d46febca-f3c0-4467-aef4-4dfcdf3009fe",
         "oracleId": "49f3bd5a-9c2a-45b8-aa10-9c6471028a0f",
@@ -49877,6 +49977,16 @@
         "firstPrintId": "d07e2d4c-a33b-42b1-9576-2269d137a868",
         "firstPrintSet": "ala",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sigil of the Empty Throne",
+        "scryfallId": "9c451f63-2827-49fe-9d1d-87c87f7f5f8d",
+        "oracleId": "3b9b5b22-5a7d-4e37-a870-ca0f0efa4f36",
+        "firstSet": "con",
+        "firstPrintId": "9c451f63-2827-49fe-9d1d-87c87f7f5f8d",
+        "firstPrintSet": "con",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

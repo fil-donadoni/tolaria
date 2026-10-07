@@ -2221,16 +2221,6 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › trigger head › When a player casts a spell",
-            "issue": 4543
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When an opponent casts an instant spell",
-            "issue": 4543
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › trigger head › When enchanted creature becomes the target of a spell or ability",
             "issue": 4583
         },
@@ -2266,11 +2256,6 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › trigger head › When you cast a creature spell",
-            "issue": 4543
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › trigger head › When you cycle this card",
             "issue": 4547
         },
@@ -2288,11 +2273,6 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever a player casts a creature spell",
             "issue": 4582
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever a player casts an enchantment spell",
-            "issue": 4543
         },
         {
             "kind": "grammar",
@@ -2358,16 +2338,6 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever this land becomes tapped",
             "issue": 4547
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever you cast a spell that's white",
-            "issue": 4543
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever you cast an enchantment spell",
-            "issue": 4543
         },
         {
             "kind": "hand-tail",
