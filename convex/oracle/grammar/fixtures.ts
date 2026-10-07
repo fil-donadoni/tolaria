@@ -3912,4 +3912,41 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 106.1 + CR 608.2c — Cabal Ritual: exhibits the `if` Op's runtime "left" amount (a graveyard count), the card-dependent skip its threshold would otherwise quarantine on (issue #4541).
+    {
+        rule: "add mana instead if count",
+        card: {
+            oracleId: "5b5bf1fa-6502-4790-b66b-f0f8504ebc7c",
+            name: "Cabal Ritual",
+            manaCost: "{1}{B}",
+            typeLine: "Instant",
+            oracleText:
+                "Add {B}{B}{B}.\nThreshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cabal Ritual",
+            types: ["Instant"],
+            manaCost: { X: 1, B: 1 },
+            oracleText:
+                "Add {B}{B}{B}.\nThreshold — Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your graveyard.",
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "graveyard",
+                                controller: "controller",
+                            },
+                        },
+                        op: "ge",
+                        right: 7,
+                    },
+                    then: [{ op: "addMana", mana: { B: 5 } }],
+                    else: [{ op: "addMana", mana: { B: 3 } }],
+                },
+            ],
+        },
+    },
 ]);

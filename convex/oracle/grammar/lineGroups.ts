@@ -30,6 +30,8 @@
  * fail-closed compiler may not do.
  */
 
+import { withoutAbilityWord } from "./shared/effectClause";
+
 /** The character Scryfall opens a CR 700.2 mode line with. */
 export const BULLET = "•";
 
@@ -51,6 +53,8 @@ export type GroupResult =
           readonly fragment: string;
       };
 
+const MANA_REPLACEMENT_LINE = /^Add (?:\{[WUBRGC]\})+ instead if /;
+
 /** Attach every bullet line to the line it follows (CR 700.2). */
 export function groupLines(lines: readonly string[]): GroupResult {
     const grouped: string[] = [];
@@ -69,6 +73,20 @@ export function groupLines(lines: readonly string[]): GroupResult {
                 fragment: line,
             };
         if (!line.startsWith(`${BULLET} `)) {
+            // CR 608.2c — a conditional replacement of mana ("Threshold — Add
+            // {B}{B}{B}{B}{B} instead if there are seven or more cards in your
+            // graveyard.") is printed as a line of its own but is a SENTENCE of
+            // the effect above it: it replaces that "Add {B}{B}{B}". Rejoined
+            // with the space the sentence splitter reads as a boundary. Scoped
+            // to mana — the wider "<ability word> — … instead if …" family
+            // (damage, destroy, counters) is left to the corpus ranking.
+            if (
+                grouped.length > 0 &&
+                MANA_REPLACEMENT_LINE.test(withoutAbilityWord(line))
+            ) {
+                grouped[grouped.length - 1] += ` ${line}`;
+                continue;
+            }
             grouped.push(line);
             continue;
         }

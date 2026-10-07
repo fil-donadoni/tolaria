@@ -325,6 +325,17 @@ export type SubjectIR =
     | { readonly kind: "each-creature-and-player" };
 
 /**
+ * CR 608.2c — "there are N or more cards in your graveyard": a count of the
+ * controller's own cards in one zone, read when the sentence resolves. The zone
+ * is the only one the corpus prints this threshold over today; it is a field so
+ * a second zone widens the rule, not the type.
+ */
+export interface CardCountConditionIR {
+    readonly zone: "graveyard";
+    readonly atLeast: number;
+}
+
+/**
  * CR 118.12a — the price a counter's controller may be made to pay to keep
  * their spell on the stack ("… unless its controller pays <tax>").
  *
@@ -387,6 +398,17 @@ export type EffectSentenceIR =
      *  string, never a generic, `{X}` or "mana of any color" (a runtime
      *  choice: the mana slot's descriptor, not this sentence's). */
     | { readonly kind: "add-mana"; readonly mana: EffectManaPool }
+    /** CR 106.1 + CR 608.2c (Cabal Ritual) — "Add {B}{B}{B}. <Ability word> —
+     *  Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
+     *  graveyard.": the second sentence REPLACES the first when the count is
+     *  met, and the first happens otherwise. Folded from an `add-mana` and the
+     *  `instead-if-count` sentence behind it by `assembleSentences`. */
+    | {
+          readonly kind: "add-mana-instead-if";
+          readonly base: EffectManaPool;
+          readonly replacement: EffectManaPool;
+          readonly condition: CardCountConditionIR;
+      }
     /** CR 107.3f (issue #4529) — "You may pay {X}. If you do, <effect>": the
      *  controller nominates X as the payment is made, and `effect` reads the
      *  amount paid wherever it says X. A WRAPPER over an already-read
@@ -1263,6 +1285,16 @@ export type SentenceIR =
           readonly role: "kicked-instead";
           readonly kicked: KickedRefIR;
           readonly replacement: EffectSentenceIR;
+      }
+    /**
+     * CR 608.2c — "Add {B}{B}{B}{B}{B} instead if there are seven or more cards
+     * in your graveyard": the replacement half of an `add-mana-instead-if`,
+     * folded onto the `add-mana` in front of it by `assembleSentences`.
+     */
+    | {
+          readonly role: "add-mana-instead-if";
+          readonly mana: EffectManaPool;
+          readonly condition: CardCountConditionIR;
       };
 
 /**
@@ -1689,6 +1721,21 @@ export function assembleSentences(
                 conditions: sentence.conditions,
                 base: previous,
                 upgraded,
+            };
+            continue;
+        }
+        if (sentence.role === "add-mana-instead-if") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined || previous.kind !== "add-mana")
+                return {
+                    ok: false,
+                    reason: '"Add … instead" follows no "Add …" it could replace',
+                };
+            effects[effects.length - 1] = {
+                kind: "add-mana-instead-if",
+                base: previous.mana,
+                replacement: sentence.mana,
+                condition: sentence.condition,
             };
             continue;
         }
@@ -2311,6 +2358,19 @@ const PAY_VARIABLE_MANA = "you may pay {X}";
 const IF_YOU_DO = /^If you do, (.+)$/;
 /** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
 const ADD_MANA = /^Add ((?:\{[WUBRGC]\})+)$/;
+/** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
+const ADD_MANA_INSTEAD_IF_COUNT =
+    /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
+
+/** CR 106.1 — a run of `{W}{U}{B}{R}{G}{C}` pips as a per-symbol tally. */
+function readManaPips(pips: string): EffectManaPool {
+    const mana: EffectManaPool = {};
+    for (const pip of pips.matchAll(/\{([WUBRGC])\}/g)) {
+        const symbol = pip[1] as keyof EffectManaPool;
+        mana[symbol] = (mana[symbol] ?? 0) + 1;
+    }
+    return mana;
+}
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
@@ -2675,7 +2735,7 @@ const ABILITY_WORD_SEPARATOR = " \u2014 ";
  * em dash separator AND a member of the CR census, so a sentence that merely
  * contains an em dash keeps every word it printed.
  */
-function withoutAbilityWord(span: string): string {
+export function withoutAbilityWord(span: string): string {
     const at = span.indexOf(ABILITY_WORD_SEPARATOR);
     if (at === -1) return span;
     const head = span
@@ -2747,6 +2807,8 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         const restriction = RESTRICTIONS.get(span.toLowerCase());
         if (restriction !== undefined)
             return ok({ role: "restriction" as const, restriction });
+        if (ADD_MANA_INSTEAD_IF_COUNT.test(span))
+            return addManaInsteadIfRule.run(span, ctx);
         if (span === "It can't be regenerated")
             return ok({
                 role: "modifier" as const,
@@ -2873,6 +2935,30 @@ export const insteadRule: Rule<SentenceIR> = rule<SentenceIR>(
             conditions,
             body: match[2] ?? match[3]!,
         } satisfies SentenceIR);
+    }
+);
+
+/**
+ * CR 106.1 + CR 608.2c — the replacement sentence of a conditional ritual:
+ * "Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
+ * graveyard" (Cabal Ritual, behind its CR 207.2c ability word). Exactly one
+ * threshold over the controller's graveyard, whole-sentence anchored; the
+ * `Add …` it replaces is checked where the pair is folded.
+ */
+export const addManaInsteadIfRule: Rule<SentenceIR> = rule<SentenceIR>(
+    "add mana instead if count",
+    (span) => {
+        const match = span.match(ADD_MANA_INSTEAD_IF_COUNT);
+        if (match === null)
+            return fail('not an "Add … instead if there are N" sentence', span);
+        const atLeast = readNumberWord(match[2]!);
+        if (atLeast === null || atLeast < 1)
+            return fail(`"${match[2]}" is not a card count`, span);
+        return ok({
+            role: "add-mana-instead-if" as const,
+            mana: readManaPips(match[1]!),
+            condition: { zone: "graveyard" as const, atLeast },
+        });
     }
 );
 
@@ -3245,12 +3331,10 @@ function effectSentence(
     // ── add mana (CR 106.1) ────────────────────────────────────────────────
     const addMana = span.match(ADD_MANA);
     if (addMana !== null) {
-        const mana: EffectManaPool = {};
-        for (const pip of addMana[1]!.matchAll(/\{([WUBRGC])\}/g)) {
-            const symbol = pip[1] as keyof EffectManaPool;
-            mana[symbol] = (mana[symbol] ?? 0) + 1;
-        }
-        return ok({ kind: "add-mana" as const, mana });
+        return ok({
+            kind: "add-mana" as const,
+            mana: readManaPips(addMana[1]!),
+        });
     }
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────
