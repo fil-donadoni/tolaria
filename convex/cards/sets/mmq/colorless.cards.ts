@@ -82,7 +82,6 @@ function makeDepletionLand(args: {
     };
 }
 
-// compiler-gap: "{T}, Remove a depletion counter from this land: Add {G}{G}. If there are no depletion counters on this land, sacrifice it." (#2693)
 export const hickoryWoodlot = defineCard(() =>
     makeDepletionLand({
         id: "af7aafb7-6870-4d09-a191-70786766c459",
@@ -91,7 +90,6 @@ export const hickoryWoodlot = defineCard(() =>
     })
 );
 
-// compiler-gap: "{T}, Remove a depletion counter from this land: Add {B}{B}. If there are no depletion counters on this land, sacrifice it." (#2693)
 export const peatBog = defineCard(() =>
     makeDepletionLand({
         id: "bcc9d1e0-c8f4-4bac-90d4-8167f7a1515a",
@@ -100,7 +98,6 @@ export const peatBog = defineCard(() =>
     })
 );
 
-// compiler-gap: "{T}, Remove a depletion counter from this land: Add {W}{W}. If there are no depletion counters on this land, sacrifice it." (#2693)
 export const remoteFarm = defineCard(() =>
     makeDepletionLand({
         id: "115cab84-60d7-4bf2-9beb-b4ed7b5ceaf4",
@@ -109,7 +106,6 @@ export const remoteFarm = defineCard(() =>
     })
 );
 
-// compiler-gap: "{T}, Remove a depletion counter from this land: Add {R}{R}. If there are no depletion counters on this land, sacrifice it." (#2693)
 export const sandstoneNeedle = defineCard(() =>
     makeDepletionLand({
         id: "82bc7c6b-2e3d-42d1-b2bb-b37b6f34d33b",
@@ -118,7 +114,6 @@ export const sandstoneNeedle = defineCard(() =>
     })
 );
 
-// compiler-gap: "{T}, Remove a depletion counter from this land: Add {U}{U}. If there are no depletion counters on this land, sacrifice it." (#2693)
 export const saprazzanSkerry = defineCard(() =>
     makeDepletionLand({
         id: "006871fd-2641-42cb-a2ac-a33d05fc5a35",
