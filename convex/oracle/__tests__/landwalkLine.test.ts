@@ -194,6 +194,8 @@ describe("Enchant creature card in a graveyard (CR 702.5a, CR 303.4a)", () => {
     it.each([
         ["Enchant creature card in your graveyard", "your graveyard only"],
         ["Enchant creature card in exile", "no other zone"],
+        ["Enchant nonblack creature card in a graveyard", "a colour filter"],
+        ["Enchant Zombie creature card in a graveyard", "a subtype filter"],
         ["Enchant card in a graveyard", "no type"],
         ["Enchant creature cards in a graveyard", "plural"],
     ])("refuses %s (%s)", (line) => {

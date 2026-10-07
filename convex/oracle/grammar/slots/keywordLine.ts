@@ -203,6 +203,17 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     const requirement: RuleResult<TargetRequirement> =
         targetRequirementFromDescriptor(d);
     if (!requirement.ok) return requirement;
+    // Only the bare "creature card in a graveyard" is fixtured: a colour,
+    // subtype or other filter on the card would ride into the requirement
+    // unchecked, so any extra constraint is refused.
+    if (graveyardCard) {
+        const keys = Object.keys(requirement.value).sort().join();
+        if (keys !== "controller,count,type,zone")
+            return fail(
+                "an Aura enchanting a card in a graveyard names no further filter",
+                phrase
+            );
+    }
     return ok({ kind: "enchant" as const, requirement: requirement.value });
 });
 
