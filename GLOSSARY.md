@@ -824,6 +824,43 @@ spell is worth four different numbers against a **Land**, a small creature, a
 bomb and an empty **Battlefield**.
 _Avoid_: Average creature, baseline target, default victim
 
+**Symmetric Effect**:
+An effect that acts on every **Player** alike — "each player sacrifices", "each
+player draws", a lock that stops both sides untapping — whether a one-shot
+**Spell** (Balance, a Wheel) or a standing static (Stasis, Winter Orb, Howling
+Mine). Its worth is never a property of the card: who it hurts is decided by the
+**Battlefield** it meets. Read by **Differential Reading** on a real board; worth
+zero with no board to read, never a fixed sign.
+_Avoid_: Each-player cost, self-cost, net-neutral effect, symmetric penalty
+
+**Differential Reading**:
+The **Card Value** of a **Symmetric Effect** on a real board: the opponent's
+realised loss minus the caster's, each measured by the same lens that prices a
+targeted **Effect Script** against its best legal victim (ADR 0124), so one
+Balance is worth one number against five lands and another against two. Context-
+free (a draft pick, no board) the reading is zero: the card is priced by its
+mana-value fallback alone, never by a sign guessed from its text.
+_Avoid_: Symmetric penalty, context-free sign, net cost, per-card sign override
+
+**Latent Floor**:
+The mana-value fallback (`base + MV`) a non-creature card's latent **Card
+Value** never drops below while its **Effect Script** is UNMEASURED and
+INCOMPLETE: an uplift that protects a card whose Ops the valuation vocabulary
+cannot yet price. It does not hold for a script measured on a real board (the
+lens answered) nor for a **Complete Script** read context-free — both read their
+own number, negative included. Distinct from the UI **Floor** (a count held at
+zero), which shares nothing but the word.
+_Avoid_: Floor (alone), base value, minimum value, uplift (the mechanism, not the
+name)
+
+**Complete Script**:
+An **Effect Script** every Op of which resolves to a valuer whose beneficence is
+declared (not `neutral`) and which names no "each player" reference — the
+condition under which its context-free reading is trusted below the **Latent
+Floor**. Decided by the existing Op census, never by a per-Op flag; fail-closed:
+one neutral Op or one symmetric reference and the script is incomplete.
+_Avoid_: Fully valued script, trusted script, complete card
+
 **Danger Clock**:
 The **Brain**'s read of the race: each **Player**'s estimated turns-to-lethal (life ÷ incoming **Combat Damage**, net of available **Blockers**). The **Evaluation** rewards holding the faster clock, so the **Bot** both defends when threatened and pushes damage when ahead instead of stalling. Estimates the threat beyond the search's turn-boundary horizon.
 _Avoid_: Threat level, aggro score, race
