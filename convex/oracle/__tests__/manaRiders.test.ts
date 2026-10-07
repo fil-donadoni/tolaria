@@ -242,6 +242,21 @@ describe("refusals — the neighbours of each rider form", () => {
             ),
         ],
         [
+            "a draw rider with no tap or sacrifice leg (the engine drops it)",
+            artifact(
+                "Untapped Draw",
+                "{1}",
+                "{1}: Add one mana of any color. Draw a card."
+            ),
+        ],
+        [
+            "a tap ping beside a sacrifice cost (the engine skips it)",
+            land(
+                "Sacrifice Ping",
+                "{T}, Sacrifice this land: Add {C}{C}. This land deals 2 damage to you."
+            ),
+        ],
+        [
             "a delayed return of the land (Undiscovered Paradise — no engine surface)",
             land(
                 "Undiscovered Paradise",

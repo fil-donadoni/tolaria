@@ -329,10 +329,29 @@ export function lowerManaAbility(input: {
             ability.dealsDamageToControllerOnColoredTap =
                 input.produces.dealsDamageToControllerOnColoredTap;
     }
+    // The riders below are applied by the two tap-for-mana mutations only
+    // (`tapUntap`, `tapSourceIntoPayment`: route A above), never by
+    // `activateManaAbility` (route C), so a cost with neither a tap nor a
+    // sacrifice leg would lower to a rider the engine silently drops.
+    const paidByTapRoute =
+        cost.value.tap === true || cost.value.sacrifice === true;
     for (const rider of input.produces.riders ?? []) {
+        if (rider.kind !== "sacrifice-without-counters" && !paidByTapRoute)
+            return {
+                ok: false,
+                reason: `mana rider "${rider.kind}" needs a tap or sacrifice cost leg: only the tap-for-mana paths apply it`,
+            };
         switch (rider.kind) {
-            // CR 605.1a — the unconditional ping (Ancient Tomb).
+            // CR 605.1a — the unconditional ping (Ancient Tomb). The engine
+            // skips it when the source was sacrificed paying the cost
+            // (`applyUnconditionalTapSelfDamage`), so that shape would be a
+            // dead field: refuse it.
             case "damage-to-controller":
+                if (cost.value.sacrifice === true)
+                    return {
+                        ok: false,
+                        reason: "a tap ping beside a sacrifice cost is a no-op in the engine (the source left before the ping)",
+                    };
                 ability.dealsDamageToControllerOnTap = rider.amount;
                 break;
             // CR 121.1 / 605.1a — the draw rides the same stackless resolution.
