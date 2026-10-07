@@ -61,6 +61,10 @@ export const animateDead = defineCard(() => ({
         zone: "graveyard",
         controller: "any",
     },
+    // AI shadow (issue #4143, never executed): the reanimation the Aura's
+    // resolution runs (`putReanimatedOnBattlefield`) — one recursion unit,
+    // the counterweight to the leaves-the-battlefield sacrifice priced below.
+    aiEffects: [{ op: "moveZone", target: { target: 0 }, to: "battlefield" }],
     staticEffects: [
         {
             kind: "pt-buff",
@@ -80,6 +84,10 @@ export const animateDead = defineCard(() => ({
             // Effect Script interpreter cannot read — the factory's own doc
             // notes `resolve` is the escape hatch specifically for this case.
             // Blocked on: an `attachedToBeforeLeave` object-ref selector.
+            // AI shadow (issue #4143, never executed): the host's sacrifice
+            // when the Aura departs — a cost the permanent's controller pays
+            // (a non-announced ref prices as `self-cost`).
+            aiEffects: [{ op: "sacrifice", target: { ref: "$source" } }],
             resolve: (ctx, _event, leaving) => {
                 const hostId = leaving.attachedToBeforeLeave;
                 if (!hostId) return;

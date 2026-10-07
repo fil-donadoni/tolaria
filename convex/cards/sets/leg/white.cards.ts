@@ -935,6 +935,10 @@ export const presenceOfTheMaster = defineCard(() => ({
             // "the spell that triggered this". Blocked on: an
             // EVENT_FIELD_REGISTRY row for SPELL_CAST.spellInstanceId. Stays
             // resolve().
+            // AI shadow (issue #4143, never executed): the counter of the
+            // cast spell, sketched on the announced-target shape the valuer
+            // prices as one `disruption` unit.
+            aiEffects: [{ op: "counter", target: { target: 0 } }],
             resolve: (ctx, _event, spell) => {
                 ctx.counter({ type: "spell", id: spell.instanceId });
             },

@@ -331,12 +331,6 @@
     },
     {
         "class": "card",
-        "cardId": "e040be83-3fb5-4da5-ba7a-4923b8854b74",
-        "name": "Portent",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "1b342dd3-09b9-4108-bf12-a65d4cef4eb9",
         "name": "Power Sink",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
@@ -603,13 +597,6 @@
         "cardId": "8fecc5d2-5298-4d47-b085-f160603f220e",
         "name": "Aladdin's Lamp",
         "abilityId": "aladdins-lamp-look",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
-        "name": "Animate Dead",
-        "abilityId": "anim-dead-ltb",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2126,13 +2113,6 @@
     },
     {
         "class": "ability",
-        "cardId": "1cb86b2f-116d-4952-b35a-1398341baaf5",
-        "name": "Presence of the Master",
-        "abilityId": "presence-of-the-master-counter",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "c9fd4054-42fc-4f95-a6f7-369a5da43dd5",
         "name": "Priest of Yawgmoth",
         "abilityId": "priest-of-yawgmoth-mana",
@@ -2213,13 +2193,6 @@
         "cardId": "0ecbe097-ba51-42e5-957c-382eb66c08f0",
         "name": "Robber of the Rich",
         "abilityId": "robber-of-the-rich-attack",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "37ae4b01-a9c1-4eec-9204-78cb2508e0df",
-        "name": "Sacred Ground",
-        "abilityId": "sacred-ground-return",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2682,13 +2655,6 @@
         "cardId": "9ee86bf2-6c54-4c6e-8394-eb39f98d5a85",
         "name": "Wiitigo",
         "abilityId": "wiitigo-upkeep-growth",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "fd896dfa-66c0-4327-8e5b-489bbe350c95",
-        "name": "Wild Growth",
-        "abilityId": "wild-growth-extra-green",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {

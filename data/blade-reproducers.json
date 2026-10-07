@@ -1323,6 +1323,36 @@
         "landCount": 6,
         "libraryCount": 0
     },
+    "opponent's choice: Mind Rot strips a lone Sacred Ground": {
+        "cards": [
+            {
+                "name": "Mind Rot",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Sacred Ground",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Sacred Ground",
+                "owner": "opp",
+                "zone": "library",
+                "count": 10
+            },
+            {
+                "name": "Swamp",
+                "owner": "me",
+                "zone": "library",
+                "count": 20
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 7,
+        "landCount": 6,
+        "libraryCount": 0
+    },
     "positive-control: plays its only land on an empty board": {
         "cards": [
             {

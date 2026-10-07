@@ -49,6 +49,15 @@ export const sacredGround = defineCard(() => ({
             toZone: "graveyard",
             filter: { types: "Land" },
             condition: causedByOpponent,
+            // AI shadow (issue #4143, never executed): the land comes straight
+            // back from the graveyard — one recursion unit.
+            aiEffects: [
+                {
+                    op: "moveZone",
+                    target: { ref: "$source" },
+                    to: "battlefield",
+                },
+            ],
             resolve: (ctx: SpellContext, _event, leaving) => {
                 ctx.returnToBattlefield(
                     leaving.ownerId,
