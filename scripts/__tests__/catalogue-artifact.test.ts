@@ -12,10 +12,10 @@
 //
 // ── What it proves ─────────────────────────────────────────────────────────
 //
-//  1. FRESHNESS. What the tree generates is what is committed, byte for byte,
-//     under the source hash the merged rows' own bytes give it — and the
-//     merged rows themselves are NOT committed (issue #5124). This is the assertion
-//     that replaces the runtime backstop: ADR 0114 §2 says a hand-written card
+//  1. FRESHNESS. Every committed rendering is byte for byte what the tree
+//     generates, under the source hash of the merged rows' own bytes (the
+//     merged rows themselves are not committed since issue #5124). This is
+//     the assertion that replaces the runtime backstop: ADR 0114 §2 says a hand-written card
 //     added without regenerating must be CAUGHT rather than filtered away in
 //     silence, and this is where it is caught.
 //  2. RELOCATION IS A MOVE. Every relocated row deep-equals the live
@@ -43,8 +43,14 @@
 // Proof-of-failure (gre-development.md § Proof-of-failure) is recorded in the
 // PR: each assertion below was driven red by breaking the thing it guards, and
 // the breaks are named there.
-import { describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { afterAll, describe, expect, it } from "vitest";
+import {
+    mkdtempSync,
+    mkdirSync,
+    readFileSync,
+    rmSync,
+    writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -539,6 +545,12 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
         expect(committedPackedDrift(REPO_ROOT, BUILD)).toBe(null);
     });
 
+    const scratchTrees: string[] = [];
+    afterAll(() => {
+        for (const root of scratchTrees)
+            rmSync(root, { recursive: true, force: true });
+    });
+
     it("a single-sided regeneration is named, not passed (issue #5124)", () => {
         // The committed merged artifact used to be the second side the packed
         // corpus was compared with. With it retired, the two sides are the
@@ -546,6 +558,7 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
         // regenerating only one of them must still red, by name.
         const tree = (packedBytes: string, sourceHashBytes: string) => {
             const root = mkdtempSync(join(tmpdir(), "catalogue-5124-"));
+            scratchTrees.push(root);
             mkdirSync(join(root, CATALOGUE_DIR), { recursive: true });
             writeFileSync(join(root, PACKED_CORPUS_PATH), packedBytes);
             writeFileSync(
