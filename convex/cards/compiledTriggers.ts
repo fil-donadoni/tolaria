@@ -50,6 +50,8 @@ import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
 import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
+import { leftTrigger } from "./abilities/triggers/leftTrigger";
+import { holdsExileBundle } from "./abilities/exileBundle";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
 import type { PermanentScope, TriggerScope } from "./abilities/triggers/shared";
@@ -91,7 +93,15 @@ export type CompiledTriggerCondition =
           readonly kind: "basic-land-types";
           readonly player: { readonly eventField: string };
           readonly atLeast: number;
-      };
+      }
+    /**
+     * CR 610.3 / ADR 0028 — the source holds an exile-and-return bundle
+     * (`holdsExileBundle`). NOT an intervening-if: nothing is printed. It gates
+     * the return an "exile … until this leaves the battlefield" creates, a
+     * second one-shot effect that exists only if the first exiled something,
+     * so it is checked when the departure fires and never re-checked.
+     */
+    | { readonly kind: "holds-exile-bundle" };
 
 /** CR 205.2 — "to a creature": the damaged permanent's type. */
 const CREATURE_FILTER: PermanentFilter = { types: ["Creature"] };
@@ -110,6 +120,11 @@ export type CompiledTriggerHead =
           readonly scope: PermanentScope;
           readonly filter?: PermanentFilter;
       }
+    /**
+     * CR 603.6c — "when this permanent leaves the battlefield": the source's
+     * own departure to any zone (`leftTrigger`, no `toZone`). Self only.
+     */
+    | { readonly kind: "left"; readonly scope: "self" }
     /**
      * CR 508.3a — "whenever [this creature / a creature you control] attacks".
      * `scope` absent is the source itself, the only reading before issue #4151
@@ -183,6 +198,8 @@ function conditionHolds(
     state: TriggerStateView | undefined
 ): boolean {
     if (state === undefined) return false;
+    if (condition.kind === "holds-exile-bundle")
+        return holdsExileBundle(event, self, state);
     if (condition.kind === "basic-land-types") {
         // CR 603.4 — fail CLOSED on a field the event does not carry, like
         // the absent state view above. A hand-built stack item may carry no
@@ -262,7 +279,11 @@ export function resolveCompiledTrigger(
                       self: PermanentView,
                       state?: TriggerStateView
                   ): boolean => conditionHolds(condition, event, self, state);
-                  return { condition: gate, interveningIf: gate };
+                  // CR 610.3 — a printed-nowhere gate is checked once, at
+                  // the departure: it is no CR 603.4 clause to re-check.
+                  return condition.kind === "holds-exile-bundle"
+                      ? { condition: gate }
+                      : { condition: gate, interveningIf: gate };
               })();
     const common = {
         id: descriptor.id,
@@ -284,6 +305,8 @@ export function resolveCompiledTrigger(
                 scope: head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });
+        case "left":
+            return leftTrigger({ ...common, scope: head.scope });
         case "attacks":
             // CR 508.3a — the rule is per CREATURE, so a non-self scope fires
             // once per matching declared attacker and names it

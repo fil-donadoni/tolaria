@@ -175,7 +175,13 @@ describe("gold round-trip — precision", () => {
         // `damageDealtTrigger` whose `resolve` is a closure) are now compiled
         // — the same move as the entries above, out of "the compiler refuses
         // it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(30);
+        //
+        // 29 -> 30 by issue #4526 ("If that creature would die this turn,
+        // exile it instead"): Suplex's first mode now compiles to `dealDamage`
+        // + `exileOnDeath`, while both hand-written modes are `resolve()`
+        // closures — the same move as the entries above, out of "the compiler
+        // refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(31);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

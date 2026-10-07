@@ -156,6 +156,11 @@ export interface SiteAntecedents {
     readonly player?: EffectPlayerRef;
     /** "that opponent" — set only by a head that names an OPPONENT. */
     readonly opponent?: EffectPlayerRef;
+    /**
+     * CR 607.2a — "the exiled card": this object's linked exile, readable
+     * only behind its own leaves-the-battlefield head.
+     */
+    readonly exiledCard?: true;
     /** "that much" — the magnitude the head's event carried (CR 120.3). */
     readonly amount?: EffectValue;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
@@ -2064,6 +2069,67 @@ function lowerSentenceBody(
                     "only a spell's own text has a card to shuffle into the library"
                 );
             return lowered([{ op: "shuffleSelfIntoLibrary" }]);
+        }
+        // CR 601.3 + CR 305.1 — "you" is the ability's controller; omitting
+        // `actions` is the Op's own "play lands AND cast spells" default.
+        case "exile-until-leaves": {
+            // CR 610.3 — the exile arms the `$source`-keyed bundle (ADR 0028)
+            // whose return the card pass adds as the source's own departure
+            // trigger (`linkExile.ts`). A spell has no permanent to leave.
+            if (site.resolvingSpell === true)
+                return unlowerable(
+                    '"until this leaves the battlefield" needs a permanent source (CR 610.3)'
+                );
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                { op: "exileWithAttachments", target: target.value },
+            ]);
+        }
+        case "return-exiled": {
+            // CR 607.2a — the linked exile's card comes back under
+            // its owner's control; only a head that names it can say "the".
+            if (site.antecedents?.exiledCard !== true)
+                return unlowerable(
+                    '"the exiled card" names no exile linked to this ability (CR 607.2a)'
+                );
+            return lowered([{ op: "returnExiledForSource" }]);
+        }
+        case "graveyard-play":
+            return lowered([
+                { op: "grantGraveyardPlay", player: "controller" },
+            ]);
+        // CR 614.1a — the controller's graveyard, this turn only.
+        case "graveyard-redirect":
+            return lowered([
+                { op: "armGraveyardRedirect", player: "controller" },
+            ]);
+        case "exile-if-dies": {
+            // CR 614.1a + CR 608.2h — the replacement lands on "that
+            // creature", the ONE creature target announced before it.
+            const announced = slots.requirements();
+            const only = announced.length === 1 ? announced[0]! : null;
+            if (
+                only === null ||
+                only.type !== "Creature" ||
+                only.count !== 1 ||
+                only.zone !== undefined ||
+                only.announcedOnlyIfKicked === true ||
+                walk.gatedRemoval
+            )
+                return unlowerable(
+                    '"that creature" names no single creature target announced before it (CR 608.2h)'
+                );
+            return lowered([{ op: "exileOnDeath", target: { target: 0 } }]);
+        }
+        case "exile-self": {
+            // CR 608.2n — the resolving spell, never an ability: on a
+            // permanent the same words exile the permanent itself.
+            if (site.resolvingSpell !== true)
+                return unlowerable(
+                    "only a spell's own text has a card to exile instead of its graveyard"
+                );
+            return lowered([{ op: "exileSelf" }]);
         }
         case "explore": {
             // CR 701.44a — one permanent explores once.

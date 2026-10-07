@@ -802,6 +802,75 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 610.3 — "Exile <target> until {self} leaves the battlefield":
+           * a one-shot exile whose return is a SECOND one-shot effect created
+           * when the source leaves (CR 610.3c: under its owner's control). The
+           * subject is one announced battlefield target, as the plain exile's
+           * is; "that card" (from a hand), a sweep and "phases out until" are
+           * neighbours, refused.
+           */
+          readonly kind: "exile-until-leaves";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
+           * CR 607.2a — "Return the exiled card to the
+           * battlefield under its owner's control.": the card this object's
+           * LINKED exile instruction exiled comes back. Read as a whole
+           * phrase, since "the exiled card" is anaphora across abilities, not
+           * a target. Parsed so the line's refusal is precise: the card pass
+           * refuses every printed pair (`linkExile.ts` — the bundle Op is a
+           * CR 610.3 duration, this is not). The plural and a return to hand
+           * are neighbours, refused here.
+           */
+          readonly kind: "return-exiled";
+      }
+    | {
+          /**
+           * CR 601.3 + CR 305.1 — "Until end of turn, you may play lands and
+           * cast spells from your graveyard.": a turn-scoped permission for
+           * the ability's controller to play cards from their OWN graveyard
+           * (Yawgmoth's Will). Exactly the printed pair of actions; one action
+           * alone, a mana-value cap, or another player's graveyard is a
+           * neighbour, refused.
+           */
+          readonly kind: "graveyard-play";
+      }
+    | {
+          /**
+           * CR 614.1a — "If a card would be put into your graveyard from
+           * anywhere this turn, exile that card instead.": a turn-scoped
+           * replacement on the controller's graveyard (Yawgmoth's Will's
+           * second sentence). "An opponent's graveyard" and a permanent-bound
+           * "as long as" redirect (Dauthi Voidwalker) are neighbours, refused.
+           */
+          readonly kind: "graveyard-redirect";
+      }
+    | {
+          /**
+           * CR 614.1a — "If that creature would die this turn, exile it
+           * instead.": a turn-scoped replacement armed on the creature an
+           * earlier sentence of the same ability named. "That creature" is
+           * anaphora (CR 608.2h), so the sentence carries no subject: the
+           * lowering binds it to the ONE creature target announced before it
+           * and refuses every other site. The "creature or planeswalker" and
+           * "a creature dealt damage this way" forms are neighbours, refused
+           * here: the Op arms creatures only, and it names one object.
+           */
+          readonly kind: "exile-if-dies";
+      }
+    | {
+          /**
+           * CR 608.2n — "Exile {self}": the resolving spell goes to exile
+           * instead of its owner's graveyard (Restock). Spell sites only, like
+           * its library twin above; on a permanent's ability the same words
+           * exile a PERMANENT (or, from a graveyard, a card), which is not this
+           * Op, so the lowering refuses every other site.
+           */
+          readonly kind: "exile-self";
+      }
+    | {
+          /**
            * CR 701.44a — "<subject> explores": one permanent explores once.
            * "explores X times" / "explores again" are other sentences.
            */
@@ -2481,6 +2550,21 @@ const DRAW_PUT_BACK =
     /^Draw (\S+) cards?, then put (\S+) cards? from your hand on top of your library( in any order)?$/;
 /** CR 701.24a — "Shuffle {self} into its owner's library". */
 const SHUFFLE_SELF = `Shuffle ${SELF_MARKER} into its owner's library`;
+/** CR 610.3 — "Exile <target> until <this permanent> leaves the battlefield". */
+const EXILE_UNTIL_LEAVES = /^Exile (.+) until (.+) leaves the battlefield$/;
+/** CR 607.2a — the O-Ring family's linked return. */
+const RETURN_EXILED =
+    "Return the exiled card to the battlefield under its owner's control";
+/** CR 601.3 + CR 305.1 — Yawgmoth's Will's graveyard permission. */
+const GRAVEYARD_PLAY =
+    "Until end of turn, you may play lands and cast spells from your graveyard";
+/** CR 614.1a — Yawgmoth's Will's graveyard redirect. */
+const GRAVEYARD_REDIRECT =
+    "If a card would be put into your graveyard from anywhere this turn, exile that card instead";
+/** CR 614.1a — "If that creature would die this turn, exile it instead". */
+const EXILE_IF_DIES = "If that creature would die this turn, exile it instead";
+/** CR 608.2n — "Exile {self}" (the resolving spell exiles itself). */
+const EXILE_SELF = `Exile ${SELF_MARKER}`;
 /** CR 701.44a — "<subject> explores". */
 const EXPLORE = /^(.+) explores$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
@@ -3982,6 +4066,12 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── the linked exile's card comes back (CR 607.2a) ─────────────────────
+    if (span === RETURN_EXILED)
+        return ok({
+            kind: "return-exiled" as const,
+        } satisfies EffectSentenceIR);
+
     // ── zone change (CR 400.6) ─────────────────────────────────────────────
     if (span.startsWith("Return ")) {
         const toAt = span.lastIndexOf(" to ");
@@ -3997,6 +4087,50 @@ function effectSentence(
             kind: "move-zone" as const,
             subject: subject.value,
             to: zone.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── play from your graveyard, exile what would go there (CR 601.3) ────
+    if (span === GRAVEYARD_PLAY)
+        return ok({
+            kind: "graveyard-play" as const,
+        } satisfies EffectSentenceIR);
+    if (span === GRAVEYARD_REDIRECT)
+        return ok({
+            kind: "graveyard-redirect" as const,
+        } satisfies EffectSentenceIR);
+
+    // ── that creature is exiled if it would die this turn (CR 614.1a) ─────
+    if (span === EXILE_IF_DIES)
+        return ok({
+            kind: "exile-if-dies" as const,
+        } satisfies EffectSentenceIR);
+
+    // ── the resolving spell exiles itself (CR 608.2n) ─────────────────────
+    if (span === EXILE_SELF)
+        return ok({ kind: "exile-self" as const } satisfies EffectSentenceIR);
+
+    // ── exile until this permanent leaves (CR 610.3) ──────────────────────
+    const untilLeaves = span.match(EXILE_UNTIL_LEAVES);
+    if (untilLeaves !== null) {
+        if (!isSelfPhrase(untilLeaves[2]!))
+            return fail(
+                '"until … leaves the battlefield" names a permanent other than this one',
+                span
+            );
+        const subject = subjectRule.run(untilLeaves[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (
+            subject.value.kind !== "target" ||
+            subject.value.requirement.zone !== undefined
+        )
+            return fail(
+                "exiling until this leaves reads one announced permanent",
+                span
+            );
+        return ok({
+            kind: "exile-until-leaves" as const,
+            subject: subject.value,
         } satisfies EffectSentenceIR);
     }
 

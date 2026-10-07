@@ -13,11 +13,6 @@
             "issue": 4533
         },
         {
-            "key": "(op) › armGraveyardRedirect",
-            "op": "armGraveyardRedirect",
-            "issue": 4526
-        },
-        {
             "key": "(op) › attach",
             "op": "attach",
             "issue": 4530
@@ -35,7 +30,7 @@
         {
             "key": "(op) › captureBinding",
             "op": "captureBinding",
-            "issue": 4526
+            "issue": 5186
         },
         {
             "key": "(op) › cascade",
@@ -78,24 +73,9 @@
             "issue": 4534
         },
         {
-            "key": "(op) › exileOnDeath",
-            "op": "exileOnDeath",
-            "issue": 4526
-        },
-        {
-            "key": "(op) › exileSelf",
-            "op": "exileSelf",
-            "issue": 4526
-        },
-        {
             "key": "(op) › exileTopOfLibrary",
             "op": "exileTopOfLibrary",
             "issue": 5171
-        },
-        {
-            "key": "(op) › exileWithAttachments",
-            "op": "exileWithAttachments",
-            "issue": 4526
         },
         {
             "key": "(op) › extraCombat",
@@ -128,14 +108,9 @@
             "issue": 4532
         },
         {
-            "key": "(op) › grantGraveyardPlay",
-            "op": "grantGraveyardPlay",
-            "issue": 4532
-        },
-        {
             "key": "(op) › hideaway",
             "op": "hideaway",
-            "issue": 4526
+            "issue": 5186
         },
         {
             "key": "(op) › lockDamage",
@@ -175,7 +150,7 @@
         {
             "key": "(op) › recallCapturedBinding",
             "op": "recallCapturedBinding",
-            "issue": 4526
+            "issue": 5186
         },
         {
             "key": "(op) › reduceSpellCostThisTurn",
@@ -186,11 +161,6 @@
             "key": "(op) › reflexiveTrigger",
             "op": "reflexiveTrigger",
             "issue": 4531
-        },
-        {
-            "key": "(op) › returnExiledForSource",
-            "op": "returnExiledForSource",
-            "issue": 4526
         },
         {
             "key": "(op) › revealAndCategorize",

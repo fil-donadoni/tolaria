@@ -67,6 +67,13 @@ export type TriggerHeadIR =
     /** CR 603.6 — "when [this / a creature] dies". */
     | { readonly kind: "dies"; readonly scope: TriggerSubjectScope }
     /**
+     * CR 603.6c — "when this <permanent> leaves the battlefield": the source
+     * moving from the battlefield to ANY zone, whatever the body does
+     * (Thragtusk's token, Phyrexian Bloodstock's targeted destroy). Self
+     * only: "another creature … leaves" is a different scope, unread.
+     */
+    | { readonly kind: "leaves"; readonly scope: "self" }
+    /**
      * CR 508.3a — "whenever [this creature / a creature you control] attacks".
      * The rule counts PER CREATURE: the ability triggers once for each
      * creature declared as an attacker that `scope` admits, and each firing
@@ -294,6 +301,11 @@ export const SELF_HEADS: readonly {
     },
     { opener: "when ", tail: " dies", ir: { kind: "dies", scope: "self" } },
     {
+        opener: "when ",
+        tail: " leaves the battlefield",
+        ir: { kind: "leaves", scope: "self" },
+    },
+    {
         opener: "whenever ",
         tail: " attacks",
         ir: { kind: "attacks", scope: "self" },
@@ -374,6 +386,9 @@ export function headPronounReferent(
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
         case "damage-dealt":
             return head.source === "self" ? "source" : null;
+        // CR 603.6c — the source has LEFT; "it" would name a new object in
+        // whatever zone it went to (CR 400.7), which no selector here reads.
+        case "leaves":
         case "damage-taken":
         case "phase":
         case "spell-cast":

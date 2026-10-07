@@ -195,7 +195,13 @@ import {
 // `addMana` / `grantSpellManaSubstitution` sentences, and Su-Chi's "When this
 // creature dies, add {C}{C}{C}{C}." compiles (its hand-written side is a
 // `diedTrigger` closure, hence `incomparable`).
-const BASELINE_CEILING = 1446;
+//
+// Lowered 1446 -> 1441 by issue #4526 (linked exile and return): Banishing
+// Light, Portable Hole ("exile … until this leaves the battlefield"), Phyrexian
+// Bloodstock (the "leaves the battlefield" head) and Yawgmoth's Will round-trip;
+// Suplex's "If that creature would die this turn, exile it instead" compiles
+// (its hand-written side is a `resolve()` closure, hence `incomparable`).
+const BASELINE_CEILING = 1441;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
