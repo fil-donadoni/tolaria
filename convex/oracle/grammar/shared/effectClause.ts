@@ -1057,8 +1057,6 @@ export type SentenceIR =
     | { readonly role: "pile-split-window"; readonly count: AmountIR }
     | { readonly role: "pile-opponent-picks" }
     | { readonly role: "pile-route"; readonly pronoun: "one" | "that" }
-    /** CR 119.3 — "You lose life equal to its mana value." (see `reveal-top-to-hand`). */
-    | { readonly role: "mana-value-life-loss" }
     /**
      * CR 608.2c — "If you control a <A> and a <B>, <effect> instead": the
      * replacement half of an `upgrade-if-controls`, folded onto the effect in
@@ -1348,19 +1346,19 @@ export function assembleSentences(
                 ok: false,
                 reason: "a pile sentence follows no revealed window it divides",
             };
-        if (sentence.role === "mana-value-life-loss") {
-            const previous = effects[effects.length - 1];
-            if (
-                previous === undefined ||
-                previous.kind !== "reveal-top-to-hand" ||
-                previous.lifeLoss
-            )
-                return {
-                    ok: false,
-                    reason: '"its mana value" follows no revealed card it could read',
-                };
-            effects[effects.length - 1] = { ...previous, lifeLoss: true };
-            continue;
+        if (
+            sentence.role === "effect" &&
+            isManaValueLifeLoss(sentence.effect) &&
+            effects[effects.length - 1]?.kind === "reveal-top-to-hand"
+        ) {
+            // CR 608.2c — "its mana value" reads the card the sentence before
+            // revealed; the pair is one effect. Behind any other sentence the
+            // same words name a different object, so this fold does not apply.
+            const previous = effects[effects.length - 1]!;
+            if (previous.kind === "reveal-top-to-hand" && !previous.lifeLoss) {
+                effects[effects.length - 1] = { ...previous, lifeLoss: true };
+                continue;
+            }
         }
         if (window !== null) {
             if (sentence.role !== "library-route")
@@ -1525,6 +1523,18 @@ export function assembleSentences(
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
     return { ok: true, effects, restrictions };
+}
+
+/** CR 119.3 — "You lose life equal to its mana value": the tail of a reveal-top-to-hand. */
+function isManaValueLifeLoss(effect: EffectSentenceIR): boolean {
+    return (
+        effect.kind === "life" &&
+        effect.action === "lose" &&
+        effect.player.kind === "you" &&
+        effect.amount.kind === "acted-on-characteristic" &&
+        effect.amount.noun === "it" &&
+        effect.amount.characteristic === "manaValue"
+    );
 }
 
 /**
@@ -2098,9 +2108,6 @@ const LIBRARY_LOOK = /^(Look at|Reveal) the top (\S+) cards of your library$/;
 /** CR 701.20a — "Reveal the top card of your library and put that card into your hand". */
 const REVEAL_TOP_TO_HAND =
     /^Reveal the top card of your library and put that card into your hand$/;
-/** CR 119.3 — the life-loss tail; "its", "that card's" and "the card's" all read the card just revealed. */
-const MANA_VALUE_LIFE_LOSS =
-    /^You lose life equal to (?:its|that card's|the card's) mana value$/;
 /** CR 701.20a — the reveal-until window: what ends the reveal. */
 const REVEAL_UNTIL =
     /^Reveal cards from the top of your library until you reveal (a basic land card|a land card|a creature card|a white card)$/;
@@ -2676,8 +2683,6 @@ function libraryHalf(span: string) {
             role: "pile-route" as const,
             pronoun: pileRoute[1] as "one" | "that",
         } satisfies SentenceIR);
-    if (MANA_VALUE_LIFE_LOSS.test(span))
-        return ok({ role: "mana-value-life-loss" as const });
     const all = span.match(ROUTE_ALL_OF_SUBTYPE);
     if (all !== null) {
         // CR 205.3m — a creature type; anything else ("land", "creature")

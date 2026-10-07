@@ -698,16 +698,15 @@ export const factOrFiction = defineCard(() => ({
             objects: { set: "library-top", player: "controller", count: 5 },
             divider: "opponent",
             chooser: "controller",
-            dividePrompt:
-                "Fact or Fiction — separate the revealed cards into two piles.",
+            dividePrompt: "Separate the revealed cards into two piles.",
             pickPrompt:
                 "Choose a pile: it goes to your hand, the other to your graveyard.",
-            chosenBind: "$factOrFictionChosen",
-            otherBind: "$factOrFictionOther",
+            chosenBind: "$chosenPile",
+            otherBind: "$otherPile",
             chosenEffect: [
                 {
                     op: "moveZone",
-                    cards: { ref: "$factOrFictionChosen" },
+                    cards: { ref: "$chosenPile" },
                     player: "controller",
                     from: "library",
                     to: "hand",
@@ -716,7 +715,7 @@ export const factOrFiction = defineCard(() => ({
             otherEffect: [
                 {
                     op: "moveZone",
-                    cards: { ref: "$factOrFictionOther" },
+                    cards: { ref: "$otherPile" },
                     player: "controller",
                     from: "library",
                     to: "graveyard",
