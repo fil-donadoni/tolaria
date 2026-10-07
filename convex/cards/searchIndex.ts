@@ -59,7 +59,7 @@ export interface SearchIndexRow {
      *  `cardPrints` table and is queried by Card ID when the edition
      *  selector opens. */
     setCode: string;
-    /** The one home printing, `{ cardId, setCode }` — derived, never shipped:
+    /** The one home printing, `{ printId: cardId, setCode }` — derived, never shipped:
      *  the deck builder's entry shape (`CardIndexEntry`) carries it, and a
      *  row that already IS that shape is the one object per card the deck
      *  builder holds (issue #5125). */

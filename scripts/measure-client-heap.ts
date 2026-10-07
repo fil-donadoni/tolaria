@@ -55,7 +55,7 @@ async function main(): Promise<void> {
             ? sizes
             : [committedSearchIndexWire(ROOT).length, TARGET_CORPUS_ROWS];
     console.log(
-        "[measure:client-heap]  deck builder   rows  import MiB  search index MiB"
+        "[measure:client-heap]  context       rows  import MiB  search index MiB"
     );
     for (const rows of indexSizes) {
         const h = await measureSearchIndexHeap(ROOT, rows);
