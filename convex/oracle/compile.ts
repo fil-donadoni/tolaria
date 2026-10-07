@@ -204,19 +204,24 @@ export function compileCard(card: OracleCard): CompileOutcome {
     }
 
     // CR 305.6 — a land with a basic land type has the INTRINSIC ability
-    // "{T}: Add [mana symbol]" even when the text box does not say so, so
-    // whether the compiled definition should carry an explicit ability is a
-    // question about how the engine models intrinsic abilities, not a question
-    // about the text. The catalogue answers it both ways, and both answers are
-    // load-bearing: `getBasicLandMana` (convex/gre/constants.ts) returns the
-    // FIRST basic subtype's colour, so a one-type land (Forest) needs no
-    // explicit ability and a two-type land (Badlands) does. Neither is
-    // derivable from the Oracle text, which for both is pure reminder text.
-    // Fail closed until #2697 settles it — see
-    // docs/findings/2694-basic-land-type-mana-encoding.md.
+    // "{T}: Add [mana symbol]", one per basic land type, even when the text
+    // box does not say so (the Oracle prints it as reminder text, which
+    // `normalize.ts` strips). How the engine models it is `getBasicLandMana`
+    // (convex/gre/constants.ts): it returns the FIRST basic subtype's colour
+    // and no other, so
+    //  - a land with exactly ONE basic type (Forest, Dwarven Mine, Dryad
+    //    Arbor) is served by the intrinsic path and needs NO explicit ability
+    //    — emitting one would double the mana — so it compiles like any
+    //    other card from its remaining lines;
+    //  - a land with TWO or more (Badlands) would tap for one colour only,
+    //    and the catalogue works around that with a hand-written
+    //    `manaChoices` ability the Oracle text does not carry. Fail closed
+    //    until `getBasicLandMana` reads every type — see
+    //    docs/findings/2694-basic-land-type-mana-encoding.md.
     if (
         typeLine.parsed.types.includes("Land") &&
-        typeLine.parsed.subtypes.some((s) => BASIC_LAND_TYPES.has(s))
+        typeLine.parsed.subtypes.filter((s) => BASIC_LAND_TYPES.has(s)).length >
+            1
     ) {
         return unparsed([
             {
@@ -273,6 +278,23 @@ export function compileCard(card: OracleCard): CompileOutcome {
             });
     }
     if (gaps.length > 0) return unparsed(gaps);
+
+    // CR 305.6 — a one-basic-type land already has its mana ability from the
+    // intrinsic path; a printed (non-reminder) "{T}: Add …" beside it would
+    // be a second source of the same mana, so it is refused, not doubled.
+    if (
+        typeLine.parsed.types.includes("Land") &&
+        typeLine.parsed.subtypes.some((s) => BASIC_LAND_TYPES.has(s)) &&
+        parsedLines.some((p) => p.slot === "mana-ability")
+    ) {
+        return unparsed([
+            {
+                line: card.typeLine,
+                fragment: card.typeLine,
+                reason: "land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0",
+            },
+        ]);
+    }
 
     const lowered = lowerCard(card, typeLine.parsed, parsedLines);
     if (!lowered.ok) {

@@ -757,7 +757,7 @@
         {
             "kind": "grammar",
             "key": "(card) › land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0",
-            "issue": 4541
+            "issue": 5195
         },
         {
             "kind": "grammar",
@@ -1107,7 +1107,7 @@
         {
             "kind": "grammar",
             "key": "mana-ability › mana production › one mana of any type that a land you control could produce",
-            "issue": 4541
+            "issue": 5195
         },
         {
             "kind": "grammar",
@@ -1117,17 +1117,17 @@
         {
             "kind": "grammar",
             "key": "mana-ability › mana production › {…} for each Elf on the battlefield",
-            "issue": 4541
+            "issue": 5195
         },
         {
             "kind": "grammar",
             "key": "mana-ability › mana production › {…} for each creature you control",
-            "issue": 4541
+            "issue": 5195
         },
         {
             "kind": "grammar",
             "key": "mana-ability › mana production › {…} for each enchantment you control",
-            "issue": 4541
+            "issue": 5195
         },
         {
             "kind": "grammar",
@@ -1143,16 +1143,6 @@
             "kind": "grammar",
             "key": "spell › effect clause › A creature dealt damage this way can't be regenerated this turn",
             "issue": 4569
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Add {…}",
-            "issue": 4541
-        },
-        {
-            "kind": "grammar",
-            "key": "spell › effect clause › Add {…} instead if there are seven or more cards in your graveyard",
-            "issue": 4541
         },
         {
             "kind": "grammar",

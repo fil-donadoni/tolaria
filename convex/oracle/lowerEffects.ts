@@ -2620,6 +2620,26 @@ function lowerSentenceBody(
             ]);
         case "add-mana":
             return lowered([{ op: "addMana", mana: sentence.mana }]);
+        case "add-mana-instead-if":
+            // CR 608.2c — the count is met: the replacement is added; else the
+            // base is. One `if`, so exactly one of the two pools is produced.
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: sentence.condition.zone,
+                                controller: "controller",
+                            },
+                        },
+                        op: "ge",
+                        right: sentence.condition.atLeast,
+                    },
+                    then: [{ op: "addMana", mana: sentence.replacement }],
+                    else: [{ op: "addMana", mana: sentence.base }],
+                },
+            ]);
         default: {
             const never: never = sentence;
             return unlowerable(

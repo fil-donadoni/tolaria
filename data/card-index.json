@@ -15314,6 +15314,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dryad Arbor",
+        "scryfallId": "8cee476d-42e1-4997-87af-73e18f542167",
+        "oracleId": "e996cd67-739c-40f4-b276-0042acf26c71",
+        "firstSet": "fut",
+        "firstPrintId": "8cee476d-42e1-4997-87af-73e18f542167",
+        "firstPrintSet": "fut",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dryad's Favor",
         "scryfallId": "c259509e-9f95-4566-b78a-ba34107539f7",
         "oracleId": "af740170-af87-487c-abab-a6ccdea82d97",
