@@ -36695,6 +36695,7 @@
         {"id":"701.3a","line":"/** CR 701.3a/701.3c (ADR 0065, issue #1311) — attach `sourceInstanceId`","sites":1,"status":"baseline"},
         {"id":"701.3a","line":"// 701.26a becomes-tapped trigger, 701.3a attach, 704.5m orphan-aura SBA.)","sites":1,"status":"confirmed","ruleHash":"429a0d4fcf8b1ed6"},
         {"id":"701.3a","line":"// CR 701.3a (ADR 0065, issue #1311) — Reconfigure's attach Op","sites":1,"status":"baseline"},
+        {"id":"701.3a","line":"// CR 701.3a — an Aura attaches only to what its Enchant line names. No","sites":1,"status":"confirmed","ruleHash":"429a0d4fcf8b1ed6"},
         {"id":"701.3a","line":"// CR 701.3a — the source attaches to the announced permanent.","sites":1,"status":"confirmed","ruleHash":"429a0d4fcf8b1ed6"},
         {"id":"701.3a","line":"// CR 701.3a — the stake `attach` moves is what `$source` GRANTS its new","sites":1,"status":"baseline"},
         {"id":"701.3a","line":"// CR 701.3a/701.3c (ADR 0065, issue #1311) — attach $source to the","sites":2,"status":"baseline"},
