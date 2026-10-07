@@ -394,6 +394,13 @@ describe("library-zone verbs — refused neighbours", () => {
         );
     });
 
+    it("refuses shuffling the source from an ability (a creature's own trigger)", () => {
+        expectUnparsed(
+            "When this creature enters, shuffle this creature into its owner's library.",
+            "Creature — Dragon"
+        );
+    });
+
     it("refuses a repeated explore (Jadelight Spelunker: explores X times)", () => {
         expectUnparsed(
             "When this creature enters, it explores X times.",
