@@ -396,7 +396,7 @@ describe("library-zone verbs — refused neighbours", () => {
 
     it("refuses shuffling the source from an ability (a creature's own trigger)", () => {
         expectUnparsed(
-            "When this creature enters, shuffle this creature into its owner's library.",
+            "When Probe enters, shuffle Probe into its owner's library.",
             "Creature — Dragon"
         );
     });
