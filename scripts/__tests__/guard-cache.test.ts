@@ -62,7 +62,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    rmSync(join(root, ".."), { recursive: true, force: true });
+    rmSync(join(root, ".."), {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 const decideHere = (env: NodeJS.ProcessEnv = {}) =>
@@ -137,7 +142,12 @@ describe("guard cache — when it runs (issue #3646)", () => {
                 decide(INPUTS, { root: loose, cacheDir, env: {} })
             ).toMatchObject({ kind: "run", hash: null, reason: "unhashable" });
         } finally {
-            rmSync(loose, { recursive: true, force: true });
+            rmSync(loose, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });

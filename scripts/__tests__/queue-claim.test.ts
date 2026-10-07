@@ -667,7 +667,7 @@ writeFileSync(join(dir, "owner.json"), JSON.stringify({ pid: process.pid, ts: Da
 appendFileSync(log, tag + " enter " + Date.now() + "\\n");
 await new Promise((r) => setTimeout(r, 300));
 appendFileSync(log, tag + " exit " + Date.now() + "\\n");
-rmSync(dir, { recursive: true, force: true });
+rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 `
         );
         const run = (tag: string) =>
@@ -698,7 +698,12 @@ rmSync(dir, { recursive: true, force: true });
                 at(first, "exit")
             );
         } finally {
-            rmSync(root, { recursive: true, force: true });
+            rmSync(root, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     }, 30_000);
 });

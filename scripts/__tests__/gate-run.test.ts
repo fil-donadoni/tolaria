@@ -116,7 +116,12 @@ afterEach(() => {
     // The #4940 tests leave long sleepers behind on purpose; never leak them.
     for (const pgid of liveRunPgids())
         if (groupAlive(pgid)) process.kill(-pgid, "SIGKILL");
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 interface RunOpts {
@@ -400,7 +405,12 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         expect(fs.readFileSync(starts, "utf8").trim().split("\n")).toHaveLength(
             1
         );
-        fs.rmSync(other, { recursive: true, force: true });
+        fs.rmSync(other, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("hands a FINISHED named run's verdict to a caller in a checkout with a different HEAD", () => {
@@ -469,7 +479,12 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         expect(fs.readFileSync(starts, "utf8").trim().split("\n")).toHaveLength(
             1
         );
-        fs.rmSync(other, { recursive: true, force: true });
+        fs.rmSync(other, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("does not hand the run's key down to the gate it runs", () => {
@@ -523,7 +538,12 @@ describe("gate-run — a run can be named instead of keyed on its cwd (#3706)", 
         });
         expect(second.stderr).toMatch(/started/);
         expect(second.stderr).not.toMatch(/re-attached/);
-        fs.rmSync(other, { recursive: true, force: true });
+        fs.rmSync(other, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 });
 
@@ -722,7 +742,12 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         waitForChild();
         const [pgid] = liveRunPgids();
         const child = childPid();
-        fs.rmSync(wt, { recursive: true, force: true });
+        fs.rmSync(wt, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
 
         fixtureScript("fast", "exit 0");
         const r = run({ args: ["fast"], env: short });
@@ -749,7 +774,12 @@ describe("gate-run — one live run per (cwd, script), and the orphans are reape
         ).toBe(75);
         waitForChild();
         const [pgid] = liveRunPgids();
-        fs.rmSync(wt, { recursive: true, force: true });
+        fs.rmSync(wt, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
 
         fixtureScript("fast", "exit 0");
         expect(run({ args: ["fast"], env: short }).status).toBe(0);

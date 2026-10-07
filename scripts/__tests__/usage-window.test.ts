@@ -527,7 +527,12 @@ describe("usage:window CLI — a run's own spend over synthetic transcripts", ()
         ]);
         expect(wide.totals.output).toBe(9_001_000);
         expect(wide.runId).toBe(null);
-        fs.rmSync(f.dir, { recursive: true, force: true });
+        fs.rmSync(f.dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("a run that has launched no pass yet has spent NOTHING, however hot the machine is", () => {
@@ -552,7 +557,12 @@ describe("usage:window CLI — a run's own spend over synthetic transcripts", ()
         expect(r.sessions).toBe(0);
         expect(r.weighted).toBe(0);
         expect(r.pct).toBe(0);
-        fs.rmSync(f.dir, { recursive: true, force: true });
+        fs.rmSync(f.dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("--since anchors the left edge absolutely, replacing the trailing window", () => {
@@ -581,6 +591,11 @@ describe("usage:window CLI — a run's own spend over synthetic transcripts", ()
             report(["--since", "2019-01-01T00:00:00.000Z", ...base]).totals
                 .output
         ).toBe(500);
-        fs.rmSync(f.dir, { recursive: true, force: true });
+        fs.rmSync(f.dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 });

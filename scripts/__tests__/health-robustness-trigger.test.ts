@@ -244,7 +244,14 @@ describe("robustnessModeFromGit — against a throwaway repository", () => {
         for (const [p, t] of Object.entries(FILES)) write(p, t);
         return commit("green");
     })();
-    afterAll(() => rmSync(dir, { recursive: true, force: true }));
+    afterAll(() =>
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     const run = (greenSha: string | null, tip: string) =>
         robustnessModeFromGit({

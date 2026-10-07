@@ -292,7 +292,12 @@ afterEach(async () => {
             /* already gone */
         }
     }
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
     expect(survivors, "processes outlived the test's cleanup").toEqual([]);
     // Above vitest's 10 s default: the survivor wait alone is 5 s, plus the
     // `ps` walks, on a loaded machine.

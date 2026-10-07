@@ -129,7 +129,12 @@ describe("docs-lane — what the lane will carry", () => {
                 foreign: [".claude/skills/new-skill/run.sh"],
             });
         } finally {
-            fs.rmSync(repo, { recursive: true, force: true });
+            fs.rmSync(repo, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 

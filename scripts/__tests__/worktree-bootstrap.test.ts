@@ -213,7 +213,12 @@ describe("pre-push hook", () => {
         });
 
         afterAll(() => {
-            fs.rmSync(tmp, { recursive: true, force: true });
+            fs.rmSync(tmp, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         });
 
         it("rejects a push whose commits carry formatting drift", () => {
@@ -257,6 +262,8 @@ describe("pre-push hook", () => {
                 fs.rmSync(path.join(tmp, ".claude"), {
                     recursive: true,
                     force: true,
+                    maxRetries: 10,
+                    retryDelay: 100,
                 });
             });
             const calls = () =>
@@ -334,6 +341,8 @@ describe("pre-push hook", () => {
                 fs.rmSync(path.join(tmp, ".claude"), {
                     recursive: true,
                     force: true,
+                    maxRetries: 10,
+                    retryDelay: 100,
                 });
             });
 
@@ -543,7 +552,12 @@ describe("build-cache seeding (issue #3776, ADR 0136 §9)", () => {
     });
 
     afterAll(() => {
-        fs.rmSync(tmp, { recursive: true, force: true });
+        fs.rmSync(tmp, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("copies every tsbuildinfo the primary has and names each one in the receipt", () => {

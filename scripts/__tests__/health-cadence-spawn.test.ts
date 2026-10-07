@@ -61,8 +61,18 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
-    rmSync(lockRoot, { recursive: true, force: true });
+    rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
+    rmSync(lockRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("health-cadence spawn — the decision outlives land's process group", () => {

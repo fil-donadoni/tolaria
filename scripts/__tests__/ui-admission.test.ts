@@ -24,7 +24,14 @@ let root: string;
 beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "ui-admission-"));
 });
-afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+afterEach(() =>
+    fs.rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    })
+);
 
 const lockDir = () => path.join(root, "ui.lock");
 
@@ -199,6 +206,8 @@ describe("check:ui's machine admission beside a heavy holder (issue #4988)", () 
         fs.rmSync(path.join(root, "gate.lock"), {
             recursive: true,
             force: true,
+            maxRetries: 10,
+            retryDelay: 100,
         });
         if (owner === null) return;
         fs.mkdirSync(path.join(root, "gate.lock"), { recursive: true });

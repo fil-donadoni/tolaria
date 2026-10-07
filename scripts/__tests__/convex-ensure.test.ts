@@ -73,7 +73,12 @@ afterEach(async () => {
     await Promise.all(
         servers.splice(0).map((s) => new Promise((r) => s.close(r)))
     );
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 async function freePort(): Promise<number> {
@@ -473,7 +478,12 @@ describe("convex:ensure — another checkout's `convex dev`", () => {
             expect(stillAlive(dev)).toBe(true);
             expect(starts()).toBe(1);
         } finally {
-            fs.rmSync(foreign, { recursive: true, force: true });
+            fs.rmSync(foreign, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });
