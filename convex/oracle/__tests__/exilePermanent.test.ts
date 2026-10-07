@@ -127,12 +127,13 @@ describe("exile a permanent (CR 701.13a, issue #4311)", () => {
         expect(outcome.state).toBe("unparsed");
     });
 
-    it("Resounding Silence stays unparsed on its cycling lines, not the exile", () => {
+    it("Resounding Silence stays unparsed on its cycle trigger, not the exile", () => {
         const outcome = compileCard(RESOUNDING_SILENCE);
         expect(outcome.state).toBe("unparsed");
         if (outcome.state !== "unparsed") return;
+        // "Cycling {5}{G}{W}{U}" itself is read (issue #4539); only the
+        // "When you cycle this card" trigger head is still refused.
         expect(outcome.gaps.map((g) => g.line)).toEqual([
-            "Cycling {5}{G}{W}{U}",
             "When you cycle this card, exile up to two target attacking creatures.",
         ]);
     });

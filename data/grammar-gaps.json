@@ -1047,17 +1047,12 @@
         {
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Cumulative upkeep {…}",
-            "issue": 4539
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Cycling {…}",
-            "issue": 4539
+            "issue": 5187
         },
         {
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Echo {…}",
-            "issue": 4539
+            "issue": 5187
         },
         {
             "kind": "grammar",
@@ -1066,28 +1061,13 @@
         },
         {
             "kind": "grammar",
-            "key": "keyword-line › keyword ability › Fading N",
-            "issue": 4539
-        },
-        {
-            "kind": "grammar",
             "key": "keyword-line › keyword ability › Flashback—{…}",
-            "issue": 4539
+            "issue": 5187
         },
         {
             "kind": "grammar",
             "key": "keyword-line › keyword ability › Kicker {…}",
             "issue": 4318
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Madness {…}",
-            "issue": 4539
-        },
-        {
-            "kind": "grammar",
-            "key": "keyword-line › keyword ability › Morph {…}",
-            "issue": 4539
         },
         {
             "kind": "grammar",
@@ -1792,7 +1772,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Cumulative upkeep—Pay N life",
-            "issue": 4539
+            "issue": 5187
         },
         {
             "kind": "grammar",

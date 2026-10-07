@@ -45,6 +45,7 @@ import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
 import type { LineParse, SlotIR } from "./grammar/ir";
 import type { EffectSentenceIR } from "./grammar/shared/effectClause";
+import { CYCLING_ABILITY_ID, cyclingAbility } from "../cards/abilities/cycling";
 import { keywordVocabulary } from "./grammar/shared/keywordVocabulary";
 import { CREATURE_SUBTYPES } from "./grammar/shared/subtypes";
 
@@ -124,6 +125,10 @@ interface Accumulator {
     spellModes?: SpellMode[];
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
+    /** CR 702.35a — the cost to cast the card when it is discarded. */
+    madness?: ManaCost;
+    /** CR 702.37e — the cost to turn the permanent face up. */
+    morph?: ManaCost;
 }
 
 /**
@@ -575,6 +580,36 @@ function lowerLine(
             acc.flashback = flashback.value;
             return null;
         }
+        case "cycling": {
+            // CR 702.29a — one cycling ability per card: the factory's ability
+            // id is the keyword's own ("cycling"), which a second would repeat.
+            if (acc.activatedAbilities.some((a) => a.id === CYCLING_ABILITY_ID))
+                return "a card declares cycling twice (CR 702.29a)";
+            // `cyclingAbility` takes fixed generic mana as `generic` (every
+            // catalogue call writes it so), where the mana reader writes a
+            // numeric `X`; the label renderer reads only `generic`.
+            const { X: generic, ...coloured } = ir.cost;
+            acc.activatedAbilities.push(
+                cyclingAbility(
+                    typeof generic === "number"
+                        ? { generic, ...coloured }
+                        : ir.cost
+                )
+            );
+            return null;
+        }
+        case "madness": {
+            if (acc.madness !== undefined)
+                return "a card declares madness twice (CR 702.35a)";
+            acc.madness = ir.cost;
+            return null;
+        }
+        case "morph": {
+            if (acc.morph !== undefined)
+                return "a card declares morph twice (CR 702.37a)";
+            acc.morph = ir.cost;
+            return null;
+        }
         default: {
             const never: never = ir;
             return `no lowering for slot IR ${JSON.stringify(never)}`;
@@ -885,6 +920,8 @@ export function lowerCard(
     if (acc.additionalCosts !== undefined)
         definition.additionalCosts = acc.additionalCosts;
     if (acc.flashback !== undefined) definition.flashback = acc.flashback;
+    if (acc.madness !== undefined) definition.madness = acc.madness;
+    if (acc.morph !== undefined) definition.morph = acc.morph;
 
     return {
         ok: true,

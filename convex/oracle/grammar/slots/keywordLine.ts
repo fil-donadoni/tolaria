@@ -353,18 +353,130 @@ export const kickerRule: Rule<SlotIR> = rule("kicker", (span, ctx) => {
     return ok({ kind: "kicker" as const, kickers });
 });
 
+// ── Cycling / Madness / Morph <mana cost> (CR 702.29a, 702.35a, 702.37) ────
+
 /**
- * The keyword line: a run of registry keywords, one `Enchant <descriptor>`, or
- * one kicker line. The three are disjoint by construction — no registry
- * keyword name carries a trailing descriptor or cost, a bare "Enchant" names
- * no object, and the kicker rule never reads a line without a cost — and
- * `oneOf` enforces it rather than trusting it.
+ * The mana cost parameter of a keyword line — "Cycling {B}", "Madness {0}",
+ * "Morph {2}{W}{W}" — or a refusal.
+ *
+ * Narrower than a printed mana cost in one place, an engine fact rather than
+ * a grammar one: the cycling label renderer, the madness cast and the morph
+ * turn-up payment are exercised on plain generic and coloured pips only — no
+ * variable {X}, hybrid or Phyrexian pip. A cost they might mis-pay (or
+ * mis-print) is refused rather than compiled into a keyword that is free, or
+ * unpayable, in play. A non-mana cost ("Morph—Reveal a card…", "Cycling—Pay 2
+ * life") does not start with a mana symbol and is refused by the same test.
+ */
+function costParameter(head: string, span: string): RuleResult<ManaCost> {
+    if (!span.startsWith(head))
+        return fail(`a line starts with "${head}"`, span);
+    const printed = span.slice(head.length);
+    if (!printed.startsWith("{"))
+        return fail(`a ${head.trim()} cost is a run of mana symbols`, printed);
+    const read = readManaCost(printed);
+    if (!read.ok) return fail(read.reason, read.fragment);
+    const cost = read.cost;
+    if (cost.X === "X" || cost.xFactor !== undefined)
+        return fail(
+            `a variable {X} ${head.trim()} cost is not exercised on its payment path`,
+            printed
+        );
+    if (cost.phyrexian !== undefined || cost.hybrid !== undefined)
+        return fail(
+            `a Phyrexian or hybrid ${head.trim()} cost is not exercised on its payment path`,
+            printed
+        );
+    return ok(cost);
+}
+
+const CYCLING_HEAD = "Cycling ";
+const MADNESS_HEAD = "Madness ";
+const MORPH_HEAD = "Morph ";
+
+/**
+ * CR 702.29a — "Cycling [cost]" means "[Cost], Discard this card: Draw a
+ * card." An activated ability that functions only in the hand, built by the
+ * SAME factory the catalogue uses (`cyclingAbility`), so a compiled cycling
+ * card carries the hand-written ability field for field.
+ *
+ * Refused: a typecycling line ("Plainscycling {1}" — CR 702.29e, another
+ * keyword with a search body, not this rule's draw), every cost
+ * {@link costParameter} refuses.
+ */
+export const cyclingRule: Rule<SlotIR> = rule("cycling", (span) => {
+    const cost = costParameter(CYCLING_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "cycling" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.35a — "Madness [cost]": the cost its owner may pay to cast the card
+ * when it is discarded. The engine reads it off `CardDefinition.madness`
+ * (`gre/madness.ts`); "Madness {0}" is the empty cost.
+ */
+export const madnessRule: Rule<SlotIR> = rule("madness", (span) => {
+    const cost = costParameter(MADNESS_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "madness" as const, cost: cost.value });
+});
+
+/**
+ * CR 702.37a / 702.37e — "Morph [cost]": the cost to turn the face-down
+ * permanent face up. The engine reads it off `CardDefinition.morph`; the
+ * face-down cast's own {3} (CR 702.37a) is the keyword's, not the line's.
+ */
+export const morphRule: Rule<SlotIR> = rule("morph", (span) => {
+    const cost = costParameter(MORPH_HEAD, span);
+    if (!cost.ok) return cost;
+    return ok({ kind: "morph" as const, cost: cost.value });
+});
+
+// ── Fading N (CR 702.32a) ──────────────────────────────────────────────────
+
+const FADING = /^Fading (\d+)$/;
+
+/**
+ * CR 702.32a — "Fading N" means "This permanent enters with N fade counters on
+ * it" and "At the beginning of your upkeep, remove a fade counter from this
+ * permanent. If you can't, sacrifice the permanent." Both halves are expanded
+ * from the one `staticAbilities` string "fading N" at the `getDefinition`
+ * seam (ADR 0054), so the rule emits that string and nothing else — N lives
+ * in exactly one place, the keyword, as in every hand-written fading card.
+ *
+ * Refused: "Fading 0" (a permanent that enters with no counter is a different
+ * printed shape this grammar has no card for).
+ */
+export const fadingRule: Rule<SlotIR> = rule("fading", (span) => {
+    const match = FADING.exec(span);
+    if (match === null) return fail('a fading line is "Fading N"', span);
+    const count = Number(match[1]);
+    if (count < 1) return fail("fading counts from 1", span);
+    const row = KEYWORD_VOCABULARY.get("fading");
+    if (row === undefined)
+        return fail("the Mechanics Registry names no fading row", span);
+    return ok({
+        kind: "keywords" as const,
+        keywords: [{ ...row, ability: `fading ${count}` }],
+    });
+});
+
+/**
+ * The keyword line: a run of registry keywords, one `Enchant <descriptor>`,
+ * one kicker line, or one cost-parameter keyword (cycling, madness, morph,
+ * fading). They are disjoint by construction — no registry keyword name
+ * carries a trailing descriptor, cost or number, a bare "Enchant" names no
+ * object, and each parameterised rule reads only its own head — and `oneOf`
+ * enforces it rather than trusting it.
  */
 export const keywordLineRule: Rule<SlotIR> = oneOf("keyword line", [
     keywordRunRule,
     map(protectionListRule, keywordsSlot),
     enchantRule,
     kickerRule,
+    cyclingRule,
+    madnessRule,
+    morphRule,
+    fadingRule,
 ]);
 
 /** Guard: keyword lines are only meaningful on an object with a text box. */

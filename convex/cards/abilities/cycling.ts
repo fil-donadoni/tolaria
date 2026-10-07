@@ -51,7 +51,7 @@ import type {
  *  typecycling ability IS a cycling ability, so anything that ever comes to
  *  identify a cycling ability by its id finds the typecycling one too. A card
  *  never prints two cycling abilities, so the id stays unique per card. */
-const CYCLING_ABILITY_ID = "cycling";
+export const CYCLING_ABILITY_ID = "cycling";
 
 /** Renders a cycling cost as its reminder-text label (CR 107.4 / 202.1 — the
  *  mana symbols of the cost, generic pip first, then coloured pips in WUBRG

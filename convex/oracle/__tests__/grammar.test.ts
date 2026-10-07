@@ -72,7 +72,7 @@ describe("keyword line slot (CR 702.1)", () => {
             "Protection from Goblins",
             "Rampage 1",
             "Ward {4}",
-            "Cycling {2}",
+            "Cycling {X}",
         ]) {
             expect(keywordLineSlot.run(line, ctx).ok).toBe(false);
         }
