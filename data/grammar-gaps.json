@@ -150,7 +150,7 @@
         {
             "key": "(op) › lockDamage",
             "op": "lockDamage",
-            "issue": 4527
+            "issue": 5179
         },
         {
             "key": "(op) › loseAllAbilities",
@@ -165,7 +165,7 @@
         {
             "key": "(op) › markAssignsNoCombatDamage",
             "op": "markAssignsNoCombatDamage",
-            "issue": 4527
+            "issue": 5179
         },
         {
             "key": "(op) › moveSpellFromStack",
@@ -176,11 +176,6 @@
             "key": "(op) › payVariableMana",
             "op": "payVariableMana",
             "issue": 4529
-        },
-        {
-            "key": "(op) › preventRegeneration",
-            "op": "preventRegeneration",
-            "issue": 4527
         },
         {
             "key": "(op) › randomExileToHand",
@@ -206,21 +201,6 @@
             "key": "(op) › reflexiveTrigger",
             "op": "reflexiveTrigger",
             "issue": 4531
-        },
-        {
-            "key": "(op) › restrictActivation",
-            "op": "restrictActivation",
-            "issue": 4527
-        },
-        {
-            "key": "(op) › restrictCasting",
-            "op": "restrictCasting",
-            "issue": 4527
-        },
-        {
-            "key": "(op) › restrictCombat",
-            "op": "restrictCombat",
-            "issue": 4527
         },
         {
             "key": "(op) › returnExiledForSource",
@@ -250,7 +230,7 @@
         {
             "key": "(op) › setIslandSanctuaryProtection",
             "op": "setIslandSanctuaryProtection",
-            "issue": 4527
+            "issue": 5179
         },
         {
             "key": "(op) › setLevel",
