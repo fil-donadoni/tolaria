@@ -1440,13 +1440,6 @@
     },
     {
         "class": "ability",
-        "cardId": "b43b900f-2d9b-442b-9699-058483604ec9",
-        "name": "Hypnotic Specter",
-        "abilityId": "hypnotic-specter-discard",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "1a3e095a-7056-4df3-bf7d-9c217d591446",
         "name": "Ice Cauldron",
         "abilityId": "ice-cauldron-add",
@@ -1534,13 +1527,6 @@
         "cardId": "9964d8d8-dc97-4e5f-9f52-173f7e2c37fd",
         "name": "Ivory Cup",
         "abilityId": "ivory-cup-life",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
-        "name": "Jackal Pup",
-        "abilityId": "jackal-pup-redirect",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
