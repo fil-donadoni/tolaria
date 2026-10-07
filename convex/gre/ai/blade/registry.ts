@@ -11344,6 +11344,41 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4895 (issue #4758 review), promoted by issue #4917: two cards for one, the obvious play. Issue #4896 settled the opponent's discard in the 1-ply probe; issue #4917 answers it in the tree walk and the rollout too (`advanceToDecision` over `forcedChoiceAnswer`), so no leaf is scored mid-resolution, and stocks the opponent's library so the re-dealt hand holds spells.",
     },
     {
+        label: "opponent's choice: Mind Rot strips a lone Sacred Ground",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a lone opponent hand card the Bot's valuation prices above the cost of Mind Rot",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Mind Rot", owner: "me", zone: "hand" },
+                { name: "Sacred Ground", owner: "opp", zone: "hand" },
+                // The unseen pool the search re-deals the opponent's hand from
+                // (the Mind Rot entry above, issue #4917): the same card.
+                {
+                    name: "Sacred Ground",
+                    owner: "opp",
+                    zone: "library",
+                    count: 10,
+                },
+                { name: "Swamp", owner: "me", zone: "library", count: 20 },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 7,
+            landCount: 6,
+            libraryCount: 0,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Mind Rot" }] },
+        note: "Issue #4143 — the shadow-valuation twin of the Mind Rot entry above. One opponent card in hand, so Mind Rot trades a card for a card, and the cast is worth it only when the card it strips is worth more than Mind Rot's own. Sacred Ground's leaves-the-battlefield trigger is a hand-written `resolve()`: with no `aiEffects` shadow it priced at the blind `base + MV` floor (28) and the Bot passed on all five seeds; the shadow (a `moveZone` back to the battlefield, one recursion unit) lifts the card to 70 and the Bot casts. Proof-of-failure: dropping the `aiEffects` line from `sacredGround` (sth/white) reds this entry on every seed.",
+    },
+    {
         label: "self-sacrificing ETB: casts Phlage from hand for lethal",
         classification: { kind: "absolute" },
         spec: {
