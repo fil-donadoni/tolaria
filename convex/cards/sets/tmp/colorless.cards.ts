@@ -134,6 +134,10 @@ export const cursedScroll = defineCard(() => ({
             cost: { tap: true, mana: { X: 3 } },
             useStack: true,
             targetRequirement: { type: "any", count: 1 },
+            // AI shadow (issue #4142, never executed): the 2 damage to the
+            // announced target. The name-and-reveal gate (a 1-in-hand-size hit)
+            // has no Op, so the sketch prices the payoff, not the odds.
+            aiEffects: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
             resolve: (ctx: SpellContext) => {
                 const target = ctx.targets[0];
                 // CR 201.3 — the controller names a card. Suspends until the

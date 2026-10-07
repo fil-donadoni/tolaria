@@ -89,6 +89,10 @@ export interface DamageTakenTriggerArgs {
         event: DamageDealtEvent,
         damage: DamageTriggerPayload
     ) => void;
+    /** AI-only shadow Effect Script (issue #4142) — a `resolve()` body sketched
+     *  for the bot's valuer, never executed. Passed straight onto the trigger,
+     *  like `phaseTrigger`'s `aiEffects`. */
+    aiEffects?: EffectOp[];
 }
 
 export function damageTakenTrigger(
@@ -105,6 +109,7 @@ export function damageTakenTrigger(
         interveningIf,
         effects,
         resolve,
+        aiEffects,
     } = args;
 
     if (effects === undefined && resolve === undefined) {
@@ -174,6 +179,7 @@ export function damageTakenTrigger(
         oracleText,
         event: "DAMAGE_DEALT",
         matches,
+        ...(aiEffects ? { aiEffects } : {}),
         ...(effects
             ? { effects }
             : {

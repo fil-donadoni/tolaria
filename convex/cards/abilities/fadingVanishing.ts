@@ -66,6 +66,33 @@ function fadingUpkeepTrigger(): TriggeredAbility {
             "At the beginning of your upkeep, remove a fade counter from this permanent. If you can't, sacrifice it.",
         phase: "UPKEEP",
         scope: "your",
+        // AI shadow (issue #4142, never executed): shed a fade counter, or
+        // sacrifice the permanent when none is left to remove.
+        aiEffects: [
+            {
+                op: "if",
+                predicate: {
+                    left: {
+                        counters: {
+                            of: { ref: "$source" },
+                            type: FADE_COUNTER,
+                        },
+                    },
+                    op: "le",
+                    right: 0,
+                },
+                then: [{ op: "sacrifice", target: { ref: "$source" } }],
+                else: [
+                    {
+                        op: "counters",
+                        action: "remove",
+                        counter: FADE_COUNTER,
+                        target: { ref: "$source" },
+                        count: 1,
+                    },
+                ],
+            },
+        ],
         resolve: (ctx) => {
             const self = {
                 type: "permanent" as const,

@@ -527,6 +527,11 @@ export const hypnoticSpecter = defineCard(() => ({
                 "Whenever Hypnotic Specter deals damage to an opponent, that player discards a card at random.",
             source: "self",
             target: { kind: "player", player: { relation: "opponent" } },
+            // AI shadow (issue #4142, never executed): the damaged opponent
+            // discards one card at random.
+            aiEffects: [
+                { op: "discardAtRandom", player: "opponent", count: 1 },
+            ],
             resolve: (ctx, _event, damage) => {
                 if (damage.target.type !== "player") return;
                 ctx.discardAtRandom(damage.target.id, 1);

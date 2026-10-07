@@ -245,6 +245,33 @@ export const earthquake = defineCard(() => ({
     // Classifier over-count (folds dealDamageToEach → dealDamage + forEach +
     // getX, blind to the ability filter). Blocked on a forEach ability filter,
     // not on X.
+    // AI shadow (issue #4142, never executed): X damage to every creature
+    // without flying, then X to each player — the sweep the resolve() below
+    // runs, sketched with the `excludeAbility` filter the shadow's valuer reads.
+    aiEffects: [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Creature", excludeAbility: "flying" },
+            },
+            effects: [
+                { op: "dealDamage", amount: { X: true }, to: { ref: "$each" } },
+            ],
+        },
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "dealDamage",
+                    amount: { X: true },
+                    to: { player: { ref: "$each" } },
+                },
+            ],
+        },
+    ],
     resolve: (ctx: SpellContext) => {
         ctx.dealDamageToEach(ctx.getX(), {
             creatures: { excludeAbility: "flying" },

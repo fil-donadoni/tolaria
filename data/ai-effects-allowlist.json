@@ -67,12 +67,6 @@
     },
     {
         "class": "card",
-        "cardId": "30f6b4a2-5780-46e9-b239-459d2cf37743",
-        "name": "Chain of Vapor",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "c1862c47-71cc-45a3-8805-a5ddc62e55ea",
         "name": "Channel",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
@@ -135,12 +129,6 @@
         "class": "card",
         "cardId": "8c1c6932-638a-4df7-bf9b-8d921f7484d9",
         "name": "Dwarven Catapult",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
-        "cardId": "e68ac362-6cdc-48a6-bdd3-4f8ea32add64",
-        "name": "Earthquake",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
     },
     {
@@ -752,13 +740,6 @@
     },
     {
         "class": "ability",
-        "cardId": "9db5d6c2-b11f-442a-b172-c0c99c9bec07",
-        "name": "Blastoderm",
-        "abilityId": "fading",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "f131fd27-18da-47ca-b59f-135bcac83abd",
         "name": "Blessing",
         "abilityId": "blessing-pump",
@@ -825,48 +806,6 @@
         "cardId": "8cd7d7e1-f928-4429-9a59-ba0590a78e98",
         "name": "Chromium",
         "abilityId": "rampage-2",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "22ebd5a3-fef8-4097-b038-89a6cb38227d",
-        "name": "Circle of Protection: Artifacts",
-        "abilityId": "cop-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "fa47b4cd-8da4-4544-b011-ba92b7009203",
-        "name": "Circle of Protection: Black",
-        "abilityId": "cop-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "848b1a7f-e8ba-40b5-92b7-af1e963a0319",
-        "name": "Circle of Protection: Blue",
-        "abilityId": "cop-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "1ae32d20-b438-4f43-b603-e8f706ecfb03",
-        "name": "Circle of Protection: Green",
-        "abilityId": "cop-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e",
-        "name": "Circle of Protection: Red",
-        "abilityId": "cop-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "92df19c9-e127-42d9-8dd2-7fa5a7095428",
-        "name": "Circle of Protection: White",
-        "abilityId": "cop-prevent",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1007,13 +946,6 @@
         "cardId": "720d871d-1e7b-482e-bd1e-8ec79519fb86",
         "name": "Cursed Rack",
         "abilityId": "cursed-rack-choose-opponent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "31415b9b-fb30-4132-a9a3-795b4573a901",
-        "name": "Cursed Scroll",
-        "abilityId": "cursed-scroll-ping",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -1420,13 +1352,6 @@
         "cardId": "856be1dd-a20b-49c2-be9d-7db76c7efd8b",
         "name": "Golgothian Sylex",
         "abilityId": "golgothian-sylex-wrath",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "5e236816-0c49-4b48-b18b-03add5a80d72",
-        "name": "Greater Realm of Preservation",
-        "abilityId": "cop-prevent",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
@@ -2141,20 +2066,6 @@
         "cardId": "78cef262-c753-4658-b3ec-fec8db47f944",
         "name": "Palace Jailer",
         "abilityId": "palace-jailer-exile",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "7fe593eb-df3c-43e5-97a6-418f91e87cb3",
-        "name": "Parallax Tide",
-        "abilityId": "fading",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
-        "cardId": "cef789e8-e4cc-4f61-bc15-debc2487777f",
-        "name": "Parallax Wave",
-        "abilityId": "fading",
         "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
     },
     {
