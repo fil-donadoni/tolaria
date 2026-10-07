@@ -29,6 +29,7 @@ import type {
     Color,
     EffectCardFilter,
     EffectChoiceSuperlative,
+    EffectManaPool,
     TargetRequirement,
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
@@ -373,6 +374,19 @@ export type EffectSentenceIR =
           readonly from: Color;
           readonly breadth: "any-color" | "any-type";
       }
+    /** CR 609.4b / 118.14 (issue #4529) — "For one spell this turn, you may
+     *  spend mana as though it were mana of any color|type to pay that spell's
+     *  mana cost." The one-shot, spell-scoped grant (North Star); the grantee
+     *  is always the resolving controller ("you"). */
+    | {
+          readonly kind: "grant-spell-mana-substitution";
+          readonly breadth: "any-color" | "any-type";
+      }
+    /** CR 106.1 / 106.4 (issue #4529) — "Add {B}{B}{B}.": fixed pips only,
+     *  into the resolving controller's pool. A coloured-or-colourless symbol
+     *  string, never a generic, `{X}` or "mana of any color" (a runtime
+     *  choice: the mana slot's descriptor, not this sentence's). */
+    | { readonly kind: "add-mana"; readonly mana: EffectManaPool }
     | {
           readonly kind: "pump";
           readonly subject: SubjectIR;
@@ -2211,6 +2225,13 @@ const REPLACE_MANA_PRODUCTION_COLOR =
  *  "colorless" is a mana type (CR 106.1b), so it may be the spent side. */
 const GRANT_MANA_SUBSTITUTION =
     /^Until end of turn, you may spend (white|blue|black|red|green|colorless) mana as though it were mana of any (color|type)$/;
+/** CR 609.4b / 118.14 (issue #4529) — the one-shot spell-scoped spend
+ *  permission, whole. Anchored at both ends: a scope clause appended to it
+ *  ("… to cast creature spells") narrows the grant and must not be dropped. */
+const GRANT_SPELL_MANA_SUBSTITUTION =
+    /^For one spell this turn, you may spend mana as though it were mana of any (color|type) to pay that spell's mana cost$/;
+/** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
+const ADD_MANA = /^Add ((?:\{[WUBRGC]\})+)$/;
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
@@ -3110,6 +3131,28 @@ function effectSentence(
                         : ("any-color" as const),
             });
         }
+    }
+
+    const spellSubstitution = span.match(GRANT_SPELL_MANA_SUBSTITUTION);
+    if (spellSubstitution !== null) {
+        return ok({
+            kind: "grant-spell-mana-substitution" as const,
+            breadth:
+                spellSubstitution[1] === "type"
+                    ? ("any-type" as const)
+                    : ("any-color" as const),
+        });
+    }
+
+    // ── add mana (CR 106.1) ────────────────────────────────────────────────
+    const addMana = span.match(ADD_MANA);
+    if (addMana !== null) {
+        const mana: EffectManaPool = {};
+        for (const pip of addMana[1]!.matchAll(/\{([WUBRGC])\}/g)) {
+            const symbol = pip[1] as keyof EffectManaPool;
+            mana[symbol] = (mana[symbol] ?? 0) + 1;
+        }
+        return ok({ kind: "add-mana" as const, mana });
     }
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────

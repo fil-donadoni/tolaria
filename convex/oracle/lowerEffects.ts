@@ -2568,6 +2568,16 @@ function lowerSentenceBody(
                     breadth: sentence.breadth,
                 },
             ]);
+        case "grant-spell-mana-substitution":
+            return lowered([
+                {
+                    op: "grantSpellManaSubstitution",
+                    player: "controller",
+                    breadth: sentence.breadth,
+                },
+            ]);
+        case "add-mana":
+            return lowered([{ op: "addMana", mana: sentence.mana }]);
         default: {
             const never: never = sentence;
             return unlowerable(

@@ -65,8 +65,16 @@ export const ACTIVATED_SLOT = "activated";
  * (CR 605.1a), whose form is the mana slot's to own — refused here exactly as
  * before, but never blamed here (`disowning`, issue #3822).
  */
-const activatedSentence: Rule<SentenceIR> = disowning(sentenceRule, (span) =>
-    span.startsWith("Add ")
+const activatedSentence: Rule<SentenceIR> = disowning(
+    rule(sentenceRule.label, (span, ctx) =>
+        // The shared sentence grammar reads "Add {B}." for the spell and
+        // trigger slots (CR 106.1); here it stays the mana slot's alone, or
+        // every mana ability would become an ambiguity (module header).
+        span.startsWith("Add ")
+            ? fail('"Add" opens a mana ability (CR 605.1a)', span)
+            : sentenceRule.run(span, ctx)
+    ),
+    (span) => span.startsWith("Add ")
 );
 
 const activatedBody: Rule<SlotIR> = rule("activated body", (span, ctx) => {
