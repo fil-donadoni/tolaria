@@ -132,6 +132,13 @@ export interface SiteOptions {
      * than read off a snapshot that was never written.
      */
     readonly sourceSacrificed?: true;
+    /**
+     * CR 608.2m — the site is a spell's own text (an instant or sorcery
+     * resolving), so "shuffle this spell into its owner's library" has a card
+     * on the stack to move. Absent = an ability's text: its stack item is no
+     * card, and the sentence is refused rather than lowered into a no-op.
+     */
+    readonly resolvingSpell?: true;
 }
 
 /** The referents a site's anaphora may name (see `SiteOptions.antecedents`). */
@@ -1949,6 +1956,74 @@ function lowerSentenceBody(
         }
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
+        case "mill": {
+            // CR 701.17a — the top cards of the player's library go to their
+            // graveyard. No `bind`: nothing in this clause reads the milled
+            // cards back ("a land card was milled this way" is a later
+            // sentence the grammar refuses).
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            return lowered([
+                { op: "mill", player: player.value, count: count.value },
+            ]);
+        }
+        case "exile-top-of-library": {
+            // CR 701.13a — face up, from the controller's own library.
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            return lowered([
+                {
+                    op: "exileTopOfLibrary",
+                    player: "controller",
+                    count: count.value,
+                },
+            ]);
+        }
+        case "put-back": {
+            // CR 401.4 — the player chooses the cards (and their order) from
+            // their own hand. "you" is the controller's own `putBack`.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                {
+                    op: "putBack",
+                    player: player.value,
+                    count: sentence.count,
+                    prompt: putBackPrompt(sentence.count),
+                },
+            ]);
+        }
+        case "draw-put-back": {
+            // CR 121.1 then CR 401.4 — the draw, then the controller puts
+            // cards from their (now larger) hand back on top.
+            const draw = lowerAmount(sentence.draw, site);
+            if (!draw.ok) return draw;
+            return lowered([
+                { op: "draw", player: "controller", count: draw.value },
+                {
+                    op: "putBack",
+                    player: "controller",
+                    count: sentence.count,
+                    prompt: putBackPrompt(sentence.count),
+                },
+            ]);
+        }
+        case "shuffle-self-into-library": {
+            // CR 608.2m + CR 701.24a — the resolving spell, never an ability.
+            if (site.resolvingSpell !== true)
+                return unlowerable(
+                    "only a spell's own text has a card to shuffle into the library"
+                );
+            return lowered([{ op: "shuffleSelfIntoLibrary" }]);
+        }
+        case "explore": {
+            // CR 701.44a — one permanent explores once.
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([{ op: "explore", target: target.value }]);
+        }
         case "discard-at-random": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
@@ -2485,6 +2560,13 @@ function countFilterOf(filter: PermanentFilter): Lowered<EffectCardFilter> {
 }
 
 /** A small count as the word Oracle text prints ("two"), for a prompt. */
+/** CR 401.4 — the picker's prompt for a `putBack`. */
+function putBackPrompt(count: number): string {
+    return count === 1
+        ? "Choose a card from your hand to put on top of your library."
+        : `Choose ${countWord(count)} cards from your hand to put on top of your library (last picked ends up on top).`;
+}
+
 function countWord(n: number): string {
     const words = [
         "zero",
