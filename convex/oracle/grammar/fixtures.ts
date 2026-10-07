@@ -3866,4 +3866,50 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 107.3f (issue #4529) — "You may pay {X}. If you do, <effect>": the
+    // controller nominates X as the payment is made and the payoff reads the
+    // amount paid. Exhibits the "numeric ref to a runtime snapshot" form: the
+    // canned smoke scenario cannot choose a payment, so this fixture is the
+    // evidence that the `payVariableMana` + `ref` shape the grammar emits is
+    // the one the hand-written catalogue writes (Decree of Justice).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "87a4caa4-cb08-4a0c-b57a-d6d8474b1f5e",
+            name: "Vigil for the Lost",
+            manaCost: "{3}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a creature you control dies, you may pay {X}. If you do, you gain X life.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Vigil for the Lost",
+            types: ["Enchantment"],
+            manaCost: { X: 3, W: 1 },
+            oracleText:
+                "Whenever a creature you control dies, you may pay {X}. If you do, you gain X life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "vigil-for-the-lost-trigger",
+                    oracleText:
+                        "Whenever a creature you control dies, you may pay {X}. If you do, you gain X life.",
+                    head: { kind: "died", scope: "yours" },
+                    effects: [
+                        {
+                            op: "payVariableMana",
+                            player: "controller",
+                            prompt: "You may pay {X}. If you do, you gain X life",
+                            bind: "$paid1",
+                        },
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$paid1" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

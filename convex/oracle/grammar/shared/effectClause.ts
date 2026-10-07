@@ -29,6 +29,7 @@ import type {
     Color,
     EffectCardFilter,
     EffectChoiceSuperlative,
+    EffectManaPool,
     TargetRequirement,
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
@@ -372,6 +373,30 @@ export type EffectSentenceIR =
           readonly kind: "grant-mana-substitution";
           readonly from: Color;
           readonly breadth: "any-color" | "any-type";
+      }
+    /** CR 609.4b / 118.14 (issue #4529) — "For one spell this turn, you may
+     *  spend mana as though it were mana of any color|type to pay that spell's
+     *  mana cost." The one-shot, spell-scoped grant (North Star); the grantee
+     *  is always the resolving controller ("you"). */
+    | {
+          readonly kind: "grant-spell-mana-substitution";
+          readonly breadth: "any-color" | "any-type";
+      }
+    /** CR 106.1 / 106.4 (issue #4529) — "Add {B}{B}{B}.": fixed pips only,
+     *  into the resolving controller's pool. A coloured-or-colourless symbol
+     *  string, never a generic, `{X}` or "mana of any color" (a runtime
+     *  choice: the mana slot's descriptor, not this sentence's). */
+    | { readonly kind: "add-mana"; readonly mana: EffectManaPool }
+    /** CR 107.3f (issue #4529) — "You may pay {X}. If you do, <effect>": the
+     *  controller nominates X as the payment is made, and `effect` reads the
+     *  amount paid wherever it says X. A WRAPPER over an already-read
+     *  sentence, like `optional`: the inner effect is read by the rule that
+     *  reads it alone and lowered by the same walk. `clause` is the two
+     *  sentences AS PRINTED (the prompt the player is asked). */
+    | {
+          readonly kind: "pay-variable-then";
+          readonly clause: string;
+          readonly effect: EffectSentenceIR;
       }
     | {
           readonly kind: "pump";
@@ -1141,6 +1166,19 @@ export type SentenceIR =
      */
     | { readonly role: "choose-color" }
     /**
+     * CR 107.3f (issue #4529) — the two sentences of a variable payment:
+     * "You may pay {X}." then "If you do, <effect>." Folded into one
+     * `pay-variable-then` effect by `assembleSentences`; the first alone
+     * pays for nothing and the second alone names no payment, so either one
+     * without the other is refused.
+     */
+    | { readonly role: "pay-variable-mana"; readonly text: string }
+    | {
+          readonly role: "if-you-do";
+          readonly text: string;
+          readonly effect: EffectSentenceIR;
+      }
+    /**
      * CR 702.34a (issue #4756) — the two sentences of a granted Flashback:
      * "<subject> gains flashback until end of turn." then "The flashback cost
      * is equal to its mana cost." Folded into one `grant-flashback` effect by
@@ -1294,6 +1332,9 @@ export function assembleSentences(
         effects.push(folded);
         return null;
     };
+    // CR 107.3f — a variable payment waits for the "If you do" it feeds.
+    let payVariable: Extract<SentenceIR, { role: "pay-variable-mana" }> | null =
+        null;
     // CR 702.34a — a flashback grant waits for the sentence that prices it.
     let flashbackGrant: Extract<
         SentenceIR,
@@ -1315,6 +1356,25 @@ export function assembleSentences(
         readonly form: "separates" | "chooses";
     } | null = null;
     for (const sentence of sentences) {
+        if (payVariable !== null) {
+            if (sentence.role !== "if-you-do")
+                return {
+                    ok: false,
+                    reason: '"You may pay {X}" is not followed by "If you do, …"',
+                };
+            effects.push({
+                kind: "pay-variable-then",
+                clause: `${payVariable.text}. ${sentence.text}`,
+                effect: sentence.effect,
+            });
+            payVariable = null;
+            continue;
+        }
+        if (sentence.role === "if-you-do")
+            return {
+                ok: false,
+                reason: '"If you do, …" follows no "You may pay {X}"',
+            };
         if (flashbackGrant !== null) {
             if (sentence.role !== "flashback-cost")
                 return {
@@ -1384,6 +1444,21 @@ export function assembleSentences(
         const coinFlipRefused = flushCoinFlip();
         if (coinFlipRefused !== null)
             return { ok: false, reason: coinFlipRefused };
+        if (sentence.role === "pay-variable-mana") {
+            if (
+                restrictions.length > 0 ||
+                window !== null ||
+                awaitingColorChoice ||
+                revealUntil !== null ||
+                piles !== null
+            )
+                return {
+                    ok: false,
+                    reason: "a variable payment follows an unfinished sentence run",
+                };
+            payVariable = sentence;
+            continue;
+        }
         if (awaitingColorChoice) {
             awaitingColorChoice = false;
             if (
@@ -1706,6 +1781,11 @@ export function assembleSentences(
             ok: false,
             reason: "a flashback grant is not followed by its flashback cost",
         };
+    if (payVariable !== null)
+        return {
+            ok: false,
+            reason: '"You may pay {X}" is the last sentence and feeds no effect',
+        };
     if (window !== null)
         return {
             ok: false,
@@ -1945,6 +2025,15 @@ export function optionalSentenceRule(
         // rule uses, for the same reason: only the sentence-initial letter
         // differs, and only for the words this grammar dispatches on.
         const probe = uncapitalise(span);
+        // CR 107.3f (issue #4529) — "you may pay {X}" is the first half of a
+        // variable payment, not an optional effect: the marker would strip it
+        // to "Pay {X}", a sentence nothing reads. `sentenceRule` reads the
+        // capitalised spelling; the trigger site prints it lowercase.
+        if (probe === PAY_VARIABLE_MANA)
+            return ok({
+                role: "pay-variable-mana" as const,
+                text: capitalise(probe),
+            });
         if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
         const parsed = inner.run(clause, ctx);
@@ -2211,6 +2300,17 @@ const REPLACE_MANA_PRODUCTION_COLOR =
  *  "colorless" is a mana type (CR 106.1b), so it may be the spent side. */
 const GRANT_MANA_SUBSTITUTION =
     /^Until end of turn, you may spend (white|blue|black|red|green|colorless) mana as though it were mana of any (color|type)$/;
+/** CR 609.4b / 118.14 (issue #4529) — the one-shot spell-scoped spend
+ *  permission, whole. Anchored at both ends: a scope clause appended to it
+ *  ("… to cast creature spells") narrows the grant and must not be dropped. */
+const GRANT_SPELL_MANA_SUBSTITUTION =
+    /^For one spell this turn, you may spend mana as though it were mana of any (color|type) to pay that spell's mana cost$/;
+/** CR 107.3f (issue #4529) — the first sentence of a variable payment. */
+const PAY_VARIABLE_MANA = "you may pay {X}";
+/** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
+const IF_YOU_DO = /^If you do, (.+)$/;
+/** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
+const ADD_MANA = /^Add ((?:\{[WUBRGC]\})+)$/;
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
@@ -2698,6 +2798,25 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         if (FLASHBACK_COST_IS_MANA_COST.test(span))
             return ok({ role: "flashback-cost" as const });
 
+        // CR 107.3f (issue #4529) — a variable payment in its two sentences
+        // (the roles' own doc comment). "You may pay {X}" is the whole first
+        // sentence: a trailing "where X is …" or a fixed leg ("{X}{R}") is a
+        // different payment this rule does not read.
+        if (uncapitalise(span) === PAY_VARIABLE_MANA)
+            return ok({ role: "pay-variable-mana" as const, text: span });
+        const ifYouDo = span.match(IF_YOU_DO);
+        if (ifYouDo !== null) {
+            const inner = sentenceRule.run(capitalise(ifYouDo[1]!), ctx);
+            if (!inner.ok) return inner;
+            if (inner.value.role !== "effect")
+                return fail('"If you do" feeds a plain effect sentence', span);
+            return ok({
+                role: "if-you-do" as const,
+                text: span,
+                effect: inner.value.effect,
+            });
+        }
+
         const coinFlip = readCoinFlipSentence(span, (clause) =>
             effectSentence(clause, ctx)
         );
@@ -3110,6 +3229,28 @@ function effectSentence(
                         : ("any-color" as const),
             });
         }
+    }
+
+    const spellSubstitution = span.match(GRANT_SPELL_MANA_SUBSTITUTION);
+    if (spellSubstitution !== null) {
+        return ok({
+            kind: "grant-spell-mana-substitution" as const,
+            breadth:
+                spellSubstitution[1] === "type"
+                    ? ("any-type" as const)
+                    : ("any-color" as const),
+        });
+    }
+
+    // ── add mana (CR 106.1) ────────────────────────────────────────────────
+    const addMana = span.match(ADD_MANA);
+    if (addMana !== null) {
+        const mana: EffectManaPool = {};
+        for (const pip of addMana[1]!.matchAll(/\{([WUBRGC])\}/g)) {
+            const symbol = pip[1] as keyof EffectManaPool;
+            mana[symbol] = (mana[symbol] ?? 0) + 1;
+        }
+        return ok({ kind: "add-mana" as const, mana });
     }
 
     // ── pump (CR 613.4c, layer 7c) ─────────────────────────────────────────

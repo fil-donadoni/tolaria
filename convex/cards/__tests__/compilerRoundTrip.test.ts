@@ -188,7 +188,14 @@ import {
 // Colossus round-trips once "If <self> would be put into a graveyard from
 // anywhere, reveal <self> and shuffle it into its owner's library instead"
 // reads as the `shuffleFromAnywhere` flag its hand-written entry expands from.
-const BASELINE_CEILING = 1487;
+//
+// Lowered 1487 -> 1484 by issue #4529 (mana and cost sentences): Dark Ritual
+// ("Add {B}{B}{B}.") and North Star ("For one spell this turn, you may spend
+// mana as though it were mana of any type …") round-trip through the new
+// `addMana` / `grantSpellManaSubstitution` sentences, and Su-Chi's "When this
+// creature dies, add {C}{C}{C}{C}." compiles (its hand-written side is a
+// `diedTrigger` closure, hence `incomparable`).
+const BASELINE_CEILING = 1484;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

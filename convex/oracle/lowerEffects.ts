@@ -91,6 +91,15 @@ export interface SiteOptions {
     /** CR 107.3 — the source announces a value for {X} (it has an `{X}` pip). */
     readonly allowX: boolean;
     /**
+     * CR 107.3f — the binding a `payVariableMana` wrote ("$paid"), set while
+     * the effect that FOLLOWS the payment is lowered: there `X` is the amount
+     * paid, not an announced value, so `lowerAmount` reads `{ ref }` instead of
+     * `{ X: true }` (and the site's own `allowX` is switched off, so a sweep's
+     * announced-X path cannot read the wrong X). Absent = no payment is in
+     * scope.
+     */
+    readonly paidBind?: string;
+    /**
      * CR 201.5 — the card's PRINTED name, for the display strings a lowering
      * emits (today: a `mayPay` prompt).
      *
@@ -219,6 +228,7 @@ function lowerAmount(
         return unlowerable(
             `a ${amount.kind} amount is read only at a life-change site`
         );
+    if (site.paidBind !== undefined) return lowered({ ref: site.paidBind });
     return site.allowX
         ? lowered({ X: true })
         : unlowerable(
@@ -2568,6 +2578,48 @@ function lowerSentenceBody(
                     breadth: sentence.breadth,
                 },
             ]);
+        case "pay-variable-then": {
+            // CR 107.3f — the nomination and the payment are ONE decision, and
+            // nominating 0 IS "if you don't" (an effect of X = 0 and declining
+            // are the same game state), so there is no separate may-pay gate:
+            // the payoff reads the amount paid, as every hand-written
+            // `payVariableMana` card does.
+            const bind = walk.nextBind("paid");
+            const inner = gatedSentence(sentence.effect, walk, {
+                ...site,
+                allowX: false,
+                paidBind: bind,
+            });
+            if (!inner.ok) return inner;
+            // Nominating 0 is "if you don't" ONLY when the payoff scales with
+            // X; a flat payoff would be granted for a payment of {0}.
+            if (!JSON.stringify(inner.value).includes(`"ref":"${bind}"`))
+                return unlowerable(
+                    "a variable payment whose payoff never reads X (CR 107.3f)"
+                );
+            return lowered([
+                {
+                    op: "payVariableMana",
+                    // CR 603.2 — "you" on a triggered ability is its controller.
+                    player: "controller",
+                    prompt: capitalise(
+                        sentence.clause.split(SELF_MARKER).join(site.selfName)
+                    ),
+                    bind,
+                },
+                ...inner.value,
+            ]);
+        }
+        case "grant-spell-mana-substitution":
+            return lowered([
+                {
+                    op: "grantSpellManaSubstitution",
+                    player: "controller",
+                    breadth: sentence.breadth,
+                },
+            ]);
+        case "add-mana":
+            return lowered([{ op: "addMana", mana: sentence.mana }]);
         default: {
             const never: never = sentence;
             return unlowerable(
