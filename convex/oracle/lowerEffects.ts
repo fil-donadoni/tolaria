@@ -1969,18 +1969,6 @@ function lowerSentenceBody(
                 { op: "mill", player: player.value, count: count.value },
             ]);
         }
-        case "exile-top-of-library": {
-            // CR 701.13a — face up, from the controller's own library.
-            const count = lowerAmount(sentence.count, site);
-            if (!count.ok) return count;
-            return lowered([
-                {
-                    op: "exileTopOfLibrary",
-                    player: "controller",
-                    count: count.value,
-                },
-            ]);
-        }
         case "put-back": {
             // CR 401.4 — the player chooses the cards (and their order) from
             // their own hand. "you" is the controller's own `putBack`.

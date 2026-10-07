@@ -696,16 +696,6 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.13a — "Exile the top N cards of your library": the
-           * controller's own library, face up, nothing said afterwards. A
-           * trailing "face down" or a play permission is a different
-           * sentence this clause does not read.
-           */
-          readonly kind: "exile-top-of-library";
-          readonly count: AmountIR;
-      }
-    | {
-          /**
            * CR 401.4 — "<player> puts N cards from their hand on top of their
            * library [in any order]": the player CHOOSES the cards (and, for
            * more than one, their order).
@@ -2155,8 +2145,6 @@ const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
 const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
-/** CR 701.13a — "Exile the top three cards of your library" / "…the top card…". */
-const EXILE_TOP = /^Exile the top (?:(card)|(\S+) cards) of your library$/;
 /** CR 401.4 — "Target opponent puts a card from their hand on top of their library". */
 const PUT_BACK_PLAYER =
     /^(.+) puts (\S+) cards? from their hand on top of their library( in any order)?$/;
@@ -3484,18 +3472,6 @@ function effectSentence(
     }
 
     // ── exile (CR 701.13a) ─────────────────────────────────────────────────
-    // ── exile the top of the library (CR 701.13a) ──────────────────────────
-    const exileTop = span.match(EXILE_TOP);
-    if (exileTop !== null) {
-        const word = exileTop[1] === undefined ? exileTop[2]! : "a";
-        const count = readAmount(word);
-        if (count === null) return fail(`"${word}" is not a count`, span);
-        return ok({
-            kind: "exile-top-of-library" as const,
-            count,
-        } satisfies EffectSentenceIR);
-    }
-
     // An announced permanent (`exile`) or a card in a graveyard (`move-zone`).
     if (span.startsWith("Exile ")) {
         const subject = subjectRule.run(span.slice("Exile ".length), ctx);
