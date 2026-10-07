@@ -3643,4 +3643,148 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.17a — "that player mills a card" at a damage head: the milled
+    // player is the one the damage went to, `$event.damagedPlayer`, a binding
+    // no canned board can conjure. Exhibits `mill` reading an event player.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "13fb5413-0057-4022-84da-2c90ce065ed1",
+            name: "Reef Pirates",
+            manaCost: "{1}{U}{U}",
+            typeLine: "Creature — Zombie Pirate",
+            oracleText:
+                "Whenever this creature deals damage to an opponent, that player mills a card.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Reef Pirates",
+            types: ["Creature"],
+            subtypes: ["Zombie", "Pirate"],
+            manaCost: {
+                X: 1,
+                U: 2,
+            },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Whenever this creature deals damage to an opponent, that player mills a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "reef-pirates-trigger",
+                    oracleText:
+                        "Whenever this creature deals damage to an opponent, that player mills a card.",
+                    head: {
+                        kind: "damage-dealt",
+                        source: "self",
+                        recipient: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "mill",
+                            player: {
+                                ref: "$event.damagedPlayer",
+                            },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.17a — "that player mills a card" at an each-upkeep head: the
+    // milled player is whoever's upkeep it is, `$event.activePlayerId`.
+    // Exhibits `mill` reading the active-player binding.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "ab050d55-a47d-4880-b65a-29f562773d7a",
+            name: "Worry Beads",
+            manaCost: "{3}",
+            typeLine: "Artifact",
+            oracleText:
+                "At the beginning of each player's upkeep, that player mills a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Worry Beads",
+            types: ["Artifact"],
+            manaCost: {
+                X: 3,
+            },
+            oracleText:
+                "At the beginning of each player's upkeep, that player mills a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "worry-beads-trigger",
+                    oracleText:
+                        "At the beginning of each player's upkeep, that player mills a card.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "each",
+                    },
+                    effects: [
+                        {
+                            op: "mill",
+                            player: {
+                                ref: "$event.activePlayerId",
+                            },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.44a — "it explores": the exploring permanent is the ability's own
+    // source (`$source`), which the canned generator cannot model; the Op
+    // carries its own permanent test. Exhibits `explore` acting on the source.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "5007425e-a626-46f7-ab7d-777af97ee724",
+            name: "Emperor's Vanguard",
+            manaCost: "{3}{G}",
+            typeLine: "Creature — Human Scout",
+            oracleText:
+                "Whenever this creature deals combat damage to a player, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+            power: "4",
+            toughness: "3",
+            layout: "normal",
+        },
+        expected: {
+            name: "Emperor's Vanguard",
+            types: ["Creature"],
+            subtypes: ["Human", "Scout"],
+            manaCost: {
+                X: 3,
+                G: 1,
+            },
+            power: 4,
+            toughness: 3,
+            oracleText:
+                "Whenever this creature deals combat damage to a player, it explores. (Reveal the top card of your library. Put that card into your hand if it's a land. Otherwise, put a +1/+1 counter on this creature, then put the card back or put it into your graveyard.)",
+            compiledTriggeredAbilities: [
+                {
+                    id: "emperor-s-vanguard-trigger",
+                    oracleText:
+                        "Whenever this creature deals combat damage to a player, it explores.",
+                    head: {
+                        kind: "combat-damage-to-player",
+                    },
+                    effects: [
+                        {
+                            op: "explore",
+                            target: {
+                                ref: "$source",
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
