@@ -2093,8 +2093,8 @@ function requirementTypes(requirement: TargetRequirement): readonly string[] {
  * what its Enchant line names, read only when that line is a bare type
  * ("Enchant creature") so that every permanent of the type is one the Aura
  * could enchant. A qualified Enchant line ("Enchant creature you control") is
- * refused: CR 701.3b makes an attach to an illegal object do nothing, and the
- * `attach` Op checks no enchant restriction to make it so.
+ * refused: CR 701.3b leaves an Aura attached to an illegal object where it is,
+ * and the `attach` Op checks no enchant restriction to make it so.
  *
  * An Equipment's "Attach this Equipment to target creature …" is refused too,
  * for want of evidence rather than of meaning: every corpus card printing it
