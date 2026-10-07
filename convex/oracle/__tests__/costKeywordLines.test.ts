@@ -75,7 +75,7 @@ describe("Cycling [cost] (CR 702.29a)", () => {
         });
     });
 
-    it("Unearth: a generic cost prints as {2}, not {0}", () => {
+    it("Unearth: a generic cost is `generic`, as the catalogue writes it, and prints as {2}", () => {
         const def = compiled(
             oracleCard({
                 name: "Unearth",
@@ -93,7 +93,7 @@ describe("Cycling [cost] (CR 702.29a)", () => {
                 oracleText:
                     "Cycling {2} ({2}, Discard this card: Draw a card.)",
                 cost: {
-                    mana: { X: 2 },
+                    mana: { generic: 2 },
                     discardThis: true,
                     cyclingCost: true,
                 },

@@ -585,7 +585,17 @@ function lowerLine(
             // id is the keyword's own ("cycling"), which a second would repeat.
             if (acc.activatedAbilities.some((a) => a.id === CYCLING_ABILITY_ID))
                 return "a card declares cycling twice (CR 702.29a)";
-            acc.activatedAbilities.push(cyclingAbility(ir.cost));
+            // `cyclingAbility` takes fixed generic mana as `generic` (every
+            // catalogue call writes it so), where the mana reader writes a
+            // numeric `X`; the label renderer reads only `generic`.
+            const { X: generic, ...coloured } = ir.cost;
+            acc.activatedAbilities.push(
+                cyclingAbility(
+                    typeof generic === "number"
+                        ? { generic, ...coloured }
+                        : ir.cost
+                )
+            );
             return null;
         }
         case "madness": {

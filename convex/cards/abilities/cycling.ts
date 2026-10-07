@@ -72,11 +72,7 @@ export const CYCLING_ABILITY_ID = "cycling";
  *  be a guess. */
 function cyclingCostLabel(cost: ManaCost): string {
     const parts: string[] = [];
-    // A numeric `X` IS fixed generic mana (`ManaCost.X`); only the string
-    // marker "X" is the variable pip. The Oracle compiler writes generic
-    // there, the catalogue writes `generic` — one label for both.
-    const generic =
-        (cost.generic ?? 0) + (typeof cost.X === "number" ? cost.X : 0);
+    const generic = cost.generic ?? 0;
     if (generic > 0) parts.push(`{${generic}}`);
     for (const color of ["W", "U", "B", "R", "G", "C"] as const) {
         const n = cost[color] ?? 0;
