@@ -137,8 +137,22 @@ describe("spell-cast type heads — goldens (issue #4543)", () => {
     ];
 
     for (const [phrase, head] of HEADS)
-        it(`table reads: ${phrase}`, () => {
-            expect(OTHER_HEADS.get(phrase)).toEqual(head);
+        it(`compiles the head: ${phrase}`, () => {
+            const outcome = compileCard(
+                oracleCard({
+                    name: "Control",
+                    manaCost: "{2}",
+                    typeLine: "Artifact",
+                    oracleText: `${phrase[0]!.toUpperCase()}${phrase.slice(1)}, you gain 1 life.`,
+                    power: undefined,
+                    toughness: undefined,
+                })
+            );
+            if (outcome.state === "unparsed")
+                throw new Error(JSON.stringify(outcome.gaps));
+            expect(
+                outcome.definition.compiledTriggeredAbilities?.[0]?.head
+            ).toEqual(head);
         });
 
     it("end to end: the 'when' + type head compiles behind a body that compiles", () => {
