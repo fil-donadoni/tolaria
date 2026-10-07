@@ -1296,7 +1296,11 @@ export function assembleSentences(
                         ok: false,
                         reason: "a pile split is not followed by an opponent's pick",
                     };
-                piles = { ...piles, stage: "ready" };
+                piles = {
+                    count: piles.count,
+                    stage: "ready",
+                    form: piles.form,
+                };
                 continue;
             }
             if (
