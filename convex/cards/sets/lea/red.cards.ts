@@ -239,12 +239,9 @@ export const earthquake = defineCard(() => ({
         "Earthquake deals X damage to each creature without flying and each player.",
     manaCost: { X: "X", R: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045, #852): "each creature without flying" needs
-    // an ABILITY-EXCLUSION filter on a forEach permanents set — EffectCardFilter
-    // is type/subtype only, so the creature half is not expressible even with X.
-    // Classifier over-count (folds dealDamageToEach → dealDamage + forEach +
-    // getX, blind to the ability filter). Blocked on a forEach ability filter,
-    // not on X.
+    // Stays resolve() here: the `excludeAbility` filter (issue #4310) now makes
+    // the sweep expressible as an Effect Script, but migrating the card is a
+    // separate change from the Bot valuation shadow below (issue #4142).
     // AI shadow (issue #4142, never executed): X damage to every creature
     // without flying, then X to each player — the sweep the resolve() below
     // runs, sketched with the `excludeAbility` filter the shadow's valuer reads.
