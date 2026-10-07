@@ -13,7 +13,8 @@
 // ── What it proves ─────────────────────────────────────────────────────────
 //
 //  1. FRESHNESS. What the tree generates is what is committed, byte for byte,
-//     under the file name its own content hash gives it. This is the assertion
+//     under the source hash the merged rows' own bytes give it — and the
+//     merged rows themselves are NOT committed (issue #5124). This is the assertion
 //     that replaces the runtime backstop: ADR 0114 §2 says a hand-written card
 //     added without regenerating must be CAUGHT rather than filtered away in
 //     silence, and this is where it is caught.
@@ -30,8 +31,9 @@
 //     come out of ONE generator carrying ONE source hash, and the assertions
 //     below compare the BYTES the two sides actually hold — the server's
 //     bundled packed corpus, imported through the real module seam and
-//     decoded whole, against the committed artifact minus its hand-written
-//     rows.
+//     decoded whole, against the regenerated merge minus its hand-written
+//     rows (the committed merged artifact that anchored this until issue
+//     #5124 was a copy of that regeneration).
 //  5. THE PACKED CORPUS (issue #4164, ADR 0113 Amendment III). The server's
 //     only rendering since issue #4168 decodes to exactly the client's shared
 //     rows, under the same source hash, and packing is byte-deterministic.
@@ -42,21 +44,23 @@
 // PR: each assertion below was driven red by breaking the thing it guards, and
 // the breaks are named there.
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
     buildCatalogue,
-    committedArtifacts,
     committedPackedDrift,
+    type CatalogueBuild,
     isDigitalOnlyRebalance,
+    retiredArtifacts,
     sharedClientRows,
     unbaselinedDivergences,
 } from "../catalogue-artifact";
 import {
     CATALOGUE_DIR,
     SOURCE_HASH_FILE,
-    artifactFileName,
     contentHash,
+    serializeSourceHash,
     describeIdentityDrift,
     firstIdentityDrift,
     isPlainData,
@@ -105,6 +109,7 @@ import { packedServerCorpus } from "../../convex/cards/compiledPool";
 import type { CardDefinition } from "../../convex/cards/types";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
+const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const BUILD = buildCatalogue(REPO_ROOT);
 /** What a Convex mutation holds: the bundled packed corpus, through the real
  *  module seam, decoded whole. */
@@ -115,19 +120,15 @@ const serverRows = unpackCorpus(packedServerCorpus!);
 const RELOCATION_FLOOR = 800;
 
 describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
-    it("the committed artifact is exactly what the tree generates", () => {
-        const committed = committedArtifacts(REPO_ROOT);
-        expect(committed).toEqual([BUILD.fileName]);
-        expect(
-            readFileSync(
-                join(REPO_ROOT, CATALOGUE_DIR, BUILD.fileName),
-                "utf-8"
-            )
-        ).toBe(BUILD.bytes);
+    it("no merged artifact is committed — it was retired (issue #5124)", () => {
+        // Nothing fetches it since issue #4861, and every guard that read it
+        // reads the regeneration instead. A `catalogue-<hash>.json` brought
+        // back by a branch cut before the retirement is stale by definition.
+        expect(retiredArtifacts(REPO_ROOT)).toEqual([]);
     });
 
-    it("the file name IS the content hash", () => {
-        expect(BUILD.fileName).toBe(artifactFileName(contentHash(BUILD.bytes)));
+    it("the source hash IS the merged rows' content hash", () => {
+        expect(BUILD.hash).toBe(contentHash(BUILD.bytes));
     });
 
     it("the server's rendering and the source hash are current too (issue #3055)", () => {
@@ -175,11 +176,10 @@ describe("catalogue artifact — freshness (ADR 0114 §2)", () => {
         ).toEqual(live);
     });
 
-    it("is minified — the committed shape is not the prettified one", () => {
-        // ~60% of the retired `data/oracle-compiled-pool.json`'s bytes were
-        // prettier whitespace (ADR 0114's measurement). A newline per row would mean
-        // the generator's output had been re-formatted by something, which
-        // also breaks the hash in the name.
+    it("hashes the minified rows — the preimage is not the prettified one", () => {
+        // The source hash is a function of these bytes, so their shape is
+        // part of what every rendering records: a newline per row would move
+        // the hash with no row changed.
         expect(BUILD.bytes.split("\n")).toHaveLength(2);
     });
 });
@@ -435,16 +435,22 @@ describe("catalogue artifact — the two renderings are byte-identical (issue #3
         // implies this. Asked directly anyway, because it is the question
         // ADR 0113 §2 poses — "the bytes agree NOW" — and it survives a future
         // generator change that made one rendering a second derivation again.
-        expect(committedPackedDrift(REPO_ROOT)).toBeNull();
+        expect(committedPackedDrift(REPO_ROOT, BUILD)).toBeNull();
     });
 
     it("both renderings carry the SAME source hash", () => {
-        // The server's copy is bundled through `compiledCatalogue.ts`; the
-        // client's is the artifact's file NAME. Two independently written
-        // records of one generation, so a merge or an edit that takes one side
-        // reds here before any row has to be compared.
+        // The server's copy is bundled through `compiledCatalogue.ts` from
+        // `source-hash.json`; the packed corpus carries its own. Two
+        // independently written records of one generation, so a merge or an
+        // edit that takes one side reds here before any row has to be compared.
         expect(CATALOGUE_SOURCE_HASH).toBe(BUILD.hash);
-        expect(BUILD.fileName).toBe(artifactFileName(CATALOGUE_SOURCE_HASH));
+        expect(
+            (
+                JSON.parse(
+                    readFileSync(join(REPO_ROOT, PACKED_CORPUS_PATH), "utf-8")
+                ) as PackedCorpus
+            ).sourceHash
+        ).toBe(CATALOGUE_SOURCE_HASH);
     });
 
     it("`firstIdentityDrift` actually compares — a changed field is a drift", () => {
@@ -529,8 +535,51 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
         expect(unpackCorpus(packed()).length).toBeGreaterThan(RELOCATION_FLOOR);
     });
 
-    it("the COMMITTED packed file decodes to the COMMITTED client asset's rows", () => {
-        expect(committedPackedDrift(REPO_ROOT)).toBe(null);
+    it("the COMMITTED packed file decodes to the regenerated rows", () => {
+        expect(committedPackedDrift(REPO_ROOT, BUILD)).toBe(null);
+    });
+
+    it("a single-sided regeneration is named, not passed (issue #5124)", () => {
+        // The committed merged artifact used to be the second side the packed
+        // corpus was compared with. With it retired, the two sides are the
+        // committed renderings and the regeneration — so each way of
+        // regenerating only one of them must still red, by name.
+        const tree = (packedBytes: string, sourceHashBytes: string) => {
+            const root = mkdtempSync(join(tmpdir(), "catalogue-5124-"));
+            mkdirSync(join(root, CATALOGUE_DIR), { recursive: true });
+            writeFileSync(join(root, PACKED_CORPUS_PATH), packedBytes);
+            writeFileSync(
+                join(root, CATALOGUE_DIR, SOURCE_HASH_FILE),
+                sourceHashBytes
+            );
+            return root;
+        };
+        const current = tree(BUILD.packedBytes, BUILD.sourceHashBytes);
+        expect(committedPackedDrift(current, BUILD)).toBeNull();
+
+        // The sidecar regenerated, the packed corpus not (or a merge that
+        // took one side of each): the hashes disagree.
+        const sidecarOnly = tree(
+            BUILD.packedBytes,
+            serializeSourceHash("0000000000000000")
+        );
+        expect(committedPackedDrift(sidecarOnly, BUILD)).toMatch(
+            /source hash .* is not the catalogue's 0000000000000000/
+        );
+
+        // A card edited and nothing regenerated: the regeneration's rows
+        // disagree with the committed blocks, and the card is named.
+        const rows = BUILD.merge.serverRows;
+        const edited = rows.map((r, i) =>
+            i === 100 ? { ...r, oracleText: "edited" } : r
+        );
+        const stale: CatalogueBuild = {
+            ...BUILD,
+            merge: { ...BUILD.merge, serverRows: edited },
+        };
+        expect(committedPackedDrift(current, stale)).toMatch(
+            new RegExp(`${escape(rows[100]!.name)} .*is TWO definitions`)
+        );
     });
 
     it("carries the one source hash, in blocks of the named size", () => {
@@ -544,8 +593,8 @@ describe("catalogue artifact — the packed server corpus (issue #4164)", () => 
     });
 
     it("packing the same rows twice is byte-identical", () => {
-        // Rows re-parsed from the client asset's bytes rather than the merge's
-        // own objects, so identity cannot ride on object reuse.
+        // Rows re-parsed from the merged bytes rather than the merge's own
+        // objects, so identity cannot ride on object reuse.
         const reparsed = sharedClientRows(
             JSON.parse(BUILD.bytes) as CardDefinition[]
         );

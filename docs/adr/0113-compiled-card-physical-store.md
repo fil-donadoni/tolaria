@@ -716,9 +716,42 @@ Measured with `bun run measure:client-heap` (Node V8, a proxy) for one game load
 **11.7 MiB** at 35,000 synthetic rows, the same in the page and in the Bot
 worker — against ~30 MB each for the hydration it replaces. The price is the
 download: the packed corpus is 573 KB Brotli against the retired artifact's
-311 KB (deflated base64 does not re-compress). The deck builder's search rows
-are 6.4 MiB of heap today and ~35 MiB at 35,000 rows: not a game cost, but the
-next client one to bound.
+311 KB (deflated blocks do not re-compress — see below). The deck builder's
+search rows are 6.4 MiB of heap today and ~35 MiB at 35,000 rows: not a game
+cost, but the next client one to bound.
+
+**The merged artifact is no longer committed (issue #5124, 2026-10-07).** After
+the client moved onto the packed corpus, `catalogue-<hash>.json` (2.8 MB) was
+fetched by nothing; it survived as the anchor the packed corpus was compared
+with and as the carrier of the source hash in its name. The anchor is now the
+regeneration itself (the merge is a pure join of committed inputs, so a
+committed copy of it proved nothing the regeneration does not), and the source
+hash lives in `source-hash.json` and the packed corpus's `sourceHash`, still
+the same value. `catalogue:pack` deletes a stray `catalogue-*.json`;
+`catalogue:check` refuses one.
+
+**The download, re-measured and kept.** Brotli quality 11 (what the CDN
+serves), 4,450 compiled rows:
+
+| served rendering of the compiled rows                 | raw        | Brotli |
+| ----------------------------------------------------- | ---------- | ------ |
+| packed corpus today (base64 of deflated 8-row blocks) | 986 KB     | 604 KB |
+| same blocks as binary + JSON index                    | 471+358 KB | 604 KB |
+| rows plain, block-framed, one JSON + the same indexes | 3,009 KB   | 286 KB |
+| retired merged artifact (reference)                   | 2,895 KB   | 317 KB |
+
+Binary buys nothing: Brotli already recovers base64's 6-of-8 bits, so the
+issue's premise was wrong about the cause. The cost is the per-block deflate,
+which hides from Brotli the cross-row repetition it finds in plain rows. Plain
+block-framed rows would restore the download (−318 KB, below even the retired
+artifact) — but the client holds the fetched text whole, so its resident
+string grows from ~1 MB to ~3 MB today and from ~8 MB to ~24 MB at 35,000 rows
+(raw size scaled by rows; a one-byte V8 string), in the page AND the Bot
+worker. Point 1 makes heap the binding cost and the 35k target the scale it is
+judged at; the download is paid once per corpus version (content-hashed,
+immutable). So the client keeps fetching the server's own packed file: no
+second client rendering, no second identity guard. Re-open if the cold-load
+download becomes the measured complaint rather than the heap.
 
 ### The cloud calibration (issue #4852, 2026-10-06)
 

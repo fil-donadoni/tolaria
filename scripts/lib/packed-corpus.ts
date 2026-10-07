@@ -12,7 +12,7 @@
  * ── The shape ──────────────────────────────────────────────────────────────
  *
  * The catalogue's server rows (`merge.serverRows`: compiled-only, sorted
- * by id), each serialised exactly as the client asset serialises it, grouped
+ * by id), each serialised exactly as the merge serialises it, grouped
  * into {@link PACKED_BLOCK_ROWS}-row blocks. Each block is raw-deflated against
  * ONE shared dictionary sampled from the rows, base64-encoded, and the blocks
  * are concatenated into one string; {@link PackedCorpus.blockOffsets} cuts it
@@ -49,9 +49,9 @@ import {
 import { buildIndexLookups } from "../../convex/cards/definitionIndex";
 import { firstIdentityDrift, describeIdentityDrift } from "./catalogue-merge";
 
-/** Where the packed rendering lives. Inside `data/catalogue/` beside the
- *  source hash, under a name the client's `catalogue-*.json` glob does not
- *  match — so no client chunk can pick it up. */
+/** Where the packed rendering lives: inside `data/catalogue/` beside the
+ *  source hash. The server bundles it; the client fetches it as an asset
+ *  (`src/lib/catalogueArtifact.ts`, issue #4861). */
 export const PACKED_CORPUS_PATH = "data/catalogue/packed-corpus.json";
 
 /**

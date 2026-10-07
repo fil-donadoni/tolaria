@@ -21,15 +21,17 @@ import { SEARCH_INDEX_PATH } from "../lib/search-index";
  *   - the deck builder also fetches the SEARCH INDEX,
  *     `data/catalogue/search-index.json`, one row per catalogue card.
  *
- * `catalogue-<hash>.json` is still generated — the anchor every rendering is
- * compared with — but no client fetches it any more, so it is no longer a
- * cost anyone pays and no longer budgeted here.
+ * `catalogue-<hash>.json` is no longer budgeted here: no client fetched it
+ * after issue #4861, and issue #5124 stopped committing it.
  *
  * THE TRADE, measured 2026-10-06 at 4,360 compiled rows: the packed corpus is
  * 929,316 B raw / 573,005 B Brotli against the retired artifact's 2,838,356 B
- * / 311,433 B — deflated blocks in base64 do not re-compress, so a cold game
- * load downloads ~260 KB more, in exchange for not parsing (nor holding) the
- * corpus. The search index is 1,624,112 B / 292,881 B, deck builder only.
+ * / 311,433 B — 8-row blocks deflated one by one lose the cross-row context
+ * Brotli would find (the base64 itself costs nothing: Brotli recovers it), so
+ * a cold game load downloads ~260 KB more, in exchange for not parsing (nor
+ * holding) the corpus. The search index is 1,624,112 B / 292,881 B, deck
+ * builder only. Re-measured by issue #5124 at 4,450 rows (603,679 B Brotli)
+ * and KEPT: ADR 0113 Amendment IV § The client, as built.
  *
  * WHAT CROSSING MEANS: these are DISCLOSURE triggers at ~2.6x today, not
  * walls. Crossing one means the download has roughly tripled since it was
