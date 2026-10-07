@@ -13,11 +13,6 @@
             "issue": 4533
         },
         {
-            "key": "(op) › attach",
-            "op": "attach",
-            "issue": 4530
-        },
-        {
             "key": "(op) › becomeCopy",
             "op": "becomeCopy",
             "issue": 4533
@@ -86,11 +81,6 @@
             "key": "(op) › extraTurn",
             "op": "extraTurn",
             "issue": 4535
-        },
-        {
-            "key": "(op) › gainControl",
-            "op": "gainControl",
-            "issue": 4530
         },
         {
             "key": "(op) › grantCastFromExile",
@@ -220,7 +210,7 @@
         {
             "key": "(op) › unattach",
             "op": "unattach",
-            "issue": 4530
+            "issue": 5185
         },
         {
             "key": "(op) › winGame",

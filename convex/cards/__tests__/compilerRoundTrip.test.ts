@@ -201,7 +201,12 @@ import {
 // Bloodstock (the "leaves the battlefield" head) and Yawgmoth's Will round-trip;
 // Suplex's "If that creature would die this turn, exile it instead" compiles
 // (its hand-written side is a `resolve()` closure, hence `incomparable`).
-const BASELINE_CEILING = 1441;
+//
+// Lowered 1441 -> 1438 by issue #4530 (gain control and attach): Aladdin,
+// Empress Galina and Thrull Champion round-trip through the new
+// `gain-control` sentence ("Gain control of target …", with or without
+// "for as long as you control this creature").
+const BASELINE_CEILING = 1438;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

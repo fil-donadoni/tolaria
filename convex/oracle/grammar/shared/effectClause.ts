@@ -34,6 +34,7 @@ import type {
 } from "../../../cards/types";
 import type { KeywordIR } from "../ir";
 import type { CardType, NameRestriction } from "../../../cards/types";
+import { PERMANENT_TYPES } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import {
     fail,
@@ -77,6 +78,7 @@ import {
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
     targetFilterRule,
+    targetRequirementFromDescriptor,
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
@@ -733,6 +735,31 @@ export type EffectSentenceIR =
           readonly player: "opponents" | "target";
           readonly casting: "all" | readonly CardType[];
           readonly activation: boolean;
+      }
+    | {
+          /**
+           * CR 613.1b — "Gain control of target <permanent>": the effect's
+           * controller becomes the announced permanent's controller (layer
+           * 2). `whileYouControlSource` is CR 611.2b's one "for as long as"
+           * duration this grammar reads — "… for as long as you control
+           * <this object>"; absent, the change is indefinite. Every other
+           * duration ("until end of turn", "for as long as <this> remains
+           * tapped / on the battlefield") is refused: each is a different
+           * engine condition, and a dropped one would be a permanent steal.
+           */
+          readonly kind: "gain-control";
+          readonly subject: SubjectIR;
+          readonly whileYouControlSource: boolean;
+      }
+    | {
+          /**
+           * CR 701.3a — "Attach <this object> to target <permanent>": the
+           * source moves onto the announced permanent without leaving the
+           * battlefield. Only the SOURCE is ever the attached object — the
+           * `attach` Op names no other mover.
+           */
+          readonly kind: "attach";
+          readonly subject: SubjectIR;
       }
     | {
           readonly kind: "life";
@@ -2054,6 +2081,79 @@ function hostSubject(span: string, ctx: unknown): RuleResult<SubjectIR> | null {
     return ok({ kind: "host" as const });
 }
 
+/** A target requirement's card types, the one-type spelling widened. */
+function requirementTypes(requirement: TargetRequirement): readonly string[] {
+    return Array.isArray(requirement.type)
+        ? requirement.type
+        : [requirement.type];
+}
+
+/**
+ * CR 701.3a — the card types the SOURCE may be attached to: an Aura enchants
+ * what its Enchant line names, read only when that line is a bare type
+ * ("Enchant creature") so that every permanent of the type is one the Aura
+ * could enchant. A qualified Enchant line ("Enchant creature you control") is
+ * refused: CR 701.3b leaves an Aura attached to an illegal object where it is,
+ * and the `attach` Op checks no enchant restriction to make it so.
+ *
+ * An Equipment's "Attach this Equipment to target creature …" is refused too,
+ * for want of evidence rather than of meaning: every corpus card printing it
+ * also prints an Equip line no rule reads yet, so no whole-card golden can
+ * pin the form.
+ */
+function attachableTypes(
+    ctx: ParseContext
+): { ok: true; value: readonly string[] } | { ok: false; reason: string } {
+    if (!ctx.typeLine.subtypes.includes("Aura"))
+        return { ok: false, reason: "only an Aura's attach is read" };
+    const enchant = (ctx.card.oracleText ?? "")
+        .split("\n")
+        .filter((line) => line.startsWith(ENCHANT_HEAD));
+    if (enchant.length !== 1)
+        return { ok: false, reason: "the Aura has no single Enchant line" };
+    const descriptor = descriptorRule.run(
+        enchant[0]!.slice(ENCHANT_HEAD.length),
+        ctx
+    );
+    if (!descriptor.ok)
+        return { ok: false, reason: "the Aura's Enchant line is not read" };
+    const requirement = targetRequirementFromDescriptor(descriptor.value);
+    if (
+        !requirement.ok ||
+        Object.keys(requirement.value).some(
+            (key) => key !== "type" && key !== "count"
+        )
+    )
+        return {
+            ok: false,
+            reason: "the Aura's Enchant line is qualified beyond a card type",
+        };
+    return { ok: true, value: requirementTypes(requirement.value) };
+}
+
+/**
+ * ONE announced permanent on the battlefield — the object of a verb whose Op
+ * acts on a permanent and nothing else (gain control, attach). A spell, a
+ * player, a card in another zone or a multi-target group is refused here,
+ * not left for the Op to ignore at resolution.
+ */
+function permanentTarget(span: string, ctx: unknown): RuleResult<SubjectIR> {
+    const subject = subjectRule.run(span, ctx);
+    if (!subject.ok) return subject;
+    const value = subject.value;
+    if (value.kind !== "target")
+        return fail(`"${span}" is not an announced target`, span);
+    const { requirement } = value;
+    const types = requirementTypes(requirement);
+    if (
+        requirement.zone !== undefined ||
+        requirement.count !== 1 ||
+        !types.every((t) => (PERMANENT_TYPES as readonly string[]).includes(t))
+    )
+        return fail(`"${span}" is not one target permanent`, span);
+    return subject;
+}
+
 /**
  * The subject of a verb that can act on a SWEEP: a mass subject when the span
  * opens on "all"/"each" (CR 110.1), else the ordinary subject.
@@ -2565,6 +2665,10 @@ const GRAVEYARD_REDIRECT =
 const EXILE_IF_DIES = "If that creature would die this turn, exile it instead";
 /** CR 608.2n — "Exile {self}" (the resolving spell exiles itself). */
 const EXILE_SELF = `Exile ${SELF_MARKER}`;
+const GAIN_CONTROL_VERB = "Gain control of ";
+const WHILE_YOU_CONTROL = " for as long as you control ";
+const ATTACH_SELF = /^Attach (.+?) to (.+)$/;
+const ENCHANT_HEAD = "Enchant ";
 /** CR 701.44a — "<subject> explores". */
 const EXPLORE = /^(.+) explores$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
@@ -3974,6 +4078,58 @@ function effectSentence(
         if (!subject.ok) return subject;
         return ok({
             kind: "regenerate" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── gain control (CR 613.1b, CR 611.2b) ────────────────────────────────
+    if (span.startsWith(GAIN_CONTROL_VERB)) {
+        const rest = span.slice(GAIN_CONTROL_VERB.length);
+        const tailAt = rest.indexOf(WHILE_YOU_CONTROL);
+        const object = tailAt === -1 ? rest : rest.slice(0, tailAt);
+        // CR 611.2b — the tail names the SOURCE ("this creature", the card's
+        // own name); a duration tied to any other object is another engine
+        // condition, and is refused rather than read as this one.
+        if (
+            tailAt !== -1 &&
+            !isSelfPhrase(rest.slice(tailAt + WHILE_YOU_CONTROL.length))
+        )
+            return fail(
+                `"${rest.slice(tailAt + 1)}" is not "for as long as you control" this object`,
+                span
+            );
+        const subject = permanentTarget(object, ctx);
+        if (!subject.ok) return subject;
+        return ok({
+            kind: "gain-control" as const,
+            subject: subject.value,
+            whileYouControlSource: tailAt !== -1,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── attach (CR 701.3a) ─────────────────────────────────────────────────
+    const attach = span.match(ATTACH_SELF);
+    if (attach !== null) {
+        // The `attach` Op moves the SOURCE and nothing else: "Attach target
+        // Equipment you control to this creature" names another mover.
+        if (!isSelfPhrase(uncapitalise(attach[1]!)))
+            return fail(`"${attach[1]}" is not the source object`, span);
+        const subject = permanentTarget(attach[2]!, ctx);
+        if (!subject.ok) return subject;
+        const legal = attachableTypes(ctx as ParseContext);
+        if (!legal.ok) return fail(legal.reason, span);
+        if (
+            subject.value.kind !== "target" ||
+            !requirementTypes(subject.value.requirement).every((t) =>
+                legal.value.includes(t)
+            )
+        )
+            return fail(
+                `"${attach[2]}" names a permanent the source can't be attached to (CR 701.3a)`,
+                span
+            );
+        return ok({
+            kind: "attach" as const,
             subject: subject.value,
         } satisfies EffectSentenceIR);
     }
