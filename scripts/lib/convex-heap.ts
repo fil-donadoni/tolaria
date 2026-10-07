@@ -43,9 +43,22 @@ const MIB = 1024 * 1024;
 /** Rows of the compiled pool at the scale target (PRD #4849). */
 export const TARGET_POOL_ROWS = 35_000;
 
-/** Heap budgets a module will be held to once armed (a later ticket). */
+/** Heap budgets a module is held to, in ISOLATE bytes (ADR 0113 Amendment IV,
+ *  armed by issue #4862). */
 export const HEAP_BUDGET_CATALOGUE_BYTES = 32 * MIB;
 export const HEAP_BUDGET_NO_CATALOGUE_BYTES = 4 * MIB;
+
+/** Node→Convex-isolate ratio the budgets are applied through. The cloud probe
+ *  (issue #4852, `docs/research/convex-server-scale-2026-09-29.md` § Cloud
+ *  calibration) measured 0.56–0.65 over eight runs; the HIGHEST is applied, so
+ *  the check errs toward a failure. The isolate does not compress pointers,
+ *  yet holds fewer bytes than Node's `heapUsed` reports for the same module. */
+export const NODE_TO_ISOLATE_RATIO = 0.65;
+
+/** A Node heap delta read as isolate bytes. */
+export function isolateBytes(nodeBytes: number): number {
+    return nodeBytes * NODE_TO_ISOLATE_RATIO;
+}
 
 /** Runs per measurement; the minimum is reported. */
 export const HEAP_RUNS = 3;
@@ -243,15 +256,22 @@ export async function measureConvexHeap(
     }
 }
 
-/** One `WARN` line per module whose target-scale heap is over its budget. */
-export function heapWarnings(report: ModuleHeap[]): string[] {
+/** The research file's method for finding what a module's heap is made of. */
+export const HEAP_CAUSE_METHOD =
+    "find the cause with docs/research/convex-server-scale-2026-09-29.md " +
+    "§ Method (bundle attribution: metafile.outputs[*].inputs[*].bytesInOutput)";
+
+/** One failure line per module whose target-scale isolate heap is over its
+ *  budget: the module, its heap, the budget, and how to find the cause. */
+export function heapFailures(report: ModuleHeap[]): string[] {
     return report
-        .filter((m) => !m.error && m.targetBytes > m.budgetBytes)
+        .filter((m) => !m.error && isolateBytes(m.targetBytes) > m.budgetBytes)
         .map(
             (m) =>
-                `${m.module}: ${(m.targetBytes / MIB).toFixed(1)} MiB at target scale > ` +
+                `${m.module}: ${(isolateBytes(m.targetBytes) / MIB).toFixed(1)} MiB of isolate heap ` +
+                `at target scale (${(m.targetBytes / MIB).toFixed(1)} MiB in Node x ${NODE_TO_ISOLATE_RATIO}) > ` +
                 `${(m.budgetBytes / MIB).toFixed(0)} MiB budget ` +
                 `(${m.readsCatalogue ? "reads the catalogue" : "reads no Card Definition"}, ` +
-                `${(m.todayBytes / MIB).toFixed(1)} MiB today)`
+                `${(isolateBytes(m.todayBytes) / MIB).toFixed(1)} MiB today); ${HEAP_CAUSE_METHOD}`
         );
 }

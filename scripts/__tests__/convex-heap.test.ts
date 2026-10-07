@@ -14,7 +14,9 @@ import {
     HEAP_BUDGET_NO_CATALOGUE_BYTES,
     bundleModule,
     heapBudgetBytes,
-    heapWarnings,
+    NODE_TO_ISOLATE_RATIO,
+    heapFailures,
+    isolateBytes,
     measureFileHeap,
     reachesCatalogue,
     syntheticPackedCorpus,
@@ -104,9 +106,9 @@ describe("classification and warnings", () => {
         expect(heapBudgetBytes(false)).toBe(HEAP_BUDGET_NO_CATALOGUE_BYTES);
     });
 
-    it("warns for each module over budget at target scale, only", () => {
+    it("fails each module over budget at target scale, in isolate bytes, naming the method", () => {
         const MIB = 1024 * 1024;
-        const lines = heapWarnings([
+        const lines = heapFailures([
             {
                 module: "game.ts",
                 readsCatalogue: true,
@@ -124,6 +126,41 @@ describe("classification and warnings", () => {
         ]);
         expect(lines).toHaveLength(1);
         expect(lines[0]).toContain("game.ts");
+        expect(lines[0]).toContain("32 MiB budget");
+        expect(lines[0]).toContain("convex-server-scale-2026-09-29.md");
+    });
+
+    it("applies the ratio: 45 MiB of Node heap is 29 MiB of isolate, within 32", () => {
+        const MIB = 1024 * 1024;
+        expect(NODE_TO_ISOLATE_RATIO).toBe(0.65);
+        expect(isolateBytes(45 * MIB)).toBeLessThan(32 * MIB);
+        const over = (node: number) =>
+            heapFailures([
+                {
+                    module: "game.ts",
+                    readsCatalogue: true,
+                    todayBytes: node,
+                    targetBytes: node,
+                    budgetBytes: heapBudgetBytes(true),
+                },
+            ]);
+        expect(over(45 * MIB)).toHaveLength(0);
+        expect(over(50 * MIB)).toHaveLength(1);
+    });
+
+    it("does not fail a module Node could not measure", () => {
+        expect(
+            heapFailures([
+                {
+                    module: "x.ts",
+                    readsCatalogue: false,
+                    error: "boom",
+                    todayBytes: 0,
+                    targetBytes: 0,
+                    budgetBytes: heapBudgetBytes(false),
+                },
+            ])
+        ).toHaveLength(0);
     });
 });
 
@@ -144,5 +181,18 @@ describe("check:convex-heap — the wiring (issue #4853)", () => {
         for (const name of ["check:pr", "check:all", "check:all:inner"]) {
             expect(pkg.scripts[name]).not.toContain("check:convex-heap");
         }
+    });
+});
+
+describe("check:convex-heap — armed (issue #4862)", () => {
+    const script = readFileSync(
+        resolve(__dirname, "../check-convex-heap.ts"),
+        "utf8"
+    );
+
+    it("exits non-zero on a failure and measures the client per context", () => {
+        expect(script).toContain("process.exit(1)");
+        expect(script).toContain("clientHeapFailures");
+        expect(script).toContain("heapFailures");
     });
 });

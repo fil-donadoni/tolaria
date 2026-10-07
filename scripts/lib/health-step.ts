@@ -146,7 +146,8 @@ export const HEALTH_ONLY_GUARDS: Readonly<
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
     },
     // The heap of one call per isolate module, today and at 35k cards (issue
-    // #4853): ~480 bundles + node probes, a report with WARN lines, exit 0.
+    // #4853), armed by issue #4862: ~480 bundles + node probes, exit 1 on a
+    // module over budget at target scale, the client catalogue included.
     "check:convex-heap": {
         measuredCostS: 753,
         measured:
