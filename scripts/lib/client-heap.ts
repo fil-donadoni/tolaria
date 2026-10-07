@@ -23,6 +23,14 @@
  *     game's decoded cards hold, the code excluded. The minimum of several
  *     runs, since noise only ever adds.
  *
+ * The DECK BUILDER is measured the same way (issue #5125): it holds no
+ * catalogue, but its search index (`src/lib/searchIndex.ts`) is resident for
+ * the life of the page. Its probe stubs `fetch` with the committed
+ * `search-index.json` — or a synthetic one, its rows cycled to N with fresh
+ * ids and unique names, written out and parsed back so no string is shared
+ * that a real fetch would not share — and reads the heap the loaded index
+ * holds.
+ *
  * Node's V8 is a proxy for a browser's; read the figures as relative, the
  * absolute ones as approximately right.
  */
@@ -39,7 +47,9 @@ import {
     unpackCorpus,
     type PackedCorpus,
 } from "./packed-corpus";
+import type { SearchIndexWireRow } from "../../convex/cards/searchIndex";
 import type { CardDefinition } from "../../convex/cards/types";
+import { SEARCH_INDEX_PATH } from "./search-index";
 
 const MIB = 1024 * 1024;
 
@@ -64,6 +74,9 @@ export const CLIENT_CONTEXTS = {
 } as const;
 
 export type ClientContext = keyof typeof CLIENT_CONTEXTS;
+
+/** The deck builder's search-index loader (issue #5125). */
+export const SEARCH_INDEX_LOADER = "src/lib/searchIndex.ts";
 
 export interface ClientHeap {
     context: ClientContext;
@@ -233,40 +246,10 @@ export async function measureClientHeap(
         const report: ClientHeap[] = [];
         for (const context of contexts) {
             const bundle = join(dir, `${context}.mjs`);
-            await esbuild.build({
-                stdin: {
-                    contents: probeSource(root, context, game),
-                    resolveDir: root,
-                    loader: "js",
-                },
-                bundle: true,
-                format: "esm",
-                platform: "node",
-                outfile: bundle,
-                define: {
-                    ...buildDefine(),
-                    "import.meta.env": JSON.stringify({
-                        DEV: false,
-                        PROD: true,
-                        MODE: "production",
-                    }),
-                },
-                plugins: [browserGraph(root)],
-                logLevel: "silent",
-            });
+            await bundleProbe(root, probeSource(root, context, game), bundle);
             let best: ClientHeap | null = null;
             for (let i = 0; i < runs; i++) {
-                const r = spawnSync(
-                    "node",
-                    ["--expose-gc", runner, bundle, corpus],
-                    { encoding: "utf8", timeout: 300_000 }
-                );
-                if (r.status !== 0) {
-                    throw new Error(
-                        `client heap probe failed (${context}, status ${r.status}): ${r.stderr.slice(0, 600)}`
-                    );
-                }
-                const out = JSON.parse(r.stdout.trim().split("\n").pop()!) as {
+                const out = runProbe(runner, bundle, corpus, context) as {
                     importBytes: number;
                     catalogueBytes: number;
                     inflations: number;
@@ -281,6 +264,140 @@ export async function measureClientHeap(
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
+}
+
+/** The deck builder's resident search index over `rows` cards. */
+export interface SearchIndexHeap {
+    rows: number;
+    /** The loader's module graph's own evaluation. */
+    importBytes: number;
+    /** The loaded index, as the deck builder holds it. */
+    indexBytes: number;
+}
+
+/** The committed search-index rows, as the asset carries them. */
+export function committedSearchIndexWire(
+    repoRoot: string
+): SearchIndexWireRow[] {
+    return JSON.parse(
+        readFileSync(join(repoRoot, SEARCH_INDEX_PATH), "utf8")
+    ) as SearchIndexWireRow[];
+}
+
+/** `rows` wire rows: the committed ones, cycled past their count with a fresh
+ *  UUID-shaped id and a unique name — {@link syntheticRows}'s scheme. */
+export function syntheticSearchIndexWire(
+    base: readonly SearchIndexWireRow[],
+    rows: number
+): SearchIndexWireRow[] {
+    const out: SearchIndexWireRow[] = [];
+    for (let i = 0; i < rows; i++) {
+        const row = base[i % base.length]!;
+        if (i < base.length) {
+            out.push(row);
+            continue;
+        }
+        const [cardId, name, ...rest] = row;
+        const tail = i.toString(16).padStart(12, "0");
+        out.push([`${cardId.slice(0, 24)}${tail}`, `${name} s${i}`, ...rest]);
+    }
+    return out;
+}
+
+/** The deck-builder probe: import the loader, load the index, hold it. */
+function searchIndexProbeSource(repoRoot: string): string {
+    return `
+import { loadSearchIndex } from ${JSON.stringify(join(repoRoot, SEARCH_INDEX_LOADER))};
+import { readFileSync } from "node:fs";
+export async function run(indexFile) {
+    globalThis.fetch = async () => ({
+        ok: true,
+        json: async () => JSON.parse(readFileSync(indexFile, "utf8")),
+    });
+    gc();
+    const before = process.memoryUsage().heapUsed;
+    globalThis.heldSearchIndex = await loadSearchIndex();
+    gc();
+    return { indexBytes: process.memoryUsage().heapUsed - before };
+}
+`;
+}
+
+/** The heap of the deck builder's loaded search index over `rows` cards. */
+export async function measureSearchIndexHeap(
+    repoRoot: string,
+    rows: number,
+    runs = CLIENT_HEAP_RUNS
+): Promise<SearchIndexHeap> {
+    const root = resolve(repoRoot);
+    const base = committedSearchIndexWire(root);
+    const wire =
+        rows === base.length ? base : syntheticSearchIndexWire(base, rows);
+    const dir = mkdtempSync(join(tmpdir(), "client-heap-"));
+    try {
+        const indexFile = join(dir, "search-index.json");
+        writeFileSync(indexFile, JSON.stringify(wire));
+        const runner = join(dir, "runner.mjs");
+        writeFileSync(runner, RUNNER);
+        const bundle = join(dir, "deck-builder.mjs");
+        await bundleProbe(root, searchIndexProbeSource(root), bundle);
+        let best: SearchIndexHeap | null = null;
+        for (let i = 0; i < runs; i++) {
+            const out = runProbe(runner, bundle, indexFile, "deck-builder") as {
+                importBytes: number;
+                indexBytes: number;
+            };
+            if (best === null || out.indexBytes < best.indexBytes)
+                best = { rows, ...out };
+        }
+        return best!;
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+}
+
+/** Bundle one probe with the browser build's substitutions. */
+async function bundleProbe(
+    root: string,
+    contents: string,
+    outfile: string
+): Promise<void> {
+    await esbuild.build({
+        stdin: { contents, resolveDir: root, loader: "js" },
+        bundle: true,
+        format: "esm",
+        platform: "node",
+        outfile,
+        define: {
+            ...buildDefine(),
+            "import.meta.env": JSON.stringify({
+                DEV: false,
+                PROD: true,
+                MODE: "production",
+            }),
+        },
+        plugins: [browserGraph(root)],
+        logLevel: "silent",
+    });
+}
+
+/** One probe run in a fresh `node --expose-gc`: its last stdout line. */
+function runProbe(
+    runner: string,
+    bundle: string,
+    data: string,
+    label: string
+): unknown {
+    const r = spawnSync("node", ["--expose-gc", runner, bundle, data], {
+        encoding: "utf8",
+        timeout: 300_000,
+    });
+    if (r.status !== 0) {
+        throw new Error(
+            `client heap probe failed (${label}, status ${r.status}): ${r.stderr.slice(0, 600)}`
+        );
+    }
+    return JSON.parse(r.stdout.trim().split("\n").pop()!) as unknown;
 }
 
 /** One `WARN` line per context over the client budget. */

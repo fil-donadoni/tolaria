@@ -8,7 +8,9 @@ export interface EditionOption {
 /** Labels each printing by its set code, disambiguating same-set variants
  *  (e.g. the three LEB basic-land arts) with a `#n` suffix. Order matches the
  *  input (original definition first). */
-export function editionOptions(prints: CardPrinting[]): EditionOption[] {
+export function editionOptions(
+    prints: readonly CardPrinting[]
+): EditionOption[] {
     const total = new Map<string, number>();
     for (const p of prints) {
         total.set(p.setCode, (total.get(p.setCode) ?? 0) + 1);
@@ -29,7 +31,7 @@ export function editionOptions(prints: CardPrinting[]): EditionOption[] {
  *  card has a printing in a selected set, that printing wins; otherwise the
  *  original `CardDefinition` (`prints[0]`). */
 export function defaultEdition(
-    prints: CardPrinting[],
+    prints: readonly CardPrinting[],
     activeSets: string[]
 ): string {
     if (activeSets.length > 0) {

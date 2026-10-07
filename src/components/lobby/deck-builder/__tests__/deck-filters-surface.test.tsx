@@ -103,6 +103,7 @@ function entry(
         oracleText: "",
         oracleFold: "",
         setCode: "lea",
+        prints: [{ printId: `id-${name}`, setCode: "lea" }],
     };
 }
 

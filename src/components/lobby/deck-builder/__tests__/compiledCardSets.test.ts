@@ -7,11 +7,7 @@ import {
     fromSearchIndexWire,
     type SearchIndexWireRow,
 } from "@convex/cards/searchIndex";
-import {
-    indexRowToEntry,
-    matchesFormatSets,
-    matchesSets,
-} from "../useCardSearch";
+import { matchesFormatSets, matchesSets } from "../useCardSearch";
 
 // Issue #4363: a compiled card used to reach the client with an EMPTY Set, so
 // the Set filter could only ever match hand-written cards and the two
@@ -44,7 +40,7 @@ const rows = fromSearchIndexWire(
             "utf8"
         )
     ) as SearchIndexWireRow[]
-).map(indexRowToEntry);
+);
 const indexedIds = new Set(rows.map((r) => r.cardId));
 
 /** Compiled cards the engine has, by the Set the card-index says they were
