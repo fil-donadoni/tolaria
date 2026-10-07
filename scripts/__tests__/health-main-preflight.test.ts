@@ -55,7 +55,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 async function closedPort(): Promise<number> {

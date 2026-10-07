@@ -79,7 +79,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("a pass NEVER starts the driver (ADR 0109)", () => {
@@ -857,7 +862,12 @@ describe("--start runs convex:ensure once before arming (issue #4945)", () => {
             expect(fs.existsSync(CONF())).toBe(false);
             expect(fs.existsSync(PID())).toBe(false);
         } finally {
-            fs.rmSync(bin, { recursive: true, force: true });
+            fs.rmSync(bin, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });

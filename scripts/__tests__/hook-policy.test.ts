@@ -158,7 +158,12 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("deny-guard — merging goes through land, from the PR's own branch (#2537)", () => {
@@ -338,7 +343,12 @@ describe("deny-guard — nothing force-pushes the base or release branch", () =>
         expect(denied(ok), "main is a feature branch under this config").toBe(
             false
         );
-        fs.rmSync(projectDir, { recursive: true, force: true });
+        fs.rmSync(projectDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("denies a force-push naming main", () => {
@@ -1411,7 +1421,12 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
             );
             expect(denied(plan)).toBe(false);
         } finally {
-            fs.rmSync(projectDir, { recursive: true, force: true });
+            fs.rmSync(projectDir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });
@@ -1714,7 +1729,12 @@ describe("claim-ledger — records what THIS session claimed", () => {
             )
         ).toEqual([2445]);
 
-        fs.rmSync(dir, { recursive: true, force: true });
+        fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("does not record a claim from PROSE that quotes the command", () => {
@@ -1756,7 +1776,12 @@ describe("claim-ledger — records what THIS session claimed", () => {
         );
         expect(fs.readFileSync(file, "utf8")).toContain('"issue":2445');
 
-        fs.rmSync(dir, { recursive: true, force: true });
+        fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("never blocks — it is an observer", () => {
@@ -2384,7 +2409,12 @@ describe("claim-ledger — records the owning process (#2627)", () => {
         const row = JSON.parse(fs.readFileSync(file, "utf8").trim()) as {
             owner: { pid: number; startedAt: string } | null;
         };
-        fs.rmSync(dir, { recursive: true, force: true });
+        fs.rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
         return row;
     };
 
@@ -2478,7 +2508,12 @@ describe("session-origin hook — who started this session (issue #3144)", () =>
         projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "session-origin-"));
     });
     afterAll(() => {
-        fs.rmSync(projectDir, { recursive: true, force: true });
+        fs.rmSync(projectDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("records `afk` under TOLARIA_LOOP_DRAIN and `interactive` without it", () => {

@@ -311,7 +311,12 @@ describe("cr-ledger merge driver (real git)", () => {
     });
 
     afterEach(() => {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("WITHOUT the driver, two confirmations under the SAME id conflict (the bug)", () => {

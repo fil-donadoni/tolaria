@@ -13,7 +13,14 @@ import {
 } from "../lib/ui-surface-edits";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ui-surface-edits-"));
-afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+afterAll(() =>
+    fs.rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    })
+);
 
 function element(id: string, body = "route: `/x`"): string {
     return [

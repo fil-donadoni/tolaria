@@ -94,7 +94,12 @@ describe("gateChildEnv — what scripts/gate.ts hands its command", () => {
             expect(r.status, r.stderr).toBe(0);
             expect(r.stdout).toBe("0");
         } finally {
-            rmSync(lockRoot, { recursive: true, force: true });
+            rmSync(lockRoot, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     }, 30_000);
 });

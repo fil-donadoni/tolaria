@@ -45,7 +45,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 /** The gate's environment: its own lock root, no inherited hold, a wait

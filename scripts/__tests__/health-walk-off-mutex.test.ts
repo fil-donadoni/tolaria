@@ -155,7 +155,12 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
 
 afterEach(async () => {
     await new Promise<void>((r) => server.close(() => r()));
-    fs.rmSync(tmp, { recursive: true, force: true });
+    fs.rmSync(tmp, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 const healthDir = () => path.join(primary, ".claude", "telemetry", "health");

@@ -54,7 +54,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    rmSync(lockRoot, { recursive: true, force: true });
+    rmSync(lockRoot, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("gate.ts — heartbeat against real CPU (perf, never gated)", () => {

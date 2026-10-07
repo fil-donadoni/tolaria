@@ -1308,8 +1308,18 @@ describe("land.ts — the lane is skipped on a (tip, base) already gated green (
     });
 
     afterEach(() => {
-        rmSync(repo, { recursive: true, force: true });
-        rmSync(runRoot, { recursive: true, force: true });
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
+        rmSync(runRoot, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("is the lane step of the locked command, built from the green records it was given", () => {
@@ -1475,7 +1485,12 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
     });
 
     afterEach(() => {
-        rmSync(lockRoot, { recursive: true, force: true });
+        rmSync(lockRoot, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("a heavy gate.ts call nested inside another (the shape `bun run check:all` takes inside land's locked command) passes straight through instead of blocking on itself", () => {
@@ -1609,7 +1624,12 @@ describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {
     });
 
     afterEach(() => {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("aborts the rebase, exits non-zero, and names the conflicting path", () => {
@@ -1706,7 +1726,12 @@ describe("land.ts — remoteBranchDeleteStep (issue #2877: no error: noise on an
     });
 
     afterEach(() => {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     // Proof-of-failure (issue #2877): swap the `sh -c` argument below for
@@ -1918,7 +1943,12 @@ describe("land.ts — safeSkinReceiptInvalid tolerates a diff-classification fai
     });
 
     afterEach(() => {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("returns false instead of throwing when origin/main does not exist (no remote at all)", () => {
@@ -2149,7 +2179,12 @@ describe("land.ts — the teardown step, executed", () => {
     });
 
     afterEach(() => {
-        rmSync(resolve(primary, ".."), { recursive: true, force: true });
+        rmSync(resolve(primary, ".."), {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     /** The teardown pair — worktree removal + branch delete — as a shell. */
@@ -2189,7 +2224,12 @@ describe("land.ts — the teardown step, executed", () => {
         // leaves the stale `.git/worktrees/` entry, and `branch -D` then
         // refuses a branch git believes is still checked out — silently,
         // behind `|| true`. So the branch must still be gone afterwards.
-        rmSync(worktree, { recursive: true, force: true });
+        rmSync(worktree, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
         const r = teardown(worktree);
         expect(r.status).toBe(0);
         expect(
@@ -2333,7 +2373,14 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
         beforeEach(() => {
             lockRoot = mkdtempSync(join(tmpdir(), "tolaria-land-preflight-"));
         });
-        afterEach(() => rmSync(lockRoot, { recursive: true, force: true }));
+        afterEach(() =>
+            rmSync(lockRoot, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            })
+        );
 
         /** The heavy mutex as `gate.ts` leaves it once its command runs.
          *  The pid is this process: alive, as a real holder is. */
@@ -2507,7 +2554,14 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
                 root = mkdtempSync(join(tmpdir(), "tolaria-land-idle-"));
                 alive = new Set([HOLDER, WAITER]);
             });
-            afterEach(() => rmSync(root, { recursive: true, force: true }));
+            afterEach(() =>
+                rmSync(root, {
+                    recursive: true,
+                    force: true,
+                    maxRetries: 10,
+                    retryDelay: 100,
+                })
+            );
 
             const hold = (over: object = {}) => {
                 mkdirSync(join(root, "gate.lock"), { recursive: true });

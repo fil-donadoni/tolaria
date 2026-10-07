@@ -134,7 +134,12 @@ describe("vitest fs module cache — invalidation against a warm cache", () => {
     }, 120_000);
 
     afterAll(() => {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 
     it("is warm: an unchanged second run transforms nothing", () => {

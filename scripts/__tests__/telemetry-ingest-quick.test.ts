@@ -98,7 +98,12 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    rmSync(root, { recursive: true, force: true });
+    rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    });
 });
 
 describe("telemetry:ingest --quick (issue #4968)", () => {

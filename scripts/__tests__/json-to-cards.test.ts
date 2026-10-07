@@ -67,8 +67,18 @@ function generate(
         };
     } finally {
         if (existsSync(outDir))
-            rmSync(outDir, { recursive: true, force: true });
-        rmSync(dir, { recursive: true, force: true });
+            rmSync(outDir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
+        rmSync(dir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     }
 }
 
@@ -299,7 +309,12 @@ describe("json-to-cards colour-split directory layout (ADR 0043)", () => {
             // just the symbol — pin that behaviour here too.
             expect(stderr).toContain('Card "Test Snow"');
         } finally {
-            rmSync(dir, { recursive: true, force: true });
+            rmSync(dir, {
+                recursive: true,
+                force: true,
+                maxRetries: 10,
+                retryDelay: 100,
+            });
         }
     });
 });
