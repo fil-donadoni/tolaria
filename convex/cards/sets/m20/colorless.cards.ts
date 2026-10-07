@@ -42,10 +42,9 @@ export const manifoldKey = defineCard(() => ({
             targetRequirement: { type: "Creature", count: 1 },
             effects: [
                 {
-                    op: "grantAbility",
-                    ability: "unblockable",
+                    op: "restrictCombat",
+                    restriction: "cant-be-blocked",
                     target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
                 },
             ],
         },
