@@ -318,6 +318,10 @@ describe("Control and attachment — refused neighbours", () => {
             "a variable-count target group (Mass Manipulation)",
             "Gain control of X target creatures and/or planeswalkers",
         ],
+        [
+            "an 'up to one' target group (Bilbo's Burglaring's clause, its per-opponent frame removed)",
+            "Gain control of up to one target artifact",
+        ],
     ])("gain control refuses %s", (_label, span) => {
         expect(sentenceRule.run(span, parseContext()).ok).toBe(false);
     });
