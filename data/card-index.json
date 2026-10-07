@@ -24046,6 +24046,16 @@
         "source": "compiled"
     },
     {
+        "name": "Hermit Druid",
+        "scryfallId": "3efc0622-ac2c-4722-ba05-961cc98c5940",
+        "oracleId": "16f6438d-2a29-41cb-bf0c-4d02bd66112b",
+        "firstSet": "sth",
+        "firstPrintId": "3efc0622-ac2c-4722-ba05-961cc98c5940",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Hermitic Nautilus",
         "scryfallId": "545503f8-a8c6-4518-9ad6-76e4996397fc",
         "oracleId": "6bda307b-1508-4582-952b-c690db85e045",
@@ -42980,6 +42990,16 @@
         "firstSet": "sth",
         "firstPrintId": "37ae4b01-a9c1-4eec-9204-78cb2508e0df",
         "firstPrintSet": "sth"
+    },
+    {
+        "name": "Sacred Guide",
+        "scryfallId": "7f10c37d-d25a-47d6-83b0-dbe0a9cfc938",
+        "oracleId": "de9e8b71-897d-4a9d-942b-af10f31e0425",
+        "firstSet": "tmp",
+        "firstPrintId": "7f10c37d-d25a-47d6-83b0-dbe0a9cfc938",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Sacred Nectar",
