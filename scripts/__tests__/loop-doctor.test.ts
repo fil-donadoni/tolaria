@@ -928,7 +928,7 @@ describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174
         if (args[0] === "worktree") return list;
         if (args.includes("rev-parse")) return "/repo/.git/worktrees/x/index\n";
         if (args.includes("status"))
-            return " M scripts/a.ts\nR  old.ts -> new.ts\n?? b.md\n";
+            return " M scripts/a.ts\nR  old.ts -> new.ts\n?? b.txt\n";
         throw new Error(`unexpected ${args.join(" ")}`);
     };
 
@@ -937,7 +937,7 @@ describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174
             "/repo/.git/worktrees/x/index": now - 50 * 60000,
             "/repo-issue-42/scripts/a.ts": now - 40 * 60000,
             "/repo-issue-42/new.ts": now - 7 * 60000,
-            "/repo-issue-42/b.md": now - 90 * 60000,
+            "/repo-issue-42/b.txt": now - 90 * 60000,
         };
         expect(
             worktreeQuietMinutes(42, now, runner, (p) => mtimes[p] ?? null)
