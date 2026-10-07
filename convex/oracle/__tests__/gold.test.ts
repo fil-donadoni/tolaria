@@ -163,7 +163,12 @@ describe("gold round-trip — precision", () => {
         // is a `resolve()` closure (Gitaxian Probe's second half, the draw,
         // rides the same closure) — the same move as the entries above, out of
         // "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(27);
+        //
+        // 26 -> 27 by issue #4529 (mana and cost sentences): Su-Chi's "When
+        // this creature dies, add {C}{C}{C}{C}." is now compiled (`addMana`)
+        // while its hand-written side is a `diedTrigger` `resolve` closure —
+        // the same move as the entries above.
+        expect(REPORT.incomparable.length).toBeLessThan(28);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
