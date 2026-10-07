@@ -96,9 +96,17 @@ describe("keyword line slot (CR 702.1)", () => {
                 (r) => r.name.toLowerCase()
             )
         );
-        expect(vocabulary.size).toBe(registryNames.size);
         for (const name of registryNames)
             expect(vocabulary.has(name)).toBe(true);
+        // Every entry is a registry name or a spelling of a registry row
+        // (landwalk: one per basic land type, CR 702.14) — never a local name.
+        const rows = new Set(
+            MECHANICS_REGISTRY.filter((r) => r.kind === "keyword-ability").map(
+                (r) => r.id
+            )
+        );
+        for (const [, keyword] of vocabulary)
+            expect(rows.has(keyword.registryId)).toBe(true);
     });
 
     it("carries the registry status through, so a planned keyword is visible", () => {
