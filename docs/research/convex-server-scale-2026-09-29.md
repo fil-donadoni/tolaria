@@ -191,8 +191,8 @@ What it says:
 - Latency at today's size (4k): +8 to +11 ms per call, within Amendment III's
   100 ms budget; 35k is over it twice.
 
-The throwaway project was created for this run only. The owner confirms its
-deletion in the PR thread of issue #4852.
+The throwaway project was created for this run only and deleted after it
+(2026-10-07, Management API; PR #5149 thread).
 
 ## Checked and fine
 
