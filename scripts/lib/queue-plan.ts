@@ -470,8 +470,9 @@ export interface BatchPlan {
      */
     activeClaims: number[];
     /**
-     * Stranded claims for the next pass to RESUME before it starts anything
-     * new (issue #4763) — set by the wrapper from the liveness classifier,
+     * Dead passes' claims for the next pass to RESUME before it starts
+     * anything new (issue #4763, issue #5174) — set by the wrapper from the
+     * liveness classifier,
      * never by `planBatch` (which holds no process evidence). `loop-drain`
      * takes `resume[0]` over `batch[0]`.
      */
@@ -1357,26 +1358,35 @@ export interface CapCensus {
     stranded: number[];
 }
 
-/** A stranded claim handed to the next pass (issue #4763): the issue, its
- *  open PR (`null` = branch pushed, no PR) and the tier its labels route to. */
+/** A claim with no process behind it, handed to the next pass (issue #4763,
+ *  issue #5174): the issue, its open PR (`null` = none), the verdict that put
+ *  it here and the tier its labels route to. */
 export interface ResumeItem {
     number: number;
     pr: number | null;
+    /** `stranded` = pushed work; `recoverable` = a local branch only. */
+    state: "stranded" | "recoverable";
     model: string;
 }
 
 /**
- * The plan's `resume` list (issue #4763): every `stranded` claim, oldest
- * issue first, on the tier its own `model:*` labels route to — the SAME
- * `resolveModel` the batch uses, so a resumed `model:opus` issue is not
- * quietly finished on the default tier. A stranded issue missing from the
- * queue read (label dropped meanwhile) has no labels to route by and is left
- * out rather than guessed.
+ * The plan's `resume` list: every `stranded` (issue #4763) and `recoverable`
+ * (issue #5174) claim — a dead pass's work, pushed or local — on the tier its
+ * own `model:*` labels route to, the SAME `resolveModel` the batch uses, so a
+ * resumed `model:opus` issue is not quietly finished on the default tier. A
+ * claim missing from the queue read (label dropped meanwhile) has no labels to
+ * route by and is left out rather than guessed.
+ *
+ * Ordered by BAND first (`effectivePriority`, the batch's own key), then
+ * oldest issue: `loop-drain` takes `resume[0]` before `batch[0]`, and a dead
+ * P0 claim waiting behind a resumed P2 is the inversion issue #5174 is about.
+ * An `orphan` is not here: nothing to resume, `loop:doctor --release` drops
+ * its label and it competes in its band like any unclaimed issue.
  *
  * `--exclude-hitl` holds here too: a resumed pass ends in `land`, which
- * merges, so an HITL issue a dead pass stranded is left for its human exactly
- * as an unstarted one is (#3088). `bodyOf` is the wrapper's cached detail
- * read, asked only for a stranded claim under that flag.
+ * merges, so an HITL issue a dead pass left is for its human exactly as an
+ * unstarted one is (#3088). `bodyOf` is the wrapper's cached detail read,
+ * asked only for a resumable claim under that flag.
  */
 export function resumeItems(
     classified: {
@@ -1386,12 +1396,20 @@ export function resumeItems(
     }[],
     issues: QueueIssue[],
     config: PlanConfig,
-    bodyOf: (issue: number) => string = () => ""
+    bodyOf: (issue: number) => string = () => "",
+    priority: Record<number, BoardPriority> = {}
 ): ResumeItem[] {
     const byNumber = new Map(issues.map((i) => [i.number, i]));
+    const rank = (n: number): number => {
+        const issue = byNumber.get(n);
+        return issue
+            ? priorityRank(effectivePriority(issue, priority))
+            : priorityRank(null);
+    };
     return classified
-        .filter((c) => c.verdict.state === "stranded")
         .flatMap((c) => {
+            const state = c.verdict.state;
+            if (state !== "stranded" && state !== "recoverable") return [];
             const issue = byNumber.get(c.issue);
             if (!issue) return [];
             if (config.excludeHitl && isHitl(bodyOf(c.issue))) return [];
@@ -1399,11 +1417,12 @@ export function resumeItems(
                 {
                     number: c.issue,
                     pr: c.pr,
+                    state,
                     model: resolveModel(issue, config).model,
                 },
             ];
         })
-        .sort((a, b) => a.number - b.number);
+        .sort((a, b) => rank(a.number) - rank(b.number) || a.number - b.number);
 }
 
 export interface AdmissionInput {

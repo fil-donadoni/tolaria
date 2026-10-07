@@ -60,17 +60,19 @@ export type ClaimFacts = {
      *   - `true`  — a live process owns this claim. Never release it.
      *   - `false` — the owner is provably gone (its pid is dead, or the pid
      *               was recycled by a process that started at a different
-     *               time). This does NOT release anything on its own: it
-     *               simply stops vetoing the age-based verdicts below.
+     *               time). No age rule applies any more (issue #5174): the
+     *               claim is `stranded`, `recoverable` or `orphan` at once,
+     *               and the next pass resumes it. Only an `orphan` (nothing
+     *               on any branch) is ever releasable.
      *   - `null`  — unknown. No owner was recorded for this claim (every row
      *               written before #2627 landed), or the process probe itself
      *               was unavailable. Also does not release anything on its
      *               own — the classifier behaves exactly as it did before.
      *
-     * So this fact can only ever move a verdict TOWARDS `live`, never towards
-     * `orphan`. That asymmetry is deliberate: the failure mode of this whole
-     * subsystem is unclaiming a healthy concurrent pass, so a liveness fact
-     * we are unsure about must not be the thing that authorises a release.
+     * Only a POSITIVE reading moves a verdict: `null` never authorises a
+     * release. The failure mode of this whole subsystem is unclaiming a
+     * healthy concurrent pass, so a liveness fact we are unsure about must not
+     * be the thing that does it.
      *
      * See `parseClaimOwners` / `isOwnerAlive` for how the join is made —
      * there is no pid anywhere in the GitHub API's idea of a claim, so it
@@ -185,15 +187,29 @@ export function classifyClaim(
     // of the `=== true` above: `null` means "we could not tell", and a claim
     // we cannot prove dead keeps the verdicts it had before. The failure mode
     // of this subsystem is still declaring a healthy concurrent pass dead.
-    if (
-        facts.ownerAlive === false &&
-        facts.hasLocalBranch &&
-        (facts.unpushedCommits ?? 0) > 0
-    ) {
+    //
+    // A provably dead owner is never `live` or `suspect` (issue #5174): the
+    // age ropes below exist to cover a pass we cannot SEE, and this one we
+    // can see is gone. The 24-hour local-branch rope held a dead P0 claim —
+    // branch created, WIP uncommitted in its worktree — as "could still be
+    // implementing" for six hours while the AFK loop picked P1 work past it.
+    // A local branch is `recoverable` whatever its commit count (the worktree
+    // may hold uncommitted edits the count cannot see); nothing at all is an
+    // `orphan` at once. Both are handed to the next pass as `resume`.
+    if (facts.ownerAlive === false && facts.hasLocalBranch) {
         const n = facts.unpushedCommits ?? 0;
         return {
             state: "recoverable",
-            reason: `owning process is gone and its local branch holds ${n} unpushed commit${n === 1 ? "" : "s"} — resume the branch or salvage the WIP; the label is NOT released`,
+            reason:
+                n > 0
+                    ? `owning process is gone and its local branch holds ${n} unpushed commit${n === 1 ? "" : "s"} — the next pass resumes the branch; the label is NOT released`
+                    : "owning process is gone and its local branch holds no commit (its worktree may hold uncommitted WIP) — the next pass resumes it; the label is NOT released",
+        };
+    }
+    if (facts.ownerAlive === false) {
+        return {
+            state: "orphan",
+            reason: "owning process is gone, no branch, no PR — the next pass picks it up from scratch",
         };
     }
 
@@ -883,11 +899,12 @@ if (import.meta.main) {
     // Reported LOUDLY and released by nothing (issue #3698). Releasing the
     // label alone would send the next pass at the same issue from scratch
     // while the dead pass's commits sit in a worktree it will then collide
-    // with; the recoverable state exists to put that work in front of a human
-    // instead of expiring it silently after 24 hours.
+    // with; the recoverable state exists to put that work back in play instead
+    // of expiring it silently after 24 hours — `queue:plan` hands it to the
+    // next pass as `resume` (issue #5174).
     if (recoverable.length > 0) {
         console.log(
-            `\n${recoverable.length} RECOVERABLE — a dead pass left committed work behind. Not released; resume the branch or salvage it:`
+            `\n${recoverable.length} RECOVERABLE — a dead pass left a local branch behind. Not released; the next pass resumes it:`
         );
         for (const { issue: n, verdict } of recoverable) {
             console.log(`  ! #${n} (branch *issue-${n}) — ${verdict.reason}`);

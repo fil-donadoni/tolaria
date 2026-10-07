@@ -824,10 +824,8 @@ function main(): void {
     // let three abandoned labels wedge the queue shut with no session running
     // at all. Re-deriving that set here would be the same decision spelled a
     // second way, which is exactly what this wrapper is not for.
-    const reconciled = liveClaims(
-        plan.activeClaims,
-        releasedClaimsOnThisMachine()
-    );
+    const released = releasedClaimsOnThisMachine();
+    const reconciled = liveClaims(plan.activeClaims, released);
     // …and then asks the LIVENESS classifier which of those claims still has a
     // process behind it (issue #4384). `loop:doctor`'s verdict, imported — the
     // cap measures active sessions, and a claim it proved `recoverable` (owner
@@ -836,9 +834,17 @@ function main(): void {
     // verdict counts as live — uncertainty never authorises more concurrency.
     // A `stranded` claim (issue #4763: owner gone, work pushed) gives up its
     // slot the same way, and is handed to the next pass as `resume`.
+    //
+    // STALE claims are classified too, for `resume` only (issue #5174): the
+    // 24-hour rule drops them from the cap, but a dead pass's committed work
+    // past that age is still work — skipping it as "release it" left it for a
+    // human the AFK loop never calls. The census below reads `reconciled` only.
+    const stale = liveClaims(plan.staleClaims, released);
     const classified = claimClassifications(
         issues
-            .filter((i) => reconciled.includes(i.number))
+            .filter(
+                (i) => reconciled.includes(i.number) || stale.includes(i.number)
+            )
             .map((i) => ({
                 number: i.number,
                 title: i.title,
@@ -867,7 +873,8 @@ function main(): void {
         classified,
         issues,
         config,
-        (n) => port.issueDetail(n).body
+        (n) => port.issueDetail(n).body,
+        port.priority
     );
 
     writePlanArtefact(plan, config.now, lineage);

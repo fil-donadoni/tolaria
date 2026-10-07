@@ -196,17 +196,19 @@ describe("loop-doctor — recoverable: a dead owner that left commits (#3698)", 
         expect(unknown.reason).toMatch(/could still be implementing/);
     });
 
-    it("is not claimed for a branch with nothing on it", () => {
-        // `wt:new` creates the branch before the pass writes a line, so an
-        // empty branch is the ordinary shape of a pass that died early —
-        // there is no WIP to surface, and the existing rules apply.
-        expect(
-            classifyClaim({ ...dead, ageHours: 30, unpushedCommits: 0 }).state
-        ).toBe("orphan");
-        expect(
-            classifyClaim({ ...dead, ageHours: 30, unpushedCommits: null })
-                .state
-        ).toBe("orphan");
+    it("also fires for a branch with nothing COMMITTED on it — the worktree may hold uncommitted WIP (issue #5174)", () => {
+        // Before issue #5174 an empty branch fell through to the 24-hour
+        // local-branch rope and read `live`: P0 issue #4862's pass died two
+        // minutes in with its edits uncommitted, and the claim read "could
+        // still be implementing" for six hours while the loop picked P1 work.
+        for (const ageHours of [0.1, 6, 30]) {
+            for (const unpushedCommits of [0, null]) {
+                const v = classifyClaim({ ...dead, ageHours, unpushedCommits });
+                expect(v.state).toBe("recoverable");
+                expect(v.reason).toMatch(/no commit/);
+                expect(v.reason).toMatch(/NOT released/);
+            }
+        }
     });
 
     it("a PUSHED branch is never `recoverable` — its commits are not unpushed at all (a dead owner makes it `stranded`, issue #4763)", () => {
@@ -463,15 +465,14 @@ describe("loop-doctor — owner liveness (#2627)", () => {
         ).toBe("stranded");
     });
 
-    it("AC3 — a claim younger than the classifier's threshold survives a dead owner reading", () => {
-        // This is the case a naive "no process → release it" sweep gets
-        // wrong. A pass claims its batch and only THEN spawns the subagents
-        // that push branches; the owner probe can also simply fail to resolve
-        // a pid. Neither may shortcut the age rule the classifier already
-        // owns — otherwise the sweep releases a batch that is mid-claim.
+    it("AC3 — a PROVABLY dead owner skips the age rule: no branch is an orphan at once (issue #5174)", () => {
+        // The age rule stands in for "is anyone still working on this" when
+        // we cannot see the process. The owner stamp is the claiming `claude`
+        // process itself (`queue:claim`'s `ownerStamp`), so a dead reading
+        // answers the question directly: a pass mid-claim is alive.
         const v = classifyClaim({ ...base, ageHours: 0.5, ownerAlive: false });
-        expect(v.state).toBe("suspect");
-        expect(v.reason).toMatch(/healthy pass/);
+        expect(v.state).toBe("orphan");
+        expect(v.reason).toMatch(/owning process is gone/);
     });
 
     it("AC4 — a live owning process holds the claim, at any age and with no branch", () => {
@@ -494,32 +495,39 @@ describe("loop-doctor — owner liveness (#2627)", () => {
         ).toBe("live");
     });
 
-    it("AC6 — an UNKNOWN owner changes no verdict the classifier would have reached without it", () => {
+    it("AC6 — an UNKNOWN owner keeps the age-rule verdicts", () => {
         // `null` is what every pre-#2627 ledger row and every failed probe
         // yields. Reading it as "dead" would quietly widen what the sweep
         // releases; reading it as "alive" would freeze the queue. It must do
-        // neither: same verdict, same reason, as the ownerAlive-less facts.
-        for (const facts of [
-            base,
-            { ...base, ageHours: 0.5 },
-            { ...base, hasLocalBranch: true, ageHours: 30 },
-            { ...base, hasLocalBranch: true, ageHours: 6 },
-        ]) {
-            expect(classifyClaim({ ...facts, ownerAlive: null })).toEqual(
-                classifyClaim({ ...facts, ownerAlive: false })
+        // neither: the 2h / 24h age rules decide, as before #2627.
+        for (const [facts, state] of [
+            [base, "orphan"],
+            [{ ...base, ageHours: 0.5 }, "suspect"],
+            [{ ...base, hasLocalBranch: true, ageHours: 30 }, "orphan"],
+            [{ ...base, hasLocalBranch: true, ageHours: 6 }, "live"],
+        ] as const) {
+            expect(classifyClaim({ ...facts, ownerAlive: null }).state).toBe(
+                state
             );
         }
     });
 
-    it("adds no second age threshold — liveness is a veto, never a clock", () => {
-        // AC: "The existing claim classifier is the sole authority; no second
-        // age threshold is added." Sweeping the two thresholds across the
-        // whole age range with a DEAD owner must reproduce the pre-#2627
-        // verdict boundaries exactly: 2h with no branch, 24h with a local one.
+    it("the age thresholds bind an UNKNOWN owner only — a dead one has none (issue #5174)", () => {
         for (const ageHours of [0, 1.99, 2, 5, 23.9, 24, 100]) {
             expect(
-                classifyClaim({ ...base, ageHours, ownerAlive: false }).state
+                classifyClaim({ ...base, ageHours, ownerAlive: null }).state
             ).toBe(ageHours < 2 ? "suspect" : "orphan");
+            expect(
+                classifyClaim({
+                    ...base,
+                    hasLocalBranch: true,
+                    ageHours,
+                    ownerAlive: null,
+                }).state
+            ).toBe(ageHours < 24 ? "live" : "orphan");
+            expect(
+                classifyClaim({ ...base, ageHours, ownerAlive: false }).state
+            ).toBe("orphan");
             expect(
                 classifyClaim({
                     ...base,
@@ -527,7 +535,7 @@ describe("loop-doctor — owner liveness (#2627)", () => {
                     ageHours,
                     ownerAlive: false,
                 }).state
-            ).toBe(ageHours < 24 ? "live" : "orphan");
+            ).toBe("recoverable");
         }
     });
 });
