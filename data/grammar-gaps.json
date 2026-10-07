@@ -1171,6 +1171,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › A creature dealt damage this way",
+            "issue": 5184
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › A creature dealt damage this way can't be regenerated this turn",
             "issue": 4569
         },
