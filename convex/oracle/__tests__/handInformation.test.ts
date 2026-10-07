@@ -1,7 +1,7 @@
 // Hand information and card naming: "Look at target player's hand", "Look at a
 // card at random in target player's hand" (CR 400.2), "You draw a card at the
 // beginning of the next turn's upkeep" (CR 603.7a) and "Choose a [nonland]
-// card name" read back as "that name" (CR 201.3, CR 201.4a, issue #4528).
+// card name" read back as "that name" (CR 201.4, CR 201.4a, issue #4528).
 //
 // Layers:
 //
@@ -106,7 +106,7 @@ describe("Look at a hand — golden fixtures (CR 400.2)", () => {
     });
 });
 
-describe("Choose a card name — golden fixtures (CR 201.3, CR 201.4a)", () => {
+describe("Choose a card name — golden fixtures (CR 201.4, CR 201.4a)", () => {
     it("nonland name, reveal and discard all with it: Cabal Therapy", () => {
         const outcome = compiled(
             permanent(

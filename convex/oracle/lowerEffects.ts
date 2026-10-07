@@ -2014,7 +2014,7 @@ function lowerSentenceBody(
             return lowered([{ op: "explore", target: target.value }]);
         }
         case "name-card":
-            // CR 201.3 — the controller names the card; the binding is the one
+            // CR 201.4 — the controller names the card; the binding is the one
             // the later "that name" sentence reads back as a name filter.
             return lowered([
                 {
@@ -2042,7 +2042,7 @@ function lowerSentenceBody(
             ]);
         }
         case "dig-named-to-hand": {
-            // CR 701.20a / CR 401.4 — "your library": the controller's.
+            // CR 701.20a — "your library": the controller's.
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
             if (typeof count.value !== "number")

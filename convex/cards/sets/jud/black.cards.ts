@@ -22,8 +22,6 @@ import { defineCard } from "../../types";
 // The flashback cost is purely non-mana (`{ sacrifice: … }` with no `mana`
 // key), the Lava Dart shape (`ons/red.cards.ts`): any creature, the caster's
 // explicit pick through the unified sacrifice-choice layer.
-//
-// compiler-gap: Choose a nonland card name. Target player reveals their hand and discards all cards with that name. (#2693)
 export const cabalTherapy = defineCard(() => ({
     id: "0a5df970-c6ba-4824-b8ba-67244aec2b82", // JUD 62
     rarity: "uncommon",

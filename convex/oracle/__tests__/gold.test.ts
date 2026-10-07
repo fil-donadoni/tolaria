@@ -157,7 +157,13 @@ describe("gold round-trip — precision", () => {
         // bucket. Their closures are the migration `docs/findings/1701-*`
         // describes (`{ ref: "$host" }` is already a legal selector), and
         // `bun run oracle:behavioural` is what retires them.
-        expect(REPORT.incomparable.length).toBeLessThan(25);
+        //
+        // 24 -> 26 by issue #4528 (look at a hand): Gitaxian Probe and Glasses
+        // of Urza are now compiled to `lookHand` while their hand-written side
+        // is a `resolve()` closure (Gitaxian Probe's second half, the draw,
+        // rides the same closure) — the same move as the entries above, out of
+        // "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(27);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

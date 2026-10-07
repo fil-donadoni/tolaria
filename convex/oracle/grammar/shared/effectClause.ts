@@ -750,7 +750,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 201.3 — "Choose a [nonland] card name": the pick the SAME
+           * CR 201.4 — "Choose a [nonland] card name": the pick the SAME
            * ability's later sentence reads as "that name" (a `discard-named-
            * from-hand` or `dig-named-to-hand`). `prompt` is the printed
            * sentence, shown to the chooser; `restriction` is CR 201.4a's
@@ -771,7 +771,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.20a + CR 401.4 — "Reveal the top N cards of your library
+           * CR 701.20a — "Reveal the top N cards of your library
            * and put all of them with that name into your hand. Exile the
            * rest.": reads the pick of a preceding `name-card`.
            */
@@ -1270,7 +1270,7 @@ export function assembleSentences(
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
-    // CR 201.3 — a chosen card name must be read back by a later sentence of
+    // CR 201.4 — a chosen card name must be read back by a later sentence of
     // the same ability ("that name"); `namedDig` waits for "Exile the rest."
     let namePending = false;
     let nameRead = false;
@@ -2236,7 +2236,7 @@ const DELAYED_DRAW_NEXT_UPKEEP =
 /** CR 201.4a — "Choose a card name" and its two printed restrictions. */
 const NAME_CARD =
     /^Choose a (nonland )?card name( other than a basic land card name)?$/;
-/** CR 201.3 — a sentence that reads the pick as "that name". */
+/** CR 201.4 — a sentence that reads the pick as "that name". */
 const DISCARD_NAMED =
     /^(.+) reveals their hand and discards all cards with that name$/;
 const DIG_NAMED =
@@ -2851,7 +2851,7 @@ export function signedModifier(printed: string): number {
  * sentence role `assembleSentences` pairs up. `null` = neither half's head.
  */
 /**
- * CR 201.3 — the sentences of a chosen card name: the pick itself, and the
+ * CR 201.4 — the sentences of a chosen card name: the pick itself, and the
  * two sentences that read it back as "that name". `null` = not one of them.
  */
 function chosenNameSentence(span: string, ctx: unknown) {

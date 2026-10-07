@@ -3787,7 +3787,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 201.3 + CR 701.9a — "Choose a nonland card name. Target player reveals
+    // CR 201.4 + CR 701.9a — "Choose a nonland card name. Target player reveals
     // their hand and discards all cards with that name": exhibits `nameCard`
     // and the discard that reads its pick back as a `$named` name filter, a
     // runtime binding the canned smoke scenario cannot build (issue #4528).
@@ -3827,7 +3827,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             flashback: { sacrifice: { types: ["Creature"] } },
         },
     },
-    // CR 201.3 + CR 701.20a — "Choose a card name other than a basic land card
+    // CR 201.4 + CR 701.20a — "Choose a card name other than a basic land card
     // name. Reveal the top seven cards ... put all of them with that name into
     // your hand. Exile the rest.": exhibits `nameCard` read back by
     // `digMatchingToHand`'s `$named` filter (issue #4528).

@@ -26280,6 +26280,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ingenious Thief",
+        "scryfallId": "be341805-b4de-456e-8b46-4ee5fdbca7e0",
+        "oracleId": "73ea2949-5812-478d-8f09-00743ce4d40f",
+        "firstSet": "por",
+        "firstPrintId": "be341805-b4de-456e-8b46-4ee5fdbca7e0",
+        "firstPrintSet": "por",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ingenuity Engine",
         "scryfallId": "ac255db4-9c46-4971-bf89-f9014602999c",
         "oracleId": "d1da2c33-2be4-4065-8e5c-613a069d2013",
@@ -37638,6 +37648,16 @@
         "firstPrintSet": "mmq"
     },
     {
+        "name": "Peek",
+        "scryfallId": "f50843cc-20ac-4746-816e-f2630aa31594",
+        "oracleId": "873abbf4-c9b5-4b8f-8cd0-613cf3b9b1d5",
+        "firstSet": "ody",
+        "firstPrintId": "f50843cc-20ac-4746-816e-f2630aa31594",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Peerless Ropemaster",
         "scryfallId": "ae044509-2f31-4506-a124-0e445b7181a2",
         "oracleId": "d7aaffed-a143-49d6-a516-b9bc8b503aee",
@@ -48644,6 +48664,16 @@
         "firstPrintSet": "arn"
     },
     {
+        "name": "Sorcerous Sight",
+        "scryfallId": "ecfd43dc-e5fd-43bc-babb-fe7ecb6ccd00",
+        "oracleId": "20370c3b-231f-4d9d-8b6e-f1eb25fa4b5d",
+        "firstSet": "por",
+        "firstPrintId": "ecfd43dc-e5fd-43bc-babb-fe7ecb6ccd00",
+        "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Sorin, Lord of Innistrad",
         "scryfallId": "27bb371f-d49f-41bd-bbe0-d5e1e2067e36",
         "oracleId": "5c780dda-ee76-482a-a610-53c321c4fdec",
@@ -52072,6 +52102,16 @@
         "source": "compiled"
     },
     {
+        "name": "Talas Explorer",
+        "scryfallId": "64f184c9-a716-4ba8-8efa-495358660de5",
+        "oracleId": "da359465-f823-4989-9acd-249a2a1f3f17",
+        "firstSet": "p02",
+        "firstPrintId": "64f184c9-a716-4ba8-8efa-495358660de5",
+        "firstPrintSet": "p02",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Talas Merchant",
         "scryfallId": "2f779d7e-6e37-49bc-b76d-3bb490ff142b",
         "oracleId": "6469f61d-1b4c-4813-bb4a-99f6e6388d7b",
@@ -52558,6 +52598,16 @@
         "firstSet": "dst",
         "firstPrintId": "1d811d8f-437b-4c9f-8ea2-c85590a07935",
         "firstPrintSet": "dst",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Telepathic Spies",
+        "scryfallId": "769e7f64-e32c-4242-aae9-45d50b89ff1f",
+        "oracleId": "8162730e-2573-4bc0-827f-5b7b3dbf3bff",
+        "firstSet": "uds",
+        "firstPrintId": "769e7f64-e32c-4242-aae9-45d50b89ff1f",
+        "firstPrintSet": "uds",
         "rarity": "common",
         "source": "compiled"
     },
@@ -58856,6 +58906,16 @@
         "firstSet": "lrw",
         "firstPrintId": "8ea7b2c0-c641-478f-b8d9-17aa17fa1cbe",
         "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wanderguard Sentry",
+        "scryfallId": "52ac6290-1401-41c5-90a1-99acb344719e",
+        "oracleId": "cd02e276-3c2d-4177-aa60-294a31bae0db",
+        "firstSet": "mrd",
+        "firstPrintId": "52ac6290-1401-41c5-90a1-99acb344719e",
+        "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
     },
