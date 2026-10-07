@@ -2547,7 +2547,6 @@ function countFilterOf(filter: PermanentFilter): Lowered<EffectCardFilter> {
     return lowered(out);
 }
 
-/** A small count as the word Oracle text prints ("two"), for a prompt. */
 /** CR 401.4 — the picker's prompt for a `putBack`. */
 function putBackPrompt(count: number): string {
     return count === 1
@@ -2555,6 +2554,7 @@ function putBackPrompt(count: number): string {
         : `Choose ${countWord(count)} cards from your hand to put on top of your library (last picked ends up on top).`;
 }
 
+/** A small count as the word Oracle text prints ("two"), for a prompt. */
 function countWord(n: number): string {
     const words = [
         "zero",
