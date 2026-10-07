@@ -2462,6 +2462,16 @@
         "source": "compiled"
     },
     {
+        "name": "Archmage's Charm",
+        "scryfallId": "57b852b6-4388-4a41-a5c0-bba37a5c1451",
+        "oracleId": "85cbb035-25df-43bb-ae06-ab098f448b02",
+        "firstSet": "mh1",
+        "firstPrintId": "57b852b6-4388-4a41-a5c0-bba37a5c1451",
+        "firstPrintSet": "mh1",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Archon of Cruelty",
         "scryfallId": "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
         "oracleId": "aa1a6646-c1e6-4bff-9092-43ee3e137914",
@@ -14931,6 +14941,16 @@
         "firstPrintId": "56a23047-04c8-4f37-8296-f489370859aa",
         "firstPrintSet": "pc2",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Dragonlord Silumgar",
+        "scryfallId": "2eae504d-d4a9-440f-8ceb-df967cc50494",
+        "oracleId": "44581d4f-746b-43b8-a34d-16dc383ab70e",
+        "firstSet": "dtk",
+        "firstPrintId": "2eae504d-d4a9-440f-8ceb-df967cc50494",
+        "firstPrintSet": "dtk",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -34170,6 +34190,16 @@
         "source": "compiled"
     },
     {
+        "name": "Master Thief",
+        "scryfallId": "77c273d3-ef0f-40c6-baf5-e39279d10509",
+        "oracleId": "a32b8502-7427-48a5-a880-14516ff2fe77",
+        "firstSet": "m12",
+        "firstPrintId": "77c273d3-ef0f-40c6-baf5-e39279d10509",
+        "firstPrintSet": "m12",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Master's Call",
         "scryfallId": "04f54188-2cfc-4964-add7-b452f32d57ef",
         "oracleId": "d6c9c1f0-050f-40e2-ab6c-6566d0af418c",
@@ -40847,6 +40877,16 @@
         "firstPrintId": "670b9645-ce34-41eb-a527-4af3e13c3a54",
         "firstPrintSet": "xln",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Piper of the Swarm",
+        "scryfallId": "0a7962fe-b715-4981-86c3-223bad9b1899",
+        "oracleId": "a6c5c5ea-0bd0-4d5a-bd3f-6217f14c9939",
+        "firstSet": "eld",
+        "firstPrintId": "0a7962fe-b715-4981-86c3-223bad9b1899",
+        "firstPrintSet": "eld",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
