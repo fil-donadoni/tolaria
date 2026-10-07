@@ -183,7 +183,7 @@ function main(): void {
     }
     console.error(
         argv.includes("--resume")
-            ? `wt:new: resumed the stranded branch for issue #${issue}`
+            ? `wt:new: resumed the dead pass's branch for issue #${issue}`
             : `wt:new: ${branch} branched from ${ORIGIN_BASE}`
     );
     console.log(worktree);

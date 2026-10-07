@@ -22,10 +22,15 @@ installLoopDrainHarness();
  * next pass as `/next-ticket N --resume` BEFORE any new pick — once per issue
  * per run, so one wedged PR cannot eat the whole drain.
  */
-describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
+describe("loop-drain — resumes dead passes' claims first (issue #4763, issue #5174)", () => {
     /** A plan whose `batch[0]` is #101 and whose `resume` names `resume`. */
     const stubPlanWithResume = (
-        resume: { number: number; pr: number | null; model: string }[]
+        resume: {
+            number: number;
+            pr: number | null;
+            state?: "stranded" | "recoverable";
+            model: string;
+        }[]
     ): void => {
         const plan = { ...JSON.parse(planJson(101, "sonnet")), resume };
         writeStub(
@@ -81,7 +86,7 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
             "opus|/next-ticket 4506 --resume",
             "sonnet|/next-ticket 101",
         ]);
-        expect(r.stderr).toMatch(/resuming stranded claim #4506 \(PR #4760\)/);
+        expect(r.stderr).toMatch(/resuming dead claim #4506 \(PR #4760\)/);
     });
 
     it("a stranded branch with no PR is resumed too, and says so", () => {
@@ -94,7 +99,23 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
             "sonnet|/next-ticket 4761 --resume"
         );
         expect(r.stderr).toMatch(
-            /resuming stranded claim #4761 \(pushed branch, no PR\)/
+            /resuming dead claim #4761 \(pushed branch, no PR\)/
+        );
+    });
+
+    it("a recoverable claim (local branch, never pushed) is resumed too, and says so (issue #5174)", () => {
+        stubGhCountingFrom(5);
+        stubPlanWithResume([
+            { number: 4862, pr: null, state: "recoverable", model: "sonnet" },
+        ]);
+        const prompts = stubClaudeRecording();
+        const r = run({ args: ["--max-passes", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.readFileSync(prompts, "utf8").trim()).toBe(
+            "sonnet|/next-ticket 4862 --resume"
+        );
+        expect(r.stderr).toMatch(
+            /resuming dead claim #4862 \(local branch, never pushed\)/
         );
     });
 
@@ -107,6 +128,6 @@ describe("loop-drain — resumes stranded claims first (issue #4763)", () => {
         expect(fs.readFileSync(prompts, "utf8").trim()).toBe(
             "sonnet|/next-ticket 101"
         );
-        expect(r.stderr).not.toMatch(/resuming stranded/);
+        expect(r.stderr).not.toMatch(/resuming dead claim/);
     });
 });

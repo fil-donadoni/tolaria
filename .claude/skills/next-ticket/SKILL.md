@@ -88,10 +88,12 @@ verdict — landed, or a failure reported as a failure.
 - Read the issue and its comments IN FULL. Its `Target files:` section (one
   path per line) is the blast radius: scope reading and the §4 review by it;
   fix a missing or comma-joined section in the issue.
-- **`/next-ticket N --resume`** — a stranded claim (a dead pass pushed a
-  branch or opened a PR). Do not start over: `queue:claim N`, then
-  `cd "$(bun run --silent wt:new N --resume)"`. Open PR → read it against
-  the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
+- **`/next-ticket N --resume`** — a dead pass's claim: stranded (pushed a
+  branch or opened a PR) or recoverable (local branch, maybe uncommitted WIP
+  in its worktree). Do not start over: `queue:claim N`, then
+  `cd "$(bun run --silent wt:new N --resume)"`; `git status` shows the WIP.
+  Open PR → read it against the issue, go to §5. Branch, no PR → finish
+  §3–§4, open the PR, §5.
 
 **Done when:** one issue number is chosen and its body and comments are read.
 

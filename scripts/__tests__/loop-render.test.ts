@@ -284,7 +284,7 @@ describe("sweep collapse — buffered until the block closes (issue #4718)", () 
     const countLine = (claimed: number, orphaned: number) =>
         `${claimed} claimed, ${orphaned} orphaned (nothing is going to release them).`;
     const recoverableHeader = (n: number) =>
-        `${n} RECOVERABLE — a dead pass left committed work behind. Not released; resume the branch or salvage it:`;
+        `${n} RECOVERABLE — a dead pass left a local branch behind. Not released; the next pass resumes it:`;
     /** The second, redundant listing `loop-doctor.ts` prints for every
      * recoverable issue, alongside its roster row. */
     const recoverableResumeLine = (issue: number, age = "claimed 6.2h ago") =>

@@ -104,11 +104,10 @@ ERROR_BACKOFF_MAX_SECS=900
 # environment. The orphan-claim sweep at the top of each pass (see
 # `reap_orphan_claims`) reclaims what the dead pass was holding before the next
 # pass selects — EXCEPT for the one shape this fix is about: a pass killed
-# after it committed leaves a `recoverable` claim (loop-doctor.ts), which is
-# reported and deliberately never released, because the next pass starting that
-# issue from scratch would collide with the branch the dead one left. So the
-# retry buys the QUEUE, not that issue: the run keeps draining the rest while
-# the committed work waits for a human.
+# after it created its branch leaves a `recoverable` claim (loop-doctor.ts),
+# which is never released, because the next pass starting that issue from
+# scratch would collide with the branch the dead one left: the plan hands it
+# to the next pass as `resume` instead (issue #5174), once per run.
 MAX_CONSECUTIVE_CLAIMS_HELD=3
 PID_FILE=".claude/telemetry/loop-drain.pid"
 # THIS RUN's identity and its start anchor (issue #3699). The budget is the
@@ -581,8 +580,10 @@ reap_orphan_claims() {
 # RESUME BEFORE NEW WORK (issue #4763). A pass that pushed its branch or
 # opened its PR and then ended its turn waiting on a background job dies with
 # the turn (`claude -p`), leaving a `stranded` claim: owner gone, work pushed,
-# usually one `land` away. The plan names those as `resume`, and the head is
-# `resume[0]` before `batch[0]` — handed to a fresh pass as
+# usually one `land` away. A pass that died before pushing leaves a
+# `recoverable` claim — its local branch, maybe uncommitted WIP in its
+# worktree (issue #5174). The plan names both as `resume`, band-ordered,
+# and the head is `resume[0]` before `batch[0]` — handed to a fresh pass as
 # `/next-ticket N --resume`, not landed here: the observed recoveries needed
 # `oracle:compile --carry-bot`, a catalogue repack and a gold fixup after the
 # rebase, which is judgment a pass has and this script does not. BOUNDED to
@@ -613,7 +614,8 @@ resolve_head() {
     # `bun -e` reads the plan off the environment, never argv: a plan is
     # multi-KB of JSON with quotes in it, and interpolating that into a shell
     # word is how a quoting bug becomes an arbitrary-command bug.
-    # Third word: `new`, or `pr:<N>` / `branch` for a resume (see above).
+    # Third word: `new`, or `pr:<N>` / `branch` / `local` for a resume (see
+    # above).
     _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" bun -e '
 const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
 const done = new Set((process.env.LOOP_RESUMED || "").split(/\s+/).filter(Boolean).map(Number));
@@ -621,7 +623,7 @@ const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string"
 const resume = (plan.resume || []).find((x) => ok(x) && !done.has(x.number));
 const head = (plan.batch || [])[0];
 if (resume) {
-    process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : "branch"));
+    process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : resume.state === "recoverable" ? "local" : "branch"));
 } else if (ok(head)) {
     process.stdout.write(head.number + " " + head.model + " new");
 }
@@ -819,9 +821,10 @@ while :; do
                 RESUMED_THIS_RUN="$RESUMED_THIS_RUN $RESOLVED_ISSUE"
                 case "$RESOLVED_RESUME" in
                 pr:*) _resume_what="PR #${RESOLVED_RESUME#pr:}" ;;
+                local) _resume_what="local branch, never pushed" ;;
                 *) _resume_what="pushed branch, no PR" ;;
                 esac
-                echo "loop-drain[warn]: resuming stranded claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died with pushed work; one resume per issue per run." >&2
+                echo "loop-drain[warn]: resuming dead claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died holding the claim; one resume per issue per run." >&2
             fi
         else
             stop_reason="preflight-error"

@@ -3183,20 +3183,22 @@ describe("readWholeQueue — the planner reads the whole queue, never a window (
     });
 });
 
-describe("resumeItems — stranded claims go to the next pass (issue #4763)", () => {
+describe("resumeItems — dead passes' claims go to the next pass (issue #4763, issue #5174)", () => {
     const row = (
         n: number,
-        state: "live" | "stranded" | "recoverable",
+        state: "live" | "stranded" | "recoverable" | "orphan" | "suspect",
         pr: number | null
     ) => ({ issue: n, verdict: { state }, pr });
 
-    it("lists ONLY stranded claims, oldest issue first, with PR and the label-routed tier", () => {
+    it("lists stranded AND recoverable claims, oldest issue first, with PR, verdict and the label-routed tier", () => {
         const items = resumeItems(
             [
                 row(4761, "live", 4770),
                 row(4506, "stranded", 4760),
                 row(4470, "stranded", null),
                 row(4117, "recoverable", null),
+                row(4118, "orphan", null),
+                row(4119, "suspect", null),
             ],
             [
                 issue(4761),
@@ -3205,13 +3207,34 @@ describe("resumeItems — stranded claims go to the next pass (issue #4763)", ()
                 }),
                 issue(4470),
                 issue(4117),
+                issue(4118),
+                issue(4119),
             ],
             CONFIG
         );
         expect(items).toEqual([
-            { number: 4470, pr: null, model: "sonnet" },
-            { number: 4506, pr: 4760, model: "opus" },
+            { number: 4117, pr: null, state: "recoverable", model: "sonnet" },
+            { number: 4470, pr: null, state: "stranded", model: "sonnet" },
+            { number: 4506, pr: 4760, state: "stranded", model: "opus" },
         ]);
+    });
+
+    it("orders by BAND before issue number — a dead P0 claim is never resumed after a P1 (issue #5174)", () => {
+        // The incident: P0 issue #4862's pass died with a local branch while
+        // the loop picked P1 work past it. Once it is resumable it must also
+        // be FIRST: `loop-drain` takes `resume[0]`.
+        const items = resumeItems(
+            [
+                row(4142, "stranded", 5160),
+                row(4862, "recoverable", null),
+                row(4143, "recoverable", null),
+            ],
+            [issue(4142), issue(4862), issue(4143)],
+            CONFIG,
+            () => "",
+            { 4142: "P1", 4862: "P0" }
+        );
+        expect(items.map((r) => r.number)).toEqual([4862, 4142, 4143]);
     });
 
     it("drops a stranded issue the queue read no longer carries — no labels to route by", () => {
