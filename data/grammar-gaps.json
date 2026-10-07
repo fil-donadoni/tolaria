@@ -2001,6 +2001,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Each player returns to the battlefield all cards they own exiled with it",
+            "issue": 5200
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Exchange control of this creature and up to one target creature an opponent controls",
             "issue": 4571
         },
@@ -2143,6 +2148,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › that spell and put a depletion counter on this enchantment",
             "issue": 4542
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › the exiled card",
+            "issue": 5201
         },
         {
             "kind": "grammar",
@@ -3483,6 +3493,11 @@
             "kind": "mechanic",
             "key": "planned-mechanic › keyword \"conspire\" is not implemented in the Mechanics Registry",
             "issue": 4012
+        },
+        {
+            "kind": "mechanic",
+            "key": "planned-mechanic › keyword \"demonstrate\" is not implemented in the Mechanics Registry",
+            "issue": 5202
         },
         {
             "kind": "mechanic",
