@@ -29,7 +29,11 @@
 // the two apart, PRD #2693); only this index did.
 import { getCardColorIdentity } from "./colors";
 import { aggregateOracleText } from "./oracleAggregator";
-import { getAllCatalogueCards, getDefinitionSetCode } from "./catalogue";
+import {
+    getAllCatalogueCards,
+    getDefinitionSetCode,
+    type CardPrinting,
+} from "./catalogue";
 import { foldAccents } from "./textNormalize";
 import type { CardDefinition } from "./types";
 import { manaValue } from "../gre/constants";
@@ -41,10 +45,10 @@ export interface SearchIndexRow {
     nameLower: string;
     /** `nameLower` with diacritics stripped (CR-irrelevant; search aid). */
     nameFold: string;
-    types: string[];
-    subtypes: string[];
-    supertypes: string[];
-    colors: string[];
+    types: readonly string[];
+    subtypes: readonly string[];
+    supertypes: readonly string[];
+    colors: readonly string[];
     manaValue: number;
     oracleText: string;
     /** `oracleText` with diacritics stripped. */
@@ -55,6 +59,11 @@ export interface SearchIndexRow {
      *  `cardPrints` table and is queried by Card ID when the edition
      *  selector opens. */
     setCode: string;
+    /** The one home printing, `{ cardId, setCode }` — derived, never shipped:
+     *  the deck builder's entry shape (`CardIndexEntry`) carries it, and a
+     *  row that already IS that shape is the one object per card the deck
+     *  builder holds (issue #5125). */
+    prints: readonly CardPrinting[];
 }
 
 /** Project ONE definition into its index row. Pure; the definition must
@@ -81,6 +90,7 @@ export function toSearchIndexRow(
         oracleText,
         oracleFold: foldAccents(oracleText),
         setCode,
+        prints: [{ printId: def.id, setCode }],
     };
 }
 
@@ -132,10 +142,29 @@ export function serializeSearchIndex(rows: readonly SearchIndexRow[]): string {
 }
 
 /** The rows back from the asset — exactly what {@link buildSearchIndex}
- *  returned when the generator ran. */
+ *  returned when the generator ran.
+ *
+ *  WHY THE ARRAYS ARE SHARED (issue #5125). This is the deck builder's whole
+ *  resident index, and at 35,000 cards a fresh `types` / `subtypes` /
+ *  `supertypes` / `colors` array per row was a third of it — while the
+ *  committed rows hold under a thousand DISTINCT such arrays (`["Creature"]`,
+ *  `[]`, `["U"]`…). Each distinct one is built once, frozen, and shared by
+ *  every row carrying it; frozen because a consumer mutating one would edit
+ *  every row that shares it, and `readonly` already says nobody may.
+ *  Measured by `bun run measure:client-heap` (the `deck-builder` lines). */
 export function fromSearchIndexWire(
     wire: readonly SearchIndexWireRow[]
 ): SearchIndexRow[] {
+    const shared = new Map<string, readonly string[]>();
+    const intern = (values: readonly string[]): readonly string[] => {
+        const key = values.join("\u0000");
+        let hit = shared.get(key);
+        if (hit === undefined) {
+            hit = Object.freeze([...values]);
+            shared.set(key, hit);
+        }
+        return hit;
+    };
     return wire.map(
         ([
             cardId,
@@ -154,14 +183,15 @@ export function fromSearchIndexWire(
                 name,
                 nameLower,
                 nameFold: foldAccents(nameLower),
-                types: [...types],
-                subtypes: [...subtypes],
-                supertypes: [...supertypes],
-                colors: [...colors],
+                types: intern(types),
+                subtypes: intern(subtypes),
+                supertypes: intern(supertypes),
+                colors: intern(colors),
                 manaValue,
                 oracleText,
                 oracleFold: foldAccents(oracleText),
                 setCode,
+                prints: [{ printId: cardId, setCode }],
             };
         }
     );

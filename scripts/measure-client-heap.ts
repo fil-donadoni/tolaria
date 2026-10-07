@@ -7,6 +7,10 @@
  * MEASUREMENT, not a `check:*` guard (no verdict to place in a lane), until
  * that ticket arms it. Measured cost: ~3 s (2026-10-06, load ~4).
  *
+ * The DECK BUILDER's search index is reported beside them (issue #5125): no
+ * game loads it, but it is resident for as long as the deck builder is open,
+ * so it is its own figure, under no budget until the arming ticket sets one.
+ *
  * Method and caveats: `scripts/lib/client-heap.ts`. `--rows <n>` measures one
  * corpus size instead of the two.
  */
@@ -16,7 +20,9 @@ import {
     TARGET_CORPUS_ROWS,
     clientHeapWarnings,
     committedRows,
+    committedSearchIndexWire,
     measureClientHeap,
+    measureSearchIndexHeap,
 } from "./lib/client-heap";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -43,6 +49,20 @@ async function main(): Promise<void> {
                     `${mib(CLIENT_CATALOGUE_BUDGET_BYTES)}   ${String(h.inflations).padStart(5)}`
             );
         }
+    }
+    const indexSizes =
+        rowsAt >= 0
+            ? sizes
+            : [committedSearchIndexWire(ROOT).length, TARGET_CORPUS_ROWS];
+    console.log(
+        "[measure:client-heap]  deck builder   rows  import MiB  search index MiB"
+    );
+    for (const rows of indexSizes) {
+        const h = await measureSearchIndexHeap(ROOT, rows);
+        console.log(
+            `[measure:client-heap]  deck-builder ${String(h.rows).padStart(6)}  ` +
+                `${mib(h.importBytes)}     ${mib(h.indexBytes)}`
+        );
     }
     const warnings = clientHeapWarnings(report);
     for (const w of warnings) console.log(`[measure:client-heap] WARN ${w}`);

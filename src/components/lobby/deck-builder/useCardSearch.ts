@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { CardPrinting } from "@convex/cards/catalogue";
-import type { SearchIndexRow } from "@convex/cards/searchIndex";
 import { useSearchIndex } from "~/lib/searchIndex";
 import { foldAccents } from "@convex/cards/textNormalize";
 import {
@@ -34,15 +33,15 @@ export interface CardIndexEntry {
     nameLower: string;
     /** `nameLower` with diacritics stripped — drives accent-insensitive search. */
     nameFold: string;
-    types: string[];
-    subtypes: string[];
-    supertypes: string[];
-    colors: string[];
+    types: readonly string[];
+    subtypes: readonly string[];
+    supertypes: readonly string[];
+    colors: readonly string[];
     manaValue: number;
     oracleText: string;
     /** `oracleText` with diacritics stripped. */
     oracleFold: string;
-    prints: CardPrinting[];
+    prints: readonly CardPrinting[];
     /** `true` when the card is implemented in Tolaria (available for real decks).
      *  Absent on index entries — defaults to `true` everywhere outside the
      *  unavailable-card path. */
@@ -52,16 +51,9 @@ export interface CardIndexEntry {
     isToken?: boolean;
 }
 
-/** A search-index row as a view entry. The index carries only the card's own
- *  Set (Card Prints, ADR 0140), so the entry's `prints` is the one home
- *  printing — the set filters see it; every other printing is the
- *  `cardPrints` table's, queried when the edition selector opens. */
-export function indexRowToEntry(row: SearchIndexRow): CardIndexEntry {
-    return {
-        ...row,
-        prints: [{ printId: row.cardId, setCode: row.setCode }],
-    };
-}
+/** The pool while the search index loads: one reference, so the result memo
+ *  does not recompute on every render. */
+const NO_ENTRIES: readonly CardIndexEntry[] = [];
 
 export type ColorMode = "at-most" | "include-all" | "include-any";
 
@@ -127,7 +119,7 @@ export const DEFAULT_FILTERS: CardSearchFilters = {
 export const SCRYFALL_DEBOUNCE_MS = 300;
 
 function matchesColors(
-    cardColors: string[],
+    cardColors: readonly string[],
     filters: CardSearchFilters
 ): boolean {
     const hasColorSelection = filters.colors.length > 0;
@@ -210,7 +202,7 @@ function matchesManaValue(mv: number, selected: number[]): boolean {
 }
 
 export function matchesSets(
-    prints: CardPrinting[],
+    prints: readonly CardPrinting[],
     selected: string[],
     mode: MatchMode
 ): boolean {
@@ -248,8 +240,8 @@ const BASIC_SUPERTYPE = "Basic";
  * — supply one or the other per Format, never both.
  */
 export function matchesFormatSets(
-    prints: CardPrinting[],
-    supertypes: string[],
+    prints: readonly CardPrinting[],
+    supertypes: readonly string[],
     allowedSets: string[] | null,
     nameLegality?: { name: string; legalNames: ReadonlySet<string> }
 ): boolean {
@@ -380,11 +372,11 @@ export function useCardSearch(
 } {
     // The pool of implemented cards: the generated search index (issue
     // #4861), fetched once — no definition is decoded to search.
+    // A row already IS an entry — `prints` is the one home printing (Card
+    // Prints, ADR 0140) — so the pool is the index's own rows, never a
+    // second object per card beside them (issue #5125).
     const { rows: indexRows, error } = useSearchIndex();
-    const all = useMemo(
-        () => (indexRows ?? []).map(indexRowToEntry),
-        [indexRows]
-    );
+    const all: readonly CardIndexEntry[] = indexRows ?? NO_ENTRIES;
     const catalogueRows = fullCatalogue?.rows;
     const isManual = format === "manual";
 
