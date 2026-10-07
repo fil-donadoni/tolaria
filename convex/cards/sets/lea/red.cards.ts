@@ -133,9 +133,8 @@ export const dragonWhelp = defineCard(() => ({
 }));
 
 // Dwarven Warriors — "{T}: Target creature with power 2 or less can't be
-// blocked this turn." (CR 113.1 grant of `unblockable` keyword via
-// grantStaticAbility, 509.1b block restriction, 613 layer 7c power filter
-// on target selection.)
+// blocked this turn." (CR 509.1b block restriction via `restrictCombat`; the
+// power filter only narrows the legal targets.)
 export const dwarvenWarriors = defineCard(() => ({
     id: "2d4d87a3-5f8b-4152-9a8b-538ab49d62e8",
     rarity: "common",
@@ -159,14 +158,15 @@ export const dwarvenWarriors = defineCard(() => ({
                 count: 1,
                 powerFilter: { max: 2 },
             },
-            // Migrated resolve()→effects[] (ADR 0045, #843): grant unblockable
-            // to the announced target creature until end of turn (CR 611.2a).
+            // The announced target creature can't be blocked this turn
+            // (CR 509.1b) — the `restrictCombat` Op every "can't be blocked
+            // this turn" line uses (Infiltrate, Teleport), which is also the
+            // form the Oracle compiler emits for it.
             effects: [
                 {
-                    op: "grantAbility",
-                    ability: "unblockable",
+                    op: "restrictCombat",
+                    restriction: "cant-be-blocked",
                     target: { target: 0 },
-                    duration: { phase: "end-of-turn" },
                 },
             ],
         },

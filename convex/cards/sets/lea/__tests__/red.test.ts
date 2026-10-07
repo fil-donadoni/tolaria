@@ -1260,7 +1260,7 @@ describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be b
         return { state, dw };
     }
 
-    it("activated → grants 'unblockable' to legal target until EOT", () => {
+    it("activated → target can't be blocked this turn", () => {
         const { state, dw } = setup(2);
         state.stack.push({
             ...dw,
@@ -1271,10 +1271,10 @@ describe("Dwarven Warriors ({T}: target creature with power 2 or less can't be b
         });
         resolveTopOfStack(state);
         const tgt = state.players[0].battlefield.find((c) => c.id === "tgt")!;
-        expect(tgt.staticAbilities).toContain("unblockable");
+        expect(tgt.cantBeBlockedThisTurn).toBe(true);
     });
 
-    it("granted unblockable rejects every blocker in combat", () => {
+    it("a creature that can't be blocked rejects every blocker in combat", () => {
         const { state, dw } = setup(2);
         state.stack.push({
             ...dw,

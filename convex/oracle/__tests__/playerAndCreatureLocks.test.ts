@@ -1,0 +1,211 @@
+// "Can't" locks — turn-scoped restrictions on a creature or a player.
+//
+// Three layers:
+//  1. GOLDEN — a real corpus card compiled whole must produce exactly this
+//     Compiled Definition (combat restriction, regeneration lock, the opponents'
+//     cast lock, the targeted cast + activation lock).
+//  2. REFUSALS — the neighbours stay unparsed: a sweep, a two-restriction
+//     sentence, "can't attack" (no fixture-able corpus card without buyback), a
+//     qualified or lowercase player.
+//  3. Lowering — one announcement serves both halves of the targeted lock.
+
+import { describe, expect, it } from "vitest";
+import { compileCard } from "../compile";
+import { sortKeys } from "../gates";
+import { oracleCard } from "./oracle.fixture";
+
+function compiled(card: ReturnType<typeof oracleCard>) {
+    const outcome = compileCard(card);
+    if (outcome.state !== "ready")
+        throw new Error(`${card.name} ${outcome.state}`);
+    return outcome.definition;
+}
+
+function spell(name: string, oracleText: string, manaCost = "{W}") {
+    return oracleCard({
+        name,
+        manaCost,
+        typeLine: "Instant",
+        oracleText,
+        power: undefined,
+        toughness: undefined,
+    });
+}
+
+describe("golden: locks", () => {
+    it("Silence — the opponents' cast lock (CR 101.2, CR 601.2)", () => {
+        const card = oracleCard({
+            oracleId: "8aed54cb-d1bb-45ad-adbe-38e55d84ff31",
+            name: "Silence",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText: "Your opponents can't cast spells this turn.",
+            power: undefined,
+            toughness: undefined,
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Silence",
+                types: ["Instant"],
+                manaCost: { W: 1 },
+                oracleText: "Your opponents can't cast spells this turn.",
+                effects: [{ op: "restrictCasting", player: "opponent" }],
+            })
+        );
+    });
+
+    it("Infiltrate — a creature that can't be blocked (CR 509.1b)", () => {
+        const card = oracleCard({
+            oracleId: "081764b4-ef96-44aa-836c-05353efd215c",
+            name: "Infiltrate",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText: "Target creature can't be blocked this turn.",
+            power: undefined,
+            toughness: undefined,
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Infiltrate",
+                types: ["Instant"],
+                manaCost: { U: 1 },
+                oracleText: "Target creature can't be blocked this turn.",
+                effects: [
+                    {
+                        op: "restrictCombat",
+                        restriction: "cant-be-blocked",
+                        target: { target: 0 },
+                    },
+                ],
+                targetRequirement: { type: "Creature", count: 1 },
+            })
+        );
+    });
+
+    it("Renegade Tactics — a creature that can't block (CR 509.1a)", () => {
+        const card = oracleCard({
+            oracleId: "7fbcd256-c132-406f-a490-df9709835504",
+            name: "Renegade Tactics",
+            manaCost: "{R}",
+            typeLine: "Sorcery",
+            oracleText: "Target creature can't block this turn.\nDraw a card.",
+            power: undefined,
+            toughness: undefined,
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Renegade Tactics",
+                types: ["Sorcery"],
+                manaCost: { R: 1 },
+                oracleText:
+                    "Target creature can't block this turn.\nDraw a card.",
+                effects: [
+                    {
+                        op: "restrictCombat",
+                        restriction: "cant-block",
+                        target: { target: 0 },
+                    },
+                    { op: "draw", player: "controller", count: 1 },
+                ],
+                targetRequirement: { type: "Creature", count: 1 },
+            })
+        );
+    });
+
+    it("Hurr Jackal — the regeneration lock in an activated ability (CR 701.19c)", () => {
+        const card = oracleCard({
+            oracleId: "d17f5afa-a884-4b99-aa9e-89ddb3d43b22",
+            name: "Hurr Jackal",
+            manaCost: "{R}",
+            typeLine: "Creature — Jackal",
+            oracleText: "{T}: Target creature can't be regenerated this turn.",
+            power: "1",
+            toughness: "1",
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Hurr Jackal",
+                types: ["Creature"],
+                subtypes: ["Jackal"],
+                manaCost: { R: 1 },
+                power: 1,
+                toughness: 1,
+                oracleText:
+                    "{T}: Target creature can't be regenerated this turn.",
+                activatedAbilities: [
+                    {
+                        id: "hurr-jackal-ability",
+                        oracleText:
+                            "{T}: Target creature can't be regenerated this turn.",
+                        cost: { tap: true },
+                        useStack: true,
+                        effects: [
+                            {
+                                op: "preventRegeneration",
+                                target: { target: 0 },
+                            },
+                        ],
+                        targetRequirement: { type: "Creature", count: 1 },
+                    },
+                ],
+            })
+        );
+    });
+
+    it("Abeyance — one announced player, both locks (CR 601.2, CR 602.2)", () => {
+        const card = oracleCard({
+            oracleId: "6300de53-6e71-4f0e-87e1-b0acd25c59a8",
+            name: "Abeyance",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Until end of turn, target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities.\nDraw a card.",
+            power: undefined,
+            toughness: undefined,
+        });
+        const def = compiled(card);
+        expect(def.effects).toEqual([
+            {
+                op: "restrictCasting",
+                player: { target: 0 },
+                cardTypes: ["Instant", "Sorcery"],
+            },
+            { op: "restrictActivation", player: { target: 0 } },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+        // One announcement serves both halves (lowering invariant).
+        expect(def.targetRequirement).toEqual({ type: "player", count: 1 });
+    });
+});
+
+describe("refusals: neighbours stay unparsed", () => {
+    const refused: [string, string][] = [
+        // A sweep also binds creatures that arrive later (CR 611.2c).
+        ["a sweep", "Creatures can't block this turn."],
+        [
+            "a qualified sweep",
+            "Creatures without flying can't block this turn.",
+        ],
+        // Two restrictions in one sentence — no fixture-able card.
+        [
+            "two restrictions",
+            "Target creature can't attack or block this turn.",
+        ],
+        // No corpus card without buyback prints it standalone.
+        ["can't attack", "Target creature can't attack this turn."],
+        // The duration is the sentence's, not optional.
+        ["no duration", "Target creature can't block."],
+        // Only the opponents' whole-spell lock is read.
+        [
+            "a typed cast lock",
+            "Your opponents can't cast creature spells this turn.",
+        ],
+        ["a regeneration sweep", "Creatures can't be regenerated this turn."],
+    ];
+    for (const [label, text] of refused)
+        it(`refuses ${label}`, () => {
+            expect(compileCard(spell("Refused", text, "{1}")).state).toBe(
+                "unparsed"
+            );
+        });
+});

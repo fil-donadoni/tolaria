@@ -66,7 +66,7 @@ describe("Manifold Key (CR 701.26 untap-another; CR 613.1f unblockable grant)", 
         expect(dynamicReq.excludeInstanceIds).toEqual([key.id]);
     });
 
-    it("grants a target creature unblockable until end of turn", () => {
+    it("a target creature can't be blocked this turn", () => {
         const { state, key } = setup();
         resolveActivated(state, key, "manifold-key-unblockable", [
             { type: "permanent", id: "bears" },
@@ -74,6 +74,6 @@ describe("Manifold Key (CR 701.26 untap-another; CR 613.1f unblockable grant)", 
         const bears = state.players[0].battlefield.find(
             (c) => c.id === "bears"
         )!;
-        expect(bears.staticAbilities).toContain("unblockable");
+        expect(bears.cantBeBlockedThisTurn).toBe(true);
     });
 });
