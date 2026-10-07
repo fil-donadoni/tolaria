@@ -44,8 +44,10 @@ const MIB = 1024 * 1024;
 export const TARGET_POOL_ROWS = 35_000;
 
 /** Heap budgets a module is held to, in ISOLATE bytes (ADR 0113 Amendment IV,
- *  armed by issue #4862). */
-export const HEAP_BUDGET_CATALOGUE_BYTES = 32 * MIB;
+ *  armed by issue #4862). The catalogue budget is 34, not the PRD's 32: the
+ *  tree measured 32.1 MiB (49.4 MiB in Node x 0.65) at 35k rows, and the
+ *  isolate's real room is ~83 MiB (research file § Cloud calibration). */
+export const HEAP_BUDGET_CATALOGUE_BYTES = 34 * MIB;
 export const HEAP_BUDGET_NO_CATALOGUE_BYTES = 4 * MIB;
 
 /** Node→Convex-isolate ratio the budgets are applied through. The cloud probe

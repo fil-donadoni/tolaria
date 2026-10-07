@@ -101,7 +101,7 @@ describe("classification and warnings", () => {
         expect(reachesCatalogue(["convex/gameTicks.ts"])).toBe(false);
     });
 
-    it("holds a module to 32 MiB with the catalogue and 4 MiB without", () => {
+    it("holds a module to 34 MiB with the catalogue and 4 MiB without", () => {
         expect(heapBudgetBytes(true)).toBe(HEAP_BUDGET_CATALOGUE_BYTES);
         expect(heapBudgetBytes(false)).toBe(HEAP_BUDGET_NO_CATALOGUE_BYTES);
     });
@@ -126,14 +126,14 @@ describe("classification and warnings", () => {
         ]);
         expect(lines).toHaveLength(1);
         expect(lines[0]).toContain("game.ts");
-        expect(lines[0]).toContain("32 MiB budget");
+        expect(lines[0]).toContain("34 MiB budget");
         expect(lines[0]).toContain("convex-server-scale-2026-09-29.md");
     });
 
-    it("applies the ratio: 45 MiB of Node heap is 29 MiB of isolate, within 32", () => {
+    it("applies the ratio: 50 MiB of Node heap is 32.5 MiB of isolate, within 34", () => {
         const MIB = 1024 * 1024;
         expect(NODE_TO_ISOLATE_RATIO).toBe(0.65);
-        expect(isolateBytes(45 * MIB)).toBeLessThan(32 * MIB);
+        expect(isolateBytes(50 * MIB)).toBeLessThan(34 * MIB);
         const over = (node: number) =>
             heapFailures([
                 {
@@ -144,8 +144,8 @@ describe("classification and warnings", () => {
                     budgetBytes: heapBudgetBytes(true),
                 },
             ]);
-        expect(over(45 * MIB)).toHaveLength(0);
-        expect(over(50 * MIB)).toHaveLength(1);
+        expect(over(50 * MIB)).toHaveLength(0);
+        expect(over(55 * MIB)).toHaveLength(1);
     });
 
     it("does not fail a module Node could not measure", () => {

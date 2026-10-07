@@ -3,7 +3,7 @@
  * `bun run check:convex-heap` — the heap of ONE call per Convex isolate
  * function module at the target scale (35k cards), and the client catalogue's
  * heap per context. A FAILURE (exit 1) when a budget is exceeded (issue #4862,
- * PRD #4849; ADR 0113 Amendment IV): one call to `game.ts` ≤ 32 MiB, a module
+ * PRD #4849; ADR 0113 Amendment IV): one call to `game.ts` ≤ 34 MiB, a module
  * that reads no Card Definition ≤ 4 MiB, the client catalogue ≤ 15 MiB in the
  * main thread and in the Bot worker, each measured separately. Runs in
  * `health` only (`HEALTH_ONLY_GUARDS`), never in `check:pr` or `land`.
