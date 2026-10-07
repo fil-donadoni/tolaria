@@ -161,7 +161,14 @@ console.log(
 `;
 
 const dir = mkdtempSync(join(tmpdir(), "catalogue-load-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+afterAll(() =>
+    rmSync(dir, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    })
+);
 
 describe("loading the catalogue (issue #4856)", () => {
     it("touches no definition: it loads with every definition a throwing stub", async () => {
