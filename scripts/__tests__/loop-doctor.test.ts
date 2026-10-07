@@ -12,6 +12,7 @@ import {
     CLAIM_VERDICT_STATES,
     countUnpushedCommits,
     classifyClaims,
+    worktreeQuietMinutes,
     fetchOpenPrs,
     openPrFor,
     type ClaimFacts,
@@ -475,6 +476,45 @@ describe("loop-doctor — owner liveness (#2627)", () => {
         expect(v.reason).toMatch(/owning process is gone/);
     });
 
+    it("a dead owner's claim minutes old is still `suspect` — the journal row moving the owner may not be written yet (issue #5174)", () => {
+        // `queue:claim` adds the label, THEN appends the row naming the new
+        // owner; in between, the journal can name a previous dead claimant.
+        for (const minutes of [0, 1, 4.9]) {
+            expect(
+                classifyClaim({
+                    ...base,
+                    ageHours: minutes / 60,
+                    ownerAlive: false,
+                }).state
+            ).toBe("suspect");
+        }
+        expect(
+            classifyClaim({ ...base, ageHours: 5 / 60, ownerAlive: false })
+                .state
+        ).toBe("orphan");
+    });
+
+    it("a dead owner whose worktree changed recently is `live` — a `claude --resume` gets a new pid (issue #5174)", () => {
+        const dead = {
+            ...base,
+            hasLocalBranch: true,
+            ownerAlive: false,
+            unpushedCommits: 0,
+        };
+        const busy = classifyClaim({ ...dead, worktreeQuietMinutes: 3 });
+        expect(busy.state).toBe("live");
+        expect(busy.reason).toMatch(/resumed session/);
+        expect(
+            classifyClaim({ ...dead, worktreeQuietMinutes: 29.9 }).state
+        ).toBe("live");
+        expect(classifyClaim({ ...dead, worktreeQuietMinutes: 30 }).state).toBe(
+            "recoverable"
+        );
+        expect(
+            classifyClaim({ ...dead, worktreeQuietMinutes: null }).state
+        ).toBe("recoverable");
+    });
+
     it("AC4 — a live owning process holds the claim, at any age and with no branch", () => {
         const v = classifyClaim({ ...base, ageHours: 500, ownerAlive: true });
         expect(v.state).toBe("live");
@@ -527,7 +567,7 @@ describe("loop-doctor — owner liveness (#2627)", () => {
             ).toBe(ageHours < 24 ? "live" : "orphan");
             expect(
                 classifyClaim({ ...base, ageHours, ownerAlive: false }).state
-            ).toBe("orphan");
+            ).toBe(ageHours === 0 ? "suspect" : "orphan");
             expect(
                 classifyClaim({
                     ...base,
@@ -869,5 +909,47 @@ describe("loop-doctor — defaultProcessProbe / interpretPsResult", () => {
         const dead = spawnSync("sh", ["-c", "exit 0"]);
         expect(dead.pid).toBeGreaterThan(0);
         expect(defaultProcessProbe(dead.pid!)).toBe("");
+    });
+});
+
+describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174)", () => {
+    const now = 1_000_000_000;
+    const list = [
+        "worktree /repo",
+        "HEAD abc",
+        "branch refs/heads/staging",
+        "",
+        "worktree /repo-issue-42",
+        "HEAD def",
+        "branch refs/heads/fix/issue-42",
+        "",
+    ].join("\n");
+    const runner = (_cmd: string, args: string[]): string => {
+        if (args[0] === "worktree") return list;
+        if (args.includes("rev-parse")) return "/repo/.git/worktrees/x/index\n";
+        if (args.includes("status"))
+            return " M scripts/a.ts\nR  old.ts -> new.ts\n?? b.md\n";
+        throw new Error(`unexpected ${args.join(" ")}`);
+    };
+
+    it("is the age of the NEWEST of index and status paths, found by branch", () => {
+        const mtimes: Record<string, number> = {
+            "/repo/.git/worktrees/x/index": now - 50 * 60000,
+            "/repo-issue-42/scripts/a.ts": now - 40 * 60000,
+            "/repo-issue-42/new.ts": now - 7 * 60000,
+            "/repo-issue-42/b.md": now - 90 * 60000,
+        };
+        expect(
+            worktreeQuietMinutes(42, now, runner, (p) => mtimes[p] ?? null)
+        ).toBeCloseTo(7, 5);
+    });
+
+    it("is null when no worktree holds the branch, or git fails", () => {
+        expect(worktreeQuietMinutes(43, now, runner, () => now)).toBeNull();
+        expect(
+            worktreeQuietMinutes(42, now, () => {
+                throw new Error("git down");
+            })
+        ).toBeNull();
     });
 });

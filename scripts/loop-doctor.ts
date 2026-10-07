@@ -25,7 +25,7 @@
  * which session owns a claim, and a wrong release unclaims live work.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
 
 export type ClaimFacts = {
@@ -94,6 +94,15 @@ export type ClaimFacts = {
      *     were there before.
      */
     unpushedCommits: number | null;
+    /**
+     * Minutes since anything in the claim's worktree last changed — its
+     * index, or any file `git status` names (issue #5174). Read only for a
+     * dead owner with a local branch: the owner stamp is the claiming
+     * `claude` pid, and an interactive session restarted with `--resume`
+     * gets a NEW pid while its human keeps editing. `null` = no worktree or
+     * unreadable — nobody can be at work in a worktree that does not exist.
+     */
+    worktreeQuietMinutes?: number | null;
 };
 
 /** Branch names split by where they live — see `fetchBranchNames`. */
@@ -129,6 +138,16 @@ export type ClaimVerdict = { state: ClaimVerdictState; reason: string };
  * `now-timeline.js` for the same pattern).
  */
 export const DEFAULT_MIN_AGE_HOURS = 2;
+
+/** A dead owner's claim younger than this is still `suspect` (issue #5174):
+ *  `queue:claim` adds the label BEFORE it writes the journal row that moves
+ *  the owner, so for that instant the journal can name a previous, dead
+ *  claimant. Minutes, not the 2 h rope — it covers a write, not a pass. */
+export const DEAD_OWNER_FLOOR_MINUTES = 5;
+
+/** A dead owner's worktree touched more recently than this is `live`
+ *  (issue #5174) — see `ClaimFacts.worktreeQuietMinutes`. */
+export const DEAD_OWNER_QUIET_MINUTES = 30;
 
 /**
  * Pure, because the alternative to a testable classifier here is a script that
@@ -197,6 +216,13 @@ export function classifyClaim(
     // may hold uncommitted edits the count cannot see); nothing at all is an
     // `orphan` at once. Both are handed to the next pass as `resume`.
     if (facts.ownerAlive === false && facts.hasLocalBranch) {
+        const quiet = facts.worktreeQuietMinutes ?? null;
+        if (quiet !== null && quiet < DEAD_OWNER_QUIET_MINUTES) {
+            return {
+                state: "live",
+                reason: `owner stamp is dead but its worktree changed ${quiet.toFixed(0)}m ago — a resumed session may be at work`,
+            };
+        }
         const n = facts.unpushedCommits ?? 0;
         return {
             state: "recoverable",
@@ -206,7 +232,10 @@ export function classifyClaim(
                     : "owning process is gone and its local branch holds no commit (its worktree may hold uncommitted WIP) — the next pass resumes it; the label is NOT released",
         };
     }
-    if (facts.ownerAlive === false) {
+    if (
+        facts.ownerAlive === false &&
+        facts.ageHours * 60 >= DEAD_OWNER_FLOOR_MINUTES
+    ) {
         return {
             state: "orphan",
             reason: "owning process is gone, no branch, no PR — the next pass picks it up from scratch",
@@ -621,7 +650,9 @@ export function buildClaimFacts(
      * `null` ("unknown"), so every existing caller keeps exactly the verdicts
      * it had before issue #3698.
      */
-    unpushedCommits: number | null = null
+    unpushedCommits: number | null = null,
+    /** `ClaimFacts.worktreeQuietMinutes`, gathered by the caller (I/O). */
+    worktreeQuietMinutes: number | null = null
 ): ClaimFacts {
     const suffix = new RegExp(`(^|/)issue-${issue.number}$`);
     const matches = (names: string[]): boolean =>
@@ -640,7 +671,73 @@ export function buildClaimFacts(
             (now - new Date(issue.updatedAt).getTime()) / (1000 * 60 * 60),
         ownerAlive,
         unpushedCommits,
+        worktreeQuietMinutes,
     };
+}
+
+/**
+ * Minutes since the claim's worktree last changed (issue #5174): the newest
+ * mtime among its index and every path `git status` names. The worktree is
+ * found by BRANCH (`git worktree list`), so its directory name is irrelevant.
+ * `null` on every failure shape and when no worktree holds the branch.
+ */
+export function worktreeQuietMinutes(
+    issue: number,
+    now: number,
+    runner: ShRunner = shChecked,
+    mtimeMs: (path: string) => number | null = statMtimeMs
+): number | null {
+    const suffix = new RegExp(`(^|/)issue-${issue}$`);
+    let list: string;
+    try {
+        list = runner("git", ["worktree", "list", "--porcelain"]);
+    } catch {
+        return null;
+    }
+    let path: string | null = null;
+    let current: string | null = null;
+    for (const line of list.split("\n")) {
+        if (line.startsWith("worktree ")) current = line.slice(9);
+        else if (
+            line.startsWith("branch ") &&
+            suffix.test(line.slice(7).replace(/^refs\/heads\//, ""))
+        )
+            path = current;
+    }
+    if (path === null) return null;
+    let newest: number | null = null;
+    const see = (p: string): void => {
+        const m = mtimeMs(p);
+        if (m !== null && (newest === null || m > newest)) newest = m;
+    };
+    try {
+        const index = runner("git", [
+            "-C",
+            path,
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "index",
+        ]).trim();
+        if (index) see(index);
+        const status = runner("git", ["-C", path, "status", "--porcelain"]);
+        for (const line of status.split("\n")) {
+            const rel = line.slice(3).split(" -> ").pop()?.trim();
+            if (rel) see(`${path}/${rel}`);
+        }
+    } catch {
+        return null;
+    }
+    if (newest === null) return null;
+    return Math.max(0, (now - newest) / 60000);
+}
+
+function statMtimeMs(path: string): number | null {
+    try {
+        return statSync(path).mtimeMs;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -730,6 +827,8 @@ export function classifyClaims(
         probe?: ProcessProbe;
         /** The runner `countUnpushedCommits` uses — the tests' seam. */
         countRunner?: ShRunner;
+        /** `worktreeQuietMinutes` — the tests' seam. */
+        worktreeQuiet?: (issue: number, now: number) => number | null;
     }
 ): ClaimClassification[] {
     const now = deps.now ?? Date.now();
@@ -748,6 +847,12 @@ export function classifyClaims(
                 deps.countRunner
             )
         );
+        // Read only where it can move a verdict: `git status` per claim is
+        // not free, and only a dead owner's local branch consults it.
+        if (facts.ownerAlive === false && facts.hasLocalBranch)
+            facts.worktreeQuietMinutes = (
+                deps.worktreeQuiet ?? worktreeQuietMinutes
+            )(issue.number, now);
         return {
             issue: issue.number,
             title: issue.title,
