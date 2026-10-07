@@ -181,6 +181,37 @@ function colourSpellCastHeads(): [string, TriggerHeadIR][] {
 }
 
 /**
+ * CR 603.2 + 205.2a — "when[ever] <caster> casts a <type> spell": one row per
+ * (opener, caster, card type). Exact rows over the three type words the corpus
+ * prints on a cast head (CR 205.2a: creature, enchantment, instant); a
+ * neighbour the rows do not spell ("an artifact spell", "a creature spell with
+ * flying") stays `unparsed`. The type narrows the SAME `spell-cast` head the
+ * colour rows narrow (`SpellFilter.types`), so the event, the scope and the
+ * lowering are shared.
+ */
+function typeSpellCastHeads(): [string, TriggerHeadIR][] {
+    const casters = [
+        ["you cast", "you"],
+        ["an opponent casts", "opponent"],
+        ["a player casts", "any"],
+    ] as const;
+    const types = [
+        ["a creature spell", "Creature"],
+        ["an enchantment spell", "Enchantment"],
+        ["an instant spell", "Instant"],
+    ] as const;
+    const rows: [string, TriggerHeadIR][] = [];
+    for (const opener of ["when", "whenever"])
+        for (const [phrase, scope] of casters)
+            for (const [noun, type] of types)
+                rows.push([
+                    `${opener} ${phrase} ${noun}`,
+                    { kind: "spell-cast", scope, filter: { types: [type] } },
+                ]);
+    return rows;
+}
+
+/**
  * Heads whose subject is NOT the source. Exact phrases, lowercase.
  *
  * "the end step" is deliberately absent while "your end step" and "each end
@@ -296,7 +327,21 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         { kind: "spell-cast", scope: "opponent" },
     ],
     ["whenever a player casts a spell", { kind: "spell-cast", scope: "any" }],
+    // The "when" opener reads the same event as "whenever" (CR 603.1): only
+    // the plain "a player casts a spell" is printed with it.
+    ["when a player casts a spell", { kind: "spell-cast", scope: "any" }],
     ...colourSpellCastHeads(),
+    // CR 105.2 — a colour LIST: any-of, which is `SpellFilter.colors`' own
+    // semantics (`matchesSpellFilter` — "some wanted colour is on the spell").
+    [
+        "whenever you cast a spell that's white, blue, black, or red",
+        {
+            kind: "spell-cast",
+            scope: "you",
+            filter: { colors: ["W", "U", "B", "R"] },
+        },
+    ],
+    ...typeSpellCastHeads(),
 ]);
 
 /** Self-subject heads: `<opener> <self phrase> <tail>` (CR 109.2). */

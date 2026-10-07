@@ -241,8 +241,13 @@ describe("spell-cast colour heads — refusals stay fail-closed (issue #4135)", 
 });
 
 describe("spell-cast colour heads — the table (issue #4135)", () => {
+    // The single-colour rows only: the type rows and the colour LIST are
+    // pinned by `spellCastTypeHeads.test.ts` (issue #4543).
     const rows = [...OTHER_HEADS].filter(
-        ([, head]) => head.kind === "spell-cast" && head.filter !== undefined
+        ([phrase, head]) =>
+            head.kind === "spell-cast" &&
+            head.filter !== undefined &&
+            / a (non)?(white|blue|black|red|green) spell$/.test(phrase)
     );
 
     it("'nonred' EXCLUDES red — never a list of the other four (CR 105.2c)", () => {
