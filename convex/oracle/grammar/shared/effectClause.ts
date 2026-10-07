@@ -849,6 +849,9 @@ export type EffectSentenceIR =
            */
           readonly kind: "divide-library-piles";
           readonly count: AmountIR;
+          /** Who splits and who picks: an opponent splits and you pick
+           *  ("separates"), or you split and an opponent picks ("chooses"). */
+          readonly form: "separates" | "chooses";
       }
     | {
           /**
@@ -1276,7 +1279,7 @@ export function assembleSentences(
             continue;
         }
         if (sentence.role === "reveal-until") {
-            if (restrictions.length > 0)
+            if (restrictions.length > 0 || window !== null || piles !== null)
                 return {
                     ok: false,
                     reason: "an effect sentence follows an activation restriction",
@@ -1312,7 +1315,11 @@ export function assembleSentences(
                     ok: false,
                     reason: "a pile division is not followed by where its piles go",
                 };
-            effects.push({ kind: "divide-library-piles", count: piles.count });
+            effects.push({
+                kind: "divide-library-piles",
+                count: piles.count,
+                form: piles.form,
+            });
             piles = null;
             continue;
         }

@@ -2103,11 +2103,19 @@ function lowerSentenceBody(
                         player: "controller",
                         count: count.value,
                     },
-                    divider: "opponent",
-                    chooser: "controller",
+                    divider:
+                        sentence.form === "separates"
+                            ? "opponent"
+                            : "controller",
+                    chooser:
+                        sentence.form === "separates"
+                            ? "controller"
+                            : "opponent",
                     dividePrompt: "Separate the revealed cards into two piles.",
                     pickPrompt:
-                        "Choose a pile: it goes to your hand, the other to your graveyard.",
+                        sentence.form === "separates"
+                            ? "Choose a pile: it goes to your hand, the other to your graveyard."
+                            : "Choose a pile: it goes to the other player's hand, the rest to their graveyard.",
                     chosenBind: "$chosenPile",
                     otherBind: "$otherPile",
                     chosenEffect: [

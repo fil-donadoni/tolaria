@@ -126,12 +126,12 @@ describe("Library reveal — golden fixtures", () => {
                             player: "controller",
                             count: 5,
                         },
-                        divider: "opponent",
-                        chooser: "controller",
+                        divider: "controller",
+                        chooser: "opponent",
                         dividePrompt:
                             "Separate the revealed cards into two piles.",
                         pickPrompt:
-                            "Choose a pile: it goes to your hand, the other to your graveyard.",
+                            "Choose a pile: it goes to the other player's hand, the rest to their graveyard.",
                         chosenBind: "$chosenPile",
                         otherBind: "$otherPile",
                         chosenEffect: [
@@ -339,6 +339,13 @@ describe("Library reveal — refusals (fail-closed)", () => {
         expect(
             refused(
                 `${window} An opponent separates those cards into two piles. Put one pile into your hand and the other on the bottom of your library in any order.`
+            )
+        ).toBe("unparsed");
+    });
+    it("a reveal-until window inside a pending pile division is refused", () => {
+        expect(
+            refused(
+                `${window} An opponent separates those cards into two piles. Reveal cards from the top of your library until you reveal a land card. Put that card into your hand and the rest into your graveyard.`
             )
         ).toBe("unparsed");
     });
