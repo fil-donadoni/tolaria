@@ -420,6 +420,9 @@ export function headPronounReferent(
         // CR 603.6c — the source has LEFT; "it" would name a new object in
         // whatever zone it went to (CR 400.7), which no selector here reads.
         case "leaves":
+            return null;
+        // CR 120.3 — `self`: the source is the receiver and is still the
+        // object "it" names; `host` names the Aura's host, not the Aura.
         case "damage-taken":
             return head.scope === "self" ? "source" : null;
         case "phase":

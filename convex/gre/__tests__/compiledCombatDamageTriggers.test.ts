@@ -55,6 +55,19 @@ const JACKAL_PUP = register(
     })
 );
 
+const HIGH_PRIEST = register(
+    "test-4544-high-priest",
+    oracleCard({
+        name: "High Priest of Penance",
+        manaCost: "{W}{B}",
+        typeLine: "Creature — Human Cleric",
+        oracleText:
+            "Whenever this creature is dealt damage, you may destroy target nonland permanent.",
+        power: "1",
+        toughness: "1",
+    })
+);
+
 const ABYSSAL_SPECTER = register(
     "test-4544-abyssal-specter",
     oracleCard({
@@ -191,6 +204,17 @@ describe("'whenever this creature is dealt damage, it deals that much damage to 
         });
         applyAllCombatDamage(state, { attacker: { blocker: 3 } });
         expect(triggerIds(state)).not.toContain("jackal-pup-trigger");
+    });
+});
+
+describe("a damage head that announces a target (CR 603.3d)", () => {
+    it("announces the target as the trigger goes on the stack — the rebuilt ability keeps targetRequirement", () => {
+        const state = combat({ attackerDef: HIGH_PRIEST.id, blocked: true });
+        applyAllCombatDamage(state, { attacker: { blocker: 1 } });
+        expect(triggerIds(state)).toEqual(["high-priest-of-penance-trigger"]);
+        expect(state.stack[0]?.targets).toEqual([
+            { type: "permanent", id: "blocker" },
+        ]);
     });
 });
 

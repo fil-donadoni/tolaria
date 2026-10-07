@@ -250,6 +250,17 @@ describe("combat and damage trigger heads — refusals (issue #4544)", () => {
         ).toBe(true);
     });
 
+    it("refuses 'it' behind 'leaves the battlefield': the source has left, so the pronoun names nothing this grammar reads (CR 603.6c)", () => {
+        expect(
+            refused(
+                creature(
+                    "Test Leaver",
+                    "When this creature leaves the battlefield, return it to its owner's hand."
+                )
+            )
+        ).toBe(true);
+    });
+
     it("refuses 'is dealt damage' on a subject other than the source", () => {
         expect(
             refused(

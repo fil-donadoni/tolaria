@@ -9,6 +9,7 @@ import type {
     GameEvent,
     PermanentView,
     SpellContext,
+    TargetRequirement,
     TriggerStateView,
     TriggeredAbility,
 } from "../../types";
@@ -93,6 +94,10 @@ export interface DamageTakenTriggerArgs {
      *  for the bot's valuer, never executed. Passed straight onto the trigger,
      *  like `phaseTrigger`'s `aiEffects`. */
     aiEffects?: EffectOp[];
+    /** CR 603.3d — targets announced as the trigger goes on the stack
+     *  ("…is dealt damage, destroy target nonland permanent"). Forwarded
+     *  verbatim, like `attacksTrigger`; the script reads slot `{ target: 0 }`. */
+    targetRequirement?: TargetRequirement;
 }
 
 export function damageTakenTrigger(
@@ -110,6 +115,7 @@ export function damageTakenTrigger(
         effects,
         resolve,
         aiEffects,
+        targetRequirement,
     } = args;
 
     if (effects === undefined && resolve === undefined) {
@@ -178,6 +184,7 @@ export function damageTakenTrigger(
         id,
         oracleText,
         event: "DAMAGE_DEALT",
+        ...(targetRequirement ? { targetRequirement } : {}),
         matches,
         ...(aiEffects ? { aiEffects } : {}),
         ...(effects
