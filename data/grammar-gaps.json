@@ -3799,6 +3799,10 @@
             "issue": 4846
         },
         {
+            "kind": "grammar",
+            "issue": 5210
+        },
+        {
             "kind": "mechanic",
             "issue": 4747
         },
