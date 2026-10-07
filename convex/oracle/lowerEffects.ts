@@ -2591,6 +2591,12 @@ function lowerSentenceBody(
                 paidBind: bind,
             });
             if (!inner.ok) return inner;
+            // Nominating 0 is "if you don't" ONLY when the payoff scales with
+            // X; a flat payoff would be granted for a payment of {0}.
+            if (!JSON.stringify(inner.value).includes(`"ref":"${bind}"`))
+                return unlowerable(
+                    "a variable payment whose payoff never reads X (CR 107.3f)"
+                );
             return lowered([
                 {
                     op: "payVariableMana",

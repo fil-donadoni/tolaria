@@ -300,6 +300,14 @@ describe("variable payment — refused neighbours", () => {
         expect(spell("If you do, you gain 2 life.").state).toBe("unparsed");
     });
 
+    it("a payoff that never reads X would be free for a payment of {0}", () => {
+        expect(
+            enchantment(
+                "When this enchantment enters, you may pay {X}. If you do, draw a card."
+            ).state
+        ).toBe("unparsed");
+    });
+
     it("a fixed leg beside {X} is a different payment", () => {
         expect(
             enchantment(
