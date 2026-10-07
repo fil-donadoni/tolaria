@@ -1251,6 +1251,11 @@
         },
         {
             "kind": "grammar",
+            "key": "spell › effect clause › Choose a land type and a basic land type",
+            "issue": 5173
+        },
+        {
+            "kind": "grammar",
             "key": "spell › effect clause › Choose a nonland card name",
             "issue": 4550
         },
