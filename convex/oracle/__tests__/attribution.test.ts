@@ -95,25 +95,25 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("mana-ability: the rider sentence after a FIXED production (Ancient Tomb)", () => {
-        // CR 605.1a — issue #3828 taught this rider to a CHOICE production
-        // (the painland cycle, `dealsDamageToControllerOnColoredTap`); a FIXED
-        // production's identical sentence is the unconditional
-        // `dealsDamageToControllerOnTap` (Ancient Tomb), a different field the
-        // grammar does not read yet, so the diagnostic still fires here.
+    it("mana-ability: a rider sentence the grammar has no rule for (Undiscovered Paradise)", () => {
+        // CR 605.1a — the rider grammar reads a tap ping, a draw and the
+        // depletion sacrifice (issue #4542); a delayed return of the land at
+        // the next untap step has no rule (and no engine surface), so the
+        // diagnostic still names the rider.
         expect(
             attributionOf({
-                name: "Ancient Tomb",
+                name: "Undiscovered Paradise",
                 manaCost: "",
                 typeLine: "Land",
-                oracleText: "{T}: Add {C}{C}. This land deals 2 damage to you.",
+                oracleText:
+                    "{T}: Add one mana of any color. During your next untap step, as you untap your permanents, return this land to its owner's hand.",
                 power: undefined,
                 toughness: undefined,
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_ABILITY_RIDER],
-            span: "This land deals 2 damage to you",
+            span: "During your next untap step, as you untap your permanents, return this land to its owner's hand",
         });
     });
 
