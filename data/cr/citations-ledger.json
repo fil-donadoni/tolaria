@@ -29637,7 +29637,7 @@
         {"id":"611.2a","line":"// the duration-scoped removals (CR 611.2a). Their producers now write real","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// the param carries the animation's own duration (CR 611.2a), so folding the","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// this creature (CR 611.2a) via the pump Op. No per-card test","sites":1,"status":"baseline"},
-        {"id":"611.2a","line":"// to the announced target creature until end of turn (CR 611.2a).","sites":2,"status":"baseline"},
+        {"id":"611.2a","line":"// to the announced target creature until end of turn (CR 611.2a).","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// trample to the announced target creature until end of turn (CR 611.2a).","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// trample until end of turn.\" (CR 611.2a temporary P/T + keyword grant; CR","sites":1,"status":"baseline"},
         {"id":"611.2a","line":"// trample, both until end of turn (CR 611.2a / 514.2 expiry).","sites":1,"status":"baseline"},
