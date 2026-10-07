@@ -803,6 +803,7 @@ export function compiledTwin(definition: CardDefinition): TwinResult {
 const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     entered: "PERMANENT_ENTERED",
     died: "CREATURE_DIED",
+    left: "PERMANENT_LEFT",
     attacks: "ATTACKERS_DECLARED",
     // CR 603.2 — the head spans two events; the pairing key names the first,
     // which is what `eventsOf` below compares a scalar against. A hand-written

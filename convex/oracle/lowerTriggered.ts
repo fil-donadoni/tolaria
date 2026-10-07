@@ -63,6 +63,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             // type filter: a second authority on the same fact is a second
             // thing to get wrong.
             return { kind: "died", scope: head.scope };
+        case "leaves":
+            return { kind: "left", scope: head.scope };
         case "attacks":
             // CR 508.3a — `self` is the head as it shipped before the scoped
             // reading existed, and the field is OMITTED there rather than
@@ -134,6 +136,11 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
+        // CR 607.2a — "the exiled card" behind the source's own departure
+        // names what this object's linked exile instruction exiled. Read
+        // here so the sentence parses; the card pass (`linkExile.ts`) then
+        // refuses the pair, which no Op encodes without a duration.
+        ...(head.kind === "leaves" ? { exiledCard: true as const } : {}),
         // CR 608.2h — "it". `headPronounReferent` is the ONE authority on
         // which object the head named (the grammar refuses the pronoun behind
         // a head that named none), and this turns its answer into the

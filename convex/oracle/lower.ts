@@ -40,6 +40,7 @@ import {
 import type { HostNoun } from "./grammar/shared/staticClause";
 import { destroysEveryLand } from "./lowerEffects";
 import { lowerTriggeredAbility } from "./lowerTriggered";
+import { linkExileAndReturn } from "./linkExile";
 import { sortKeys } from "./gates";
 import { readManaCost } from "./manaCost";
 import type { CompiledDefinition, OracleCard, ParsedTypeLine } from "./types";
@@ -691,6 +692,36 @@ export function lowerCard(
         const err = lowerLine(line, card, acc);
         if (err !== null)
             return { ok: false, reason: err, fragment: line.line };
+    }
+    // CR 610.3 — an "until" exile's return is owed by the whole card, never
+    // printed on a line; a printed CR 607.2a return is refused (`linkExile.ts`).
+    const link = linkExileAndReturn(
+        [
+            ...acc.compiledTriggeredAbilities.map((a) => a.effects),
+            ...acc.activatedAbilities.map((a) => a.effects ?? []),
+        ],
+        [
+            ...acc.grantTemplates.map((a) => a.effects ?? []),
+            ...acc.triggeredGrantTemplates.map((a) => a.effects),
+        ]
+    );
+    if (!link.ok)
+        return { ok: false, reason: link.reason, fragment: card.oracleText };
+    // CR 610.3 + 610.3c — the second one-shot effect: when this permanent
+    // leaves, what it exiled returns under its owner's control. Gated on a
+    // bundle being held, because the effect exists only if the exile did.
+    if (link.untilLeaves) {
+        const index = acc.compiledTriggeredAbilities.length;
+        acc.compiledTriggeredAbilities.push({
+            id:
+                index === 0
+                    ? `${slugify(card.name)}-trigger`
+                    : `${slugify(card.name)}-trigger-${index + 1}`,
+            oracleText: `When ${card.name} leaves the battlefield, return the exiled card to the battlefield under its owner's control.`,
+            head: { kind: "left", scope: "self" },
+            condition: { kind: "holds-exile-bundle" },
+            effects: [{ op: "returnExiledForSource" }],
+        });
     }
 
     const definition: CompiledDefinition = {

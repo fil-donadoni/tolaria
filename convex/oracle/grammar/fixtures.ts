@@ -3949,4 +3949,64 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 610.3 / ADR 0028 (issue #4526) — "exile <target> until this
+    // permanent leaves the battlefield". Exhibits the "return only observable
+    // after an exile armed a bundle" form: the canned smoke scenario has no
+    // bundle to return, so this fixture is the evidence that the pair the
+    // grammar emits — the arming exile and the synthesized, bundle-gated
+    // departure trigger — is the one the hand-written catalogue writes
+    // (Banishing Light's own hand-written twin). The printed CR 607.2a pair
+    // (Journey to Nowhere) is refused, not fixtured: it has no duration, and
+    // `exileWithAttachments` applies CR 610.3b (`linkExile.ts`).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Banishing Light",
+            manaCost: "{2}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
+            oracleId: "f28b21a6-f7ce-437a-8c5b-0423cb55cefb",
+            layout: "normal",
+        },
+        expected: {
+            name: "Banishing Light",
+            types: ["Enchantment"],
+            manaCost: { X: 2, W: 1 },
+            oracleText:
+                "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "banishing-light-trigger",
+                    oracleText:
+                        "When this enchantment enters, exile target nonland permanent an opponent controls until this enchantment leaves the battlefield.",
+                    head: { kind: "entered", scope: "self" },
+                    targetRequirement: {
+                        type: [
+                            "Artifact",
+                            "Battle",
+                            "Creature",
+                            "Enchantment",
+                            "Land",
+                            "Planeswalker",
+                        ],
+                        count: 1,
+                        excludeTypes: ["Land"],
+                        controller: "opponent",
+                    },
+                    effects: [
+                        { op: "exileWithAttachments", target: { target: 0 } },
+                    ],
+                },
+                {
+                    id: "banishing-light-trigger-2",
+                    oracleText:
+                        "When Banishing Light leaves the battlefield, return the exiled card to the battlefield under its owner's control.",
+                    head: { kind: "left", scope: "self" },
+                    condition: { kind: "holds-exile-bundle" },
+                    effects: [{ op: "returnExiledForSource" }],
+                },
+            ],
+        },
+    },
 ]);

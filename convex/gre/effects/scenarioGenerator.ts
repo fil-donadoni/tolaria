@@ -181,6 +181,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // the trigger resolves with its own source gone too.
     died: (head) =>
         !("scope" in head && (head.scope === "self" || head.scope === "host")),
+    // CR 603.6c — the source's own departure, the case this paragraph names.
+    left: () => false,
     attacks: () => true,
     // CR 508.3a / 509.3a — the source watches OTHER creatures declare; nothing
     // in either event moves it.
