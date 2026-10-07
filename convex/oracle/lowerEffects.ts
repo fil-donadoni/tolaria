@@ -133,7 +133,7 @@ export interface SiteOptions {
      */
     readonly sourceSacrificed?: true;
     /**
-     * CR 608.2m — the site is a spell's own text (an instant or sorcery
+     * CR 608.2n — the site is a spell's own text (an instant or sorcery
      * resolving), so "shuffle this spell into its owner's library" has a card
      * on the stack to move. Absent = an ability's text: its stack item is no
      * card, and the sentence is refused rather than lowered into a no-op.
@@ -1999,7 +1999,7 @@ function lowerSentenceBody(
             ]);
         }
         case "shuffle-self-into-library": {
-            // CR 608.2m + CR 701.24a — the resolving spell, never an ability.
+            // CR 608.2n + CR 701.24a — the resolving spell, never an ability.
             if (site.resolvingSpell !== true)
                 return unlowerable(
                     "only a spell's own text has a card to shuffle into the library"

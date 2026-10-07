@@ -155,6 +155,11 @@ export interface CatalogueBuild {
     readonly unjoinable: number;
 }
 
+/** An Alchemy rebalance's name: "A-" before the paper card's. */
+export function isDigitalOnlyRebalance(name: string): boolean {
+    return name.startsWith("A-");
+}
+
 /** Build the artifact from the tree. Every input is committed and offline. */
 export function buildCatalogue(repoRoot: string): CatalogueBuild {
     const lockfile = JSON.parse(
@@ -192,6 +197,12 @@ export function buildCatalogue(repoRoot: string): CatalogueBuild {
         if (row.state !== "ready" || row.definition === undefined) continue;
         const entry = indexByOracleId.get(row.oracleId);
         if (entry === undefined) {
+            // An Alchemy rebalance ("A-Name") is digital-only: Scryfall no
+            // longer lists one, so it has no first printing to join. The
+            // paper card it rebalances is its own row and is joined as usual;
+            // this one has no id, rarity or set to ship under, and no
+            // hand-written twin exists to be left unchecked.
+            if (isDigitalOnlyRebalance(row.name)) continue;
             unjoinable++;
             continue;
         }

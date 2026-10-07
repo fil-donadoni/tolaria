@@ -717,7 +717,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 608.2m + CR 701.24a — "Shuffle {self} into its owner's
+           * CR 608.2n + CR 701.24a — "Shuffle {self} into its owner's
            * library": the resolving spell goes into its owner's library
            * instead of its graveyard. Spell sites only; the lowering refuses
            * every other site (an ability has no card to shuffle).
