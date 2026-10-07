@@ -86,6 +86,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             };
         case "damage-taken":
             return { kind: "damage-taken", scope: head.scope };
+        case "attacks-unblocked":
+            return { kind: "attacks-unblocked" };
         case "phase":
             return { kind: "phase", phase: head.phase, scope: head.scope };
         case "spell-cast":

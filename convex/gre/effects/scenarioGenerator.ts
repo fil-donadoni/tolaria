@@ -192,6 +192,8 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // on the battlefield when the trigger is put on the stack.
     "damage-dealt": () => true,
     "damage-taken": () => true,
+    // CR 509.1h — the attacker is still attacking when the block graph is final.
+    "attacks-unblocked": () => true,
     phase: () => true,
     "spell-cast": () => true,
 };
