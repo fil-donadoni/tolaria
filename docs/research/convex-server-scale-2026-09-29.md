@@ -194,6 +194,23 @@ What it says:
 The throwaway project was created for this run only and deleted after it
 (2026-10-07, Management API; PR #5149 thread).
 
+### The armed budgets (issue #4862, 2026-10-07)
+
+`bun run check:convex-heap` (health only) now fails on a module over budget at
+the synthetic 35k-row corpus, with the Node heap read as isolate bytes through
+0.65. On the tree at the arming: `game.ts` 15.8 MiB today, **32.1 MiB** at 35k
+(49.4 MiB in Node); no module that reads no definition is near 4 MiB; the
+client catalogue is 2.3 MiB at 4,360 rows and 11.5 MiB at 35,000 rows, in the
+page and in the worker each, against 15 MiB. The catalogue budget is 34 MiB,
+not the PRD's 32 (ADR 0113 Amendment IV, § The budgets, armed).
+
+Finding the cause of a failure is § Method's bundle attribution
+(`metafile.outputs[*].inputs[*].bytesInOutput`). Two traps from proving the
+check: the probe measures what stays reachable after `import()` returns, so a
+module-local array is collected and a probe pool must be held on `globalThis`;
+and the minified bundle drops an unused `Array.from(...)`, so a probe pool is
+built with a loop.
+
 ## Checked and fine
 
 - The Bot searches in the client worker; no server function runs a search, so
