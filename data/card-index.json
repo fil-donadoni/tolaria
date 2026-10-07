@@ -13128,6 +13128,16 @@
         "firstPrintSet": "lci"
     },
     {
+        "name": "Deep-Slumber Titan",
+        "scryfallId": "cbe3a68e-c29e-48a8-a2d7-49c8bff3dd8a",
+        "oracleId": "d8f2c12c-d463-42dc-95f1-2daf68f99873",
+        "firstSet": "shm",
+        "firstPrintId": "cbe3a68e-c29e-48a8-a2d7-49c8bff3dd8a",
+        "firstPrintSet": "shm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Deeptread Merrow",
         "scryfallId": "42ebd6ff-2b1c-4e93-81cc-81998459c5c7",
         "oracleId": "b301b371-e99e-43cc-af7f-dbd7b2abe5f8",
@@ -15194,6 +15204,16 @@
         "firstSet": "m12",
         "firstPrintId": "00dcb25e-764b-47d6-bec4-225aaace77b0",
         "firstPrintSet": "m12",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dromad Purebred",
+        "scryfallId": "0106caf1-2201-4661-96a5-56af02963fa6",
+        "oracleId": "c7adac8f-8187-49a0-80b2-3281d42f1b92",
+        "firstSet": "rav",
+        "firstPrintId": "0106caf1-2201-4661-96a5-56af02963fa6",
+        "firstPrintSet": "rav",
         "rarity": "common",
         "source": "compiled"
     },
@@ -26018,6 +26038,16 @@
         "firstSet": "mmq",
         "firstPrintId": "f4c58683-65a6-4df9-8952-458e397b1374",
         "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "High Priest of Penance",
+        "scryfallId": "84a3ff8d-6d7e-49f0-8d30-7f8c23db568b",
+        "oracleId": "d8070ee7-dbd1-4d38-9715-ba14e103e379",
+        "firstSet": "gtc",
+        "firstPrintId": "84a3ff8d-6d7e-49f0-8d30-7f8c23db568b",
+        "firstPrintSet": "gtc",
         "rarity": "rare",
         "source": "compiled"
     },
@@ -38462,6 +38492,16 @@
         "source": "compiled"
     },
     {
+        "name": "Odylic Wraith",
+        "scryfallId": "3a3b7cd1-051c-43a8-b5f0-72a9d704efbc",
+        "oracleId": "613fa223-856e-49c4-8952-224895e00b5e",
+        "firstSet": "wth",
+        "firstPrintId": "3a3b7cd1-051c-43a8-b5f0-72a9d704efbc",
+        "firstPrintSet": "wth",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ogre Arsonist",
         "scryfallId": "b67e28b2-9d25-4873-8db2-1f0853ab0c47",
         "oracleId": "00af96af-5eae-4044-a2f7-a08cd0699d1e",
@@ -39096,6 +39136,16 @@
         "firstSet": "ice",
         "firstPrintId": "92e55b10-375f-4b4f-b676-3b9b8085fdd2",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Order of Yawgmoth",
+        "scryfallId": "555e858d-d8d2-4626-9343-070cf86949ab",
+        "oracleId": "c1795e9c-31c9-4892-a796-7656e09257b3",
+        "firstSet": "usg",
+        "firstPrintId": "555e858d-d8d2-4626-9343-070cf86949ab",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Ordered Migration",
@@ -49278,6 +49328,16 @@
         "firstSet": "xln",
         "firstPrintId": "8e900d0d-6f35-4e5d-9365-6ade227d218d",
         "firstPrintSet": "xln",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Shinka Gatekeeper",
+        "scryfallId": "8fdaf49b-9524-4824-807e-c40fcb381742",
+        "oracleId": "7792d3af-5c64-4d0a-a2b3-b903d787b0ab",
+        "firstSet": "bok",
+        "firstPrintId": "8fdaf49b-9524-4824-807e-c40fcb381742",
+        "firstPrintSet": "bok",
         "rarity": "common",
         "source": "compiled"
     },
@@ -62160,6 +62220,16 @@
         "firstSet": "leg",
         "firstPrintId": "a38059a8-be69-4cc1-969b-951c610f2f11",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Wall of Hope",
+        "scryfallId": "b463b3e1-e314-4a65-a89e-0712f630b016",
+        "oracleId": "e43055c7-2245-4544-b0b4-ee30dc1ebf14",
+        "firstSet": "lgn",
+        "firstPrintId": "b463b3e1-e314-4a65-a89e-0712f630b016",
+        "firstPrintSet": "lgn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Wall of Ice",

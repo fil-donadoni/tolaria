@@ -812,6 +812,7 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     "combat-damage-to-player": "DAMAGE_DEALT",
     "damage-dealt": "DAMAGE_DEALT",
     "damage-taken": "DAMAGE_DEALT",
+    "attacks-unblocked": "ATTACKER_UNBLOCKED",
     phase: "PHASE_BEGIN",
     "spell-cast": "SPELL_CAST",
 };

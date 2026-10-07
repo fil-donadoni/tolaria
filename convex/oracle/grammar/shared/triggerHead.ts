@@ -102,10 +102,21 @@ export type TriggerHeadIR =
     | {
           readonly kind: "damage-dealt";
           readonly source: "self" | "host";
-          readonly recipient: "any" | "opponent" | "creature";
+          readonly recipient: "any" | "opponent" | "creature" | "player";
       }
-    /** CR 120.3 / 303.4b — "whenever enchanted creature is dealt damage". */
-    | { readonly kind: "damage-taken"; readonly scope: "host" }
+    /**
+     * CR 120.3 / 303.4b — "whenever [enchanted / this] creature is dealt
+     * damage": the receiver is the Aura's host (`host`) or the source itself
+     * (`self`, CR 109.2).
+     */
+    | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
+    /**
+     * CR 508.3a + CR 509.1h — "whenever this creature attacks and isn't
+     * blocked": ONE Oracle line over the `ATTACKER_UNBLOCKED` event, emitted
+     * once per unblocked attacker when the block graph is final. A different
+     * moment from "attacks" (declaration), so a distinct head, never a flag.
+     */
+    | { readonly kind: "attacks-unblocked" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -331,6 +342,25 @@ export const SELF_HEADS: readonly {
         tail: " deals damage to a creature",
         ir: { kind: "damage-dealt", source: "self", recipient: "creature" },
     },
+    // CR 120.3 + CR 102.1 — damage of any kind to a PLAYER (either one: "a
+    // player" is symmetric, unlike "an opponent").
+    {
+        opener: "whenever ",
+        tail: " deals damage to a player",
+        ir: { kind: "damage-dealt", source: "self", recipient: "player" },
+    },
+    // CR 120.3 — the source as the receiver; "that much" is the amount dealt.
+    {
+        opener: "whenever ",
+        tail: " is dealt damage",
+        ir: { kind: "damage-taken", scope: "self" },
+    },
+    // CR 509.1h — the block graph is final and this attacker has no blocker.
+    {
+        opener: "whenever ",
+        tail: " attacks and isn't blocked",
+        ir: { kind: "attacks-unblocked" },
+    },
 ];
 
 /**
@@ -382,6 +412,7 @@ export function headPronounReferent(
         case "attacks-or-blocks":
             return "combatant";
         case "combat-damage-to-player":
+        case "attacks-unblocked":
             return "source";
         // CR 303.4b — "enchanted creature" names the Aura's host, not the Aura.
         case "damage-dealt":
@@ -389,7 +420,11 @@ export function headPronounReferent(
         // CR 603.6c — the source has LEFT; "it" would name a new object in
         // whatever zone it went to (CR 400.7), which no selector here reads.
         case "leaves":
+            return null;
+        // CR 120.3 — `self`: the source is the receiver and is still the
+        // object "it" names; `host` names the Aura's host, not the Aura.
         case "damage-taken":
+            return head.scope === "self" ? "source" : null;
         case "phase":
         case "spell-cast":
             return null;

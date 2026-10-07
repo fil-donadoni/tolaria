@@ -1901,6 +1901,50 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 120.3 + CR 109.2 — "Whenever this creature is dealt damage, it deals
+    // that much damage to you": the receiver is the source itself, and "that
+    // much" is the damage the event dealt, `DAMAGE_DEALT.amount`. Exhibits a
+    // `dealDamage` amount the canned smoke scenario cannot know, at a head the
+    // goldens above only reach through `gainLife` (issue #4544).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "3707ab74-9aec-4d30-86e0-ffa5f72d5b4f",
+            name: "Jackal Pup",
+            manaCost: "{R}",
+            typeLine: "Creature — Jackal",
+            oracleText:
+                "Whenever this creature is dealt damage, it deals that much damage to you.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Jackal Pup",
+            types: ["Creature"],
+            subtypes: ["Jackal"],
+            manaCost: { R: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Whenever this creature is dealt damage, it deals that much damage to you.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "jackal-pup-trigger",
+                    oracleText:
+                        "Whenever this creature is dealt damage, it deals that much damage to you.",
+                    head: { kind: "damage-taken", scope: "self" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$event.amount" },
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 601.2c — "Return up to two target creature cards from your graveyard
     // to your hand": ONE announced group two slots wide, with the verb fanned
     // out over both ({ target: 0 } / { target: 1 }, the hand-written Force of

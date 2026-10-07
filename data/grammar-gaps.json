@@ -1942,7 +1942,7 @@
         {
             "kind": "grammar",
             "key": "triggered › condition › defending player controls no black nontoken permanents",
-            "issue": 4544
+            "issue": 5205
         },
         {
             "kind": "grammar",
@@ -2202,7 +2202,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › When a creature with mana value N or greater enters",
-            "issue": 4544
+            "issue": 5204
         },
         {
             "kind": "grammar",
@@ -2242,7 +2242,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › When this creature's power is N or greater",
-            "issue": 4544
+            "issue": 5206
         },
         {
             "kind": "grammar",
@@ -3788,6 +3788,21 @@
             "kind": "scenario",
             "key": "validate-effect-script › effects[0]: ref \"$source\" references undefined binding \"$source\" — no earlier Op binds it (bare object refs are the forEach \"$each\" of a permanents set)",
             "issue": 4025
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Put a Goblin permanent card from your hand onto the battlefield",
+            "issue": 5203
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Sacrifice that many permanents",
+            "issue": 5203
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › Pay {…}",
+            "issue": 5203
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",

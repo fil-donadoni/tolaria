@@ -2450,7 +2450,7 @@ const PUMP_PER_DOMAIN = / for each basic land type among lands you control$/;
 const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
 const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
-const DAMAGE = /^(.+) deals (\S+) damage to (.+)$/;
+const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
 const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
 const DAMAGE_DIVIDED =

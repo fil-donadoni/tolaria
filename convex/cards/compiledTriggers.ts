@@ -44,6 +44,7 @@ import type { CardDefinition } from "./types";
 import { countDomain } from "./types";
 import { getEventFieldRow } from "./eventFields";
 import type { Phase } from "../gre/types";
+import { attackerUnblockedTrigger } from "./abilities/triggers/attackerUnblockedTrigger";
 import { attacksTrigger } from "./abilities/triggers/attacksTrigger";
 import { attacksOrBlocksTrigger } from "./abilities/triggers/attacksOrBlocksTrigger";
 import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
@@ -148,10 +149,12 @@ export type CompiledTriggerHead =
     | {
           readonly kind: "damage-dealt";
           readonly source: "self" | "host";
-          readonly recipient: "any" | "opponent" | "creature";
+          readonly recipient: "any" | "opponent" | "creature" | "player";
       }
-    /** CR 120.3 / 303.4b — "whenever enchanted creature is dealt damage". */
-    | { readonly kind: "damage-taken"; readonly scope: "host" }
+    /** CR 120.3 / 303.4b — "whenever [enchanted / this] creature is dealt damage". */
+    | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
+    /** CR 509.1h — "whenever this creature attacks and isn't blocked". */
+    | { readonly kind: "attacks-unblocked" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -347,20 +350,36 @@ export function resolveCompiledTrigger(
                               player: { relation: "opponent" as const },
                           },
                       }
-                    : head.recipient === "creature"
+                    : head.recipient === "player"
                       ? {
                             target: {
-                                kind: "permanent" as const,
-                                filter: CREATURE_FILTER,
+                                kind: "player" as const,
+                                player: { relation: "any" as const },
                             },
                         }
-                      : {}),
+                      : head.recipient === "creature"
+                        ? {
+                              target: {
+                                  kind: "permanent" as const,
+                                  filter: CREATURE_FILTER,
+                              },
+                          }
+                        : {}),
             });
         case "damage-taken":
             return damageTakenTrigger({
                 ...common,
-                target: { kind: "host" },
+                // CR 109.2 — `self`: the receiver is this very permanent.
+                target:
+                    head.scope === "host"
+                        ? { kind: "host" }
+                        : {
+                              kind: "permanent",
+                              filter: { controllerRelation: "self" },
+                          },
             });
+        case "attacks-unblocked":
+            return attackerUnblockedTrigger(common);
         case "phase":
             return phaseTrigger({
                 ...common,
