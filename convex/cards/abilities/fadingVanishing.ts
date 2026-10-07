@@ -78,8 +78,9 @@ function fadingUpkeepTrigger(): TriggeredAbility {
                             type: FADE_COUNTER,
                         },
                     },
-                    op: "le",
-                    right: 0,
+                    // `right` must be a positive int, so "none left" is `< 1`.
+                    op: "lt",
+                    right: 1,
                 },
                 then: [{ op: "sacrifice", target: { ref: "$source" } }],
                 else: [
