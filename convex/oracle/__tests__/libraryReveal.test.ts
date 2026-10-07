@@ -1,4 +1,4 @@
-// Library reveal: the reveal/dig/pile Ops (CR 701.20a, CR 701.21, CR 400.7,
+// Library reveal: the reveal/dig/pile Ops (CR 701.20a, CR 700.3, CR 400.7,
 // issue #4524) — `revealUntilMatch`, `digMatchingToHand`, `divideIntoPiles`.
 //
 //  1. GOLDEN fixtures — a real corpus card compiled whole, one per accepted form.

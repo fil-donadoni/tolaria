@@ -2092,7 +2092,7 @@ function lowerSentenceBody(
         case "divide-library-piles": {
             const count = lowerAmount(sentence.count, site);
             if (!count.ok) return count;
-            // CR 701.21 — the opponent splits the revealed window, the
+            // CR 700.3 — the opponent splits the revealed window, the
             // controller takes one pile to hand and the other goes to the
             // graveyard.
             return lowered([

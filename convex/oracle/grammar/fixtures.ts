@@ -3447,7 +3447,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 701.20a + CR 701.21 (issue #4524) — a pile division of a revealed
+    // CR 701.20a + CR 700.3 (issue #4524) — a pile division of a revealed
     // library window. Exhibits the "suspends for two different players' picks"
     // and "moves cards between zones" forms the canned smoke scenario cannot
     // run: this fixture is the evidence the Op the grammar emits is the one the

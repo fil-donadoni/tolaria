@@ -840,7 +840,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.20a / CR 701.21 — a pile division of a revealed library
+           * CR 701.20a / CR 700.3 — a pile division of a revealed library
            * window: "Reveal the top N cards of your library. An opponent
            * separates those cards into two piles. Put one pile into your hand
            * and the other into your graveyard." The three printed sentences
@@ -1046,7 +1046,7 @@ export type SentenceIR =
           readonly rest: UntilRouteDestination;
       }
     /**
-     * CR 701.21 — the pile-division sentences of `divide-library-piles`.
+     * CR 700.3 — the pile-division sentences of `divide-library-piles`.
      * `pile-split` follows a revealed window ("An opponent separates those
      * cards into two piles"); `pile-split-window` is the window and the split
      * in one sentence ("Reveal the top N cards of your library and separate
@@ -1156,7 +1156,7 @@ export function assembleSentences(
     // CR 701.20a — a reveal-until window waits for the sentence that routes it.
     let revealUntil: Extract<SentenceIR, { role: "reveal-until" }> | null =
         null;
-    // CR 701.21 — a pile division in progress: "needs-picker" after the
+    // CR 700.3 — a pile division in progress: "needs-picker" after the
     // one-sentence window+split, "ready" once an opponent has split/chosen.
     let piles: {
         readonly count: AmountIR;
@@ -2114,7 +2114,7 @@ const REVEAL_UNTIL =
 /** CR 400.7 — the reveal-until routing: the first match, then every other card. */
 const REVEAL_UNTIL_ROUTE =
     /^Put that card (into your hand|onto the battlefield) and (?:(?:put )?(?:all other cards revealed this way|the rest) into your (graveyard)|(exile) all other cards revealed this way)$/;
-/** CR 701.21 — a pile division of a revealed window. */
+/** CR 700.3 — a pile division of a revealed window. */
 const PILE_SPLIT = /^An opponent separates those cards into two piles$/;
 const PILE_SPLIT_WINDOW =
     /^Reveal the top (\S+) cards of your library and separate them into two piles$/;
