@@ -3577,4 +3577,70 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.20a + CR 700.3 (issue #4524) — the caster separates, an opponent
+    // chooses (`divider` and `chooser` swapped against Fact or Fiction). A
+    // distinct card-dependent form: the smoke generator cannot run the
+    // two-player pick either way.
+    {
+        rule: "effect clause",
+        card: {
+            name: "Steam Augury",
+            manaCost: "{2}{U}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Reveal the top five cards of your library and separate them into two piles. An opponent chooses one of those piles. Put that pile into your hand and the other into your graveyard.",
+            oracleId: "0aa556a6-66aa-42f1-ba41-0001e10c20a4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Steam Augury",
+            types: ["Instant"],
+            manaCost: {
+                X: 2,
+                U: 1,
+                R: 1,
+            },
+            oracleText:
+                "Reveal the top five cards of your library and separate them into two piles. An opponent chooses one of those piles. Put that pile into your hand and the other into your graveyard.",
+            effects: [
+                {
+                    op: "divideIntoPiles",
+                    objects: {
+                        set: "library-top",
+                        player: "controller",
+                        count: 5,
+                    },
+                    divider: "controller",
+                    chooser: "opponent",
+                    dividePrompt: "Separate the revealed cards into two piles.",
+                    pickPrompt:
+                        "Choose a pile: it goes to the other player's hand, the rest to their graveyard.",
+                    chosenBind: "$chosenPile",
+                    otherBind: "$otherPile",
+                    chosenEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$chosenPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                    ],
+                    otherEffect: [
+                        {
+                            op: "moveZone",
+                            cards: {
+                                ref: "$otherPile",
+                            },
+                            player: "controller",
+                            from: "library",
+                            to: "graveyard",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
