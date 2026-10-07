@@ -100,17 +100,12 @@
         {
             "key": "(op) › exileTopOfLibrary",
             "op": "exileTopOfLibrary",
-            "issue": 4525
+            "issue": 5171
         },
         {
             "key": "(op) › exileWithAttachments",
             "op": "exileWithAttachments",
             "issue": 4526
-        },
-        {
-            "key": "(op) › explore",
-            "op": "explore",
-            "issue": 4525
         },
         {
             "key": "(op) › extraCombat",
@@ -188,11 +183,6 @@
             "issue": 4527
         },
         {
-            "key": "(op) › mill",
-            "op": "mill",
-            "issue": 4525
-        },
-        {
             "key": "(op) › moveSpellFromStack",
             "op": "moveSpellFromStack",
             "issue": 4532
@@ -211,11 +201,6 @@
             "key": "(op) › preventRegeneration",
             "op": "preventRegeneration",
             "issue": 4527
-        },
-        {
-            "key": "(op) › putBack",
-            "op": "putBack",
-            "issue": 4525
         },
         {
             "key": "(op) › randomExileToHand",
@@ -296,11 +281,6 @@
             "key": "(op) › setProtectionFromEverything",
             "op": "setProtectionFromEverything",
             "issue": 4533
-        },
-        {
-            "key": "(op) › shuffleSelfIntoLibrary",
-            "op": "shuffleSelfIntoLibrary",
-            "issue": 4525
         },
         {
             "key": "(op) › skipDrawStepThisTurn",

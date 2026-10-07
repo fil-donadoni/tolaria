@@ -685,6 +685,54 @@ export type EffectSentenceIR =
           readonly kind: "create-token";
       } & CreateTokenIR)
     | {
+          /**
+           * CR 701.17a — "<player> mills N cards" / "Mill N cards": the top N
+           * cards of that player's library go to their graveyard. The bare
+           * imperative is the controller's own library ("you").
+           */
+          readonly kind: "mill";
+          readonly player: PlayerRefIR;
+          readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 401.4 — "<player> puts N cards from their hand on top of their
+           * library [in any order]": the player CHOOSES the cards (and, for
+           * more than one, their order).
+           */
+          readonly kind: "put-back";
+          readonly player: PlayerRefIR;
+          readonly count: number;
+      }
+    | {
+          /**
+           * CR 121.1 + CR 401.4 — "Draw N cards, then put M cards from your
+           * hand on top of your library [in any order]": one sentence, two
+           * actions in printed order (the loot's counterpart that keeps the
+           * cards instead of discarding them).
+           */
+          readonly kind: "draw-put-back";
+          readonly draw: AmountIR;
+          readonly count: number;
+      }
+    | {
+          /**
+           * CR 608.2n + CR 701.24a — "Shuffle {self} into its owner's
+           * library": the resolving spell goes into its owner's library
+           * instead of its graveyard. Spell sites only; the lowering refuses
+           * every other site (an ability has no card to shuffle).
+           */
+          readonly kind: "shuffle-self-into-library";
+      }
+    | {
+          /**
+           * CR 701.44a — "<subject> explores": one permanent explores once.
+           * "explores X times" / "explores again" are other sentences.
+           */
+          readonly kind: "explore";
+          readonly subject: SubjectIR;
+      }
+    | {
           readonly kind: "discard-at-random";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
@@ -2093,6 +2141,20 @@ const YOU_DRAW_AND_LOSE_LIFE =
  */
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
+/** CR 701.17a — "Mill three cards" (the controller's own library). */
+const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
+/** CR 701.17a — "Target player mills three cards". */
+const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
+/** CR 401.4 — "Target opponent puts a card from their hand on top of their library". */
+const PUT_BACK_PLAYER =
+    /^(.+) puts (\S+) cards? from their hand on top of their library( in any order)?$/;
+/** CR 121.1 + CR 401.4 — "Draw three cards, then put two cards from your hand on top of your library in any order". */
+const DRAW_PUT_BACK =
+    /^Draw (\S+) cards?, then put (\S+) cards? from your hand on top of your library( in any order)?$/;
+/** CR 701.24a — "Shuffle {self} into its owner's library". */
+const SHUFFLE_SELF = `Shuffle ${SELF_MARKER} into its owner's library`;
+/** CR 701.44a — "<subject> explores". */
+const EXPLORE = /^(.+) explores$/;
 /** CR 121.1 + CR 701.9a — "Draw a card, then discard a card". */
 const LOOT = /^Draw (\S+) cards?, then discard (\S+) cards?$/;
 const SHUFFLE_HAND_REDRAW =
@@ -3480,6 +3542,75 @@ function effectSentence(
         return ok({
             kind: "create-token" as const,
             ...created.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── mill (CR 701.17a) ───────────────────────────────────────────────────
+    const millBare = span.match(MILL_IMPERATIVE);
+    const millNamed = millBare === null ? span.match(MILL_PLAYER) : null;
+    if (millBare !== null || millNamed !== null) {
+        const subject = millNamed === null ? "you" : millNamed[1]!;
+        const word = millNamed === null ? millBare![1]! : millNamed[2]!;
+        const player = playerSubject(subject, ctx);
+        if (player === null) return fail(`"${subject}" is not a player`, span);
+        const count = readAmount(word);
+        if (count === null) return fail(`"${word}" is not a count`, span);
+        return ok({
+            kind: "mill" as const,
+            player,
+            count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── put cards from the hand on top of the library (CR 401.4) ───────────
+    const putBackPlayer = span.match(PUT_BACK_PLAYER);
+    const drawPutBack =
+        putBackPlayer === null ? span.match(DRAW_PUT_BACK) : null;
+    if (putBackPlayer !== null || drawPutBack !== null) {
+        const word =
+            putBackPlayer !== null ? putBackPlayer[2]! : drawPutBack![2]!;
+        const order =
+            putBackPlayer !== null ? putBackPlayer[3] : drawPutBack![3];
+        const count = readAmount(word);
+        if (count === null || count.kind !== "fixed")
+            return fail(`"${word}" is not a printed count`, span);
+        // "in any order" is printed exactly when there is an order to choose.
+        if ((order !== undefined) !== count.value > 1)
+            return fail("the order clause disagrees with the count", span);
+        if (drawPutBack !== null) {
+            const draw = readAmount(drawPutBack[1]!);
+            if (draw === null) return fail("a draw needs a count", span);
+            return ok({
+                kind: "draw-put-back" as const,
+                draw,
+                count: count.value,
+            } satisfies EffectSentenceIR);
+        }
+        const player = playerSubject(putBackPlayer![1]!, ctx);
+        if (player === null)
+            return fail(`"${putBackPlayer![1]}" is not a player`, span);
+        return ok({
+            kind: "put-back" as const,
+            player,
+            count: count.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── shuffle the resolving spell into its owner's library (CR 701.24a) ──
+    if (span === SHUFFLE_SELF) {
+        return ok({
+            kind: "shuffle-self-into-library" as const,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── explore (CR 701.44a) ───────────────────────────────────────────────
+    const explore = span.match(EXPLORE);
+    if (explore !== null) {
+        const subject = subjectRule.run(explore[1]!, ctx);
+        if (!subject.ok) return subject;
+        return ok({
+            kind: "explore" as const,
+            subject: subject.value,
         } satisfies EffectSentenceIR);
     }
 

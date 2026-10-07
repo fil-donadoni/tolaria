@@ -48,6 +48,7 @@ import {
     buildCatalogue,
     committedArtifacts,
     committedPackedDrift,
+    isDigitalOnlyRebalance,
     sharedClientRows,
     unbaselinedDivergences,
 } from "../catalogue-artifact";
@@ -646,5 +647,12 @@ describe("catalogue artifact — the merge is deterministic", () => {
         const ids = BUILD.merge.rows.map((r) => r.id);
         expect(ids).toEqual([...ids].sort((a, b) => a.localeCompare(b)));
         expect(new Set(ids).size).toBe(ids.length);
+    });
+});
+
+describe("an Alchemy rebalance with no first printing", () => {
+    it("is recognised by its A- name, never a paper card's", () => {
+        expect(isDigitalOnlyRebalance("A-Deal Gone Bad")).toBe(true);
+        expect(isDigitalOnlyRebalance("Deal Gone Bad")).toBe(false);
     });
 });

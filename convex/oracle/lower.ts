@@ -520,6 +520,7 @@ function lowerLine(
                 // (`lowerEffects.ts` — `SiteOptions`).
                 allowX: hasVariableX(card.manaCost),
                 selfName: card.name,
+                resolvingSpell: true,
                 ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
             });
             if (!body.ok) return body.reason;
