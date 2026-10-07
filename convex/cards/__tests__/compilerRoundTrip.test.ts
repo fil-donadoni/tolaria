@@ -195,7 +195,7 @@ import {
 // `addMana` / `grantSpellManaSubstitution` sentences, and Su-Chi's "When this
 // creature dies, add {C}{C}{C}{C}." compiles (its hand-written side is a
 // `diedTrigger` closure, hence `incomparable`).
-const BASELINE_CEILING = 1484;
+const BASELINE_CEILING = 1479;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

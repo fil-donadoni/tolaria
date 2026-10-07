@@ -168,7 +168,14 @@ describe("gold round-trip — precision", () => {
         // this creature dies, add {C}{C}{C}{C}." is now compiled (`addMana`)
         // while its hand-written side is a `diedTrigger` `resolve` closure —
         // the same move as the entries above.
-        expect(REPORT.incomparable.length).toBeLessThan(28);
+        //
+        // 27 -> 29 by issue #4539 (cost-parameter keyword lines): Blastoderm
+        // ("Fading 3" beside a shroud `permanent-guard` whose `applies` is a
+        // closure) and Exalted Angel ("Morph {2}{W}{W}" beside a
+        // `damageDealtTrigger` whose `resolve` is a closure) are now compiled
+        // — the same move as the entries above, out of "the compiler refuses
+        // it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(30);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
