@@ -56,7 +56,9 @@ const MIB = 1024 * 1024;
 /** Compiled rows at the scale target (PRD #4849). */
 export const TARGET_CORPUS_ROWS = 35_000;
 
-/** The budget the arming ticket enforces, per context (PRD #4849's target). */
+/** The budget, per context (PRD #4849's target), enforced on `health` by
+ *  `check:convex-heap` (issue #4862). Node V8 is the proxy for the browser's;
+ *  no ratio is applied (Chrome compresses pointers, so Node overstates). */
 export const CLIENT_CATALOGUE_BUDGET_BYTES = 15 * MIB;
 
 /** Runs per measurement; the minimum is reported. */
@@ -400,14 +402,15 @@ function runProbe(
     return JSON.parse(r.stdout.trim().split("\n").pop()!) as unknown;
 }
 
-/** One `WARN` line per context over the client budget. */
-export function clientHeapWarnings(report: readonly ClientHeap[]): string[] {
+/** One failure line per context over the client budget. */
+export function clientHeapFailures(report: readonly ClientHeap[]): string[] {
     return report
         .filter((h) => h.catalogueBytes > CLIENT_CATALOGUE_BUDGET_BYTES)
         .map(
             (h) =>
                 `${h.context}: ${(h.catalogueBytes / MIB).toFixed(1)} MiB of catalogue at ` +
                 `${h.rows.toLocaleString("en-US")} rows > ` +
-                `${(CLIENT_CATALOGUE_BUDGET_BYTES / MIB).toFixed(0)} MiB budget`
+                `${(CLIENT_CATALOGUE_BUDGET_BYTES / MIB).toFixed(0)} MiB budget; find the cause with ` +
+                "docs/research/convex-server-scale-2026-09-29.md § Method"
         );
 }

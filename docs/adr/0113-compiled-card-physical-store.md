@@ -670,11 +670,14 @@ the budget below.
    with the catalogue.** It holds on the server and in the client, main thread
    and Bot worker alike.
 2. **Budget, checked on `health`** (never on `check:pr` or `land`): one call to
-   `game.ts` ≤ **32 MiB** of heap, measured against a SYNTHETIC catalogue at
-   the target scale (35k cards, 80k printings), so a change that does not
-   scale fails before the catalogue grows into it; modules that read no card
-   definition ≤ **4 MiB**. The ratio between the Node measurement and the
-   Convex isolate is set by a cloud probe before the check is armed.
+   `game.ts` ≤ **34 MiB** of isolate heap (armed 2026-10-07, issue #4862;
+   the PRD's 32 was recalibrated, see below), measured against a SYNTHETIC
+   catalogue at the target scale (35k cards, 80k printings), so a change that
+   does not scale fails before the catalogue grows into it; modules that read
+   no card definition ≤ **4 MiB**; the client catalogue ≤ **15 MiB** per
+   context, main thread and Bot worker each. The Node measurement is read as
+   isolate bytes through **0.65** (the cloud probe's highest ratio, issue
+   #4852).
 3. **Every definition is built on demand, from resident data.** Compiled rows
    stay packed (Amendment III); hand-written definitions become
    `defineCard(() => ({ … }))`, evaluated once on first request and memoised
@@ -772,6 +775,28 @@ much room each call had left:
 
 Table and method: `docs/research/convex-server-scale-2026-09-29.md`
 § Cloud calibration.
+
+### The budgets, armed (issue #4862, 2026-10-07)
+
+`bun run check:convex-heap` fails (exit 1) on `health` when a module is over
+budget at target scale; a module it could not measure fails too. A failure
+names the module, its heap, the budget and the research file's method for
+finding the cause. Measured on the tree at the arming (Node V8, isolate MiB =
+Node × 0.65):
+
+| module                                | today (isolate) | 35k rows (isolate) | budget |
+| ------------------------------------- | --------------- | ------------------ | ------ |
+| `game.ts`                             | 15.8 MiB        | **32.1 MiB**       | 34     |
+| every module that reads no definition | < 4 MiB         | < 4 MiB            | 4      |
+| client catalogue, main thread         | 2.3 MiB (Node)  | 11.5 MiB (Node)    | 15     |
+| client catalogue, Bot worker          | 2.3 MiB (Node)  | 11.5 MiB (Node)    | 15     |
+
+**The PRD's 32 MiB was moved to 34.** At the target scale `game.ts` measures
+32.1 MiB, 0.1 over, so arming at 32 would have put `health` in RED the moment
+it ran. The move is a calibration, not a relaxation: the cloud probe found
+~83 MiB of V8 room per call, not 64, so 34 MiB still leaves the call more than
+twice its working heap. The proof the check bites: a 150,000-object pool
+retained from `game.ts` measured 48.5 MiB and failed it.
 
 ### Exit ladder, one more row
 

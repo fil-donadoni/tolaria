@@ -3,13 +3,14 @@
  * `bun run measure:client-heap` — the heap of the CLIENT catalogue for one game
  * load, in the page and in the Bot worker separately, today and at the target
  * scale (35k cards), as a report (issue #4861, PRD #4849). `WARN` lines, never
- * a failure: the budget is armed by a later ticket, from these numbers — a
- * MEASUREMENT, not a `check:*` guard (no verdict to place in a lane), until
- * that ticket arms it. Measured cost: ~3 s (2026-10-06, load ~4).
+ * a failure: a MEASUREMENT for iterating. The budget is ARMED by
+ * `check:convex-heap` on `health` (issue #4862), which runs this same
+ * measurement and fails. Measured cost: ~3 s (2026-10-06, load ~4).
  *
  * The DECK BUILDER's search index is reported beside them (issue #5125): no
  * game loads it, but it is resident for as long as the deck builder is open,
- * so it is its own figure, under no budget until the arming ticket sets one.
+ * so it is its own figure, under no budget: `check:convex-heap` arms the
+ * per-game budget only (issue #4862).
  *
  * Method and caveats: `scripts/lib/client-heap.ts`. `--rows <n>` measures one
  * corpus size instead of the two.
@@ -18,7 +19,7 @@ import { dirname, join } from "node:path";
 import {
     CLIENT_CATALOGUE_BUDGET_BYTES,
     TARGET_CORPUS_ROWS,
-    clientHeapWarnings,
+    clientHeapFailures,
     committedRows,
     committedSearchIndexWire,
     measureClientHeap,
@@ -64,11 +65,11 @@ async function main(): Promise<void> {
                 `${mib(h.importBytes)}     ${mib(h.indexBytes)}`
         );
     }
-    const warnings = clientHeapWarnings(report);
+    const warnings = clientHeapFailures(report);
     for (const w of warnings) console.log(`[measure:client-heap] WARN ${w}`);
     console.log(
         `[measure:client-heap] ${warnings.length === 0 ? "within budget" : `${warnings.length} over budget`} ` +
-            "(report only — armed by a later ticket)"
+            "(report only — armed by check:convex-heap on health)"
     );
 }
 
