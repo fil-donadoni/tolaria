@@ -28,6 +28,10 @@
  *                                  # points at a narrowed local run's own
  *                                  # `bun scripts/target-bot-reach.ts --findings <path>`
  *                                  # output instead (absent: bot-play is red, unproved)
+ *   bun scripts/oracle-report.ts --families [50] [--set apc | --pool premodern | --target <id>]
+ *                                  # the backlog by Clause Family (ADR 0152) in place
+ *                                  # of gap key: cards a family compiles (every gap
+ *                                  # in it) and refuses, its forms, one example
  *   bun scripts/oracle-report.ts --gap "<key or substring>" [--set apc | --pool premodern]
  *                                  # ONE Grammar Gap, card by card: every refused
  *                                  # line, sole-gap cards (the ones the rule
@@ -63,8 +67,10 @@ import {
     findGapKeys,
     gapCards,
     poolTarget,
+    rankClauseFamilies,
     rankGrammarGaps,
     setTargetFromMtgjson,
+    type RankedFamily,
     type RankedGap,
 } from "./lib/grammar-gaps";
 import {
@@ -533,8 +539,10 @@ function reportTargetState(lock: Lockfile, target: Target): void {
 
 const SHAPE_WIDTH = 78;
 
+/** One printed line: a modal's bullets would break the table's rows. */
 function clip(text: string, width: number): string {
-    return text.length > width ? `${text.slice(0, width - 3)}...` : text;
+    const line = text.replace(/\s*\n\s*/g, " ");
+    return line.length > width ? `${line.slice(0, width - 3)}...` : line;
 }
 
 /**
@@ -578,6 +586,59 @@ function reportGaps(
         );
     });
     process.stdout.write("\n");
+}
+
+/**
+ * The ranked backlog by Clause Family (`--families`, ADR 0152 § 1), in the
+ * gap table's layout: counts and slot path, the folded head, one real line.
+ * `forms` is the family's distinct gap keys across the corpus — what a cut
+ * pays a golden fixture each for (§ 3).
+ */
+function reportFamilies(
+    ranked: readonly RankedFamily[],
+    count: number,
+    targetLabel: string | null
+): void {
+    const shown = ranked.slice(0, count);
+    process.stdout.write(
+        `\nTop ${shown.length} of ${ranked.length} Clause Families` +
+            (targetLabel === null
+                ? " across the corpus"
+                : ` for the ${targetLabel}, corpus count beside each`) +
+            ` (the grammar backlog by missing construct)\n` +
+            `compiles = cards every one of whose gaps is in the family; refuses = cards it refuses; ` +
+            `forms = its distinct gap keys in the corpus\n\n`
+    );
+    process.stdout.write(
+        `${"rank".padStart(4)}  ${"compiles".padStart(8)} ${"refuses".padStart(7)}  ` +
+            (targetLabel === null ? "" : `${"corpus c/r".padStart(11)}  `) +
+            `${"forms".padStart(5)}  slot › sub-grammar\n`
+    );
+    shown.forEach((family, i) => {
+        const where = [family.slot, ...family.path].join(" › ");
+        const counts =
+            `${String(i + 1).padStart(4)}  ${String(family.target.compiles).padStart(8)} ` +
+            `${String(family.target.refuses).padStart(7)}  ` +
+            (targetLabel === null
+                ? ""
+                : `${`${family.corpus.compiles}/${family.corpus.refuses}`.padStart(11)}  `) +
+            `${String(family.forms).padStart(5)}  `;
+        // A card-level family has no head: its label is the refusal's reason.
+        const headLabel = family.slot === CARD_LEVEL ? "why:" : "head:";
+        process.stdout.write(
+            `${counts}${where}\n` +
+                `${"".padStart(6)}${headLabel} ${clip(family.head, SHAPE_WIDTH)}\n` +
+                `${"".padStart(6)}e.g.: ${clip(`${family.example.card} — ${family.example.line}`, SHAPE_WIDTH)}\n`
+        );
+    });
+    process.stdout.write("\n");
+}
+
+/** `--gaps N` or `--families N`: how many rows, default 20. */
+function rowCount(flagName: string): number {
+    const at = process.argv.indexOf(flagName);
+    const requested = at === -1 ? NaN : Number(process.argv[at + 1]);
+    return Number.isFinite(requested) && requested > 0 ? requested : 20;
 }
 
 /**
@@ -655,10 +716,18 @@ async function main(): Promise<void> {
         reportGapCards(lock, gapQuery, readTarget(lock));
         return;
     }
-    const gapsAt = process.argv.indexOf("--gaps");
-    const requested = gapsAt === -1 ? NaN : Number(process.argv[gapsAt + 1]);
-    const gapCount =
-        Number.isFinite(requested) && requested > 0 ? requested : 20;
+    const byFamily = process.argv.includes("--families");
+    const rank = (target: Target | null): void => {
+        const ids = target?.ids ?? null;
+        const label = target?.label ?? null;
+        if (byFamily)
+            reportFamilies(
+                rankClauseFamilies(lock, ids),
+                rowCount("--families"),
+                label
+            );
+        else reportGaps(rankGrammarGaps(lock, ids), rowCount("--gaps"), label);
+    };
 
     const { corpus, counts, grammarVersion } = lock.header;
     process.stdout.write(
@@ -669,7 +738,7 @@ async function main(): Promise<void> {
     const target = readTarget(lock);
     if (target !== null) {
         reportTargetState(lock, target);
-        reportGaps(rankGrammarGaps(lock, target.ids), gapCount, target.label);
+        rank(target);
         return;
     }
     process.stdout.write("\n");
@@ -709,7 +778,7 @@ async function main(): Promise<void> {
             `(${closure.length}): ${closure.length === 0 ? "none" : closure.join(", ")}\n`
     );
 
-    reportGaps(rankGrammarGaps(lock, null), gapCount, null);
+    rank(null);
 }
 
 if (import.meta.main) {

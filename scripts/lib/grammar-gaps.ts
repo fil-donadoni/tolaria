@@ -118,38 +118,170 @@ export function gapOf(fragment: FragmentRow): GrammarGap {
     };
 }
 
+/**
+ * ── The Clause Family (ADR 0152 § 1, GLOSSARY **Clause Family**) ───────────
+ *
+ * The key is too fine to cut work by: "Whenever you cast a red spell" and
+ * "… a noncreature spell" are two keys, one missing construct. A Clause Family
+ * groups gaps by slot, sub-grammar path and the HEAD of the span — its first
+ * {@link CLAUSE_FAMILY_HEAD_WORDS} words once the {@link CLAUSE_FAMILY_FOLDS}
+ * placeholders are folded on top of `gapShape`. The leading word is kept
+ * literal: it is the keyword or ability word that names the rule ("Equip" and
+ * "Cycling" are two rules, however alike their costs). A card-level gap is its
+ * own family, unchanged — its reason already names the capability.
+ *
+ * DERIVED, never stored: claims, the lockfile and `matchCluster` key on the gap
+ * key. Both constants are tuned by one measure — families, singles and cards
+ * freed by the top K families (PRD issue #5193).
+ */
+export const CLAUSE_FAMILY_HEAD_WORDS = 4;
+
+/**
+ * Words folded to a placeholder in a span's head (after its leading word).
+ * Card-type words also match plural and `non`-prefixed: "noncreature",
+ * "sorceries". A capitalised word after the leading one is a subtype and folds
+ * to `<type>`; a P/T pair (`+N/+N`, `X/X`) to `<pt>`; `a`/`an` to `a`.
+ */
+export const CLAUSE_FAMILY_FOLDS = {
+    "<colour>": [
+        "white",
+        "blue",
+        "black",
+        "red",
+        "green",
+        "colorless",
+        "multicolored",
+        "monocolored",
+    ],
+    "<type>": [
+        "artifact",
+        "battle",
+        "creature",
+        "enchantment",
+        "instant",
+        "kindred",
+        "land",
+        "planeswalker",
+        "sorcery",
+        "tribal",
+    ],
+    "<number>": [
+        "N",
+        "X",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+    ],
+    "<player>": ["you", "opponent", "opponents", "player", "players"],
+} as const satisfies Readonly<Record<string, readonly string[]>>;
+
+const FOLD_OF = new Map<string, string>(
+    Object.entries(CLAUSE_FAMILY_FOLDS).flatMap(([placeholder, words]) =>
+        words.map((w) => [w, placeholder] as const)
+    )
+);
+const PT = /^[+\-−]?(?:N|X|\*)\/[+\-−]?(?:N|X|\*)$/;
+
+/** A word after one of these opens a sentence: its capital is not a subtype. */
+const SENTENCE_BREAK = /(?:[.:•]|—)$/;
+
+/** One head word folded — the word's trailing punctuation dropped. */
+function foldWord(raw: string, opensSentence: boolean): string {
+    const word = raw.replace(/[.,;:]+$/, "");
+    if (PT.test(word)) return "<pt>";
+    const direct = FOLD_OF.get(word) ?? FOLD_OF.get(word.toLowerCase());
+    if (direct !== undefined) return direct;
+    const lower = word.toLowerCase();
+    const bare = lower.replace(/^non-?/, "");
+    const singular = bare.endsWith("ies")
+        ? `${bare.slice(0, -3)}y`
+        : bare.replace(/s$/, "");
+    for (const w of [bare, singular])
+        if (FOLD_OF.get(w) === "<type>" || FOLD_OF.get(w) === "<colour>")
+            return FOLD_OF.get(w)!;
+    if (lower === "an") return "a";
+    if (!opensSentence && /^[A-Z][a-z]/.test(word)) return "<type>";
+    return word;
+}
+
+/** A span's head: its leading word literal, the rest folded, then clipped. */
+export function clauseHead(shape: string): string {
+    const words = shape.split(/\s+/).filter((w) => w.length > 0);
+    const [lead, ...rest] = words;
+    if (lead === undefined) return "";
+    const folded = rest.map((w, i) =>
+        foldWord(w, SENTENCE_BREAK.test(words[i]!))
+    );
+    return [lead.replace(/[.,;:]+$/, ""), ...folded]
+        .slice(0, CLAUSE_FAMILY_HEAD_WORDS)
+        .join(" ");
+}
+
+/** The Clause Family a Grammar Gap belongs to — a label, never a key. */
+export function clauseFamily(gap: GrammarGap): string {
+    if (gap.slot === CARD_LEVEL) return gap.key;
+    return [gap.slot, ...gap.path, clauseHead(gap.shape)].join(" › ");
+}
+
 interface Tally {
     readonly gap: GrammarGap;
+    /** The gap keys the group holds — one for a gap, its forms for a family. */
+    readonly keys: Set<string>;
     target: { refuses: number; compiles: number };
     corpus: { refuses: number; compiles: number };
     example?: { line: string; card: string; inTarget: boolean };
 }
 
 /**
- * Rank the Grammar Gaps that refuse at least one card of `target` — every
- * unparsed card of the corpus when `target` is `null`.
+ * Count every unparsed card against the groups its gaps fall in — a group is
+ * a gap key or a Clause Family, `groupOf` decides. A card refuses once per
+ * group however many of its gaps fall there, and the group compiles it only
+ * when it is the card's ONLY group: every gap of the card falls in it.
  */
-export function rankGrammarGaps(
+function tallyGroups(
     lock: Pick<Lockfile, "fragments" | "cards">,
-    target: ReadonlySet<string> | null
-): RankedGap[] {
+    target: ReadonlySet<string> | null,
+    groupOf: (gap: GrammarGap) => string
+): Tally[] {
     const gapOfFragment = lock.fragments.map(gapOf);
     const tallies = new Map<string, Tally>();
     for (const card of lock.cards) {
         if (card.state !== "unparsed" || card.gaps === undefined) continue;
         const inTarget = target === null || target.has(card.oracleId);
-        const keys = distinctGaps(card, gapOfFragment);
-        for (const [key, { gap, fragment }] of keys) {
-            let tally = tallies.get(key);
+        const groups = new Map<
+            string,
+            { gap: GrammarGap; fragment: number; keys: Set<string> }
+        >();
+        for (const [key, { gap, fragment }] of distinctGaps(
+            card,
+            gapOfFragment
+        )) {
+            const group = groupOf(gap);
+            const hit = groups.get(group);
+            if (hit === undefined)
+                groups.set(group, { gap, fragment, keys: new Set([key]) });
+            else hit.keys.add(key);
+        }
+        for (const [group, { gap, fragment, keys }] of groups) {
+            let tally = tallies.get(group);
             if (tally === undefined) {
                 tally = {
                     gap,
+                    keys: new Set(),
                     target: { refuses: 0, compiles: 0 },
                     corpus: { refuses: 0, compiles: 0 },
                 };
-                tallies.set(key, tally);
+                tallies.set(group, tally);
             }
-            const sole = keys.size === 1 ? 1 : 0;
+            for (const key of keys) tally.keys.add(key);
+            const sole = groups.size === 1 ? 1 : 0;
             tally.corpus.refuses += 1;
             tally.corpus.compiles += sole;
             if (inTarget) {
@@ -170,22 +302,77 @@ export function rankGrammarGaps(
             }
         }
     }
+    return [...tallies.values()].filter((t) => t.target.refuses > 0);
+}
+
+/** Target compiles, Target refuses, corpus refuses, then `label`: total. */
+function byLeverage<T extends { target: GapCounts; corpus: GapCounts }>(
+    rows: T[],
+    label: (row: T) => string
+): T[] {
     const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-    return [...tallies.values()]
-        .filter((t) => t.target.refuses > 0)
-        .sort(
-            (a, b) =>
-                b.target.compiles - a.target.compiles ||
-                b.target.refuses - a.target.refuses ||
-                b.corpus.refuses - a.corpus.refuses ||
-                cmp(a.gap.key, b.gap.key)
-        )
-        .map((t) => ({
-            ...t.gap,
-            target: { ...t.target },
-            corpus: { ...t.corpus },
-            example: { line: t.example!.line, card: t.example!.card },
-        }));
+    return rows.sort(
+        (a, b) =>
+            b.target.compiles - a.target.compiles ||
+            b.target.refuses - a.target.refuses ||
+            b.corpus.refuses - a.corpus.refuses ||
+            cmp(label(a), label(b))
+    );
+}
+
+/**
+ * Rank the Grammar Gaps that refuse at least one card of `target` — every
+ * unparsed card of the corpus when `target` is `null`.
+ */
+export function rankGrammarGaps(
+    lock: Pick<Lockfile, "fragments" | "cards">,
+    target: ReadonlySet<string> | null
+): RankedGap[] {
+    const ranked = tallyGroups(lock, target, (gap) => gap.key).map((t) => ({
+        ...t.gap,
+        target: { ...t.target },
+        corpus: { ...t.corpus },
+        example: { line: t.example!.line, card: t.example!.card },
+    }));
+    return byLeverage(ranked, (g) => g.key);
+}
+
+export interface RankedFamily {
+    /** The Clause Family label (`clauseFamily`). */
+    readonly family: string;
+    readonly slot: string;
+    readonly path: readonly string[];
+    /** The folded head — or, for a card-level family, the refusal's reason. */
+    readonly head: string;
+    /** Distinct gap keys (shapes) of the family that refuse a counted card. */
+    readonly forms: number;
+    /** `compiles` = cards EVERY one of whose gaps falls in the family. */
+    readonly target: GapCounts;
+    readonly corpus: GapCounts;
+    readonly example: { readonly line: string; readonly card: string };
+}
+
+/**
+ * Rank the Clause Families that refuse at least one card of `target` (ADR
+ * 0152 § 1) — the grammar backlog by missing construct rather than by exact
+ * sentence. Counts and order mirror {@link rankGrammarGaps}, family for key.
+ * `forms` counts across the corpus: the cut sizes a family there (§ 4).
+ */
+export function rankClauseFamilies(
+    lock: Pick<Lockfile, "fragments" | "cards">,
+    target: ReadonlySet<string> | null
+): RankedFamily[] {
+    const ranked = tallyGroups(lock, target, clauseFamily).map((t) => ({
+        family: clauseFamily(t.gap),
+        slot: t.gap.slot,
+        path: t.gap.path,
+        head: t.gap.slot === CARD_LEVEL ? t.gap.shape : clauseHead(t.gap.shape),
+        forms: t.keys.size,
+        target: { ...t.target },
+        corpus: { ...t.corpus },
+        example: { line: t.example!.line, card: t.example!.card },
+    }));
+    return byLeverage(ranked, (f) => f.family);
 }
 
 /**

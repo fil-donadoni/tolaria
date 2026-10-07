@@ -58,3 +58,26 @@ describe("oracle:report --target <registered id> (issue #3835)", () => {
         expect(out).toContain("pass one of --set, --pool, --target");
     }, 180_000);
 });
+
+describe("oracle:report --families (issue #5197, ADR 0152)", () => {
+    it("ranks Clause Families across the corpus in place of gap keys", () => {
+        const { code, out } = report("--families", "2");
+        expect(code).toBe(0);
+        expect(out).toMatch(/Top 2 of \d+ Clause Families across the corpus/);
+        expect(out).toMatch(
+            /rank {2}compiles refuses {2}forms {2}slot › sub-grammar/
+        );
+        expect(out).not.toMatch(/Grammar Gaps across the corpus/);
+    }, 180_000);
+
+    it("ranks them for a Ranking Target, corpus count beside each", () => {
+        const { code, out } = report("--families", "2", "--set", "apc");
+        expect(code).toBe(0);
+        expect(out).toMatch(/set APC — \d+ cards/);
+        expect(out).toMatch(
+            /Top \d+ of \d+ Clause Families for the set APC, corpus count beside each/
+        );
+        expect(out).toMatch(/corpus c\/r {2}forms/);
+        expect(out).toMatch(/^ {6}head: /m);
+    }, 180_000);
+});
