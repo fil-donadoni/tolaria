@@ -146,6 +146,11 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { amount: { ref: "$event.amount" } }
             : {}),
         ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
+        // CR 303.4b — "that creature" behind an Aura's host-keyed head is the
+        // enchanted creature, whose controller's step the head names.
+        ...(head.kind === "phase" && head.scope === "host-controller"
+            ? { creature: { ref: "$host" } }
+            : {}),
         // CR 607.2a — "the exiled card" behind the source's own departure
         // names what this object's linked exile instruction exiled. Read
         // here so the sentence parses; the card pass (`linkExile.ts`) then

@@ -33,6 +33,282 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 500.1 + CR 603.2b — "At the beginning of the end step, return this
+    // creature to its owner's hand": the unqualified phrase names EACH end step
+    // (CR 500.1). Exhibits `moveZone` of `$source`, a zone change the canned
+    // smoke scenario does not model (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "a0a706b2-b237-4183-82fa-2140a23b89e3",
+            name: "Archwing Dragon",
+            manaCost: "{2}{R}{R}",
+            typeLine: "Creature — Dragon",
+            oracleText:
+                "Flying, haste\nAt the beginning of the end step, return this creature to its owner's hand.",
+            power: "4",
+            toughness: "4",
+            layout: "normal",
+        },
+        expected: {
+            name: "Archwing Dragon",
+            types: ["Creature"],
+            subtypes: ["Dragon"],
+            manaCost: { X: 2, R: 2 },
+            power: 4,
+            toughness: 4,
+            oracleText:
+                "Flying, haste\nAt the beginning of the end step, return this creature to its owner's hand.",
+            staticAbilities: ["flying", "haste"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "archwing-dragon-trigger",
+                    oracleText:
+                        "At the beginning of the end step, return this creature to its owner's hand.",
+                    head: { kind: "phase", phase: "END_STEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 303.4b + CR 603.2b — "…upkeep of enchanted creature's controller, that
+    // player loses 1 life": "that player" is the active player of the host
+    // controller's upkeep. Exhibits `loseLife` into an `$event` player, a
+    // recipient the canned smoke scenario cannot pick (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "e4f1acd6-b883-470b-88c2-3989011869d7",
+            name: "Soul Bleed",
+            manaCost: "{2}{B}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player loses 1 life.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Soul Bleed",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { X: 2, B: 1 },
+            oracleText:
+                "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player loses 1 life.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "soul-bleed-trigger",
+                    oracleText:
+                        "At the beginning of the upkeep of enchanted creature's controller, that player loses 1 life.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "host-controller",
+                    },
+                    effects: [
+                        {
+                            op: "loseLife",
+                            player: { ref: "$event.activePlayerId" },
+                            amount: 1,
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 603.2b — "…upkeep of enchanted creature's controller, that
+    // player draws a card". Exhibits `draw` into an `$event` player
+    // (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "d82929f2-57ad-45be-a834-984437046026",
+            name: "Super Intelligence",
+            manaCost: "{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player draws a card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Super Intelligence",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Enchant creature\nAt the beginning of the upkeep of enchanted creature's controller, that player draws a card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "super-intelligence-trigger",
+                    oracleText:
+                        "At the beginning of the upkeep of enchanted creature's controller, that player draws a card.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "host-controller",
+                    },
+                    effects: [
+                        {
+                            op: "draw",
+                            player: { ref: "$event.activePlayerId" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 303.4b + CR 122.1 — a -1/-1 counter on "that creature", the host.
+    // Exhibits `counters` on `$host` with the -1/-1 counter kind (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "278b237e-9699-43eb-a03e-0b68eccc08b3",
+            name: "Unstable Mutation",
+            manaCost: "{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +3/+3.\nAt the beginning of the upkeep of enchanted creature's controller, put a -1/-1 counter on that creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Unstable Mutation",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +3/+3.\nAt the beginning of the upkeep of enchanted creature's controller, put a -1/-1 counter on that creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "unstable-mutation-trigger",
+                    oracleText:
+                        "At the beginning of the upkeep of enchanted creature's controller, put a -1/-1 counter on that creature.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "host-controller",
+                    },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "-1/-1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 3, toughness: 3 },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 106.4 + CR 603.2b — "At the beginning of each player's first main
+    // phase, that player adds {G}{G}": the mana goes to `PHASE_BEGIN`'s active
+    // player (the head names her), and the first main phase is the precombat
+    // one (CR 505.1). Exhibits `addMana` into an `$event` player, a recipient
+    // the canned smoke scenario cannot pick (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "faa085c3-705f-465d-9290-0e22276ad06d",
+            name: "Eladamri's Vineyard",
+            manaCost: "{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of each player's first main phase, that player adds {G}{G}.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Eladamri's Vineyard",
+            types: ["Enchantment"],
+            manaCost: { G: 1 },
+            oracleText:
+                "At the beginning of each player's first main phase, that player adds {G}{G}.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "eladamri-s-vineyard-trigger",
+                    oracleText:
+                        "At the beginning of each player's first main phase, that player adds {G}{G}.",
+                    head: {
+                        kind: "phase",
+                        phase: "PRECOMBAT_MAIN",
+                        scope: "each",
+                    },
+                    effects: [
+                        {
+                            op: "addMana",
+                            mana: { G: 2 },
+                            player: { ref: "$event.activePlayerId" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 303.4b + CR 603.2b — "At the beginning of the upkeep of enchanted
+    // creature's controller, put a -0/-1 counter on that creature": the head
+    // fires on the host controller's upkeep and "that creature" is the host.
+    // Exhibits `counters` on `$host`, a target the canned smoke scenario does
+    // not model (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "9bdc79c9-c8b0-4db1-89d9-0ca7920b6576",
+            name: "Essence Flare",
+            manaCost: "{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Essence Flare",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "essence-flare-trigger",
+                    oracleText:
+                        "At the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "host-controller",
+                    },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "-0/-1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "pt-buff",
+                    appliesTo: "host",
+                    power: 2,
+                    toughness: 0,
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
     // CR 614.9 (issue #3810) — "The next N damage that would be dealt to
     // <recipient> this turn is dealt to <other recipient> instead". Exhibits
     // the "budget is the announced {X}" form: the canned smoke scenario cannot

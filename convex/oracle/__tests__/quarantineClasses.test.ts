@@ -178,9 +178,11 @@ describe("an ability acting on its own $source is smoked, not quarantined (issue
 
 describe("card-dependent smoke skips quarantine until a fixture exhibits the form", () => {
     it("a $source zone change stays quarantined with no fixture", () => {
-        const outcome = compileCard(SELF_BOUNCE);
-        expect(outcome.state).toBe("quarantine");
-        expect(smokeReasons(outcome)).toEqual([
+        // Gated with NO fixture: the registry's Archwing Dragon row (issue
+        // #4545) exhibits this form, and would otherwise clear the card this
+        // test is about.
+        const reasons = gate(compiled(SELF_BOUNCE), []);
+        expect(reasons.map((r) => r.detail)).toEqual([
             expect.stringContaining(`Op "moveZone"`),
         ]);
     });

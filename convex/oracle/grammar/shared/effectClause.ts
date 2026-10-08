@@ -299,6 +299,14 @@ export type SubjectIR =
      */
     | { readonly kind: "host" }
     /**
+     * CR 608.2h — "that creature": the creature the site's own head named
+     * (`SiteAntecedents.creature`), as "it" is the object a head named. Read
+     * only as a subject; a site whose head names no creature refuses the
+     * line, and so does one that has announced a target first (the nearer
+     * antecedent).
+     */
+    | { readonly kind: "that-creature" }
+    /**
      * CR 608.2h — "it": the OBJECT the text before this sentence named.
      * Which object is not a fact about the sentence, so the word is read here
      * and the referent comes from the lowering SITE
@@ -399,7 +407,15 @@ export type EffectSentenceIR =
      *  into the resolving controller's pool. A coloured-or-colourless symbol
      *  string, never a generic, `{X}` or "mana of any color" (a runtime
      *  choice: the mana slot's descriptor, not this sentence's). */
-    | { readonly kind: "add-mana"; readonly mana: EffectManaPool }
+    | {
+          readonly kind: "add-mana";
+          readonly mana: EffectManaPool;
+          /**
+           * CR 106.4 — "That player adds {G}{G}": the mana goes to the player
+           * the head named (`SiteAntecedents.player`), not the controller.
+           */
+          readonly thatPlayer?: true;
+      }
     /** CR 106.1 + CR 608.2c (Cabal Ritual) — "Add {B}{B}{B}. <Ability word> —
      *  Add {B}{B}{B}{B}{B} instead if there are seven or more cards in your
      *  graveyard.": the second sentence REPLACES the first when the count is
@@ -1822,7 +1838,11 @@ export function assembleSentences(
         }
         if (sentence.role === "add-mana-instead-if") {
             const previous = effects[effects.length - 1];
-            if (previous === undefined || previous.kind !== "add-mana")
+            if (
+                previous === undefined ||
+                previous.kind !== "add-mana" ||
+                previous.thatPlayer === true
+            )
                 return {
                     ok: false,
                     reason: '"Add … instead" follows no "Add …" it could replace',
@@ -2017,6 +2037,8 @@ export const subjectRule: Rule<SubjectIR> = rule<SubjectIR>(
         const probe = uncapitalise(span);
         if (isSelfPhrase(probe)) return ok({ kind: "self" as const });
         if (probe === "that card") return ok({ kind: "that-card" as const });
+        if (probe === "that creature")
+            return ok({ kind: "that-creature" as const });
         // CR 120.3 — read as ONE exact phrase, not a general coordination of
         // two subjects: the grammar has no "X and Y" combinator, and widening
         // to one would read neighbours no fixture covers (e.g. "each
@@ -2526,7 +2548,7 @@ const PAY_VARIABLE_MANA = "you may pay {X}";
 /** CR 107.3f (issue #4529) — the payoff sentence of a variable payment. */
 const IF_YOU_DO = /^If you do, (.+)$/;
 /** CR 106.1 — "Add " then one or more coloured / colorless pip symbols, whole. */
-const ADD_MANA = /^Add ((?:\{[WUBRGC]\})+)$/;
+const ADD_MANA = /^(That player adds|Add) ((?:\{[WUBRGC]\})+)$/;
 /** CR 608.2c — the replacement sentence of a conditional ritual, whole. */
 const ADD_MANA_INSTEAD_IF_COUNT =
     /^Add ((?:\{[WUBRGC]\})+) instead if there are (\S+) or more cards in your graveyard$/;
@@ -3521,7 +3543,10 @@ function effectSentence(
     if (addMana !== null) {
         return ok({
             kind: "add-mana" as const,
-            mana: readManaPips(addMana[1]!),
+            mana: readManaPips(addMana[2]!),
+            ...(addMana[1] === "That player adds"
+                ? { thatPlayer: true as const }
+                : {}),
         });
     }
 

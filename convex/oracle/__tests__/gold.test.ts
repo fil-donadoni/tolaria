@@ -188,7 +188,13 @@ describe("gold round-trip — precision", () => {
         // `damageDealtTrigger` / `damageTakenTrigger` `resolve()` closures — the
         // same move as the entries above, out of "the compiler refuses it" and
         // into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(34);
+        //
+        // 33 -> 36 by issue #4545 (phase and step trigger heads): Essence
+        // Flare, Unstable Mutation and Wanderlust ("…the upkeep of enchanted
+        // creature's controller…") are now compiled while their hand-written
+        // sides are `phaseTrigger` `resolve()` closures — the same move as the
+        // entries above, out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(37);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

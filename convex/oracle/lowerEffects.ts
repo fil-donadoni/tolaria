@@ -163,6 +163,12 @@ export interface SiteAntecedents {
     readonly exiledCard?: true;
     /** "that much" — the magnitude the head's event carried (CR 120.3). */
     readonly amount?: EffectValue;
+    /**
+     * "that creature" — the creature the head named: the Aura's host behind
+     * "at the beginning of the upkeep of enchanted creature's controller"
+     * (CR 303.4b). Absent = the head named no creature.
+     */
+    readonly creature?: EffectObjectSelector;
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
@@ -1038,6 +1044,18 @@ function selectorsFor(
         return object !== undefined
             ? lowered([object])
             : unlowerable('"it" names no object at this site');
+    }
+    // CR 608.2h — "that creature" names what the head named, unless an earlier
+    // announced target is the nearer antecedent.
+    if (subject.kind === "that-creature") {
+        if (slots.requirements().length > 0)
+            return unlowerable(
+                '"that creature" follows an announced target, which is the nearer antecedent (CR 608.2h)'
+            );
+        const creature = site.antecedents?.creature;
+        return creature !== undefined
+            ? lowered([creature])
+            : unlowerable('"that creature" names no creature at this site');
     }
     if (subject.kind === "player")
         return unlowerable("a player is not an object (CR 109.1)");
@@ -2707,8 +2725,15 @@ function lowerSentenceBody(
                     breadth: sentence.breadth,
                 },
             ]);
-        case "add-mana":
-            return lowered([{ op: "addMana", mana: sentence.mana }]);
+        case "add-mana": {
+            if (sentence.thatPlayer !== true)
+                return lowered([{ op: "addMana", mana: sentence.mana }]);
+            const player = playerRef({ kind: "that-player" }, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                { op: "addMana", mana: sentence.mana, player: player.value },
+            ]);
+        }
         case "add-mana-instead-if":
             // CR 608.2c — the count is met: the replacement is added; else the
             // base is. One `if`, so exactly one of the two pools is produced.
