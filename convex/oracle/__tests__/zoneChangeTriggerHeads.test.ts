@@ -22,8 +22,12 @@ import { describe, expect, it } from "vitest";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import { SELF_HEADS, OTHER_HEADS } from "../grammar/shared/triggerHead";
-import { oracleCard } from "./oracle.fixture";
+import {
+    OTHER_HEADS,
+    SELF_HEADS,
+    triggerHeadRule,
+} from "../grammar/shared/triggerHead";
+import { oracleCard, parseContext } from "./oracle.fixture";
 
 function abilitiesOf(
     card: ReturnType<typeof oracleCard>
@@ -208,6 +212,45 @@ describe("zone-change trigger heads — goldens (issue #4546)", () => {
     });
 });
 
+describe("zone-change trigger heads — the library head", () => {
+    // Narcomoeba and Gaea's Blessing print this head; their BODIES ("you may
+    // put it onto the battlefield", "shuffle your graveyard into your
+    // library") are other effect-clause rules, so the head is pinned by itself.
+    it.each([
+        "When this card is put into your graveyard from your library",
+        "When {self} is put into your graveyard from your library",
+    ])("reads %s as the card's own mill", (span) => {
+        const result = triggerHeadRule.run(span, parseContext());
+        expect(result.ok && result.value).toEqual({
+            kind: "library-to-graveyard",
+        });
+    });
+
+    it.each([
+        "When this card is put into a graveyard from your library",
+        "When this card is put into your graveyard from anywhere",
+        "When this card is put into your graveyard from your hand",
+        "Whenever another card is put into your graveyard from your library",
+    ])("refuses %s", (span) => {
+        expect(triggerHeadRule.run(span, parseContext()).ok).toBe(false);
+    });
+
+    it("lowers to the head descriptor behind a body the grammar reads", () => {
+        const [ability] = abilitiesOf(
+            oracleCard({
+                name: "Narcomoeba",
+                manaCost: "{1}{U}",
+                typeLine: "Creature — Illusion",
+                power: "1",
+                toughness: "1",
+                oracleText:
+                    "When this card is put into your graveyard from your library, draw a card.",
+            })
+        );
+        expect(ability?.head).toEqual({ kind: "library-to-graveyard" });
+    });
+});
+
 describe("zone-change trigger heads — refusals (fail-closed)", () => {
     it.each([
         // the self head is the battlefield exit only
@@ -268,5 +311,8 @@ describe("zone-change trigger heads — tables", () => {
         ];
         expect(kinds.filter((k) => k === "left-to-graveyard")).toHaveLength(2);
         expect(kinds.filter((k) => k === "graveyard-entry")).toHaveLength(2);
+        expect(kinds.filter((k) => k === "library-to-graveyard")).toHaveLength(
+            1
+        );
     });
 });

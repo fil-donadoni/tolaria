@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from "vitest";
 import { registerTokenDefinition } from "../../cards";
-import type { CardDefinition } from "../../cards/types";
+import type { CardDefinition, GameEvent } from "../../cards/types";
 import {
     makeInstance,
     makePlayer,
@@ -20,6 +20,7 @@ import {
     pushSpell,
 } from "../../cards/__tests__/setup.helper";
 import { getDefinition } from "../../cards";
+import { collectTriggers } from "../triggers";
 import { compileCard } from "../../oracle/compile";
 import { oracleCard } from "../../oracle/__tests__/oracle.fixture";
 import {
@@ -338,5 +339,95 @@ describe("Compost: 'a black card … an opponent's graveyard' (CR 105.2 / 400.3)
             controllerId: "p1",
         });
         expect(triggersOf(state, COMPOST)).toHaveLength(0);
+    });
+});
+
+describe("'When this card is put into your graveyard from your library' (CR 603.6c / 603.6e)", () => {
+    // The head is read by the grammar (Narcomoeba, Gaea's Blessing); the bodies
+    // those two print are other rules' business, so the descriptor is driven
+    // here with a body the grammar reads.
+    const MILLER: CardDefinition = {
+        id: "test-4546-miller",
+        name: "Test Miller",
+        rarity: "common",
+        manaCost: { U: 1 },
+        types: ["Creature"],
+        power: 1,
+        toughness: 1,
+        compiledTriggeredAbilities: [
+            {
+                id: "miller-trigger",
+                oracleText:
+                    "When this card is put into your graveyard from your library, draw a card.",
+                head: { kind: "library-to-graveyard" },
+                effects: [{ op: "draw", player: "controller", count: 1 }],
+            },
+        ],
+    };
+    registerTokenDefinition(MILLER);
+
+    const fired = (events: GameEvent[]) => {
+        const miller = makeInstance(MILLER.id, {
+            id: "miller",
+            controllerId: "p1",
+            ownerId: "p1",
+            zone: "graveyard",
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { graveyard: [miller] }),
+                makePlayer("p2"),
+            ],
+        });
+        return collectTriggers(state, events).some(
+            (t) => t.triggeredAbilityId === "miller-trigger"
+        );
+    };
+
+    it("fires when THIS card is milled, from the graveyard it landed in", () => {
+        expect(
+            fired([
+                {
+                    type: "CARD_MILLED",
+                    ownerId: "p1",
+                    cardInstanceId: "miller",
+                } as GameEvent,
+            ])
+        ).toBe(true);
+    });
+
+    it("fires for the general library → graveyard move too", () => {
+        expect(
+            fired([
+                {
+                    type: "CARD_PUT_INTO_GRAVEYARD",
+                    ownerId: "p1",
+                    cardInstanceId: "miller",
+                    fromZone: "library",
+                } as GameEvent,
+            ])
+        ).toBe(true);
+    });
+
+    it("does not fire for a DIFFERENT milled card, nor for a move from another zone", () => {
+        expect(
+            fired([
+                {
+                    type: "CARD_MILLED",
+                    ownerId: "p1",
+                    cardInstanceId: "other",
+                } as GameEvent,
+            ])
+        ).toBe(false);
+        expect(
+            fired([
+                {
+                    type: "CARD_PUT_INTO_GRAVEYARD",
+                    ownerId: "p1",
+                    cardInstanceId: "miller",
+                    fromZone: "hand",
+                } as GameEvent,
+            ])
+        ).toBe(false);
     });
 });

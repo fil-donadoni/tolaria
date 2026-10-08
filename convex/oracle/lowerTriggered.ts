@@ -79,6 +79,8 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
                     ? { causedBy: head.causedBy }
                     : {}),
             };
+        case "library-to-graveyard":
+            return { kind: "library-to-graveyard" };
         case "graveyard-entry":
             return {
                 kind: "graveyard-entry",

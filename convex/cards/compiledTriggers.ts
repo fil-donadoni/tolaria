@@ -58,6 +58,7 @@ import {
     leftTrigger,
 } from "./abilities/triggers/leftTrigger";
 import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
+import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveyardTrigger";
 import { holdsExileBundle } from "./abilities/exileBundle";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
@@ -149,6 +150,12 @@ export type CompiledTriggerHead =
           readonly ownedBy?: "you";
           readonly causedBy?: "opponent";
       }
+    /**
+     * CR 603.6c / 603.6e — "when this card is put into your graveyard from your
+     * library": the source is the card that moved and functions from the
+     * graveyard it landed in (`libraryToGraveyardTrigger`).
+     */
+    | { readonly kind: "library-to-graveyard" }
     /**
      * CR 603.2 / 603.6c — "whenever [another / a <colour>] card is put into
      * [a / an opponent's / your] graveyard from anywhere": one ability over the
@@ -383,6 +390,8 @@ export function resolveCompiledTrigger(
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });
         }
+        case "library-to-graveyard":
+            return libraryToGraveyardTrigger({ ...common });
         case "graveyard-entry":
             return graveyardEntryTrigger({
                 ...common,

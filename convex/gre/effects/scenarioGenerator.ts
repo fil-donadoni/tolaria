@@ -190,6 +190,9 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     // CR 603.6c — "from anywhere" is never a leaves-the-battlefield ability;
     // the source watches OTHER cards reach a graveyard and is still in play.
     "graveyard-entry": () => true,
+    // CR 603.6e — the source IS the milled card and functions from the
+    // graveyard it landed in, never from the battlefield.
+    "library-to-graveyard": () => false,
     attacks: () => true,
     // CR 508.3a / 509.3a — the source watches OTHER creatures declare; nothing
     // in either event moves it.

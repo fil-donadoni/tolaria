@@ -93,6 +93,12 @@ export type TriggerHeadIR =
           readonly causedBy?: "opponent";
       }
     /**
+     * CR 603.6c / 603.6e — "when this card is put into your graveyard from your
+     * library": the source is the card that moved (the mill, CR 701.17) and
+     * the head fires from the graveyard it reached. Self only.
+     */
+    | { readonly kind: "library-to-graveyard" }
+    /**
      * CR 603.2 / 603.6c — "whenever [another / a black] card is put into [a /
      * an opponent's] graveyard from anywhere": a card reaching a graveyard by
      * ANY route (battlefield, hand, library, stack), read from the graveyard
@@ -452,6 +458,13 @@ export const SELF_HEADS: readonly {
         tail: " is put into a graveyard from the battlefield",
         ir: { kind: "left-to-graveyard", scope: "self" },
     },
+    // CR 603.6c / 603.6e — the card's own trip from your library to your
+    // graveyard (the mill).
+    {
+        opener: "when ",
+        tail: " is put into your graveyard from your library",
+        ir: { kind: "library-to-graveyard" },
+    },
     {
         opener: "whenever ",
         tail: " attacks",
@@ -562,6 +575,10 @@ export function headPronounReferent(
         // (`moveZone`). Only the self form: the non-self ones name another card.
         case "left-to-graveyard":
             return head.scope === "self" ? "source" : null;
+        // CR 400.7 — the source is the card that moved and sits in the graveyard
+        // it reached; `$source` finds it there (`moveZone`).
+        case "library-to-graveyard":
+            return "source";
         case "graveyard-entry":
             return null;
         // CR 120.3 — `self`: the source is the receiver and is still the
