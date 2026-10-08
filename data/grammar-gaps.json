@@ -3736,6 +3736,11 @@
         },
         {
             "kind": "scenario",
+            "key": "smoke-scenario › Op \"counters\" uses a ref/count amount the canned generator does not model — covered by the card's own per-card test",
+            "issue": 5267
+        },
+        {
+            "kind": "scenario",
             "key": "smoke-scenario › Op \"discard\" consumes a choice binding, a hand filter, or discards the whole hand — covered by the card's own suspension/resume or per-card test",
             "issue": 4172
         },
@@ -3758,6 +3763,16 @@
             "kind": "scenario",
             "key": "smoke-scenario › amount is chosen-cost X — depends on the value announced for {X} at cast time",
             "issue": 4022
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › amount reads a permanent's \"charge\" counter count — the canned generator does not pre-seed counters",
+            "issue": 5265
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › amount reads a selected object's mana value — not faithfully sizable in a canned scenario",
+            "issue": 5266
         },
         {
             "kind": "scenario",
