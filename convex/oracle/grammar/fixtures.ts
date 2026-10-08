@@ -5661,4 +5661,171 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.20a + CR 701.9b — "Target opponent reveals their hand. You choose
+    // <a card> from it. That player discards that card.": the controller picks
+    // from the revealed hand. Exhibits `discard` of a choice binding, the
+    // pick the canned smoke scenario cannot make (issue #4566).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "33d405ea-7a9a-4970-b70f-9c05d90dd6f0",
+            name: "Duress",
+            manaCost: "{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That player discards that card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Duress",
+            types: ["Sorcery"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Target opponent reveals their hand. You choose a noncreature, nonland card from it. That player discards that card.",
+            effects: [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeType: ["Land", "Creature"] },
+                    count: 1,
+                    prompt: "Choose a noncreature, nonland card from that player's hand.",
+                    bind: "$picked1",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked1" },
+                },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    },
+    // CR 701.20a reveal + CR 701.13a exile — "… You choose a nonland card from
+    // it and exile that card.": the same pick, exiled. Exhibits `moveZone` of a choice
+    // binding from a hand to exile, a zone change the canned smoke scenario
+    // does not model (issue #4566).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "28a972a6-cf67-4ee3-aa91-f7b2549f6c48",
+            name: "Castigate",
+            manaCost: "{W}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Target opponent reveals their hand. You choose a nonland card from it and exile that card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Castigate",
+            types: ["Sorcery"],
+            manaCost: { W: 1, B: 1 },
+            oracleText:
+                "Target opponent reveals their hand. You choose a nonland card from it and exile that card.",
+            effects: [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeType: "Land" },
+                    count: 1,
+                    prompt: "Choose a nonland card from that player's hand.",
+                    bind: "$picked1",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$picked1" },
+                    player: { target: 0 },
+                    from: "hand",
+                    to: "exile",
+                },
+            ],
+            targetRequirement: {
+                type: "player",
+                count: 1,
+                controller: "opponent",
+            },
+        },
+    },
+    // CR 608.2c + CR 701.13a — "you may exile a card from your hand. If you
+    // do, untap this land.": a `mayPay` hand leg gating the untap. Exhibits
+    // `tapUntap` of `$source`, an object the canned smoke scenario does not
+    // pick (issue #4566).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6bb00a28-8b5a-4049-93b7-3db02de88aeb",
+            name: "Forsaken City",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "This land doesn't untap during your untap step.\nAt the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.\n{T}: Add one mana of any color.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Forsaken City",
+            types: ["Land"],
+            oracleText:
+                "This land doesn't untap during your untap step.\nAt the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.\n{T}: Add one mana of any color.",
+            staticAbilities: ["does-not-untap"],
+            activatedAbilities: [
+                {
+                    id: "forsaken-city-mana",
+                    oracleText: "{T}: Add one mana of any color.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaChoices: [
+                        { W: 1 },
+                        { U: 1 },
+                        { B: 1 },
+                        { R: 1 },
+                        { G: 1 },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "forsaken-city-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, you may exile a card from your hand. If you do, untap this land.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                hand: {
+                                    action: "exile",
+                                    requirements: [{ filter: {}, count: 1 }],
+                                },
+                            },
+                            prompt: "Exile a card from your hand?",
+                            bind: "$paid1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$paid1" },
+                            then: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { ref: "$source" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

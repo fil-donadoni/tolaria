@@ -1071,6 +1071,37 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.20a + CR 701.9b — "<player> reveals their hand. You choose
+           * <a card> from it. That player discards that card." (or "… and
+           * exile that card" / "Exile that card."): the hand is shown to every
+           * player, the CONTROLLER picks one card the description matches
+           * (CR 701.9b's "another player chooses"), and that card is
+           * discarded or exiled (CR 701.13a). Folded by `assembleSentences`
+           * from the `hand-reveal` / `hand-pick` / `hand-pick-route` sentence
+           * roles; none is an effect alone. `filter` is a closed vocabulary
+           * (`HAND_PICK_FILTERS`), `phrase` the printed noun phrase for the
+           * prompt.
+           */
+          readonly kind: "reveal-hand-pick";
+          readonly player: PlayerRefIR;
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
+          readonly route: HandPickRoute;
+      }
+    | {
+          /**
+           * CR 608.2c + CR 701.13a — "You may exile a card from your hand.
+           * If you do, <effect>.": an optional move of one of the
+           * controller's own hand cards that gates the effect after it.
+           * Folded by `assembleSentences` from the `optional-hand-exile` and
+           * `if-you-do` roles; either alone is refused.
+           */
+          readonly kind: "optional-hand-exile-then";
+          readonly clause: string;
+          readonly effect: EffectSentenceIR;
+      }
+    | {
+          /**
            * CR 701.9a — "<player> discards N cards": by default the affected
            * player CHOOSES which cards (CR 701.9b), the counterpart of
            * `discard-at-random`, which lets the game pick.
@@ -1556,7 +1587,43 @@ export type SentenceIR =
           readonly role: "add-mana-instead-if";
           readonly mana: EffectManaPool;
           readonly condition: CardCountConditionIR;
-      };
+      }
+    /**
+     * CR 701.20a — the sentences of a `reveal-hand-pick` (see there):
+     * "<player> reveals their hand" (`hand-reveal`), "You choose <a card> from
+     * it[ and exile that card]" (`hand-pick`), the trigger's one-sentence
+     * "<player> reveals their hand and you choose <a card> from it"
+     * (`hand-reveal-pick`), and the routing "That player discards that card" /
+     * "Exile that card" (`hand-pick-route`). Each names an antecedent only the
+     * next one reads.
+     */
+    | { readonly role: "hand-reveal"; readonly player: PlayerRefIR }
+    | {
+          readonly role: "hand-reveal-pick";
+          readonly player: PlayerRefIR;
+          readonly pick: HandPickIR;
+      }
+    | {
+          readonly role: "hand-pick";
+          readonly pick: HandPickIR;
+          /** "… and exile that card": the route is printed in the pick. */
+          readonly exile: boolean;
+      }
+    | { readonly role: "hand-pick-route"; readonly route: HandPickRoute }
+    /**
+     * CR 608.2c — "You may exile a card from your hand.", the first half of
+     * an `optional-hand-exile-then`; the `if-you-do` after it is the second.
+     */
+    | { readonly role: "optional-hand-exile"; readonly text: string };
+
+/** Where a `reveal-hand-pick`'s chosen card goes. */
+export type HandPickRoute = "discard" | "exile";
+
+/** The card a `reveal-hand-pick` lets the controller choose. */
+export interface HandPickIR {
+    readonly filter: EffectCardFilter;
+    readonly phrase: string;
+}
 
 /**
  * A parsed sentence LIST assembled into what an ability site actually carries.
@@ -1648,7 +1715,80 @@ export function assembleSentences(
         readonly stage: "needs-picker" | "ready";
         readonly form: "separates" | "chooses";
     } | null = null;
+    // CR 701.20a — a revealed hand waits for the card chosen from it, and the
+    // chosen card for where it goes.
+    let handReveal: {
+        readonly player: PlayerRefIR;
+        readonly pick?: HandPickIR;
+    } | null = null;
+    // CR 608.2c — an optional hand exile waits for the "If you do" it gates.
+    let optionalHandExile: Extract<
+        SentenceIR,
+        { role: "optional-hand-exile" }
+    > | null = null;
     for (const sentence of sentences) {
+        if (optionalHandExile !== null) {
+            if (sentence.role !== "if-you-do")
+                return {
+                    ok: false,
+                    reason: '"You may exile a card from your hand" is not followed by "If you do, …"',
+                };
+            effects.push({
+                kind: "optional-hand-exile-then",
+                clause: optionalHandExile.text,
+                effect: sentence.effect,
+            });
+            optionalHandExile = null;
+            continue;
+        }
+        if (handReveal !== null) {
+            if (handReveal.pick === undefined) {
+                if (sentence.role !== "hand-pick")
+                    return {
+                        ok: false,
+                        reason: "a revealed hand is not followed by the card chosen from it",
+                    };
+                if (sentence.exile) {
+                    effects.push({
+                        kind: "reveal-hand-pick",
+                        player: handReveal.player,
+                        ...sentence.pick,
+                        route: "exile",
+                    });
+                    handReveal = null;
+                    continue;
+                }
+                handReveal = { player: handReveal.player, pick: sentence.pick };
+                continue;
+            }
+            const route =
+                sentence.role === "hand-pick-route"
+                    ? sentence.route
+                    : isExileThatCard(sentence)
+                      ? "exile"
+                      : null;
+            if (route === null)
+                return {
+                    ok: false,
+                    reason: "a card chosen from a revealed hand is not followed by where it goes",
+                };
+            effects.push({
+                kind: "reveal-hand-pick",
+                player: handReveal.player,
+                ...handReveal.pick,
+                route,
+            });
+            handReveal = null;
+            continue;
+        }
+        if (
+            sentence.role === "hand-pick" ||
+            sentence.role === "hand-pick-route"
+        )
+            return {
+                ok: false,
+                reason: '"from it" / "that card" follows no revealed hand',
+            };
         if (payVariable !== null) {
             if (sentence.role !== "if-you-do")
                 return {
@@ -1979,6 +2119,18 @@ export function assembleSentences(
                 ok: false,
                 reason: "an effect sentence follows an activation restriction",
             };
+        if (sentence.role === "hand-reveal") {
+            handReveal = { player: sentence.player };
+            continue;
+        }
+        if (sentence.role === "hand-reveal-pick") {
+            handReveal = { player: sentence.player, pick: sentence.pick };
+            continue;
+        }
+        if (sentence.role === "optional-hand-exile") {
+            optionalHandExile = sentence;
+            continue;
+        }
         if (sentence.role === "instead") {
             const previous = effects[effects.length - 1];
             if (previous === undefined)
@@ -2184,6 +2336,16 @@ export function assembleSentences(
             ok: false,
             reason: "a named library reveal is not followed by where the rest goes",
         };
+    if (handReveal !== null)
+        return {
+            ok: false,
+            reason: "a revealed hand is not followed by the card chosen from it and where it goes",
+        };
+    if (optionalHandExile !== null)
+        return {
+            ok: false,
+            reason: '"You may exile a card from your hand" is the last sentence and gates no effect',
+        };
     if (namePending && !nameRead)
         return {
             ok: false,
@@ -2197,6 +2359,23 @@ export function assembleSentences(
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
     return { ok: true, effects, restrictions };
+}
+
+/**
+ * "Exile that card." — read by the effect grammar as a `move-zone` of the
+ * CR 400.7e zone-change anaphora (Planar Void's "exile that card"); behind a
+ * pick from a revealed hand the same words name the picked card, so
+ * `assembleSentences` folds them into the pick's exile route there and
+ * nowhere else.
+ */
+function isExileThatCard(sentence: SentenceIR): boolean {
+    return (
+        sentence.role === "effect" &&
+        sentence.effect.kind === "move-zone" &&
+        sentence.effect.subject.kind === "that-card" &&
+        sentence.effect.to.zone === "exile" &&
+        sentence.effect.to.owner === "any"
+    );
 }
 
 /** CR 119.3 — "You lose life equal to its mana value": the tail of a reveal-top-to-hand. */
@@ -2478,6 +2657,8 @@ export function capitalise(span: string): string {
 
 /** CR 603.2's optional marker, as printed at a trigger's effect clause. */
 const MAY_PREFIX = "you may ";
+/** CR 701.13a — the optional move of one of the controller's hand cards. */
+const OPTIONAL_HAND_EXILE = "exile a card from your hand";
 
 /**
  * Wrap a sentence rule so it also reads CR 603.2's "you may <effect>".
@@ -2517,6 +2698,14 @@ export function optionalSentenceRule(
             });
         if (!probe.startsWith(MAY_PREFIX)) return inner.run(span, ctx);
         const clause = probe.slice(MAY_PREFIX.length);
+        // CR 608.2c — "you may exile a card from your hand" is the first half
+        // of an `optional-hand-exile-then`: what it gates is the "If you do"
+        // after it, not an effect of its own.
+        if (clause === OPTIONAL_HAND_EXILE)
+            return ok({
+                role: "optional-hand-exile" as const,
+                text: capitalise(clause),
+            });
         const parsed = inner.run(clause, ctx);
         if (!parsed.ok) return parsed;
         if (parsed.value.role !== "effect")
@@ -2904,6 +3093,8 @@ const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
 const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
+/** CR 701.9b — "Discard a card": the controller discards one of their choice. */
+const DISCARD_SELF = "Discard a card";
 /** CR 105.1 — "green or white": two colour words joined by a printed "or". */
 const COLOR_ALTERNATIVES =
     /^(?:white|blue|black|red|green) or (?:white|blue|black|red|green) /;
@@ -3481,6 +3672,9 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         const named = chosenNameSentence(span, ctx);
         if (named !== null) return named;
 
+        const handPick = handPickSentence(span, ctx);
+        if (handPick !== null) return handPick;
+
         const library = libraryHalf(span);
         if (library !== null) return library;
 
@@ -3823,6 +4017,105 @@ function chosenNameSentence(span: string, ctx: unknown) {
     }
     if (EXILE_REST.test(span))
         return ok({ role: "exile-rest" as const } satisfies SentenceIR);
+    return null;
+}
+
+/** CR 701.20a — "<player> reveals their hand", the head of a hand pick. */
+const HAND_REVEAL = /^(.+) reveals their hand$/;
+/** The trigger's one-sentence reveal and pick. */
+const HAND_REVEAL_PICK =
+    /^(.+) reveals their hand and you choose (.+) from it$/;
+/** CR 701.9b — the controller's pick from the revealed hand. */
+const HAND_PICK = /^You choose (.+) from it( and exile that card)?$/;
+/** Where the picked card goes: the routing sentence, whole. */
+const HAND_PICK_ROUTES: ReadonlyMap<string, HandPickRoute> = new Map([
+    ["That player discards that card", "discard"],
+]);
+/**
+ * What the controller may choose from a revealed hand, as an
+ * `EffectCardFilter`. A closed table, as `LIBRARY_SEARCH_FILTERS` is: a
+ * description with no row ("a card from it with mana value 4 or greater", "a
+ * nonlegendary, nonland card") fails the sentence rather than letting the pick
+ * range wider than the card said. A row is earned by a printed form.
+ */
+const HAND_PICK_FILTERS: ReadonlyMap<string, EffectCardFilter> = new Map<
+    string,
+    EffectCardFilter
+>([
+    ["a card", {}],
+    ["a nonland card", { excludeType: "Land" }],
+    ["a noncreature, nonland card", { excludeType: ["Land", "Creature"] }],
+    ["a creature card", { type: "Creature" }],
+    ["an artifact card", { type: "Artifact" }],
+    ["an artifact or creature card", { type: ["Artifact", "Creature"] }],
+    ["a creature or planeswalker card", { type: ["Creature", "Planeswalker"] }],
+]);
+
+function readHandPick(phrase: string): HandPickIR | null {
+    const filter = HAND_PICK_FILTERS.get(phrase);
+    return filter === undefined ? null : { filter, phrase };
+}
+
+/**
+ * CR 701.20a — a target player's revealed hand, read only in front of the
+ * pick that needs it: "Each opponent reveals their hand" is a sweep of
+ * reveals no pick follows, and "that player" would name a referent this
+ * sentence does not bind.
+ */
+function handRevealPlayer(span: string, ctx: unknown): PlayerRefIR | null {
+    const player = playerSubject(span, ctx);
+    return player !== null && player.kind === "target" ? player : null;
+}
+
+/**
+ * CR 701.20a + CR 701.9b — the sentences of a `reveal-hand-pick`, as the
+ * sentence roles `assembleSentences` folds. `null` = none of them.
+ */
+function handPickSentence(span: string, ctx: unknown) {
+    const route = HAND_PICK_ROUTES.get(span);
+    if (route !== undefined)
+        return ok({
+            role: "hand-pick-route" as const,
+            route,
+        } satisfies SentenceIR);
+    const revealPick = span.match(HAND_REVEAL_PICK);
+    if (revealPick !== null) {
+        const player = handRevealPlayer(revealPick[1]!, ctx);
+        if (player === null)
+            return fail(`"${revealPick[1]}" is not a target player`, span);
+        const pick = readHandPick(revealPick[2]!);
+        if (pick === null)
+            return fail(
+                `"${revealPick[2]}" is not a card this pick reads`,
+                span
+            );
+        return ok({
+            role: "hand-reveal-pick" as const,
+            player,
+            pick,
+        } satisfies SentenceIR);
+    }
+    const reveal = span.match(HAND_REVEAL);
+    if (reveal !== null) {
+        const player = handRevealPlayer(reveal[1]!, ctx);
+        if (player === null)
+            return fail(`"${reveal[1]}" is not a target player`, span);
+        return ok({
+            role: "hand-reveal" as const,
+            player,
+        } satisfies SentenceIR);
+    }
+    const chosen = span.match(HAND_PICK);
+    if (chosen !== null) {
+        const pick = readHandPick(chosen[1]!);
+        if (pick === null)
+            return fail(`"${chosen[1]}" is not a card this pick reads`, span);
+        return ok({
+            role: "hand-pick" as const,
+            pick,
+            exile: chosen[2] !== undefined,
+        } satisfies SentenceIR);
+    }
     return null;
 }
 
@@ -5130,6 +5423,14 @@ function effectSentence(
     }
 
     // ── discard, the player's choice (CR 701.9b) ───────────────────────────
+    // The imperative is the controller's own discard; only the one-card form
+    // is printed as a sentence of its own.
+    if (span === DISCARD_SELF)
+        return ok({
+            kind: "discard" as const,
+            player: { kind: "you" as const },
+            count: { kind: "fixed" as const, value: 1 },
+        } satisfies EffectSentenceIR);
     const chosen = span.match(DISCARD_CHOICE);
     if (chosen !== null) {
         const player = playerSubject(chosen[1]!, ctx);
