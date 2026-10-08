@@ -2106,6 +2106,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Shuffle your graveyard into your library",
+            "issue": 5232
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Target opponent reveals their hand and you choose a nonland card from it",
             "issue": 4566
         },
@@ -3663,6 +3668,11 @@
             "kind": "migration",
             "key": "mana-ability + static",
             "issue": 4041
+        },
+        {
+            "kind": "migration",
+            "key": "mana-ability + triggered",
+            "issue": 5233
         },
         {
             "kind": "migration",
