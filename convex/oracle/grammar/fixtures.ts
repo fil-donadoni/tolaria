@@ -3343,6 +3343,124 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 110.5a + CR 701.24a (shuffle) — "Search your
+    // library for a Forest or Plains card, put it onto the battlefield, then
+    // shuffle": the dual-land fetch. Same two card-dependent forms as the hand
+    // route (a runtime-sized `choice`, a `moveZone` on an object the generator
+    // does not model), but over a subtype filter, which is a different Op
+    // skeleton — so it is its own row (issue #4552).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "29737a60-3ebd-40d9-b935-c4f54b90d45d",
+            name: "Windswept Heath",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Windswept Heath",
+            types: ["Land"],
+            oracleText:
+                "{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "windswept-heath-ability",
+                    oracleText:
+                        "{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Plains card, put it onto the battlefield, then shuffle.",
+                    cost: { tap: true, life: 1, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { subtype: ["Forest", "Plains"] },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a Forest or Plains card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.23a + CR 110.5a + CR 701.24a — "Search your library for a basic
+    // land card, put that card onto the battlefield tapped, then shuffle": the
+    // `moveZone` carries `tapped`, which is part of its skeleton (issue #4552).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "e3afc704-220f-498f-9eaa-0821b17dc24c",
+            name: "Sakura-Tribe Elder",
+            manaCost: "{1}{G}",
+            typeLine: "Creature — Snake Shaman",
+            oracleText:
+                "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sakura-Tribe Elder",
+            types: ["Creature"],
+            subtypes: ["Snake", "Shaman"],
+            manaCost: { G: 1, X: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "sakura-tribe-elder-ability",
+                    oracleText:
+                        "Sacrifice this creature: Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.",
+                    cost: { sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Land", supertype: "Basic" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a basic land card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                            tapped: true,
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 120.3 — "<self> deals N damage to each creature and each player":
     // the fixed two-set damage recipient union lowers to a PAIR of `forEach`
     // sweeps (one over battlefield creatures, one over players), because
