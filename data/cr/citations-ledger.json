@@ -9989,6 +9989,7 @@
         {"id":"205.3","line":"// CR 205.3 (issue #3721) — literal subtypes, or a `chooseCreatureType`","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
         {"id":"205.3","line":"// CR 205.3 (issue #3721) — the same boundary treatment `name` and `color`","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
         {"id":"205.3","line":"// CR 205.3 (issue #4557) — \"non-Aura\": dropping it here would be","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
+        {"id":"205.3","line":"// CR 205.3 (issue #4557) — the negative of `subtype`: a card with ANY","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
         {"id":"205.3","line":"// CR 205.3 (issue #4557) — the negative of `subtype`: fails if the card","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
         {"id":"205.3","line":"// CR 205.3 + CR 613.4c — \"Goblin creatures get +3/+0 until end of turn\": a bare subtype group with no controller names every Goblin creature, whoever controls it (issue #4557).","sites":1,"status":"confirmed","ruleHash":"7033a6d3b304c005"},
         {"id":"205.3","line":"// CR 205.3 / 400.7 (issue #1950 review, BLOCKER 2) — the CARD-kind","sites":1,"status":"baseline"},
