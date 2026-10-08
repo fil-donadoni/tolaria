@@ -1,5 +1,5 @@
 // "Search your library for <what>, put it onto the battlefield[ tapped], then
-// shuffle." (CR 701.23a, CR 110.5a, CR 701.24a, issue #4552).
+// shuffle." (CR 701.23a, CR 110.5b, CR 701.24a, issue #4552).
 //
 //  1. GOLDEN — each accepted form compiled whole off a real corpus card and
 //     compared against the entire Compiled Definition: the dual-land fetch
@@ -59,7 +59,7 @@ const DUAL_CLAUSE = (what: string) =>
 const BASIC_CLAUSE =
     "Search your library for a basic land card, put that card onto the battlefield tapped, then shuffle.";
 
-describe("Search library onto the battlefield — golden fixtures (CR 701.23a, CR 110.5a)", () => {
+describe("Search library onto the battlefield — golden fixtures (CR 701.23a, CR 110.5b)", () => {
     it("activated slot, dual-land description: Windswept Heath", () => {
         const text = DUAL_CLAUSE("a Forest or Plains");
         expect(
@@ -248,7 +248,7 @@ describe("Search library onto the battlefield — lowering invariants", () => {
         });
     });
 
-    it("enters tapped only when the line says so (CR 110.5a)", () => {
+    it("enters tapped only when the line says so (CR 110.5b)", () => {
         const untapped = effects(
             "Windswept Heath",
             DUAL_CLAUSE("a Forest or Plains")

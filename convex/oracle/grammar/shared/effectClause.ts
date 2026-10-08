@@ -1234,7 +1234,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 701.23a (search) + CR 701.24a (shuffle) + CR 110.5a — "Search
+           * CR 701.23a (search) + CR 701.24a (shuffle) + CR 110.5b — "Search
            * your library for a Forest or Plains card, put it onto the
            * battlefield, then shuffle.": the controller looks through their OWN
            * library, may find one card the description matches, puts it onto
@@ -2775,7 +2775,7 @@ const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
     ["a basic land card", { type: "Land", supertype: "Basic" }],
 ]);
 /**
- * CR 701.23a (search) + CR 110.5a — "Search your library for <what>, put <it>
+ * CR 701.23a (search) + CR 110.5b — "Search your library for <what>, put <it>
  * onto the battlefield[ tapped], then shuffle". A closed table of the whole
  * printed middle of the clause, so the pronoun and the tapped state are part of
  * what is accepted (the basic-land fetch prints "that card ... tapped", the
@@ -4057,7 +4057,7 @@ function effectSentence(
     }
 
     // ── search the library, put the find onto the battlefield, shuffle ─────
-    // CR 701.23a (search) + CR 110.5a (tapped) + CR 701.24a (shuffle)
+    // CR 701.23a (search) + CR 110.5b (tapped) + CR 701.24a (shuffle)
     const searchToBattlefield = span.match(SEARCH_LIBRARY_TO_BATTLEFIELD);
     if (searchToBattlefield !== null) {
         const [, phrase, pronoun, tapped] = searchToBattlefield;

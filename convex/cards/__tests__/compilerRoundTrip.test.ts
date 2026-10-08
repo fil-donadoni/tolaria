@@ -217,7 +217,7 @@ import {
 // Lowered 1423 -> 1421 by issue #4546 (zone-change trigger heads): Chromatic
 // Star ("when this artifact is put into a graveyard from the battlefield")
 // and Sacred Ground round-trip through the new `left-to-graveyard` head.
-const BASELINE_CEILING = 1419;
+const BASELINE_CEILING = 1411;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
