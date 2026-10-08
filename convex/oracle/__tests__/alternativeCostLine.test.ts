@@ -8,14 +8,14 @@
 //     and compared with the full Compiled Definition: sacrifice N lands
 //     (Fireblast), return N lands with "their owner's hand" (Gush), return
 //     one land with "its owner's hand" (Daze), and the Legate cycle's
-//     two-sided free cast (Mogg Salvage).
+//     two-sided free cast, on an instant (Mogg Salvage) and on a permanent
+//     (Saprazzan Legate).
 //  2. GOLD over the hand-written catalogue — every hand-written card whose
 //     alternative-cost line the rule reads compiles to the
 //     `alternativeCosts` its author wrote.
 //  3. REFUSALS — the neighbours of the family the rule must not read: other
-//     legs (discard, exile from hand), other conditions (your turn, a
-//     commander), the free cast on a PERMANENT spell, and count/noun/pronoun
-//     disagreements.
+//     legs (a land card discarded), other conditions (your turn, a
+//     commander), and count/noun/pronoun disagreements.
 
 import { describe, expect, it } from "vitest";
 import { getAllRawCards } from "../../cards/catalogue";
@@ -169,6 +169,50 @@ describe("Alternative cost line — golden fixtures (CR 118.9)", () => {
             ],
         });
     });
+
+    it("free cast on a permanent spell: Saprazzan Legate", () => {
+        const oracleText =
+            "If an opponent controls a Mountain and you control an Island, you may cast this spell without paying its mana cost.\nFlying";
+        expectDefinition(
+            oracleCard({
+                name: "Saprazzan Legate",
+                manaCost: "{3}{U}",
+                oracleText,
+                typeLine: "Creature — Merfolk Soldier",
+                power: "1",
+                toughness: "3",
+            }),
+            {
+                name: "Saprazzan Legate",
+                types: ["Creature"],
+                subtypes: ["Merfolk", "Soldier"],
+                manaCost: { X: 3, U: 1 },
+                power: 1,
+                toughness: 3,
+                oracleText,
+                staticAbilities: ["flying"],
+                alternativeCosts: [
+                    {
+                        id: "cast-without-paying",
+                        description: "Cast without paying its mana cost",
+                        condition: {
+                            kind: "all",
+                            of: [
+                                {
+                                    kind: "opponent-control",
+                                    filter: { subtypes: ["Mountain"] },
+                                },
+                                {
+                                    kind: "control",
+                                    filter: { subtypes: ["Island"] },
+                                },
+                            ],
+                        },
+                    },
+                ],
+            }
+        );
+    });
 });
 
 describe("Alternative cost gold over the hand-written catalogue", () => {
@@ -220,11 +264,6 @@ describe("Alternative cost refusals (fail-closed)", () => {
             "a discard leg",
         ],
         [
-            "Misdirection",
-            "You may exile a blue card from your hand rather than pay this spell's mana cost.",
-            "an exile-from-hand leg",
-        ],
-        [
             "Mine Collapse",
             "If it's your turn, you may sacrifice a Mountain rather than pay this spell's mana cost.",
             "a turn condition",
@@ -247,24 +286,6 @@ describe("Alternative cost refusals (fail-closed)", () => {
     ])("%s: %s (%s)", (name, line) => {
         const outcome = compileCard(
             instant(name, "{1}{R}", `${line}\nDraw a card.`)
-        );
-        expect(outcome.state).toBe("unparsed");
-        if (outcome.state !== "unparsed") return;
-        expect(outcome.gaps.map((g) => g.fragment)).toContain(line);
-    });
-
-    it("the free cast on a permanent spell is not spell text (Saprazzan Legate)", () => {
-        const line =
-            "If an opponent controls a Mountain and you control an Island, you may cast this spell without paying its mana cost.";
-        const outcome = compileCard(
-            oracleCard({
-                name: "Saprazzan Legate",
-                manaCost: "{2}{U}",
-                oracleText: `Flying\n${line}`,
-                typeLine: "Creature — Merfolk Soldier",
-                power: "1",
-                toughness: "3",
-            })
         );
         expect(outcome.state).toBe("unparsed");
         if (outcome.state !== "unparsed") return;

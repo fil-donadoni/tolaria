@@ -91,7 +91,12 @@ export interface AlternativeCostIR {
     readonly id: string;
     readonly description: string;
     /** CR 701.9 discard / CR 701.13 exile, from the payer's hand. */
-    readonly hand: NonNullable<AlternativeCost["hand"]>;
+    readonly hand?: NonNullable<AlternativeCost["hand"]>;
+    /** CR 701.21a sacrifice / CR 400.3 return to hand, of permanents the
+     *  payer controls. */
+    readonly permanent?: NonNullable<AlternativeCost["permanent"]>;
+    /** When the cost may be chosen at all; absent = always. */
+    readonly condition?: AlternativeCost["condition"];
 }
 
 /** What a mana ability adds (CR 605.1a). */
