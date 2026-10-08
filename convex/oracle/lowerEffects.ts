@@ -2067,6 +2067,35 @@ function lowerSentenceBody(
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);
         }
+        case "search-library-to-battlefield": {
+            // CR 701.23a (search) + CR 110.5b (enters tapped) + CR 701.24a
+            // (shuffle) — as the hand route, minus the reveal the line does not
+            // print. The find is OPTIONAL (CR 701.23b); a search that finds
+            // nothing binds nothing, so the move is a no-op (CR 101.3) and only
+            // the shuffle happens.
+            const bind = walk.nextBind("found");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: sentence.filter,
+                    count: { min: 0, max: 1 },
+                    prompt: `Search your library for ${sentence.phrase}.`,
+                    bind,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: "controller",
+                    from: "library",
+                    to: "battlefield",
+                    ...(sentence.tapped ? { tapped: true } : {}),
+                },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+            ]);
+        }
         case "upgrade-if-controls":
             return lowerUpgrade(sentence, walk, site);
         case "mill": {

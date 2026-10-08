@@ -207,7 +207,14 @@ describe("gold round-trip — precision", () => {
         // while its hand-written side is a `resolve()` closure — the same move
         // as the entries above, out of "the compiler refuses it" and into this
         // bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(39);
+        //
+        // 38 -> 39 by issue #4552 (library search onto the battlefield):
+        // Quirion Trailblazer's "you may search your library for a basic land
+        // card, put that card onto the battlefield tapped, then shuffle" is now
+        // compiled while its hand-written side carries a `[closure]` the
+        // projection cannot compare — the same move as the entries above, out
+        // of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(40);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

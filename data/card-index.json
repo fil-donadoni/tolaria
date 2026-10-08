@@ -3934,6 +3934,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Bad River",
+        "scryfallId": "7a78abdb-d1ac-49cb-a74b-9de21c06364a",
+        "oracleId": "259fc423-d078-4668-9e95-8c1a0d2e49ba",
+        "firstSet": "mir",
+        "firstPrintId": "7a78abdb-d1ac-49cb-a74b-9de21c06364a",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Badgermole Cub",
         "scryfallId": "340c5799-4964-44dd-8c48-8f3f3aba5211",
         "oracleId": "2b0afb89-0944-4861-b9c3-e909e2ac215e",
@@ -8942,6 +8952,16 @@
         "source": "compiled"
     },
     {
+        "name": "Centaur Rootcaster",
+        "scryfallId": "3f10dfd9-9889-4d9e-872a-07623dee6b6b",
+        "oracleId": "0aaefa00-86f4-4e12-87ae-3a362d862fa4",
+        "firstSet": "jud",
+        "firstPrintId": "3f10dfd9-9889-4d9e-872a-07623dee6b6b",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Centaur Veteran",
         "scryfallId": "a83903c1-40fe-47a5-8bcc-2f0877c58225",
         "oracleId": "bd4c9726-c7bb-4da4-99e5-e98d174d6a52",
@@ -13322,6 +13342,16 @@
         "firstSet": "mh1",
         "firstPrintId": "3287775f-7bec-4e8f-bb8d-daf5ce92e4a8",
         "firstPrintSet": "mh1"
+    },
+    {
+        "name": "Deep Reconnaissance",
+        "scryfallId": "148ce683-3911-4b77-9e07-3985766a3777",
+        "oracleId": "a823e880-3d5f-4186-a7da-e710a7db583c",
+        "firstSet": "ody",
+        "firstPrintId": "148ce683-3911-4b77-9e07-3985766a3777",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Deep Spawn",
@@ -20388,6 +20418,16 @@
         "source": "compiled"
     },
     {
+        "name": "Flood Plain",
+        "scryfallId": "7b7610f3-f182-404e-80b9-ccd94e174db0",
+        "oracleId": "9043d8d5-b38a-406f-a44c-49f579c644f0",
+        "firstSet": "mir",
+        "firstPrintId": "7b7610f3-f182-404e-80b9-ccd94e174db0",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Flooded Grove",
         "scryfallId": "4e45d16b-8320-4a9b-ad15-9687dfb52bed",
         "oracleId": "dc974eb4-72b9-4213-887b-8ee684b93420",
@@ -24377,6 +24417,16 @@
         "firstPrintId": "7fddcd48-3efe-4b56-9d69-9659b3dc6021",
         "firstPrintSet": "dsk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Grasslands",
+        "scryfallId": "65f5efac-ef98-4be2-abcc-1aa38bf66b06",
+        "oracleId": "e80bd454-8bc5-4921-90cf-6ad28a27a88b",
+        "firstSet": "mir",
+        "firstPrintId": "65f5efac-ef98-4be2-abcc-1aa38bf66b06",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -37046,6 +37096,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Mountain Valley",
+        "scryfallId": "ded4e5c2-4f03-47c1-9843-b98c239ccfea",
+        "oracleId": "0b7393aa-d563-45bc-9946-8e7d1729d498",
+        "firstSet": "mir",
+        "firstPrintId": "ded4e5c2-4f03-47c1-9843-b98c239ccfea",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mountain Yeti",
         "scryfallId": "09242f08-3bfc-4082-b32f-703c7fed62a0",
         "oracleId": "375ea10b-da68-4c66-b3eb-f5113c09ea4b",
@@ -44168,6 +44228,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rampant Growth",
+        "scryfallId": "a9dd8043-4099-42bb-9d54-4efc8b38fe18",
+        "oracleId": "8539f295-5d58-4436-a73a-b9277c4c7795",
+        "firstSet": "mir",
+        "firstPrintId": "a9dd8043-4099-42bb-9d54-4efc8b38fe18",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ramunap Excavator",
         "scryfallId": "90a54d18-8403-441d-a115-ee462fabdabb",
         "oracleId": "4f819ba4-52ef-4fdd-8e4c-5ae3b2f44db5",
@@ -46502,6 +46572,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rocky Tar Pit",
+        "scryfallId": "1e21c347-7aaf-42ae-abf3-f1283c5b54e6",
+        "oracleId": "8709b5b1-ef9e-45b2-bf4f-ef4c4d613dcd",
+        "firstSet": "mir",
+        "firstPrintId": "1e21c347-7aaf-42ae-abf3-f1283c5b54e6",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Rod of Ruin",
         "scryfallId": "af957200-c538-4f52-b105-6db7a7abb4dc",
         "oracleId": "c29a04ab-4e14-45d8-a993-3fffd0e2f6eb",
@@ -47413,6 +47493,16 @@
         "firstPrintId": "142479d8-8956-44a2-8c54-9dd6dc1774c0",
         "firstPrintSet": "mmq",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Sakura-Tribe Elder",
+        "scryfallId": "91c7707a-bae0-4196-bf26-d276f57b7369",
+        "oracleId": "e3afc704-220f-498f-9eaa-0821b17dc24c",
+        "firstSet": "chk",
+        "firstPrintId": "91c7707a-bae0-4196-bf26-d276f57b7369",
+        "firstPrintSet": "chk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -50938,6 +51028,16 @@
         "source": "compiled"
     },
     {
+        "name": "Silkwing Scout",
+        "scryfallId": "04f165aa-2986-47d1-912d-d50490a15c0b",
+        "oracleId": "4c76db22-1992-448d-be4a-a9095420b8cc",
+        "firstSet": "dis",
+        "firstPrintId": "04f165aa-2986-47d1-912d-d50490a15c0b",
+        "firstPrintSet": "dis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Silkwrap",
         "scryfallId": "68ee9009-59a7-40e6-bf1a-1d26d4b399e8",
         "oracleId": "909becbc-1d84-4e94-b589-e58438569403",
@@ -51061,6 +51161,16 @@
         "firstPrintId": "ea82996f-a05f-4831-9bbd-3281ebca9a61",
         "firstPrintSet": "m10",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Silverglade Pathfinder",
+        "scryfallId": "9bc99b33-ce06-4a44-8b23-300b41b2b2fe",
+        "oracleId": "ac00d3db-d9e4-4fc3-a4ea-dd1187f406bb",
+        "firstSet": "mmq",
+        "firstPrintId": "9bc99b33-ce06-4a44-8b23-300b41b2b2fe",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -52609,6 +52719,16 @@
         "firstPrintId": "67aafbcc-113e-4816-95d2-a192f32ea9ea",
         "firstPrintSet": "m10",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Solemn Simulacrum",
+        "scryfallId": "00f9955f-a522-47bf-b064-92dd21a76b18",
+        "oracleId": "00c0543c-2a1f-4425-8283-4062d74a1637",
+        "firstSet": "mrd",
+        "firstPrintId": "00f9955f-a522-47bf-b064-92dd21a76b18",
+        "firstPrintSet": "mrd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -64356,6 +64476,16 @@
         "firstSet": "inv",
         "firstPrintId": "19859061-f5ec-4b7f-86a1-196f98648e0a",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Wayfarer's Bauble",
+        "scryfallId": "3db8fc1d-69fa-4a88-8f12-11fd614aac01",
+        "oracleId": "31f15274-301b-47c5-ba19-0ced04520878",
+        "firstSet": "5dn",
+        "firstPrintId": "3db8fc1d-69fa-4a88-8f12-11fd614aac01",
+        "firstPrintSet": "5dn",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Wayfaring Giant",
