@@ -1234,6 +1234,26 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23a (search) + CR 701.24a (shuffle) + CR 110.5a — "Search
+           * your library for a Forest or Plains card, put it onto the
+           * battlefield, then shuffle.": the controller looks through their OWN
+           * library, may find one card the description matches, puts it onto
+           * the battlefield (tapped when the line says so) and shuffles. No
+           * reveal: the line prints none (the card is not shown to the other
+           * players, CR 701.23b).
+           *
+           * `filter` and `phrase` are as `search-library-to-hand`'s; the
+           * accepted whole clauses are a closed table
+           * (`LIBRARY_SEARCH_TO_BATTLEFIELD`), so a description, pronoun or
+           * tapped state with no printed form fails the line.
+           */
+          readonly kind: "search-library-to-battlefield";
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
+          readonly tapped: boolean;
+      }
+    | {
+          /**
            * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
            * instead." Two printed sentences, one effect: the second REPLACES
            * the first when every condition holds as the ability resolves, and
@@ -2754,6 +2774,40 @@ const SEARCH_LIBRARY_TO_HAND =
 const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
     ["a basic land card", { type: "Land", supertype: "Basic" }],
 ]);
+/**
+ * CR 701.23a (search) + CR 110.5a — "Search your library for <what>, put <it>
+ * onto the battlefield[ tapped], then shuffle". A closed table of the whole
+ * printed middle of the clause, so the pronoun and the tapped state are part of
+ * what is accepted (the basic-land fetch prints "that card ... tapped", the
+ * dual-land fetch "it" untapped); a pairing no card prints has no row and fails
+ * the line.
+ */
+const SEARCH_LIBRARY_TO_BATTLEFIELD =
+    /^Search your library for (.+?), put (it|that card) onto the battlefield( tapped)?, then shuffle$/;
+const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
+    string,
+    { filter: EffectCardFilter; tapped: boolean }
+>([
+    [
+        "a basic land card|that card|tapped",
+        { filter: { type: "Land", supertype: "Basic" }, tapped: true },
+    ],
+    ...(
+        [
+            ["Forest", "Plains"],
+            ["Mountain", "Forest"],
+            ["Plains", "Island"],
+            ["Swamp", "Mountain"],
+            ["Island", "Swamp"],
+        ] as const
+    ).map(
+        ([first, second]) =>
+            [
+                `${/^[AEIOU]/.test(first) ? "an" : "a"} ${first} or ${second} card|it|`,
+                { filter: { subtype: [first, second] }, tapped: false },
+            ] as const
+    ),
+]);
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -3999,6 +4053,27 @@ function effectSentence(
             kind: "search-library-to-hand" as const,
             filter,
             phrase,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── search the library, put the find onto the battlefield, shuffle ─────
+    // CR 701.23a (search) + CR 110.5a (tapped) + CR 701.24a (shuffle)
+    const searchToBattlefield = span.match(SEARCH_LIBRARY_TO_BATTLEFIELD);
+    if (searchToBattlefield !== null) {
+        const [, phrase, pronoun, tapped] = searchToBattlefield;
+        const row = LIBRARY_SEARCH_TO_BATTLEFIELD.get(
+            `${phrase}|${pronoun}|${tapped === undefined ? "" : "tapped"}`
+        );
+        if (row === undefined)
+            return fail(
+                `"${span}" is not a library search onto the battlefield`,
+                span
+            );
+        return ok({
+            kind: "search-library-to-battlefield" as const,
+            filter: row.filter,
+            phrase: phrase!,
+            tapped: row.tapped,
         } satisfies EffectSentenceIR);
     }
 
