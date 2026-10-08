@@ -1261,6 +1261,92 @@ export function opensTargetPhrase(span: string): boolean {
     return false;
 }
 
+/**
+ * CR 105.1 — the colour words a narrowed stack phrase is read for. A closed
+ * subset of {@link COLOR_WORDS}: only the colours a printed counter or blast
+ * names ("blue", "red", "black") have a fixture, and a colour this table lacks
+ * is refused under its own gap key rather than read by analogy.
+ */
+const STACK_COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
+    ["blue", "U"],
+    ["red", "R"],
+    ["black", "B"],
+]);
+
+/** CR 115.2 — "target <colour> spell": a spell of that colour on the stack. */
+const STACK_COLOR_SPELL = /^target (blue|red|black) spell$/;
+/**
+ * CR 115.2 — "target spell if it's <colour>": the conditional spelling of the
+ * same colour restriction (the Blast cycle). Pyroblast and Hydroblast print
+ * it; the colours are the two the cycle names.
+ */
+const STACK_SPELL_IF_COLOR = /^target spell if it's (blue|red)$/;
+/** CR 202.3 + CR 115.2 — "target spell if its mana value is N or less". */
+const STACK_SPELL_MV_AT_MOST =
+    /^target spell if its mana value is (\d+) or less$/;
+
+/**
+ * CR 115.2 + CR 113.3 — the narrowed stack-object phrases, read by
+ * exact spelling for the reason the bare "target spell" is: every facet lives
+ * beside `type: "spell"` on the requirement (`colorFilter`, `spellTypeFilter`,
+ * `mvFilter`, `spellStackKind`, …), not in a descriptor whose adjectives would
+ * be dropped silently. `null` = not a narrowed stack phrase.
+ *
+ * NOT part of {@link targetFilterRule}: the phrases are read by the counter
+ * verb alone (`effectClause.ts`). A shared reading would hand every stack verb
+ * ("target artifact or enchantment spell becomes the color of your choice",
+ * "copy target activated or triggered ability") a narrowing it has no
+ * fixture for, and the lace templates' refusals would silently turn into
+ * accepted lines.
+ */
+export function narrowedStackRequirement(
+    span: string
+): TargetRequirement | null {
+    if (span === "target artifact or enchantment spell")
+        return {
+            type: "spell",
+            count: 1,
+            spellTypeFilter: ["Artifact", "Enchantment"],
+        } as TargetRequirement;
+    // CR 113.3 — an activated or triggered ability on the stack (mana
+    // abilities never use the stack, CR 605.3b, so none is targetable).
+    if (span === "target activated or triggered ability")
+        return {
+            type: "spell",
+            count: 1,
+            spellStackKind: "ability",
+        } as TargetRequirement;
+    // CR 115.1 — a spell OR ability an opponent controls that targets a land
+    // you control (Teferi's Response).
+    if (
+        span ===
+        "target spell or ability an opponent controls that targets a land you control"
+    )
+        return {
+            type: "spell",
+            count: 1,
+            controller: "opponent",
+            spellStackKind: "any",
+            spellTargetsPermanentFilter: { types: "Land", controller: "you" },
+        } as TargetRequirement;
+    const colour =
+        span.match(STACK_COLOR_SPELL) ?? span.match(STACK_SPELL_IF_COLOR);
+    if (colour !== null)
+        return {
+            type: "spell",
+            count: 1,
+            colorFilter: STACK_COLOR_WORDS.get(colour[1]!)!,
+        } as TargetRequirement;
+    const value = span.match(STACK_SPELL_MV_AT_MOST);
+    if (value !== null)
+        return {
+            type: "spell",
+            count: 1,
+            mvFilter: { max: Number(value[1]) },
+        } as TargetRequirement;
+    return null;
+}
+
 export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
     TARGET_FILTER,
     rule(TARGET_FILTER, (span, ctx) => {

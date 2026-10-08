@@ -217,7 +217,13 @@ import {
 // Lowered 1423 -> 1421 by issue #4546 (zone-change trigger heads): Chromatic
 // Star ("when this artifact is put into a graveyard from the battlefield")
 // and Sacred Ground round-trip through the new `left-to-graveyard` head.
-const BASELINE_CEILING = 1408;
+//
+// Lowered 1408 -> 1391 by issue #4555 (stack target filters and the flat
+// counter tax): Annul, Blue Elemental Blast, Disrupt, Force Spike, Gainsay,
+// Hydroblast, Lifeforce, Mana Leak, Mana Tithe, Metallic Rebuke,
+// Miscalculation, Order of the Sacred Torch, Prohibit, Pyroblast, Red
+// Elemental Blast, Stifle and Vodalian Mage round-trip.
+const BASELINE_CEILING = 1391;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

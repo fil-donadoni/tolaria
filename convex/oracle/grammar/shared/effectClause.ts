@@ -74,6 +74,7 @@ import {
     COLOR_WORDS,
     descriptorRule,
     dividedTargetsRule,
+    narrowedStackRequirement,
     opensTargetPhrase,
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
@@ -349,16 +350,23 @@ export interface CardCountConditionIR {
  * CR 118.12a — the price a counter's controller may be made to pay to keep
  * their spell on the stack ("… unless its controller pays <tax>").
  *
- * ONE form today: the per-tally generic tax "{N} for each <tally>", whose only
- * tally this grammar reads is CR 207.2c's Domain ("each basic land type among
- * lands you control"). A FLAT tax ("… unless its controller pays {3}", Mana
- * Leak) is a different price in a different `mayPay` cost leg — a literal
- * `ManaCost` rather than `genericEqualTo` — so it is neither read here nor
- * evidenced by this form's fixture, and stays refused under its own gap key.
+ * TWO forms: the per-tally generic tax "{N} for each <tally>", whose only tally
+ * this grammar reads is CR 207.2c's Domain ("each basic land type among lands
+ * you control"), and the FLAT generic tax "{N}" (Mana Leak). Both are generic
+ * mana in a `mayPay` cost leg; they differ in whether the amount is a literal
+ * or a runtime tally. A tax naming colored mana, {X} or any further rider
+ * ("plus an additional …", "for each …", "where X is …") is neither read here
+ * nor evidenced by a fixture, and stays refused under its own gap key.
  */
-export type CounterTaxIR = {
-    readonly kind: "per-domain";
-};
+export type CounterTaxIR =
+    | {
+          readonly kind: "per-domain";
+      }
+    | {
+          readonly kind: "flat";
+          /** The printed generic amount, at least 1. */
+          readonly amount: number;
+      };
 
 export type EffectSentenceIR =
     /** CR 205.3m (issue #3721) — "Choose a creature type." made as the spell
@@ -732,6 +740,24 @@ export type EffectSentenceIR =
           readonly kind: "counter";
           readonly subject: SubjectIR;
           readonly unlessPays?: CounterTaxIR;
+          /**
+           * CR 701.6a + CR 113.7a — the rider "If a permanent's ability is
+           * countered this way, destroy that permanent." Set by the fold of a
+           * `destroy-countered-source` modifier; never by the counter rule.
+           */
+          readonly destroysCounteredSource?: true;
+      }
+    | {
+          /**
+           * CR 702.33g (Kicker) + CR 115.2 — "counter that spell if its mana
+           * value is N or less instead": the kicked half of a counter whose base target
+           * already carries a mana-value limit. It announces no target of its
+           * own — "that spell" is the one the base counter names — so it is a
+           * SWAP of the spell's announced requirement, legal only inside a
+           * kicker gate (lowering refuses it anywhere else).
+           */
+          readonly kind: "counter-limit-instead";
+          readonly mvMax: number;
       }
     | {
           readonly kind: "tap-untap";
@@ -1340,6 +1366,12 @@ export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
 /** A sentence that modifies the sentence before it rather than acting itself. */
 export type ModifierIR =
     | { readonly kind: "cant-be-regenerated" }
+    /**
+     * CR 701.6a + CR 113.7a — "If a permanent's ability is countered this way,
+     * destroy that permanent.": the rider of a counter that can name an
+     * ability, folded onto the `counter` in front of it by `assembleSentences`.
+     */
+    | { readonly kind: "destroy-countered-source" }
     /** CR 205.1b — "They're still lands.": the animated set keeps its types. */
     | { readonly kind: "still-types"; readonly types: readonly CardType[] };
 
@@ -1968,6 +2000,33 @@ export function assembleSentences(
                     reason: '"They\'re still <types>." follows no animation of those types',
                 };
             effects[effects.length - 1] = { ...previous, retainsTypes: true };
+            continue;
+        }
+        if (
+            sentence.role === "modifier" &&
+            sentence.modifier.kind === "destroy-countered-source"
+        ) {
+            const previous = effects[effects.length - 1];
+            // A rider that can never fire is a sentence we have misread: only
+            // a counter whose target admits an ability binds a source, and a
+            // taxed counter's rider would read a different condition.
+            if (
+                previous === undefined ||
+                previous.kind !== "counter" ||
+                previous.unlessPays !== undefined ||
+                previous.subject.kind !== "target" ||
+                !["ability", "any", "activated-ability"].includes(
+                    previous.subject.requirement.spellStackKind ?? "spell"
+                )
+            )
+                return {
+                    ok: false,
+                    reason: '"If a permanent\'s ability is countered this way" follows no counter of an ability',
+                };
+            effects[effects.length - 1] = {
+                ...previous,
+                destroysCounteredSource: true,
+            };
             continue;
         }
         if (sentence.role === "modifier") {
@@ -2919,6 +2978,22 @@ const ROUTE_REST: ReadonlyMap<
  * branch can rely on.
  */
 const COUNTER_VERB = "counter ";
+/**
+ * CR 701.6a + CR 113.7a — the counter rider, whole, without its full stop. The
+ * "permanent" is the SOURCE of the countered ability (CR 113.7a), which only a
+ * counter that can target an ability binds.
+ */
+const DESTROY_COUNTERED_SOURCE =
+    "If a permanent's ability is countered this way, destroy that permanent";
+/**
+ * CR 702.33g + CR 202.3 — the kicked counter's replacement limit, whole:
+ * "counter that spell if its mana value is N or less instead". Printed digits
+ * only; "that spell" is the base counter's target, never a second announcement.
+ */
+const COUNTER_LIMIT_INSTEAD =
+    /^counter that spell if its mana value is (\d+) or less instead$/;
+/** CR 115.2 — the Blast cycle's conditional destroy target. */
+const DESTROY_PERMANENT_IF_COLOR = /^target permanent if it's (blue|red)$/;
 /** CR 118.12a — where a counter's punisher clause begins. */
 const UNLESS_PAYS = " unless its controller pays ";
 /**
@@ -2936,6 +3011,13 @@ const UNLESS_PAYS = " unless its controller pays ";
  */
 const COUNTER_DOMAIN_TAX =
     /^ unless its controller pays \{1\} for each basic land type among lands you control$/;
+/**
+ * CR 118.12a — the FLAT tax, whole: "{N}" with printed digits and nothing
+ * after. A captured {0} would be a tax anyone pays — a counterspell that never
+ * counters — so the amount starts at 1; {X}, a colored symbol and a trailing
+ * rider fail the anchor and refuse the counter.
+ */
+const COUNTER_FLAT_TAX = /^ unless its controller pays \{([1-9]\d*)\}$/;
 
 /** CR 615.12 — the printed sentence, whole, without its full stop. */
 const SUPPRESS_DAMAGE_PREVENTION = "Damage can't be prevented this turn";
@@ -3169,6 +3251,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "cant-be-regenerated" as const },
+            });
+        if (span === DESTROY_COUNTERED_SOURCE)
+            return ok({
+                role: "modifier" as const,
+                modifier: { kind: "destroy-countered-source" as const },
             });
         // CR 105.1 — "Choose a color.", a marker (see the role's own doc
         // comment); never printed lowercase (a trigger's effect clause reads
@@ -4190,7 +4277,19 @@ function effectSentence(
 
     // ── destroy (CR 701.8a) ────────────────────────────────────────────────
     if (span.startsWith("Destroy ")) {
-        const subject = sweepableSubject(span.slice("Destroy ".length), ctx);
+        // CR 115.2 + CR 105.1 — the Blast cycle's "target permanent if it's
+        // <colour>" is read AS "target <colour> permanent" by the destroy verb
+        // alone (same requirement as the hand-written cycle; the announcement
+        // offers coloured permanents only). No other verb reads the spelling.
+        const conditional = span
+            .slice("Destroy ".length)
+            .match(DESTROY_PERMANENT_IF_COLOR);
+        const subject = sweepableSubject(
+            conditional === null
+                ? span.slice("Destroy ".length)
+                : `target ${conditional[1]} permanent`,
+            ctx
+        );
         if (!subject.ok) return subject;
         return ok({
             kind: "destroy" as const,
@@ -4207,21 +4306,32 @@ function effectSentence(
     // and only the sentence-initial letter differs on a word this grammar
     // dispatches on.
     const counter = uncapitalise(span);
+    const limit = counter.match(COUNTER_LIMIT_INSTEAD);
+    if (limit !== null)
+        return ok({
+            kind: "counter-limit-instead" as const,
+            mvMax: Number(limit[1]),
+        } satisfies EffectSentenceIR);
     if (counter.startsWith(COUNTER_VERB)) {
         const rest = counter.slice(COUNTER_VERB.length);
         // CR 118.12a — the punisher clause, when there is one. Split before
         // the subject is read so the subject rule sees a target phrase and
         // not a target phrase with a cost glued to it.
         const taxAt = rest.indexOf(UNLESS_PAYS);
-        const subject = subjectRule.run(
-            taxAt === -1 ? rest : rest.slice(0, taxAt),
-            ctx
-        );
+        const phrase = taxAt === -1 ? rest : rest.slice(0, taxAt);
+        // CR 115.2 — the narrowed stack phrases are the COUNTER verb's own
+        // (see `narrowedStackRequirement`); every other target phrase goes
+        // through the shared subject rule.
+        const narrowed = narrowedStackRequirement(phrase);
+        const subject: RuleResult<SubjectIR> =
+            narrowed === null
+                ? subjectRule.run(phrase, ctx)
+                : ok({ kind: "target" as const, requirement: narrowed });
         if (!subject.ok) return subject;
-        // CR 701.6a — only a SPELL is countered by this rule. An ability
-        // ("counter target activated or triggered ability") is countered by
-        // the same keyword action on a different object, which the `counter`
-        // Op does not reach; a sweep announces nothing to point at.
+        // CR 701.6a — only an announced STACK OBJECT is countered by this
+        // rule: a spell, or (CR 701.6a names "spell or ability") an ability
+        // the requirement's `spellStackKind` admits. A sweep announces nothing
+        // to point at.
         if (
             subject.value.kind !== "target" ||
             subject.value.requirement.type !== "spell"
@@ -4234,6 +4344,13 @@ function effectSentence(
             return ok({
                 kind: "counter" as const,
                 subject: subject.value,
+            } satisfies EffectSentenceIR);
+        const flat = rest.slice(taxAt).match(COUNTER_FLAT_TAX);
+        if (flat !== null)
+            return ok({
+                kind: "counter" as const,
+                subject: subject.value,
+                unlessPays: { kind: "flat", amount: Number(flat[1]) },
             } satisfies EffectSentenceIR);
         const tax = rest.slice(taxAt).match(COUNTER_DOMAIN_TAX);
         if (tax === null)
