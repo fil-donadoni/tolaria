@@ -18,12 +18,19 @@ family closes, listed under the issue's `## Grammar Gaps`. Steps 1–4 run per
 member gap — read it, sort its forms, place its rule, fixture every accepted
 form; steps 5–10 run ONCE for the whole cluster — one recompile, one delta, one
 graduation, one PR. That is the point of the cluster: the fixed cost is paid
-once, the evidence is still paid per form. A member gap that turns out out of
-reach (step 3) is refused and named in the PR with why — it does not hold the
-rest back, and its claim moves to a new issue (or the long-tail cluster of its
-slot) before `land`, so it is never left `unclaimed`. **Do not widen a cluster
-mid-ticket** to a gap that is not in its list without saying so in the PR and
-adding its claim row — the claim, not the diff, is what `check:targets` reads.
+once, the evidence is still paid per form.
+
+**Acceptance: every accepted form compiles** (ADR 0152 § 5, amending ADR 0146
+§ 6 for `grammar`) — not every key closed. A cluster may claim a whole Clause
+Family, capped at **~10 accepted forms**, ordered by corpus cards. Forms past
+the cap are outside the cluster: **do not grow them into the PR** — name them
+in the Grammar Gaps table as `past cap`. Keys still live at close are re-homed
+by the next `gaps:sync` (ADR 0146 § 5) into a matching open cluster, else
+singles; nothing to move by hand. A member gap out of reach (step 3) is refused
+and named in the PR with why — it does not hold the rest back, and the same
+re-home takes its claim. **Do not widen a cluster mid-ticket** to a gap not in
+its list without saying so in the PR and adding its claim row — the claim, not
+the diff, is what `check:targets` reads.
 
 ## The three anti-Forge guards — read before writing a line
 
@@ -269,9 +276,9 @@ Closes #<hand-tail claim> <!-- one line per graduate with an open claim (§8) --
 
 ## Grammar Gaps
 
-| Key     | Target c/r | Corpus c/r | Outcome                       |
-| ------- | ---------- | ---------- | ----------------------------- |
-| `<key>` | <c>/<r>    | <c>/<r>    | closed / refused — why (→ #N) |
+| Key     | Target c/r | Corpus c/r | Outcome                           |
+| ------- | ---------- | ---------- | --------------------------------- |
+| `<key>` | <c>/<r>    | <c>/<r>    | closed / refused — why / past cap |
 
 ## Rules
 
