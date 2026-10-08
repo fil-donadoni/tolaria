@@ -14,7 +14,7 @@
  *                                                   → the same, turn-gated
  *   "Activated abilities of <permanents> cost {N} more to activate"
  *                                                   → CR 602.2b `cost-modifier`
- *   "<creatures> can't attack you unless their controller pays {N} for each
+ *   "Creatures can't attack you unless their controller pays {N} for each
  *    creature they control that's attacking you"   → CR 508.1d `attack-mana-tax`
  *   "<self> enters tapped[ with N <kind> counters on it]"
  *                                                   → CR 614.1c entry riders
@@ -701,34 +701,23 @@ export const abilityCostModifierRule: Rule<StaticClauseIR> = pattern(
 // ── Frame: attack tax (CR 508.1d / 508.1h) ─────────────────────────────────
 
 /**
- * CR 508.1d / 508.1h — "<creatures> can't attack you unless their controller
+ * CR 508.1d / 508.1h — "Creatures can't attack you unless their controller
  * pays {N} for each creature they control that's attacking you" (Ghostly
- * Prison, Propaganda, Elephant Grass). A cost to attack, determined and paid
- * as attackers are declared; the subject filters which attackers are taxed,
- * and must be a class of creatures.
+ * Prison, Propaganda, Windborn Muse). A cost to attack, determined and paid
+ * as attackers are declared. Only the bare "Creatures" subject is read: it is
+ * the one every fixtured card prints, and the one qualified subject in the
+ * corpus ("Nonblack creatures", Elephant Grass) needs a negated colour
+ * `PermanentFilter` cannot carry.
  */
 export const attackManaTaxRule: Rule<StaticClauseIR> = pattern(
     "attack mana tax",
-    /^(.+) can't attack you unless their controller pays \{(\d+)\} for each creature they control that's attacking you$/,
-    (match): RuleResult<StaticClauseIR> => {
-        const attackers = readSubject(match[1]!, "materialised");
-        if (!attackers.ok) return attackers;
-        const types = attackers.value.types;
-        if (
-            !(Array.isArray(types)
-                ? types.length === 1 && types[0] === "Creature"
-                : types === "Creature")
-        )
-            return fail(
-                `an attack tax names a class of creatures (CR 508.1d)`,
-                match[1]!
-            );
-        return ok({
+    /^Creatures can't attack you unless their controller pays \{(\d+)\} for each creature they control that's attacking you$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
             kind: "attack-mana-tax" as const,
-            attackers: attackers.value,
-            perAttacker: Number(match[2]),
-        });
-    }
+            attackers: { types: ["Creature"] },
+            perAttacker: Number(match[1]),
+        })
 );
 
 // ── Frame: board cast permission (CR 601.3 / 118.9) ────────────────────────
