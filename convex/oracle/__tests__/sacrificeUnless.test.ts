@@ -233,6 +233,34 @@ describe("sacrifice it unless you … — refused neighbours", () => {
     });
 });
 
+describe("sacrifice it unless you … — payments the engine cannot price", () => {
+    it("refuses a variable {X} payment", () => {
+        expect(
+            refusedAt(
+                creature(
+                    "Test Bear",
+                    `${UPKEEP}sacrifice this creature unless you pay {X}.`
+                )
+            )
+        ).toBe("effect clause: Sacrifice this creature unless you pay {X}");
+    });
+
+    it("refuses a total-power threshold over non-creatures or of zero", () => {
+        for (const rider of [
+            "any number of lands with total power 3 or greater",
+            "any number of creatures with total power 0 or greater",
+        ])
+            expect(
+                refusedAt(
+                    creature(
+                        "Test Bear",
+                        `${ENTERS}sacrifice it unless you sacrifice ${rider}.`
+                    )
+                )
+            ).toContain("effect clause");
+    });
+});
+
 describe("sacrifice it unless you … — the subject", () => {
     it("refuses a sacrificed object that is not the source", () => {
         expect(

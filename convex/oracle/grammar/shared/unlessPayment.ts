@@ -79,9 +79,12 @@ export function readUnlessPayment(
     const pay = span.match(PAY);
     if (pay !== null) {
         const mana = readManaCost(pay[1]!);
-        return mana.ok
-            ? ok({ kind: "mana" as const, mana: mana.cost })
-            : fail(mana.reason, mana.fragment);
+        if (!mana.ok) return fail(mana.reason, mana.fragment);
+        // CR 107.3 — a trigger announces no {X}, so a variable symbol would be
+        // paid as nothing: only a fixed cost is read.
+        if (Object.values(mana.cost).some((count) => typeof count !== "number"))
+            return fail("a variable cost is not announced here", span);
+        return ok({ kind: "mana" as const, mana: mana.cost });
     }
     if (span === "discard a card") return ok({ kind: "discard-card" as const });
 
@@ -89,6 +92,13 @@ export function readUnlessPayment(
     if (threshold !== null) {
         const filter = filterOf(threshold[1]!, true, ctx);
         if (!filter.ok) return filter;
+        // The threshold is a sum of POWER (CR 208.3): only creatures have one,
+        // and a threshold of 0 is paid by sacrificing nothing.
+        if (
+            JSON.stringify(filter.value) !== '{"types":["Creature"]}' ||
+            Number(threshold[2]) < 1
+        )
+            return fail("a total-power threshold is read over creatures", span);
         return ok({
             kind: "sacrifice-total-power" as const,
             filter: filter.value,
