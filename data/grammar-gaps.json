@@ -1692,7 +1692,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As this artifact enters, choose an opponent",
-            "issue": 4545
+            "issue": 5223
         },
         {
             "kind": "grammar",
@@ -1966,6 +1966,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › condition › this card is in your graveyard with a creature card directly above it",
+            "issue": 5223
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › condition › this creature is in your graveyard",
             "issue": 4551
         },
@@ -2202,7 +2207,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of each of your main phases",
-            "issue": 4545
+            "issue": 5223
         },
         {
             "kind": "grammar",
@@ -2216,23 +2221,8 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › trigger head › At the beginning of each player's first main phase",
-            "issue": 4545
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of the chosen player's upkeep",
-            "issue": 4545
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › At the beginning of the end step",
-            "issue": 4545
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › At the beginning of the upkeep of enchanted creature's controller",
-            "issue": 4545
+            "issue": 5223
         },
         {
             "kind": "grammar",
