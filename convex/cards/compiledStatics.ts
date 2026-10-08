@@ -126,7 +126,7 @@ export interface CompiledSpellFilter {
     readonly types?: readonly CardType[];
     readonly subtypes?: readonly string[];
     readonly colors?: readonly Color[];
-    /** CR 205.4b — "noncreature spells": none of these card types. */
+    /** "noncreature spells" (CR 601.2f): none of these card types. */
     readonly excludeTypes?: readonly CardType[];
     /** CR 601.2f — "spells you cast" / "spells your opponents cast". */
     readonly controller?: "you" | "opponents";

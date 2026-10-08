@@ -93,7 +93,7 @@ const GHOSTLY_PRISON: OracleCard = {
 // ── Goldens — one per accepted form ────────────────────────────────────────
 
 describe("cost taxes — goldens", () => {
-    it("Noncreature spells: a negated class (CR 601.2f / 205.4b)", () => {
+    it("Noncreature spells: a negated class (CR 601.2f)", () => {
         golden(THALIA, {
             name: "Thalia, Guardian of Thraben",
             types: ["Creature"],

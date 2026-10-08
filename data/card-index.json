@@ -2444,6 +2444,16 @@
         "source": "compiled"
     },
     {
+        "name": "Arcane Melee",
+        "scryfallId": "32355574-34ed-4427-86d9-72295d32ac4f",
+        "oracleId": "9967b292-1239-4aed-b871-72e40d1f3e26",
+        "firstSet": "avr",
+        "firstPrintId": "32355574-34ed-4427-86d9-72295d32ac4f",
+        "firstPrintSet": "avr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Arcane Sanctum",
         "scryfallId": "6edc0681-4252-4d3d-baf3-f03c22af1208",
         "oracleId": "7d7cf15c-06b9-4062-a1eb-32614c458a3b",
@@ -13718,6 +13728,16 @@
         "source": "compiled"
     },
     {
+        "name": "Defense Grid",
+        "scryfallId": "5c2592c9-7e64-40c1-a9cb-c0994094a1e0",
+        "oracleId": "22ba474e-f6e6-450d-a4cf-0739f0b51079",
+        "firstSet": "ulg",
+        "firstPrintId": "5c2592c9-7e64-40c1-a9cb-c0994094a1e0",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Defensive Stance",
         "scryfallId": "d0670653-d4fe-4fac-b769-d19ca4698c97",
         "oracleId": "19959b6d-eb8f-4273-94c8-65210e1998ab",
@@ -22980,6 +23000,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Ghostly Prison",
+        "scryfallId": "82d7de2b-c909-48dc-9ab7-c4a8328e37bb",
+        "oracleId": "e828b189-0e8f-43b8-b909-4c23e742e028",
+        "firstSet": "chk",
+        "firstPrintId": "82d7de2b-c909-48dc-9ab7-c4a8328e37bb",
+        "firstPrintSet": "chk",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ghostly Sentinel",
         "scryfallId": "de867066-df5c-4412-9d51-56626b6d0220",
         "oracleId": "a16f4b53-c8cf-45b0-89e7-507acd094a64",
@@ -23592,6 +23622,16 @@
         "source": "compiled"
     },
     {
+        "name": "Glowrider",
+        "scryfallId": "9ad94e39-0aac-46bb-a7f2-bd88c537cb9c",
+        "oracleId": "aaf825b0-af0f-47a0-8b00-85f0614cef5d",
+        "firstSet": "lgn",
+        "firstPrintId": "9ad94e39-0aac-46bb-a7f2-bd88c537cb9c",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Gluttonous Zombie",
         "scryfallId": "db909e95-7979-41f0-b17a-874c4137fcc1",
         "oracleId": "6d329bd2-8825-4de9-b3de-749625085015",
@@ -23888,6 +23928,16 @@
         "firstSet": "drk",
         "firstPrintId": "8a538b9d-351e-40bb-be11-9ba08c16352b",
         "firstPrintSet": "drk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Goblin Electromancer",
+        "scryfallId": "632af23c-eb5c-4725-afca-637e84cecf94",
+        "oracleId": "81f06f84-1580-43c0-89d5-08d34541a519",
+        "firstSet": "ddj",
+        "firstPrintId": "632af23c-eb5c-4725-afca-637e84cecf94",
+        "firstPrintSet": "ddj",
         "rarity": "common",
         "source": "compiled"
     },
@@ -29558,6 +29608,16 @@
         "source": "compiled"
     },
     {
+        "name": "Iron Lad, Young Avenger",
+        "scryfallId": "bce11b29-c674-4d50-b01d-b80bf7e3a73e",
+        "oracleId": "fedcc722-ac5f-464a-bac9-c5f1d4de28d0",
+        "firstSet": "msc",
+        "firstPrintId": "bce11b29-c674-4d50-b01d-b80bf7e3a73e",
+        "firstPrintSet": "msc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Iron Lance",
         "scryfallId": "41f7d212-faf2-4a6f-a338-d9e5014b56d5",
         "oracleId": "09e588c2-0fb8-4c30-aff3-433db7a07b6e",
@@ -33706,6 +33766,16 @@
         "source": "compiled"
     },
     {
+        "name": "Lodestone Golem",
+        "scryfallId": "9bb0ee6a-852a-4f1e-8f03-40b6d505bc82",
+        "oracleId": "a698c9f5-325a-49f6-8902-eef09f4260c5",
+        "firstSet": "wwk",
+        "firstPrintId": "9bb0ee6a-852a-4f1e-8f03-40b6d505bc82",
+        "firstPrintSet": "wwk",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Lofty Dreams",
         "scryfallId": "a2908ed1-517e-4f1a-94e5-b06fb033c1a6",
         "oracleId": "f75568a0-33ed-45a0-a885-48a19a5bb58b",
@@ -37120,6 +37190,16 @@
         "firstSet": "por",
         "firstPrintId": "9712ecaa-4059-44ba-98b7-07bfe7411b5b",
         "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mocking Sprite",
+        "scryfallId": "e595014d-4ff4-4561-b7f2-a9bd56300b01",
+        "oracleId": "013ca531-1ff7-4efc-a280-4bc3ab574072",
+        "firstSet": "woe",
+        "firstPrintId": "e595014d-4ff4-4561-b7f2-a9bd56300b01",
+        "firstPrintSet": "woe",
         "rarity": "common",
         "source": "compiled"
     },
@@ -43800,6 +43880,16 @@
         "firstSet": "inv",
         "firstPrintId": "0daa5458-2a97-40d0-b18d-2381a7a68ee1",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Propaganda",
+        "scryfallId": "f67dde4d-3df1-480d-a8b8-ab22c768bb12",
+        "oracleId": "ea9709b6-4c37-4d5a-b04d-cd4c42e4f9dd",
+        "firstSet": "tmp",
+        "firstPrintId": "f67dde4d-3df1-480d-a8b8-ab22c768bb12",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Prophetic Bolt",
@@ -55604,6 +55694,16 @@
         "source": "compiled"
     },
     {
+        "name": "Starnheim Courser",
+        "scryfallId": "5c5373dd-4aec-4e93-97fb-a639aa096764",
+        "oracleId": "01317d6c-8c11-40e1-8f7b-d36050973ada",
+        "firstSet": "khm",
+        "firstPrintId": "5c5373dd-4aec-4e93-97fb-a639aa096764",
+        "firstPrintSet": "khm",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Starstorm",
         "scryfallId": "b54d72ba-05ce-4299-a7c3-a9e9f126fffb",
         "oracleId": "34d112c3-cc2d-4428-bd7f-568bda61bd30",
@@ -56291,6 +56391,16 @@
         "firstPrintId": "c2d5d91b-aeb4-4d7e-b748-77f9960da55f",
         "firstPrintSet": "ice",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Stormcatch Mentor",
+        "scryfallId": "99754055-6d67-4fde-aff3-41f6af6ea764",
+        "oracleId": "b2252471-01ca-4d58-aa99-4ab0aa5eae12",
+        "firstSet": "blb",
+        "firstPrintId": "99754055-6d67-4fde-aff3-41f6af6ea764",
+        "firstPrintSet": "blb",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -59265,6 +59375,16 @@
         "firstPrintId": "127367b6-9cfe-4516-9bfd-5b951468a25c",
         "firstPrintSet": "hob",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Thorn of Amethyst",
+        "scryfallId": "e472d4f5-add4-4de3-8718-31a47a35277c",
+        "oracleId": "0c6c5336-9233-4ab1-9d55-79f20be7ea57",
+        "firstSet": "lrw",
+        "firstPrintId": "e472d4f5-add4-4de3-8718-31a47a35277c",
+        "firstPrintSet": "lrw",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -64770,6 +64890,16 @@
         "source": "compiled"
     },
     {
+        "name": "Vryn Wingmare",
+        "scryfallId": "a34291dc-103f-493d-b217-bd1b0e946d8d",
+        "oracleId": "c7c241f2-d3cc-4032-a9da-149de73c2539",
+        "firstSet": "ori",
+        "firstPrintId": "a34291dc-103f-493d-b217-bd1b0e946d8d",
+        "firstPrintSet": "ori",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Vulpine Goliath",
         "scryfallId": "cdacb147-35ce-4751-961e-576b5f958048",
         "oracleId": "e4c96980-31ed-494e-89db-c0a0f1fd23fd",
@@ -66755,6 +66885,16 @@
         "firstPrintId": "3b296781-78ac-411f-88fc-2d924ad22986",
         "firstPrintSet": "ktk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Windborn Muse",
+        "scryfallId": "6c45fd87-7b44-4e1a-b30f-41220b69d9e6",
+        "oracleId": "75e09ac6-d789-4c4d-9aca-845d68f3899f",
+        "firstSet": "lgn",
+        "firstPrintId": "6c45fd87-7b44-4e1a-b30f-41220b69d9e6",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
