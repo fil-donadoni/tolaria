@@ -8,7 +8,7 @@
 //     layer-7c buff gated on a count over its controller's graveyard (CR 404.1;
 //     Threshold itself is an ability word, CR 207.2c).
 //  2. "At the beginning of your upkeep, if this card is in your graveyard, …" —
-//     CR 113.6b / 603.6e, the ability functions from the graveyard: the printed
+//     CR 113.6b, the ability functions from the graveyard: the printed
 //     intervening-if IS the ability's zone.
 
 import { describe, expect, it } from "vitest";
@@ -191,7 +191,7 @@ describe("Threshold self pump in the layer system", () => {
     });
 });
 
-describe("Graveyard-zone phase trigger (CR 113.6b, CR 603.6e)", () => {
+describe("Graveyard-zone phase trigger (CR 113.6b)", () => {
     it("conditionRule reads the intervening-if as a zone, for card and creature", () => {
         for (const noun of ["card", "creature"]) {
             const parsed = conditionRule.run(

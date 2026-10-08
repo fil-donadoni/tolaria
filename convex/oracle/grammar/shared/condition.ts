@@ -62,7 +62,7 @@ export type ConditionIR = {
 export type TriggerConditionIR =
     | ConditionIR
     /**
-     * CR 113.6k / 603.6e — "if this card is in your graveyard": the ability
+     * CR 113.6b — "if this card is in your graveyard": the ability
      * functions only from the graveyard. Not a board predicate: lowering reads
      * it as the ability's ZONE, so the trigger is scanned there at all.
      */
@@ -165,7 +165,7 @@ export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
     }
 );
 
-/** CR 113.6k — the source named in the graveyard its controller owns. */
+/** CR 113.6b — the source named in the graveyard its controller owns. */
 const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
 
 /** CR 305.6 — the domain count, over the triggering player's lands. */

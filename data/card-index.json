@@ -2224,6 +2224,16 @@
         "source": "compiled"
     },
     {
+        "name": "Anurid Barkripper",
+        "scryfallId": "33255dfd-f8a9-4a15-aac5-c53dc0257859",
+        "oracleId": "2cdd85c8-fa60-44ca-bc96-d38f029d2184",
+        "firstSet": "jud",
+        "firstPrintId": "33255dfd-f8a9-4a15-aac5-c53dc0257859",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Anurid Murkdiver",
         "scryfallId": "9e43d62c-488a-4c8d-b193-bacbf8037761",
         "oracleId": "e7dc3d8b-2c79-463d-b862-9f01ccea05fd",
@@ -5180,6 +5190,16 @@
         "source": "compiled"
     },
     {
+        "name": "Billowing Shriekmass",
+        "scryfallId": "7b3587a9-0667-4d53-807b-c437bcb1d7b3",
+        "oracleId": "ce45d6bd-74e3-401b-983d-028d3fb942da",
+        "firstSet": "fdn",
+        "firstPrintId": "7b3587a9-0667-4d53-807b-c437bcb1d7b3",
+        "firstPrintSet": "fdn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Bind",
         "scryfallId": "cfa51783-9ef8-4e51-ba0d-ce8439d83bdf",
         "oracleId": "2b9557df-7158-4ada-be77-5c346851a568",
@@ -7828,6 +7848,16 @@
         "firstSet": "dom",
         "firstPrintId": "d218d2a2-bb5d-4ea8-a131-341c574410b2",
         "firstPrintSet": "dom",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cabal Initiate",
+        "scryfallId": "b279a03f-85ab-43f2-b5ca-1bc10563e5ad",
+        "oracleId": "2fc19fa3-c6c2-42c0-85fa-8d13e1baa145",
+        "firstSet": "mh2",
+        "firstPrintId": "b279a03f-85ab-43f2-b5ca-1bc10563e5ad",
+        "firstPrintSet": "mh2",
         "rarity": "common",
         "source": "compiled"
     },
@@ -31412,6 +31442,16 @@
         "source": "compiled"
     },
     {
+        "name": "Krosan Beast",
+        "scryfallId": "af822507-fd4c-454b-ab07-106c81c535bf",
+        "oracleId": "042a665d-2f63-4f7e-ac89-0d560da68085",
+        "firstSet": "ody",
+        "firstPrintId": "af822507-fd4c-454b-ab07-106c81c535bf",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Krosan Colossus",
         "scryfallId": "a804f3c0-5ebf-43ca-b200-09f7c1bbe902",
         "oracleId": "703ab192-7e0a-4f02-8381-568ad2d999ca",
@@ -35488,6 +35528,16 @@
         "source": "compiled"
     },
     {
+        "name": "Metamorphic Wurm",
+        "scryfallId": "f47e020a-ed73-465a-b7eb-a4eeccd096cc",
+        "oracleId": "512477f0-1083-423b-9675-a8bc852f7d88",
+        "firstSet": "ody",
+        "firstPrintId": "f47e020a-ed73-465a-b7eb-a4eeccd096cc",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Metamorphosis",
         "scryfallId": "fbc6cfc3-b232-40bf-bc0c-4618f6f5c9a5",
         "oracleId": "7140d726-0136-43af-84b5-85005a66a186",
@@ -37620,6 +37670,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Nantuko Calmer",
+        "scryfallId": "c76b1198-feff-437c-9d4c-94785144c98f",
+        "oracleId": "d4409b15-b9f8-4bdb-9857-5cd70a0d3193",
+        "firstSet": "tor",
+        "firstPrintId": "c76b1198-feff-437c-9d4c-94785144c98f",
+        "firstPrintSet": "tor",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Nantuko Disciple",
         "scryfallId": "3f5db5e0-bd95-4c82-a12d-7288dbbbe3ba",
         "oracleId": "230be0f8-03a4-4452-84c1-ea14cfe49737",
@@ -38511,6 +38571,16 @@
         "firstPrintId": "f6dbf333-23b5-47d9-9e55-1e8fbd5a72cb",
         "firstPrintSet": "kld",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Nimble Mongoose",
+        "scryfallId": "99e5ecf5-a662-4df0-a6ba-9177c62b6503",
+        "oracleId": "1059f089-2693-4c89-92c5-39fe49beebb3",
+        "firstSet": "ody",
+        "firstPrintId": "99e5ecf5-a662-4df0-a6ba-9177c62b6503",
+        "firstPrintSet": "ody",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -49746,6 +49816,16 @@
         "source": "compiled"
     },
     {
+        "name": "Seton's Scout",
+        "scryfallId": "732bf7bb-5326-4742-8311-96ddbfe14b38",
+        "oracleId": "7b2a32ca-ef5b-40a5-acf7-aefac1d09e5b",
+        "firstSet": "tor",
+        "firstPrintId": "732bf7bb-5326-4742-8311-96ddbfe14b38",
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Sever Soul",
         "scryfallId": "c2d84fec-18f1-4231-a293-0dc1ff868a40",
         "oracleId": "577d027a-96c3-46fe-880b-f8b5dd3f3a3d",
@@ -54048,6 +54128,16 @@
         "firstSet": "mh3",
         "firstPrintId": "54a3ea87-005e-4985-b2a5-21711d0b71c0",
         "firstPrintSet": "mh3"
+    },
+    {
+        "name": "Springing Tiger",
+        "scryfallId": "04462629-fb03-40e8-84e6-4a66e4d5392b",
+        "oracleId": "2f8c4805-694d-4408-8eb5-9fb7ce278ded",
+        "firstSet": "ody",
+        "firstPrintId": "04462629-fb03-40e8-84e6-4a66e4d5392b",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Springjaw Trap",
@@ -64736,6 +64826,16 @@
         "firstSet": "inv",
         "firstPrintId": "1c55eb8f-925a-42c1-9e48-d7f99cab3b01",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Werebear",
+        "scryfallId": "964cf7e3-932d-432f-8ad4-9bd651aada96",
+        "oracleId": "96cf3320-c730-4618-8768-28a179f4d9c0",
+        "firstSet": "ody",
+        "firstPrintId": "964cf7e3-932d-432f-8ad4-9bd651aada96",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Western Paladin",
