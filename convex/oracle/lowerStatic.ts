@@ -22,6 +22,10 @@
  *    its owner's library instead" replacement: a JSON-pure flag
  *    `expandDefinition` rebuilds into the hand-written catalogue's
  *    `replacementEffects[]` entry (a replacement is a closure);
+ *  - `damagePreventionCounterRemoval` — CR 615, the self "prevent that damage.
+ *    Remove a +1/+1 counter" shield: the same JSON-pure-flag-for-a-closure
+ *    shape, rebuilt by `expandDefinition` into two `replacementEffects[]`
+ *    entries;
  *  - `staticAbilities[]` — the `does-not-untap` marker, which the untap step
  *    reads directly (`gre/phases.ts`). A filtered `untap-restriction` static
  *    would be the wrong encoding for a permanent talking about itself; the
@@ -82,6 +86,8 @@ export interface LoweredStatic {
     readonly drawStepReplacement?: true;
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
+    /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
+    readonly damagePreventionCounterRemoval?: true;
     readonly entersWithCounters?: {
         readonly type: string;
         readonly count: number;
@@ -347,6 +353,11 @@ export function lowerStaticClause(
             return { ok: true, lowered: { drawStepReplacement: true } };
         case "shuffle-from-anywhere":
             return { ok: true, lowered: { shuffleFromAnywhere: true } };
+        case "damage-prevention-counter-removal":
+            return {
+                ok: true,
+                lowered: { damagePreventionCounterRemoval: true },
+            };
         case "enchanted-host":
             return lowerHostClause(clause, nextId);
         default: {
