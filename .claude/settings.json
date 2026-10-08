@@ -9,6 +9,8 @@
         "convex-quickstart": "name-only",
         "convex-setup-auth": "name-only",
         "code-review": "off",
+        "diagnose-crash": "off",
+        "omarchy": "off",
         "grill-with-docs": "off",
         "grilling": "off",
         "handoff": "off",
