@@ -3811,7 +3811,69 @@
         }
     ],
     "clustersNote": "Cluster Signatures (ADR 0146, issue #4677): one row per Gap Cluster, `{ issue, kind, match, standalone?, reason? }`, authored by `/cluster-gaps`, never by `gaps:sync`. `match` lists segment globs over the ` › `-separated gap key (`*` within one segment) or, for `hand-tail`, `{ set, colour }` set files; `standalone: true` + `reason` marks a deliberate single (one exact key). A NEW gap matching an open cluster that is not `in-progress` and has no open PR is claimed by it (lowest issue wins) and listed in the cluster body's managed `## Adopted gaps` block. Parsed fail-closed by `parseClusterRows` (`scripts/lib/targets.ts`).",
-    "clusters": [],
+    "clusters": [
+        {
+            "issue": 5252,
+            "kind": "grammar",
+            "match": [
+                "* › effect clause › Search target player's library for *",
+                "* › effect clause › Search target opponent's library for a card and exile it*"
+            ]
+        },
+        {
+            "issue": 5253,
+            "kind": "grammar",
+            "match": [
+                "spell › effect clause › Search your library and graveyard for * and exile the rest",
+                "spell › effect clause › Search your library for * cards, exile them, then shuffle",
+                "spell › effect clause › Search your library for * cards, then shuffle and put those cards on top in any order",
+                "spell › effect clause › Search your library for any number of * cards, reveal those cards, then shuffle and put them on top"
+            ]
+        },
+        {
+            "issue": 5254,
+            "kind": "grammar",
+            "match": [
+                "spell › effect clause › Search * for * with different * and reveal them",
+                "spell › effect clause › Search your library for three * and reveal them"
+            ]
+        },
+        {
+            "issue": 5255,
+            "kind": "grammar",
+            "match": [
+                "* › effect clause › zone reference › * at the beginning of the next end step*",
+                "* › effect clause › zone reference › * at the beginning of the next cleanup step",
+                "spell › effect clause › At the beginning of the next end step, return that card to the battlefield *"
+            ]
+        },
+        {
+            "issue": 5256,
+            "kind": "grammar",
+            "match": [
+                "* › effect clause › it at the beginning of the next end step",
+                "* › effect clause › them at the beginning of the next cleanup step",
+                "* › effect clause › Sacrifice it at the beginning of the next end step",
+                "static › static clause › You may cast this spell as though it had flash. If you cast it any time a sorcery couldn't have been cast, * at the beginning of the next cleanup step"
+            ]
+        },
+        {
+            "issue": 5257,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › * controls more * than *",
+                "spell › effect clause › If an opponent controls more * than you, *"
+            ]
+        },
+        {
+            "issue": 5258,
+            "kind": "grammar",
+            "match": [
+                "activated › effect clause › Activate only if * control* * or more *",
+                "activated › effect clause › Activate only if an opponent controls more * than you"
+            ]
+        }
+    ],
     "cutsNote": "Cluster Cut ticket rows (ADR 0146 § Decision 7, issue #4681): one row per kind, { kind, issue } — gaps:sync's own \"clusters-adjacent record\" of the ONE standing Cluster Cut ticket it opened for that kind past `clusterCutThreshold` (data/targets.json), how it finds the ticket again without a title search. Never written by `/cluster-gaps`, unlike `clusters`. Parsed fail-closed by `parseCutRows` (`scripts/lib/targets.ts`).",
     "cuts": [
         {
