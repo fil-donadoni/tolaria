@@ -198,6 +198,7 @@ says no review.
 - Diff under `convex/cards/sets/` → `bun run seed:preset --all` after the
   merge (idempotent; no deployment → nothing owed).
 - Issue not auto-closed → close it with a one-line comment.
+- **Gap issue** → `gap-holes.md` before the report (holes verified).
 
 **Done when:** `land` exited 0 with the PR merged, the issue closed, and
 `seed:preset --all` run if owed.
