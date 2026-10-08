@@ -414,9 +414,9 @@ describe("Hand reveal and pick — refusals (fail-closed neighbours)", () => {
             "When this creature enters, target opponent reveals their hand and you choose a nonland card from it. Exile that card until this creature leaves the battlefield.",
         ],
         [
-            "an optional discard gating an effect: Formidable Speaker",
-            "Creature — Elf Druid",
-            "When this creature enters, you may discard a card. If you do, search your library for a creature card, reveal it, put it into your hand, then shuffle.",
+            "an optional discard gating an effect (outside this cluster): Keldon Raider",
+            "Creature — Human Warrior",
+            "When this creature enters, you may discard a card. If you do, draw a card.",
         ],
         [
             "an optional hand exile gating nothing",
