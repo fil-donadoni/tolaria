@@ -2784,6 +2784,13 @@ const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
  */
 const SEARCH_LIBRARY_TO_BATTLEFIELD =
     /^Search your library for (.+?), put (it|that card) onto the battlefield( tapped)?, then shuffle$/;
+const DUAL_LAND_FETCHES: readonly (readonly [string, string])[] = [
+    ["Forest", "Plains"],
+    ["Mountain", "Forest"],
+    ["Plains", "Island"],
+    ["Swamp", "Mountain"],
+    ["Island", "Swamp"],
+];
 const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
     string,
     { filter: EffectCardFilter; tapped: boolean }
@@ -2792,20 +2799,14 @@ const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
         "a basic land card|that card|tapped",
         { filter: { type: "Land", supertype: "Basic" }, tapped: true },
     ],
-    ...(
-        [
-            ["Forest", "Plains"],
-            ["Mountain", "Forest"],
-            ["Plains", "Island"],
-            ["Swamp", "Mountain"],
-            ["Island", "Swamp"],
-        ] as const
-    ).map(
-        ([first, second]) =>
-            [
-                `${/^[AEIOU]/.test(first) ? "an" : "a"} ${first} or ${second} card|it|`,
-                { filter: { subtype: [first, second] }, tapped: false },
-            ] as const
+    ...DUAL_LAND_FETCHES.map(
+        ([first, second]): [
+            string,
+            { filter: EffectCardFilter; tapped: boolean },
+        ] => [
+            `${/^[AEIOU]/.test(first!) ? "an" : "a"} ${first} or ${second} card|it|`,
+            { filter: { subtype: [first!, second!] }, tapped: false },
+        ]
     ),
 ]);
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
