@@ -233,7 +233,10 @@ import {
 // (its sweep gained the `type: "Creature"` the Oracle's "Saproling creatures"
 // names), Powder Keg, Pyroclasm, Riptide, Shatterstorm, Simoon, Upheaval and
 // Wrath of God round-trip.
-const BASELINE_CEILING = 1358;
+//
+// Lowered 1358 -> 1354 by issue #4560 (cost taxes): Aura of Silence, Gloom,
+// Mana Matrix and Thalia, Guardian of Thraben round-trip.
+const BASELINE_CEILING = 1354;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
