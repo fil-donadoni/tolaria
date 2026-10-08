@@ -20,6 +20,8 @@
  *   "If <self> would be put into a graveyard from anywhere, reveal <self>
  *    and shuffle it into its owner's library instead"
  *                                                   → CR 614.1a `shuffleFromAnywhere`
+ *   "If damage would be dealt to <self>, prevent that damage. Remove a
+ *    +1/+1 counter from <self>"                     → CR 615 `damagePreventionCounterRemoval`
  *   "<grantee> may cast <class> spells [without paying
  *    their mana costs] [as though they had flash]"  → CR 601.3 `cast-permission`
  *   "While an opponent is choosing targets as part of casting a spell they
@@ -185,6 +187,10 @@ export type StaticClauseIR =
      *  reveal <self> and shuffle it into its owner's library instead".
      *  Lowered to `shuffleFromAnywhere`. */
     | { readonly kind: "shuffle-from-anywhere" }
+    /** CR 615 — "If damage would be dealt to <self>, prevent that damage.
+     *  Remove a +1/+1 counter from <self>". Lowered to
+     *  `damagePreventionCounterRemoval`. */
+    | { readonly kind: "damage-prevention-counter-removal" }
     /**
      * CR 601.2c — "While an opponent is choosing targets as part of casting a
      * spell they control or activating an ability they control, that player
@@ -1145,6 +1151,36 @@ const shuffleFromAnywhereRule: Rule<StaticClauseIR> = pattern(
     }
 );
 
+// ── Frame: the self damage-prevention shield with a counter cost (CR 615) ───
+
+/**
+ * "If damage would be dealt to <self>, prevent that damage. Remove a +1/+1
+ * counter from <self>." (Phantom Centaur, Phantom Nishoba, Phantom Tiger, …)
+ * CR 615.1a: the word "prevent" makes it a prevention effect; the second
+ * sentence is its additional effect, one counter per damage EVENT. Both
+ * subjects must name THIS object (CR 201.5). The anchored regex refuses every
+ * neighbour: a damage SOURCE filter ("If a source would deal damage …"), a
+ * partial prevention ("prevent 1 of that damage"), a per-point removal (Rock
+ * Hydra's "for each 1 damage"), a different counter kind, and a count other
+ * than one.
+ */
+const DAMAGE_PREVENTION_COUNTER_REMOVAL =
+    /^If damage would be dealt to (.+), prevent that damage\. Remove a \+1\/\+1 counter from (.+)$/;
+
+const damagePreventionCounterRemovalRule: Rule<StaticClauseIR> = pattern(
+    "damage prevention counter removal",
+    DAMAGE_PREVENTION_COUNTER_REMOVAL,
+    (match): RuleResult<StaticClauseIR> => {
+        for (const phrase of [match[1]!, match[2]!])
+            if (!isSelfPhrase(phrase))
+                return fail(
+                    `"${phrase}" is not this object (CR 201.5)`,
+                    phrase
+                );
+        return ok({ kind: "damage-prevention-counter-removal" as const });
+    }
+);
+
 // ── Frames: the enchanted host (CR 303.4b) ────────────────────────────────
 
 /** The nouns "enchanted" is printed with, and the card type each names. */
@@ -1466,6 +1502,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         targetChoiceRequirementRule,
         skipDrawStepRule,
         shuffleFromAnywhereRule,
+        damagePreventionCounterRemovalRule,
         selfConditionalPumpRule,
         enchantedHostRule,
         youControlHostRule,
