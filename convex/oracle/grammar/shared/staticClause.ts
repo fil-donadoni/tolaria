@@ -69,7 +69,11 @@
 
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
-import { controlsRule, type ConditionIR } from "./condition";
+import {
+    controlsRule,
+    graveyardCountRule,
+    type StaticConditionIR,
+} from "./condition";
 import { signedModifier, uncapitalise } from "./effectClause";
 import {
     descriptorRule,
@@ -216,14 +220,16 @@ export type StaticClauseIR =
       }
     /**
      * CR 611.3a / 613.4c — "This creature gets +N/+N as long as you control a
-     * <descriptor>": the permanent's own layer-7c buff, present only while
-     * the condition holds (re-checked at every layer read).
+     * <descriptor>" / "Threshold — This creature gets +N/+N as long as there
+     * are seven or more cards in your graveyard": the permanent's own layer-7c
+     * buff, present only while the condition holds (re-checked at every layer
+     * read).
      */
     | {
-          readonly kind: "self-pt-buff-if-controls";
+          readonly kind: "self-pt-buff-conditional";
           readonly power: number;
           readonly toughness: number;
-          readonly condition: ConditionIR;
+          readonly condition: StaticConditionIR;
       }
     /**
      * CR 303.4b — one or more effects on the Aura's host ("Enchanted creature
@@ -411,7 +417,7 @@ export const anthemRule: Rule<StaticClauseIR> = rule(
 // ── Frame: conditional self P/T (CR 611.3a) ────────────────────────────────
 
 const SELF_PUMP_AS_LONG_AS =
-    /^(.+) gets ([+-]\d+)\/([+-]\d+) as long as (you control .+)$/;
+    /^(Threshold \u2014 )?(.+) gets ([+-]\d+)\/([+-]\d+) as long as (.+)$/;
 
 /**
  * "This creature gets +1/+1 as long as you control a blue creature." — the
@@ -424,18 +430,28 @@ export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
     (span, ctx): RuleResult<StaticClauseIR> => {
         const match = span.match(SELF_PUMP_AS_LONG_AS);
         if (match === null)
-            return fail(
-                'not "<self> gets +N/+N as long as you control …"',
-                span
-            );
-        if (!isSelfPhrase(uncapitalise(match[1]!)))
-            return fail(`"${match[1]}" is not the permanent itself`, span);
-        const condition = controlsRule.run(match[4]!, ctx);
+            return fail('not "<self> gets +N/+N as long as …"', span);
+        if (!isSelfPhrase(uncapitalise(match[2]!)))
+            return fail(`"${match[2]}" is not the permanent itself`, span);
+        const tail = match[5]!;
+        // CR 207.2c — Threshold is an ability word naming the graveyard
+        // count; it is printed only in front of that condition, so any other
+        // tail behind it is a line we have misread.
+        const condition: RuleResult<StaticConditionIR> = tail.startsWith(
+            "you control "
+        )
+            ? controlsRule.run(tail, ctx)
+            : graveyardCountRule.run(tail, ctx);
         if (!condition.ok) return condition;
+        if (
+            match[1] !== undefined &&
+            condition.value.kind !== "graveyard-count"
+        )
+            return fail('"Threshold" names a graveyard count', span);
         return ok({
-            kind: "self-pt-buff-if-controls" as const,
-            power: signedModifier(match[2]!),
-            toughness: signedModifier(match[3]!),
+            kind: "self-pt-buff-conditional" as const,
+            power: signedModifier(match[3]!),
+            toughness: signedModifier(match[4]!),
             condition: condition.value,
         });
     }

@@ -228,6 +228,9 @@ function lowerCondition(
                 filter: condition.filter,
                 atLeast: condition.atLeast,
             };
+        case "self-in-graveyard":
+            // Lowered as the ability's zone by the caller, never as a predicate.
+            return "a graveyard-zone condition is not a board predicate";
         case "basic-land-types": {
             // CR 305.6 — "among lands THAT PLAYER controls": the head must
             // name the player, or the condition counts nobody's lands.
@@ -254,8 +257,16 @@ export function lowerTriggeredAbility(input: {
     /** CR 702.33e — the card's kicker costs, for a sentence that reads them. */
     readonly kickers?: readonly KickerCost[];
 }): LowerTriggerResult {
+    // CR 113.6b — "if this card is in your graveyard" is the ability's zone.
+    // Only a phase head has a factory that functions from the graveyard.
+    const fromGraveyard = input.condition?.kind === "self-in-graveyard";
+    if (fromGraveyard && input.head.kind !== "phase")
+        return {
+            ok: false,
+            reason: 'a graveyard-zone ability needs an "at the beginning of" head (CR 113.6b)',
+        };
     const condition =
-        input.condition !== undefined
+        input.condition !== undefined && !fromGraveyard
             ? lowerCondition(input.condition, input.head)
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
@@ -318,6 +329,7 @@ export function lowerTriggeredAbility(input: {
             oracleText: input.oracleText,
             head: lowerHead(input.head),
             ...(condition !== undefined ? { condition } : {}),
+            ...(fromGraveyard ? { zone: "graveyard" as const } : {}),
             ...(declared.targetRequirement !== undefined
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),

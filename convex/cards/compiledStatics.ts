@@ -180,6 +180,17 @@ export interface CompiledKickedSelfScope {
     readonly filter?: never;
 }
 
+/**
+ * CR 611.3a — what a compiled static's "as long as" clause reads: the shared
+ * `controls` condition, or a count over the SOURCE controller's graveyard
+ * ("Threshold — … as long as there are seven or more cards in your
+ * graveyard", CR 404.1; the count is the wire-stable `graveyard` array of the
+ * layer view).
+ */
+export type CompiledStaticCondition =
+    | CompiledControlsCondition
+    | { readonly kind: "graveyard-count"; readonly atLeast: number };
+
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
  *  Every member's `kind` is the kind of the `StaticEffect` it rebuilds into —
@@ -197,7 +208,7 @@ export type CompiledStaticEffect =
            *  exists only while the SOURCE's controller controls a match. The
            *  same JSON condition a compiled trigger's intervening-if carries
            *  (`CompiledControlsCondition`), read here off the layer view. */
-          readonly condition?: CompiledControlsCondition;
+          readonly condition?: CompiledStaticCondition;
       } & CompiledStaticScope)
     /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
      *  has <keyword>". */
@@ -313,6 +324,21 @@ export type CompiledStaticEffect =
  * battlefield match, through the same `filterMatches` (live colours via
  * `ctx.getColors`) every compiled static predicate uses.
  */
+function staticConditionHolds(
+    condition: CompiledStaticCondition,
+    source: PermanentView,
+    state: StaticEffectStateView,
+    ctx: StaticEffectContext
+): boolean {
+    if (condition.kind === "graveyard-count") {
+        const controller = state.players.find(
+            (p) => p.id === source.controllerId
+        );
+        return (controller?.graveyard.length ?? 0) >= condition.atLeast;
+    }
+    return controlsHolds(condition, source, state, ctx);
+}
+
 function controlsHolds(
     condition: CompiledControlsCondition,
     source: PermanentView,
@@ -435,7 +461,12 @@ export function resolveCompiledStatic(
                 ...(condition !== undefined
                     ? {
                           condition: (source, state, ctx) =>
-                              controlsHolds(condition, source, state, ctx),
+                              staticConditionHolds(
+                                  condition,
+                                  source,
+                                  state,
+                                  ctx
+                              ),
                       }
                     : {}),
             };

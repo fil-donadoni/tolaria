@@ -212,10 +212,30 @@ export function lowerStaticClause(
                     ],
                 },
             };
-        case "self-pt-buff-if-controls": {
+        case "self-pt-buff-conditional": {
+            const { condition } = clause;
+            // CR 611.3a — a graveyard count needs no filter to be readable.
+            if (condition.kind === "graveyard-count")
+                return {
+                    ok: true,
+                    lowered: {
+                        effects: [
+                            {
+                                kind: "pt-buff",
+                                appliesTo: "self",
+                                power: clause.power,
+                                toughness: clause.toughness,
+                                condition: {
+                                    kind: "graveyard-count",
+                                    atLeast: condition.atLeast,
+                                },
+                            },
+                        ],
+                    },
+                };
             // CR 611.3a — the condition is read off the LAYER view, so its
             // filter may only name fields that view can answer.
-            const unreadable = Object.keys(clause.condition.filter).find(
+            const unreadable = Object.keys(condition.filter).find(
                 (field) => !MATERIALISED_FILTER_FIELDS.has(field)
             );
             if (unreadable !== undefined)
@@ -234,8 +254,8 @@ export function lowerStaticClause(
                             toughness: clause.toughness,
                             condition: {
                                 kind: "controls",
-                                filter: clause.condition.filter,
-                                atLeast: clause.condition.atLeast,
+                                filter: condition.filter,
+                                atLeast: condition.atLeast,
                             },
                         },
                     ],

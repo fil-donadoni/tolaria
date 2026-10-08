@@ -31,6 +31,7 @@ import {
 } from "../../rule";
 import { readManaCost } from "../../manaCost";
 import { SELF_MARKER } from "../../normalize";
+import { isSelfPhrase } from "./cost";
 import { readNumberWord } from "./quantity";
 import { descriptorRule, permanentFilterFromDescriptor } from "./targetFilter";
 import type { PermanentFilter } from "../../../cards/filters";
@@ -60,6 +61,12 @@ export type ConditionIR = {
  */
 export type TriggerConditionIR =
     | ConditionIR
+    /**
+     * CR 113.6b — "if this card is in your graveyard": the ability
+     * functions only from the graveyard. Not a board predicate: lowering reads
+     * it as the ability's ZONE, so the trigger is scanned there at all.
+     */
+    | { readonly kind: "self-in-graveyard" }
     /**
      * CR 305.6 — "if there are four or more basic land types among lands
      * that player controls" (Mask of Intolerance, issue #4127). "that
@@ -110,6 +117,11 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
         if (!span.startsWith(opener))
             return fail("not a condition this grammar knows", span);
         const clause = span.slice(opener.length);
+        const inGraveyard = clause.match(SELF_IN_GRAVEYARD);
+        if (inGraveyard !== null)
+            return isSelfPhrase(inGraveyard[1]!)
+                ? ok({ kind: "self-in-graveyard" as const })
+                : fail(`"${inGraveyard[1]}" is not the source itself`, span);
         const domain = clause.match(BASIC_LAND_TYPES);
         if (domain !== null) return readBasicLandTypes(domain[1]!, span);
         return controlsRule.run(clause, ctx);
@@ -117,6 +129,44 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
     // CR 603.4 — an intervening "if" clause opens with the word itself.
     (span) => /^if /i.test(span)
 );
+
+/**
+ * CR 611.3a — "there are seven or more cards in your graveyard": a count over
+ * the controller's graveyard (CR 404.1), the Threshold condition (CR 207.2c
+ * names Threshold an ability word, so the word itself carries no rule).
+ */
+export type GraveyardCountIR = {
+    readonly kind: "graveyard-count";
+    readonly atLeast: number;
+};
+
+/** The conditions a static's "as long as" clause reads (CR 611.3a). */
+export type StaticConditionIR = ConditionIR | GraveyardCountIR;
+
+const GRAVEYARD_COUNT = /^there are (\S+) or more cards in your graveyard$/;
+
+/**
+ * `"there are seven or more cards in your graveyard"` — a number word from
+ * one up; "one or more" is not how the corpus prints a threshold, and a
+ * numeral is a form nobody prints.
+ */
+export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
+    "graveyard count",
+    (span) => {
+        const match = span.match(GRAVEYARD_COUNT);
+        if (match === null)
+            return fail("not a graveyard-count condition", span);
+        const atLeast = /^[a-z]+$/.test(match[1]!)
+            ? readNumberWord(match[1]!)
+            : null;
+        if (atLeast === null || atLeast < 2)
+            return fail(`"${match[1]}" is not a card-count threshold`, span);
+        return ok({ kind: "graveyard-count" as const, atLeast });
+    }
+);
+
+/** CR 113.6b — the source named in the graveyard its controller owns. */
+const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
 
 /** CR 305.6 — the domain count, over the triggering player's lands. */
 const BASIC_LAND_TYPES =
