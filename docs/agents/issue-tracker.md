@@ -166,7 +166,10 @@ whenever the roster shifts, and children inherit it (issue #3212).
   stays. Only an issue `gaps:sync` filed (title opens with the kind's prefix) closes — an adopted or hand-authored one is reported `foreign` — and a pass over `CLOSE_CAP` open closes refuses whole. Never closed: an `(op) ›` row (`check:gaps` owns it), a migration, a
   Hand Tail claim settled by ANOTHER issue's marker (printed as `settled`, a
   human reconciles it), and a Gap Cluster while any of its rows is live.
-- **A hand-filed `[Grammar]` ticket** goes under the Grammar Rules umbrella of
+- **A hand-filed ticket whose fix needs a missing Op** goes under the **Ops**
+  umbrella of its Target, not the Grammar Rules one: Ops are upstream, the
+  grammar cascades from them, and an issue that lands both is placed by the Op.
+- **A hand-filed `[Grammar]` ticket** (no Op needed) goes under the Grammar Rules umbrella of
   the Target its cards compute — `gaps:sync` does not file those. It is a
   **Grammar Cluster** (`/new-set` Phase 3): it claims several gap keys. A
   multi-claimed issue with no `clusters` signature row is left alone; one WITH
