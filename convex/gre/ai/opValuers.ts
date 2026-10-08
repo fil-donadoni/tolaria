@@ -234,16 +234,24 @@ const COPY_TOKEN_REPRESENTATIVE_STAT = 2; // unknown copied body's P/T — same 
  *  the walk ever prices the ODDS of getting there — a script conditioned on a
  *  coin-flip win priced its `then` branch as certain, which is how Squee's
  *  Revenge's hand-value out-priced Lightning Bolt: `evaluate.ts`'s `hand` term
- *  then rated NEVER casting it above every real line of play. */
+ *  then rated NEVER casting it above every real line of play.
+ *
+ *  `counteredSourceBindings` (issue #5044) holds the names a `counter`'s
+ *  `bindSource` binds — written ONLY when the countered object is a
+ *  permanent's ability (CR 113.7a), so every Op that reads one is a rider that
+ *  fires on one of the two stack-object kinds the counter could name. Read by
+ *  {@link contingentBindingWeight}. */
 type ScriptScope = {
     readonly controllerChosenPicks: ReadonlySet<string>;
     readonly coinFlipSeriesWinProbability: ReadonlyMap<string, number>;
+    readonly counteredSourceBindings: ReadonlySet<string>;
 };
 
 /** The scope a script walk starts from — nothing bound yet. */
 const EMPTY_SCRIPT_SCOPE: ScriptScope = {
     controllerChosenPicks: new Set<string>(),
     coinFlipSeriesWinProbability: new Map<string, number>(),
+    counteredSourceBindings: new Set<string>(),
 };
 
 /** A valuer: projects one Op onto the feature basis under a grounding mode,
@@ -508,6 +516,15 @@ function withBindingsOf(
     if (op.op === "coinFlipSeries") {
         return withCoinFlipSeriesWinProbability(scope, op, ctx);
     }
+    if (op.op === "counter" && op.bindSource !== undefined) {
+        return {
+            ...scope,
+            counteredSourceBindings: new Set([
+                ...scope.counteredSourceBindings,
+                op.bindSource,
+            ]),
+        };
+    }
     if (op.op !== "choice" || !op.bind || op.player !== "controller") {
         return scope;
     }
@@ -561,6 +578,34 @@ function withCoinFlipSeriesWinProbability(
             scope.coinFlipSeriesWinProbability
         ).set(op.bindLosses, probability),
     };
+}
+
+/** How much of an Op's worth survives when it reads a `counter`'s
+ *  `bindSource` binding (issue #5044): that binding is written only when the
+ *  countered object is a permanent's ability (CR 113.7a), and a countered spell
+ *  binds nothing, so the Op is skipped (CR 608.2b). A card in hand is read
+ *  before its stack object exists, and the counter is announced against a
+ *  spell as often as against an ability, so even odds is the honest
+ *  expectation — the same reading `UNDECIDED_SELF_GATE_WEIGHT`
+ *  (`cardScriptValue.ts`) gives a binary the reader has not yet decided. Pricing the rider as certain is what
+ *  kept a held "counter, then destroy its source, draw" card out-priced by
+ *  every cast: the hand term counted a destroy that a countered spell never
+ *  delivers. */
+const CONTINGENT_BINDING_WEIGHT = 0.5;
+
+/** The weight {@link CONTINGENT_BINDING_WEIGHT} when `op` selects its victim
+ *  through a `counter`'s `bindSource` name, else 1. Structural, matching the
+ *  `{ ref }` shape rather than any card. */
+function contingentBindingWeight(op: EffectOp, scope: ScriptScope): number {
+    if (scope.counteredSourceBindings.size === 0) return 1;
+    const target = (op as { target?: unknown }).target;
+    if (typeof target !== "object" || target === null || !("ref" in target)) {
+        return 1;
+    }
+    return typeof target.ref === "string" &&
+        scope.counteredSourceBindings.has(target.ref)
+        ? CONTINGENT_BINDING_WEIGHT
+        : 1;
 }
 
 /** issue #4470 — does `predicate` read as "this `coinFlipSeries` landed at
@@ -3046,7 +3091,14 @@ export function valueEffectScript(
     let walkScope = scope;
     for (const op of effects) {
         walkScope = withBindingsOf(walkScope, op, ctx);
-        acc = addValues(acc, valueOp(op, ctx, walkScope));
+        const value = valueOp(op, ctx, walkScope);
+        const weight = contingentBindingWeight(op, walkScope);
+        acc = addValues(
+            acc,
+            weight === 1
+                ? value
+                : { points: value.points * weight, tags: value.tags }
+        );
     }
     return acc;
 }
