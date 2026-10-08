@@ -220,6 +220,14 @@ export interface CompiledTriggeredAbility {
     readonly head: CompiledTriggerHead;
     /** CR 603.4 — re-checked at resolution; the trigger fizzles when false. */
     readonly condition?: CompiledTriggerCondition;
+    /**
+     * CR 113.6b — the zone the ability functions from, when not the
+     * battlefield. "At the beginning of your upkeep, if this card is in your
+     * graveyard, …" (Gigapede, Genesis): the printed intervening-if IS the
+     * zone, so it is carried here rather than as a `condition`. Phase heads
+     * only — the one factory that takes a zone (`phaseTrigger`).
+     */
+    readonly zone?: "graveyard";
     /** CR 603.3d — announced as the trigger goes on the stack. */
     readonly targetRequirement?: TargetRequirement;
     /** ADR 0045 — the resolution body. Required: there is no escape hatch. */
@@ -474,6 +482,9 @@ export function resolveCompiledTrigger(
         case "phase":
             return phaseTrigger({
                 ...common,
+                ...(descriptor.zone !== undefined
+                    ? { zone: descriptor.zone }
+                    : {}),
                 phase: head.phase,
                 scope: head.scope,
             });
