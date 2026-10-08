@@ -273,8 +273,8 @@ describe("mass P/T — refusals (fail-closed, ADR 0105)", () => {
             "Creatures target opponent controls get -1/-1 until end of turn.",
         ],
         [
-            "a colour qualifier",
-            "White creatures you control get +1/+1 until end of turn.",
+            "two colour qualifiers",
+            "White or blue creatures you control get +1/+1 until end of turn.",
         ],
         [
             "a combat-role qualifier",

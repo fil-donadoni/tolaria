@@ -355,9 +355,15 @@ function desolationGiant() {
 }
 
 describe("Mass subject — refusals (fail closed)", () => {
-    it("refuses a colour: the sweep would otherwise destroy every creature", () => {
+    it("refuses SEVERAL colours: a union or an intersection, the sweep would guess", () => {
         expect(
-            refusal(sorcery("Test", "{2}{W}", "Destroy all white creatures."))
+            refusal(
+                sorcery(
+                    "Test",
+                    "{2}{W}",
+                    "Destroy all white or black creatures."
+                )
+            )
         ).toEqual({
             slot: "spell",
             path: ["effect clause", "mass subject"],

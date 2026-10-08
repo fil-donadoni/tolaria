@@ -384,9 +384,10 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             "Target player sacrifices an attacking or blocking creature of their choice.",
             "attacking or blocking creature",
         ],
-        // A colour clause has no sacrifice-filter field (Self-Inflicted Wound).
+        // Stacked colour adjectives are an intersection, which the filter's
+        // OR-list cannot say; only a printed "or" is read (Dystopia).
         [
-            "Target opponent sacrifices a green or white creature of their choice.",
+            "Target opponent sacrifices a green white creature of their choice.",
             "colors",
         ],
         // Nor does a type exclusion (Doomsday Confluence).

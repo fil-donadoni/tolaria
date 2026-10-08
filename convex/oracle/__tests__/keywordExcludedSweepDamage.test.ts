@@ -3,10 +3,10 @@
 // keyword exclusion, lowered to a single `forEach` whose selector carries
 // `filter.excludeAbility` (the exclusion twin of `hasAbility`).
 //
-// Read by its OWN rule (`keywordExcludedSweepRule`), not by widening the
-// general mass subject: every other verb keeps refusing "without <keyword>",
-// and "each creature" with no exclusion stays refused (see
-// eachCreatureAndPlayerDamage.test.ts).
+// Read by its OWN rule (`creatureSweepRecipientRule`), not by widening the
+// general mass subject: every other verb keeps refusing "without <keyword>".
+// The bare "each creature" recipient, "… and each player" and "target
+// opponent controls" forms are goldens of damageSweepRecipients.test.ts.
 //
 // Goldens: Ashen Firebeast (plain source), Bloodfire Dwarf ("It" dealer
 // behind a sacrifice cost), Magma Vein (a non-creature source, "This
@@ -140,12 +140,6 @@ describe("each creature without <keyword> (CR 120.3 + CR 702.9a) — goldens", (
 });
 
 describe("each creature without <keyword> — refusals stay fail-closed", () => {
-    it("'each creature' with no exclusion is still refused", () => {
-        expect(
-            probe("{R}: This creature deals 1 damage to each creature.").state
-        ).toBe("unparsed");
-    });
-
     it("'with <keyword>' is a different sweep and stays refused", () => {
         expect(
             probe(
@@ -158,14 +152,6 @@ describe("each creature without <keyword> — refusals stay fail-closed", () => 
         expect(probe("{R}: Destroy each creature without flying.").state).toBe(
             "unparsed"
         );
-    });
-
-    it("a second recipient after the sweep is refused, not dropped", () => {
-        expect(
-            probe(
-                "{R}: This creature deals 1 damage to each creature without flying and each player."
-            ).state
-        ).toBe("unparsed");
     });
 
     it("an unknown keyword is refused, not dropped", () => {

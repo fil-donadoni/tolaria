@@ -245,10 +245,12 @@ describe("each creature and each player (CR 120.3) — goldens", () => {
 });
 
 describe("each creature and each player (CR 120.3) — refusals stay fail-closed", () => {
-    it("reads the exact phrase only: 'each creature' alone is a different, still-refused sentence", () => {
+    it("reads the exact phrase only: another card type beside 'each player' is still refused", () => {
         expect(
             compileCard(
-                creature("{B}: This creature deals 1 damage to each creature.")
+                creature(
+                    "{B}: This creature deals 1 damage to each artifact and each player."
+                )
             ).state
         ).toBe("unparsed");
     });
