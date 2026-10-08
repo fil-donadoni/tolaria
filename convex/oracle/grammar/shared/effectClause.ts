@@ -1239,8 +1239,8 @@ export type EffectSentenceIR =
            * battlefield, then shuffle.": the controller looks through their OWN
            * library, may find one card the description matches, puts it onto
            * the battlefield (tapped when the line says so) and shuffles. No
-           * reveal: the line prints none (the card is not shown to the other
-           * players, CR 701.23b).
+           * reveal: the line prints none, so the card is not shown to the
+           * other players. The find is optional (CR 701.23b).
            *
            * `filter` and `phrase` are as `search-library-to-hand`'s; the
            * accepted whole clauses are a closed table
