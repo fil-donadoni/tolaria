@@ -274,7 +274,7 @@ describe("damage prevention counter removal — behaviour (CR 615)", () => {
                 unpreventable
             );
             return {
-                amount: out.amount,
+                amount: out?.amount ?? 0, // null = prevented outright
                 counters: phantom.counters?.["+1/+1"] ?? 0,
             };
         });
