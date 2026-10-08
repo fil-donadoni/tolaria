@@ -78,6 +78,7 @@
         "oracle:legality": "bun scripts/oracle-legality.ts",
         "oracle:pool": "bun scripts/catalogue-artifact.ts",
         "oracle:report": "bun scripts/oracle-report.ts",
+        "grammar:residue": "bun scripts/grammar-residue.ts",
         "oracle:retire": "bun scripts/oracle-retire.ts",
         "oracle:triage": "bun scripts/oracle-baseline-triage.ts",
         "prepare": "husky",

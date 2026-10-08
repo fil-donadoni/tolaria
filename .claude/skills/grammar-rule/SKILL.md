@@ -256,6 +256,9 @@ quote its `gaps:sync:` line from `land`'s log in the §6 report. (Until
 issue #3869 it files the Op-census rows only; a fragment gap closed by this
 rule is closed by the PR's own `Closes #N`.)
 
+**Residue ledger** — `land` runs `grammar:residue` after `gaps:sync` by itself
+(holes, long tail: `residue.md`; read it when `land` prints a hole warning).
+
 ## 10. The PR body
 
 Review and `land` are `/next-ticket` §4–§5. The body:

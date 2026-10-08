@@ -1068,6 +1068,32 @@ export function gapsSyncStep(
 }
 
 /**
+ * The residue ledger of a landed Grammar Cluster (issue #5222) —
+ * `bun run grammar:residue <issue> --pr <PR>`, whose header carries the rule:
+ * the cards the ticket considered that are still not `ready`, and an OPEN
+ * issue for every gap still refusing them (a hole runs `gaps:sync` once more
+ * and, if it survives, is reported loudly). Runs in the PRIMARY checkout AFTER
+ * `gapsSyncStep`, whose claims it reads. A branch naming no issue, or an issue
+ * that is not a Grammar Cluster, is a no-op. Non-gating like the rest of the
+ * housekeeping: a hole is a loud warning, never a failed landing of a merged PR.
+ */
+export function grammarResidueStep(
+    primaryCheckout: string,
+    pr: number,
+    branch: string,
+    originBand: BoardPriority | null = null
+): string | null {
+    const issue = issueOfBranch(branch);
+    if (issue === null) return null;
+    const p = shQuote(primaryCheckout);
+    const band = originBand === null ? "" : ` --band ${originBand}`;
+    return (
+        `(cd ${p} && bun run --silent grammar:residue ${issue} --pr ${pr}${band} || ` +
+        `echo "land: grammar:residue found residual gaps with NO open issue (or failed) — cards may stay incomplete untracked; see its output above" >&2; true)`
+    );
+}
+
+/**
  * Record the landing in the batch-health ledger (ADR 0136 §6, issue #3780).
  *
  * The FULL gate runs per BATCH — after the 5th landing since the last GREEN,
@@ -1233,6 +1259,14 @@ export function postMergeHousekeepingSteps(
         // same reason.
         gapsSyncStep(opts.primaryCheckout, opts.originBand ?? null),
     ];
+    // AFTER `gaps:sync`: it reads the claims that step just wrote (issue #5222).
+    const residue = grammarResidueStep(
+        opts.primaryCheckout,
+        opts.pr,
+        opts.branch,
+        opts.originBand ?? null
+    );
+    if (residue !== null) steps.push(residue);
     // The claim outlives nothing: the PR is merged, the issue is closing.
     const release = releaseClaimStep(opts.branch);
     if (release !== null) steps.push(release);

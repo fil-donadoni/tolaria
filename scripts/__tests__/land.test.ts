@@ -29,6 +29,7 @@ import {
     umbrellaDetachStep,
     recordLandingStep,
     gapsSyncStep,
+    grammarResidueStep,
     originBandForBranch,
     healthDetachStep,
     telemetryIngestStep,
@@ -592,6 +593,25 @@ describe("land.ts — the locked command", () => {
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
         // Non-gating, like the rest of the post-merge housekeeping.
         expect(step.endsWith("; true)")).toBe(true);
+    });
+
+    it("traces the landed cluster's residual gaps AFTER gaps:sync, non-gating (issue #5222)", () => {
+        const cmd = buildLockedCommand(base);
+        const step = grammarResidueStep("/repo", 2517, "feat/issue-4543");
+        expect(step).toContain("grammar:residue 4543 --pr 2517");
+        expect(step!.startsWith("(cd '/repo' && ")).toBe(true);
+        expect(step!.endsWith("; true)")).toBe(true);
+        // The claims it reads are the ones gaps:sync just wrote.
+        expect(cmd.indexOf("grammar:residue")).toBeGreaterThan(
+            cmd.indexOf("gaps-sync.ts")
+        );
+        // The origin band rides along to the gaps:sync re-run (issue #4158).
+        expect(
+            grammarResidueStep("/repo", 2517, "feat/issue-4543", "P0")
+        ).toContain("--pr 2517 --band P0 ||");
+        expect(step).not.toContain("--band");
+        // A branch naming no issue has no cluster to trace.
+        expect(grammarResidueStep("/repo", 1, "main")).toBeNull();
     });
 
     it("syncs Grammar/Bot Gap issues post-merge, beside the preset-scenario seeding, non-gating (ADR 0137, issue #3829)", () => {
