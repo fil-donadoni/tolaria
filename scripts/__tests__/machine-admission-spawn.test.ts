@@ -7,7 +7,11 @@ import { BASE_BRANCH } from "../lib/branches";
 import { INFRA_REMEDY, PREFLIGHT_MACHINE_STEP } from "../lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "../lib/machine-admission";
 import { acquireUiLane, MachineSaturatedError } from "../lib/ui-admission";
-import { EMPTY_CADENCE, serializeCadence } from "../lib/health-cadence";
+import {
+    EMPTY_CADENCE,
+    MAX_BATCH_AGE_MS,
+    serializeCadence,
+} from "../lib/health-cadence";
 
 /**
  * Machine admission, driven for real (issue #4966): the gate's bounded wait,
@@ -373,13 +377,18 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         const { primary, tip } = scratchPrimary();
         const dir = path.join(primary, ".claude", "telemetry", "health");
         fs.mkdirSync(dir, { recursive: true });
-        // One landing, three hours un-healthed: past the batch's age bound,
+        // One landing, un-healthed past MAX_BATCH_AGE_MS: past the batch's age bound,
         // so `detach` fires.
         fs.writeFileSync(
             path.join(dir, "cadence.json"),
             serializeCadence({
                 ...EMPTY_CADENCE,
-                landings: [{ sha: tip, at: Date.now() - 3 * 3600 * 1000 }],
+                landings: [
+                    {
+                        sha: tip,
+                        at: Date.now() - MAX_BATCH_AGE_MS - 3600 * 1000,
+                    },
+                ],
             })
         );
         const r = spawnSync("bun", [HEALTH_CADENCE, "detach"], {
