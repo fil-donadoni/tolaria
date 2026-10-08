@@ -552,7 +552,10 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         if (!picks || picks.length === 0) return false;
         const playerId = resolvePlayerRef(ctx, pred.player);
         if (!playerId) return false;
-        const graveyardCards = ctx.getGraveyardCards(playerId);
+        const graveyardCards =
+            pred.zone === "hand"
+                ? ctx.getHandCards(playerId)
+                : ctx.getGraveyardCards(playerId);
         return picks.some((id) => {
             const card = graveyardCards.find((c) => c.id === id);
             return (
@@ -5726,6 +5729,15 @@ export const OP_EXECUTORS: {
             if (libraryIds.length === 0) return; // CR 608.2b — empty library
             revealToAllPlayers(ctx, playerId, libraryIds);
             if (op.bind) ctx.noteChoice(op.bind, libraryIds);
+            return;
+        }
+        // issue #4550 — ONE card at random (CR 701.20a, Cursed Scroll). The
+        // primitive draws from the seeded PRNG exactly once and does its own
+        // known-to-all stamp + reveal notification; the id is the binding.
+        if ("random" in op) {
+            const picked = ctx.revealRandomHandCard(playerId);
+            if (picked === undefined) return; // CR 608.2b — empty hand
+            ctx.noteChoice(op.bind, [picked]);
             return;
         }
         const ids = ctx.getHandIds(playerId);

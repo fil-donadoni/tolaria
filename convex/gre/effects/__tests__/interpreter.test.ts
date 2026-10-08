@@ -36143,3 +36143,82 @@ describe("reveal { zone: 'library' } + a foreign categorised pick (CR 701.20a, i
         ]);
     });
 });
+
+// `reveal { zone: "hand", random: true, bind }` + `picksMatchFilter { zone:
+// "hand" }` (CR 701.20a / 201.2, issue #4550) — Cursed Scroll's "reveal a card
+// at random from your hand. If that card has the chosen name, …". This is the
+// shape's permanent test: any later card reusing it inherits the coverage. A
+// ONE-card hand forces the seeded pick, so the gate's outcome is decided by the
+// name filter alone.
+describe("random hand reveal gated on the revealed card's name (CR 701.20a, issue #4550)", () => {
+    function burnIfRevealedNamed(name: string, hand: string[]): GameState {
+        const effects = [
+            {
+                op: "reveal",
+                player: "controller",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "if",
+                predicate: {
+                    picksMatchFilter: { ref: "$revealed" },
+                    player: "controller",
+                    zone: "hand",
+                    filter: { name },
+                },
+                then: [
+                    {
+                        op: "dealDamage",
+                        amount: 2,
+                        to: { player: "opponent" },
+                    },
+                ],
+            },
+        ] as unknown as EffectOp[];
+        expect(validateEffectScript({ effects } as never)).toEqual([]);
+        const id = registerScript(
+            `test-random-reveal-${name}-${hand.length}`,
+            effects
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    hand: hand.map((cardId, i) =>
+                        makeInstance(cardId, {
+                            id: `p1-hand-${i}`,
+                            controllerId: "p1",
+                            ownerId: "p1",
+                            zone: "hand",
+                        })
+                    ),
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        return state;
+    }
+
+    it("the revealed card has the name → the gated effect happens", () => {
+        const state = burnIfRevealedNamed(BEAR_ID, [BEAR_ID]);
+        expect(state.players[1].life).toBe(18);
+    });
+
+    it("the revealed card has another name → nothing happens", () => {
+        const state = burnIfRevealedNamed(BLACK_CARD_ID, [BEAR_ID]);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("an empty hand reveals nothing → the gate reads false (CR 608.2b)", () => {
+        const state = burnIfRevealedNamed(BEAR_ID, []);
+        expect(state.players[1].life).toBe(20);
+    });
+
+    it("the revealed card stays in the hand (a reveal moves nothing)", () => {
+        const state = burnIfRevealedNamed(BEAR_ID, [BEAR_ID]);
+        expect(state.players[0].hand).toHaveLength(1);
+    });
+});

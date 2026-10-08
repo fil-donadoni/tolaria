@@ -7816,6 +7816,41 @@ describe("validateEffectScript — categorised library selection (CR 701.23a / 7
     });
 });
 
+describe("reveal random hand card (CR 701.20a, issue #4550)", () => {
+    const run = (entry: unknown) =>
+        validateEffectScript(
+            host({ effects: [entry] as unknown as EffectOp[] })
+        );
+    it("accepts zone hand + random + bind", () => {
+        expect(
+            run({
+                op: "reveal",
+                player: "controller",
+                zone: "hand",
+                random: true,
+                bind: "$r",
+            })
+        ).toEqual([]);
+    });
+    it("refuses `random` without a bind, or on the library shape", () => {
+        for (const bad of [
+            { op: "reveal", player: "controller", zone: "hand", random: true },
+            {
+                op: "reveal",
+                player: "controller",
+                zone: "library",
+                random: true,
+                bind: "$r",
+            },
+        ]) {
+            expect(
+                run(bad).some((e) => /"random" is valid only with/.test(e)),
+                JSON.stringify(bad)
+            ).toBe(true);
+        }
+    });
+});
+
 describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.3d, issue #3809)", () => {
     const run = (effects: unknown[]) =>
         validateEffectScript(host({ effects: effects as EffectOp[] }));

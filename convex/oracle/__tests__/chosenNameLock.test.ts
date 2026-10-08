@@ -83,3 +83,76 @@ describe("chosen-name cast lock — refusals (fail-closed)", () => {
         ).toBe("unparsed");
     });
 });
+
+const CURSED_SCROLL_TEXT =
+    "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.";
+
+function scroll(oracleText: string) {
+    return compileCard(
+        oracleCard({
+            name: "Cursed Scroll",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText,
+            power: undefined,
+            toughness: undefined,
+        })
+    );
+}
+
+describe("card name, random hand reveal, name gate — golden (CR 201.3, 701.20a)", () => {
+    it("Cursed Scroll compiles to nameCard → random reveal → name-gated damage", () => {
+        const outcome = scroll(CURSED_SCROLL_TEXT);
+        if (outcome.state === "unparsed")
+            throw new Error(JSON.stringify(outcome.gaps));
+        expect(outcome.definition.activatedAbilities?.[0]?.effects).toEqual([
+            {
+                op: "nameCard",
+                player: "controller",
+                prompt: "Choose a card name.",
+                bind: "$named",
+            },
+            {
+                op: "reveal",
+                player: "controller",
+                zone: "hand",
+                random: true,
+                bind: "$revealed",
+            },
+            {
+                op: "if",
+                predicate: {
+                    picksMatchFilter: { ref: "$revealed" },
+                    player: "controller",
+                    zone: "hand",
+                    filter: { name: { ref: "$named" } },
+                },
+                then: [{ op: "dealDamage", amount: 2, to: { target: 0 } }],
+            },
+        ]);
+    });
+});
+
+describe("card name, random hand reveal, name gate — refusals (fail-closed)", () => {
+    it("the gate without the name + reveal sentence reads nothing", () => {
+        expect(
+            scroll(
+                "{3}, {T}: If that card has the chosen name, this artifact deals 2 damage to any target."
+            ).state
+        ).toBe("unparsed");
+    });
+    it("a name pick nothing reads back is refused", () => {
+        expect(
+            scroll(
+                "{3}, {T}: Choose a card name, then reveal a card at random from your hand."
+            ).state
+        ).toBe("unparsed");
+    });
+    it("a different hand-reveal tail is another form", () => {
+        expect(
+            scroll(
+                "{3}, {T}: Choose a card name, then reveal a card at random from your library. If that card has the chosen name, this artifact deals 2 damage to any target."
+            ).state
+        ).toBe("unparsed");
+    });
+});

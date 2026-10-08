@@ -17750,6 +17750,21 @@ export type EffectOp =
      *  broader "reveal" note, `mechanicsRegistry.ts`) — that one is about a
      *  POSITION, which this whole-zone stamp says nothing about. */
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
+    /** CR 701.20a — "reveal a card at random from your hand" (Cursed Scroll,
+     *  issue #4550): ONE card of `player`'s hand, picked by the seeded PRNG
+     *  (`SpellContext.revealRandomHandCard` — known-to-all stamp + reveal
+     *  notification), recorded as a one-element PICKS binding under `bind` so a
+     *  later predicate (`picksMatchFilter` with `zone: "hand"`) reads what was
+     *  shown. `bind` is REQUIRED: a random reveal nothing reads back is the
+     *  plain reveal's job. Empty hand → nothing revealed, binding uncaptured
+     *  (CR 608.2b). */
+    | {
+          op: "reveal";
+          player: EffectPlayerRef;
+          zone: "hand";
+          random: true;
+          bind: string;
+      }
     | {
           op: "reveal";
           player: EffectPlayerRef;
@@ -18948,6 +18963,11 @@ export interface EffectPicksMatchFilterPredicate {
     picksMatchFilter: EffectRef;
     player: EffectPlayerRef;
     filter: EffectCardFilter;
+    /** Where `player` holds the picked cards: the graveyard (default — a
+     *  discard's destination) or the hand (issue #4550, Cursed Scroll: a card
+     *  revealed at random from hand is still IN hand when "if that card has
+     *  the chosen name" is asked, CR 701.20a reveals without moving). */
+    zone?: "graveyard" | "hand";
 }
 
 /** Bound-object-matches-filter predicate (Minsc & Boo): true iff the SNAPSHOT
