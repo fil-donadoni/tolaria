@@ -2011,6 +2011,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Discard a card",
+            "issue": 5250
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Discard a card at random",
             "issue": 4592
         },
