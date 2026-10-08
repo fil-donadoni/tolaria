@@ -185,7 +185,7 @@ describe("Search library, reveal, to hand — refusals (fail-closed)", () => {
         ).toBe("unparsed");
     });
 
-    it('"reveal that card" is a wording this rule does not read', () => {
+    it('"reveal that card" is a wording no basic-land card prints', () => {
         expect(
             refused(
                 "Search your library for a basic land card, reveal that card, put it into your hand, then shuffle."
@@ -201,7 +201,7 @@ describe("Search library, reveal, to hand — refusals (fail-closed)", () => {
         ).toBe("unparsed");
         expect(
             refused(
-                "Search your library for a creature card, reveal it, put it into your hand, then shuffle."
+                "Search your library for an artifact card, reveal it, put it into your hand, then shuffle."
             )
         ).toBe("unparsed");
     });

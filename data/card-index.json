@@ -51976,6 +51976,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skyshroud Poacher",
+        "scryfallId": "0fb4e44e-656e-4294-a53b-1f7aa96fab31",
+        "oracleId": "4f5921c1-b932-4d6b-bb8e-01992578abdc",
+        "firstSet": "nem",
+        "firstPrintId": "0fb4e44e-656e-4294-a53b-1f7aa96fab31",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Skyshroud Ridgeback",
         "scryfallId": "410896ab-d3dc-478c-bfd1-c0cad5b1180a",
         "oracleId": "34a160bc-5d7e-483c-b24c-ab30b7d313b0",
@@ -56509,6 +56519,16 @@
         "firstPrintId": "f1b8413f-c9fc-4cea-b416-a1fcf651b009",
         "firstPrintSet": "jud",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Sylvan Scrying",
+        "scryfallId": "b4ff07b6-be9f-498f-9f36-cbd64f1b10cc",
+        "oracleId": "ee24bf27-484d-4e1c-998e-6a74e3d3f6c4",
+        "firstSet": "mrd",
+        "firstPrintId": "b4ff07b6-be9f-498f-9f36-cbd64f1b10cc",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -65967,6 +65987,16 @@
         "firstPrintId": "ced54aa6-c8ee-451f-91cd-967fe766ec13",
         "firstPrintSet": "trc",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "World Map",
+        "scryfallId": "70d9ab99-ec8a-402e-ba1d-ffa6c4c84a3f",
+        "oracleId": "51d4f95e-aad2-4e5f-9f15-a68bbdf9ab3e",
+        "firstSet": "fin",
+        "firstPrintId": "70d9ab99-ec8a-402e-ba1d-ffa6c4c84a3f",
+        "firstPrintSet": "fin",
+        "rarity": "common",
         "source": "compiled"
     },
     {

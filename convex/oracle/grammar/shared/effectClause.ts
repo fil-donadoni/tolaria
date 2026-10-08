@@ -2783,7 +2783,7 @@ const SHUFFLE_HAND_REDRAW =
 /** CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) — "Search your library for <what>,
  *  reveal it, put it into your hand, then shuffle". */
 const SEARCH_LIBRARY_TO_HAND =
-    /^Search your library for (.+?), reveal it, put it into your hand, then shuffle$/;
+    /^Search your library for (.+?), reveal (it|that card), put it into your hand, then shuffle$/;
 /**
  * What a library search may be told to find (CR 701.23a — "a card that matches
  * the given description"), as an `EffectCardFilter`. Fail-closed by
@@ -2792,7 +2792,11 @@ const SEARCH_LIBRARY_TO_HAND =
  * card said. A row is earned by a printed form, never by symmetry.
  */
 const LIBRARY_SEARCH_FILTERS = new Map<string, EffectCardFilter>([
-    ["a basic land card", { type: "Land", supertype: "Basic" }],
+    ["a basic land card|it", { type: "Land", supertype: "Basic" }],
+    ["a land card|it", { type: "Land" }],
+    ["a creature card|that card", { type: "Creature" }],
+    ["a Goblin card|that card", { subtype: "Goblin" }],
+    ["a Forest card|that card", { subtype: "Forest" }],
 ]);
 /**
  * CR 701.23a (search) + CR 110.5b — "Search your library for <what>, put <it>
@@ -2818,6 +2822,13 @@ const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
     [
         "a basic land card|that card|tapped",
         { filter: { type: "Land", supertype: "Basic" }, tapped: true },
+    ],
+    [
+        "an Elf permanent card|it|",
+        {
+            filter: { type: [...PERMANENT_TYPES], subtype: "Elf" },
+            tapped: false,
+        },
     ],
     ...DUAL_LAND_FETCHES.map(
         ([first, second]): [
@@ -4081,12 +4092,14 @@ function effectSentence(
     const searchToHand = span.match(SEARCH_LIBRARY_TO_HAND);
     if (searchToHand !== null) {
         const phrase = searchToHand[1]!;
-        const filter = LIBRARY_SEARCH_FILTERS.get(phrase);
+        // The reveal pronoun is part of the printed form: each description is
+        // earned with the wording a card prints it in, so a pairing no card
+        // prints has no row and fails the line.
+        const filter = LIBRARY_SEARCH_FILTERS.get(
+            `${phrase}|${searchToHand[2]}`
+        );
         if (filter === undefined)
-            return fail(
-                `"${phrase}" is not a library search description`,
-                span
-            );
+            return fail(`"${span}" is not a library search description`, span);
         return ok({
             kind: "search-library-to-hand" as const,
             filter,
