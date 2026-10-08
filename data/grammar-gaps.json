@@ -781,6 +781,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Activate only if an opponent controls more lands than you",
+            "issue": 5248
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Choose a card name, then reveal a card at random from your hand",
             "issue": 4550
         },
@@ -3698,6 +3703,11 @@
             "kind": "scenario",
             "key": "smoke-scenario › Op \"attach\" targets a creature the CONTROLLER controls — not modelable by the generator's opponent-battlefield target placement",
             "issue": 5209
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"choice\" reads a runtime \"count\" amount — the canned generator does not size it",
+            "issue": 5249
         },
         {
             "kind": "scenario",
