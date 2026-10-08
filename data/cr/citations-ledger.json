@@ -13995,6 +13995,7 @@
         {"id":"402.3","line":"// issue #2150 — the hand count grew a `filter` (CR 402.3 / 701.20a: the","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// p2's hand is normally `null[]` to p1 (CR 402.3); without the reveal","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// p2's hand is normally projected as `null[]` to p1 (CR 402.3), so a","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
+        {"id":"402.3","line":"// the hand: the rest stays hidden (CR 402.3).","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// twin: the hand is hidden (CR 402.3) but its SIZE is public information","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// untouched (CR 402.3, issue #2006 — Dark Suspicions).","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
         {"id":"402.3","line":"// was cardinality-only, on the CR 402.3 reasoning that a hidden zone has","sites":1,"status":"confirmed","ruleHash":"d4cdbbaa54328b78"},
