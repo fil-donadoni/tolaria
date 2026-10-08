@@ -1151,6 +1151,12 @@ function selectorsFor(
         return unlowerable(
             "this verb acts on one object, and the sentence announced more (CR 601.2c)"
         );
+    // CR 107.3 — "with mana value X" reads the X the source announced; a
+    // source with no {X} would silently read 0.
+    if (subject.requirement.mvFilter?.equals === "X" && !site.allowX)
+        return unlowerable(
+            "a target filter reads X but its source announces no {X} (CR 107.3)"
+        );
     const first = slots.allocate(subject.requirement, subject.another === true);
     if (!first.ok) return first;
     return lowered(
@@ -1770,7 +1776,21 @@ function lowerSentenceBody(
                       }
                     : { op: "destroy", target: target.value };
             recordActedOn(walk, sentence.subject, destroy);
-            return lowered([destroy]);
+            if (sentence.manaValueAtMost === undefined)
+                return lowered([destroy]);
+            // CR 202.3 — the bound is read off the announced
+            // target as the spell resolves; an `if` is the whole encoding.
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        left: { manaValue: { of: target.value } },
+                        op: "le",
+                        right: sentence.manaValueAtMost,
+                    },
+                    then: [destroy],
+                },
+            ]);
         }
         // CR 701.13a — exile the announced permanent. `bind` is stamped by
         // `recordActedOn` when a later sentence names it (CR 608.2h).
@@ -2196,6 +2216,50 @@ function lowerSentenceBody(
             if (!count.ok) return count;
             return lowered([
                 { op: "mill", player: player.value, count: count.value },
+            ]);
+        }
+        case "return-own-permanent": {
+            // CR 400.3 — the controller picks one of their own permanents and
+            // it returns to its owner's hand. The pick is routed through
+            // `forEach { set: "bound" }`: a `choice` Op's `bind` holds the raw
+            // picks, while `moveZone.target` wants a snapshot ref.
+            const bind = walk.nextBind("bounce");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    filter: sentence.filter,
+                    count: 1,
+                    prompt: `${capitalise(sentence.phrase)}.`,
+                    bind,
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: bind },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ]);
+        }
+        case "exile-graveyard": {
+            // CR 404.1 + CR 701.13a — the whole-zone `moveZone` shape: every
+            // card in the announced player's graveyard goes to exile.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            return lowered([
+                {
+                    op: "moveZone",
+                    player: player.value,
+                    from: "graveyard",
+                    to: "exile",
+                },
             ]);
         }
         case "put-back": {
@@ -2692,9 +2756,18 @@ function lowerSentenceBody(
             const before = walk.targets.requirements().length;
             const base = gatedSentence(sentence.base, walk, site);
             if (!base.ok) return base;
-            const replacement = gatedSentence(sentence.replacement, walk, site);
+            // The replacement may re-name the base's own announced targets
+            // (CR 601.2c — chosen once), never announce one of its own.
+            const replay = walk.replaying(before);
+            const replacement = gatedSentence(
+                sentence.replacement,
+                replay,
+                site
+            );
             if (!replacement.ok) return replacement;
-            if (walk.targets.requirements().length !== before)
+            if (
+                replay.targets.consumed() !== walk.targets.requirements().length
+            )
                 return unlowerable(
                     "a target announced in only one branch of a kicked replacement has no encoding (CR 702.33g)"
                 );

@@ -659,6 +659,13 @@ function castPermissionClassFilter(
             "a mana-value FLOOR is not expressible as a cast-permission filter (CR 202.3)",
             JSON.stringify(value.mvFilter)
         );
+    // CR 107.3 — "mana value X" names the announced X, which the filter has no
+    // field for; dropping it would widen the permission to every card.
+    if (value.mvFilter?.equals !== undefined)
+        return fail(
+            "a mana-value X is not expressible as a cast-permission filter (CR 107.3)",
+            JSON.stringify(value.mvFilter)
+        );
     const filter: EffectCardFilter = {
         ...(value.types !== undefined ? { type: [...value.types] } : {}),
         ...(value.excludeTypes !== undefined

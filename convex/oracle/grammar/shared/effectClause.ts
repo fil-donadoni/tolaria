@@ -76,6 +76,7 @@ import {
     dividedTargetsRule,
     narrowedStackRequirement,
     opensTargetPhrase,
+    ownPermanentChoiceFilterFromDescriptor,
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
     targetFilterRule,
@@ -711,6 +712,13 @@ export type EffectSentenceIR =
           readonly kind: "destroy";
           readonly subject: SubjectIR;
           readonly cantBeRegenerated: boolean;
+          /**
+           * CR 202.3 — "Destroy target artifact if its mana value
+           * is 2 or less": the target is announced regardless and the
+           * destruction happens only if the mana value read when the spell
+           * resolves is within the bound. Only ever on an announced target.
+           */
+          readonly manaValueAtMost?: number;
       }
     | {
           /**
@@ -854,6 +862,27 @@ export type EffectSentenceIR =
           readonly kind: "mill";
           readonly player: PlayerRefIR;
           readonly count: AmountIR;
+      }
+    | {
+          /**
+           * CR 400.3 — "return a blue or black creature you control to its
+           * owner's hand": the controller CHOOSES one of their own permanents
+           * as the sentence resolves; nothing is announced. `phrase` is the
+           * printed clause, kept for the prompt the chooser reads.
+           */
+          readonly kind: "return-own-permanent";
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
+      }
+    | {
+          /**
+           * CR 404.1 + CR 701.13a — "Exile target player's graveyard": every
+           * card in that player's graveyard moves to exile. The player is an
+           * announced target; the zone is the whole pile, not a card in it
+           * (`move-zone` is the single-card shape).
+           */
+          readonly kind: "exile-graveyard";
+          readonly player: PlayerRefIR;
       }
     | {
           /**
@@ -1487,6 +1516,20 @@ export type SentenceIR =
           readonly replacement: EffectSentenceIR;
       }
     /**
+     * CR 702.33e + CR 202.3 — "If this spell was kicked, destroy that artifact
+     * if its mana value is 5 or less instead": the replacement half of a
+     * `replace-if-kicked` over a bounded destroy. It re-names the base's own
+     * target ("that <type>") and changes only the bound, so it is folded onto
+     * the destroy in front of it (`foldKickedBoundInstead`) rather than parsed
+     * to a sentence of its own.
+     */
+    | {
+          readonly role: "kicked-bound-instead";
+          readonly kicked: KickedRefIR;
+          readonly noun: string;
+          readonly manaValueAtMost: number;
+      }
+    /**
      * CR 608.2c — "Add {B}{B}{B}{B}{B} instead if there are seven or more cards
      * in your graveyard": the replacement half of an `add-mana-instead-if`,
      * folded onto the `add-mana` in front of it by `assembleSentences`.
@@ -1953,6 +1996,19 @@ export function assembleSentences(
                 replacement: sentence.mana,
                 condition: sentence.condition,
             };
+            continue;
+        }
+        if (sentence.role === "kicked-bound-instead") {
+            const previous = effects[effects.length - 1];
+            if (previous === undefined)
+                return {
+                    ok: false,
+                    reason: '"… instead" follows no effect it could replace',
+                };
+            const replaced = foldKickedBoundInstead(previous, sentence);
+            if (typeof replaced === "string")
+                return { ok: false, reason: replaced };
+            effects[effects.length - 1] = replaced;
             continue;
         }
         if (sentence.role === "kicked-instead") {
@@ -2457,6 +2513,14 @@ export function kickedSentenceRule(inner: Rule<SentenceIR>): Rule<SentenceIR> {
         // flying" names the creature an earlier sentence targeted, so any
         // other verb behind a bound pronoun fails rather than granting the
         // ability to the spell.
+        const bound = span.slice(comma + 2).match(KICKED_BOUND_INSTEAD);
+        if (bound !== null)
+            return ok({
+                role: "kicked-bound-instead" as const,
+                kicked: condition.value,
+                noun: bound[1]!,
+                manaValueAtMost: Number(bound[2]),
+            });
         const tail = bindSourcePronoun(span.slice(comma + 2));
         const parsed = inner.run(capitalise(tail.span), ctx);
         if (!parsed.ok) return parsed;
@@ -2748,6 +2812,23 @@ const DAMAGE_EQUAL_OWN_POWER = /^(.+) deals damage equal to its power to (.+)$/;
  * second half stays refused until a corpus card prints it.
  */
 const DRAIN = /^(.+) loses (\S+) life and (you gain \S+ life)$/;
+/**
+ * CR 115.1 + CR 701.8a — "Destroy target artifact and target enchantment": two
+ * announced targets under ONE verb. Each half must open its own "target", so a
+ * bare "and" inside one descriptor ("artifact and/or enchantment") is not
+ * split here; each half is then read as a destroy of its own, in printed
+ * order.
+ */
+const DESTROY_TWO_TARGETS = /^Destroy (target .+?) and (target .+)$/;
+/**
+ * CR 608.2c — a damage-and-gain: "{self} deals 2 damage to target creature and
+ * you gain 2 life". The damage reads through `DAMAGE` like any other and the
+ * gain is pinned to exactly "you gain N life" (anti-leniency, as `DRAIN`): the
+ * gain is a printed number, not the damage dealt, so the two Ops are
+ * independent and resolve in printed order.
+ */
+const DAMAGE_THEN_GAIN =
+    /^(.+ deals \S+ damage to .+) and (you gain \S+ life)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
@@ -2803,6 +2884,10 @@ const YOU_DRAW_AND_LOSE_LIFE =
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 701.17a — "Mill three cards" (the controller's own library). */
+/** CR 404.1 — "Exile target player's graveyard": the owner is a possessive. */
+const RETURN_OWN_PERMANENT =
+    /^Return (an? .+ you control) to its owner(?:'|’)s hand$/;
+const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
 const MILL_PLAYER = /^(.+) mills (\S+) cards?$/;
@@ -3434,7 +3519,42 @@ function foldKickedInstead(
     };
 }
 
+/**
+ * CR 702.33e + CR 202.3 — pair a bounded destroy with the kicked destroy that
+ * re-bounds it. The replacement names the base's target by its type
+ * ("that artifact") and nothing else may differ, so the new effect is the base
+ * with only its bound changed, sharing the base's subject object (the target
+ * was announced once, CR 601.2c).
+ */
+function foldKickedBoundInstead(
+    previous: EffectSentenceIR,
+    sentence: Extract<SentenceIR, { role: "kicked-bound-instead" }>
+): EffectSentenceIR | string {
+    if (
+        previous.kind !== "destroy" ||
+        previous.manaValueAtMost === undefined ||
+        previous.subject.kind !== "target" ||
+        typeof previous.subject.requirement.type !== "string" ||
+        previous.subject.requirement.type.toLowerCase() !== sentence.noun
+    )
+        return `"that ${sentence.noun}" is not the target of a bounded destroy`;
+    return {
+        kind: "replace-if-kicked",
+        kicked: sentence.kicked,
+        base: previous,
+        replacement: {
+            ...previous,
+            manaValueAtMost: sentence.manaValueAtMost,
+        },
+    };
+}
+
 const KICKED_INSTEAD = /^If it was kicked, (.+) instead$/;
+/** CR 702.33e + CR 202.3 — the spell-site re-bound, whole. */
+const KICKED_BOUND_INSTEAD =
+    /^destroy that (\w+) if its mana value is (\d+) or less instead$/;
+/** CR 202.3 — the trailing bound of a conditional destroy. */
+const MANA_VALUE_BOUND = / if its mana value is (\d+) or less$/;
 
 /**
  * Wrap a sentence rule so it also reads CR 702.33e's "If it was kicked,
@@ -4107,6 +4227,19 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── damage, then the controller's gain (CR 608.2c) ─────────────────────
+    const damageThenGain = span.match(DAMAGE_THEN_GAIN);
+    if (damageThenGain !== null) {
+        const dealt = effectSentence(damageThenGain[1]!, ctx);
+        if (!dealt.ok) return dealt;
+        const gain = effectSentence(capitalise(damageThenGain[2]!), ctx);
+        if (!gain.ok) return gain;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [dealt.value, gain.value],
+        } satisfies EffectSentenceIR);
+    }
+
     // ── damage (CR 119.3) ──────────────────────────────────────────────────
     const damage = span.match(DAMAGE);
     if (damage !== null) {
@@ -4276,6 +4409,19 @@ function effectSentence(
     }
 
     // ── destroy (CR 701.8a) ────────────────────────────────────────────────
+    const destroyTwo = span.includes(" if its ")
+        ? null
+        : span.match(DESTROY_TWO_TARGETS);
+    if (destroyTwo !== null) {
+        const first = effectSentence(`Destroy ${destroyTwo[1]}`, ctx);
+        if (!first.ok) return first;
+        const second = effectSentence(`Destroy ${destroyTwo[2]}`, ctx);
+        if (!second.ok) return second;
+        return ok({
+            kind: "conjunction" as const,
+            effects: [first.value, second.value],
+        } satisfies EffectSentenceIR);
+    }
     if (span.startsWith("Destroy ")) {
         // CR 115.2 + CR 105.1 — the Blast cycle's "target permanent if it's
         // <colour>" is read AS "target <colour> permanent" by the destroy verb
@@ -4284,17 +4430,27 @@ function effectSentence(
         const conditional = span
             .slice("Destroy ".length)
             .match(DESTROY_PERMANENT_IF_COLOR);
+        // CR 202.3 — "… if its mana value is N or less": a bound on an
+        // announced target, checked at resolution.
+        const bound =
+            conditional === null ? span.match(MANA_VALUE_BOUND) : null;
         const subject = sweepableSubject(
-            conditional === null
-                ? span.slice("Destroy ".length)
-                : `target ${conditional[1]} permanent`,
+            conditional !== null
+                ? `target ${conditional[1]} permanent`
+                : span.slice(
+                      "Destroy ".length,
+                      bound === null ? undefined : span.length - bound[0].length
+                  ),
             ctx
         );
         if (!subject.ok) return subject;
+        if (bound !== null && subject.value.kind !== "target")
+            return fail("a mana-value bound needs an announced target", span);
         return ok({
             kind: "destroy" as const,
             subject: subject.value,
             cantBeRegenerated: false,
+            ...(bound === null ? {} : { manaValueAtMost: Number(bound[1]) }),
         } satisfies EffectSentenceIR);
     }
 
@@ -4587,6 +4743,27 @@ function effectSentence(
 
     // ── zone change (CR 400.6) ─────────────────────────────────────────────
     if (span.startsWith("Return ")) {
+        // CR 400.3 — a chosen permanent of the controller's own, not an
+        // announced target ("return a creature you control to its owner's hand").
+        const own = span.match(RETURN_OWN_PERMANENT);
+        if (own !== null) {
+            const descriptor = descriptorRule.run(
+                own[1]!.replace(/^an? /, ""),
+                ctx
+            );
+            if (!descriptor.ok) return descriptor;
+            if (descriptor.value.plural === true)
+                return fail(`"${own[1]}" is not one permanent`, own[1]!);
+            const filter = ownPermanentChoiceFilterFromDescriptor(
+                descriptor.value
+            );
+            if (!filter.ok) return filter;
+            return ok({
+                kind: "return-own-permanent" as const,
+                filter: filter.value,
+                phrase: uncapitalise(span),
+            } satisfies EffectSentenceIR);
+        }
         const toAt = span.lastIndexOf(" to ");
         if (toAt === -1) return fail("a return needs a destination zone", span);
         const subject = subjectRule.run(
@@ -4650,6 +4827,21 @@ function effectSentence(
     // ── exile (CR 701.13a) ─────────────────────────────────────────────────
     // An announced permanent (`exile`) or a card in a graveyard (`move-zone`).
     if (span.startsWith("Exile ")) {
+        // CR 404.1 — "Exile target player's graveyard": the whole pile of an
+        // announced player (Tormod's Crypt). Only a target player is printed.
+        const graveyard = span.match(EXILE_GRAVEYARD);
+        if (graveyard !== null) {
+            const player = playerSubject(graveyard[1]!, ctx);
+            if (player === null || player.kind !== "target")
+                return fail(
+                    `"${graveyard[1]}" is not a target player whose graveyard is exiled`,
+                    span
+                );
+            return ok({
+                kind: "exile-graveyard" as const,
+                player,
+            } satisfies EffectSentenceIR);
+        }
         const subject = subjectRule.run(span.slice("Exile ".length), ctx);
         if (!subject.ok) return subject;
         // CR 400.7e — "exile that card": the card a zone change put into a
