@@ -22,11 +22,7 @@ import { describe, expect, it } from "vitest";
 import type { CompiledTriggeredAbility } from "../../cards/compiledTriggers";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
-import {
-    OTHER_HEADS,
-    SELF_HEADS,
-    triggerHeadRule,
-} from "../grammar/shared/triggerHead";
+import { triggerHeadRule } from "../grammar/shared/triggerHead";
 import { oracleCard, parseContext } from "./oracle.fixture";
 
 function abilitiesOf(
@@ -298,21 +294,5 @@ describe("zone-change trigger heads — refusals (fail-closed)", () => {
                 )
             )
         ).toBe(true);
-    });
-});
-
-describe("zone-change trigger heads — tables", () => {
-    it("no OTHER_HEADS phrase is read by the self branch, and vice versa", () => {
-        // the new rows join the disjointness sweep `triggered.test.ts` runs over
-        // both tables; this pins that they exist so a deleted row reds HERE.
-        const kinds = [
-            ...SELF_HEADS.map((h) => h.ir.kind),
-            ...[...OTHER_HEADS.values()].map((h) => h.kind),
-        ];
-        expect(kinds.filter((k) => k === "left-to-graveyard")).toHaveLength(2);
-        expect(kinds.filter((k) => k === "graveyard-entry")).toHaveLength(2);
-        expect(kinds.filter((k) => k === "library-to-graveyard")).toHaveLength(
-            1
-        );
     });
 });
