@@ -4791,4 +4791,268 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a land card, reveal it, put it into your hand, then shuffle" (issue #4553). The same runtime-sized `choice` / `reveal` / `moveZone` forms as Lay of the Land's basic-land fetch, on a plain `{ type: "Land" }` filter.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8fcf50cd-e6d0-4516-850f-d42ee75dcc3a",
+            name: "Expedition Map",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "{2}, {T}, Sacrifice this artifact: Search your library for a land card, reveal it, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Expedition Map",
+            types: ["Artifact"],
+            manaCost: { X: 1 },
+            oracleText:
+                "{2}, {T}, Sacrifice this artifact: Search your library for a land card, reveal it, put it into your hand, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "expedition-map-ability",
+                    oracleText:
+                        "{2}, {T}, Sacrifice this artifact: Search your library for a land card, reveal it, put it into your hand, then shuffle.",
+                    cost: { mana: { X: 2 }, tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Land" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a land card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found1" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.23a + CR 701.20a + CR 701.24a — "Search your library for a creature card, reveal that card, put it into your hand, then shuffle" behind an activated cost with a discard (issue #4553).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "119d719d-e965-45b4-9bc9-ac03211b10c2",
+            name: "Survival of the Fittest",
+            manaCost: "{1}{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{G}, Discard a creature card: Search your library for a creature card, reveal that card, put it into your hand, then shuffle.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Survival of the Fittest",
+            types: ["Enchantment"],
+            manaCost: { X: 1, G: 1 },
+            oracleText:
+                "{G}, Discard a creature card: Search your library for a creature card, reveal that card, put it into your hand, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "survival-of-the-fittest-ability",
+                    oracleText:
+                        "{G}, Discard a creature card: Search your library for a creature card, reveal that card, put it into your hand, then shuffle.",
+                    cost: {
+                        mana: { G: 1 },
+                        discardFilter: {
+                            filter: { type: "Creature" },
+                            count: 1,
+                        },
+                    },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: { type: "Creature" },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for a creature card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            cards: { ref: "$found1" },
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "hand",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.23a + CR 701.20a + CR 701.24a — "you may search your library for a Goblin card, reveal that card, ..." behind a trigger's may-gate (issue #4553).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "145737a7-c597-4dec-b752-207c2d0501e3",
+            name: "Goblin Matron",
+            manaCost: "{2}{R}",
+            typeLine: "Creature — Goblin",
+            oracleText:
+                "When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Matron",
+            types: ["Creature"],
+            subtypes: ["Goblin"],
+            manaCost: { X: 2, R: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "goblin-matron-trigger",
+                    oracleText:
+                        "When this creature enters, you may search your library for a Goblin card, reveal that card, put it into your hand, then shuffle.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Search your library for a Goblin card, reveal that card, put it into your hand, then shuffle?",
+                            bind: "$may2",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may2" },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "search-library",
+                                    player: "controller",
+                                    zone: "library",
+                                    filter: { subtype: "Goblin" },
+                                    count: { min: 0, max: 1 },
+                                    prompt: "Search your library for a Goblin card.",
+                                    bind: "$found1",
+                                },
+                                {
+                                    op: "reveal",
+                                    player: "controller",
+                                    cards: { ref: "$found1" },
+                                },
+                                {
+                                    op: "moveZone",
+                                    cards: { ref: "$found1" },
+                                    player: "controller",
+                                    from: "library",
+                                    to: "hand",
+                                },
+                                {
+                                    op: "libraryLook",
+                                    action: "shuffle",
+                                    player: "controller",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 701.23a + CR 110.5b + CR 701.24a — "Search your library for an Elf permanent card, put it onto the battlefield, then shuffle" (issue #4553): a runtime-sized `choice` and a library-to-battlefield `moveZone`, no reveal.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "4f5921c1-b932-4d6b-bb8e-01992578abdc",
+            name: "Skyshroud Poacher",
+            manaCost: "{2}{G}{G}",
+            typeLine: "Creature — Human Rebel",
+            oracleText:
+                "{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Skyshroud Poacher",
+            types: ["Creature"],
+            subtypes: ["Human", "Rebel"],
+            manaCost: { X: 2, G: 2 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.",
+            activatedAbilities: [
+                {
+                    id: "skyshroud-poacher-ability",
+                    oracleText:
+                        "{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "search-library",
+                            player: "controller",
+                            zone: "library",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                subtype: "Elf",
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "Search your library for an Elf permanent card.",
+                            bind: "$found1",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$found1" },
+                            player: "controller",
+                            from: "library",
+                            to: "battlefield",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: "controller",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
