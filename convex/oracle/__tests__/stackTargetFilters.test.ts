@@ -338,7 +338,7 @@ describe("narrowed stack targets of a counter (CR 701.6a, CR 115.2)", () => {
         );
     });
 
-    // CR 114.1 + CR 701.6a + CR 113.7a — a spell OR ability, and the rider
+    // CR 115.1 + CR 701.6a + CR 113.7a — a spell OR ability, and the rider
     // that acts on the SOURCE of a countered ability.
     it("reads the spell-or-ability target and its rider — Teferi's Response", () => {
         const definition = compiled(

@@ -749,8 +749,8 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 702.33g + CR 115.2 — "counter that spell if its mana value is N
-           * or less instead": the kicked half of a counter whose base target
+           * CR 702.33g (Kicker) + CR 115.2 — "counter that spell if its mana
+           * value is N or less instead": the kicked half of a counter whose base target
            * already carries a mana-value limit. It announces no target of its
            * own — "that spell" is the one the base counter names — so it is a
            * SWAP of the spell's announced requirement, legal only inside a

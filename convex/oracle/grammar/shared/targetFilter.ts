@@ -1288,7 +1288,7 @@ const STACK_SPELL_MV_AT_MOST =
     /^target spell if its mana value is (\d+) or less$/;
 
 /**
- * CR 115.2 + CR 113.3 + CR 702.21a — the narrowed stack-object phrases, read by
+ * CR 115.2 + CR 113.3 — the narrowed stack-object phrases, read by
  * exact spelling for the reason the bare "target spell" is: every facet lives
  * beside `type: "spell"` on the requirement (`colorFilter`, `spellTypeFilter`,
  * `mvFilter`, `spellStackKind`, …), not in a descriptor whose adjectives would
@@ -1311,14 +1311,14 @@ export function narrowedStackRequirement(
             spellTypeFilter: ["Artifact", "Enchantment"],
         } as TargetRequirement;
     // CR 113.3 — an activated or triggered ability on the stack (mana
-    // abilities never use the stack, CR 605.3a, so none is targetable).
+    // abilities never use the stack, CR 605.3b, so none is targetable).
     if (span === "target activated or triggered ability")
         return {
             type: "spell",
             count: 1,
             spellStackKind: "ability",
         } as TargetRequirement;
-    // CR 114.1 — a spell OR ability an opponent controls that targets a land
+    // CR 115.1 — a spell OR ability an opponent controls that targets a land
     // you control (Teferi's Response).
     if (
         span ===
