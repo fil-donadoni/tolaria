@@ -323,7 +323,7 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "at the beginning of the end step",
         { kind: "phase", phase: "END_STEP", scope: "each" },
     ],
-    // CR 303.4e + CR 603.2b — an Aura's upkeep trigger fires on the upkeep of
+    // CR 303.4b + CR 603.2b — an Aura's upkeep trigger fires on the upkeep of
     // the player controlling the enchanted creature, who is "that player".
     [
         "at the beginning of the upkeep of enchanted creature's controller",

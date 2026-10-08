@@ -33,7 +33,7 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
-    // CR 500.1 + CR 603.6a — "At the beginning of the end step, return this
+    // CR 500.1 + CR 603.2b — "At the beginning of the end step, return this
     // creature to its owner's hand": the unqualified phrase names EACH end step
     // (CR 500.1). Exhibits `moveZone` of `$source`, a zone change the canned
     // smoke scenario does not model (issue #4545).

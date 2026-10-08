@@ -1,6 +1,6 @@
 // Phase and step trigger heads — "at the beginning of the end step", "…of the
 // upkeep of enchanted creature's controller", "…of each player's first main
-// phase" (issue #4545, CR 500.1 / 505.1 / 303.4b / 603.2b / 603.6a).
+// phase" (issue #4545, CR 500.1 / 505.1 / 303.4b / 603.2b).
 //
 //  1. GOLDENS — each accepted head is the trigger line of a real corpus card,
 //     compiled and compared with `sortKeys` equality. Only that line is fed in
