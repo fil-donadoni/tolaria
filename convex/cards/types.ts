@@ -17752,8 +17752,8 @@ export type EffectOp =
     | { op: "reveal"; player: EffectPlayerRef; zone: "hand" }
     /** CR 701.20a — "reveal a card at random from your hand" (Cursed Scroll,
      *  issue #4550): ONE card of `player`'s hand, picked by the seeded PRNG
-     *  (`SpellContext.revealRandomHandCard` — known-to-all stamp + reveal
-     *  notification), recorded as a one-element PICKS binding under `bind` so a
+     *  (`SpellContext.revealRandomHandCard` — known-to-all stamp, no
+     *  dialog), recorded as a one-element PICKS binding under `bind` so a
      *  later predicate (`picksMatchFilter` with `zone: "hand"`) reads what was
      *  shown. `bind` is REQUIRED: a random reveal nothing reads back is the
      *  plain reveal's job. Empty hand → nothing revealed, binding uncaptured. */

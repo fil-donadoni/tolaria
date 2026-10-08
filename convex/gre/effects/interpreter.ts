@@ -5733,7 +5733,7 @@ export const OP_EXECUTORS: {
         }
         // issue #4550 — ONE card at random (CR 701.20a, Cursed Scroll). The
         // primitive draws from the seeded PRNG exactly once and does its own
-        // known-to-all stamp + reveal notification; the id is the binding.
+        // known-to-all stamp (no dialog); the id is the binding.
         if ("random" in op) {
             const picked = ctx.revealRandomHandCard(playerId);
             if (picked === undefined) return; // empty hand — nothing revealed

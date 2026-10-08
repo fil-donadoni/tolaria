@@ -8035,7 +8035,9 @@ function checkOpListRefs(
             // issue #2150 — the whole-HAND reveal makes that player's hand
             // public (CR 701.20a), which is what a filtered hand `count` in a
             // LATER Op of this same list is allowed to read.
-            if (entry.zone === "hand") {
+            // A RANDOM reveal shows ONE card (its own `bind` names it), never
+            // the hand: the rest stays hidden (CR 402.3).
+            if (entry.zone === "hand" && !("random" in entry)) {
                 revealedHands.add(JSON.stringify(entry.player ?? null));
             }
         }

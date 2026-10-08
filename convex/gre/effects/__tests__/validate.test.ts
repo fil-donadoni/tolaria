@@ -7832,6 +7832,33 @@ describe("reveal random hand card (CR 701.20a, issue #4550)", () => {
             })
         ).toEqual([]);
     });
+    it("a random reveal does not make the hand public to a filtered count", () => {
+        const errors = validateEffectScript(
+            host({
+                effects: [
+                    {
+                        op: "reveal",
+                        player: "controller",
+                        zone: "hand",
+                        random: true,
+                        bind: "$r",
+                    },
+                    {
+                        op: "dealDamage",
+                        amount: {
+                            count: {
+                                zone: "hand",
+                                controller: "controller",
+                                filter: { color: "B" },
+                            },
+                        },
+                        to: { player: "opponent" },
+                    },
+                ] as unknown as EffectOp[],
+            })
+        );
+        expect(errors.length).toBeGreaterThan(0);
+    });
     it("refuses `random` without a bind, or on the library shape", () => {
         for (const bad of [
             { op: "reveal", player: "controller", zone: "hand", random: true },
