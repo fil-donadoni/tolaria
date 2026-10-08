@@ -33,6 +33,104 @@ export interface GoldenFixture {
 // Frozen: `fixtureForms` caches by array identity, so the registry may never
 // change in place.
 export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
+    // CR 106.4 + CR 603.2b — "At the beginning of each player's first main
+    // phase, that player adds {G}{G}": the mana goes to `PHASE_BEGIN`'s active
+    // player (the head names her), and the first main phase is the precombat
+    // one (CR 505.1). Exhibits `addMana` into an `$event` player, a recipient
+    // the canned smoke scenario cannot pick (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "faa085c3-705f-465d-9290-0e22276ad06d",
+            name: "Eladamri's Vineyard",
+            manaCost: "{G}",
+            typeLine: "Enchantment",
+            oracleText:
+                "At the beginning of each player's first main phase, that player adds {G}{G}.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Eladamri's Vineyard",
+            types: ["Enchantment"],
+            manaCost: { G: 1 },
+            oracleText:
+                "At the beginning of each player's first main phase, that player adds {G}{G}.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "eladamri-s-vineyard-trigger",
+                    oracleText:
+                        "At the beginning of each player's first main phase, that player adds {G}{G}.",
+                    head: {
+                        kind: "phase",
+                        phase: "PRECOMBAT_MAIN",
+                        scope: "each",
+                    },
+                    effects: [
+                        {
+                            op: "addMana",
+                            mana: { G: 2 },
+                            player: { ref: "$event.activePlayerId" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 303.4b + CR 603.2b — "At the beginning of the upkeep of enchanted
+    // creature's controller, put a -0/-1 counter on that creature": the head
+    // fires on the host controller's upkeep and "that creature" is the host.
+    // Exhibits `counters` on `$host`, a target the canned smoke scenario does
+    // not model (issue #4545).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "9bdc79c9-c8b0-4db1-89d9-0ca7920b6576",
+            name: "Essence Flare",
+            manaCost: "{U}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Essence Flare",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { U: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0.\nAt the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "essence-flare-trigger",
+                    oracleText:
+                        "At the beginning of the upkeep of enchanted creature's controller, put a -0/-1 counter on that creature.",
+                    head: {
+                        kind: "phase",
+                        phase: "UPKEEP",
+                        scope: "host-controller",
+                    },
+                    effects: [
+                        {
+                            op: "counters",
+                            action: "add",
+                            counter: "-0/-1",
+                            target: { ref: "$host" },
+                            count: 1,
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                {
+                    kind: "pt-buff",
+                    appliesTo: "host",
+                    power: 2,
+                    toughness: 0,
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
     // CR 614.9 (issue #3810) — "The next N damage that would be dealt to
     // <recipient> this turn is dealt to <other recipient> instead". Exhibits
     // the "budget is the announced {X}" form: the canned smoke scenario cannot
