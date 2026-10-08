@@ -1807,7 +1807,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Nonblack creatures can't attack you unless their controller pays {…} for each creature they control that's attacking you",
-            "issue": 4560
+            "issue": 5293
         },
         {
             "kind": "grammar",
