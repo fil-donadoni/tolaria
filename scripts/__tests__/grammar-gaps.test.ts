@@ -7,12 +7,15 @@
 import { describe, expect, it } from "vitest";
 import {
     CARD_LEVEL,
+    clauseFamily,
+    clauseHead,
     findGapKeys,
     gapCards,
     gapOf,
     gapShape,
     NO_SLOT,
     poolTarget,
+    rankClauseFamilies,
     rankGrammarGaps,
     setTargetFromMtgjson,
 } from "../lib/grammar-gaps";
@@ -214,6 +217,154 @@ describe("rankGrammarGaps", () => {
     it("takes the example from a Target card when there is one", () => {
         const [head] = rankGrammarGaps(LOCK, new Set(["c"]));
         expect(head!.example).toEqual({ line: HEAD.text, card: "Card c" });
+    });
+});
+
+/** An attributed fragment: `span` refused at `slot › path`. */
+function attributed(
+    span: string,
+    slot = "triggered",
+    path = ["trigger head"]
+): FragmentRow {
+    return {
+        text: `${span}, draw a card.`,
+        reason: "no slot consumed the line",
+        cards: 1,
+        attribution: { slot, path, span },
+    };
+}
+
+describe("clauseFamily groups gaps by missing construct (ADR 0152 § 1)", () => {
+    const family = (f: FragmentRow): string => clauseFamily(gapOf(f));
+
+    it("keeps the leading keyword literal: Equip and Cycling are two families", () => {
+        const cycling = {
+            ...EQUIP_2,
+            attribution: { ...EQUIP_2.attribution!, span: "Cycling {2}" },
+        };
+        expect(family(EQUIP_2)).toBe(
+            "keyword-line › keyword ability › Equip {…}"
+        );
+        expect(family(cycling)).toBe(
+            "keyword-line › keyword ability › Cycling {…}"
+        );
+    });
+
+    it("folds colour and card-type words: a red spell and a noncreature spell are one family", () => {
+        const red = attributed("Whenever you cast a red spell");
+        const noncreature = attributed("Whenever you cast a noncreature spell");
+        expect(gapOf(red).key).not.toBe(gapOf(noncreature).key);
+        expect(family(red)).toBe(family(noncreature));
+    });
+
+    it("folds placeholders inside the head, never the slot path", () => {
+        expect(clauseHead("This creature can't block")).toBe(
+            "This <type> can't block"
+        );
+        expect(clauseHead("This artifact can't block")).toBe(
+            "This <type> can't block"
+        );
+        expect(clauseHead("Enchanted creature gets +N/+N")).toBe(
+            "Enchanted <type> gets <pt>"
+        );
+        expect(clauseHead("Whenever a Goblin you control attacks")).toBe(
+            "Whenever a <type> <player>"
+        );
+        expect(clauseHead("Whenever an opponent casts")).toBe(
+            "Whenever a <player> casts"
+        );
+        expect(clauseHead("Choose two —")).toBe("Choose <number> —");
+        expect(clauseHead("Destroy all green creatures")).toBe(
+            "Destroy all <colour> <type>"
+        );
+        // Folds inside the head, not merely clipped away past it.
+        expect(clauseHead("Destroy target noncreature permanent")).toBe(
+            "Destroy target <type> permanent"
+        );
+        expect(clauseHead("Destroy target red permanent")).toBe(
+            "Destroy target <colour> permanent"
+        );
+        expect(clauseHead("Exile all sorceries")).toBe("Exile all <type>");
+        // A lead that is itself a fold word folds; a keyword never does.
+        expect(clauseHead("Creatures you control get +N/+N")).toBe(
+            clauseHead("Artifacts you control get +N/+N")
+        );
+        expect(clauseHead("White creatures get +N/+N")).toBe(
+            "<colour> <type> get <pt>"
+        );
+        // A capital that opens a sentence is not a subtype.
+        expect(clauseHead('Sacrifice it." Then draw')).toBe(
+            'Sacrifice it." Then draw'
+        );
+        expect(clauseHead("Landfall — Whenever a land")).toBe(
+            "Landfall — Whenever a"
+        );
+        // Same head, different slot path: two families.
+        expect(
+            family(attributed("Scry 2", "spell", ["effect clause"]))
+        ).not.toBe(
+            family(attributed("Scry 2", "triggered", ["effect clause"]))
+        );
+    });
+
+    it("maps a card-level gap to itself, and folds an unentered line's head", () => {
+        expect(family(TRANSFORM)).toBe(gapOf(TRANSFORM).key);
+        expect(family(UNENTERED)).toBe(
+            `${NO_SLOT} › Totally unreadable text <number>`
+        );
+    });
+});
+
+describe("rankClauseFamilies", () => {
+    // 0 red, 1 noncreature: one family, two forms. 2 Equip: another family.
+    const fragments = [
+        attributed("Whenever you cast a red spell"),
+        attributed("Whenever you cast a noncreature spell"),
+        EQUIP_2,
+    ];
+    // m: red only               → the family compiles m
+    // n: red + noncreature      → two keys, ONE family: compiles n
+    // o: noncreature + Equip    → refused by both families, compiled by neither
+    const lock = {
+        fragments,
+        cards: [
+            unparsed("m", [0]),
+            unparsed("n", [0, 1]),
+            unparsed("o", [1, 2]),
+        ],
+    };
+    const cast = clauseFamily(gapOf(fragments[0]!));
+
+    it("compiles a card only when every one of its gaps is in the family", () => {
+        const ranked = rankClauseFamilies(lock, null);
+        expect(
+            ranked.map((f) => [
+                f.family,
+                f.target.compiles,
+                f.target.refuses,
+                f.forms,
+            ])
+        ).toEqual([
+            [cast, 2, 3, 2],
+            ["keyword-line › keyword ability › Equip {…}", 0, 1, 1],
+        ]);
+        // The key ranking cannot see it: no single key is n's only gap.
+        const keys = rankGrammarGaps(lock, null);
+        expect(keys.reduce((n, g) => n + g.target.compiles, 0)).toBe(1);
+    });
+
+    it("counts the Target and the corpus apart, forms across the corpus", () => {
+        const ranked = rankClauseFamilies(lock, new Set(["n", "o"]));
+        const head = ranked.find((f) => f.family === cast)!;
+        expect(head.target).toEqual({ refuses: 2, compiles: 1 });
+        expect(head.corpus).toEqual({ refuses: 3, compiles: 2 });
+        expect(head.forms).toBe(2);
+        expect(head.head).toBe("Whenever <player> cast a");
+        expect(head.example.card).toBe("Card n");
+        // A family refusing no Target card is not ranked.
+        expect(
+            rankClauseFamilies(lock, new Set(["m"])).map((f) => f.family)
+        ).toEqual([cast]);
     });
 });
 
