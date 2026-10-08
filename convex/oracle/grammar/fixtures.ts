@@ -5101,4 +5101,182 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
+    // CR 404.1 + CR 701.13a — "Exile target player's graveyard": the whole pile
+    // of an announced player moves to exile. Exhibits the whole-zone `moveZone`
+    // (`player`/`from`/`to`), a zone change the canned smoke scenario does not
+    // model (issue #4556).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Tormod's Crypt",
+            manaCost: "{0}",
+            typeLine: "Artifact",
+            oracleText:
+                "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+            oracleId: "1573f7f9-672c-421a-b1ac-3d0d8aea59ca",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tormod's Crypt",
+            types: ["Artifact"],
+            manaCost: {},
+            oracleText:
+                "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+            activatedAbilities: [
+                {
+                    id: "tormod-s-crypt-ability",
+                    oracleText:
+                        "{T}, Sacrifice this artifact: Exile target player's graveyard.",
+                    cost: { tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: { target: 0 },
+                            from: "graveyard",
+                            to: "exile",
+                        },
+                    ],
+                    targetRequirement: { type: "player", count: 1 },
+                },
+            ],
+        },
+    },
+    // CR 702.33e + CR 202.3 — a kicked spell re-bounds a conditional removal:
+    // "Destroy target artifact if its mana value is 2 or less. If this spell was
+    // kicked, destroy that artifact if its mana value is 5 or less instead."
+    // The bound is an `if` on the target's mana value. Exhibits a predicate
+    // reading a selected object's mana value, which the canned scenario cannot
+    // size (issue #4556).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Overload",
+            manaCost: "{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDestroy target artifact if its mana value is 2 or less. If this spell was kicked, destroy that artifact if its mana value is 5 or less instead.",
+            oracleId: "07159efc-c69f-4164-a8ca-9da641dbf702",
+            layout: "normal",
+        },
+        expected: {
+            name: "Overload",
+            types: ["Instant"],
+            manaCost: { R: 1 },
+            oracleText:
+                "Kicker {2} (You may pay an additional {2} as you cast this spell.)\nDestroy target artifact if its mana value is 2 or less. If this spell was kicked, destroy that artifact if its mana value is 5 or less instead.",
+            kickers: [
+                { id: "kicker", description: "Kicker {2}", mana: { X: 2 } },
+            ],
+            effects: [
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { manaValue: { of: { target: 0 } } },
+                                op: "le",
+                                right: 5,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                    else: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { manaValue: { of: { target: 0 } } },
+                                op: "le",
+                                right: 2,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+            ],
+            targetRequirement: { type: "Artifact", count: 1 },
+        },
+    },
+    // CR 400.3 — "return a blue or black creature you control to its owner's
+    // hand": the controller chooses one of their own permanents on resolution.
+    // Exhibits `forEach` over the bound pick and its `moveZone` to hand (issue
+    // #4556).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Cavern Harpy",
+            manaCost: "{U}{B}",
+            typeLine: "Creature — Harpy Beast",
+            oracleText:
+                "Flying\nWhen this creature enters, return a blue or black creature you control to its owner's hand.\nPay 1 life: Return this creature to its owner's hand.",
+            power: "2",
+            toughness: "1",
+            oracleId: "81c40bd8-b989-41e8-9527-eae8fb87311d",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cavern Harpy",
+            types: ["Creature"],
+            subtypes: ["Harpy", "Beast"],
+            manaCost: { U: 1, B: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Flying\nWhen this creature enters, return a blue or black creature you control to its owner's hand.\nPay 1 life: Return this creature to its owner's hand.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "cavern-harpy-ability",
+                    oracleText:
+                        "Pay 1 life: Return this creature to its owner's hand.",
+                    cost: { life: 1 },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "cavern-harpy-trigger",
+                    oracleText:
+                        "When this creature enters, return a blue or black creature you control to its owner's hand.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-permanents",
+                            player: "controller",
+                            zone: "battlefield",
+                            filter: { type: "Creature", color: ["U", "B"] },
+                            count: 1,
+                            prompt: "Return a blue or black creature you control to its owner's hand.",
+                            bind: "$bounce1",
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$bounce1" },
+                            effects: [
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$each" },
+                                    to: "hand",
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

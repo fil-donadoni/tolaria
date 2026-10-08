@@ -107,7 +107,13 @@ export interface DescriptorIR {
     readonly excludeAbility?: string;
     readonly powerFilter?: { readonly min?: number; readonly max?: number };
     readonly toughnessFilter?: { readonly min?: number; readonly max?: number };
-    readonly mvFilter?: { readonly min?: number; readonly max?: number };
+    readonly mvFilter?: {
+        readonly min?: number;
+        readonly max?: number;
+        /** CR 107.3 — "with mana value X": the X the ability's own cost
+         *  announced, resolved when the target is chosen. */
+        readonly equals?: "X";
+    };
     /** CR 400.1 — the zone the described objects live in. Absent = battlefield. */
     readonly zone?: "graveyard";
     /** Whose graveyard, when `zone` is set (CR 115.2 "from your graveyard"). */
@@ -208,7 +214,7 @@ export interface DescriptorState {
     excludeAbility?: string;
     powerFilter?: { min?: number; max?: number };
     toughnessFilter?: { min?: number; max?: number };
-    mvFilter?: { min?: number; max?: number };
+    mvFilter?: { min?: number; max?: number; equals?: "X" };
     zone?: "graveyard";
     zoneOwner?: "you" | "any";
     card?: true;
@@ -445,6 +451,8 @@ function setGraveyard(
 /** `"with power 2 or less"`, `"with mana value 3 or greater"` (CR 202.3). */
 const COMPARISON =
     /^ with (power|toughness|mana value) (\d+) or (less|greater)$/;
+/** CR 107.3 — `"with mana value X"`: the announced X, not a printed number. */
+const MANA_VALUE_X = /^ with mana value X$/;
 
 /** `"with flying"` / `"without flying"` (CR 702). */
 function readKeywordQualifier(
@@ -512,6 +520,11 @@ function readComparison(
 ): string | null | "error" {
     const at = head.lastIndexOf(" with ");
     if (at === -1) return null;
+    if (MANA_VALUE_X.test(head.slice(at))) {
+        if (into.mvFilter !== undefined) return "error";
+        into.mvFilter = { equals: "X" };
+        return head.slice(0, at);
+    }
     const match = head.slice(at).match(COMPARISON);
     if (match === null) return null;
     const bound = { [match[3] === "less" ? "max" : "min"]: Number(match[2]) };
@@ -704,7 +717,9 @@ export function descriptorRuleWith(
         if ("error" in peeled) return fail(peeled.error, span);
         const tokens = joinTypeDisjunctions(
             joinColourDisjunctions(
-                peeled.head.split(" ").filter((t) => t.length > 0)
+                splitNegationLists(
+                    peeled.head.split(" ").filter((t) => t.length > 0)
+                )
             )
         );
         if (tokens.length === 0) return fail("descriptor has no noun", span);
@@ -755,6 +770,26 @@ export function descriptorRuleWith(
         if (hits.length > 1)
             return fail(`ambiguous descriptor "${span}"`, span);
         return finish(hits[0]!, span);
+    });
+}
+
+/**
+ * CR 205.2a + CR 105.1 — "nonartifact, nonblack creature": two negated
+ * adjectives printed as a comma pair. The comma is dropped ONLY from a "non…"
+ * word followed by one more "non…" word with no comma of its own (a list of
+ * three is a form nobody prints), so the list reads as the two exclusions
+ * it is; a comma anywhere else ("artifact, creature, or land" is the noun
+ * list `readNoun` reads, "nonartifact, creature" is no printed form) stays on
+ * the token, where the adjective reader refuses it.
+ */
+function splitNegationLists(tokens: readonly string[]): string[] {
+    return tokens.map((token, i) => {
+        const next = tokens[i + 1];
+        return /^non[^\s,]+,$/i.test(token) &&
+            next !== undefined &&
+            /^non[^\s,]+$/i.test(next)
+            ? token.slice(0, -1)
+            : token;
     });
 }
 
@@ -1131,6 +1166,41 @@ export function sacrificeFilterFromDescriptor(
             );
         filter.isAttacking = true;
     }
+    return ok(filter);
+}
+
+/**
+ * Descriptor → the `choice` Op's battlefield filter for "return a <descriptor>
+ * you control to its owner's hand" (CR 400.3): the CONTROLLER picks one of
+ * their own permanents on resolution, nothing is announced.
+ *
+ * Accepts exactly a permanent type or type list, an optional colour list and
+ * "you control", and refuses every other clause rather than dropping it: a
+ * dropped clause widens the set of permanents the player may return.
+ */
+export function ownPermanentChoiceFilterFromDescriptor(
+    descriptor: DescriptorIR
+): RuleResult<EffectCardFilter> {
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined) continue;
+        if (!["types", "colors", "controller"].includes(field))
+            return fail(
+                `"${field}" is not expressible as an own-permanent choice filter`,
+                field
+            );
+    }
+    if (descriptor.controller !== "you")
+        return fail(
+            'an own-permanent choice reads "you control"',
+            "controller"
+        );
+    const types = descriptor.types;
+    if (types === undefined || !types.every((t) => SACRIFICABLE_TYPES.has(t)))
+        return fail("an own-permanent choice names a permanent type", "types");
+    const filter: EffectCardFilter = {
+        type: types.length === 1 ? types[0]! : [...types],
+    };
+    if (descriptor.colors !== undefined) filter.color = [...descriptor.colors];
     return ok(filter);
 }
 

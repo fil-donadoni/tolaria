@@ -203,6 +203,9 @@ export const enchantRule: Rule<SlotIR> = rule("enchant", (span, ctx) => {
     const requirement: RuleResult<TargetRequirement> =
         targetRequirementFromDescriptor(d);
     if (!requirement.ok) return requirement;
+    // CR 107.3 — an Aura announces no {X} for "mana value X" to read.
+    if (requirement.value.mvFilter?.equals === "X")
+        return fail("an Aura has no announced X to read", phrase);
     // Only the bare "creature card in a graveyard" is fixtured: a colour,
     // subtype or other filter on the card would ride into the requirement
     // unchecked, so any extra constraint is refused.

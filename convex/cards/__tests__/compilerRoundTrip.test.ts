@@ -223,7 +223,11 @@ import {
 // Hydroblast, Lifeforce, Mana Leak, Mana Tithe, Metallic Rebuke,
 // Miscalculation, Order of the Sacred Torch, Prohibit, Pyroblast, Red
 // Elemental Blast, Stifle and Vodalian Mage round-trip.
-const BASELINE_CEILING = 1391;
+// Lowered 1391 -> 1378 by issue #4556 (permanent target filters): Cavern
+// Harpy, Fleetfoot Panther, Fumarole, Horned Kavu, Hull Breach, Lava Zombie,
+// Overload, Razing Snidd, Shivan Wurm, Silver Drake, Steel Leaf Paladin,
+// Terror and Tormod's Crypt round-trip.
+const BASELINE_CEILING = 1378;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
