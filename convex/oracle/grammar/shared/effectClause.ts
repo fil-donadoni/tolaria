@@ -2116,7 +2116,11 @@ export function assembleSentences(
             // "They" is the sweep's own pronoun and, in turn, has no referent
             // behind one object. The number of the pronoun must match.
             const isSweep = previous.subject.kind === "mass";
-            if (isSweep !== (sentence.modifier.plural === true))
+            if (
+                isSweep !==
+                (sentence.modifier.kind === "cant-be-regenerated" &&
+                    sentence.modifier.plural === true)
+            )
                 return {
                     ok: false,
                     reason: isSweep
