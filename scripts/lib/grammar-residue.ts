@@ -14,7 +14,7 @@
  * PURE: the script does the I/O (git, gh, files).
  */
 
-import { gapCards, gapOf } from "./grammar-gaps";
+import { gapCards } from "./grammar-gaps";
 import type { CardRow, Lockfile } from "./oracle-lockfile";
 import { gapIndex, type ClaimRow, type ClusterRow } from "./targets";
 import { signatureMatches } from "./gap-issues";
