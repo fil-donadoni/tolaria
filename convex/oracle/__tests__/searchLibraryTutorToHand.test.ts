@@ -78,11 +78,13 @@ describe("Tutor to hand — golden fixtures", () => {
                 toughness: "1",
             })
         );
-        // The activation restriction is its own rule; this form must not be
-        // what refuses the line.
-        expect(JSON.stringify(outcome)).not.toContain(
-            "not a library search description"
-        );
+        // The activation restriction is its own gap; the search clause must
+        // not be what refuses the line.
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps.map((gap) => gap.attribution?.span)).toEqual([
+            "Activate only if an opponent controls more lands than you",
+        ]);
     });
 
     it("creature card, reveal that card: Survival of the Fittest", () => {
@@ -155,8 +157,8 @@ describe("Tutor to hand — golden fixtures", () => {
                 typeLine: "Creature — Human Rebel",
                 oracleText:
                     "{3}, {T}: Search your library for an Elf permanent card, put it onto the battlefield, then shuffle.",
-                power: "3",
-                toughness: "3",
+                power: "2",
+                toughness: "2",
             })
         );
         expect(def.activatedAbilities?.[0]?.effects).toEqual([
