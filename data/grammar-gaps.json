@@ -1957,7 +1957,7 @@
         {
             "kind": "grammar",
             "key": "triggered › condition › defending player controls no black nontoken permanents",
-            "issue": 5205
+            "issue": 5274
         },
         {
             "kind": "grammar",
