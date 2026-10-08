@@ -2900,6 +2900,9 @@ const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
 const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
+/** CR 105.1 — "green or white": two colour words joined by a printed "or". */
+const COLOR_ALTERNATIVES =
+    /^(?:white|blue|black|red|green) or (?:white|blue|black|red|green) /;
 /**
  * CR 701.21a — "Target player sacrifices a creature of their choice": the
  * count word and the permanent phrase, "of their choice" optional. Anything
@@ -5156,7 +5159,10 @@ function effectSentence(
                 `"${edict[2]} ${edict[3]}" disagrees in number`,
                 edict[3]!
             );
-        const filter = sacrificeFilterFromDescriptor(descriptor.value);
+        const filter = sacrificeFilterFromDescriptor(
+            descriptor.value,
+            COLOR_ALTERNATIVES.test(edict[3]!)
+        );
         if (!filter.ok) return filter;
         let superlative: EffectChoiceSuperlative | undefined;
         if (tail !== null) {

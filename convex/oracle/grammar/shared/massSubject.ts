@@ -53,6 +53,7 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import { isSelfPhrase } from "./cost";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
 export const MASS_SUBJECT = "mass subject";
@@ -72,6 +73,13 @@ export interface MassSubjectIR {
     /** CR 202.3 + CR 107.3 — "… with mana value X or less". */
     readonly manaValueAtMostX: boolean;
     /**
+     * CR 202.3 + CR 122.1 — "… with mana value equal to the number of <kind>
+     * counters on <this object>": the bound is the live tally of one counter
+     * kind on the ability's own source (Powder Keg's fuse counters). Mutually
+     * exclusive with {@link manaValueAtMostX}.
+     */
+    readonly manaValueEqualsSourceCounters?: string;
+    /**
      * CR 115.1 + CR 109.5 — "creatures TARGET PLAYER controls": whose
      * battlefield is swept is an announced player, so the LOWERING allocates
      * that target slot and writes it as the selector's `controller`. The
@@ -86,8 +94,12 @@ export interface MassSubjectIR {
     readonly targetOpponentControls?: true;
 }
 
-/** " with mana value X or less" — the one bound this sub-grammar reads. */
+/** " with mana value X or less" — the bound announced with the spell. */
 const MANA_VALUE_AT_MOST_X = / with mana value X or less$/;
+
+/** " with mana value equal to the number of fuse counters on this artifact". */
+const MANA_VALUE_EQUALS_SOURCE_COUNTERS =
+    / with mana value equal to the number of (\S+) counters on (this \S+)$/;
 
 /**
  * "artifact, creature, and enchantment" / "artifacts and enchantments" → the
@@ -260,6 +272,17 @@ function readMassSubject(
         }
         const bounded = MANA_VALUE_AT_MOST_X.test(rest);
         if (bounded) rest = rest.replace(MANA_VALUE_AT_MOST_X, "");
+        // CR 122.1 — the counter kind is a printed word; the object counted
+        // must be the ability's own source, the only "this <noun>" there is.
+        const counted = rest.match(MANA_VALUE_EQUALS_SOURCE_COUNTERS);
+        if (counted !== null) {
+            if (!isSelfPhrase(counted[2]!))
+                return fail(
+                    `"${counted[2]}" is not the source of the ability`,
+                    span
+                );
+            rest = rest.replace(MANA_VALUE_EQUALS_SOURCE_COUNTERS, "");
+        }
         const descriptor = descriptorRule.run(
             conjunctionToDisjunction(rest),
             ctx
@@ -278,7 +301,13 @@ function readMassSubject(
             allowKeywordExclusion
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
-        return ok({ select: selector.value, manaValueAtMostX: bounded });
+        return ok({
+            select: selector.value,
+            manaValueAtMostX: bounded,
+            ...(counted !== null
+                ? { manaValueEqualsSourceCounters: counted[1]! }
+                : {}),
+        });
     };
 }
 

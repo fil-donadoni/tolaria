@@ -482,6 +482,33 @@ function sweepOps(
         };
     }
     const each: EffectObjectSelector = { ref: "$each" };
+    // CR 202.3 + CR 122.1 — "with mana value equal to the number of <kind>
+    // counters on this <source>": an `if` over the iterated permanent's mana
+    // value against the source's live counter tally (the `counters` value
+    // reads last-known information once a cost sacrificed the source).
+    if (subject.manaValueEqualsSourceCounters !== undefined)
+        return lowered([
+            {
+                op: "forEach",
+                select: subject.select,
+                effects: [
+                    {
+                        op: "if",
+                        predicate: {
+                            left: { manaValue: { of: each } },
+                            op: "eq",
+                            right: {
+                                counters: {
+                                    of: { ref: "$source" },
+                                    type: subject.manaValueEqualsSourceCounters,
+                                },
+                            },
+                        },
+                        then: [verb(each)],
+                    },
+                ],
+            },
+        ]);
     if (!subject.manaValueAtMostX)
         return lowered([
             { op: "forEach", select: subject.select, effects: [verb(each)] },

@@ -1137,11 +1137,12 @@ const SACRIFICABLE_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
  * union, which is what `EffectCardFilter.type` reads it as.
  */
 export function sacrificeFilterFromDescriptor(
-    descriptor: DescriptorIR
+    descriptor: DescriptorIR,
+    colorsAreAlternatives = false
 ): RuleResult<EffectCardFilter> {
     for (const [field, value] of Object.entries(descriptor)) {
         if (value === undefined) continue;
-        if (!["types", "combatRole", "plural"].includes(field))
+        if (!["types", "combatRole", "plural", "colors"].includes(field))
             return fail(
                 `"${field}" is not expressible as a sacrifice filter`,
                 field
@@ -1157,6 +1158,20 @@ export function sacrificeFilterFromDescriptor(
     const filter: EffectCardFilter = {
         type: types.length === 1 ? types[0]! : [...types],
     };
+    // CR 105.1 — "a green or white permanent": the filter's `color` is an OR
+    // over its list (CR 105.2), which is what the printed "or" means. The
+    // descriptor does not record whether several colours were an "or" or
+    // stacked adjectives (an AND), so the CALLER vouches for the disjunction
+    // (`colorsAreAlternatives`); without it only one colour is read.
+    const colors = descriptor.colors;
+    if (colors !== undefined) {
+        if (colors.length > 1 && !colorsAreAlternatives)
+            return fail(
+                'several colours on a sacrifice filter need a printed "or"',
+                "colors"
+            );
+        filter.color = colors.length === 1 ? colors[0]! : [...colors];
+    }
     const role = descriptor.combatRole;
     if (role !== undefined) {
         if (role.length !== 1 || role[0] !== "attacking")
