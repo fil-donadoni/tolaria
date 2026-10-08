@@ -115,8 +115,6 @@ export const goblinPiledriver = defineCard(() => ({
 //      denied: the printed line has no "can't be regenerated" clause, so no
 //      `cantBeRegenerated` flag. The Pyromancer is itself a Goblin and dies
 //      to its own trigger.)
-//
-// compiler-gap: At the beginning of the end step, destroy all Goblins. (#2693)
 export const goblinPyromancer = defineCard(() => ({
     id: "bb4815b7-fc20-44a4-ad1c-66d92993557f", // ONS 206
     rarity: "rare",

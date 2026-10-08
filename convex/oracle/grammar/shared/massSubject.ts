@@ -24,18 +24,20 @@
  *
  * ── What is refused, and why it is not a gap in the reader ─────────────────
  *
- * The `forEach` selector expresses type, subtype, negated type and "you
- * control" — the descriptor fields whose engine meaning is one-to-one — and,
- * for the one verb that opts in ({@link keywordExcludedSweepRule}), "without
- * <keyword>". A field outside them (a colour, a keyword, a combat role, a power bound, another
- * controller) is refused HERE, by name, rather than dropped: a sweep that
- * silently ignored "white" would destroy every creature, and that is the
- * fail-open shape this compiler exists to prevent (ADR 0105). Each refusal
- * stays in the backlog under its own gap key.
+ * The `forEach` selector expresses type, subtype, negated type, negated
+ * subtype ("non-Aura", CR 205.3), ONE colour (CR 105.1) and "you control" — the
+ * descriptor fields whose engine meaning is one-to-one — and, for the one verb
+ * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>". A
+ * field outside them (several colours, a keyword, a combat role, a power
+ * bound, another controller) is refused HERE, by name, rather than dropped: a
+ * sweep that silently ignored "attacking" would destroy every creature, and
+ * that is the fail-open shape this compiler exists to prevent (ADR 0105). Each
+ * refusal stays in the backlog under its own gap key.
  *
  * ── "with mana value X or less" ────────────────────────────────────────────
  *
- * Read HERE, not by the descriptor: the X is the announced {X} of the ability
+ * (and "… equal to the number of <kind> counters on this <source>", CR 122.1,
+ * the same `if` against the source's live tally.) Read HERE, not by the descriptor: the X is the announced {X} of the ability
  * (CR 107.3), a fact the descriptor's numeric bound cannot carry, and reading
  * it there would widen every target site to a form no fixture covers. A
  * `PermanentFilter` has no mana-value field, so the bound is not a filter

@@ -143,8 +143,6 @@ export const recklessSpite = defineCard(() => ({
 // (CR 701.19c) is the `destroy` Op's own `cantBeRegenerated` flag, the same
 // shape Shatterstorm (`atq/red.cards.ts`) uses; the shield is denied at destruction
 // time rather than pre-emptively stripped.
-//
-// compiler-gap: Destroy all green creatures. They can't be regenerated. (#2693)
 export const perish = defineCard(() => ({
     id: "e47ace1d-73de-44aa-a3fe-2e2a21ebec79", // TMP 147
     rarity: "uncommon",
