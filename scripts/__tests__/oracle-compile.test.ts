@@ -104,7 +104,7 @@ const SYNTHETIC: CorpusCard[] = [
     corpusCard({
         oracleId: "00000000-0000-0000-0000-000000000005",
         name: "Test Wrath",
-        oracleText: "Destroy all green creatures.",
+        oracleText: "Destroy all creatures with flying.",
         typeLine: "Sorcery",
         manaCost: "{2}{B}",
         power: undefined,
@@ -282,7 +282,7 @@ describe("oracle:compile classifies the synthetic corpus as expected", () => {
         expect(row.definition).toBeUndefined();
         expect(row.gaps).toHaveLength(1);
         expect(lock.fragments[row.gaps![0]!]?.text).toBe(
-            "Destroy all green creatures."
+            "Destroy all creatures with flying."
         );
     });
 
