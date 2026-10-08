@@ -1761,7 +1761,13 @@ export function assembleSentences(
                 handReveal = { player: handReveal.player, pick: sentence.pick };
                 continue;
             }
-            if (sentence.role !== "hand-pick-route")
+            const route =
+                sentence.role === "hand-pick-route"
+                    ? sentence.route
+                    : isExileThatCard(sentence)
+                      ? "exile"
+                      : null;
+            if (route === null)
                 return {
                     ok: false,
                     reason: "a card chosen from a revealed hand is not followed by where it goes",
@@ -1770,7 +1776,7 @@ export function assembleSentences(
                 kind: "reveal-hand-pick",
                 player: handReveal.player,
                 ...handReveal.pick,
-                route: sentence.route,
+                route,
             });
             handReveal = null;
             continue;
@@ -2353,6 +2359,23 @@ export function assembleSentences(
     if (effects.length === 0)
         return { ok: false, reason: `the ${opts.site} has no effect sentence` };
     return { ok: true, effects, restrictions };
+}
+
+/**
+ * "Exile that card." — read by the effect grammar as a `move-zone` of the
+ * CR 400.7e zone-change anaphora (Planar Void's "exile that card"); behind a
+ * pick from a revealed hand the same words name the picked card, so
+ * `assembleSentences` folds them into the pick's exile route there and
+ * nowhere else.
+ */
+function isExileThatCard(sentence: SentenceIR): boolean {
+    return (
+        sentence.role === "effect" &&
+        sentence.effect.kind === "move-zone" &&
+        sentence.effect.subject.kind === "that-card" &&
+        sentence.effect.to.zone === "exile" &&
+        sentence.effect.to.owner === "any"
+    );
 }
 
 /** CR 119.3 — "You lose life equal to its mana value": the tail of a reveal-top-to-hand. */
@@ -4007,7 +4030,6 @@ const HAND_PICK = /^You choose (.+) from it( and exile that card)?$/;
 /** Where the picked card goes: the routing sentence, whole. */
 const HAND_PICK_ROUTES: ReadonlyMap<string, HandPickRoute> = new Map([
     ["That player discards that card", "discard"],
-    ["Exile that card", "exile"],
 ]);
 /**
  * What the controller may choose from a revealed hand, as an
