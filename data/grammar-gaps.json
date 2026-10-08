@@ -1167,7 +1167,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Counter target spell unless its controller pays {…}",
-            "issue": 4555
+            "issue": 5268
         },
         {
             "kind": "grammar",
