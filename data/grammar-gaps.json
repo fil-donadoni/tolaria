@@ -3917,6 +3917,102 @@
                 "triggered › condition › you control * or more Gates",
                 "triggered › condition › you control * or more Deserts"
             ]
+        },
+        {
+            "issue": 5282,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › you control no Clues",
+                "triggered › condition › you control three or more Attractions",
+                "triggered › condition › you control ten or more Treasures",
+                "keyword-line › object descriptor › creature or Food",
+                "activated › activation cost › object descriptor › Food",
+                "activated › activation cost › object descriptor › Treasure",
+                "activated › activation cost › object descriptor › Treasures",
+                "activated › activation cost › object descriptor › Foods",
+                "activated › activation cost › object descriptor › Clue",
+                "activated › activation cost › object descriptor › Clues"
+            ]
+        },
+        {
+            "issue": 5283,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › you control no untapped lands",
+                "triggered › condition › you control two or more tapped creatures",
+                "spell › effect clause › target filter › object descriptor › artifact or tapped creature",
+                "spell › effect clause › target filter › object descriptor › artifact, enchantment, or tapped creature",
+                "triggered › condition › you control no tapped lands"
+            ]
+        },
+        {
+            "issue": 5284,
+            "kind": "grammar",
+            "match": [
+                "triggered › effect clause › target filter › object descriptor › nontoken creature",
+                "spell › effect clause › object descriptor › nontoken artifact",
+                "spell › effect clause › object descriptor › nontoken creature",
+                "spell › effect clause › mass subject › object descriptor › nontoken creatures",
+                "spell › effect clause › target filter › object descriptor › nontoken creature",
+                "triggered › effect clause › object descriptor › nontoken creature",
+                "alternative-cost › object descriptor › nontoken black creature",
+                "alternative-cost › object descriptor › nontoken blue creature",
+                "alternative-cost › object descriptor › nontoken green creature",
+                "alternative-cost › object descriptor › nontoken red creature",
+                "alternative-cost › object descriptor › nontoken white creature",
+                "activated › activation cost › object descriptor › nontoken artifact",
+                "activated › activation cost › object descriptor › nontoken permanent",
+                "activated › activation cost › object descriptor › nontoken creature",
+                "activated › effect clause › target filter › object descriptor › nontoken land"
+            ]
+        },
+        {
+            "issue": 5285,
+            "kind": "grammar",
+            "match": [
+                "spell › effect clause › mass subject › object descriptor › tokens",
+                "spell › effect clause › mass subject › object descriptor › creature tokens",
+                "spell › effect clause › mass subject › object descriptor › Creature tokens",
+                "activated › activation cost › object descriptor › Caribou token",
+                "activated › activation cost › object descriptor › Prism token",
+                "activated › activation cost › object descriptor › token",
+                "activated › activation cost › object descriptor › tokens",
+                "triggered › condition › object descriptor › token",
+                "triggered › effect clause › mass subject › object descriptor › Skeleton tokens",
+                "triggered › condition › you control three or more tokens",
+                "activated › activation cost › object descriptor › artifact token",
+                "activated › activation cost › object descriptor › artifact tokens",
+                "activated › effect clause › target filter › object descriptor › creature token"
+            ]
+        },
+        {
+            "issue": 5286,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › you control two or more other creatures",
+                "triggered › condition › you control no Thopters other than this creature",
+                "triggered › condition › you control no permanents other than this enchantment and have no cards in hand",
+                "triggered › effect clause › target filter › object descriptor › creature other than this creature",
+                "activated › activation cost › object descriptor › other creatures",
+                "triggered › effect clause › target filter › object descriptor › creature other than enchanted creature",
+                "triggered › effect clause › mass subject › object descriptor › Other Mercenary creatures",
+                "triggered › effect clause › mass subject › object descriptor › Other creatures",
+                "triggered › condition › you control no other creatures",
+                "triggered › effect clause › target filter › object descriptor › permanent other than this creature with the most lines of text in its text box",
+                "activated › effect clause › target filter › object descriptor › creature other than enchanted creature",
+                "activated › effect clause › target filter › object descriptor › permanent other than {self}"
+            ]
+        },
+        {
+            "issue": 5287,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › you control two or more multicolored permanents",
+                "spell › effect clause › target filter › object descriptor › multicolored permanent",
+                "spell › effect clause › object descriptor › multicolored permanent",
+                "spell › effect clause › target filter › object descriptor › multicolored creature or multicolored enchantment",
+                "spell › effect clause › target filter › object descriptor › multicolored creature"
+            ]
         }
     ],
     "cutsNote": "Cluster Cut ticket rows (ADR 0146 § Decision 7, issue #4681): one row per kind, { kind, issue } — gaps:sync's own \"clusters-adjacent record\" of the ONE standing Cluster Cut ticket it opened for that kind past `clusterCutThreshold` (data/targets.json), how it finds the ticket again without a title search. Never written by `/cluster-gaps`, unlike `clusters`. Parsed fail-closed by `parseCutRows` (`scripts/lib/targets.ts`).",
