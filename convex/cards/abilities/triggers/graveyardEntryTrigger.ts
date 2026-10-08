@@ -14,7 +14,7 @@
 // CR 603.6c: a "from anywhere" trigger is NOT a leaves-the-battlefield ability,
 // so it looks at the card in the graveyard it reached rather than back in
 // time: the card must be there (a CR 614 exile redirect means it never
-// arrived), must be a CARD (a token is not one — CR 111.7 lets it reach the
+// arrived), must be a CARD (a token is not one — CR 108.2b; CR 111.7 lets it reach the
 // graveyard only until the next state-based check), and — when the words name
 // a colour — must have that colour by its own mana cost there (CR 202.2).
 
@@ -117,6 +117,13 @@ export function graveyardEntryTrigger(
         matches: (event, self, state) => {
             const entry = entryOf(event);
             if (entry === null) return false;
+            // CR 603.6c — "from anywhere" is never a leaves-the-battlefield
+            // ability, so it does not look back in time: a source that left
+            // the battlefield in the same batch no longer triggers.
+            const sourceInPlay = state?.players.some((p) =>
+                p.battlefield.some((c) => c.id === self.id)
+            );
+            if (sourceInPlay !== true) return false;
             if (excludeSelf === true && entry.cardInstanceId === self.id)
                 return false;
             if (graveyard === "yours" && entry.ownerId !== self.controllerId)

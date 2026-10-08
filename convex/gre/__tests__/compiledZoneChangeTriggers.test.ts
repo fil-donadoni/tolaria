@@ -276,7 +276,15 @@ describe("Planar Void: 'another card … from anywhere' (CR 603.6c)", () => {
         expect(state.players[1].exile.map((c) => c.id)).toContain(ritual.id);
     });
 
-    it("does not fire for a TOKEN that dies (a token is not a card, CR 111.7)", () => {
+    it("does not fire once its own source has left too (never a leaves-the-battlefield look-back, CR 603.6c)", () => {
+        const state = board();
+        state.players[1].battlefield.push(on(grizzlyBears.id, "bears", "p2"));
+        removePermanentTo(state, "void", "graveyard");
+        removePermanentTo(state, "bears", "graveyard");
+        expect(triggersOf(state, PLANAR_VOID)).toHaveLength(0);
+    });
+
+    it("does not fire for a TOKEN that dies (a token is not a card, CR 108.2b)", () => {
         const state = board();
         state.players[1].battlefield.push(
             makeInstance(grizzlyBears.id, {
