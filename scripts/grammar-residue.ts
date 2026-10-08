@@ -13,14 +13,16 @@
  *
  *   --pr <N>        the merged PR; "before" = its merge commit's parent
  *   --before <ref>  override "before" (replay)
+
+ *   --band <P>      forwarded to the `gaps:sync` re-run (origin band, issue #4158)
  *   --dry-run       no `gaps:sync`, no comment: print the ledger only
  *
  * Not a Grammar Cluster (no `## Grammar Gaps` table in the issue) → exit 0.
  */
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { ORIGIN_BASE, BASE_BRANCH } from "./lib/branches";
 import { NO_FILE_BOT_FLAG } from "./lib/gap-issues";
 import {
     buildResidue,
@@ -60,18 +62,20 @@ function lockAt(ref: string): Lockfile {
     );
 }
 
-function lockNow(): Lockfile {
-    return parseLockfile(
-        readFileSync(resolve(ROOT, "data/oracle-compiled.json"), "utf8")
-    );
+/** `origin/<base>` after a fetch: the tree `land` merged into PLUS whatever
+ *  `gaps:sync` pushed since, independent of whether the primary checkout was
+ *  fast-forwarded (it is skipped when the checkout is off the base branch). */
+function refreshBase(): string {
+    run("git", ["fetch", "-q", "origin", BASE_BRANCH]);
+    return ORIGIN_BASE;
 }
 
-function allowlistNow(): {
+function allowlistAt(ref: string): {
     claims: ReturnType<typeof parseClaimRows>;
     clusters: ReturnType<typeof parseClusterRows>;
 } {
     const doc = JSON.parse(
-        readFileSync(resolve(ROOT, "data/grammar-gaps.json"), "utf8")
+        run("git", ["show", `${ref}:data/grammar-gaps.json`])
     );
     return { claims: parseClaimRows(doc), clusters: parseClusterRows(doc) };
 }
@@ -103,9 +107,10 @@ function isOpen(issue: number): boolean {
 function evaluate(
     keys: readonly string[],
     before: Lockfile,
-    after: Lockfile
+    after: Lockfile,
+    claimsRef: string
 ): ResidueReport {
-    const { claims, clusters } = allowlistNow();
+    const { claims, clusters } = allowlistAt(claimsRef);
     // Enforced Targets only: their cards are the ones a hole is red for.
     const registry = readTargetRegistry(ROOT);
     const ctx = resolveContext(ROOT, after);
@@ -128,7 +133,7 @@ function postLedger(issue: number, body: string): void {
     const comments = JSON.parse(
         run("gh", ["issue", "view", String(issue), "--json", "comments"])
     ).comments as { body: string; url: string }[];
-    const prior = comments.find((c) => c.body.includes(LEDGER_MARKER));
+    const prior = comments.find((c) => c.body.startsWith(LEDGER_MARKER));
     const id =
         prior === undefined ? null : /issuecomment-(\d+)/.exec(prior.url)?.[1];
     if (id) {
@@ -156,7 +161,7 @@ function main(): void {
         pr <= 0
     ) {
         process.stderr.write(
-            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--dry-run]\n"
+            "usage: bun run grammar:residue <cluster issue> --pr <PR#> [--before <ref>] [--band <P>] [--dry-run]\n"
         );
         process.exit(2);
     }
@@ -188,29 +193,48 @@ function main(): void {
         );
         process.exit(2);
     }
+    const claimsRef = refreshBase();
     const before = lockAt(beforeRef);
-    const after = lockNow();
+    // The lockfile the PR MERGED (not the working tree): exact whether or not
+    // the primary checkout was fast-forwarded.
+    const after = lockAt(merge ?? claimsRef);
 
-    let report = evaluate(keys, before, after);
+    let report = evaluate(keys, before, after, claimsRef);
     if (report.holes.length > 0 && !dryRun) {
         process.stdout.write(
             `grammar:residue — ${report.holes.length} hole(s); running gaps:sync once to file them\n`
         );
-        spawnSync(
+        const band = flag("--band");
+        const sync = spawnSync(
             "bun",
-            [resolve(ROOT, "scripts/gaps-sync.ts"), NO_FILE_BOT_FLAG],
-            {
-                cwd: ROOT,
-                stdio: "inherit",
-            }
+            [
+                resolve(ROOT, "scripts/gaps-sync.ts"),
+                NO_FILE_BOT_FLAG,
+                ...(band === null ? [] : ["--band", band]),
+            ],
+            { cwd: ROOT, stdio: "inherit" }
         );
+        if (sync.status !== 0)
+            process.stderr.write(
+                `grammar:residue — gaps:sync exited ${String(sync.status ?? sync.signal)}: the filer failed, so the holes below were NOT filed\n`
+            );
         openCache.clear();
-        report = evaluate(keys, before, lockNow());
+        report = evaluate(keys, before, after, refreshBase());
     }
 
     const ledger = renderLedger(report, issue, pr);
     process.stdout.write(`${ledger}\n`);
-    if (!dryRun) postLedger(issue, ledger);
+    if (!dryRun) {
+        try {
+            postLedger(issue, ledger);
+        } catch (error) {
+            // The ledger is also on stdout; a failed comment must not hide the
+            // hole report below.
+            process.stderr.write(
+                `grammar:residue — could not post the ledger comment: ${String(error).split("\n")[0]}\n`
+            );
+        }
+    }
 
     if (report.holes.length > 0) {
         process.stderr.write(

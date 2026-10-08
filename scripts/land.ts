@@ -1080,13 +1080,15 @@ export function gapsSyncStep(
 export function grammarResidueStep(
     primaryCheckout: string,
     pr: number,
-    branch: string
+    branch: string,
+    originBand: BoardPriority | null = null
 ): string | null {
     const issue = issueOfBranch(branch);
     if (issue === null) return null;
     const p = shQuote(primaryCheckout);
+    const band = originBand === null ? "" : ` --band ${originBand}`;
     return (
-        `(cd ${p} && bun run --silent grammar:residue ${issue} --pr ${pr} || ` +
+        `(cd ${p} && bun run --silent grammar:residue ${issue} --pr ${pr}${band} || ` +
         `echo "land: grammar:residue found residual gaps with NO open issue (or failed) — cards may stay incomplete untracked; see its output above" >&2; true)`
     );
 }
@@ -1261,7 +1263,8 @@ export function postMergeHousekeepingSteps(
     const residue = grammarResidueStep(
         opts.primaryCheckout,
         opts.pr,
-        opts.branch
+        opts.branch,
+        opts.originBand ?? null
     );
     if (residue !== null) steps.push(residue);
     // The claim outlives nothing: the PR is merged, the issue is closing.
