@@ -782,7 +782,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › Activate only if an opponent controls more lands than you",
-            "issue": 5248
+            "issue": 5258
         },
         {
             "kind": "grammar",
@@ -1012,7 +1012,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › zone reference › its owner's hand at the beginning of the next cleanup step",
-            "issue": 5241
+            "issue": 5255
         },
         {
             "kind": "grammar",
@@ -1282,12 +1282,12 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Search target player's library for up to three cards with flashback and put them into that player's graveyard",
-            "issue": 5245
+            "issue": 5252
         },
         {
             "kind": "grammar",
             "key": "spell › effect clause › Search your library and graveyard for five cards and exile the rest",
-            "issue": 5244
+            "issue": 5253
         },
         {
             "kind": "grammar",
@@ -1327,7 +1327,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Search your library for three cards and reveal them",
-            "issue": 5246
+            "issue": 5254
         },
         {
             "kind": "grammar",
