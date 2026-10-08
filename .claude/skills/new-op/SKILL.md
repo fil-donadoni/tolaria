@@ -108,7 +108,9 @@ is more work than the Op". Then:
    Op-census allowlist rows (a closed set, `scripts/lib/gap-issues.ts`), which
    a new Op never enters; until it files fragment gaps too (issue #3869), open
    the issue through `/create-ticket`, titled `Grammar Gap: <key>`, under the
-   Grammar Rules umbrella of its band (`docs/agents/issue-tracker.md` §
+   **Ops** umbrella of its Target (`[Umbrella] Ops — <target>`): the Op is
+   upstream and the grammar cascades from it, so the Op takes the placement
+   even though the issue also lands the emitting rule (`docs/agents/issue-tracker.md` §
    Umbrellas partition by band). Its filing stamp
    (`docs/agents/triage-labels.md` § Every new issue is stamped at filing) is
    `enhancement` + `area:mechanics`, and no `## Band` — the umbrella lends it.
