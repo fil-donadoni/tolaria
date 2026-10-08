@@ -77,7 +77,7 @@ describe("phase and step trigger heads — goldens (issue #4545)", () => {
                     effects: [
                         {
                             op: "moveZone",
-                            object: { ref: "$source" },
+                            target: { ref: "$source" },
                             to: "hand",
                         },
                     ],
