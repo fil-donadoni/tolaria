@@ -17756,8 +17756,7 @@ export type EffectOp =
      *  notification), recorded as a one-element PICKS binding under `bind` so a
      *  later predicate (`picksMatchFilter` with `zone: "hand"`) reads what was
      *  shown. `bind` is REQUIRED: a random reveal nothing reads back is the
-     *  plain reveal's job. Empty hand → nothing revealed, binding uncaptured
-     *  (CR 608.2b). */
+     *  plain reveal's job. Empty hand → nothing revealed, binding uncaptured. */
     | {
           op: "reveal";
           player: EffectPlayerRef;

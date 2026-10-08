@@ -253,7 +253,7 @@ export type CompiledStaticEffect =
           readonly oracleText: string;
       }
     /**
-     * CR 601.3a / 201.3 — "Spells with the chosen name can't be cast": the
+     * CR 601.3a / 201.2a — "Spells with the chosen name can't be cast": the
      * source's `chosenName` (the as-enters `name` choice, CR 614.12a) locks
      * every spell bearing that name, for every caster. Read-time, like the
      * hand-written `cast-restriction` it rebuilds into.

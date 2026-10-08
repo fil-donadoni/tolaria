@@ -434,7 +434,7 @@ export type EffectSentenceIR =
      */
     | { readonly kind: "reveal-random-hand-card" }
     /**
-     * CR 201.2 / 701.20a — "If that card has the chosen name, <effect>": the
+     * CR 201.2a / 701.20a — "If that card has the chosen name, <effect>": the
      * gate reads the card the preceding `reveal-random-hand-card` showed
      * against the pick of the preceding `name-card`. Refused by
      * `assembleSentences` unless both precede it in the same ability.
@@ -1680,7 +1680,7 @@ export function assembleSentences(
                     };
                 namePending = true;
             } else if (sentence.effect.kind === "named-card-reveal-gate") {
-                // CR 201.2 — the gate compares the revealed card with the
+                // CR 201.2a — the gate compares the revealed card with the
                 // pick: both must come from earlier sentences of this ability.
                 if (
                     !namePending ||
@@ -2655,10 +2655,10 @@ const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 const DELAYED_DRAW_NEXT_UPKEEP =
     /^You draw (\S+) cards? at the beginning of the next turn(?:'|’)s upkeep$/;
 /** CR 201.4a — "Choose a card name" and its two printed restrictions. */
-/** CR 201.3 + CR 701.20a — the Cursed Scroll sentence, whole. */
+/** CR 201.4 + CR 701.20a — the Cursed Scroll sentence, whole. */
 const NAME_THEN_REVEAL_RANDOM =
     /^Choose a card name, then reveal a card at random from your hand$/;
-/** CR 201.2 — the gate sentence that reads it back. */
+/** CR 201.2a — the gate sentence that reads it back. */
 const IF_REVEALED_HAS_CHOSEN_NAME = /^If that card has the chosen name, (.+)$/;
 const NAME_CARD =
     /^Choose a (nonland )?card name( other than a basic land card name)?$/;

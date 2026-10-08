@@ -838,7 +838,7 @@ export function lowerCard(
             };
     }
     if (acc.kickers !== undefined) definition.kickers = acc.kickers;
-    // CR 201.3 — a line reading "the chosen name" with no choice on the card
+    // CR 201.2a — a line reading "the chosen name" with no choice on the card
     // reads nothing (the engine would lock no spell): refuse, don't ship inert.
     if (
         acc.readsChosenNameLines.length > 0 &&

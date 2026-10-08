@@ -2212,7 +2212,7 @@ function lowerSentenceBody(
                 },
             ]);
         case "named-card-reveal-gate": {
-            // CR 201.2 — the revealed card is still in the hand when asked.
+            // CR 201.2a — the revealed card is still in the hand when asked.
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             return lowered([

@@ -157,7 +157,7 @@ export type StaticClauseIR =
      */
     | { readonly kind: "as-enters-choose-creature-type" }
     /**
-     * CR 614.12a / 201.3 / 201.4a — "As this creature enters, choose a
+     * CR 614.12a / 201.4 / 201.4a — "As this creature enters, choose a
      * nonland card name": the name kept on the permanent (`chosenName`) for
      * the abilities that read "the chosen name".
      */
@@ -921,7 +921,7 @@ const asEntersChooseCreatureType: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
-// ── Frame: as-enters card-name choice (CR 614.12a / 201.3) ─────────────────
+// ── Frame: as-enters card-name choice (CR 614.12a / 201.4) ─────────────────
 
 const AS_ENTERS_CHOOSE_NONLAND_CARD_NAME =
     /^As (.+) enters, choose a nonland card name$/;

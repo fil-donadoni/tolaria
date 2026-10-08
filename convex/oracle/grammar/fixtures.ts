@@ -4467,7 +4467,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 201.3 + CR 701.20a — "Choose a card name, then reveal a card at random
+    // CR 201.4 + CR 701.20a — "Choose a card name, then reveal a card at random
     // from your hand. If that card has the chosen name, …": the name pick and
     // the random reveal each bind a runtime value that the `if` gate reads
     // (`picksMatchFilter` over the hand), which the canned smoke scenario

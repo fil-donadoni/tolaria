@@ -5736,7 +5736,7 @@ export const OP_EXECUTORS: {
         // known-to-all stamp + reveal notification; the id is the binding.
         if ("random" in op) {
             const picked = ctx.revealRandomHandCard(playerId);
-            if (picked === undefined) return; // CR 608.2b — empty hand
+            if (picked === undefined) return; // empty hand — nothing revealed
             ctx.noteChoice(op.bind, [picked]);
             return;
         }

@@ -100,7 +100,7 @@ function scroll(oracleText: string) {
     );
 }
 
-describe("card name, random hand reveal, name gate — golden (CR 201.3, 701.20a)", () => {
+describe("card name, random hand reveal, name gate — golden (CR 201.4, 701.20a)", () => {
     it("Cursed Scroll compiles to nameCard → random reveal → name-gated damage", () => {
         const outcome = scroll(CURSED_SCROLL_TEXT);
         if (outcome.state === "unparsed")

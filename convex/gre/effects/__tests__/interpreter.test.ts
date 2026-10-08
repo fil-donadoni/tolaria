@@ -36145,7 +36145,7 @@ describe("reveal { zone: 'library' } + a foreign categorised pick (CR 701.20a, i
 });
 
 // `reveal { zone: "hand", random: true, bind }` + `picksMatchFilter { zone:
-// "hand" }` (CR 701.20a / 201.2, issue #4550) — Cursed Scroll's "reveal a card
+// "hand" }` (CR 701.20a / 201.2a, issue #4550) — Cursed Scroll's "reveal a card
 // at random from your hand. If that card has the chosen name, …". This is the
 // shape's permanent test: any later card reusing it inherits the coverage. A
 // ONE-card hand forces the seeded pick, so the gate's outcome is decided by the
@@ -36212,7 +36212,7 @@ describe("random hand reveal gated on the revealed card's name (CR 701.20a, issu
         expect(state.players[1].life).toBe(20);
     });
 
-    it("an empty hand reveals nothing → the gate reads false (CR 608.2b)", () => {
+    it("an empty hand reveals nothing → the gate reads false", () => {
         const state = burnIfRevealedNamed(BEAR_ID, []);
         expect(state.players[1].life).toBe(20);
     });
