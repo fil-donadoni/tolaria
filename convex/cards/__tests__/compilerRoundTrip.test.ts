@@ -239,7 +239,10 @@ import {
 //
 // Lowered 1354 -> 1351 by issue #4561 (untap locks): Curse of Marit Lage,
 // Tsabo's Web and Winter Orb round-trip.
-const BASELINE_CEILING = 1351;
+//
+// Lowered 1351 -> 1348 by issue #4566 (hand reveal and pick): Duress,
+// Forsaken City and Thoughtseize round-trip.
+const BASELINE_CEILING = 1348;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

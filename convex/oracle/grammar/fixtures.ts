@@ -5708,8 +5708,8 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             },
         },
     },
-    // CR 701.20a + CR 701.13a — "… You choose a nonland card from it and exile
-    // that card.": the same pick, exiled. Exhibits `moveZone` of a choice
+    // CR 701.20a reveal + CR 701.13a exile — "… You choose a nonland card from
+    // it and exile that card.": the same pick, exiled. Exhibits `moveZone` of a choice
     // binding from a hand to exile, a zone change the canned smoke scenario
     // does not model (issue #4566).
     {

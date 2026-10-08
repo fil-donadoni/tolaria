@@ -1,8 +1,8 @@
 // Hand reveal and pick: "Target opponent reveals their hand. You choose <a
-// card> from it. That player discards that card." and its exile routes
-// (CR 701.20a, CR 701.9b, CR 701.13a), the optional hand exile that gates an
-// "If you do" (CR 608.2c), and the controller's own "Discard a card."
-// (CR 701.9b) — issue #4566.
+// card> from it. That player discards that card." — reveal (CR 701.20a), then
+// discard (CR 701.9b) or exile (CR 701.13a) the picked card — the optional
+// hand exile that gates an "If you do" (CR 608.2c), and the controller's own
+// "Discard a card." (CR 701.9b) — issue #4566.
 //
 // Layers:
 //
