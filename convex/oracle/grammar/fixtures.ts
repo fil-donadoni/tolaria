@@ -5055,4 +5055,50 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.6a + CR 113.7a (issue #4555) — "If a permanent's ability is
+    // countered this way, destroy that permanent." Exhibits the form the
+    // canned smoke scenario cannot build: the `destroy` reads the binding the
+    // `counter` writes for the SOURCE of a countered ability (`bindSource`),
+    // and the generator seeds no ability on the stack to counter. This fixture
+    // is the evidence the grammar emits the pair the hand-written Teferi's
+    // Response writes (sets/inv/blue.cards.ts — it round-trips, Guard C),
+    // including the spell-or-ability target that makes the binding reachable.
+    {
+        rule: "counter",
+        card: {
+            oracleId: "b2faa8b6-e433-4171-9774-9170484530c4",
+            name: "Teferi's Response",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent.\nDraw two cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Teferi's Response",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent.\nDraw two cards.",
+            effects: [
+                {
+                    op: "counter",
+                    target: { target: 0 },
+                    bindSource: "$source1",
+                },
+                { op: "destroy", target: { ref: "$source1" } },
+                { op: "draw", player: "controller", count: 2 },
+            ],
+            targetRequirement: {
+                type: "spell",
+                count: 1,
+                controller: "opponent",
+                spellStackKind: "any",
+                spellTargetsPermanentFilter: {
+                    types: "Land",
+                    controller: "you",
+                },
+            },
+        },
+    },
 ]);
