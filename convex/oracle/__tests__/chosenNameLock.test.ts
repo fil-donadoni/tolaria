@@ -45,7 +45,7 @@ describe("chosen-name cast lock — golden (CR 614.12a, 601.3a)", () => {
                 subtypes: ["Human", "Wizard"],
                 power: 2,
                 toughness: 2,
-                oracleText: MEDDLING_MAGE.oracle_text,
+                oracleText: MEDDLING_MAGE.oracleText,
                 entersWith: {
                     asEnters: [
                         { kind: "name", filter: { excludeType: "Land" } },
