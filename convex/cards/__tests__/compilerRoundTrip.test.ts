@@ -213,7 +213,11 @@ import {
 // Lowered 1426 -> 1423 by issue #4545 (phase and step trigger heads): Essence
 // Flare, Unstable Mutation and Wanderlust round-trip through the
 // host-controller upkeep head.
-const BASELINE_CEILING = 1423;
+//
+// Lowered 1423 -> 1421 by issue #4546 (zone-change trigger heads): Chromatic
+// Star ("when this artifact is put into a graveyard from the battlefield")
+// and Sacred Ground round-trip through the new `left-to-graveyard` head.
+const BASELINE_CEILING = 1421;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

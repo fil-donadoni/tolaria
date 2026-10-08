@@ -2236,23 +2236,8 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › trigger head › When this Aura is put into a graveyard from the battlefield",
-            "issue": 4546
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When this card is put into your graveyard from your library",
-            "issue": 4546
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › trigger head › When this creature is turned face up",
             "issue": 4547
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When this creature leaves the battlefield",
-            "issue": 4546
         },
         {
             "kind": "grammar",
@@ -2261,18 +2246,8 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › trigger head › When this enchantment leaves the battlefield",
-            "issue": 4546
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › trigger head › When you cycle this card",
             "issue": 4547
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever a black card is put into an opponent's graveyard from anywhere",
-            "issue": 4546
         },
         {
             "kind": "grammar",
@@ -2288,16 +2263,6 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever a player taps a land for mana",
             "issue": 4582
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield",
-            "issue": 4546
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever another card is put into a graveyard from anywhere",
-            "issue": 4546
         },
         {
             "kind": "grammar",
