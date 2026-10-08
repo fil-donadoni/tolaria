@@ -338,6 +338,7 @@ const SPELL_BUCKET_KEYS: ReadonlySet<string> = new Set([
     "modes",
     "targetRequirement",
     "additionalCosts",
+    "alternativeCosts",
     "flashback",
 ]);
 
