@@ -8882,6 +8882,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cave-In",
+        "scryfallId": "440d9d26-f304-467d-af79-914cc65f082e",
+        "oracleId": "7d937265-02f5-4f2c-9fef-c5930e13b3be",
+        "firstSet": "mmq",
+        "firstPrintId": "440d9d26-f304-467d-af79-914cc65f082e",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Cavern Crawler",
         "scryfallId": "bd0a8af9-2e86-4639-a6c9-209f115e95f8",
         "oracleId": "c7cfb120-1344-4b4e-9c6f-f969ba9c4a18",
@@ -53358,6 +53368,16 @@
         "firstPrintSet": "kld"
     },
     {
+        "name": "Snapback",
+        "scryfallId": "de9135ba-9b6a-4443-a1c4-882f9bfae626",
+        "oracleId": "e88de17c-086d-4e2a-b5b2-2f9f57ca7c0f",
+        "firstSet": "tsp",
+        "firstPrintId": "de9135ba-9b6a-4443-a1c4-882f9bfae626",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Snapcaster Mage",
         "scryfallId": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
         "oracleId": "2bb2eda7-3b38-4c56-870f-c3218a1056f5",
@@ -63814,6 +63834,16 @@
         "firstSet": "apc",
         "firstPrintId": "2a1bfefd-dae8-49e9-9d56-cc852e3dc93b",
         "firstPrintSet": "apc"
+    },
+    {
+        "name": "Vine Dryad",
+        "scryfallId": "fc9c9158-faed-42ae-9f6b-71dee49ff79f",
+        "oracleId": "990cd7de-66a2-4def-bf00-390b2682e995",
+        "firstSet": "mmq",
+        "firstPrintId": "fc9c9158-faed-42ae-9f6b-71dee49ff79f",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Vine Trellis",

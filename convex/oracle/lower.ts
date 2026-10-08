@@ -15,6 +15,7 @@
 
 import type {
     ActivatedAbility,
+    AlternativeCost,
     CardDefinition,
     EffectOp,
     KickerCost,
@@ -131,6 +132,8 @@ interface Accumulator {
     spellModes?: SpellMode[];
     additionalCosts?: NonNullable<CardDefinition["additionalCosts"]>;
     flashback?: NonNullable<CardDefinition["flashback"]>;
+    /** CR 118.9 — the card's alternative costs, one per printed line. */
+    alternativeCosts?: AlternativeCost[];
     /** CR 702.35a — the cost to cast the card when it is discarded. */
     madness?: ManaCost;
     /** CR 702.37e — the cost to turn the permanent face up. */
@@ -589,6 +592,15 @@ function lowerLine(
             acc.additionalCosts = costs.value;
             return null;
         }
+        case "alternative-cost": {
+            // The id is the key `announceCast.alternativeCostId` names; two
+            // lines minting one id would make the later unreachable.
+            const costs = (acc.alternativeCosts ??= []);
+            if (costs.some((c) => c.id === ir.cost.id))
+                return `a card declares the alternative cost "${ir.cost.id}" twice (CR 118.9)`;
+            costs.push({ ...ir.cost });
+            return null;
+        }
         case "flashback": {
             if (acc.flashback !== undefined)
                 return "a card declares flashback twice (CR 702.34a)";
@@ -1006,6 +1018,8 @@ export function lowerCard(
     if (acc.additionalCosts !== undefined)
         definition.additionalCosts = acc.additionalCosts;
     if (acc.flashback !== undefined) definition.flashback = acc.flashback;
+    if (acc.alternativeCosts !== undefined)
+        definition.alternativeCosts = acc.alternativeCosts;
     if (acc.madness !== undefined) definition.madness = acc.madness;
     if (acc.morph !== undefined) definition.morph = acc.morph;
 

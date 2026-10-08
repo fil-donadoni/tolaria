@@ -233,7 +233,7 @@ import {
 // (its sweep gained the `type: "Creature"` the Oracle's "Saproling creatures"
 // names), Powder Keg, Pyroclasm, Riptide, Shatterstorm, Simoon, Upheaval and
 // Wrath of God round-trip.
-const BASELINE_CEILING = 1364;
+const BASELINE_CEILING = 1362;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

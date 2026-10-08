@@ -12,6 +12,7 @@
  */
 
 import type {
+    AlternativeCost,
     Color,
     ManaCost,
     PermanentFilter,
@@ -80,6 +81,19 @@ export interface KickerIR {
     readonly multi: boolean;
 }
 
+/**
+ * CR 118.9 — ONE alternative cost, as printed on a "You may … rather than pay
+ * this spell's mana cost." line, in the engine's own leg vocabulary
+ * (`AlternativeCost`, `CostLegs`): every field below is one the engine already
+ * pays, so lowering narrows nothing.
+ */
+export interface AlternativeCostIR {
+    readonly id: string;
+    readonly description: string;
+    /** CR 701.9 discard / CR 701.13 exile, from the payer's hand. */
+    readonly hand: NonNullable<AlternativeCost["hand"]>;
+}
+
 /** What a mana ability adds (CR 605.1a). */
 /**
  * CR 605.1a — a rider SENTENCE after a mana production: a non-mana additional
@@ -141,6 +155,11 @@ export type SlotIR =
      * payable additional costs, lowered onto `CardDefinition.kickers`.
      */
     | { readonly kind: "kicker"; readonly kickers: readonly KickerIR[] }
+    /**
+     * CR 118.9 — a "You may [cost] rather than pay this spell's mana cost."
+     * line, lowered onto `CardDefinition.alternativeCosts`.
+     */
+    | { readonly kind: "alternative-cost"; readonly cost: AlternativeCostIR }
     | {
           readonly kind: "mana-ability";
           readonly cost: ActivationCostIR;
