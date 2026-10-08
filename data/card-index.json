@@ -17500,6 +17500,16 @@
         "source": "compiled"
     },
     {
+        "name": "Enlightened Tutor",
+        "scryfallId": "cbac1d27-15e2-4e2f-82ab-625a16e096cb",
+        "oracleId": "c5229c17-b7be-4b05-b683-f2277edc4849",
+        "firstSet": "mir",
+        "firstPrintId": "cbac1d27-15e2-4e2f-82ab-625a16e096cb",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Enlisted Wurm",
         "scryfallId": "66605149-3959-4a51-8400-350e6fac2ab2",
         "oracleId": "69191459-36ca-4e71-b4bb-0270c4cdaee9",
@@ -65966,6 +65976,16 @@
         "firstSet": "inv",
         "firstPrintId": "8fc66fbf-f411-4607-aece-7c35d9a07c80",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Worldly Tutor",
+        "scryfallId": "f00115bc-b551-4bf5-a121-bebb37201575",
+        "oracleId": "e8863518-0bfa-49c3-8c6e-6c9116a81051",
+        "firstSet": "mir",
+        "firstPrintId": "f00115bc-b551-4bf5-a121-bebb37201575",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Worldspine Wurm",
