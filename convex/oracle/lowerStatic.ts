@@ -45,6 +45,8 @@ import {
     MATERIALISED_FILTER_FIELDS,
     type CompiledStaticEffect,
 } from "../cards/compiledStatics";
+import { PERMANENT_TYPES } from "../cards/types";
+import type { PermanentFilter } from "../cards/filters";
 import type { CardDefinition, KickerCost } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
@@ -177,6 +179,21 @@ export function isDefinitionLevelKeyword(keyword: string): boolean {
         expandHideaway(expandFadingVanishing(expandKeywordTriggers(bare)))
     );
     return expanded !== bare;
+}
+
+/**
+ * A one-member `types` / `subtypes` array spelled as the bare string the
+ * hand-written catalogue writes (`{ types: "Land", subtypes: "Island" }`).
+ * `PermanentFilter` reads both identically; the spelling is kept so a compiled
+ * lock and a hand-written one are the same object to the gold harness.
+ */
+function catalogueSpelling(filter: PermanentFilter): PermanentFilter {
+    const out: Record<string, unknown> = { ...filter };
+    for (const field of ["types", "subtypes"] as const) {
+        const value = out[field];
+        if (Array.isArray(value) && value.length === 1) out[field] = value[0];
+    }
+    return out as PermanentFilter;
 }
 
 /**
@@ -410,6 +427,60 @@ export function lowerStaticClause(
                             oracleText,
                             binds: clause.binds,
                             filter: { subtypes: clause.subtype },
+                        },
+                    ],
+                },
+            };
+        // CR 502.3 — the engine's `untap-restriction`, as a descriptor. The id
+        // is a private handle, card-scoped like a combat restriction's.
+        case "untap-lock":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "untap-restriction",
+                            id: nextId("untap-lock"),
+                            oracleText,
+                            filter: catalogueSpelling(clause.filter),
+                            maxUntap: clause.maxUntap,
+                            ...(clause.whileSourceUntapped === true
+                                ? { whileSourceUntapped: true }
+                                : {}),
+                            ...(clause.nonManaActivatedAbility === true
+                                ? { nonManaActivatedAbility: true }
+                                : {}),
+                        },
+                    ],
+                },
+            };
+        // CR 614.10 — every permanent type, so no permanent untaps.
+        case "skip-untap-steps":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "untap-restriction",
+                            id: nextId("untap-lock"),
+                            oracleText,
+                            filter: { types: [...PERMANENT_TYPES] },
+                            maxUntap: 0,
+                        },
+                    ],
+                },
+            };
+        // CR 614.1d — the engine's `enters-tapped-restriction`.
+        case "enters-tapped-lock":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "enters-tapped-restriction",
+                            id: nextId("enters-tapped-lock"),
+                            oracleText,
+                            filter: catalogueSpelling(clause.filter),
                         },
                     ],
                 },

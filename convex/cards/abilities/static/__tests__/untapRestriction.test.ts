@@ -31,6 +31,25 @@ describe("untapRestriction factory", () => {
         expect(effect.maxUntap).toBe(0);
     });
 
+    it("carries a source-level condition through unchanged (CR 611.3a — Winter Orb)", () => {
+        const condition = (source: { isTapped?: boolean }) => !source.isTapped;
+        const effect = untapRestriction({
+            id: "winter-orb-cap",
+            oracleText: "Untap up to one land.",
+            filter: { types: "Land" },
+            maxUntap: 1,
+            condition: condition as never,
+        });
+        expect(effect.condition).toBe(condition);
+        expect(
+            untapRestriction({
+                id: "x",
+                oracleText: "x",
+                filter: { types: "Land" },
+            })
+        ).not.toHaveProperty("condition");
+    });
+
     it("defaults scope to 'each-player' so the cap binds regardless of the source's controller", () => {
         const effect = untapRestriction({
             id: "winter-orb-cap",

@@ -236,7 +236,10 @@ import {
 //
 // Lowered 1358 -> 1354 by issue #4560 (cost taxes): Aura of Silence, Gloom,
 // Mana Matrix and Thalia, Guardian of Thraben round-trip.
-const BASELINE_CEILING = 1354;
+//
+// Lowered 1354 -> 1351 by issue #4561 (untap locks): Curse of Marit Lage,
+// Tsabo's Web and Winter Orb round-trip.
+const BASELINE_CEILING = 1351;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

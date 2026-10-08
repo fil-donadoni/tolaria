@@ -1372,8 +1372,10 @@ export const throneOfBone = defineCard(() =>
     })
 );
 
-// Winter Orb — modern Oracle (Scryfall, ADR 0004): "Players can't untap
-// more than one land during their untap steps." (CR 502.1). Encoded as a
+// Winter Orb — modern Oracle (Scryfall, ADR 0004): "As long as this artifact
+// is untapped, players can't untap more than one land during their untap
+// steps." (CR 502.1, CR 611.3a). The "as long as" gate is the restriction's
+// `condition`: a tapped Orb locks nothing (issue #4561). Encoded as a
 // data-driven `untapRestriction` (ADR 0002 / 0005): the engine dispatcher
 // in `untapStep` collects the restriction, computes the active player's
 // tapped-lands eligible set, and either auto-resolves the cap or enqueues
@@ -1386,7 +1388,7 @@ export const winterOrb = defineCard(() => ({
     rarity: "rare",
     name: "Winter Orb",
     oracleText:
-        "Players can't untap more than one land during their untap steps.",
+        "As long as this artifact is untapped, players can't untap more than one land during their untap steps.",
     manaCost: { X: 2 },
     types: ["Artifact"],
     staticEffects: [
@@ -1395,6 +1397,7 @@ export const winterOrb = defineCard(() => ({
             oracleText: "Untap up to one land (Winter Orb).",
             filter: { types: "Land" },
             maxUntap: 1,
+            condition: (source) => !source.isTapped,
         }),
     ],
 }));

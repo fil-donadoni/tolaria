@@ -205,7 +205,7 @@ describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
     });
 
     it("with 1+ tapped lands, an untap-pick PendingChoice is enqueued ({min:0,max:1}, land filter)", () => {
-        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: false });
         const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
         const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
         const state = makeState({
@@ -229,7 +229,7 @@ describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
     });
 
     it("Winter Orb does NOT cap artifact or creature untaps — non-lands untap normally", () => {
-        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: false });
         const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
         const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
         const bear = makeInstance(grizzlyBears.id, {
@@ -305,7 +305,7 @@ describe("Winter Orb (modern Oracle land-only cap, CR 502.1, ADR 0004)", () => {
     });
 
     it("wire format: untap-pick prompt + land filter survive projectPublicState", () => {
-        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: true });
+        const orb = makeInstance(winterOrb.id, { id: "orb", isTapped: false });
         const land1 = makeInstance(plains.id, { id: "l1", isTapped: true });
         const land2 = makeInstance(plains.id, { id: "l2", isTapped: true });
         const state = makeState({

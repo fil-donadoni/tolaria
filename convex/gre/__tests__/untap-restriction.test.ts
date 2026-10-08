@@ -118,6 +118,28 @@ describe("untapRestriction dispatcher (CR 502.3, ADR 0005)", () => {
             ).toBeUndefined();
         });
 
+        it("a TAPPED Winter Orb locks nothing (CR 611.3a — 'as long as this artifact is untapped')", () => {
+            const orb = makeInstance(winterOrb().id, {
+                id: "orb",
+                isTapped: true,
+            });
+            const lands = ["l1", "l2"].map((id) =>
+                makeInstance(plains().id, { id, isTapped: true })
+            );
+            const state = makeState({
+                players: [
+                    makePlayer("p1", { battlefield: [orb, ...lands] }),
+                    makePlayer("p2"),
+                ],
+            });
+            untapStep(state);
+            expect(state.pendingChoices ?? []).toEqual([]);
+            // Nothing is capped: the Orb and both lands all untap.
+            expect(
+                state.players[0].battlefield.filter((c) => c.isTapped)
+            ).toEqual([]);
+        });
+
         it("single tapped land → prompt with { min: 0, max: 1 }, land filter (ADR 0003 cap-style zero-branch)", () => {
             const orb = makeInstance(winterOrb().id, { id: "orb" });
             const land = makeInstance(plains().id, {

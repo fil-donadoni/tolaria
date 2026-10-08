@@ -9652,6 +9652,16 @@
         "source": "compiled"
     },
     {
+        "name": "Choke",
+        "scryfallId": "e2f85205-3c4f-4411-b09c-d1271be56dde",
+        "oracleId": "057fa60b-10b0-4612-be0d-157076c82241",
+        "firstSet": "tmp",
+        "firstPrintId": "e2f85205-3c4f-4411-b09c-d1271be56dde",
+        "firstPrintSet": "tmp",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Chorus of Woe",
         "scryfallId": "0289ddb3-b35c-4edf-92bb-06f84a3475d9",
         "oracleId": "e175a3c1-df6c-4aa7-a4c9-893b466ad9e0",
@@ -29482,6 +29492,16 @@
         "source": "compiled"
     },
     {
+        "name": "Intruder Alarm",
+        "scryfallId": "7e55f653-0952-4713-8d43-ca50acff9e3b",
+        "oracleId": "1e943e04-e213-4781-b1a7-935aad8790e1",
+        "firstSet": "sth",
+        "firstPrintId": "7e55f653-0952-4713-8d43-ca50acff9e3b",
+        "firstPrintSet": "sth",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Intuition",
         "scryfallId": "c99f6785-e5a1-4fdc-9fb5-e1a372e7e848",
         "oracleId": "3c9faba7-f2d3-4978-be94-020dc8003dc0",
@@ -40584,6 +40604,16 @@
         "source": "compiled"
     },
     {
+        "name": "Orb of Dreams",
+        "scryfallId": "5fbe52a3-f85e-4b3a-a345-413b64d69c49",
+        "oracleId": "2c24b7c3-7c90-4109-a4aa-d9cae6febf34",
+        "firstSet": "bok",
+        "firstPrintId": "5fbe52a3-f85e-4b3a-a345-413b64d69c49",
+        "firstPrintSet": "bok",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Orc General",
         "scryfallId": "65a10fd5-506e-46bf-87e6-fde134c0dc04",
         "oracleId": "1f696446-30ba-42ab-b4fc-ee9c956b0a62",
@@ -47656,6 +47686,16 @@
         "firstSet": "pls",
         "firstPrintId": "306e3429-b3b4-4186-935b-18cfc308d22c",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Root Maze",
+        "scryfallId": "99a12b74-f191-4362-81ab-77590ae5e68f",
+        "oracleId": "2f4abc5e-5aad-455e-b1ec-137d7ac4a10c",
+        "firstSet": "tmp",
+        "firstPrintId": "99a12b74-f191-4362-81ab-77590ae5e68f",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Rootbreaker Wurm",
