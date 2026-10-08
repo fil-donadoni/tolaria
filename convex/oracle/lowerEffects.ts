@@ -2884,6 +2884,8 @@ function lowerSentenceBody(
                 );
             if (
                 sentence.subject.targetPlayerControls === true ||
+                sentence.subject.targetOpponentControls === true ||
+                sentence.subject.manaValueEqualsSourceCounters !== undefined ||
                 sentence.subject.manaValueAtMostX === true
             )
                 return unlowerable(

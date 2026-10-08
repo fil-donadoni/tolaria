@@ -595,6 +595,7 @@ const SHORTHAND_ARRAY_KEYS: ReadonlySet<string> = new Set([
     "subtype",
     "color",
     "excludeType",
+    "excludeSubtype",
     "excludeColor",
     "types",
     "subtypes",

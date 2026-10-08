@@ -382,7 +382,8 @@ const TARGET_PLAYER_CONTROLS = / target player controls$/;
  *
  * This is the shape a group pump is printed in, and it is a fourth mass
  * subject beside the three determiners above — not a widening of them: the
- * qualifier is REQUIRED. "Creatures get +1/+1" with no controller is a
+ * qualifier is REQUIRED (bar a bare SUBTYPE group, "Goblin creatures get
+ * +3/+0", whose subtype is the whole restriction). "Creatures get +1/+1" with no controller is a
  * different sentence (every creature on the battlefield) that nothing prints
  * and that a determiner-less rule would let through by omission, so the bare
  * plural is refused rather than read as "all".

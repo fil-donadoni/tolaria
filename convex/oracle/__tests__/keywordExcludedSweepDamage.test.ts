@@ -6,7 +6,7 @@
 // Read by its OWN rule (`creatureSweepRecipientRule`), not by widening the
 // general mass subject: every other verb keeps refusing "without <keyword>".
 // The bare "each creature" recipient, "… and each player" and "target
-// opponent controls" forms are goldens of damageSweepRecipients.test.ts.
+// opponent controls" forms are goldens of massSubjectSweeps.test.ts.
 //
 // Goldens: Ashen Firebeast (plain source), Bloodfire Dwarf ("It" dealer
 // behind a sacrifice cost), Magma Vein (a non-creature source, "This
