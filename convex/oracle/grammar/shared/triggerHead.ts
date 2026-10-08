@@ -77,8 +77,9 @@ export type TriggerHeadIR =
     /**
      * CR 603.6c — "when this <permanent> is put into a graveyard from the
      * battlefield": the battlefield exit that ends in a graveyard, for ANY
-     * permanent type (CR 700.4's "dies" is creature-only, so this is not that
-     * head). The Aura's "return it to its owner's hand" (Rancor) rides it.
+     * permanent type (CR 700.4 defines "dies" the same way, but the engine's
+     * `CREATURE_DIED` is creature-only, so a non-creature rides
+     * `PERMANENT_LEFT`). The Aura's "return it to its owner's hand" (Rancor) rides it.
      * `any` is the non-self form the corpus prints only with the other
      * narrowings below (Sacred Ground): the permanent's type, the graveyard's
      * OWNER (CR 404.1 — "your graveyard", which is not the controller) and who
@@ -93,7 +94,7 @@ export type TriggerHeadIR =
           readonly causedBy?: "opponent";
       }
     /**
-     * CR 603.6c / 603.6e — "when this card is put into your graveyard from your
+     * CR 603.6c / 113.6k — "when this card is put into your graveyard from your
      * library": the source is the card that moved (the mill, CR 701.17) and
      * the head fires from the graveyard it reached. Self only.
      */
@@ -103,7 +104,7 @@ export type TriggerHeadIR =
      * an opponent's] graveyard from anywhere": a card reaching a graveyard by
      * ANY route (battlefield, hand, library, stack), read from the graveyard
      * it landed in. `colors` is CR 105.2's narrowing, `excludeSelf` the
-     * "another" of CR 109.2.
+     * "another" (the source's own entry does not fire it).
      */
     | {
           readonly kind: "graveyard-entry";
@@ -458,7 +459,7 @@ export const SELF_HEADS: readonly {
         tail: " is put into a graveyard from the battlefield",
         ir: { kind: "left-to-graveyard", scope: "self" },
     },
-    // CR 603.6c / 603.6e — the card's own trip from your library to your
+    // CR 603.6c / 113.6k — the card's own trip from your library to your
     // graveyard (the mill).
     {
         opener: "when ",

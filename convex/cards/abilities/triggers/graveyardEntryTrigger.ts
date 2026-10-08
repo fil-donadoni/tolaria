@@ -40,7 +40,7 @@ export interface GraveyardEntryTriggerArgs {
     /** Whose graveyard the card is put into, relative to the source's
      *  controller. */
     graveyard: GraveyardEntryOwner;
-    /** "another card": the source's own entry does not fire it (CR 109.2). */
+    /** "another card": the source's own entry does not fire it. */
     excludeSelf?: boolean;
     /** CR 105.2 — the card must have ANY of these colours (a single colour is
      *  the "a black card" shape). Absent = every card. */

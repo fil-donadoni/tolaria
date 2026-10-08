@@ -151,7 +151,7 @@ export type CompiledTriggerHead =
           readonly causedBy?: "opponent";
       }
     /**
-     * CR 603.6c / 603.6e — "when this card is put into your graveyard from your
+     * CR 603.6c / 113.6k — "when this card is put into your graveyard from your
      * library": the source is the card that moved and functions from the
      * graveyard it landed in (`libraryToGraveyardTrigger`).
      */

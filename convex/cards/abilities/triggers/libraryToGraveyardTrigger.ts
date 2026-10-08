@@ -1,10 +1,11 @@
 // `libraryToGraveyardTrigger` — "when this card is put into your graveyard from
-// your library" (CR 603.6c / 603.6e).
+// your library" (CR 603.6c / 113.6k).
 //
 // The source IS the card that moved, so it is no battlefield permanent: it
-// functions from the graveyard it just landed in (CR 603.6e, the `zone:
-// "graveyard"` scan Nether Shadow opted into), and it is self-scoped — only its
-// OWN trip fires it (CR 603.2b).
+// functions from the graveyard it just landed in (CR 113.6k — a trigger
+// condition that cannot trigger from the battlefield functions in every zone it
+// can trigger from; the `zone: "graveyard"` scan Nether Shadow opted into), and
+// it is self-scoped — only its OWN trip fires it.
 //
 // "From your library" is the mill (CR 701.17, `CARD_MILLED`) and the other
 // library → graveyard move the engine funnels through the general zone-change
@@ -49,7 +50,7 @@ export function libraryToGraveyardTrigger(
         id,
         oracleText,
         event: ["CARD_MILLED", "CARD_PUT_INTO_GRAVEYARD"],
-        // CR 113.6b / 603.6e — functions while the source sits in the graveyard.
+        // CR 113.6k — functions while the source sits in the graveyard.
         zone: "graveyard",
         matches: (event, self, state) => {
             const own =

@@ -342,7 +342,7 @@ describe("Compost: 'a black card … an opponent's graveyard' (CR 105.2 / 400.3)
     });
 });
 
-describe("'When this card is put into your graveyard from your library' (CR 603.6c / 603.6e)", () => {
+describe("'When this card is put into your graveyard from your library' (CR 603.6c / 113.6k)", () => {
     // The head is read by the grammar (Narcomoeba, Gaea's Blessing); the bodies
     // those two print are other rules' business, so the descriptor is driven
     // here with a body the grammar reads.
