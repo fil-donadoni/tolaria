@@ -1137,7 +1137,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Change the target of target spell with a single target",
-            "issue": 4555
+            "issue": 5259
         },
         {
             "kind": "grammar",
