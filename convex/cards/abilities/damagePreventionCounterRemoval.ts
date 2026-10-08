@@ -24,6 +24,7 @@ import type { CardDefinition, ReplacementEffect } from "../types";
 export function damagePreventionCounterRemoval(args: {
     id: string;
     oracleText: string;
+    counterOracleText: string;
 }): readonly [ReplacementEffect, ReplacementEffect] {
     const hitsSelf: ReplacementEffect["appliesTo"] = (event, self) =>
         event.kind === "damage" &&
@@ -32,7 +33,9 @@ export function damagePreventionCounterRemoval(args: {
     return [
         {
             id: `${args.id}-counter`,
-            oracleText: args.oracleText,
+            // The second sentence only: an entry whose text says "prevent" must
+            // be a prevention (`damageReplacementKinds.test.ts`, CR 615.1a).
+            oracleText: args.counterOracleText,
             eventKind: "damage",
             damageEffectKind: "other",
             appliesTo: hitsSelf,
@@ -91,6 +94,7 @@ export function expandDamagePreventionCounterRemoval(
                       oracleText: damagePreventionCounterRemovalOracleText(
                           base.name
                       ),
+                      counterOracleText: `Remove a +1/+1 counter from ${base.name}.`,
                   }),
               ],
     };

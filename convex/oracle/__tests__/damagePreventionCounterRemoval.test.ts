@@ -228,6 +228,19 @@ describe("damage prevention counter removal — expansion at the expandDefinitio
         ]);
     });
 
+    it("only the prevention entry says 'prevent' (CR 615.1a)", () => {
+        const expanded = expandDefinition({
+            ...compiled(PHANTOM_TIGER),
+            id: "test-phantom-tiger-text",
+            rarity: "common",
+        });
+        expect(
+            expanded.replacementEffects!.filter((r) =>
+                /\bprevent\b/i.test(r.oracleText)
+            )
+        ).toHaveLength(1);
+    });
+
     it("does not add entries beside hand-written ones of the same id", () => {
         const once = expandDefinition({
             ...compiled(PHANTOM_TIGER),
