@@ -3877,6 +3877,46 @@
                 "activated › effect clause › Activate only if * control* * or more *",
                 "activated › effect clause › Activate only if an opponent controls more * than you"
             ]
+        },
+        {
+            "issue": 5273,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › * control* * or more creatures",
+                "triggered › condition › * control* * or more artifacts",
+                "triggered › condition › * control* * or more lands",
+                "triggered › condition › * control* * or more permanents",
+                "triggered › condition › * control* * or more Eggs"
+            ]
+        },
+        {
+            "issue": 5274,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › a player controls no creatures",
+                "triggered › condition › defending player controls no Glimmer creatures",
+                "triggered › condition › defending player controls no Walls",
+                "triggered › condition › defending player controls no black permanents",
+                "triggered › condition › defending player controls no black nontoken permanents",
+                "triggered › condition › you control no Demons",
+                "triggered › condition › you control no Goblins",
+                "triggered › condition › you control no Snakes",
+                "triggered › condition › you control no artifacts",
+                "triggered › condition › you control no creatures"
+            ]
+        },
+        {
+            "issue": 5275,
+            "kind": "grammar",
+            "match": [
+                "triggered › condition › you control * or more Forests",
+                "triggered › condition › you control * or more Islands",
+                "triggered › condition › you control * or more Mountains",
+                "triggered › condition › you control * or more Plains",
+                "triggered › condition › you control * or more Swamps",
+                "triggered › condition › you control * or more Gates",
+                "triggered › condition › you control * or more Deserts"
+            ]
         }
     ],
     "cutsNote": "Cluster Cut ticket rows (ADR 0146 § Decision 7, issue #4681): one row per kind, { kind, issue } — gaps:sync's own \"clusters-adjacent record\" of the ONE standing Cluster Cut ticket it opened for that kind past `clusterCutThreshold` (data/targets.json), how it finds the ticket again without a title search. Never written by `/cluster-gaps`, unlike `clusters`. Parsed fail-closed by `parseCutRows` (`scripts/lib/targets.ts`).",
