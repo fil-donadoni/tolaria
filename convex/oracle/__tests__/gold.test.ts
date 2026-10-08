@@ -65,6 +65,12 @@ describe("gold round-trip — precision", () => {
         // `static` joined them in #2700: 11 accepted, 11 equal, 0 incomparable
         // — a closed shape with no divergence of its own, so the honest gate
         // is the same 100% the other two pay, not a ratio floor.
+        //
+        // The 100% is over the cards the projection CAN compare (issue #4561):
+        // Winter Orb's hand-written lock carries a `condition` closure — "as
+        // long as this artifact is untapped" is a predicate on the source —
+        // so it is `incomparable`, counted and bounded by the test below
+        // (every incomparable card must show a `[closure]`), not a mismatch.
         for (const bucket of [
             "vanilla",
             "keyword-only",
@@ -72,8 +78,9 @@ describe("gold round-trip — precision", () => {
             "static",
         ] as const) {
             const stats = REPORT.buckets[bucket];
-            expect(`${bucket}: ${stats.equal}/${stats.accepted}`).toBe(
-                `${bucket}: ${stats.accepted}/${stats.accepted}`
+            const comparable = stats.accepted - stats.incomparable;
+            expect(`${bucket}: ${stats.equal}/${comparable}`).toBe(
+                `${bucket}: ${comparable}/${comparable}`
             );
         }
     });
@@ -221,7 +228,14 @@ describe("gold round-trip — precision", () => {
         // compiled while their hand-written sides are `resolve()` closures
         // the projection cannot compare — the same move as the entries above,
         // out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(43);
+        //
+        // 42 -> 45 by issue #4561 (untap locks): Curse of Marit Lage's
+        // hand-written side is a `resolve()` closure (the mass tap), Tsabo's
+        // Web's carries the `dynamicMatch` closure of its untap lock, and
+        // Winter Orb's the `condition` closure of its "as long as this
+        // artifact is untapped" gate — all now compiled, the same move as the
+        // entries above, out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(46);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

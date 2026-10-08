@@ -69,6 +69,10 @@ export interface UntapRestrictionArgs {
      *  lands whose card definition carries a non-mana activated ability, a
      *  property `PermanentFilter` can't express. */
     dynamicMatch?: (candidate: PermanentView, def: CardDefinition) => boolean;
+    /** Source-level gate (CR 611.3a): when false the restriction contributes
+     *  nothing this untap step. See `StaticUntapRestriction.condition` — Winter
+     *  Orb's "As long as this artifact is untapped, …". */
+    condition?: (source: PermanentView) => boolean;
 }
 
 /** Builds a `StaticUntapRestriction` for `staticEffects[]`. The engine
@@ -97,5 +101,6 @@ export function untapRestriction(
         scope: args.scope ?? "each-player",
         ...(args.appliesToSelf ? { appliesToSelf: true } : {}),
         ...(args.dynamicMatch ? { dynamicMatch: args.dynamicMatch } : {}),
+        ...(args.condition ? { condition: args.condition } : {}),
     };
 }

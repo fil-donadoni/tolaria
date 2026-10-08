@@ -36,6 +36,10 @@
  * they are materialised below rather than refused.
  */
 
+import {
+    hasNonManaActivatedAbility,
+    untapRestriction,
+} from "./abilities/static/untapRestriction";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter } from "./filters";
 import { AURA_AFFECTS_HOST } from "./types";
@@ -275,6 +279,44 @@ export type CompiledStaticEffect =
           readonly kind: "cast-restriction";
           readonly id: string;
           readonly oracleText: string;
+      }
+    /**
+     * CR 502.3 — an untap-step lock: "Islands don't untap during their
+     * controllers' untap steps", "Players skip their untap steps", "players
+     * can't untap more than one land during their untap steps". Rebuilds into
+     * the engine's `untap-restriction` (the `untapRestriction` factory), which
+     * `untapStep` (`gre/phases.ts`) reads: `maxUntap` is how many matching
+     * permanents the active player may untap (0 = none).
+     *
+     * `condition` and `dynamicMatch` of the engine effect are closures, so the
+     * two a printed line can ask for are named here instead:
+     *  - `whileSourceUntapped` — CR 611.3a, "As long as this artifact is
+     *    untapped, …" (Winter Orb): the lock exists only while the SOURCE is
+     *    untapped;
+     *  - `nonManaActivatedAbility` — CR 605.1a, "each land with an activated
+     *    ability that isn't a mana ability" (Tsabo's Web): narrows `filter` to
+     *    permanents whose definition has such an ability.
+     */
+    | {
+          readonly kind: "untap-restriction";
+          readonly id: string;
+          readonly oracleText: string;
+          readonly filter: PermanentFilter;
+          readonly maxUntap: number;
+          readonly whileSourceUntapped?: true;
+          readonly nonManaActivatedAbility?: true;
+      }
+    /**
+     * CR 614.1d — "Artifacts and lands enter tapped": a replacement effect on
+     * every matching permanent entering the battlefield, whoever controls it.
+     * Rebuilds into the engine's `enters-tapped-restriction`, whose
+     * `forcesTapped` is the filter evaluated against the entering permanent.
+     */
+    | {
+          readonly kind: "enters-tapped-restriction";
+          readonly id: string;
+          readonly oracleText: string;
+          readonly filter: PermanentFilter;
       }
     /** CR 601.2f — "<spells> cost {N} more/less to cast", or (CR 602.2b)
      *  "Activated abilities of <permanents> cost {N} more to activate". */
@@ -554,6 +596,32 @@ export function resolveCompiledStatic(
                     source.chosenName !== undefined &&
                     ctx.hasChosenName(spell, source.chosenName),
             };
+        case "untap-restriction":
+            return untapRestriction({
+                id: descriptor.id,
+                oracleText: descriptor.oracleText,
+                filter: descriptor.filter,
+                maxUntap: descriptor.maxUntap,
+                ...(descriptor.whileSourceUntapped === true
+                    ? { condition: (source) => source.isTapped !== true }
+                    : {}),
+                ...(descriptor.nonManaActivatedAbility === true
+                    ? {
+                          dynamicMatch: (_candidate, def) =>
+                              hasNonManaActivatedAbility(def),
+                      }
+                    : {}),
+            });
+        case "enters-tapped-restriction": {
+            const filter = descriptor.filter;
+            return {
+                kind: "enters-tapped-restriction",
+                id: descriptor.id,
+                oracleText: descriptor.oracleText,
+                forcesTapped: (entering, source, _state, ctx) =>
+                    filterMatches(filter, entering, source, ctx),
+            };
+        }
         case "cost-modifier": {
             const { spells, abilities } = descriptor;
             return {

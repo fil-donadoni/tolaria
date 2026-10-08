@@ -216,6 +216,29 @@ export type StaticClauseIR =
       }
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
+    /**
+     * CR 502.3 — an untap-step lock over a SET: "Islands don't untap during
+     * their controllers' untap steps" (`maxUntap: 0`), "players can't untap
+     * more than one land during their untap steps" (`maxUntap: 1`). The
+     * source's own "doesn't untap during your untap step" is the separate
+     * `does-not-untap` marker above.
+     */
+    | {
+          readonly kind: "untap-lock";
+          readonly filter: PermanentFilter;
+          readonly maxUntap: number;
+          /** CR 611.3a — "As long as <self> is untapped, …". */
+          readonly whileSourceUntapped?: true;
+          /** CR 605.1a — "with an activated ability that isn't a mana ability". */
+          readonly nonManaActivatedAbility?: true;
+      }
+    /** CR 614.10 / 502.3 — "Players skip their untap steps": no permanent of
+     *  any player untaps. Lowered to an `untap-lock` over every permanent
+     *  type — the encoding the hand-written Stasis writes. */
+    | { readonly kind: "skip-untap-steps" }
+    /** CR 614.1d — "<plural descriptor> enter tapped": a replacement on every
+     *  matching permanent entering, whoever controls it. */
+    | { readonly kind: "enters-tapped-lock"; readonly filter: PermanentFilter }
     /** CR 614.10 / 504.1 — "Skip your draw step": an unconditional
      *  replacement of the controller's own turn-based draw. Lowered to
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
@@ -1231,6 +1254,164 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frames: untap-step locks over a set (CR 502.3) ─────────────────────────
+
+/**
+ * The only `PermanentFilter` fields the untap and enter-tapped locks read: the
+ * card types and subtypes of the permanents they name. Anything else a subject
+ * can carry ("you control", "tapped", a colour, an exclusion) changes WHOSE
+ * permanents or WHICH ones the lock binds, and neither engine surface reads it
+ * — `untapStep` binds the active player's own permanents, and the
+ * enters-tapped scan reads the filter against the entering permanent alone — so
+ * a subject carrying one is refused rather than silently widened.
+ */
+const LOCK_SUBJECT_FIELDS: ReadonlySet<string> = new Set(["types", "subtypes"]);
+
+function readLockSubject(span: string): RuleResult<PermanentFilter> {
+    const filter = readSubject(span, "recomputed");
+    if (!filter.ok) return filter;
+    const extra = Object.keys(filter.value).find(
+        (field) => !LOCK_SUBJECT_FIELDS.has(field)
+    );
+    if (extra !== undefined)
+        return fail(
+            `"${extra}" is not a field an untap or enters-tapped lock reads`,
+            span
+        );
+    return filter;
+}
+
+/**
+ * "Artifacts and lands" — two plural card-type nouns joined by "and", read as
+ * the UNION of their types (CR 205.2a: a permanent matches if it has either).
+ * The descriptor grammar reads one noun phrase, so the list is split here, and
+ * each side must be a bare type (a subtype or a qualifier on one side would
+ * leave the other side's meaning for the reader to guess). A span with no
+ * " and " is the plain {@link readLockSubject}.
+ */
+function readLockSubjectUnion(span: string): RuleResult<PermanentFilter> {
+    const at = span.indexOf(" and ");
+    if (at === -1) return readLockSubject(span);
+    const sides = [span.slice(0, at), span.slice(at + " and ".length)];
+    const types: string[] = [];
+    for (const side of sides) {
+        const part = readLockSubject(side);
+        if (!part.ok) return part;
+        const keys = Object.keys(part.value);
+        if (keys.length !== 1 || keys[0] !== "types")
+            return fail(`"${side}" is not a bare card-type noun`, side);
+        types.push(...([part.value.types ?? []].flat() as string[]));
+    }
+    return ok({ types } as PermanentFilter);
+}
+
+const SET_DOES_NOT_UNTAP =
+    /^(.+) don't untap during their controllers' untap steps$/;
+
+/**
+ * "Islands don't untap during their controllers' untap steps" (Choke, Curse of
+ * Marit Lage). CR 502.3: the active player untaps their permanents, and the
+ * lock removes the named set from that. Each controller's own untap step is
+ * what the engine already binds (`collectUntapRestrictions`), so "their
+ * controllers'" needs no further reading.
+ */
+const setDoesNotUntapRule: Rule<StaticClauseIR> = pattern(
+    "set does not untap",
+    SET_DOES_NOT_UNTAP,
+    (match): RuleResult<StaticClauseIR> => {
+        const filter = readLockSubject(match[1]!);
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "untap-lock" as const,
+            filter: filter.value,
+            maxUntap: 0,
+        });
+    }
+);
+
+const LAND_UNTAP_CAP =
+    /^As long as (.+) is untapped, players can't untap more than one land during their untap steps$/;
+
+/**
+ * "As long as this artifact is untapped, players can't untap more than one land
+ * during their untap steps" (Winter Orb). CR 502.3 caps the lands each player
+ * untaps at one; CR 611.3a gates it on the SOURCE being untapped. "land" is the
+ * only noun printed in a pool this rule reads, so it is spelled out rather than
+ * captured.
+ */
+const landUntapCapRule: Rule<StaticClauseIR> = pattern(
+    "land untap cap",
+    LAND_UNTAP_CAP,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(match[1]!)
+            ? ok({
+                  kind: "untap-lock" as const,
+                  filter: { types: ["Land"] },
+                  maxUntap: 1,
+                  whileSourceUntapped: true as const,
+              })
+            : fail(`"${match[1]}" is not this permanent`, match[1]!)
+);
+
+const NON_MANA_LAND_LOCK =
+    /^Each land with an activated ability that isn't a mana ability doesn't untap during its controller's untap step$/;
+
+/**
+ * Tsabo's Web's one printed sentence, read WHOLE. CR 605.1a defines a mana
+ * ability; the engine's `useStack` is its test (`hasNonManaActivatedAbility`),
+ * which is why the clause is a named flag and not a general "with an ability"
+ * qualifier — no other card prints the qualifier, so a wildcard would accept a
+ * shape nobody has printed.
+ */
+const nonManaAbilityLandLockRule: Rule<StaticClauseIR> = pattern(
+    "non-mana-ability land lock",
+    NON_MANA_LAND_LOCK,
+    (): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "untap-lock" as const,
+            filter: { types: ["Land"] },
+            maxUntap: 0,
+            nonManaActivatedAbility: true as const,
+        })
+);
+
+const SKIP_UNTAP_STEPS = /^Players skip their untap steps$/;
+
+/**
+ * "Players skip their untap steps" (Stasis). CR 614.10 makes a skipped step a
+ * replacement; the engine models it as the untap lock over every permanent
+ * (the hand-written Stasis's encoding), so the untap step still runs and
+ * simply untaps nothing. "Skip your untap step" (singular, the controller's own)
+ * is a different sentence and stays refused by the anchored regex.
+ */
+const skipUntapStepsRule: Rule<StaticClauseIR> = pattern(
+    "skip untap steps",
+    SKIP_UNTAP_STEPS,
+    (): RuleResult<StaticClauseIR> => ok({ kind: "skip-untap-steps" as const })
+);
+
+const SET_ENTER_TAPPED = /^(.+) enter tapped$/;
+
+/**
+ * "Artifacts and lands enter tapped" (Root Maze). CR 614.1d: a replacement
+ * effect on the matching permanents as they enter, whoever controls them. The
+ * plural verb is what tells it from the self rider "<self> enters tapped"
+ * (`entersTappedPlain`); a subject naming a controller ("… your opponents
+ * control", Kismet) is refused by {@link readLockSubject}.
+ */
+const setEntersTappedRule: Rule<StaticClauseIR> = pattern(
+    "set enters tapped",
+    SET_ENTER_TAPPED,
+    (match): RuleResult<StaticClauseIR> => {
+        const filter = readLockSubjectUnion(match[1]!);
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "enters-tapped-lock" as const,
+            filter: filter.value,
+        });
+    }
+);
+
 // ── Frame: a forced target choice (CR 601.2c) ──────────────────────────────
 
 /**
@@ -1681,6 +1862,11 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        setDoesNotUntapRule,
+        landUntapCapRule,
+        nonManaAbilityLandLockRule,
+        skipUntapStepsRule,
+        setEntersTappedRule,
         targetChoiceRequirementRule,
         skipDrawStepRule,
         shuffleFromAnywhereRule,
