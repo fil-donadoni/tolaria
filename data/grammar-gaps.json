@@ -1227,7 +1227,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › If you have no land cards in hand, you may reveal your hand rather than pay this spell's mana cost",
-            "issue": 4559
+            "issue": 5278
         },
         {
             "kind": "grammar",
@@ -1432,7 +1432,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › You may exile the top three black cards of your graveyard rather than pay this spell's mana cost",
-            "issue": 4559
+            "issue": 5279
         },
         {
             "kind": "grammar",
@@ -3653,6 +3653,11 @@
             "kind": "migration",
             "key": "activated + triggered",
             "issue": 4044
+        },
+        {
+            "kind": "migration",
+            "key": "alternative-cost + spell",
+            "issue": 5280
         },
         {
             "kind": "migration",
