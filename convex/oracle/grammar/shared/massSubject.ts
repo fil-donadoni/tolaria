@@ -153,6 +153,7 @@ function sweepSelector(
                 "types",
                 "subtypes",
                 "excludeTypes",
+                "excludeSubtypes",
                 "controller",
                 "plural",
                 "colors",
@@ -227,6 +228,13 @@ function sweepSelector(
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
     if (descriptor.colors !== undefined) filter.color = descriptor.colors[0]!;
+    // CR 205.3 — "non-Aura enchantments": the negative subtype, 1:1.
+    const excludedSubtypes = descriptor.excludeSubtypes;
+    if (excludedSubtypes !== undefined)
+        filter.excludeSubtype =
+            excludedSubtypes.length === 1
+                ? excludedSubtypes[0]!
+                : [...excludedSubtypes];
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;

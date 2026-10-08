@@ -1119,6 +1119,9 @@ function toPermanentFilter(
     return {
         types: filter.type,
         excludeTypes: filter.excludeType,
+        // CR 205.3 (issue #4557) — "non-Aura": dropping it here would be
+        // fail-OPEN, the sweep would hit every enchantment.
+        excludeSubtypes: filter.excludeSubtype,
         subtypes,
         supertypes: filter.supertype,
         excludeSupertypes: filter.excludeSupertype,
@@ -1352,6 +1355,15 @@ function matchesCardFilter(
     if (
         subtypes !== undefined &&
         !subtypes.some((s) => card.subtypes.includes(s))
+    ) {
+        return false;
+    }
+    // CR 205.3 (issue #4557) — the negative of `subtype`: fails if the card
+    // has ANY listed subtype (Tranquil Domain's "non-Aura").
+    const excludeSubtypes = asFilterArray(filter.excludeSubtype);
+    if (
+        excludeSubtypes !== undefined &&
+        excludeSubtypes.some((s) => card.subtypes.includes(s))
     ) {
         return false;
     }

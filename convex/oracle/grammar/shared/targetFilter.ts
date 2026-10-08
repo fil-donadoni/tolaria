@@ -66,7 +66,11 @@ import {
     subGrammar,
 } from "../../rule";
 import { keywordVocabulary } from "./keywordVocabulary";
-import { CREATURE_SUBTYPES, LAND_SUBTYPES } from "./subtypes";
+import {
+    CREATURE_SUBTYPES,
+    ENCHANTMENT_SUBTYPES,
+    LAND_SUBTYPES,
+} from "./subtypes";
 
 export const TARGET_FILTER = "target filter";
 export const DESCRIPTOR = "object descriptor";
@@ -310,7 +314,11 @@ function readAdjective(
         // subtype (CR 205.3).
         if (token.startsWith("non-")) {
             const subtype = token.slice(4);
-            if (isSubtype(subtype)) {
+            // CR 205.3h — an enchantment type may be negated too ("non-Aura
+            // enchantments"). Only the NEGATIVE reads the enchantment table:
+            // a bare positive "Aura" noun stays unread (it implies no card
+            // type this reader has a fixture for).
+            if (isSubtype(subtype) || ENCHANTMENT_SUBTYPES.has(subtype)) {
                 into.excludeSubtypes.push(subtype);
                 return null;
             }

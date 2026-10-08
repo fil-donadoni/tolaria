@@ -13601,6 +13601,16 @@ export interface EffectCardFilter {
      *  ignore the field (fail OPEN). Single keyword; ANDed with every other
      *  field. */
     excludeAbility?: string;
+    /** "Non-<subtype>" (CR 205.3, issue #4557 — Tranquil Domain's "all
+     *  non-Aura enchantments"). The negative of `subtype`, mirroring
+     *  `excludeType`'s shape: a permanent or card is dropped when it has ANY
+     *  listed subtype. Propagated 1:1 onto `PermanentFilter.excludeSubtypes`
+     *  by `toPermanentFilter` and read against `card.subtypes` by
+     *  `matchesCardFilter`, so it is honest in every zone (a card shape always
+     *  carries `subtypes`). Literal strings only: there is no "non-chosen-type"
+     *  printing, so the `{ ref }` form of `subtype` has no negative twin. ANDed
+     *  with every other field. */
+    excludeSubtype?: string | string[];
     /** "That's attacking" (CR 508.1, issue #1097 — Tangle's "each creature
      *  that's attacking"). Matches a BATTLEFIELD permanent whose live combat
      *  role is attacker, mirroring `PermanentFilter.isAttacking`
