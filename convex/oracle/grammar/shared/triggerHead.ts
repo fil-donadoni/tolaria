@@ -121,7 +121,7 @@ export type TriggerHeadIR =
     | {
           readonly kind: "phase";
           readonly phase: Phase;
-          readonly scope: "your" | "each";
+          readonly scope: "your" | "each" | "host-controller";
           /**
            * CR 603.2b — the head NAMES the player whose step it is ("each
            * PLAYER'S upkeep"), which is what gives a later "that player" its
@@ -315,6 +315,34 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
     [
         "at the beginning of each end step",
         { kind: "phase", phase: "END_STEP", scope: "each" },
+    ],
+    // CR 500.1 — every turn has an end step, and the unqualified phrase names
+    // each player's (see the header note above): the same event as "each end
+    // step", so the same descriptor.
+    [
+        "at the beginning of the end step",
+        { kind: "phase", phase: "END_STEP", scope: "each" },
+    ],
+    // CR 303.4e + CR 603.2b — an Aura's upkeep trigger fires on the upkeep of
+    // the player controlling the enchanted creature, who is "that player".
+    [
+        "at the beginning of the upkeep of enchanted creature's controller",
+        {
+            kind: "phase",
+            phase: "UPKEEP",
+            scope: "host-controller",
+            namesPlayer: true,
+        },
+    ],
+    // CR 505.1 — the first main phase is the precombat main phase.
+    [
+        "at the beginning of each player's first main phase",
+        {
+            kind: "phase",
+            phase: "PRECOMBAT_MAIN",
+            scope: "each",
+            namesPlayer: true,
+        },
     ],
     [
         "at the beginning of combat on your turn",
