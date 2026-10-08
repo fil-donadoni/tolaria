@@ -140,7 +140,11 @@ describe("Threshold self pump — refused neighbours (fail-closed)", () => {
 
 describe("Threshold self pump in the layer system", () => {
     const def = compiled(NIMBLE_MONGOOSE);
-    const card = { ...def, id: "compiled-mongoose-4551" };
+    const card = {
+        ...def,
+        id: "compiled-mongoose-4551",
+        rarity: "common" as const,
+    };
 
     function board(graveyardSize: number, who: "p1" | "p2" = "p1") {
         const mongoose = makeInstance(card.id, { id: "mongoose" });
