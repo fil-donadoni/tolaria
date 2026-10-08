@@ -41050,12 +41050,82 @@
         "source": "compiled"
     },
     {
+        "name": "Phantom Centaur",
+        "scryfallId": "c421c2f1-2137-41bd-9a89-74d8a76fb5c5",
+        "oracleId": "9bb8c54b-1228-4b7c-8651-52cb5b0f6e72",
+        "firstSet": "jud",
+        "firstPrintId": "c421c2f1-2137-41bd-9a89-74d8a76fb5c5",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Phantom Flock",
+        "scryfallId": "617d4246-c827-4742-ab6a-c5170c12cb87",
+        "oracleId": "bcded242-6e54-416f-bdc8-093211c50e3f",
+        "firstSet": "jud",
+        "firstPrintId": "617d4246-c827-4742-ab6a-c5170c12cb87",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Phantom Monster",
         "scryfallId": "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
         "oracleId": "bbd30183-524c-4b93-b953-90853ec3f39f",
         "firstSet": "lea",
         "firstPrintId": "e46d2cf5-e8d0-4fb2-b950-252d52084b63",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Phantom Nantuko",
+        "scryfallId": "66f8ca45-b60f-4bb9-9f7e-1b5e13478f22",
+        "oracleId": "0951b529-646c-4dfd-88ad-84ee117ce722",
+        "firstSet": "jud",
+        "firstPrintId": "66f8ca45-b60f-4bb9-9f7e-1b5e13478f22",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Phantom Nishoba",
+        "scryfallId": "56ebc372-aabd-4174-a943-c7bf59e5028d",
+        "oracleId": "e43e06fb-52b7-4f38-8fac-f31973b043f7",
+        "firstSet": "jud",
+        "firstPrintId": "56ebc372-aabd-4174-a943-c7bf59e5028d",
+        "firstPrintSet": "jud",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Phantom Nomad",
+        "scryfallId": "6c5309f5-8b32-4a57-99f2-dcf7a8341898",
+        "oracleId": "bf65a7a7-a590-41eb-9844-184e5d63e32a",
+        "firstSet": "jud",
+        "firstPrintId": "6c5309f5-8b32-4a57-99f2-dcf7a8341898",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Phantom Tiger",
+        "scryfallId": "32839296-e583-4f71-aa44-dbe16408665e",
+        "oracleId": "1755b3d4-0e40-40c4-b913-0960d55d411b",
+        "firstSet": "jud",
+        "firstPrintId": "32839296-e583-4f71-aa44-dbe16408665e",
+        "firstPrintSet": "jud",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Phantom Wurm",
+        "scryfallId": "c94722ba-adb5-4613-b8f0-da1c34591c10",
+        "oracleId": "a866fb67-6614-45e6-928e-b4b59d95335f",
+        "firstSet": "tsp",
+        "firstPrintId": "c94722ba-adb5-4613-b8f0-da1c34591c10",
+        "firstPrintSet": "tsp",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Pharika's Chosen",
