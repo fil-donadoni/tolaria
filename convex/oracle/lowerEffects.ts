@@ -2105,6 +2105,70 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "optional-hand-exile-then": {
+            // CR 608.2c + CR 701.13a — the hand exile is a `mayPay` HAND cost
+            // leg (ADR 0079), so declining it, or an empty hand, leaves the
+            // REQUIRED bind false and the gated effect undone.
+            const inner = gatedSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            const bind = walk.nextBind("paid");
+            return lowered([
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: {
+                        hand: {
+                            action: "exile",
+                            requirements: [{ filter: {}, count: 1 }],
+                        },
+                    },
+                    prompt: `${sentence.clause}?`,
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { binding: bind },
+                    then: inner.value,
+                },
+            ]);
+        }
+        case "reveal-hand-pick": {
+            // CR 701.20a — the hand is revealed to every player first; CR
+            // 701.9b — the CONTROLLER picks from it (`zoneOwnerId` names whose
+            // hand); the picked card is discarded (CR 701.9a) or exiled (CR
+            // 701.13a). The Duress / Thoughtseize template.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const bind = walk.nextBind("picked");
+            const { filter, phrase } = sentence;
+            return lowered([
+                { op: "reveal", player: player.value, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: player.value,
+                    zone: "hand",
+                    ...(Object.keys(filter).length === 0 ? {} : { filter }),
+                    count: 1,
+                    prompt: `Choose ${phrase} from that player's hand.`,
+                    bind,
+                },
+                sentence.route === "discard"
+                    ? {
+                          op: "discard",
+                          player: player.value,
+                          cards: { ref: bind },
+                      }
+                    : {
+                          op: "moveZone",
+                          cards: { ref: bind },
+                          player: player.value,
+                          from: "hand",
+                          to: "exile",
+                      },
+            ]);
+        }
         case "loot": {
             // CR 121.1 then CR 701.9a — draw, then discard cards of the
             // controller's choice: the draw / choose-hand-card / discard
@@ -2539,13 +2603,35 @@ function lowerSentenceBody(
             // hand-written "target player discards N cards" writes (Mind
             // Rot), the choice raised for the player who discards.
             //
-            // "you" is refused: the controller's own choice is the loot's
-            // `choose-hand-card`, a different Pending Choice kind the Bot
-            // values differently, and Oracle never prints "you discards".
-            if (sentence.player.kind === "you")
-                return unlowerable(
-                    "a discard by the controller is not the affected-player discard"
-                );
+            // "you" (the imperative "Discard a card") is the controller's own
+            // choice: the loot's `choose-hand-card` / discard pair, a
+            // different Pending Choice kind the Bot values differently.
+            if (sentence.player.kind === "you") {
+                if (
+                    sentence.count.kind !== "fixed" ||
+                    sentence.count.value !== 1
+                )
+                    return unlowerable(
+                        "the controller's own discard is read for one card"
+                    );
+                const bind = walk.nextBind("discard");
+                return lowered([
+                    {
+                        op: "choice",
+                        kind: "choose-hand-card",
+                        player: "controller",
+                        zone: "hand",
+                        count: 1,
+                        prompt: "Discard a card.",
+                        bind,
+                    },
+                    {
+                        op: "discard",
+                        player: "controller",
+                        cards: { ref: bind },
+                    },
+                ]);
+            }
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const count = lowerAmount(sentence.count, site);
