@@ -97,6 +97,83 @@ describe("alternativeCostConditionMet (CR 118.9)", () => {
         expect(alternativeCostConditionMet(base(), "p1", cond)).toBe(false);
     });
 
+    // CR 118.9 — the Legate cycle's "If an opponent controls an Island and
+    // you control a Mountain, you may cast this spell without paying its mana
+    // cost" (Mogg Salvage): `opponent-control` reads the OTHER side, `all`
+    // joins the two predicates.
+    describe("opponent-control and all (Legate cycle)", () => {
+        const land = (name: string, id: string, controllerId: string) =>
+            makeInstance(getCardByName(name).id, {
+                id,
+                controllerId,
+                ownerId: controllerId,
+                zone: "battlefield",
+            });
+        const board = (mine: string[], theirs: string[]) =>
+            makeState({
+                players: [
+                    makePlayer("p1", {
+                        battlefield: mine.map((n, i) => land(n, `m${i}`, "p1")),
+                    }),
+                    makePlayer("p2", {
+                        battlefield: theirs.map((n, i) =>
+                            land(n, `t${i}`, "p2")
+                        ),
+                    }),
+                ],
+                activePlayerId: "p1",
+            });
+        const opponentIsland = {
+            kind: "opponent-control" as const,
+            filter: { subtypes: ["Island"] },
+        };
+        const legate = {
+            kind: "all" as const,
+            of: [
+                opponentIsland,
+                {
+                    kind: "control" as const,
+                    filter: { subtypes: ["Mountain"] },
+                },
+            ],
+        };
+
+        it("opponent-control reads the opponent's battlefield, not the caster's", () => {
+            expect(
+                alternativeCostConditionMet(
+                    board([], ["Island"]),
+                    "p1",
+                    opponentIsland
+                )
+            ).toBe(true);
+            expect(
+                alternativeCostConditionMet(
+                    board(["Island"], []),
+                    "p1",
+                    opponentIsland
+                )
+            ).toBe(false);
+        });
+
+        it("all holds only when every member holds", () => {
+            const met = (mine: string[], theirs: string[]) =>
+                alternativeCostConditionMet(board(mine, theirs), "p1", legate);
+            expect(met(["Mountain"], ["Island"])).toBe(true);
+            expect(met(["Mountain"], [])).toBe(false);
+            expect(met([], ["Island"])).toBe(false);
+            expect(met(["Island"], ["Mountain"])).toBe(false);
+        });
+
+        it("an empty all fails closed", () => {
+            expect(
+                alternativeCostConditionMet(base(), "p1", {
+                    kind: "all",
+                    of: [],
+                })
+            ).toBe(false);
+        });
+    });
+
     it("an absent condition is always met", () => {
         expect(alternativeCostConditionMet(base(), "p1", undefined)).toBe(true);
     });

@@ -9632,6 +9632,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cho-Arrim Legate",
+        "scryfallId": "1427a3a1-24e1-4697-b5eb-1c0a24f89e75",
+        "oracleId": "780c9cb2-9d98-4789-87e0-cb81db477204",
+        "firstSet": "mmq",
+        "firstPrintId": "1427a3a1-24e1-4697-b5eb-1c0a24f89e75",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Chorus of Woe",
         "scryfallId": "0289ddb3-b35c-4edf-92bb-06f84a3475d9",
         "oracleId": "e175a3c1-df6c-4aa7-a4c9-893b466ad9e0",
@@ -11483,6 +11493,16 @@
         "firstPrintId": "da57eb54-5199-4a56-95f7-f6ac432876b1",
         "firstPrintSet": "znr",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Crash",
+        "scryfallId": "7a26bde3-8392-4476-b347-f223d52554a6",
+        "oracleId": "562af5da-1080-46d2-8a38-71f06b7e8457",
+        "firstSet": "mmq",
+        "firstPrintId": "7a26bde3-8392-4476-b347-f223d52554a6",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -13595,6 +13615,16 @@
         "firstPrintId": "29cd6685-37ca-47c7-8f64-1fb86e9610ca",
         "firstPrintSet": "mmq",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deepwood Legate",
+        "scryfallId": "54f01925-7fd0-472d-91a4-3309e615f22f",
+        "oracleId": "414eb407-dd39-41d2-bf25-a7a77ff35cb4",
+        "firstSet": "mmq",
+        "firstPrintId": "54f01925-7fd0-472d-91a4-3309e615f22f",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -17867,6 +17897,16 @@
         "firstPrintId": "ea21414e-65f7-4d65-b0dc-7fec7b9b416d",
         "firstPrintSet": "all",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Ensnare",
+        "scryfallId": "055b344a-4eb1-4579-ac50-973b18e12fad",
+        "oracleId": "df197279-ddb2-4237-8bb1-8df41d3bed9e",
+        "firstSet": "nem",
+        "firstPrintId": "055b344a-4eb1-4579-ac50-973b18e12fad",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -32150,6 +32190,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kyren Legate",
+        "scryfallId": "6f0e9806-be8c-4b88-a4be-0111d1be81d9",
+        "oracleId": "41b46aa5-6091-4bc4-8d17-d2c6b5fe1c5e",
+        "firstSet": "mmq",
+        "firstPrintId": "6f0e9806-be8c-4b88-a4be-0111d1be81d9",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Laboratory Brute",
         "scryfallId": "325f228e-46ff-43e2-bc1d-c2d2df443c51",
         "oracleId": "dc92bbee-a445-4927-932b-15985bb93f19",
@@ -35414,6 +35464,16 @@
         "source": "compiled"
     },
     {
+        "name": "Massacre",
+        "scryfallId": "f05f5d93-50d1-4aa6-af05-383a6808345b",
+        "oracleId": "ce1866e9-28de-4bcc-9999-11958e6c13a6",
+        "firstSet": "nem",
+        "firstPrintId": "f05f5d93-50d1-4aa6-af05-383a6808345b",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Massive Raid",
         "scryfallId": "8b16fbd8-fb62-4f75-92b3-a6295d95b327",
         "oracleId": "032367fd-e869-463e-aa0f-65e3c6567e60",
@@ -37064,6 +37124,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mogg Alarm",
+        "scryfallId": "f246e128-0a43-478a-a232-51020fab76d5",
+        "oracleId": "1c2117d5-4600-489c-be5b-dc0ed69b30ca",
+        "firstSet": "nem",
+        "firstPrintId": "f246e128-0a43-478a-a232-51020fab76d5",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Mogg Fanatic",
         "scryfallId": "ca2ecfd4-c874-4468-8601-87aa110d5a00",
         "oracleId": "7efd5d62-6da2-428a-98e3-5b842f668656",
@@ -37097,6 +37167,16 @@
         "firstPrintId": "94e9cc0a-c210-4525-8c7f-9c6306cc21b0",
         "firstPrintSet": "tmp",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Mogg Salvage",
+        "scryfallId": "403aa48c-b684-4c54-8863-460958055a1f",
+        "oracleId": "0923ad85-2ea4-4463-8f71-b7d0a162b486",
+        "firstSet": "nem",
+        "firstPrintId": "403aa48c-b684-4c54-8863-460958055a1f",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -45896,6 +45976,16 @@
         "source": "compiled"
     },
     {
+        "name": "Refreshing Rain",
+        "scryfallId": "c5e24850-bd9b-40ab-878f-b8a554da1956",
+        "oracleId": "c6f69168-71c2-41a2-ab95-cfd7baf0ba68",
+        "firstSet": "nem",
+        "firstPrintId": "c5e24850-bd9b-40ab-878f-b8a554da1956",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Refurbish",
         "scryfallId": "f60e2ac4-f21f-4232-abc8-db078472408b",
         "oracleId": "e4e61fe3-27a4-4149-bdfb-67dcfc8eb32c",
@@ -47962,6 +48052,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rushwood Legate",
+        "scryfallId": "827b9c99-87d7-493c-9dc3-0c6aa4a61b49",
+        "oracleId": "f3623759-bf3a-4846-9ef7-1b732ad4355f",
+        "firstSet": "mmq",
+        "firstPrintId": "827b9c99-87d7-493c-9dc3-0c6aa4a61b49",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Russet Wolves",
         "scryfallId": "b3c7c972-5a11-4709-b3ef-e2acb3b51dd9",
         "oracleId": "e788e9dd-449d-495b-adad-6d49e408b003",
@@ -48681,6 +48781,16 @@
         "firstPrintId": "3ab1e253-47cb-4089-87d5-0f998025d98c",
         "firstPrintSet": "tmp",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Saprazzan Legate",
+        "scryfallId": "db9adf84-ee7e-472b-bd96-9abf853afa83",
+        "oracleId": "d20b62fc-e248-4c84-87ac-7319b92531d4",
+        "firstSet": "mmq",
+        "firstPrintId": "db9adf84-ee7e-472b-bd96-9abf853afa83",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -59598,6 +59708,16 @@
         "firstSet": "ice",
         "firstPrintId": "4fc5d510-c4f7-4a09-bf86-83c3fa3f8928",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Thunderclap",
+        "scryfallId": "b3f8c5ee-2179-4c05-adc9-0b66d02b59ad",
+        "oracleId": "02f5ceb4-8b9c-4107-972b-6eec365c4a6c",
+        "firstSet": "mmq",
+        "firstPrintId": "b3f8c5ee-2179-4c05-adc9-0b66d02b59ad",
+        "firstPrintSet": "mmq",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Thunderhead Squadron",

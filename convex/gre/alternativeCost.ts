@@ -43,6 +43,7 @@ import type {
     Color,
     CostLegs,
     EffectCardFilter,
+    PermanentFilter,
 } from "../cards/types";
 import { matchesPermanentFilter } from "../cards/filters";
 import { cardHasColor, getCardColors } from "../cards/colors";
@@ -323,6 +324,23 @@ export function canPayHandCost(
     return true;
 }
 
+/** Whether `player` controls a permanent matching `filter`, read with live
+ *  colours and supertypes. `casterId` anchors any `controller` clause in the
+ *  filter to the caster, whichever side is being scanned. */
+function controlsMatching(
+    player: PlayerState,
+    casterId: string,
+    filter: PermanentFilter
+): boolean {
+    return player.battlefield.some((c) => {
+        const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
+        return matchesPermanentFilter(view, filter, {
+            selfControllerId: casterId,
+            supertypesOf: liveSupertypesOf,
+        });
+    });
+}
+
 /** Whether an alt cost's cast-availability CONDITION holds (CR 118.9). No
  *  condition means always available. */
 export function alternativeCostConditionMet(
@@ -336,17 +354,29 @@ export function alternativeCostConditionMet(
             return state.activePlayerId === playerId;
         case "not-your-turn":
             return state.activePlayerId !== playerId;
-        case "control": {
-            const player = getPlayer(state, playerId);
-            const filter = condition.filter;
-            return player.battlefield.some((c) => {
-                const view = { ...c, colors: STATIC_EFFECT_CTX.getColors(c) };
-                return matchesPermanentFilter(view, filter, {
-                    selfControllerId: playerId,
-                    supertypesOf: liveSupertypesOf,
-                });
-            });
-        }
+        case "control":
+            return controlsMatching(
+                getPlayer(state, playerId),
+                playerId,
+                condition.filter
+            );
+        // CR 118.9 — "If an opponent controls an Island …" (the Legate
+        // cycle): the same board predicate read on each opponent's side.
+        case "opponent-control":
+            return state.players.some(
+                (p) =>
+                    p.id !== playerId &&
+                    controlsMatching(p, playerId, condition.filter)
+            );
+        // CR 118.9 — two predicates joined by a printed "and" both hold. An
+        // empty conjunction fails closed rather than holding vacuously.
+        case "all":
+            return (
+                condition.of.length > 0 &&
+                condition.of.every((c) =>
+                    alternativeCostConditionMet(state, playerId, c)
+                )
+            );
         // Issue #790 (Once Upon a Time) — "If this spell is the first spell
         // you've cast this game, you may cast it without paying its mana
         // cost." Reads the lifetime per-player tally (never reset, unlike

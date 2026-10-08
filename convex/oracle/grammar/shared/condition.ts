@@ -26,6 +26,7 @@ import {
     ok,
     rule,
     type Rule,
+    type RuleContext,
     type RuleResult,
     subGrammar,
 } from "../../rule";
@@ -203,11 +204,35 @@ export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {
     const opener = "you control ";
     if (!span.startsWith(opener))
         return fail("not a condition this grammar knows", span);
-    const rest = span.slice(opener.length);
+    const filter = singularControlledFilter(
+        span.slice(opener.length),
+        span,
+        ctx
+    );
+    if (!filter.ok) return filter;
+    return ok({
+        kind: "controls" as const,
+        filter: filter.value,
+        atLeast: 1,
+    });
+});
+
+/**
+ * `"a Goblin"` — the object of a controls clause, whoever the controller is:
+ * an article, then a singular descriptor with no controller clause of its own.
+ * The one reading behind {@link controlsRule} and the "an opponent controls"
+ * half of an alternative cost's cast condition (CR 118.9), so the two never
+ * disagree on what a descriptor means.
+ */
+export function singularControlledFilter(
+    rest: string,
+    span: string,
+    ctx: RuleContext
+): RuleResult<PermanentFilter> {
     const article = ARTICLES.find((a) => rest.startsWith(a));
     if (article === undefined)
         return fail(
-            'a "you control" condition counts a singular descriptor',
+            'a "controls" condition counts a singular descriptor',
             span
         );
     const descriptor = descriptorRule.run(rest.slice(article.length), ctx);
@@ -226,12 +251,8 @@ export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {
             `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
             span
         );
-    return ok({
-        kind: "controls" as const,
-        filter: filter.value,
-        atLeast: 1,
-    });
-});
+    return filter;
+}
 
 // ── "if this spell was kicked" (CR 702.33d / 702.33f) ──────────────────────
 

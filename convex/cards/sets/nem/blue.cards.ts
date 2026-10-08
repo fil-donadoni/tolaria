@@ -141,7 +141,7 @@ export const daze = defineCard(() => ({
     targetRequirement: { type: "spell", count: 1 },
     alternativeCosts: [
         {
-            id: "pitch-return-island",
+            id: "return-an-island",
             description: "Return an Island you control to its owner's hand",
             permanent: {
                 action: "return",
