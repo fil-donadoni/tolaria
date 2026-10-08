@@ -22,6 +22,8 @@ file and nothing else.
   Read it when: `land` returns anything but a merge, or prints a warning.
 - → `filing.md` — the band-inheritance procedure for an issue you file by
   hand. Read it when: you are about to run `gh issue create`.
+- → `gap-holes.md` — each hole has an issue, parent, band. Read it when: a
+  gap issue lands.
 - → `hygiene.md` — why each context-hygiene habit below exists, and where
   its measurement lives. Read it when: a habit seems not to fit your case.
 
@@ -198,6 +200,7 @@ says no review.
 - Diff under `convex/cards/sets/` → `bun run seed:preset --all` after the
   merge (idempotent; no deployment → nothing owed).
 - Issue not auto-closed → close it with a one-line comment.
+- **Gap issue**: `gap-holes.md` before the report.
 
 **Done when:** `land` exited 0 with the PR merged, the issue closed, and
 `seed:preset --all` run if owed.
