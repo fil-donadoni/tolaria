@@ -252,6 +252,17 @@ export type CompiledStaticEffect =
           readonly id: string;
           readonly oracleText: string;
       }
+    /**
+     * CR 601.3a / 201.3 — "Spells with the chosen name can't be cast": the
+     * source's `chosenName` (the as-enters `name` choice, CR 614.12a) locks
+     * every spell bearing that name, for every caster. Read-time, like the
+     * hand-written `cast-restriction` it rebuilds into.
+     */
+    | {
+          readonly kind: "cast-restriction";
+          readonly id: string;
+          readonly oracleText: string;
+      }
     /** CR 601.2f — "<spells> cost {N} more/less to cast". */
     | {
           readonly kind: "cost-modifier";
@@ -465,6 +476,17 @@ export function resolveCompiledStatic(
                 side: "blocker",
                 predicate: () => false,
                 oracleText: descriptor.oracleText,
+            };
+        case "cast-restriction":
+            return {
+                kind: "cast-restriction",
+                id: descriptor.id,
+                oracleText: descriptor.oracleText,
+                // CR 709.4a — `hasChosenName`, never a name equality: a split
+                // card has two names (see Meddling Mage's hand-written form).
+                forbids: (_caster, spell, source, _state, ctx) =>
+                    source.chosenName !== undefined &&
+                    ctx.hasChosenName(spell, source.chosenName),
             };
         case "cost-modifier": {
             const spells = descriptor.spells;

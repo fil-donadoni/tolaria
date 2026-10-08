@@ -94,6 +94,11 @@ export interface LoweredStatic {
     };
     /** CR 614.12a / 205.3m — "As this enters, choose a creature type". */
     readonly asEntersCreatureType?: true;
+    /** CR 614.12a / 201.4a — "As this enters, choose a nonland card name". */
+    readonly asEntersNonlandCardName?: true;
+    /** CR 601.3a — the lowered clause reads the card's `chosenName`;
+     *  `lower.ts` checks the card also declares the as-enters choice. */
+    readonly readsChosenName?: true;
     /**
      * CR 614.1c / 702.33e — kicker-counted entry counters, one `"kicker"`
      * entry per printed counter: `entersWith` SUMS same-type entries, and
@@ -317,6 +322,23 @@ export function lowerStaticClause(
             };
         case "as-enters-choose-creature-type":
             return { ok: true, lowered: { asEntersCreatureType: true } };
+        case "as-enters-choose-card-name":
+            return { ok: true, lowered: { asEntersNonlandCardName: true } };
+        case "chosen-name-spells-cant-be-cast":
+            return {
+                ok: true,
+                lowered: {
+                    readsChosenName: true,
+                    effects: [
+                        {
+                            kind: "cast-restriction",
+                            id: nextId("name-lock"),
+                            oracleText:
+                                "Spells with the chosen name can't be cast.",
+                        },
+                    ],
+                },
+            };
         case "kicked-enters-with":
             return lowerKickedRider(clause, kickers, nextId);
         case "does-not-untap":

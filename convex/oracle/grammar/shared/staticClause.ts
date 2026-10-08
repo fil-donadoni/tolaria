@@ -157,6 +157,16 @@ export type StaticClauseIR =
      */
     | { readonly kind: "as-enters-choose-creature-type" }
     /**
+     * CR 614.12a / 201.3 / 201.4a — "As this creature enters, choose a
+     * nonland card name": the name kept on the permanent (`chosenName`) for
+     * the abilities that read "the chosen name".
+     */
+    | { readonly kind: "as-enters-choose-card-name" }
+    /** CR 601.3a — "Spells with the chosen name can't be cast." Reads the
+     *  `chosenName` an `as-enters-choose-card-name` line of the SAME card
+     *  made (checked in `lower.ts`). */
+    | { readonly kind: "chosen-name-spells-cant-be-cast" }
+    /**
      * CR 614.1c / 702.33e — "If this creature was kicked, it enters with N
      * <kind> counters on it" (`per: "kicked"`) and "This creature enters with
      * N <kind> counters on it for each time it was kicked" (`per: "each-kick"`,
@@ -911,6 +921,34 @@ const asEntersChooseCreatureType: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+// ── Frame: as-enters card-name choice (CR 614.12a / 201.3) ─────────────────
+
+const AS_ENTERS_CHOOSE_NONLAND_CARD_NAME =
+    /^As (.+) enters, choose a nonland card name$/;
+
+/**
+ * "As <self> enters, choose a nonland card name" — anchored on the WHOLE
+ * sentence: "a card name" (lands included) or an "other than …" tail is
+ * another form (CR 201.4a restricts the legal names) and refuses here.
+ */
+const asEntersChooseNonlandCardName: Rule<StaticClauseIR> = pattern(
+    "as enters choose a nonland card name",
+    AS_ENTERS_CHOOSE_NONLAND_CARD_NAME,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({ kind: "as-enters-choose-card-name" as const })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
+// ── Frame: the chosen-name cast lock (CR 601.3a) ───────────────────────────
+
+const chosenNameSpellsCantBeCast: Rule<StaticClauseIR> = pattern(
+    "chosen name spells cant be cast",
+    /^Spells with the chosen name can't be cast$/,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "chosen-name-spells-cant-be-cast" as const })
+);
+
 // ── Frame: kicked entry riders (CR 614.1c / 702.33e) ───────────────────────
 
 const KICKED_ENTERS_WITH =
@@ -1496,6 +1534,8 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         entersTappedWithCounters,
         entersWithCounters,
         asEntersChooseCreatureType,
+        asEntersChooseNonlandCardName,
+        chosenNameSpellsCantBeCast,
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
