@@ -322,6 +322,19 @@ export const EVENT_FIELD_REGISTRY: Record<
             resolve: (e) =>
                 e.type === "PERMANENT_LEFT" ? e.ownerId : undefined,
         },
+        // CR 400.7e — "whenever a spell or ability an opponent controls causes
+        // a land to be put into your graveyard from the battlefield, return
+        // THAT CARD to the battlefield" (Sacred Ground). The leaving permanent
+        // is a new object in a graveyard when the trigger resolves, and CR
+        // 400.7e lets a trigger on the zone change find it there; the instance
+        // id survives the move. Same family and reasoning as
+        // `CREATURE_DIED.card`; a departure to any OTHER zone finds the card in
+        // no graveyard and the reading Op skips (CR 608.2b).
+        card: {
+            family: "graveyard-card",
+            resolve: (e) =>
+                e.type === "PERMANENT_LEFT" ? e.instanceId : undefined,
+        },
     },
     // CR 701.17a / issue #3011 — "When this card is put into your graveyard
     // from your library, shuffle your graveyard into your library" (Gaea's
@@ -334,6 +347,33 @@ export const EVENT_FIELD_REGISTRY: Record<
         ownerId: {
             family: "player",
             resolve: (e) => (e.type === "CARD_MILLED" ? e.ownerId : undefined),
+        },
+        // CR 400.7e — "that card": the milled card, now in its owner's
+        // graveyard. Same row `PERMANENT_LEFT.card` carries.
+        card: {
+            family: "graveyard-card",
+            resolve: (e) =>
+                e.type === "CARD_MILLED" ? e.cardInstanceId : undefined,
+        },
+    },
+    // CR 400.7e + CR 701.9 — "that card": the discarded card, now in its
+    // owner's graveyard.
+    CARD_DISCARDED: {
+        card: {
+            family: "graveyard-card",
+            resolve: (e) =>
+                e.type === "CARD_DISCARDED" ? e.cardInstanceId : undefined,
+        },
+    },
+    // CR 400.7e + CR 603.6 — "that card": the card a general zone move put
+    // into a graveyard (Planar Void's "exile that card").
+    CARD_PUT_INTO_GRAVEYARD: {
+        card: {
+            family: "graveyard-card",
+            resolve: (e) =>
+                e.type === "CARD_PUT_INTO_GRAVEYARD"
+                    ? e.cardInstanceId
+                    : undefined,
         },
     },
     // CR 121.1 / 117.3a / issue #1946 — "whenever a player draws a card, THAT

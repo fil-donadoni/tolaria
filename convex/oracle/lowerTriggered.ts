@@ -65,6 +65,29 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "died", scope: head.scope };
         case "leaves":
             return { kind: "left", scope: head.scope };
+        case "left-to-graveyard":
+            return {
+                kind: "left-to-graveyard",
+                scope: head.scope,
+                ...(head.permanentType !== undefined
+                    ? { filter: { types: [head.permanentType] } }
+                    : {}),
+                ...(head.ownedBy !== undefined
+                    ? { ownedBy: head.ownedBy }
+                    : {}),
+                ...(head.causedBy !== undefined
+                    ? { causedBy: head.causedBy }
+                    : {}),
+            };
+        case "graveyard-entry":
+            return {
+                kind: "graveyard-entry",
+                graveyard: head.graveyard,
+                ...(head.excludeSelf === true
+                    ? { excludeSelf: true as const }
+                    : {}),
+                ...(head.colors !== undefined ? { colors: head.colors } : {}),
+            };
         case "attacks":
             // CR 508.3a — `self` is the head as it shipped before the scoped
             // reading existed, and the field is OMITTED there rather than
@@ -145,7 +168,18 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
         ...(head.kind === "damage-dealt" || head.kind === "damage-taken"
             ? { amount: { ref: "$event.amount" } }
             : {}),
-        ...(head.kind === "dies" ? { card: { ref: "$event.card" } } : {}),
+        ...(head.kind === "dies" ||
+        head.kind === "left-to-graveyard" ||
+        head.kind === "graveyard-entry"
+            ? { card: { ref: "$event.card" } }
+            : {}),
+        // CR 404.1 — only a head that pins the card's OWNER to the ability's
+        // controller may put it back onto the battlefield: the engine returns
+        // a card from a graveyard under the controller's control (CR 110.2a),
+        // which is its owner's only here.
+        ...(head.kind === "left-to-graveyard" && head.ownedBy === "you"
+            ? { cardOwnedByController: true as const }
+            : {}),
         // CR 303.4b — "that creature" behind an Aura's host-keyed head is the
         // enchanted creature, whose controller's step the head names.
         ...(head.kind === "phase" && head.scope === "host-controller"

@@ -33,8 +33,10 @@ import { getEffectiveColors } from "./effectiveColors";
 import { matchesPermanentFilter } from "./filters";
 import type { PermanentFilter, SpellFilter } from "./filters";
 import type {
+    Color,
     EffectOp,
     GameEvent,
+    PermanentLeftEvent,
     PermanentView,
     TargetRequirement,
     TriggeredAbility,
@@ -51,7 +53,11 @@ import { damageDealtTrigger } from "./abilities/triggers/damageDealtTrigger";
 import { damageTakenTrigger } from "./abilities/triggers/damageTakenTrigger";
 import { diedTrigger } from "./abilities/triggers/diedTrigger";
 import { enteredTrigger } from "./abilities/triggers/enteredTrigger";
-import { leftTrigger } from "./abilities/triggers/leftTrigger";
+import {
+    causedByOpponent,
+    leftTrigger,
+} from "./abilities/triggers/leftTrigger";
+import { graveyardEntryTrigger } from "./abilities/triggers/graveyardEntryTrigger";
 import { holdsExileBundle } from "./abilities/exileBundle";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
@@ -126,6 +132,35 @@ export type CompiledTriggerHead =
      * own departure to any zone (`leftTrigger`, no `toZone`). Self only.
      */
     | { readonly kind: "left"; readonly scope: "self" }
+    /**
+     * CR 603.6c — "when this Aura is put into a graveyard from the battlefield"
+     * (`toZone` narrows the exit, as `leftTrigger`'s own field does), and its
+     * non-self form "whenever a spell or ability an opponent controls causes a
+     * land to be put into your graveyard from the battlefield" (Sacred
+     * Ground): the permanent's `filter`, the graveyard's OWNER (`ownedBy` —
+     * CR 404.1, which is not its controller: a land you own but an opponent
+     * controls goes to YOUR graveyard) and the departure's cause (`causedBy`,
+     * the `causerControllerId` a resolving spell or ability stamps).
+     */
+    | {
+          readonly kind: "left-to-graveyard";
+          readonly scope: "self" | "any";
+          readonly filter?: PermanentFilter;
+          readonly ownedBy?: "you";
+          readonly causedBy?: "opponent";
+      }
+    /**
+     * CR 603.2 / 603.6c — "whenever [another / a <colour>] card is put into
+     * [a / an opponent's / your] graveyard from anywhere": one ability over the
+     * four events that partition every way a card reaches a graveyard
+     * (`graveyardEntryTrigger`).
+     */
+    | {
+          readonly kind: "graveyard-entry";
+          readonly graveyard: "any" | "yours" | "opponents";
+          readonly excludeSelf?: true;
+          readonly colors?: readonly Color[];
+      }
     /**
      * CR 508.3a — "whenever [this creature / a creature you control] attacks".
      * `scope` absent is the source itself, the only reading before issue #4151
@@ -310,6 +345,53 @@ export function resolveCompiledTrigger(
             });
         case "left":
             return leftTrigger({ ...common, scope: head.scope });
+        case "left-to-graveyard": {
+            // CR 404.1 — the owner of the card, which `PERMANENT_LEFT` carries
+            // as last-known information; the departure's cause is the
+            // `causedByOpponent` helper the hand-written Sacred Ground reads.
+            const { ownedBy, causedBy } = head;
+            const inherited = (
+                gating as {
+                    condition?: (
+                        event: GameEvent,
+                        self: PermanentView,
+                        state?: TriggerStateView
+                    ) => boolean;
+                }
+            ).condition;
+            const gate =
+                ownedBy === undefined && causedBy === undefined
+                    ? {}
+                    : {
+                          condition: (
+                              event: PermanentLeftEvent,
+                              self: PermanentView,
+                              state?: TriggerStateView
+                          ) =>
+                              (ownedBy === undefined ||
+                                  event.ownerId === self.controllerId) &&
+                              (causedBy === undefined ||
+                                  causedByOpponent(event, self)) &&
+                              (inherited === undefined ||
+                                  inherited(event, self, state)),
+                      };
+            return leftTrigger({
+                ...common,
+                ...gate,
+                scope: head.scope,
+                toZone: "graveyard",
+                ...(head.filter !== undefined ? { filter: head.filter } : {}),
+            });
+        }
+        case "graveyard-entry":
+            return graveyardEntryTrigger({
+                ...common,
+                graveyard: head.graveyard,
+                ...(head.excludeSelf === true
+                    ? { excludeSelf: true as const }
+                    : {}),
+                ...(head.colors !== undefined ? { colors: head.colors } : {}),
+            });
         case "attacks":
             // CR 508.3a — the rule is per CREATURE, so a non-self scope fires
             // once per matching declared attacker and names it
