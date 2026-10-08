@@ -474,11 +474,17 @@ export const gloom = defineCard(() => ({
         "White spells cost {3} more to cast.\nActivated abilities of white enchantments cost {3} more to activate.",
     manaCost: { X: 2, B: 1 },
     types: ["Enchantment"],
+    // One effect per Oracle line, the shape the compiler emits; two increases
+    // that never meet the same announcement add nothing to each other.
     staticEffects: [
         {
             kind: "cost-modifier",
             appliesToSpell: (card: PermanentView, ctx: StaticEffectContext) =>
                 ctx.getColors(card).includes("W"),
+            costIncrease: { X: 3 },
+        },
+        {
+            kind: "cost-modifier",
             appliesToAbility: (
                 source: PermanentView,
                 ctx: StaticEffectContext

@@ -10,6 +10,12 @@
  *   "<plural descriptor> get +N/+N"                 → layer 7c `pt-buff`
  *   "<plural descriptor> have <keyword>"            → layer 6 `keyword-grant`
  *   "<spells> cost {N} more/less to cast"           → CR 601.2f `cost-modifier`
+ *   "Each spell costs {N} more to cast except during its controller's turn"
+ *                                                   → the same, turn-gated
+ *   "Activated abilities of <permanents> cost {N} more to activate"
+ *                                                   → CR 602.2b `cost-modifier`
+ *   "Creatures can't attack you unless their controller pays {N} for each
+ *    creature they control that's attacking you"   → CR 508.1d `attack-mana-tax`
  *   "<self> enters tapped[ with N <kind> counters on it]"
  *                                                   → CR 614.1c entry riders
  *   "If <self> was kicked, it enters with N <kind> counters on it",
@@ -127,12 +133,29 @@ export type StaticClauseIR =
           readonly filter: PermanentFilter;
           readonly keyword: KeywordIR;
       }
-    /** CR 601.2f — a cost modifier on a class of spells. */
-    | {
+    /** CR 601.2f — a cost modifier on a class of spells, or (CR 602.2b) on
+     *  the activated abilities of a class of permanents. */
+    | ({
           readonly kind: "cost-modifier";
-          readonly spells: CompiledSpellFilter;
           readonly direction: "more" | "less";
           readonly amount: number;
+          /** CR 601.2f — "except during its controller's turn". */
+          readonly onlyOutsideAnnouncersTurn?: true;
+      } & (
+          | {
+                readonly spells: CompiledSpellFilter;
+                readonly abilities?: never;
+            }
+          | {
+                readonly abilities: PermanentFilter;
+                readonly spells?: never;
+            }
+      ))
+    /** CR 508.1d / 508.1h — a per-attacker mana cost to attack you. */
+    | {
+          readonly kind: "attack-mana-tax";
+          readonly attackers: PermanentFilter;
+          readonly perAttacker: number;
       }
     /** CR 601.3 / 118.9 — a board permission to cast a CLASS of spells. */
     | {
@@ -560,17 +583,33 @@ function readSpellFilter(span: string): RuleResult<CompiledSpellFilter> {
     if (!classes.ok) return classes;
     if (classes.value.length === 0) return ok(withController({}));
     // CR 601.2f — `CompiledSpellFilter` ANDs its fields and has no clause
-    // list, so a UNION of two classes has no encoding here. Refused by name
-    // rather than mis-lowered to whichever half came first.
-    if (classes.value.length > 1)
-        return fail(
-            `a cost modifier over a UNION of spell classes is not expressible (CR 601.2f)`,
-            span
-        );
+    // list, so a UNION of two classes has no general encoding here. The one
+    // union it CAN say is a union of bare card types ("Artifact and
+    // enchantment spells"), because `types` is itself read as any-of
+    // (`spellMatches`). Every other union is refused by name rather than
+    // mis-lowered to whichever half came first.
+    if (classes.value.length > 1) {
+        const types = classes.value.map(bareCardType);
+        if (types.some((t) => t === undefined))
+            return fail(
+                `a cost modifier over a UNION of spell classes is not expressible (CR 601.2f)`,
+                span
+            );
+        return ok(withController({ types: types as CardType[] }));
+    }
     const value = classes.value[0]!;
     for (const [field, present] of Object.entries(value)) {
         if (present === undefined) continue;
-        if (["types", "subtypes", "colors", "card", "plural"].includes(field))
+        if (
+            [
+                "types",
+                "subtypes",
+                "colors",
+                "excludeTypes",
+                "card",
+                "plural",
+            ].includes(field)
+        )
             continue;
         return fail(
             `"${field}" is not expressible as a spell filter (CR 601.2f)`,
@@ -583,10 +622,22 @@ function readSpellFilter(span: string): RuleResult<CompiledSpellFilter> {
             ? { subtypes: [...value.subtypes] }
             : {}),
         ...(value.colors !== undefined ? { colors: [...value.colors] } : {}),
+        ...(value.excludeTypes !== undefined
+            ? { excludeTypes: [...value.excludeTypes] }
+            : {}),
     };
     if (Object.keys(filter).length === 0)
         return fail("spell filter matches everything", span);
     return ok(withController(filter));
+}
+
+/** The ONE card type a class names when it names nothing else ("artifact"). */
+function bareCardType(value: DescriptorIR): CardType | undefined {
+    for (const [field, present] of Object.entries(value)) {
+        if (present === undefined) continue;
+        if (!["types", "card", "plural"].includes(field)) return undefined;
+    }
+    return value.types?.length === 1 ? value.types[0] : undefined;
 }
 
 export const costModifierRule: Rule<StaticClauseIR> = pattern(
@@ -602,6 +653,71 @@ export const costModifierRule: Rule<StaticClauseIR> = pattern(
             amount: Number(match[2]),
         });
     }
+);
+
+/**
+ * CR 601.2f — "Each spell costs {N} more to cast except during its
+ * controller's turn" (Defense Grid). A spell's controller is its caster
+ * (CR 601.2a), so the gate is "the caster is not the active player". Only the
+ * gated tax is read: no printed card says the bare "Each spell costs …".
+ */
+export const offTurnCostModifierRule: Rule<StaticClauseIR> = pattern(
+    "off-turn cost modifier",
+    /^Each spell costs \{(\d+)\} more to cast except during its controller's turn$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "cost-modifier" as const,
+            spells: {},
+            direction: "more" as const,
+            amount: Number(match[1]),
+            onlyOutsideAnnouncersTurn: true as const,
+        })
+);
+
+/**
+ * CR 602.2b — "Activated abilities of <permanents> cost {N} more to activate"
+ * (Gloom). Activating an ability follows 601.2b–i, so 601.2f's cost increase
+ * applies to its activation cost. The subject is a plural permanent class,
+ * read by the same `readSubject` an anthem uses. Only "more" is read: every
+ * printed "less" form either names a non-battlefield source ("creature cards
+ * in your graveyard") or carries a floor sentence this frame has no reading
+ * for, and the bare ones have no fixture.
+ */
+export const abilityCostModifierRule: Rule<StaticClauseIR> = pattern(
+    "activated ability cost modifier",
+    /^Activated abilities of (.+) cost \{(\d+)\} more to activate$/,
+    (match): RuleResult<StaticClauseIR> => {
+        const sources = readSubject(match[1]!, "materialised");
+        if (!sources.ok) return sources;
+        return ok({
+            kind: "cost-modifier" as const,
+            abilities: sources.value,
+            direction: "more" as const,
+            amount: Number(match[2]),
+        });
+    }
+);
+
+// ── Frame: attack tax (CR 508.1d / 508.1h) ─────────────────────────────────
+
+/**
+ * CR 508.1d / 508.1h — "Creatures can't attack you unless their controller
+ * pays {N} for each creature they control that's attacking you" (Ghostly
+ * Prison, Propaganda, Windborn Muse). A cost to attack, determined and paid
+ * as attackers are declared. Only the bare "Creatures" subject is read: it is
+ * the one every fixtured card prints, and the one qualified subject in the
+ * corpus ("Nonblack creatures", Elephant Grass) needs a negated colour
+ * `PermanentFilter` cannot carry.
+ */
+export const attackManaTaxRule: Rule<StaticClauseIR> = pattern(
+    "attack mana tax",
+    /^Creatures can't attack you unless their controller pays \{(\d+)\} for each creature they control that's attacking you$/,
+    (match): RuleResult<StaticClauseIR> =>
+        ok({
+            kind: "attack-mana-tax" as const,
+            attackers: { types: ["Creature"] },
+            perAttacker: Number(match[1]),
+        })
 );
 
 // ── Frame: board cast permission (CR 601.3 / 118.9) ────────────────────────
@@ -1552,6 +1668,9 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         anthemRule,
         keywordGrantRule,
         costModifierRule,
+        offTurnCostModifierRule,
+        abilityCostModifierRule,
+        attackManaTaxRule,
         castPermissionRule,
         entersTappedPlain,
         entersTappedWithCounters,
