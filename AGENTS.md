@@ -243,7 +243,7 @@ Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
   asserts → `*.perf.test.ts` (`test:perf`, 4th suite, never gated, #3123).
 - **Cover `src/` changes with targeted runs** (dom project outside light gate).
 - **No CI: local gates are the only gates.** Full gate **per batch**
-  (`health:main`, detached by `land` at 5th landing since GREEN or 2 h after
+  (`health:main`, detached by `land` at 10th landing since GREEN or 4 h after
   first un-healthed, ADR 0136 §6) and at release (by hand `bun run health`).
 - **CPU admission** (`scripts/gate.ts`, shared machine): **heavy** =
   `bun run test`, `test:app`, `test:bot`, `check:all` → machine-wide mutex,

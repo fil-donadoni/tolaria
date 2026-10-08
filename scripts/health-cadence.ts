@@ -4,8 +4,8 @@
  *
  * `land` pays the LANE gate, on the rebased tip, inside the mutex. The FULL
  * gate — `health-main.ts` — runs per BATCH of landings instead of per release
- * (ADR 0116) or per landing (ADR 0110): after the 5th landing since the last
- * GREEN, or 2 h after the first un-healthed one, whichever comes first.
+ * (ADR 0116) or per landing (ADR 0110): after the 10th landing since the last
+ * GREEN, or 4 h after the first un-healthed one, whichever comes first.
  *
  * Subcommands; `land`'s locked command calls `record` and `spawn`, and both are
  * non-gating there (a merged PR never fails on health bookkeeping):

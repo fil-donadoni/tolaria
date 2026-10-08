@@ -5,6 +5,7 @@ import * as http from "http";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
+import { LANDINGS_PER_BATCH } from "../lib/health-cadence";
 import {
     PREFLIGHT_CONVEX_STEP,
     UI_WALK_FILE,
@@ -133,14 +134,14 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
         path.join(primary, ".claude", "telemetry", "green-sha"),
         `${baseSha}\n`
     );
-    // Five landings: the batch fires.
+    // A full batch of landings: the batch fires.
     const now = Date.now();
     fs.writeFileSync(
         path.join(health, "cadence.json"),
         JSON.stringify({
-            landings: Array.from({ length: 5 }, (_, i) => ({
+            landings: Array.from({ length: LANDINGS_PER_BATCH }, (_, i) => ({
                 sha: tip,
-                at: now - (5 - i) * 1000,
+                at: now - (LANDINGS_PER_BATCH - i) * 1000,
             })),
             lastGreenSha: null,
             lastFiredSha: null,
