@@ -810,6 +810,30 @@ export class TargetSlots {
         return lowered(true);
     }
 
+    /**
+     * CR 702.33g + CR 115.2 — a kicker gate that REPLACES the spell target's
+     * mana-value limit ("counter that spell if its mana value is 4 or less
+     * instead"). The kicked announcement is the base requirement with the new
+     * limit, swapped in at cast (`kickedTargetRequirement`); the width is the
+     * same either way, so no positional slot moves. Refused unless the base is
+     * the one group, a spell target already carrying a limit to replace.
+     */
+    swapKickedMvLimit(mvMax: number): Lowered<true> {
+        const base = this.groups[0];
+        if (
+            this.kicked !== undefined ||
+            this.groups.length !== 1 ||
+            base === undefined ||
+            base.type !== "spell" ||
+            base.mvFilter?.max === undefined
+        )
+            return unlowerable(
+                "a kicked mana-value limit replaces the limit of the one spell target (CR 702.33g)"
+            );
+        this.kicked = { ...base, mvFilter: { max: mvMax } };
+        return lowered(true);
+    }
+
     /** CR 702.33g — the swapped-in announcement, if a gate folded one. */
     kickedRequirement(): TargetRequirement | undefined {
         return this.kicked;
@@ -1765,7 +1789,22 @@ function lowerSentenceBody(
         case "counter": {
             const target = spellSelector(sentence.subject, slots);
             if (!target.ok) return target;
-            const counter: EffectOp = { op: "counter", target: target.value };
+            const counter: Extract<EffectOp, { op: "counter" }> = {
+                op: "counter",
+                target: target.value,
+            };
+            // CR 701.6a + CR 113.7a — the rider "destroy that permanent" acts on
+            // the SOURCE of a countered ability: the counter binds it, a plain
+            // `destroy` reads the binding, and a countered spell binds nothing
+            // (so the destroy skips, CR 608.2b) — the oracle's own condition.
+            if (sentence.destroysCounteredSource === true) {
+                const source = walk.nextBind("source");
+                counter.bindSource = source;
+                return lowered([
+                    counter,
+                    { op: "destroy", target: { ref: source } },
+                ]);
+            }
             if (sentence.unlessPays === undefined) return lowered([counter]);
             // CR 118.12a — "[counter] unless [its controller pays]" MEANS
             // "its controller may pay; if they don't, counter it", which is
@@ -1776,23 +1815,34 @@ function lowerSentenceBody(
             // from a runtime tally (`genericEqualTo`), never a base cost with
             // a reduction, which has nothing to subtract from.
             const bind = walk.nextBind("may");
+            // CR 118.12a — the taxed player is the spell's controller.
+            const taxed = { controllerOf: target.value };
+            const payment: Extract<EffectOp, { op: "mayPay" }> =
+                sentence.unlessPays.kind === "flat"
+                    ? {
+                          op: "mayPay",
+                          player: taxed,
+                          // A flat tax is a plain generic `ManaCost`.
+                          cost: { X: sentence.unlessPays.amount },
+                          prompt: `Pay {${sentence.unlessPays.amount}} to prevent your spell from being countered?`,
+                          bind,
+                      }
+                    : {
+                          op: "mayPay",
+                          player: taxed,
+                          // CR 109.5 — "lands YOU control" is the EFFECT's
+                          // controller, never the taxed player; `times` is
+                          // absent because the printed price is {1} per land
+                          // type and the grammar reads no other
+                          // (`COUNTER_DOMAIN_TAX`).
+                          cost: {
+                              genericEqualTo: { domain: { of: "controller" } },
+                          },
+                          prompt: `Pay {1} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
+                          bind,
+                      };
             return lowered([
-                {
-                    op: "mayPay",
-                    // CR 118.12a — the taxed player is the spell's controller.
-                    player: {
-                        controllerOf: target.value,
-                    },
-                    // CR 109.5 — "lands YOU control" is the EFFECT's
-                    // controller, never the taxed player; `times` is absent
-                    // because the printed price is {1} per land type and the
-                    // grammar reads no other (`COUNTER_DOMAIN_TAX`).
-                    cost: {
-                        genericEqualTo: { domain: { of: "controller" } },
-                    },
-                    prompt: `Pay {1} for each basic land type among lands ${site.selfName}'s controller controls to prevent your spell from being countered?`,
-                    bind,
-                },
+                payment,
                 {
                     op: "if",
                     predicate: { not: { binding: bind } },
@@ -1800,6 +1850,10 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "counter-limit-instead":
+            return unlowerable(
+                'a counter limit "instead" is a kicker gate\'s replacement (CR 702.33g)'
+            );
         case "tap-untap": {
             if (sentence.subject.kind === "mass") {
                 const action = sentence.action;
@@ -2595,6 +2649,17 @@ function lowerSentenceBody(
             ]);
         }
         case "kicked": {
+            // CR 702.33g — a kicked limit swap emits no Op: the announcement
+            // itself is swapped, and the counter in front runs unchanged.
+            if (sentence.effect.kind === "counter-limit-instead") {
+                const left = kickedValue(sentence.kicked, site.kickers ?? []);
+                if (!left.ok) return left;
+                const swapped = walk.targets.swapKickedMvLimit(
+                    sentence.effect.mvMax
+                );
+                if (!swapped.ok) return swapped;
+                return lowered([]);
+            }
             // CR 702.33g — a target inside the gate is chosen only if the
             // spell was kicked; a card-level `targetRequirement` would demand
             // it on every cast, so the announcement either SWAPS a wider one

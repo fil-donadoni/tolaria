@@ -1261,6 +1261,85 @@ export function opensTargetPhrase(span: string): boolean {
     return false;
 }
 
+/**
+ * CR 105.1 — the colour words a narrowed stack phrase is read for. A closed
+ * subset of {@link COLOR_WORDS}: only the colours a printed counter or blast
+ * names ("blue", "red", "black") have a fixture, and a colour this table lacks
+ * is refused under its own gap key rather than read by analogy.
+ */
+const STACK_COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
+    ["blue", "U"],
+    ["red", "R"],
+    ["black", "B"],
+]);
+
+/** CR 115.2 — "target <colour> spell": a spell of that colour on the stack. */
+const STACK_COLOR_SPELL = /^target (blue|red|black) spell$/;
+/**
+ * CR 115.2 — "target spell if it's <colour>": the conditional spelling of the
+ * same colour restriction (the Blast cycle). Pyroblast and Hydroblast print
+ * it; the colours are the two the cycle names.
+ */
+const STACK_SPELL_IF_COLOR = /^target spell if it's (blue|red)$/;
+/** CR 115.2 — the permanent half of the Blast cycle's conditional spelling. */
+const PERMANENT_IF_COLOR = /^target permanent if it's (blue|red)$/;
+/** CR 202.3 + CR 115.2 — "target spell if its mana value is N or less". */
+const STACK_SPELL_MV_AT_MOST =
+    /^target spell if its mana value is (\d+) or less$/;
+
+/**
+ * CR 115.2 + CR 113.3 + CR 702.21a — the narrowed stack-object phrases, read by
+ * exact spelling for the reason the bare "target spell" is: every facet lives
+ * beside `type: "spell"` on the requirement (`colorFilter`, `spellTypeFilter`,
+ * `mvFilter`, `spellStackKind`, …), not in a descriptor whose adjectives would
+ * be dropped silently. `null` = not a narrowed stack phrase.
+ */
+function narrowedStackRequirement(span: string): TargetRequirement | null {
+    if (span === "target artifact or enchantment spell")
+        return {
+            type: "spell",
+            count: 1,
+            spellTypeFilter: ["Artifact", "Enchantment"],
+        } as TargetRequirement;
+    // CR 113.3 — an activated or triggered ability on the stack (mana
+    // abilities never use the stack, CR 605.3a, so none is targetable).
+    if (span === "target activated or triggered ability")
+        return {
+            type: "spell",
+            count: 1,
+            spellStackKind: "ability",
+        } as TargetRequirement;
+    // CR 114.1 — a spell OR ability an opponent controls that targets a land
+    // you control (Teferi's Response).
+    if (
+        span ===
+        "target spell or ability an opponent controls that targets a land you control"
+    )
+        return {
+            type: "spell",
+            count: 1,
+            controller: "opponent",
+            spellStackKind: "any",
+            spellTargetsPermanentFilter: { types: "Land", controller: "you" },
+        } as TargetRequirement;
+    const colour =
+        span.match(STACK_COLOR_SPELL) ?? span.match(STACK_SPELL_IF_COLOR);
+    if (colour !== null)
+        return {
+            type: "spell",
+            count: 1,
+            colorFilter: STACK_COLOR_WORDS.get(colour[1]!)!,
+        } as TargetRequirement;
+    const value = span.match(STACK_SPELL_MV_AT_MOST);
+    if (value !== null)
+        return {
+            type: "spell",
+            count: 1,
+            mvFilter: { max: Number(value[1]) },
+        } as TargetRequirement;
+    return null;
+}
+
 export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
     TARGET_FILTER,
     rule(TARGET_FILTER, (span, ctx) => {
@@ -1295,6 +1374,22 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
                 type: "spell-or-permanent",
                 count: 1,
             } as TargetRequirement);
+        // CR 115.2 + CR 701.6a — a stack object NARROWED beyond the lace
+        // phrases above: by colour, card type, mana value or object kind.
+        const narrowed = narrowedStackRequirement(span);
+        if (narrowed !== null) return ok(narrowed);
+        // CR 115.2 + CR 105.1 — "target permanent if it's <colour>": the
+        // Blast cycle's conditional spelling of "target <colour> permanent",
+        // read AS that descriptor so both spellings yield one requirement.
+        const permanentIfColor = span.match(PERMANENT_IF_COLOR);
+        if (permanentIfColor !== null) {
+            const descriptor = descriptorRule.run(
+                `${permanentIfColor[1]} permanent`,
+                ctx
+            );
+            if (!descriptor.ok) return descriptor;
+            return targetRequirementFromDescriptor(descriptor.value);
+        }
         for (const [head, count] of OPTIONAL_COUNT_HEADS) {
             if (!span.startsWith(head)) continue;
             const descriptor = descriptorRule.run(span.slice(head.length), ctx);
