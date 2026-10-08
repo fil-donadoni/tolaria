@@ -130,6 +130,41 @@ export const conditionRule: Rule<TriggerConditionIR> = subGrammar(
     (span) => /^if /i.test(span)
 );
 
+/**
+ * CR 611.3a — "there are seven or more cards in your graveyard": a count over
+ * the controller's graveyard (CR 404.1), the Threshold condition (CR 207.2c
+ * names Threshold an ability word, so the word itself carries no rule).
+ */
+export type GraveyardCountIR = {
+    readonly kind: "graveyard-count";
+    readonly atLeast: number;
+};
+
+/** The conditions a static's "as long as" clause reads (CR 611.3a). */
+export type StaticConditionIR = ConditionIR | GraveyardCountIR;
+
+const GRAVEYARD_COUNT = /^there are (\S+) or more cards in your graveyard$/;
+
+/**
+ * `"there are seven or more cards in your graveyard"` — a number word from
+ * one up; "one or more" is not how the corpus prints a threshold, and a
+ * numeral is a form nobody prints.
+ */
+export const graveyardCountRule: Rule<GraveyardCountIR> = rule(
+    "graveyard count",
+    (span) => {
+        const match = span.match(GRAVEYARD_COUNT);
+        if (match === null)
+            return fail("not a graveyard-count condition", span);
+        const atLeast = /^[a-z]+$/.test(match[1]!)
+            ? readNumberWord(match[1]!)
+            : null;
+        if (atLeast === null || atLeast < 2)
+            return fail(`"${match[1]}" is not a card-count threshold`, span);
+        return ok({ kind: "graveyard-count" as const, atLeast });
+    }
+);
+
 /** CR 113.6k — the source named in the graveyard its controller owns. */
 const SELF_IN_GRAVEYARD = /^(.+) is in your graveyard$/;
 
