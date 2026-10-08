@@ -1474,6 +1474,51 @@ describe("walker — structural constructs (PRD #1423)", () => {
     });
 });
 
+describe("counter bindSource rider (CR 701.6a / 113.7a, issue #5044)", () => {
+    // Teferi's Response's shape: a counter that binds the countered ability's
+    // source, a destroy of that binding, and an unconditional draw. The
+    // binding is written only when the countered object is a permanent's
+    // ability, so a card in hand cannot promise the destroy.
+    const counterOp: EffectOp = {
+        op: "counter",
+        target: { target: "spell" },
+        bindSource: "$source",
+    } as unknown as EffectOp;
+    const destroyBound: EffectOp = {
+        op: "destroy",
+        target: { ref: "$source" },
+    } as unknown as EffectOp;
+    const destroyUnbound: EffectOp = {
+        op: "destroy",
+        target: { ref: "$other" },
+    } as unknown as EffectOp;
+
+    it("halves a destroy that reads the bound source", () => {
+        const full = valueOp(destroyBound, cf).points;
+        const walked = valueEffectScript([counterOp, destroyBound], cf).points;
+        const counterAlone = valueOp(counterOp, cf).points;
+        expect(walked).toBeCloseTo(counterAlone + full / 2, 9);
+    });
+
+    it("leaves a destroy on any other binding at full price", () => {
+        const walked = valueEffectScript(
+            [counterOp, destroyUnbound],
+            cf
+        ).points;
+        const counterAlone = valueOp(counterOp, cf).points;
+        expect(walked).toBeCloseTo(
+            counterAlone + valueOp(destroyUnbound, cf).points,
+            9
+        );
+    });
+
+    it("leaves the same destroy at full price when no counter binds the name", () => {
+        expect(valueEffectScript([destroyBound], cf).points).toBe(
+            valueOp(destroyBound, cf).points
+        );
+    });
+});
+
 describe("dispatch-table invariants", () => {
     it("every charter Op has a valuer and no structural construct does", () => {
         for (const s of STRUCTURAL_CONSTRUCTS) {
