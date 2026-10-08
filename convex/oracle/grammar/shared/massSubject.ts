@@ -79,6 +79,11 @@ export interface MassSubjectIR {
      * the slot does not exist until the sentence walk assigns it.
      */
     readonly targetPlayerControls?: true;
+    /**
+     * CR 115.1 + CR 109.5 — "creatures TARGET OPPONENT controls": the same
+     * allocation as {@link targetPlayerControls}, narrowed to an opponent.
+     */
+    readonly targetOpponentControls?: true;
 }
 
 /** " with mana value X or less" — the one bound this sub-grammar reads. */
@@ -138,6 +143,7 @@ function sweepSelector(
                 "excludeTypes",
                 "controller",
                 "plural",
+                "colors",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -178,6 +184,17 @@ function sweepSelector(
             reason: "a sweep of the opponent's permanents is not in this grammar",
             fragment: "controller",
         };
+    // CR 105.1 — "green creatures": ONE colour word is the filter's `color`
+    // 1:1. Stacked colour adjectives ("white black creatures") would be an
+    // intersection and a colour OR-list a union; neither is a form this
+    // sub-grammar has a fixture for, so more than one colour refuses by name
+    // rather than guess which the sentence means.
+    if ((descriptor.colors?.length ?? 0) > 1)
+        return {
+            ok: false,
+            reason: "several colours on a sweep are an ambiguous union/intersection",
+            fragment: "colors",
+        };
     // "permanent" names every permanent type (CR 110.1), so a union that
     // covers them all constrains nothing — omitting it is what a hand-written
     // "destroy all nonland permanents" writes, and it is one clause fewer for
@@ -197,6 +214,7 @@ function sweepSelector(
     if (excluded !== undefined)
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
+    if (descriptor.colors !== undefined) filter.color = descriptor.colors[0]!;
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
@@ -269,31 +287,49 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
     rule(MASS_SUBJECT, readMassSubject(false))
 );
 
+/** " target opponent controls" — the announced-opponent controller qualifier. */
+const TARGET_OPPONENT_CONTROLS = / target opponent controls$/;
+
 /**
- * CR 702.9a + CR 120.3 — "each creature without flying": a creature sweep
- * narrowed by ONE keyword exclusion, the recipient of a damage sweep
- * (Earthquake's shape). A sibling of {@link massSubjectRule}, not a widening
- * of it: the general rule keeps refusing "without <keyword>" for every other
- * verb (a destroy or pump sweep has no fixture for it), and this one refuses
- * every sweep that carries no keyword exclusion, so "each creature" alone
- * stays a form nobody has shown this grammar.
+ * CR 120.3 — the creature sweep a DAMAGE verb names as its recipient:
+ * "each creature" (Pyroclasm), "each creature without <keyword>" (Earthquake,
+ * CR 702.9a) or "each creature target opponent controls" (Simoon, CR 109.5).
+ * A sibling of {@link massSubjectRule}, not a widening of it: the general rule
+ * keeps refusing a bare "each creature", a keyword exclusion and an opponent's
+ * battlefield for every other verb (a destroy or pump sweep has no fixture for
+ * them), and this one reads only the "each creature" opening, so "each
+ * artifact" or "all creatures" stay forms nobody has shown this grammar.
+ *
+ * The announced opponent is the lowering's to allocate (like
+ * `targetPlayerControls`): the selector built here carries no controller, and
+ * the keyword exclusion and the opponent qualifier are mutually exclusive —
+ * no card prints both.
  */
-export const keywordExcludedSweepRule: Rule<MassSubjectIR> = subGrammar(
+export const creatureSweepRecipientRule: Rule<MassSubjectIR> = subGrammar(
     MASS_SUBJECT,
     rule(MASS_SUBJECT, (span, ctx) => {
-        const mass = readMassSubject(true)(span, ctx);
+        const targeted = TARGET_OPPONENT_CONTROLS.test(span);
+        const head = targeted
+            ? span.replace(TARGET_OPPONENT_CONTROLS, "")
+            : span;
+        const mass = readMassSubject(true)(head, ctx);
         if (!mass.ok) return mass;
         const filter = mass.value.select.filter;
-        if (
-            filter?.excludeAbility === undefined ||
-            filter.type !== "Creature" ||
-            !span.startsWith("each ")
-        )
+        const bareCreature =
+            head === "each creature" &&
+            filter?.type === "Creature" &&
+            Object.keys(filter).length === 1;
+        const keywordExcluded =
+            filter?.excludeAbility !== undefined &&
+            filter.type === "Creature" &&
+            !targeted;
+        if (!head.startsWith("each ") || !(bareCreature || keywordExcluded))
             return fail(
-                'a keyword-excluded sweep is "each creature without <keyword>"',
+                'a damage sweep is "each creature", "each creature without <keyword>" or "each creature target opponent controls"',
                 span
             );
-        return mass;
+        if (!targeted) return mass;
+        return ok({ ...mass.value, targetOpponentControls: true as const });
     })
 );
 

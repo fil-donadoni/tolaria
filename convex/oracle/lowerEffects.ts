@@ -38,6 +38,7 @@ import {
 import { PROTECTION_QUALITY_NAMES } from "../cards/abilities";
 import { landTypeChangeEffects } from "../cards/abilities/chooseLandType";
 import type { KickedRefIR } from "./grammar/shared/condition";
+import type { PermanentSweepSelector } from "./grammar/shared/massSubject";
 import { durationSpec } from "./grammar/shared/duration";
 import {
     capitalise,
@@ -463,8 +464,17 @@ function sweepOps(
     // an announced player's, so the slot is allocated here, in sentence order,
     // and written onto the selector as its controller.
     let subject = mass;
-    if (mass.targetPlayerControls === true) {
-        const index = slots.allocate({ type: "player", count: 1 });
+    if (
+        mass.targetPlayerControls === true ||
+        mass.targetOpponentControls === true
+    ) {
+        // CR 115.1 + CR 102.2 — "target opponent" is a player slot the
+        // opponent restriction narrows (`controller: "opponent"`).
+        const index = slots.allocate(
+            mass.targetOpponentControls === true
+                ? { type: "player", count: 1, controller: "opponent" }
+                : { type: "player", count: 1 }
+        );
         if (!index.ok) return index;
         subject = {
             ...mass,
@@ -508,12 +518,15 @@ function sweepOps(
  */
 function eachCreatureAndPlayerOps(
     toCreature: (target: EffectObjectSelector) => EffectOp,
-    toPlayer: (player: EffectPlayerRef) => EffectOp
+    toPlayer: (player: EffectPlayerRef) => EffectOp,
+    creatures?: PermanentSweepSelector
 ): EffectOp[] {
     return [
         {
             op: "forEach",
-            select: {
+            // CR 702.9a — the creature half may be narrowed ("each creature
+            // without flying and each player").
+            select: creatures ?? {
                 set: "permanents",
                 zone: "battlefield",
                 filter: { type: "Creature" },
@@ -1609,7 +1622,8 @@ function lowerSentenceBody(
                             op: "dealDamage",
                             amount: amount.value,
                             to: { player },
-                        })
+                        }),
+                        sentence.to.creatures
                     )
                 );
             // CR 120.3 + CR 702.9a — "to each creature without flying": one sweep.

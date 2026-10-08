@@ -66,9 +66,10 @@ import {
 } from "./condition";
 import {
     controlledPluralRule,
-    keywordExcludedSweepRule,
+    creatureSweepRecipientRule,
     massSubjectRule,
     type MassSubjectIR,
+    type PermanentSweepSelector,
 } from "./massSubject";
 import {
     COLOR_WORDS,
@@ -99,6 +100,8 @@ const ANOTHER_HEAD = "another target ";
 
 /** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+/** CR 120.3 — the player half of a creature sweep that is not the exact phrase. */
+const AND_EACH_PLAYER = " and each player";
 
 /**
  * CR 107.3 — an effect's MAGNITUDE: a printed number, or the announced {X}.
@@ -334,7 +337,16 @@ export type SubjectIR =
      * pair of `forEach` sweeps, one per set, because neither Op's `to` field
      * names more than one recipient.
      */
-    | { readonly kind: "each-creature-and-player" };
+    | {
+          readonly kind: "each-creature-and-player";
+          /**
+           * CR 120.3 + CR 702.9a — the creature half, when it is NARROWED
+           * ("each creature without flying and each player", Earthquake).
+           * Absent for the exact phrase "each creature and each player",
+           * whose creature half is every creature.
+           */
+          readonly creatures?: PermanentSweepSelector;
+      };
 
 /**
  * CR 608.2c — "there are N or more cards in your graveyard": a count of the
@@ -2408,6 +2420,29 @@ function groupSubject(span: string, ctx: unknown): RuleResult<SubjectIR> {
         : mass;
 }
 
+/**
+ * CR 120.3 — a damage recipient read by `creatureSweepRecipientRule`: the sweep
+ * alone, or (`withPlayers`) the sweep PLUS every player, the two-set union
+ * Earthquake prints. The union carries the narrowed creature half; an
+ * announced opponent or a mana-value bound has no place in it.
+ */
+function sweepRecipient(
+    mass: MassSubjectIR,
+    withPlayers: boolean
+): RuleResult<SubjectIR> {
+    if (!withPlayers)
+        return ok({ kind: "mass" as const, ...mass } as SubjectIR);
+    if (mass.targetOpponentControls === true || mass.manaValueAtMostX)
+        return fail(
+            "a creature sweep joined to every player names no announced opponent or bound",
+            "each player"
+        );
+    return ok({
+        kind: "each-creature-and-player" as const,
+        creatures: mass.select,
+    });
+}
+
 /** Lowercase a sentence-initial capital, leaving the rest of the span alone. */
 export function uncapitalise(span: string): string {
     return span.length === 0 ? span : span[0]!.toLowerCase() + span.slice(1);
@@ -4257,12 +4292,24 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
-        // CR 702.9a + CR 120.3 — "to each creature without flying": a creature
-        // sweep with one keyword exclusion, the damage recipient Earthquake
-        // prints. Tried by its own rule so the general sweep grammar keeps
-        // refusing "without <keyword>" for every other verb.
-        const sweep = damage[3]!.startsWith("each ")
-            ? keywordExcludedSweepRule.run(damage[3]!, ctx)
+        // CR 120.3 + CR 702.9a — "to each creature", "to each creature without
+        // flying", "to each creature target opponent controls": a creature
+        // sweep as the damage recipient. Tried by its own rule so the general
+        // sweep grammar keeps refusing a bare "each creature" and "without
+        // <keyword>" for every other verb. The creature half may be followed
+        // by " and each player" (Earthquake) — the exact phrase "each creature
+        // and each player" is `subjectRule`'s, not read here.
+        const recipient = damage[3]!;
+        const withPlayers =
+            recipient !== EACH_CREATURE_AND_EACH_PLAYER &&
+            recipient.endsWith(AND_EACH_PLAYER);
+        const sweep = recipient.startsWith("each ")
+            ? creatureSweepRecipientRule.run(
+                  withPlayers
+                      ? recipient.slice(0, -AND_EACH_PLAYER.length)
+                      : recipient,
+                  ctx
+              )
             : null;
         // CR 110.2 + CR 608.2h — "that creature's controller": the player who
         // controls the creature an earlier sentence targeted. Read as one exact
@@ -4274,7 +4321,7 @@ function effectSentence(
                       player: { kind: "that-creature-controller" as const },
                   })
                 : sweep !== null && sweep.ok
-                  ? ok({ kind: "mass" as const, ...sweep.value } as SubjectIR)
+                  ? sweepRecipient(sweep.value, withPlayers)
                   : subjectRule.run(damage[3]!, ctx);
         if (!to.ok) return to;
         return ok({
