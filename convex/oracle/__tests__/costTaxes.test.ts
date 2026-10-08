@@ -231,10 +231,12 @@ describe("cost taxes — refused neighbours", () => {
         );
     });
 
-    it("REFUSES an activation-cost REDUCTION (Sam, Loyal Attendant)", () => {
+    it("REFUSES an activation-cost REDUCTION (Blossoming Tortoise)", () => {
+        // The subject alone would read ("lands you control"); only the
+        // direction differs from the accepted form.
         refused(
             line(
-                "Activated abilities of Foods you control cost {1} less to activate."
+                "Activated abilities of lands you control cost {1} less to activate."
             )
         );
     });
