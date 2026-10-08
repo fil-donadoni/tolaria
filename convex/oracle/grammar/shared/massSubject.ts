@@ -371,10 +371,19 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
             if (descriptor.value.controller !== undefined)
                 return fail("two controller clauses", span);
         } else if (descriptor.value.controller !== "you") {
-            return fail(
-                'a plural subject without "all" names whose permanents: "you control" or "target player controls"',
-                span
-            );
+            // CR 205.3 — a bare SUBTYPE group ("Goblin creatures get +3/+0")
+            // names every permanent of that subtype, whoever controls it: the
+            // subtype is the whole restriction, so the omission of a
+            // controller is the sentence's meaning and not a gap in it. A bare
+            // plural with NO subtype ("Creatures get +1/+1") is still refused.
+            const bareSubtypeGroup =
+                descriptor.value.controller === undefined &&
+                descriptor.value.subtypes !== undefined;
+            if (!bareSubtypeGroup)
+                return fail(
+                    'a plural subject without "all" names whose permanents: "you control", "target player controls" or a subtype',
+                    span
+                );
         }
         const selector = sweepSelector(
             descriptor.value,

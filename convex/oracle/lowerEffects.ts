@@ -1773,9 +1773,14 @@ function lowerSentenceBody(
         }
         case "destroy": {
             if (sentence.subject.kind === "mass")
+                // CR 701.19c — "They can't be regenerated" rides every
+                // destroy the sweep fans out.
                 return sweepOps(sentence.subject, site, slots, (target) => ({
                     op: "destroy",
                     target,
+                    ...(sentence.cantBeRegenerated
+                        ? { cantBeRegenerated: true as const }
+                        : {}),
                 }));
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
@@ -3376,6 +3381,20 @@ function lowerMoveZone(
                 '"that card" is returned only to its owner\'s hand, to exile or to the battlefield in grammar v0'
             );
         return lowered([{ op: "moveZone", target: card, to: "hand" }]);
+    }
+    // CR 400.3 + CR 110.1 — "Return all permanents to their owners' hands":
+    // one `moveZone` to the hand per swept permanent. Only the hand: it is the
+    // one destination a printed sweep return asks for.
+    if (subject.kind === "mass") {
+        if (zone.zone !== "hand" || zone.owner !== "its-owner")
+            return unlowerable(
+                "a sweep is returned to its owners' hands in grammar v0"
+            );
+        return sweepOps(subject, site, slots, (target) => ({
+            op: "moveZone",
+            target,
+            to: "hand",
+        }));
     }
     // CR 400.3 — an object can only ever reach its OWNER's hand, so "to your
     // hand" and "to its owner's hand" name the same zone exactly when the
