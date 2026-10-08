@@ -1532,7 +1532,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › mass subject › object descriptor › lands target player controls and that player loses all unspent mana",
-            "issue": 4557
+            "issue": 5260
         },
         {
             "kind": "grammar",

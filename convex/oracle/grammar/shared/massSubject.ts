@@ -24,18 +24,20 @@
  *
  * ── What is refused, and why it is not a gap in the reader ─────────────────
  *
- * The `forEach` selector expresses type, subtype, negated type and "you
- * control" — the descriptor fields whose engine meaning is one-to-one — and,
- * for the one verb that opts in ({@link keywordExcludedSweepRule}), "without
- * <keyword>". A field outside them (a colour, a keyword, a combat role, a power bound, another
- * controller) is refused HERE, by name, rather than dropped: a sweep that
- * silently ignored "white" would destroy every creature, and that is the
- * fail-open shape this compiler exists to prevent (ADR 0105). Each refusal
- * stays in the backlog under its own gap key.
+ * The `forEach` selector expresses type, subtype, negated type, negated
+ * subtype ("non-Aura", CR 205.3), ONE colour (CR 105.1) and "you control" — the
+ * descriptor fields whose engine meaning is one-to-one — and, for the one verb
+ * that opts in ({@link creatureSweepRecipientRule}), "without <keyword>". A
+ * field outside them (several colours, a keyword, a combat role, a power
+ * bound, another controller) is refused HERE, by name, rather than dropped: a
+ * sweep that silently ignored "attacking" would destroy every creature, and
+ * that is the fail-open shape this compiler exists to prevent (ADR 0105). Each
+ * refusal stays in the backlog under its own gap key.
  *
  * ── "with mana value X or less" ────────────────────────────────────────────
  *
- * Read HERE, not by the descriptor: the X is the announced {X} of the ability
+ * (and "… equal to the number of <kind> counters on this <source>", CR 122.1,
+ * the same `if` against the source's live tally.) Read HERE, not by the descriptor: the X is the announced {X} of the ability
  * (CR 107.3), a fact the descriptor's numeric bound cannot carry, and reading
  * it there would widen every target site to a form no fixture covers. A
  * `PermanentFilter` has no mana-value field, so the bound is not a filter
@@ -53,6 +55,7 @@ import {
     type RuleResult,
     subGrammar,
 } from "../../rule";
+import { isSelfPhrase } from "./cost";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
 export const MASS_SUBJECT = "mass subject";
@@ -72,6 +75,13 @@ export interface MassSubjectIR {
     /** CR 202.3 + CR 107.3 — "… with mana value X or less". */
     readonly manaValueAtMostX: boolean;
     /**
+     * CR 202.3 + CR 122.1 — "… with mana value equal to the number of <kind>
+     * counters on <this object>": the bound is the live tally of one counter
+     * kind on the ability's own source (Powder Keg's fuse counters). Mutually
+     * exclusive with {@link manaValueAtMostX}.
+     */
+    readonly manaValueEqualsSourceCounters?: string;
+    /**
      * CR 115.1 + CR 109.5 — "creatures TARGET PLAYER controls": whose
      * battlefield is swept is an announced player, so the LOWERING allocates
      * that target slot and writes it as the selector's `controller`. The
@@ -79,10 +89,19 @@ export interface MassSubjectIR {
      * the slot does not exist until the sentence walk assigns it.
      */
     readonly targetPlayerControls?: true;
+    /**
+     * CR 115.1 + CR 109.5 — "creatures TARGET OPPONENT controls": the same
+     * allocation as {@link targetPlayerControls}, narrowed to an opponent.
+     */
+    readonly targetOpponentControls?: true;
 }
 
-/** " with mana value X or less" — the one bound this sub-grammar reads. */
+/** " with mana value X or less" — the bound announced with the spell. */
 const MANA_VALUE_AT_MOST_X = / with mana value X or less$/;
+
+/** " with mana value equal to the number of fuse counters on this artifact". */
+const MANA_VALUE_EQUALS_SOURCE_COUNTERS =
+    / with mana value equal to the number of (\S+) counters on (this \S+)$/;
 
 /**
  * "artifact, creature, and enchantment" / "artifacts and enchantments" → the
@@ -136,8 +155,10 @@ function sweepSelector(
                 "types",
                 "subtypes",
                 "excludeTypes",
+                "excludeSubtypes",
                 "controller",
                 "plural",
+                "colors",
                 ...(allowKeywordExclusion ? ["excludeAbility"] : []),
             ].includes(field)
         )
@@ -178,6 +199,17 @@ function sweepSelector(
             reason: "a sweep of the opponent's permanents is not in this grammar",
             fragment: "controller",
         };
+    // CR 105.1 — "green creatures": ONE colour word is the filter's `color`
+    // 1:1. Stacked colour adjectives ("white black creatures") would be an
+    // intersection and a colour OR-list a union; neither is a form this
+    // sub-grammar has a fixture for, so more than one colour refuses by name
+    // rather than guess which the sentence means.
+    if ((descriptor.colors?.length ?? 0) > 1)
+        return {
+            ok: false,
+            reason: "several colours on a sweep are an ambiguous union/intersection",
+            fragment: "colors",
+        };
     // "permanent" names every permanent type (CR 110.1), so a union that
     // covers them all constrains nothing — omitting it is what a hand-written
     // "destroy all nonland permanents" writes, and it is one clause fewer for
@@ -197,6 +229,14 @@ function sweepSelector(
     if (excluded !== undefined)
         filter.excludeType =
             excluded.length === 1 ? excluded[0]! : [...excluded];
+    if (descriptor.colors !== undefined) filter.color = descriptor.colors[0]!;
+    // CR 205.3 — "non-Aura enchantments": the negative subtype, 1:1.
+    const excludedSubtypes = descriptor.excludeSubtypes;
+    if (excludedSubtypes !== undefined)
+        filter.excludeSubtype =
+            excludedSubtypes.length === 1
+                ? excludedSubtypes[0]!
+                : [...excludedSubtypes];
     // CR 702.9a — "without flying": the exclusion the sweep filter names 1:1.
     if (descriptor.excludeAbility !== undefined)
         filter.excludeAbility = descriptor.excludeAbility;
@@ -242,6 +282,17 @@ function readMassSubject(
         }
         const bounded = MANA_VALUE_AT_MOST_X.test(rest);
         if (bounded) rest = rest.replace(MANA_VALUE_AT_MOST_X, "");
+        // CR 122.1 — the counter kind is a printed word; the object counted
+        // must be the ability's own source, the only "this <noun>" there is.
+        const counted = rest.match(MANA_VALUE_EQUALS_SOURCE_COUNTERS);
+        if (counted !== null) {
+            if (!isSelfPhrase(counted[2]!))
+                return fail(
+                    `"${counted[2]}" is not the source of the ability`,
+                    span
+                );
+            rest = rest.replace(MANA_VALUE_EQUALS_SOURCE_COUNTERS, "");
+        }
         const descriptor = descriptorRule.run(
             conjunctionToDisjunction(rest),
             ctx
@@ -260,7 +311,13 @@ function readMassSubject(
             allowKeywordExclusion
         );
         if (!selector.ok) return fail(selector.reason, selector.fragment);
-        return ok({ select: selector.value, manaValueAtMostX: bounded });
+        return ok({
+            select: selector.value,
+            manaValueAtMostX: bounded,
+            ...(counted !== null
+                ? { manaValueEqualsSourceCounters: counted[1]! }
+                : {}),
+        });
     };
 }
 
@@ -269,31 +326,49 @@ export const massSubjectRule: Rule<MassSubjectIR> = subGrammar(
     rule(MASS_SUBJECT, readMassSubject(false))
 );
 
+/** " target opponent controls" — the announced-opponent controller qualifier. */
+const TARGET_OPPONENT_CONTROLS = / target opponent controls$/;
+
 /**
- * CR 702.9a + CR 120.3 — "each creature without flying": a creature sweep
- * narrowed by ONE keyword exclusion, the recipient of a damage sweep
- * (Earthquake's shape). A sibling of {@link massSubjectRule}, not a widening
- * of it: the general rule keeps refusing "without <keyword>" for every other
- * verb (a destroy or pump sweep has no fixture for it), and this one refuses
- * every sweep that carries no keyword exclusion, so "each creature" alone
- * stays a form nobody has shown this grammar.
+ * CR 120.3 — the creature sweep a DAMAGE verb names as its recipient:
+ * "each creature" (Pyroclasm), "each creature without <keyword>" (Earthquake,
+ * CR 702.9a) or "each creature target opponent controls" (Simoon, CR 109.5).
+ * A sibling of {@link massSubjectRule}, not a widening of it: the general rule
+ * keeps refusing a bare "each creature", a keyword exclusion and an opponent's
+ * battlefield for every other verb (a destroy or pump sweep has no fixture for
+ * them), and this one reads only the "each creature" opening, so "each
+ * artifact" or "all creatures" stay forms nobody has shown this grammar.
+ *
+ * The announced opponent is the lowering's to allocate (like
+ * `targetPlayerControls`): the selector built here carries no controller, and
+ * the keyword exclusion and the opponent qualifier are mutually exclusive —
+ * no card prints both.
  */
-export const keywordExcludedSweepRule: Rule<MassSubjectIR> = subGrammar(
+export const creatureSweepRecipientRule: Rule<MassSubjectIR> = subGrammar(
     MASS_SUBJECT,
     rule(MASS_SUBJECT, (span, ctx) => {
-        const mass = readMassSubject(true)(span, ctx);
+        const targeted = TARGET_OPPONENT_CONTROLS.test(span);
+        const head = targeted
+            ? span.replace(TARGET_OPPONENT_CONTROLS, "")
+            : span;
+        const mass = readMassSubject(true)(head, ctx);
         if (!mass.ok) return mass;
         const filter = mass.value.select.filter;
-        if (
-            filter?.excludeAbility === undefined ||
-            filter.type !== "Creature" ||
-            !span.startsWith("each ")
-        )
+        const bareCreature =
+            head === "each creature" &&
+            filter?.type === "Creature" &&
+            Object.keys(filter).length === 1;
+        const keywordExcluded =
+            filter?.excludeAbility !== undefined &&
+            filter.type === "Creature" &&
+            !targeted;
+        if (!head.startsWith("each ") || !(bareCreature || keywordExcluded))
             return fail(
-                'a keyword-excluded sweep is "each creature without <keyword>"',
+                'a damage sweep is "each creature", "each creature without <keyword>" or "each creature target opponent controls"',
                 span
             );
-        return mass;
+        if (!targeted) return mass;
+        return ok({ ...mass.value, targetOpponentControls: true as const });
     })
 );
 
@@ -307,7 +382,8 @@ const TARGET_PLAYER_CONTROLS = / target player controls$/;
  *
  * This is the shape a group pump is printed in, and it is a fourth mass
  * subject beside the three determiners above — not a widening of them: the
- * qualifier is REQUIRED. "Creatures get +1/+1" with no controller is a
+ * qualifier is REQUIRED (bar a bare SUBTYPE group, "Goblin creatures get
+ * +3/+0", whose subtype is the whole restriction). "Creatures get +1/+1" with no controller is a
  * different sentence (every creature on the battlefield) that nothing prints
  * and that a determiner-less rule would let through by omission, so the bare
  * plural is refused rather than read as "all".
@@ -335,10 +411,19 @@ export const controlledPluralRule: Rule<MassSubjectIR> = subGrammar(
             if (descriptor.value.controller !== undefined)
                 return fail("two controller clauses", span);
         } else if (descriptor.value.controller !== "you") {
-            return fail(
-                'a plural subject without "all" names whose permanents: "you control" or "target player controls"',
-                span
-            );
+            // CR 205.3 — a bare SUBTYPE group ("Goblin creatures get +3/+0")
+            // names every permanent of that subtype, whoever controls it: the
+            // subtype is the whole restriction, so the omission of a
+            // controller is the sentence's meaning and not a gap in it. A bare
+            // plural with NO subtype ("Creatures get +1/+1") is still refused.
+            const bareSubtypeGroup =
+                descriptor.value.controller === undefined &&
+                descriptor.value.subtypes !== undefined;
+            if (!bareSubtypeGroup)
+                return fail(
+                    'a plural subject without "all" names whose permanents: "you control", "target player controls" or a subtype',
+                    span
+                );
         }
         const selector = sweepSelector(
             descriptor.value,

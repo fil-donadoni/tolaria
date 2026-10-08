@@ -227,7 +227,13 @@ import {
 // Harpy, Fleetfoot Panther, Fumarole, Horned Kavu, Hull Breach, Lava Zombie,
 // Overload, Razing Snidd, Shivan Wurm, Silver Drake, Steel Leaf Paladin,
 // Terror and Tormod's Crypt round-trip.
-const BASELINE_CEILING = 1378;
+//
+// Lowered 1378 -> 1364 by issue #4557 (mass subjects): Anarchy, Cleanse,
+// Damnation, Earthquake, Hibernation, Jokulhaups, Nemata Grove Guardian
+// (its sweep gained the `type: "Creature"` the Oracle's "Saproling creatures"
+// names), Powder Keg, Pyroclasm, Riptide, Shatterstorm, Simoon, Upheaval and
+// Wrath of God round-trip.
+const BASELINE_CEILING = 1364;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

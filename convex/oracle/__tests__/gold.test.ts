@@ -214,7 +214,14 @@ describe("gold round-trip — precision", () => {
         // compiled while its hand-written side carries a `[closure]` the
         // projection cannot compare — the same move as the entries above, out
         // of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(40);
+        //
+        // 39 -> 42 by issue #4557 (mass subjects): Earthquake's "each creature
+        // without flying and each player", Powder Keg's mana-value-versus-
+        // counters sweep and Damnation's "They can't be regenerated." are now
+        // compiled while their hand-written sides are `resolve()` closures
+        // the projection cannot compare — the same move as the entries above,
+        // out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(43);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

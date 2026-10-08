@@ -440,7 +440,8 @@ const NEMATA_SAPROLING_TOKEN: EffectTokenSpec = {
 // shared Saproling spec above. Second ability: `cost.sacrificeFilter`
 // (CR 602.1/118.5, "sacrifice a permanent matching <filter>", the
 // Priest-of-Yawgmoth cost shape) restricted to the Saproling subtype, then a
-// `forEach { set: "permanents", filter: { subtype: "Saproling" } }` mass
+// `forEach { set: "permanents", filter: { type: "Creature", subtype:
+// "Saproling" } }` ("Saproling CREATURES", CR 205.3 — issue #4557) mass
 // `pump` — the Sengir Vampire-family anthem-until-end-of-turn shape (`big/
 // green.ts`'s own forEach+pump sweep) — over EVERY Saproling on the
 // battlefield REGARDLESS OF CONTROLLER (the `forEach` carries no
@@ -489,7 +490,7 @@ export const nemataGroveGuardian = defineCard(() => ({
                     select: {
                         set: "permanents",
                         zone: "battlefield",
-                        filter: { subtype: "Saproling" },
+                        filter: { type: "Creature", subtype: "Saproling" },
                     },
                     effects: [
                         {

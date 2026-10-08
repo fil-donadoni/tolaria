@@ -116,7 +116,6 @@ export const bloodfireInfusion = defineCard(() => ({
 // graveyard when the ability resolves and "it" is its last known information
 // (CR 608.2h) — the source of the damage. The sweep is `forEach` over
 // battlefield creatures dealing 2 to each, the Pyroclasm shape (CR 120.3).
-// hand-tail: {R}, Sacrifice this creature: It deals 2 damage to each creature. (#4324)
 export const bloodfireKavu = defineCard(() => ({
     id: "1442b1f3-8c2c-4553-906f-c864fcdc6ae5", // APC 58
     rarity: "uncommon",

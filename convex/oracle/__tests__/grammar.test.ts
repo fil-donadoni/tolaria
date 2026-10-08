@@ -296,9 +296,9 @@ describe("slot router — unique dispatch (CR 113.3a-d)", () => {
         // now consumed — deliberately asserted here too, so this test cannot
         // pass by the slot having been switched off.
         expect(routeLine("Draw a card.", sorcery).ok).toBe(true);
-        expect(routeLine("Destroy all green creatures.", sorcery).ok).toBe(
-            false
-        );
+        expect(
+            routeLine("Destroy all creatures with flying.", sorcery).ok
+        ).toBe(false);
         expect(
             routeLine(
                 "Each player shuffles their graveyard into their library.",

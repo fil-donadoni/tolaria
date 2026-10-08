@@ -420,7 +420,7 @@ function isCardFilter(
     const rejectManaCostEquals = opts?.rejectManaCostEquals ?? false;
     const entries = Object.entries(value);
     return entries.every(([k, v]) => {
-        if (k === "type" || k === "excludeType") {
+        if (k === "type" || k === "excludeType" || k === "excludeSubtype") {
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && m.length > 0

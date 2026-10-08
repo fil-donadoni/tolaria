@@ -8149,3 +8149,42 @@ describe("validateEffectScript — face-down whole-zone exile + bound list captu
         );
     });
 });
+
+// --- EffectCardFilter.excludeSubtype — the negative of `subtype` (issue #4557) --
+//
+// Honest in every zone (a card shape always carries `subtypes`), so unlike
+// `hasAbility` it is NOT gated to battlefield reads. A literal string or a
+// non-empty array of them; the `{ ref }` form of `subtype` has no negative twin.
+describe("EffectCardFilter.excludeSubtype — shape (issue #4557)", () => {
+    const sweep = (excludeSubtype: unknown): EffectOp[] =>
+        [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    filter: { type: "Enchantment", excludeSubtype },
+                },
+                effects: [{ op: "destroy", target: { ref: "$each" } }],
+            },
+        ] as unknown as EffectOp[];
+
+    it("accepts a literal subtype on a battlefield sweep", () => {
+        expect(validateEffectScript(host({ effects: sweep("Aura") }))).toEqual(
+            []
+        );
+    });
+
+    it("accepts an array of subtypes", () => {
+        expect(
+            validateEffectScript(host({ effects: sweep(["Aura", "Saga"]) }))
+        ).toEqual([]);
+    });
+
+    it("rejects a number, an empty string and a ref", () => {
+        for (const bad of [3, "", { ref: "$chosen" }]) {
+            const errors = validateEffectScript(host({ effects: sweep(bad) }));
+            expect(errors.length).toBeGreaterThan(0);
+        }
+    });
+});

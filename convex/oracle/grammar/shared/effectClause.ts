@@ -66,9 +66,10 @@ import {
 } from "./condition";
 import {
     controlledPluralRule,
-    keywordExcludedSweepRule,
+    creatureSweepRecipientRule,
     massSubjectRule,
     type MassSubjectIR,
+    type PermanentSweepSelector,
 } from "./massSubject";
 import {
     COLOR_WORDS,
@@ -99,6 +100,10 @@ const ANOTHER_HEAD = "another target ";
 
 /** CR 120.3 — the exact damage-recipient union `subjectRule` reads whole. */
 const EACH_CREATURE_AND_EACH_PLAYER = "each creature and each player";
+/** CR 400.3 — the plural destination of a sweep bounce. */
+const THEIR_OWNERS_HANDS = "their owners' hands";
+/** CR 120.3 — the player half of a creature sweep that is not the exact phrase. */
+const AND_EACH_PLAYER = " and each player";
 
 /**
  * CR 107.3 — an effect's MAGNITUDE: a printed number, or the announced {X}.
@@ -334,7 +339,16 @@ export type SubjectIR =
      * pair of `forEach` sweeps, one per set, because neither Op's `to` field
      * names more than one recipient.
      */
-    | { readonly kind: "each-creature-and-player" };
+    | {
+          readonly kind: "each-creature-and-player";
+          /**
+           * CR 120.3 + CR 702.9a — the creature half, when it is NARROWED
+           * ("each creature without flying and each player", Earthquake).
+           * Absent for the exact phrase "each creature and each player",
+           * whose creature half is every creature.
+           */
+          readonly creatures?: PermanentSweepSelector;
+      };
 
 /**
  * CR 608.2c — "there are N or more cards in your graveyard": a count of the
@@ -1394,7 +1408,11 @@ export type CombatRestrictionIR = "cant-block" | "cant-be-blocked";
 
 /** A sentence that modifies the sentence before it rather than acting itself. */
 export type ModifierIR =
-    | { readonly kind: "cant-be-regenerated" }
+    | {
+          readonly kind: "cant-be-regenerated";
+          /** "They can't be regenerated." — the plural pronoun of a SWEEP. */
+          readonly plural?: true;
+      }
     /**
      * CR 701.6a + CR 113.7a — "If a permanent's ability is countered this way,
      * destroy that permanent.": the rider of a counter that can name an
@@ -2094,11 +2112,20 @@ export function assembleSentences(
                 };
             // CR 701.19c — "It" names ONE destroyed object. Behind a sweep the
             // pronoun has no single referent, so folding it onto the sweep
-            // would forbid regeneration for a set the sentence never named.
-            if (previous.subject.kind === "mass")
+            // would forbid regeneration for a set the sentence never named;
+            // "They" is the sweep's own pronoun and, in turn, has no referent
+            // behind one object. The number of the pronoun must match.
+            const isSweep = previous.subject.kind === "mass";
+            if (
+                isSweep !==
+                (sentence.modifier.kind === "cant-be-regenerated" &&
+                    sentence.modifier.plural === true)
+            )
                 return {
                     ok: false,
-                    reason: '"It can\'t be regenerated." follows a sweep, not one object',
+                    reason: isSweep
+                        ? '"It can\'t be regenerated." follows a sweep, not one object'
+                        : '"They can\'t be regenerated." follows one object, not a sweep',
                 };
             effects[effects.length - 1] = {
                 ...previous,
@@ -2406,6 +2433,29 @@ function groupSubject(span: string, ctx: unknown): RuleResult<SubjectIR> {
     return mass.ok
         ? ok({ kind: "mass" as const, ...mass.value } as SubjectIR)
         : mass;
+}
+
+/**
+ * CR 120.3 — a damage recipient read by `creatureSweepRecipientRule`: the sweep
+ * alone, or (`withPlayers`) the sweep PLUS every player, the two-set union
+ * Earthquake prints. The union carries the narrowed creature half; an
+ * announced opponent or a mana-value bound has no place in it.
+ */
+function sweepRecipient(
+    mass: MassSubjectIR,
+    withPlayers: boolean
+): RuleResult<SubjectIR> {
+    if (!withPlayers)
+        return ok({ kind: "mass" as const, ...mass } as SubjectIR);
+    if (mass.targetOpponentControls === true || mass.manaValueAtMostX)
+        return fail(
+            "a creature sweep joined to every player names no announced opponent or bound",
+            "each player"
+        );
+    return ok({
+        kind: "each-creature-and-player" as const,
+        creatures: mass.select,
+    });
 }
 
 /** Lowercase a sentence-initial capital, leaving the rest of the span alone. */
@@ -2854,6 +2904,9 @@ const LOOK_HAND = /^Look at (.+?)(?:'|’)s hand$/;
 const LOOK_RANDOM_HAND = /^Look at a card at random in (.+?)(?:'|’)s hand$/;
 /** CR 701.9b — "Target player discards two cards": the player's own choice. */
 const DISCARD_CHOICE = /^(.+) discards (\S+) cards?$/;
+/** CR 105.1 — "green or white": two colour words joined by a printed "or". */
+const COLOR_ALTERNATIVES =
+    /^(?:white|blue|black|red|green) or (?:white|blue|black|red|green) /;
 /**
  * CR 701.21a — "Target player sacrifices a creature of their choice": the
  * count word and the permanent phrase, "of their choice" optional. Anything
@@ -3341,6 +3394,17 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
             return ok({
                 role: "modifier" as const,
                 modifier: { kind: "destroy-countered-source" as const },
+            });
+        // CR 701.19c — the plural pronoun of a sweep ("Destroy all green
+        // creatures. They can't be regenerated."); the fold checks the number
+        // against the destroy it modifies.
+        if (span === "They can't be regenerated")
+            return ok({
+                role: "modifier" as const,
+                modifier: {
+                    kind: "cant-be-regenerated" as const,
+                    plural: true as const,
+                },
             });
         // CR 105.1 — "Choose a color.", a marker (see the role's own doc
         // comment); never printed lowercase (a trigger's effect clause reads
@@ -4257,12 +4321,24 @@ function effectSentence(
         const amount = readAmount(damage[2]!);
         if (amount === null)
             return fail(`"${damage[2]}" is not a damage amount`, span);
-        // CR 702.9a + CR 120.3 — "to each creature without flying": a creature
-        // sweep with one keyword exclusion, the damage recipient Earthquake
-        // prints. Tried by its own rule so the general sweep grammar keeps
-        // refusing "without <keyword>" for every other verb.
-        const sweep = damage[3]!.startsWith("each ")
-            ? keywordExcludedSweepRule.run(damage[3]!, ctx)
+        // CR 120.3 + CR 702.9a — "to each creature", "to each creature without
+        // flying", "to each creature target opponent controls": a creature
+        // sweep as the damage recipient. Tried by its own rule so the general
+        // sweep grammar keeps refusing a bare "each creature" and "without
+        // <keyword>" for every other verb. The creature half may be followed
+        // by " and each player" (Earthquake) — the exact phrase "each creature
+        // and each player" is `subjectRule`'s, not read here.
+        const recipient = damage[3]!;
+        const withPlayers =
+            recipient !== EACH_CREATURE_AND_EACH_PLAYER &&
+            recipient.endsWith(AND_EACH_PLAYER);
+        const sweep = recipient.startsWith("each ")
+            ? creatureSweepRecipientRule.run(
+                  withPlayers
+                      ? recipient.slice(0, -AND_EACH_PLAYER.length)
+                      : recipient,
+                  ctx
+              )
             : null;
         // CR 110.2 + CR 608.2h — "that creature's controller": the player who
         // controls the creature an earlier sentence targeted. Read as one exact
@@ -4274,7 +4350,7 @@ function effectSentence(
                       player: { kind: "that-creature-controller" as const },
                   })
                 : sweep !== null && sweep.ok
-                  ? ok({ kind: "mass" as const, ...sweep.value } as SubjectIR)
+                  ? sweepRecipient(sweep.value, withPlayers)
                   : subjectRule.run(damage[3]!, ctx);
         if (!to.ok) return to;
         return ok({
@@ -4766,10 +4842,25 @@ function effectSentence(
         }
         const toAt = span.lastIndexOf(" to ");
         if (toAt === -1) return fail("a return needs a destination zone", span);
-        const subject = subjectRule.run(
-            span.slice("Return ".length, toAt),
-            ctx
-        );
+        const objectSpan = span.slice("Return ".length, toAt);
+        // CR 400.3 + CR 110.1 — "Return all <permanents> to their owners'
+        // hands": a sweep bounce. The destination is the PLURAL spelling of
+        // "its owner's hand" and is read only behind a sweep, whose number it
+        // agrees with ("Return target creature to their owners' hands" is not
+        // English, so the singular subject keeps the singular zone).
+        if (
+            objectSpan.startsWith("all ") &&
+            span.slice(toAt + " to ".length) === THEIR_OWNERS_HANDS
+        ) {
+            const mass = massSubjectRule.run(objectSpan, ctx);
+            if (!mass.ok) return mass;
+            return ok({
+                kind: "move-zone" as const,
+                subject: { kind: "mass" as const, ...mass.value } as SubjectIR,
+                to: { zone: "hand" as const, owner: "its-owner" as const },
+            } satisfies EffectSentenceIR);
+        }
+        const subject = subjectRule.run(objectSpan, ctx);
         if (!subject.ok) return subject;
         const zone = zoneRefRule.run(span.slice(toAt + " to ".length), ctx);
         if (!zone.ok) return zone;
@@ -5072,7 +5163,10 @@ function effectSentence(
                 `"${edict[2]} ${edict[3]}" disagrees in number`,
                 edict[3]!
             );
-        const filter = sacrificeFilterFromDescriptor(descriptor.value);
+        const filter = sacrificeFilterFromDescriptor(
+            descriptor.value,
+            COLOR_ALTERNATIVES.test(edict[3]!)
+        );
         if (!filter.ok) return filter;
         let superlative: EffectChoiceSuperlative | undefined;
         if (tail !== null) {

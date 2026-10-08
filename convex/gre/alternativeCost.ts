@@ -168,6 +168,14 @@ export function handCardMatchesFilter(
         excludeTypes.some((t) => defTypes.includes(t))
     )
         return false;
+    // CR 205.3 (issue #4557) — the negative of `subtype`: a card with ANY
+    // listed subtype is refused ("non-Aura").
+    const excludeSubtypes = asArray(filter.excludeSubtype);
+    if (
+        excludeSubtypes !== undefined &&
+        excludeSubtypes.some((s) => defSubtypes.includes(s))
+    )
+        return false;
     // CR 205.3 (issue #3721) — `subtype`'s DYNAMIC shape (`{ ref }`) names a
     // `chooseCreatureType` binding that only exists on a RESOLVING stack item,
     // and this matcher takes a registry `CardDefinition`, not a
