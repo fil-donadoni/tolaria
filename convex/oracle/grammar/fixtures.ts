@@ -5279,4 +5279,386 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 120.3 + CR 702.9a — "deals X damage to each creature without flying and each player": the creature half is a keyword-excluded sweep, the player half a sweep over players, each carrying the chosen-cost X. Exhibits the X amount, the `$each` object recipient and the `$each` player recipient the canned smoke scenario cannot build (issue #4557).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "9a40614b-50a3-422c-849e-53c8b7d3d204",
+            name: "Earthquake",
+            manaCost: "{X}{R}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Earthquake deals X damage to each creature without flying and each player.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Earthquake",
+            types: ["Sorcery"],
+            manaCost: { X: "X", R: 1 },
+            oracleText:
+                "Earthquake deals X damage to each creature without flying and each player.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", excludeAbility: "flying" },
+                    },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { ref: "$each" },
+                        },
+                    ],
+                },
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: { X: true },
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 105.1 + CR 701.19c — "Destroy all green creatures. They can't be regenerated.": a colour-scoped sweep whose destroy carries `cantBeRegenerated` on every swept creature. Exhibits the `$each` destroy target with the no-regeneration flag (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "dd84d291-cb7a-4f44-81cd-9f1181bb5ae5",
+            name: "Perish",
+            manaCost: "{2}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Destroy all green creatures. They can't be regenerated.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Perish",
+            types: ["Sorcery"],
+            manaCost: { X: 2, B: 1 },
+            oracleText:
+                "Destroy all green creatures. They can't be regenerated.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", color: "G" },
+                    },
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { ref: "$each" },
+                            cantBeRegenerated: true,
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 105.1 + CR 701.26a — "Tap all blue creatures": the colour-scoped tap sweep (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "b4541f38-23c1-4f51-a35b-0b222cdaed2c",
+            name: "Riptide",
+            manaCost: "{U}",
+            typeLine: "Instant",
+            oracleText: "Tap all blue creatures.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Riptide",
+            types: ["Instant"],
+            manaCost: { U: 1 },
+            oracleText: "Tap all blue creatures.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Creature", color: "U" },
+                    },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "tap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 105.1 + CR 613.4c — "White creatures you control get +2/+2 until end of turn": a colour-scoped group pump over the controller's creatures (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "32d78ffd-5bed-45e8-be6a-420149a263bb",
+            name: "Guardians' Pledge",
+            manaCost: "{1}{W}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "White creatures you control get +2/+2 until end of turn.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Guardians' Pledge",
+            types: ["Instant"],
+            manaCost: { X: 1, W: 2 },
+            oracleText:
+                "White creatures you control get +2/+2 until end of turn.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        controller: "controller",
+                        filter: { type: "Creature", color: "W" },
+                    },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$each" },
+                            power: 2,
+                            toughness: 2,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 400.3 + CR 110.1 — "Return all permanents to their owners' hands": a bounce sweep, one `moveZone` to the hand per permanent. Exhibits the sweep `moveZone` of `$each` the canned smoke scenario cannot model (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "7cafc972-a6f5-4cac-a3d3-8a3ae36ffb1e",
+            name: "Upheaval",
+            manaCost: "{4}{U}{U}",
+            typeLine: "Sorcery",
+            oracleText: "Return all permanents to their owners' hands.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Upheaval",
+            types: ["Sorcery"],
+            manaCost: { X: 4, U: 2 },
+            oracleText: "Return all permanents to their owners' hands.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "permanents", zone: "battlefield" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 202.3 + CR 122.1 — "Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact": an `if` over the iterated permanent's mana value against the source's live counter tally. Exhibits the mana-value-versus-counters comparison (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "ca1144c2-49a3-49b4-9085-3094141769ea",
+            name: "Powder Keg",
+            manaCost: "{2}",
+            typeLine: "Artifact",
+            oracleText:
+                "At the beginning of your upkeep, you may put a fuse counter on this artifact.\n{T}, Sacrifice this artifact: Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Powder Keg",
+            types: ["Artifact"],
+            manaCost: { X: 2 },
+            oracleText:
+                "At the beginning of your upkeep, you may put a fuse counter on this artifact.\n{T}, Sacrifice this artifact: Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact.",
+            activatedAbilities: [
+                {
+                    id: "powder-keg-ability",
+                    oracleText:
+                        "{T}, Sacrifice this artifact: Destroy each artifact and creature with mana value equal to the number of fuse counters on this artifact.",
+                    cost: { tap: true, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: ["Artifact", "Creature"] },
+                            },
+                            effects: [
+                                {
+                                    op: "if",
+                                    predicate: {
+                                        left: {
+                                            manaValue: { of: { ref: "$each" } },
+                                        },
+                                        op: "eq",
+                                        right: {
+                                            counters: {
+                                                of: { ref: "$source" },
+                                                type: "fuse",
+                                            },
+                                        },
+                                    },
+                                    then: [
+                                        {
+                                            op: "destroy",
+                                            target: { ref: "$each" },
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "powder-keg-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, you may put a fuse counter on this artifact.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            prompt: "Put a fuse counter on this artifact?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { binding: "$may1" },
+                            then: [
+                                {
+                                    op: "counters",
+                                    action: "add",
+                                    counter: "fuse",
+                                    target: { ref: "$source" },
+                                    count: 1,
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 205.3 — "Destroy all non-Aura enchantments": the negative subtype on a sweep filter, `excludeSubtype` (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "87547bf0-02cf-4d83-9a1f-c82d2f1a22f1",
+            name: "Tranquil Domain",
+            manaCost: "{1}{G}",
+            typeLine: "Instant",
+            oracleText: "Destroy all non-Aura enchantments.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Tranquil Domain",
+            types: ["Instant"],
+            manaCost: { X: 1, G: 1 },
+            oracleText: "Destroy all non-Aura enchantments.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "permanents",
+                        zone: "battlefield",
+                        filter: { type: "Enchantment", excludeSubtype: "Aura" },
+                    },
+                    effects: [{ op: "destroy", target: { ref: "$each" } }],
+                },
+            ],
+        },
+    },
+    // CR 205.3 + CR 613.4c — "Goblin creatures get +3/+0 until end of turn": a bare subtype group with no controller names every Goblin creature, whoever controls it (issue #4557).
+    {
+        rule: "mass subject",
+        card: {
+            oracleId: "696ee797-0c32-4bff-8c3d-02d05835b138",
+            name: "Goblin Pyromancer",
+            manaCost: "{3}{R}",
+            typeLine: "Creature — Goblin Wizard",
+            oracleText:
+                "When this creature enters, Goblin creatures get +3/+0 until end of turn.\nAt the beginning of the end step, destroy all Goblins.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Pyromancer",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Wizard"],
+            manaCost: { X: 3, R: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "When this creature enters, Goblin creatures get +3/+0 until end of turn.\nAt the beginning of the end step, destroy all Goblins.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "goblin-pyromancer-trigger",
+                    oracleText:
+                        "When this creature enters, Goblin creatures get +3/+0 until end of turn.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Creature", subtype: "Goblin" },
+                            },
+                            effects: [
+                                {
+                                    op: "pump",
+                                    target: { ref: "$each" },
+                                    power: 3,
+                                    toughness: 0,
+                                    duration: { phase: "end-of-turn" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "goblin-pyromancer-trigger-2",
+                    oracleText:
+                        "At the beginning of the end step, destroy all Goblins.",
+                    head: { kind: "phase", phase: "END_STEP", scope: "each" },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { subtype: "Goblin" },
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
