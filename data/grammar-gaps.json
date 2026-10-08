@@ -811,6 +811,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › Exile the bottom card of target player's graveyard",
+            "issue": 5263
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › Prevent all combat damage that would be dealt by target attacking creature this turn",
             "issue": 4572
         },
@@ -3623,6 +3628,11 @@
             "kind": "migration",
             "key": "activated + keyword-line + static",
             "issue": 4042
+        },
+        {
+            "kind": "migration",
+            "key": "activated + keyword-line + triggered",
+            "issue": 5264
         },
         {
             "kind": "migration",
