@@ -2067,6 +2067,39 @@ function lowerSentenceBody(
                 { op: "libraryLook", action: "shuffle", player: "controller" },
             ]);
         }
+        case "search-library-to-top": {
+            // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
+            // — look through the library for a card the description
+            // matches (OPTIONAL, CR 701.23b), show it, shuffle, THEN put the
+            // find on top. The shuffle precedes the placement: a shuffle after
+            // it would bury the card, and the `moveZone` library-top shape
+            // keeps the reveal's all-players knowledge across the shuffle
+            // (`putLibraryCardsOnTop`). A search that finds nothing binds
+            // nothing, so the reveal and the move are no-ops (CR 101.3) and
+            // only the shuffle happens.
+            const bind = walk.nextBind("found");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: sentence.filter,
+                    count: { min: 0, max: 1 },
+                    prompt: `Search your library for ${sentence.phrase}.`,
+                    bind,
+                },
+                { op: "reveal", player: "controller", cards: { ref: bind } },
+                { op: "libraryLook", action: "shuffle", player: "controller" },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ]);
+        }
         case "search-library-to-battlefield": {
             // CR 701.23a (search) + CR 110.5b (enters tapped) + CR 701.24a
             // (shuffle) — as the hand route, minus the reveal the line does not

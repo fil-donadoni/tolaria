@@ -3343,6 +3343,114 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+    // "Search your library for a creature card, reveal it, then shuffle and put
+    // the card on top": the tutor-to-top. Exhibits the same three
+    // card-dependent forms as the to-hand tutor (a runtime-sized `choice`, a
+    // `reveal` reading its binding, a `moveZone` on an object the generator
+    // does not model), the last one to `library-top` (issue #4554).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "e8863518-0bfa-49c3-8c6e-6c9116a81051",
+            name: "Worldly Tutor",
+            manaCost: "{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for a creature card, reveal it, then shuffle and put the card on top.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Worldly Tutor",
+            types: ["Instant"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Search your library for a creature card, reveal it, then shuffle and put the card on top.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: "Creature" },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for a creature card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ],
+        },
+    },
+    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+    // "Search your library for an artifact or enchantment card, reveal it, then shuffle and put
+    // that card on top": the tutor-to-top. Exhibits the same three
+    // card-dependent forms as the to-hand tutor (a runtime-sized `choice`, a
+    // `reveal` reading its binding, a `moveZone` on an object the generator
+    // does not model), the last one to `library-top` (issue #4554).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "c5229c17-b7be-4b05-b683-f2277edc4849",
+            name: "Enlightened Tutor",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Search your library for an artifact or enchantment card, reveal it, then shuffle and put that card on top.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Enlightened Tutor",
+            types: ["Instant"],
+            manaCost: { W: 1 },
+            oracleText:
+                "Search your library for an artifact or enchantment card, reveal it, then shuffle and put that card on top.",
+            effects: [
+                {
+                    op: "choice",
+                    kind: "search-library",
+                    player: "controller",
+                    zone: "library",
+                    filter: { type: ["Artifact", "Enchantment"] },
+                    count: { min: 0, max: 1 },
+                    prompt: "Search your library for an artifact or enchantment card.",
+                    bind: "$found1",
+                },
+                {
+                    op: "reveal",
+                    player: "controller",
+                    cards: { ref: "$found1" },
+                },
+                {
+                    op: "libraryLook",
+                    action: "shuffle",
+                    player: "controller",
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: "$found1" },
+                    player: "controller",
+                    from: "library",
+                    to: "library-top",
+                },
+            ],
+        },
+    },
     // CR 701.23a (search) + CR 110.5b + CR 701.24a (shuffle) — "Search your
     // library for a Forest or Plains card, put it onto the battlefield, then
     // shuffle": the dual-land fetch. Two card-dependent forms (a runtime-sized
