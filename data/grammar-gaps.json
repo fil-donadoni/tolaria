@@ -2226,6 +2226,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › sentence assembly › At the beginning of your upkeep, if this card is in your graveyard, you may discard a card. If you do, return this card to your hand",
+            "issue": 5295
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › trigger head › At the beginning of combat on each opponent's turn",
             "issue": 4581
         },
@@ -3698,6 +3703,11 @@
             "kind": "migration",
             "key": "mana-ability + static",
             "issue": 4041
+        },
+        {
+            "kind": "migration",
+            "key": "mana-ability + static + triggered",
+            "issue": 5296
         },
         {
             "kind": "migration",
