@@ -19177,6 +19177,16 @@ export type AlternativeCostCondition =
     /** Only while the caster controls a permanent matching `filter`
      *  (Snuff Out "If you control a Swamp"). */
     | { kind: "control"; filter: PermanentFilter }
+    /** Only while an OPPONENT of the caster controls a permanent matching
+     *  `filter` — the mirror of `control` (the Mercadian Masques Legate
+     *  cycle, Mogg Salvage: "If an opponent controls an Island and you
+     *  control a Mountain, …"). Any opponent satisfies it. */
+    | { kind: "opponent-control"; filter: PermanentFilter }
+    /** Every member condition holds — the printed "and" joining two board
+     *  predicates in one cast condition ("If an opponent controls an Island
+     *  AND you control a Mountain"). An empty list is refused by the
+     *  evaluator (fails closed): a conjunction of nothing is a misread. */
+    | { kind: "all"; of: AlternativeCostCondition[] }
     /** Only as the caster's OWN first spell of the GAME (Once Upon a Time,
      *  issue #790: "If this spell is the first spell you've cast this game,
      *  you may cast it without paying its mana cost") — reads
