@@ -126,6 +126,8 @@ export interface CompiledSpellFilter {
     readonly types?: readonly CardType[];
     readonly subtypes?: readonly string[];
     readonly colors?: readonly Color[];
+    /** CR 205.4b — "noncreature spells": none of these card types. */
+    readonly excludeTypes?: readonly CardType[];
     /** CR 601.2f — "spells you cast" / "spells your opponents cast". */
     readonly controller?: "you" | "opponents";
 }
@@ -274,14 +276,43 @@ export type CompiledStaticEffect =
           readonly id: string;
           readonly oracleText: string;
       }
-    /** CR 601.2f — "<spells> cost {N} more/less to cast". */
-    | {
+    /** CR 601.2f — "<spells> cost {N} more/less to cast", or (CR 602.2b)
+     *  "Activated abilities of <permanents> cost {N} more to activate". */
+    | ({
           readonly kind: "cost-modifier";
-          readonly spells: CompiledSpellFilter;
           /** Generic mana added to the cost. Exclusive with `reduction`. */
           readonly increase?: number;
           /** Generic mana removed from the cost. Exclusive with `increase`. */
           readonly reduction?: number;
+          /** CR 601.2f — "except during its controller's turn" (the engine
+           *  field of the same name). */
+          readonly onlyOutsideAnnouncersTurn?: true;
+      } & (
+          | {
+                readonly spells: CompiledSpellFilter;
+                readonly abilities?: never;
+            }
+          | {
+                /** CR 602.2b — the SOURCES whose activated abilities the
+                 *  modifier applies to, read as permanents. */
+                readonly abilities: PermanentFilter;
+                readonly spells?: never;
+            }
+      ))
+    /**
+     * CR 508.1d / 508.1h — "<creatures> can't attack you unless their
+     * controller pays {N} for each creature they control that's attacking
+     * you" (Ghostly Prison, Elephant Grass). The collector scopes it to
+     * attacks on the source's controller; `attackers` filters which creatures
+     * are taxed.
+     */
+    | {
+          readonly kind: "attack-mana-tax";
+          readonly id: string;
+          readonly oracleText: string;
+          readonly attackers: PermanentFilter;
+          /** Generic mana charged per taxed attacker. */
+          readonly perAttacker: number;
       }
     /**
      * CR 601.3 / 118.9 — "<grantee> may cast <class> spells [without paying
@@ -414,6 +445,10 @@ function spellMatches(
         const colors = ctx.getColors(card);
         if (!spells.colors.some((c) => colors.includes(c))) return false;
     }
+    if (spells.excludeTypes !== undefined) {
+        if (spells.excludeTypes.some((t) => card.types.includes(t)))
+            return false;
+    }
     if (spells.controller !== undefined) {
         if (effectSource === undefined) return false;
         const same = card.controllerId === effectSource.controllerId;
@@ -520,17 +555,56 @@ export function resolveCompiledStatic(
                     ctx.hasChosenName(spell, source.chosenName),
             };
         case "cost-modifier": {
-            const spells = descriptor.spells;
+            const { spells, abilities } = descriptor;
             return {
                 kind: "cost-modifier",
-                appliesToSpell: (card, ctx, effectSource) =>
-                    spellMatches(spells, card, ctx, effectSource),
+                ...(spells !== undefined
+                    ? {
+                          appliesToSpell: (
+                              card: PermanentView,
+                              ctx: StaticEffectContext,
+                              effectSource?: PermanentView
+                          ) => spellMatches(spells, card, ctx, effectSource),
+                      }
+                    : {}),
+                // CR 602.2b — the ability's SOURCE is matched as a permanent;
+                // "you control" is relative to the modifier's own source.
+                ...(abilities !== undefined
+                    ? {
+                          appliesToAbility: (
+                              source: PermanentView,
+                              ctx: StaticEffectContext,
+                              effectSource?: PermanentView
+                          ) =>
+                              effectSource !== undefined &&
+                              filterMatches(
+                                  abilities,
+                                  source,
+                                  effectSource,
+                                  ctx
+                              ),
+                      }
+                    : {}),
+                ...(descriptor.onlyOutsideAnnouncersTurn === true
+                    ? { onlyOutsideAnnouncersTurn: true as const }
+                    : {}),
                 ...(descriptor.increase !== undefined
                     ? { costIncrease: generic(descriptor.increase) }
                     : {}),
                 ...(descriptor.reduction !== undefined
                     ? { costReduction: generic(descriptor.reduction) }
                     : {}),
+            };
+        }
+        case "attack-mana-tax": {
+            const attackers = descriptor.attackers;
+            return {
+                kind: "attack-mana-tax",
+                id: descriptor.id,
+                taxes: (attacker, source, _state, ctx) =>
+                    filterMatches(attackers, attacker, source, ctx),
+                costPerAttacker: generic(descriptor.perAttacker),
+                oracleText: descriptor.oracleText,
             };
         }
         // CR 601.3 — already the engine's own effect (see the union member):

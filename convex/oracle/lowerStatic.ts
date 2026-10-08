@@ -283,7 +283,12 @@ export function lowerStaticClause(
                     effects: [
                         {
                             kind: "cost-modifier",
-                            spells: clause.spells,
+                            ...(clause.spells !== undefined
+                                ? { spells: clause.spells }
+                                : { abilities: clause.abilities }),
+                            ...(clause.onlyOutsideAnnouncersTurn === true
+                                ? { onlyOutsideAnnouncersTurn: true as const }
+                                : {}),
                             // CR 118.7a — a generic reduction affects ONLY the
                             // generic component of a cost, which is why both
                             // directions carry a bare number and the
@@ -292,6 +297,24 @@ export function lowerStaticClause(
                             ...(clause.direction === "more"
                                 ? { increase: clause.amount }
                                 : { reduction: clause.amount }),
+                        },
+                    ],
+                },
+            };
+        // CR 508.1d — the tax's id is a card-scoped private handle, like a
+        // combat restriction's; the sentence is the rejection reason a player
+        // reads when the tax cannot be paid.
+        case "attack-mana-tax":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "attack-mana-tax",
+                            id: nextId("attack-tax"),
+                            oracleText,
+                            attackers: clause.attackers,
+                            perAttacker: clause.perAttacker,
                         },
                     ],
                 },

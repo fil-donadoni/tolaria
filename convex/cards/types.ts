@@ -9295,6 +9295,13 @@ export interface StaticCostModifier {
      *  touched, so the floor only ever protects generic mana. Ignored when no
      *  `costReduction` is present. */
     minTotalMana?: number;
+    /** CR 601.2f — the modifier applies only while the announcing player is
+     *  NOT the active player: "Each spell costs {3} more to cast except during
+     *  its controller's turn" (Defense Grid). A spell's controller is the
+     *  player casting it (CR 601.2a), which is the collector's announcer. A
+     *  field rather than a predicate argument because `appliesToSpell` sees no
+     *  game state, and whose turn it is lives only there. */
+    onlyOutsideAnnouncersTurn?: true;
 }
 
 /** Count-driven CR 601.2f cost-reduction amount: `perCount`'s generic portion

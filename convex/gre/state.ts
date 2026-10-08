@@ -21193,6 +21193,13 @@ export function getCostModifiers(
                               announcer
                           );
                 if (!applies) continue;
+                // CR 601.2f / 601.2a — "except during its controller's turn":
+                // the spell's controller is its caster, the announcer here.
+                if (
+                    effect.onlyOutsideAnnouncersTurn === true &&
+                    state.activePlayerId === announcer
+                )
+                    continue;
                 if (effect.costIncrease) {
                     const norm = normalizeManaCost(effect.costIncrease);
                     for (const [k, v] of Object.entries(norm)) {
