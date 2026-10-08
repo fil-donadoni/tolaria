@@ -10428,6 +10428,136 @@ describe("EffectCardFilter.excludeAbility (CR 702.9a, issue #4310)", () => {
     });
 });
 
+describe("EffectCardFilter.excludeSubtype (CR 205.3, issue #4557)", () => {
+    // The negative of `subtype` — Tranquil Domain's "all NON-AURA
+    // enchantments". Propagated onto `PermanentFilter.excludeSubtypes` by
+    // `toPermanentFilter` and read against `card.subtypes` by
+    // `matchesCardFilter`; dropping it at either boundary would be fail-OPEN
+    // (the sweep would destroy every enchantment).
+    const AURA_ID = "test-effects-aura-exclude-subtype";
+    registerTokenDefinition({
+        id: AURA_ID,
+        name: AURA_ID,
+        rarity: "common",
+        manaCost: { X: 1, U: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Aura"],
+    });
+    const SHRINE_ID = "test-effects-shrine-exclude-subtype";
+    registerTokenDefinition({
+        id: SHRINE_ID,
+        name: SHRINE_ID,
+        rarity: "common",
+        manaCost: { X: 1, W: 1 },
+        types: ["Enchantment"],
+        subtypes: ["Shrine"],
+    });
+
+    const sweep: EffectOp[] = [
+        {
+            op: "forEach",
+            select: {
+                set: "permanents",
+                zone: "battlefield",
+                filter: { type: "Enchantment", excludeSubtype: "Aura" },
+            },
+            effects: [{ op: "destroy", target: { ref: "$each" } }],
+        },
+    ];
+
+    function boardWithAuraAndShrine() {
+        const aura = makeInstance(AURA_ID, {
+            id: "auraX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        const shrine = makeInstance(SHRINE_ID, {
+            id: "shrineX",
+            controllerId: "p2",
+            ownerId: "p2",
+        });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [aura, shrine] }),
+            ],
+        });
+    }
+
+    it("destroys a non-Aura enchantment but spares an Aura on the battlefield", () => {
+        const id = registerScript("test-excludesubtype-foreach", sweep);
+        const state = boardWithAuraAndShrine();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual([
+            "auraX",
+        ]);
+        expect(state.players[1].graveyard.map((c) => c.id)).toEqual([
+            "shrineX",
+        ]);
+    });
+
+    it("wire format — the excludeSubtype sweep survives projectPublicState", () => {
+        const id = registerScript("test-excludesubtype-wire", sweep);
+        const state = boardWithAuraAndShrine();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(projected.players[1].battlefield.map((c) => c.id)).toEqual([
+            "auraX",
+        ]);
+    });
+
+    it("excludes a card of the listed subtype from a hand choice", () => {
+        const aura = makeInstance(AURA_ID, {
+            id: "auraH",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const shrine = makeInstance(SHRINE_ID, {
+            id: "shrineH",
+            controllerId: "p2",
+            ownerId: "p2",
+            zone: "hand",
+        });
+        const id = registerScript(
+            "test-excludesubtype-hand-choice",
+            [
+                { op: "reveal", player: { target: 0 }, zone: "hand" },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zoneOwnerId: { target: 0 },
+                    zone: "hand",
+                    filter: { excludeSubtype: "Aura" },
+                    count: 1,
+                    prompt: "Choose a non-Aura card.",
+                    bind: "$picked",
+                },
+                {
+                    op: "discard",
+                    player: { target: 0 },
+                    cards: { ref: "$picked" },
+                },
+            ],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { hand: [aura, shrine] }),
+            ],
+        });
+        pushSpell(state, id, "p1", [{ type: "player", id: "p2" }]);
+        resolveTopOfStack(state);
+        // Only the Shrine is a legal candidate: the Aura carries the excluded
+        // subtype.
+        expect(state.pendingChoices![0].candidateIds).toEqual(["shrineH"]);
+    });
+});
+
 // EffectCardFilter.isAttacking (CR 508.1, issue #1097) — `hasAbility`'s
 // combat-role sibling above, but paired with a genuinely NEW construct
 // combination (`forEach` + `isAttacking` feeding `skipNextUntap` via `{ ref:
