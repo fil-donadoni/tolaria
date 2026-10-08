@@ -230,7 +230,7 @@ export const expeditionMap = defineCard(() => ({
                     player: "controller",
                     zone: "library",
                     filter: { type: "Land" },
-                    count: 1,
+                    count: { min: 0, max: 1 }, // CR 701.23b: the find is optional
                     prompt: "Search your library for a land card.",
                     bind: "$picked",
                 },
