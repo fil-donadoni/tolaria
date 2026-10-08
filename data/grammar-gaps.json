@@ -1001,6 +1001,11 @@
         },
         {
             "kind": "grammar",
+            "key": "activated › effect clause › zone reference › its owner's hand at the beginning of the next cleanup step",
+            "issue": 5241
+        },
+        {
+            "kind": "grammar",
             "key": "activated › effect clause › {self} deals damage equal to its power to target creature",
             "issue": 4317
         },
