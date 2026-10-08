@@ -572,8 +572,8 @@ describe("land.ts — the locked command", () => {
     });
 
     it("counts the landing in the batch-health ledger, past the merged-tip verification (ADR 0136 §6, issue #3780)", () => {
-        // The full gate runs after the 5th landing since the last GREEN, or
-        // 2 h after the first — so something must COUNT them, and the only
+        // The full gate runs after the 10th landing since the last GREEN, or
+        // 4 h after the first — so something must COUNT them, and the only
         // process that knows a landing happened is the one that merged it.
         const cmd = buildLockedCommand(base);
         const step = recordLandingStep("/repo");

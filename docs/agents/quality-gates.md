@@ -729,12 +729,12 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                   | Runs                                                              | Mutex                |
-| ---------------------- | ----------------------------------------------------------------- | -------------------- |
-| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base | 3-5 min              |
-| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 5 landings / 2 h | ~10 min, queues last |
-| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`    | ~13 min, once        |
-| `bun run health`       | the same full gate, by hand, on the base tip                      | ~13 min              |
+| Step                   | Runs                                                               | Mutex                |
+| ---------------------- | ------------------------------------------------------------------ | -------------------- |
+| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base  | 3-5 min              |
+| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 10 landings / 4 h | ~10 min, queues last |
+| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`     | ~13 min, once        |
+| `bun run health`       | the same full gate, by hand, on the base tip                       | ~13 min              |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
@@ -757,7 +757,7 @@ detach`; the decision is pure (`scripts/lib/health-cadence.ts`,
 `health-cadence.test.ts`) over four inputs — the landing count, the age of the
 first un-healthed landing, the last GREEN sha, the current tip:
 
-- fires on the **5th landing since the last GREEN**, or **2 h after the first**
+- fires on the **10th landing since the last GREEN**, or **4 h after the first**
   un-healthed one;
 - **dedups by sha** twice — a tip already GREEN, and a tip already fired for —
   so five quick landings cost ONE run, which is the ADR 0116 property that had
@@ -775,9 +775,16 @@ first un-healthed landing, the last GREEN sha, the current tip:
   the landing carrying the fix-forward is gated at once rather than waiting out
   another batch.
 
-Amortised: ~10 min of full gate per 5 landings, against the ~17 min per landing
-ADR 0136 measured before it, and an exposure window of ≤ 5 landings or 2 h
+Amortised: ~10 min of full gate per 10 landings, against the ~17 min per landing
+ADR 0136 measured before it, and an exposure window of ≤ 10 landings or 4 h
 instead of ≤ 2 days.
+
+**Retuned 5 → 10 landings, 2 h → 4 h (issue #5235).** Two machines drain the queue
+in parallel (3 sessions each), roughly doubling the landing rate; at 5 / 2 h the
+batch gate would fire about twice as often and each run holds a machine's heavy
+mutex ~10 min. Doubling both thresholds keeps the runs per hour near the
+single-machine figure, at the price of a wider exposure window
+(≤ 10 landings or 4 h). `FIRE_DEDUP_MS` and `MAX_PENDING_MS` are unchanged.
 
 **The mutex queues health LAST.** Health holds the lock ~10 min and a landing
 ~4, and the tip health is about does not get staler while a land runs — the
@@ -790,7 +797,7 @@ landing waits out is one block rather than three. It cannot starve: a waiter
 rises one class per 30 min queued, so after 90 min health is a land's equal
 and, being older than every land still queued, goes next. Worst case for a
 landing BEHIND A HEALTH RUN: 10 min plus the lands ahead of it, ≤ 18 min at
-the admission cap of 3, at most once per 5 landings. The order is `admissionOrder` in
+the admission cap of 3, at most once per 10 landings. The order is `admissionOrder` in
 `scripts/lib/gate-liveness.ts`, tested pure beside the stall and reclaim
 verdicts (issue #3792's shape: a starvable subprocess makes the verdict a
 property of the machine's load); the rule and what it replaced are in

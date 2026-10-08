@@ -88,7 +88,7 @@
  * nothing else, but it is also what COUNTS toward the full gate: the locked
  * command records the merged tip in `.claude/telemetry/health/cadence.json`
  * and then detaches `health-cadence.ts detach`, which fires `health-main.ts`
- * after the 5th landing since the last GREEN or 2 h after the first
+ * after the 10th landing since the last GREEN or 4 h after the first
  * un-healthed one. Both steps are non-gating, and the detached run takes the
  * mutex through `gate.ts yield`, the lowest admission class, so any `land`
  * queued behind this one goes first.
@@ -1096,8 +1096,8 @@ export function grammarResidueStep(
 /**
  * Record the landing in the batch-health ledger (ADR 0136 §6, issue #3780).
  *
- * The FULL gate runs per BATCH — after the 5th landing since the last GREEN,
- * or 2 h after the first un-healthed one — so something has to COUNT the
+ * The FULL gate runs per BATCH — after the 10th landing since the last GREEN,
+ * or 4 h after the first un-healthed one — so something has to COUNT the
  * landings, and the only process that knows one happened is the one that
  * merged it. Synchronous, tiny (one JSON file), and in the PRIMARY checkout
  * where the rest of `.claude/telemetry/health/` lives; non-gating like every

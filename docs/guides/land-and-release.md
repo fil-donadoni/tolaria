@@ -181,7 +181,7 @@ The refusals that **stay** in housekeeping mode are the structural ones: a
 dirty tree (the teardown would discard it) and a PR merged into some base other
 than this one (its housekeeping is not the base branch's to run).
 
-### The batch health gate — every 5 landings, or every 2 h
+### The batch health gate — every 10 landings, or every 4 h
 
 The full offline gate is not a landing's business, but it is not a release's
 either: between releases the base tip could stand red for the 1–2 days
@@ -190,7 +190,7 @@ BATCH (ADR 0136 §6).
 
 - **Trigger.** `land` appends the merged tip to
   `.claude/telemetry/health/cadence.json` and detaches the decision. It fires
-  after the **5th landing since the last GREEN**, or **2 h after the first
+  after the **10th landing since the last GREEN**, or **4 h after the first
   un-healthed landing**, whichever comes first — and holds otherwise, so the
   step costs one process per landing and nothing else.
 - **Dedup.** By sha, twice over: a tip already GREEN, and a tip health has
@@ -209,7 +209,7 @@ BATCH (ADR 0136 §6).
   30 min queued, so after 90 min health is a land's equal and the oldest — or
   a queue that never empties would mean the tip is never gated at all. Worst
   case for a landing behind it: 10 min of health plus the lands ahead, ≤ 18
-  min at the admission cap of 3, at most once per 5 landings.
+  min at the admission cap of 3, at most once per 10 landings.
 - **GREEN** resets the counter and rewrites `green-sha`, exactly as a release's
   health run does. **RED** writes the same durable marker, which makes
   `queue:plan` refuse the next PICK — never the next LAND, because the
@@ -353,7 +353,7 @@ mutex a day and produced 1.4 contention false-REDs a day).
 ### <a id="g-batch-health"></a>Batch health gate
 
 `scripts/health-cadence.ts`: the cadence around the [health
-gate](#g-health-gate) — 5 landings since the last GREEN, or 2 h since the
+gate](#g-health-gate) — 10 landings since the last GREEN, or 4 h since the
 first, deduplicated by sha, detached by `land`, run under `gate.ts yield` so
 queued landings go first (ADR 0136 §6). The decision itself is pure
 (`scripts/lib/health-cadence.ts`).

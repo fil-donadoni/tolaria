@@ -79,10 +79,10 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
         });
     });
 
-    it("fires 2 h after the FIRST un-healthed landing even with one landing", () => {
+    it("fires 4 h after the FIRST un-healthed landing even with one landing", () => {
         // The count threshold alone would leave a lone landing un-gated
         // indefinitely on a quiet afternoon — the exposure window ADR 0136 §6
-        // bounds at "≤ 5 landings or 2 h".
+        // bounds at "≤ 10 landings or 4 h".
         const v = healthTrigger({
             state: state({ landings: landings(1) }),
             tip: "tip1",
@@ -99,12 +99,12 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
     });
 
     it("ages from the OLDEST landing, not the newest", () => {
-        // Four landings spread over two hours: the batch is old even though
+        // Four landings spread over a few hours: the batch is old even though
         // the last one merged a minute ago.
         const v = healthTrigger({
             state: state({ landings: landings(4, 40 * MIN) }),
             tip: "tip4",
-            now: T0 + 121 * MIN,
+            now: T0 + MAX_BATCH_AGE_MS + MIN,
         });
         expect(v).toMatchObject({ kind: "fire", trigger: "age" });
     });
@@ -265,7 +265,7 @@ describe("health cadence — the fire dedup expires (issue #3780 review, finding
         // A reboot, a `gate:who` reclaim, a machine asleep: the run never
         // wrote a verdict, so nothing clears the stamp. Without an expiry that
         // batch is never gated at all — the exposure ADR 0136 §6 bounds at
-        // "≤ 5 landings or 2 h" becomes unbounded.
+        // "≤ 10 landings or 4 h" becomes unbounded.
         expect(
             healthTrigger({
                 state: fired(),
@@ -511,7 +511,9 @@ describe("health cadence — under RED, one coalesced run, never one per landing
             red: true,
         });
         expect(hold.kind).toBe("hold");
-        expect(hold.reason).toContain(`RED: 4/${LANDINGS_PER_BATCH}`);
+        expect(hold.reason).toContain(
+            `RED: ${LANDINGS_PER_BATCH - 1}/${LANDINGS_PER_BATCH}`
+        );
         expect(
             healthTrigger({
                 state: redAfterFire(LANDINGS_PER_BATCH),

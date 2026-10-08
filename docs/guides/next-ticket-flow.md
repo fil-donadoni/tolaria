@@ -23,14 +23,14 @@ flowchart TD
         L4 --> L5["verify tip · fast-forward local base · seed scenario · release claim · tear down worktree"]
     end
     POST["7 · Post-merge<br/><code>seed:preset --all</code> if cards/sets · close issue · 5-line report · STOP"]
-    H["health:main — per batch, detached<br/>after the 5th un-healthed landing or 2 h after the first · gates the CURRENT tip · takes the mutex only when no land is queued · never interrupted"]
+    H["health:main — per batch, detached<br/>after the 10th un-healthed landing or 4 h after the first · gates the CURRENT tip · takes the mutex only when no land is queued · never interrupted"]
     REL["release — manual, from the primary<br/>requires GREEN on the exact base tip · fast-forwards the release branch"]
 
     P --> C --> I --> R --> PR --> LAND --> POST
     R -. "blocking findings" .-> I
     L1 -. "conflict → abort → resolve by hand → land again" .-> LAND
     L3 -. "red on a foreign commit → fix → land again (lane skipped if the sha is unchanged)" .-> I
-    LAND -. "5th landing / 2 h" .-> H
+    LAND -. "10th landing / 4 h" .-> H
     H -- "GREEN" --> REL
     H -. "RED: marker → next pick refused, /health-fix spawned, land still allowed with a warning" .-> P
 ```
@@ -53,7 +53,7 @@ Post-cut durations: `land` holds the mutex ~4 min for an `engine` diff
 (rebase → lane → push → merge), ~2 min for `cards`; `health:main` ~10 min at
 4 workers. Three sessions, the admission cap.
 
-### A · Normal regime — the 5th landing triggers health, a land arrives meanwhile
+### A · Normal regime — the 10th landing triggers health, a land arrives meanwhile
 
 ```mermaid
 gantt
@@ -121,7 +121,7 @@ gantt
 
 Worst case: a land arriving right after health starts waits the 10 min plus
 the lands queued ahead — with the cap at 3 the ceiling is 10 + 2 × 4 = 18
-min, at most once per 5 landings. Two rules keep the peak harmless: health
+min, at most once per 10 landings. Two rules keep the peak harmless: health
 does not take the mutex while a `land` is queued (S3 lands #11 first), and it
 gates the tip current at its start, so one run covers #6–#11 although the
 trigger was #10.
@@ -163,7 +163,7 @@ without knowing why — the case that cost the most before.
 
 ## 3. The rules the scenarios fix
 
-- **Trigger**: 5th un-healthed landing, or 2 h after the first if 5 are not
+- **Trigger**: 10th un-healthed landing, or 4 h after the first if 10 are not
   reached; deduplicated by sha; runs detached from the `land` that triggered
   it.
 - **Precedence**: a queued `land` goes before a health that has not started
@@ -174,7 +174,7 @@ without knowing why — the case that cost the most before.
   proceeds; `/health-fix` is spawned at once; GREEN on the fix tip clears the
   marker (C).
 - **Wait ceiling for a land**: health (10) + lands ahead × 4, ≤ 18 min at
-  cap 3 — at most once per 5 landings.
+  cap 3 — at most once per 10 landings.
 
 ## 4. Before and after, per landing
 
