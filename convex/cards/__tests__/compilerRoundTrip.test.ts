@@ -245,7 +245,9 @@ import {
 //
 // Lowered 1347 -> 1346 by issue #4547 (tap and cycle trigger heads): City of
 // Brass round-trips through the self "becomes tapped" head.
-const BASELINE_CEILING = 1346;
+//
+// Lowered 1346 -> 1333 by issue #4548 (sacrifice it unless you <payment>).
+const BASELINE_CEILING = 1333;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

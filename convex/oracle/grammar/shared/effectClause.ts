@@ -1113,7 +1113,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 118.12 — "sacrifice <this permanent> unless you <payment>": the
+           * CR 118.12a — "sacrifice <this permanent> unless you <payment>": the
            * controller pays to keep the source or loses it. ONE instruction,
            * carried as one sentence so the payment is offered only to gate the
            * sacrifice (the `counter … unless` twin above).
@@ -3119,7 +3119,7 @@ const COLOR_ALTERNATIVES =
  * after the phrase ("with flying", "for each …", ", then …") stays inside
  * the phrase, where the descriptor reader refuses it.
  */
-/** CR 118.12 — where a sacrifice rider's payment begins. */
+/** CR 118.12a — where a sacrifice rider's payment begins. */
 const SACRIFICE_UNLESS = " unless you ";
 const SACRIFICE_EDICT = /^(.+?) sacrifices (\S+) (.+?)(?: of their choice)?$/;
 /**
@@ -5475,14 +5475,14 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── sacrifice it unless you pay (CR 118.12) ───────────────────────────
+    // ── sacrifice it unless you pay (CR 118.12a) ───────────────────────────
     const unlessAt = span.indexOf(SACRIFICE_UNLESS);
     if (unlessAt !== -1 && uncapitalise(span).startsWith("sacrifice ")) {
         const subject = subjectRule.run(
             span.slice("Sacrifice ".length, unlessAt),
             ctx
         );
-        if (!subject.ok) return subject;
+        if (!subject.ok) return fail(subject.reason, span);
         // Only the source (or the site's pronoun for it) is sacrificed unless
         // paid for; "sacrifice target creature unless …" is not a printed form.
         if (subject.value.kind !== "self" && subject.value.kind !== "pronoun")
@@ -5491,7 +5491,10 @@ function effectSentence(
             span.slice(unlessAt + SACRIFICE_UNLESS.length),
             ctx
         );
-        if (!payment.ok) return payment;
+        // The refusal names the WHOLE sentence, not the payment: the gap key
+        // is the sentence's, so a refused payment stays under the key its
+        // backlog issue already claims.
+        if (!payment.ok) return fail(payment.reason, span);
         return ok({
             kind: "sacrifice-unless" as const,
             subject: subject.value,

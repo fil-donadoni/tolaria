@@ -2672,7 +2672,7 @@ function lowerSentenceBody(
                 { op: "discard", player: player.value, cards: { ref: bind } },
             ]);
         }
-        // CR 118.12 — "sacrifice it unless you <payment>" MEANS "you may pay;
+        // CR 118.12a — "sacrifice it unless you <payment>" MEANS "you may pay;
         // if you don't, sacrifice it": the `mayPay` + `if not` pair verbatim
         // (Phyrexian Dreadnought). The payment is one `CostLegs` leg.
         case "sacrifice-unless": {

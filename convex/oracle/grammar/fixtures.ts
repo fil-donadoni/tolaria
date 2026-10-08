@@ -5828,7 +5828,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 118.12 (issue #4548) — "sacrifice it unless you <payment>" as the
+    // CR 118.12a (issue #4548) — "sacrifice it unless you <payment>" as the
     // body of an enters trigger. Both cards exhibit the card-dependent forms
     // the canned smoke scenario cannot size: the `sacrifice` Op reading the
     // `if not paid` branch, and (Phyrexian Dreadnought) the `mayPay` cost leg

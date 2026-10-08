@@ -2087,22 +2087,7 @@
         {
             "kind": "grammar",
             "key": "triggered › effect clause › Sacrifice it unless you return a basic land card from your graveyard to your hand",
-            "issue": 4548
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice it unless you return a non-Lair land you control to its owner's hand",
-            "issue": 4548
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice it unless you sacrifice a Forest",
-            "issue": 4548
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice it unless you sacrifice any number of creatures with total power N or greater",
-            "issue": 4548
+            "issue": 5229
         },
         {
             "kind": "grammar",
@@ -2116,23 +2101,8 @@
         },
         {
             "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice this creature unless you discard a card",
-            "issue": 4548
-        },
-        {
-            "kind": "grammar",
             "key": "triggered › effect clause › Sacrifice this enchantment",
             "issue": 5221
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice this enchantment unless you discard a card",
-            "issue": 4548
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › effect clause › Sacrifice this enchantment unless you pay {…}",
-            "issue": 4548
         },
         {
             "kind": "grammar",

@@ -1,6 +1,6 @@
 /**
  * Shared sub-grammar: THE PAYMENT OF A "SACRIFICE IT UNLESS YOU …" RIDER
- * (CR 118.12, issue #4548).
+ * (CR 118.12a, issue #4548).
  *
  * The tail of "sacrifice it unless you <payment>": the one decision the
  * controller makes on resolution, paying to keep the permanent or losing it.

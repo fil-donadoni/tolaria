@@ -1,4 +1,4 @@
-// "Sacrifice it unless you <payment>" riders (CR 118.12, issue #4548).
+// "Sacrifice it unless you <payment>" riders (CR 118.12a, issue #4548).
 //
 // Three layers:
 //
@@ -62,7 +62,7 @@ function punisher(cost: unknown, prompt: string) {
     ];
 }
 
-describe("sacrifice it unless you … (CR 118.12)", () => {
+describe("sacrifice it unless you … (CR 118.12a)", () => {
     it("pay {mana} — Breeding Pit", () => {
         const card = oracleCard({
             name: "Breeding Pit",
@@ -189,7 +189,7 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                 )
             )
         ).toBe(
-            "effect clause: return a basic land card from your graveyard to your hand"
+            "effect clause: Sacrifice it unless you return a basic land card from your graveyard to your hand"
         );
     });
 
@@ -203,7 +203,9 @@ describe("sacrifice it unless you … — refused neighbours", () => {
             power: undefined,
             toughness: undefined,
         });
-        expect(refusedAt(card)).toBe("effect clause: pay 2 life");
+        expect(refusedAt(card)).toBe(
+            "effect clause: Sacrifice this enchantment unless you pay 2 life"
+        );
     });
 
     it("refuses a payment that returns more than a permanent you control", () => {
@@ -214,7 +216,9 @@ describe("sacrifice it unless you … — refused neighbours", () => {
                     `${ENTERS}sacrifice it unless you return a land to its owner's hand.`
                 )
             )
-        ).toBe("effect clause: return a land to its owner's hand");
+        ).toBe(
+            "effect clause: Sacrifice it unless you return a land to its owner's hand"
+        );
     });
 
     it("refuses a plural where one is printed", () => {
