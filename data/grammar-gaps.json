@@ -767,12 +767,12 @@
         {
             "kind": "grammar",
             "key": "activated › activation cost › Threshold — Put three cards from your graveyard on the bottom of your library",
-            "issue": 4551
+            "issue": 5238
         },
         {
             "kind": "grammar",
             "key": "activated › activation cost › Threshold — {…}",
-            "issue": 4551
+            "issue": 5238
         },
         {
             "kind": "grammar",
@@ -1687,7 +1687,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As long as the top card of your graveyard is a creature card, this creature has the full text of that card and has the text \"{…}: Discard a card.\"",
-            "issue": 4551
+            "issue": 5238
         },
         {
             "kind": "grammar",
@@ -1697,7 +1697,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › As long as this card is in your graveyard and you control a Mountain, creatures you control have haste",
-            "issue": 4551
+            "issue": 5238
         },
         {
             "kind": "grammar",
@@ -1967,7 +1967,7 @@
         {
             "kind": "grammar",
             "key": "triggered › condition › it's on the battlefield",
-            "issue": 4551
+            "issue": 5238
         },
         {
             "kind": "grammar",
