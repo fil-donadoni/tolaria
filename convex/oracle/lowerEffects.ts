@@ -172,6 +172,12 @@ export interface SiteAntecedents {
     /** "that card" — a card a zone change put into a graveyard (CR 400.7e). */
     readonly card?: EffectObjectSelector;
     /**
+     * CR 404.1 / 110.2a — "that card" sits in the graveyard of the ability's
+     * own controller (the head pins its owner), so putting it onto the
+     * battlefield returns it under its owner's control.
+     */
+    readonly cardOwnedByController?: true;
+    /**
      * "it" — the OBJECT the site's own text named before the sentence
      * (CR 608.2h): the source on a head whose subject IS the source, the
      * attacking or blocking creature on a per-creature combat head
@@ -3106,9 +3112,24 @@ function lowerMoveZone(
         const card = site.antecedents?.card;
         if (card === undefined)
             return unlowerable('"that card" names no card at this site');
+        // CR 701.13a — "exile that card": the card sits in a graveyard, so it
+        // is the graveyard-card `moveZone`, not the battlefield `exile` Op.
+        if (zone.zone === "exile")
+            return lowered([{ op: "moveZone", target: card, to: "exile" }]);
+        // CR 110.2a — "return that card to the battlefield", only behind a
+        // head that makes the card's owner the ability's controller.
+        if (zone.zone === "battlefield") {
+            if (site.antecedents?.cardOwnedByController !== true)
+                return unlowerable(
+                    '"that card" may be put onto the battlefield only from its controller\'s own graveyard'
+                );
+            return lowered([
+                { op: "moveZone", target: card, to: "battlefield" },
+            ]);
+        }
         if (zone.zone !== "hand" || zone.owner !== "its-owner")
             return unlowerable(
-                '"that card" is returned only to its owner\'s hand in grammar v0'
+                '"that card" is returned only to its owner\'s hand, to exile or to the battlefield in grammar v0'
             );
         return lowered([{ op: "moveZone", target: card, to: "hand" }]);
     }

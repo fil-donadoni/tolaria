@@ -4320,6 +4320,14 @@ function effectSentence(
     if (span.startsWith("Exile ")) {
         const subject = subjectRule.run(span.slice("Exile ".length), ctx);
         if (!subject.ok) return subject;
+        // CR 400.7e — "exile that card": the card a zone change put into a
+        // graveyard; the lowering site binds it or refuses the line.
+        if (subject.value.kind === "that-card")
+            return ok({
+                kind: "move-zone" as const,
+                subject: subject.value,
+                to: { zone: "exile" as const, owner: "any" as const },
+            } satisfies EffectSentenceIR);
         // Only a CARD in a graveyard, never a battlefield permanent: the
         // catalogue writes the graveyard case as `moveZone`/`to: "exile"` and
         // the battlefield case as the dedicated `exile` Op, and picking one for

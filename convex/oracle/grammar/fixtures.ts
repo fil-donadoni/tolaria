@@ -4329,4 +4329,142 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 603.6c + CR 400.7e — "When this Aura is put into a graveyard from the
+    // battlefield, return it to its owner's hand": the source's own exit to a
+    // graveyard (`left-to-graveyard`, scope `self`), and `$source` naming the card
+    // it became there. Exhibits the `moveZone` of a card in a graveyard, which the
+    // canned smoke scenario cannot stage (issue #4546).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "9d2d6479-531c-4ce1-b52b-00e36fa63b64",
+            name: "Rancor",
+            manaCost: "{G}",
+            typeLine: "Enchantment — Aura",
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rancor",
+            types: ["Enchantment"],
+            subtypes: ["Aura"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Enchant creature\nEnchanted creature gets +2/+0 and has trample.\nWhen this Aura is put into a graveyard from the battlefield, return it to its owner's hand.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "rancor-trigger",
+                    oracleText:
+                        "When this Aura is put into a graveyard from the battlefield, return it to its owner's hand.",
+                    head: { kind: "left-to-graveyard", scope: "self" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledStaticEffects: [
+                { kind: "pt-buff", appliesTo: "host", power: 2, toughness: 0 },
+                {
+                    kind: "keyword-grant",
+                    appliesTo: "host",
+                    keyword: "trample",
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 603.6c + CR 404.1 + CR 603.2 — "Whenever a spell or ability an opponent
+    // controls causes a land to be put into your graveyard from the battlefield,
+    // return that card to the battlefield": a land owned by the controller, put
+    // into their graveyard by an opponent's spell or ability, and `$event.card`
+    // naming the card it became. Exhibits the graveyard → battlefield `moveZone`
+    // the canned smoke scenario cannot stage (issue #4546).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "b18e773c-611b-4c18-8b2d-8d3a7e5ddc93",
+            name: "Sacred Ground",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield, return that card to the battlefield.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sacred Ground",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "Whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield, return that card to the battlefield.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "sacred-ground-trigger",
+                    oracleText:
+                        "Whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield, return that card to the battlefield.",
+                    head: {
+                        kind: "left-to-graveyard",
+                        scope: "any",
+                        filter: { types: ["Land"] },
+                        ownedBy: "you",
+                        causedBy: "opponent",
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$event.card" },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 603.2 + CR 603.6c + CR 400.7e — "Whenever another card is put into a
+    // graveyard from anywhere, exile that card": a card reaching a graveyard by
+    // any route (`graveyard-entry`) and `$event.card` naming it there. Exhibits
+    // the graveyard → exile `moveZone` the canned smoke scenario cannot stage
+    // (issue #4546).
+    {
+        rule: "trigger head",
+        card: {
+            oracleId: "994e27e1-0bff-47c9-a1e6-b9e3ae4ffb1e",
+            name: "Planar Void",
+            manaCost: "{B}",
+            typeLine: "Enchantment",
+            oracleText:
+                "Whenever another card is put into a graveyard from anywhere, exile that card.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Planar Void",
+            types: ["Enchantment"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Whenever another card is put into a graveyard from anywhere, exile that card.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "planar-void-trigger",
+                    oracleText:
+                        "Whenever another card is put into a graveyard from anywhere, exile that card.",
+                    head: {
+                        kind: "graveyard-entry",
+                        graveyard: "any",
+                        excludeSelf: true,
+                    },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$event.card" },
+                            to: "exile",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

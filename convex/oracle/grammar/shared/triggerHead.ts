@@ -29,6 +29,7 @@
  */
 
 import type { SpellFilter } from "../../../cards/filters";
+import type { Color } from "../../../cards/types";
 import type { Phase } from "../../../gre/types";
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
 import { isSelfPhrase } from "./cost";
@@ -73,6 +74,44 @@ export type TriggerHeadIR =
      * only: "another creature … leaves" is a different scope, unread.
      */
     | { readonly kind: "leaves"; readonly scope: "self" }
+    /**
+     * CR 603.6c — "when this <permanent> is put into a graveyard from the
+     * battlefield": the battlefield exit that ends in a graveyard, for ANY
+     * permanent type (CR 700.4 defines "dies" the same way, but the engine's
+     * `CREATURE_DIED` is creature-only, so a non-creature rides
+     * `PERMANENT_LEFT`). The Aura's "return it to its owner's hand" (Rancor) rides it.
+     * `any` is the non-self form the corpus prints only with the other
+     * narrowings below (Sacred Ground): the permanent's type, the graveyard's
+     * OWNER (CR 404.1 — "your graveyard", which is not the controller) and who
+     * caused the departure (CR 603.2 — "a spell or ability an opponent
+     * controls causes").
+     */
+    | {
+          readonly kind: "left-to-graveyard";
+          readonly scope: "self" | "any";
+          readonly permanentType?: "Land";
+          readonly ownedBy?: "you";
+          readonly causedBy?: "opponent";
+      }
+    /**
+     * CR 603.6c / 113.6k — "when this card is put into your graveyard from your
+     * library": the source is the card that moved (the mill, CR 701.17) and
+     * the head fires from the graveyard it reached. Self only.
+     */
+    | { readonly kind: "library-to-graveyard" }
+    /**
+     * CR 603.2 / 603.6c — "whenever [another / a black] card is put into [a /
+     * an opponent's] graveyard from anywhere": a card reaching a graveyard by
+     * ANY route (battlefield, hand, library, stack), read from the graveyard
+     * it landed in. `colors` is CR 105.2's narrowing, `excludeSelf` the
+     * "another" (the source's own entry does not fire it).
+     */
+    | {
+          readonly kind: "graveyard-entry";
+          readonly graveyard: "any" | "yours" | "opponents";
+          readonly excludeSelf?: true;
+          readonly colors?: readonly Color[];
+      }
     /**
      * CR 508.3a — "whenever [this creature / a creature you control] attacks".
      * The rule counts PER CREATURE: the ability triggers once for each
@@ -265,6 +304,31 @@ export const OTHER_HEADS: ReadonlyMap<string, TriggerHeadIR> = new Map<
         "whenever a creature attacks or blocks",
         { kind: "attacks-or-blocks", scope: "any" },
     ],
+    // CR 603.6c + 400.7e — a card reaching a graveyard from ANYWHERE. Exact
+    // rows over the two forms the corpus prints; "a creature card", "from the
+    // battlefield" and the other owners are separate heads that earn their own
+    // row and fixture.
+    [
+        "whenever another card is put into a graveyard from anywhere",
+        { kind: "graveyard-entry", graveyard: "any", excludeSelf: true },
+    ],
+    [
+        "whenever a black card is put into an opponent's graveyard from anywhere",
+        { kind: "graveyard-entry", graveyard: "opponents", colors: ["B"] },
+    ],
+    // CR 603.6c + 404.1 + 603.2 — Sacred Ground's one printed phrase: a LAND
+    // put into YOUR graveyard from the battlefield by an opponent's spell or
+    // ability (a state-based action or a cost is no such cause).
+    [
+        "whenever a spell or ability an opponent controls causes a land to be put into your graveyard from the battlefield",
+        {
+            kind: "left-to-graveyard",
+            scope: "any",
+            permanentType: "Land",
+            ownedBy: "you",
+            causedBy: "opponent",
+        },
+    ],
     ["whenever a creature dies", { kind: "dies", scope: "any" }],
     ["whenever another creature dies", { kind: "dies", scope: "any-other" }],
     ["whenever a creature you control dies", { kind: "dies", scope: "yours" }],
@@ -389,6 +453,19 @@ export const SELF_HEADS: readonly {
         tail: " leaves the battlefield",
         ir: { kind: "leaves", scope: "self" },
     },
+    // CR 603.6c — a battlefield exit that ends in a graveyard, any permanent.
+    {
+        opener: "when ",
+        tail: " is put into a graveyard from the battlefield",
+        ir: { kind: "left-to-graveyard", scope: "self" },
+    },
+    // CR 603.6c / 113.6k — the card's own trip from your library to your
+    // graveyard (the mill).
+    {
+        opener: "when ",
+        tail: " is put into your graveyard from your library",
+        ir: { kind: "library-to-graveyard" },
+    },
     {
         opener: "whenever ",
         tail: " attacks",
@@ -493,6 +570,17 @@ export function headPronounReferent(
         // CR 603.6c — the source has LEFT; "it" would name a new object in
         // whatever zone it went to (CR 400.7), which no selector here reads.
         case "leaves":
+            return null;
+        // CR 400.7 — the source went to a graveyard and is the object "it"
+        // names there; the engine recovers `$source` from that graveyard
+        // (`moveZone`). Only the self form: the non-self ones name another card.
+        case "left-to-graveyard":
+            return head.scope === "self" ? "source" : null;
+        // CR 400.7 — the source is the card that moved and sits in the graveyard
+        // it reached; `$source` finds it there (`moveZone`).
+        case "library-to-graveyard":
+            return "source";
+        case "graveyard-entry":
             return null;
         // CR 120.3 — `self`: the source is the receiver and is still the
         // object "it" names; `host` names the Aura's host, not the Aura.

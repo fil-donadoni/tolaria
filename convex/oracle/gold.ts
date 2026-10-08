@@ -804,6 +804,12 @@ const TRIGGER_HEAD_EVENT: Record<CompiledTriggerHead["kind"], GameEventType> = {
     entered: "PERMANENT_ENTERED",
     died: "CREATURE_DIED",
     left: "PERMANENT_LEFT",
+    "left-to-graveyard": "PERMANENT_LEFT",
+    // CR 603.2 — spans the four graveyard-arrival events; pairing names the
+    // first, as `attacks-or-blocks` does (a hand-written twin declares the same
+    // array, so its first member matches).
+    "graveyard-entry": "PERMANENT_LEFT",
+    "library-to-graveyard": "CARD_MILLED",
     attacks: "ATTACKERS_DECLARED",
     // CR 603.2 — the head spans two events; the pairing key names the first,
     // which is what `eventsOf` below compares a scalar against. A hand-written

@@ -183,6 +183,16 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
         !("scope" in head && (head.scope === "self" || head.scope === "host")),
     // CR 603.6c — the source's own departure, the case this paragraph names.
     left: () => false,
+    // CR 603.6c — a SELF graveyard exit is the source's own departure; the
+    // non-self form (Sacred Ground's land) watches ANOTHER permanent leave
+    // while the source stays.
+    "left-to-graveyard": (head) => !("scope" in head && head.scope === "self"),
+    // CR 603.6c — "from anywhere" is never a leaves-the-battlefield ability;
+    // the source watches OTHER cards reach a graveyard and is still in play.
+    "graveyard-entry": () => true,
+    // CR 113.6k — the source IS the milled card and functions from the
+    // graveyard it landed in, never from the battlefield.
+    "library-to-graveyard": () => false,
     attacks: () => true,
     // CR 508.3a / 509.3a — the source watches OTHER creatures declare; nothing
     // in either event moves it.

@@ -194,7 +194,14 @@ describe("gold round-trip — precision", () => {
         // creature's controller…") are now compiled while their hand-written
         // sides are `phaseTrigger` `resolve()` closures — the same move as the
         // entries above, out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(37);
+        //
+        // 36 -> 37 by issue #4546 (zone-change trigger heads): Sacred Ground's
+        // "whenever a spell or ability an opponent controls causes a land to be
+        // put into your graveyard from the battlefield" is now compiled while
+        // its hand-written side is a `leftTrigger` whose `resolve` is a closure
+        // — the same move as the entries above, out of "the compiler refuses
+        // it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(38);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
