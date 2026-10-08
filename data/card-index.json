@@ -33836,6 +33836,16 @@
         "firstPrintSet": "fut"
     },
     {
+        "name": "Magus of the Scroll",
+        "scryfallId": "6060cada-52bf-4ef2-8a26-8ba04dded458",
+        "oracleId": "992df446-75a1-4174-9fde-9a912d332172",
+        "firstSet": "tsp",
+        "firstPrintId": "6060cada-52bf-4ef2-8a26-8ba04dded458",
+        "firstPrintSet": "tsp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Magus of the Unseen",
         "scryfallId": "86da04e9-b94d-42af-add3-02baf772bd33",
         "oracleId": "d8857977-c8a5-4703-9aaa-331b17c7a713",
@@ -38157,6 +38167,16 @@
         "firstPrintId": "0430da3c-9460-4b62-ae28-2e7e6f4d06a4",
         "firstPrintSet": "iko",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Nevermore",
+        "scryfallId": "67b610fe-36ee-4d58-8ed4-04e7a12587b2",
+        "oracleId": "0a1f4892-c9fa-4c60-a41e-7986cdd59096",
+        "firstSet": "isd",
+        "firstPrintId": "67b610fe-36ee-4d58-8ed4-04e7a12587b2",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

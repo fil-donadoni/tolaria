@@ -427,6 +427,22 @@ export type EffectSentenceIR =
           readonly replacement: EffectManaPool;
           readonly condition: CardCountConditionIR;
       }
+    /**
+     * CR 701.20a — "reveal a card at random from your hand": one card of the
+     * controller's hand, picked by the seeded PRNG, kept as the card a later
+     * "if that card has the chosen name" sentence reads.
+     */
+    | { readonly kind: "reveal-random-hand-card" }
+    /**
+     * CR 201.2a / 701.20a — "If that card has the chosen name, <effect>": the
+     * gate reads the card the preceding `reveal-random-hand-card` showed
+     * against the pick of the preceding `name-card`. Refused by
+     * `assembleSentences` unless both precede it in the same ability.
+     */
+    | {
+          readonly kind: "named-card-reveal-gate";
+          readonly effect: EffectSentenceIR;
+      }
     /** CR 107.3f (issue #4529) — "You may pay {X}. If you do, <effect>": the
      *  controller nominates X as the payment is made, and `effect` reads the
      *  amount paid wherever it says X. A WRAPPER over an already-read
@@ -1663,6 +1679,18 @@ export function assembleSentences(
                         reason: "a second card name is chosen before the first is read",
                     };
                 namePending = true;
+            } else if (sentence.effect.kind === "named-card-reveal-gate") {
+                // CR 201.2a — the gate compares the revealed card with the
+                // pick: both must come from earlier sentences of this ability.
+                if (
+                    !namePending ||
+                    !effects.some((e) => e.kind === "reveal-random-hand-card")
+                )
+                    return {
+                        ok: false,
+                        reason: '"If that card has the chosen name" follows no "Choose a card name, then reveal a card at random from your hand."',
+                    };
+                nameRead = true;
             } else if (sentence.effect.kind === "discard-named-from-hand") {
                 if (!namePending)
                     return {
@@ -1924,6 +1952,16 @@ export function assembleSentences(
             continue;
         }
         if (sentence.role === "then-chain") {
+            // CR 201.4 — a chain may open a card-name pick ("Choose a card
+            // name, then reveal …"); it is read back like a bare one.
+            if (sentence.effects.some((e) => e.kind === "name-card")) {
+                if (namePending)
+                    return {
+                        ok: false,
+                        reason: "a second card name is chosen before the first is read",
+                    };
+                namePending = true;
+            }
             effects.push(...sentence.effects);
             continue;
         }
@@ -2617,6 +2655,11 @@ const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 const DELAYED_DRAW_NEXT_UPKEEP =
     /^You draw (\S+) cards? at the beginning of the next turn(?:'|’)s upkeep$/;
 /** CR 201.4a — "Choose a card name" and its two printed restrictions. */
+/** CR 201.4 + CR 701.20a — the Cursed Scroll sentence, whole. */
+const NAME_THEN_REVEAL_RANDOM =
+    /^Choose a card name, then reveal a card at random from your hand$/;
+/** CR 201.2a — the gate sentence that reads it back. */
+const IF_REVEALED_HAS_CHOSEN_NAME = /^If that card has the chosen name, (.+)$/;
 const NAME_CARD =
     /^Choose a (nonland )?card name( other than a basic land card name)?$/;
 /** CR 201.4 — a sentence that reads the pick as "that name". */
@@ -3339,6 +3382,34 @@ export function signedModifier(printed: string): number {
  * two sentences that read it back as "that name". `null` = not one of them.
  */
 function chosenNameSentence(span: string, ctx: unknown) {
+    if (NAME_THEN_REVEAL_RANDOM.test(span))
+        return ok({
+            role: "then-chain" as const,
+            effects: [
+                {
+                    kind: "name-card" as const,
+                    prompt: "Choose a card name.",
+                },
+                { kind: "reveal-random-hand-card" as const },
+            ],
+        } satisfies SentenceIR);
+    const gate = span.match(IF_REVEALED_HAS_CHOSEN_NAME);
+    if (gate !== null) {
+        const inner = sentenceRule.run(capitalise(gate[1]!), ctx);
+        if (!inner.ok) return inner;
+        if (inner.value.role !== "effect")
+            return fail(
+                '"If that card has the chosen name" feeds a plain effect sentence',
+                span
+            );
+        return ok({
+            role: "effect" as const,
+            effect: {
+                kind: "named-card-reveal-gate" as const,
+                effect: inner.value.effect,
+            },
+        } satisfies SentenceIR);
+    }
     const name = span.match(NAME_CARD);
     if (name !== null) {
         // "a nonland card name" and "other than a basic land card name" are

@@ -271,6 +271,8 @@ function lowerAmount(
  *  correct answer, since no printed card does it). */
 const CHOSEN_TYPE_BINDING = "$chosenType";
 const NAMED_CARD_BINDING = "$named";
+/** The picks binding of a card revealed at random from hand (CR 701.20a). */
+const REVEALED_CARD_BINDING = "$revealed";
 
 function lowerCountedSet(
     set: CountedSetIR,
@@ -2198,6 +2200,34 @@ function lowerSentenceBody(
                         : { nameRestriction: sentence.restriction }),
                 },
             ]);
+        case "reveal-random-hand-card":
+            // CR 701.20a — one random card of the controller's hand.
+            return lowered([
+                {
+                    op: "reveal",
+                    player: "controller",
+                    zone: "hand",
+                    random: true,
+                    bind: REVEALED_CARD_BINDING,
+                },
+            ]);
+        case "named-card-reveal-gate": {
+            // CR 201.2a — the revealed card is still in the hand when asked.
+            const inner = gatedSentence(sentence.effect, walk, site);
+            if (!inner.ok) return inner;
+            return lowered([
+                {
+                    op: "if",
+                    predicate: {
+                        picksMatchFilter: { ref: REVEALED_CARD_BINDING },
+                        player: "controller",
+                        zone: "hand",
+                        filter: { name: { ref: NAMED_CARD_BINDING } },
+                    },
+                    then: inner.value,
+                },
+            ]);
+        }
         case "discard-named-from-hand": {
             // CR 701.20a — the hand is revealed first, so the discard reads
             // cards every player has seen; CR 701.9a — ALL cards with the name.

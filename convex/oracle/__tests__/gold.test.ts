@@ -201,7 +201,13 @@ describe("gold round-trip — precision", () => {
         // its hand-written side is a `leftTrigger` whose `resolve` is a closure
         // — the same move as the entries above, out of "the compiler refuses
         // it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(38);
+        //
+        // 37 -> 38 by issue #4550 (card naming): Cursed Scroll's "Choose a card
+        // name, then reveal a card at random from your hand" is now compiled
+        // while its hand-written side is a `resolve()` closure — the same move
+        // as the entries above, out of "the compiler refuses it" and into this
+        // bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(39);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

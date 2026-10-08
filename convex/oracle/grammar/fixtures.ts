@@ -4467,4 +4467,69 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 201.4 + CR 701.20a — "Choose a card name, then reveal a card at random
+    // from your hand. If that card has the chosen name, …": the name pick and
+    // the random reveal each bind a runtime value that the `if` gate reads
+    // (`picksMatchFilter` over the hand), which the canned smoke scenario
+    // cannot answer (issue #4550).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "31415b9b-fb30-4132-a9a3-795b4573a901",
+            name: "Cursed Scroll",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cursed Scroll",
+            types: ["Artifact"],
+            manaCost: { X: 1 },
+            oracleText:
+                "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.",
+            activatedAbilities: [
+                {
+                    id: "cursed-scroll-ability",
+                    oracleText:
+                        "{3}, {T}: Choose a card name, then reveal a card at random from your hand. If that card has the chosen name, this artifact deals 2 damage to any target.",
+                    cost: { mana: { X: 3 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "nameCard",
+                            player: "controller",
+                            prompt: "Choose a card name.",
+                            bind: "$named",
+                        },
+                        {
+                            op: "reveal",
+                            player: "controller",
+                            zone: "hand",
+                            random: true,
+                            bind: "$revealed",
+                        },
+                        {
+                            op: "if",
+                            predicate: {
+                                picksMatchFilter: { ref: "$revealed" },
+                                player: "controller",
+                                zone: "hand",
+                                filter: { name: { ref: "$named" } },
+                            },
+                            then: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { target: 0 },
+                                },
+                            ],
+                        },
+                    ],
+                    targetRequirement: { type: "any", count: 1 },
+                },
+            ],
+        },
+    },
 ]);

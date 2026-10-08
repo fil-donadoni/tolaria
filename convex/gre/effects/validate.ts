@@ -3179,16 +3179,20 @@ function isPredicate(value: unknown): boolean {
     // graveyard to resolve the picks against) and `filter` (the card shape
     // to test). Binding EXISTENCE and family are checked by the ordered ref
     // pass, like every other predicate form.
+    // `zone` (optional, issue #4550) — "hand" reads the picks from the hand.
     if (
-        keys.length === 3 &&
         keys.includes("picksMatchFilter") &&
         keys.includes("player") &&
-        keys.includes("filter")
+        keys.includes("filter") &&
+        keys.length === (keys.includes("zone") ? 4 : 3)
     ) {
         return (
             isBareRef(obj.picksMatchFilter) &&
             isPlayerRef(obj.player) &&
-            isCardFilter(obj.filter)
+            isCardFilter(obj.filter) &&
+            (obj.zone === undefined ||
+                obj.zone === "hand" ||
+                obj.zone === "graveyard")
         );
     }
     // targetMatchesGraveyardFilter form (issue #2385) — an OBJECT SELECTOR
@@ -5514,6 +5518,8 @@ const OP_SCHEMAS: OpSchemaTable = {
             // (CR 701.20a, Guided Passage). CR 400.2 keeps the zone hidden;
             // this only stamps knowledge, which the trailing shuffle clears.
             zone: (v) => v === "hand" || v === "library",
+            // issue #4550 — "reveal a card at random from your hand".
+            random: (v) => v === true,
             cards: isBarePicksRef,
             bind: bindingDeclaration("picks"),
         },
@@ -5528,6 +5534,13 @@ const OP_SCHEMAS: OpSchemaTable = {
             // zone whose members no earlier binding already named. A hand
             // reveal has no consumer for it today and a `cards` reveal was
             // handed its ids by the binding it would shadow.
+            if ("random" in entry) {
+                if (entry.zone !== "hand" || !("bind" in entry))
+                    return [
+                        '"random" is valid only with zone: "hand" and a "bind" naming the revealed card',
+                    ];
+                return [];
+            }
             if ("bind" in entry && entry.zone !== "library") {
                 return [
                     '"bind" is valid only with zone: "library" — it names the set the whole-library reveal (CR 701.20a) just made public',
@@ -8022,7 +8035,9 @@ function checkOpListRefs(
             // issue #2150 — the whole-HAND reveal makes that player's hand
             // public (CR 701.20a), which is what a filtered hand `count` in a
             // LATER Op of this same list is allowed to read.
-            if (entry.zone === "hand") {
+            // A RANDOM reveal shows ONE card (its own `bind` names it), never
+            // the hand: the rest stays hidden (CR 402.3).
+            if (entry.zone === "hand" && !("random" in entry)) {
                 revealedHands.add(JSON.stringify(entry.player ?? null));
             }
         }

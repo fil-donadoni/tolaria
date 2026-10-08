@@ -82,6 +82,10 @@ interface Accumulator {
     damagePreventionCounterRemoval: boolean;
     /** CR 614.12a — the "as this enters, choose a creature type" lines read. */
     asEntersCreatureTypeLines: string[];
+    /** CR 614.12a — the "as this enters, choose a nonland card name" lines. */
+    asEntersCardNameLines: string[];
+    /** CR 601.3a — lines that read the card's `chosenName`. */
+    readsChosenNameLines: string[];
     entersWithCounters: {
         type: string;
         count: number | "kicker" | { additionalCostPaid: string };
@@ -467,6 +471,15 @@ function lowerLine(
                     return "a card declares an as-enters creature-type choice twice";
                 acc.asEntersCreatureTypeLines.push(parsed.line);
             }
+            if (out.asEntersNonlandCardName === true) {
+                // Same argument as the creature type: two name choices make
+                // "the chosen name" (CR 607.2d) ambiguous.
+                if (acc.asEntersCardNameLines.length > 0)
+                    return "a card declares an as-enters card-name choice twice";
+                acc.asEntersCardNameLines.push(parsed.line);
+            }
+            if (out.readsChosenName === true)
+                acc.readsChosenNameLines.push(parsed.line);
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
@@ -661,6 +674,8 @@ export function lowerCard(
         shuffleFromAnywhere: false,
         damagePreventionCounterRemoval: false,
         asEntersCreatureTypeLines: [],
+        asEntersCardNameLines: [],
+        readsChosenNameLines: [],
         entersWithCounters: [],
         kickerRiders: [],
         plannedMechanics: [],
@@ -823,9 +838,30 @@ export function lowerCard(
             };
     }
     if (acc.kickers !== undefined) definition.kickers = acc.kickers;
+    // CR 201.2a — a line reading "the chosen name" with no choice on the card
+    // reads nothing (the engine would lock no spell): refuse, don't ship inert.
+    if (
+        acc.readsChosenNameLines.length > 0 &&
+        acc.asEntersCardNameLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: '"the chosen name" on a card with no as-enters card-name choice',
+            fragment: acc.readsChosenNameLines[0]!,
+        };
+    if (
+        acc.asEntersCardNameLines.length > 0 &&
+        acc.asEntersCreatureTypeLines.length > 0
+    )
+        return {
+            ok: false,
+            reason: "a card declares two as-enters choices",
+            fragment: acc.asEntersCardNameLines[0]!,
+        };
     if (
         acc.entersWithCounters.length > 0 ||
-        acc.asEntersCreatureTypeLines.length > 0
+        acc.asEntersCreatureTypeLines.length > 0 ||
+        acc.asEntersCardNameLines.length > 0
     )
         definition.entersWith = {
             ...(acc.entersWithCounters.length > 0
@@ -840,6 +876,18 @@ export function lowerCard(
                               kind: "subtypes" as const,
                               from: [...CREATURE_SUBTYPES],
                               count: 1,
+                          },
+                      ],
+                  }
+                : {}),
+            // CR 614.12a / 201.4a — "nonland card name", enforced exactly by
+            // the filter (the shape Meddling Mage is hand-written with).
+            ...(acc.asEntersCardNameLines.length > 0
+                ? {
+                      asEnters: [
+                          {
+                              kind: "name" as const,
+                              filter: { excludeType: "Land" as const },
                           },
                       ],
                   }
