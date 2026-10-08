@@ -1254,6 +1254,26 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+           * "Search your library for a creature card, reveal it,
+           * then shuffle and put the card on top.": the controller looks
+           * through their OWN library, may find one card the description
+           * matches, shows it to every player, shuffles, and puts the found
+           * card on top of the library. One sentence, four actions in printed
+           * order: the shuffle comes BEFORE the placement (the shuffle would
+           * otherwise bury the card it just placed), and the find is optional
+           * (CR 701.23b).
+           *
+           * `filter` and `phrase` are as `search-library-to-hand`'s; the
+           * accepted whole clauses are a closed table (`LIBRARY_SEARCH_TO_TOP`)
+           * so a description or pronoun with no printed form fails the line.
+           */
+          readonly kind: "search-library-to-top";
+          readonly filter: EffectCardFilter;
+          readonly phrase: string;
+      }
+    | {
+          /**
            * CR 608.2c — "<base>. If you control a <A> and a <B>, <upgraded>
            * instead." Two printed sentences, one effect: the second REPLACES
            * the first when every condition holds as the ability resolves, and
@@ -2809,6 +2829,23 @@ const LIBRARY_SEARCH_TO_BATTLEFIELD = new Map<
         ]
     ),
 ]);
+/**
+ * CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle) —
+ * "Search your library for <what>, reveal it, then shuffle and put <the|that>
+ * card on top". A closed table of the printed middle of the clause (phrase and
+ * pronoun together): the instant tutors print "the card" / "that card" by
+ * card, so a pairing no card prints has no row and fails the line.
+ */
+const SEARCH_LIBRARY_TO_TOP =
+    /^Search your library for (.+?), reveal it, then shuffle and put (the|that) card on top$/;
+const LIBRARY_SEARCH_TO_TOP = new Map<string, EffectCardFilter>([
+    ["a creature card|the", { type: "Creature" }],
+    [
+        "an artifact or enchantment card|that",
+        { type: ["Artifact", "Enchantment"] },
+    ],
+    ["an enchantment card|that", { type: "Enchantment" }],
+]);
 /** CR 608.2c — "If you control <A> and <B>, <body> instead" (either order). */
 const INSTEAD = /^If (you control .+?), (?:instead (.+)|(.+) instead)$/;
 
@@ -4054,6 +4091,24 @@ function effectSentence(
             kind: "search-library-to-hand" as const,
             filter,
             phrase,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── search the library, reveal the find, shuffle, put it on top ─────────
+    // CR 701.23a (search) + CR 701.20a (reveal) + CR 701.24a (shuffle)
+    const searchToTop = span.match(SEARCH_LIBRARY_TO_TOP);
+    if (searchToTop !== null) {
+        const [, phrase, pronoun] = searchToTop;
+        const filter = LIBRARY_SEARCH_TO_TOP.get(`${phrase}|${pronoun}`);
+        if (filter === undefined)
+            return fail(
+                `"${span}" is not a library search to the top of the library`,
+                span
+            );
+        return ok({
+            kind: "search-library-to-top" as const,
+            filter,
+            phrase: phrase!,
         } satisfies EffectSentenceIR);
     }
 
