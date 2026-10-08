@@ -9632,6 +9632,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cho-Arrim Legate",
+        "scryfallId": "1427a3a1-24e1-4697-b5eb-1c0a24f89e75",
+        "oracleId": "780c9cb2-9d98-4789-87e0-cb81db477204",
+        "firstSet": "mmq",
+        "firstPrintId": "1427a3a1-24e1-4697-b5eb-1c0a24f89e75",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Chorus of Woe",
         "scryfallId": "0289ddb3-b35c-4edf-92bb-06f84a3475d9",
         "oracleId": "e175a3c1-df6c-4aa7-a4c9-893b466ad9e0",
@@ -13605,6 +13615,16 @@
         "firstPrintId": "29cd6685-37ca-47c7-8f64-1fb86e9610ca",
         "firstPrintSet": "mmq",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Deepwood Legate",
+        "scryfallId": "54f01925-7fd0-472d-91a4-3309e615f22f",
+        "oracleId": "414eb407-dd39-41d2-bf25-a7a77ff35cb4",
+        "firstSet": "mmq",
+        "firstPrintId": "54f01925-7fd0-472d-91a4-3309e615f22f",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -32170,6 +32190,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kyren Legate",
+        "scryfallId": "6f0e9806-be8c-4b88-a4be-0111d1be81d9",
+        "oracleId": "41b46aa5-6091-4bc4-8d17-d2c6b5fe1c5e",
+        "firstSet": "mmq",
+        "firstPrintId": "6f0e9806-be8c-4b88-a4be-0111d1be81d9",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Laboratory Brute",
         "scryfallId": "325f228e-46ff-43e2-bc1d-c2d2df443c51",
         "oracleId": "dc92bbee-a445-4927-932b-15985bb93f19",
@@ -48022,6 +48052,16 @@
         "source": "compiled"
     },
     {
+        "name": "Rushwood Legate",
+        "scryfallId": "827b9c99-87d7-493c-9dc3-0c6aa4a61b49",
+        "oracleId": "f3623759-bf3a-4846-9ef7-1b732ad4355f",
+        "firstSet": "mmq",
+        "firstPrintId": "827b9c99-87d7-493c-9dc3-0c6aa4a61b49",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Russet Wolves",
         "scryfallId": "b3c7c972-5a11-4709-b3ef-e2acb3b51dd9",
         "oracleId": "e788e9dd-449d-495b-adad-6d49e408b003",
@@ -48741,6 +48781,16 @@
         "firstPrintId": "3ab1e253-47cb-4089-87d5-0f998025d98c",
         "firstPrintSet": "tmp",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Saprazzan Legate",
+        "scryfallId": "db9adf84-ee7e-472b-bd96-9abf853afa83",
+        "oracleId": "d20b62fc-e248-4c84-87ac-7319b92531d4",
+        "firstSet": "mmq",
+        "firstPrintId": "db9adf84-ee7e-472b-bd96-9abf853afa83",
+        "firstPrintSet": "mmq",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
