@@ -8,9 +8,11 @@
 //     same counter as a trigger's body, the optional "you may counter", and
 //     the Domain-taxed counter under CR 207.2c's ability word.
 //  2. REFUSALS — the neighbouring forms this rule must NOT read: a resolution
-//     condition on the counter, a second announced target, a flat tax, an
-//     ability on the stack, and a narrowed spell target. Each is a printed
-//     card, and each stays refused under its own Grammar Gap key.
+//     condition on the counter, a second announced target and a narrowed
+//     spell target. Each is a printed card, and each stays refused under its
+//     own Grammar Gap key. (The flat tax, the ability target and the other
+//     narrowed spell targets are read since issue #4555:
+//     `stackTargetFilters.test.ts`.)
 //  3. The TARGET phrase — "target spell" is exactly one spelling, and no
 //     battlefield verb may read it (a spell is on the stack, CR 112.1).
 //  4. The ABILITY WORD — CR 207.2c words are dropped from the head of a
@@ -215,22 +217,6 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
         );
     });
 
-    // A FLAT tax is a different `mayPay` cost leg (a literal `ManaCost`), so
-    // the Domain form is no evidence for it.
-    it("refuses a flat tax — Mana Leak", () => {
-        expect(
-            refusedAt(
-                instant(
-                    "Mana Leak",
-                    "{1}{U}",
-                    "Counter target spell unless its controller pays {3}."
-                )
-            )
-        ).toBe(
-            "effect clause: Counter target spell unless its controller pays {3}"
-        );
-    });
-
     // The Domain tax's PRICE is the literal {1} — the one amount printed. A
     // captured amount would be an accepted form with no fixture, and {0}
     // would lower to a counterspell that never counters.
@@ -245,23 +231,6 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
             )
         ).toBe(
             "effect clause: Counter target spell unless its controller pays {2} for each basic land type among lands you control"
-        );
-    });
-
-    // CR 112.1 — a spell is a CARD on the stack; an activated or triggered
-    // ability on the stack (CR 113.7a) is not one, so it is not what this
-    // rule's `{ type: "spell" }` slot announces.
-    it("refuses countering an ability — Stifle", () => {
-        expect(
-            refusedAt(
-                instant(
-                    "Stifle",
-                    "{U}",
-                    "Counter target activated or triggered ability."
-                )
-            )
-        ).toBe(
-            "effect clause > target filter > object descriptor: activated or triggered ability"
         );
     });
 

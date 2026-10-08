@@ -1293,8 +1293,17 @@ const STACK_SPELL_MV_AT_MOST =
  * beside `type: "spell"` on the requirement (`colorFilter`, `spellTypeFilter`,
  * `mvFilter`, `spellStackKind`, …), not in a descriptor whose adjectives would
  * be dropped silently. `null` = not a narrowed stack phrase.
+ *
+ * NOT part of {@link targetFilterRule}: the phrases are read by the counter
+ * verb alone (`effectClause.ts`). A shared reading would hand every stack verb
+ * ("target artifact or enchantment spell becomes the color of your choice",
+ * "copy target activated or triggered ability") a narrowing it has no
+ * fixture for, and the lace templates' refusals would silently turn into
+ * accepted lines.
  */
-function narrowedStackRequirement(span: string): TargetRequirement | null {
+export function narrowedStackRequirement(
+    span: string
+): TargetRequirement | null {
     if (span === "target artifact or enchantment spell")
         return {
             type: "spell",
@@ -1374,10 +1383,6 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
                 type: "spell-or-permanent",
                 count: 1,
             } as TargetRequirement);
-        // CR 115.2 + CR 701.6a — a stack object NARROWED beyond the lace
-        // phrases above: by colour, card type, mana value or object kind.
-        const narrowed = narrowedStackRequirement(span);
-        if (narrowed !== null) return ok(narrowed);
         // CR 115.2 + CR 105.1 — "target permanent if it's <colour>": the
         // Blast cycle's conditional spelling of "target <colour> permanent",
         // read AS that descriptor so both spellings yield one requirement.

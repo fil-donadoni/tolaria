@@ -1245,12 +1245,10 @@ export const swayOfIllusion = defineCard(() => ({
 // resolving, the `counter` Op fizzling, the `destroy` skipping an unwritten
 // binding, and the `draw` running.
 //
-// The Oracle-compiler grammar (PRD #2693) has no production for either half of
-// the first line — neither the "that targets <permanent clause>" spell-property
-// restriction nor the "if a permanent's ability is countered this way" rider —
-// so the card is hand-written and declares the gap. The `draw` half compiles
-// fine; the marker names only what the grammar cannot consume.
-// hand-tail: "Counter target spell or ability an opponent controls that targets a land you control. If a permanent's ability is countered this way, destroy that permanent." (#4195)
+// The Oracle compiler reads every line of this card (issue #4555): the stack
+// phrase is a counter-only narrowed target, the rider folds onto the counter as
+// `bindSource` + `destroy`. The binding is named `$source1`, the compiler's
+// own name for it, so the hand-written card and the compiled one are equal.
 export const teferisResponse = defineCard(() => ({
     id: "f3bb2df8-c559-4a34-83b0-d48fbc694cc8",
     name: "Teferi's Response",
@@ -1270,9 +1268,9 @@ export const teferisResponse = defineCard(() => ({
         {
             op: "counter",
             target: { target: 0 },
-            bindSource: "$counteredSource",
+            bindSource: "$source1",
         },
-        { op: "destroy", target: { ref: "$counteredSource" } },
+        { op: "destroy", target: { ref: "$source1" } },
         { op: "draw", player: "controller", count: 2 },
     ],
 }));

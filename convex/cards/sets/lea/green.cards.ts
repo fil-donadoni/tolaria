@@ -672,7 +672,7 @@ export const kudzu = defineCard(() => ({
     ],
 }));
 
-// Lifeforce — "{G}, Sacrifice Lifeforce: Counter target black spell." (CR
+// Lifeforce — "{G}{G}: Counter target black spell." (CR
 // 701.6a counter, 202.2 color filter on stack target). Mirror of Deathgrip.
 export const lifeforce = defineCard(() => ({
     id: "e292577e-6232-44fa-a9c2-cc09949c6ed3",
@@ -684,8 +684,8 @@ export const lifeforce = defineCard(() => ({
     activatedAbilities: [
         {
             id: "lifeforce-counter",
-            oracleText: "{G}, Sacrifice Lifeforce: Counter target black spell.",
-            cost: { mana: { G: 1 }, sacrifice: true },
+            oracleText: "{G}{G}: Counter target black spell.",
+            cost: { mana: { G: 2 } },
             useStack: true,
             targetRequirement: {
                 type: "spell",

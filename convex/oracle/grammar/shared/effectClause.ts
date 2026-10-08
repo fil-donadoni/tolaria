@@ -74,6 +74,7 @@ import {
     COLOR_WORDS,
     descriptorRule,
     dividedTargetsRule,
+    narrowedStackRequirement,
     opensTargetPhrase,
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
@@ -4303,10 +4304,15 @@ function effectSentence(
         // the subject is read so the subject rule sees a target phrase and
         // not a target phrase with a cost glued to it.
         const taxAt = rest.indexOf(UNLESS_PAYS);
-        const subject = subjectRule.run(
-            taxAt === -1 ? rest : rest.slice(0, taxAt),
-            ctx
-        );
+        const phrase = taxAt === -1 ? rest : rest.slice(0, taxAt);
+        // CR 115.2 — the narrowed stack phrases are the COUNTER verb's own
+        // (see `narrowedStackRequirement`); every other target phrase goes
+        // through the shared subject rule.
+        const narrowed = narrowedStackRequirement(phrase);
+        const subject: RuleResult<SubjectIR> =
+            narrowed === null
+                ? subjectRule.run(phrase, ctx)
+                : ok({ kind: "target" as const, requirement: narrowed });
         if (!subject.ok) return subject;
         // CR 701.6a — only an announced STACK OBJECT is countered by this
         // rule: a spell, or (CR 701.6a names "spell or ability") an ability

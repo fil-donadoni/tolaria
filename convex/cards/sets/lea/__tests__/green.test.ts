@@ -3055,7 +3055,7 @@ describe("Gaea's Liege (Forest-count P/T + {T} land→Forest)", () => {
 // Migration harnesses (ADR 0045, issue #831): Lifeforce / Tranquility / Tsunami
 // had no per-card tests, so these behaviour tests are authored to guard the
 // resolve()→effects[] migrations (counter / destroyAll sweeps).
-describe("Lifeforce ({G}, Sacrifice — counter target black spell, CR 701.6a)", () => {
+describe("Lifeforce ({G}{G} — counter target black spell, CR 701.6a)", () => {
     it("counters the targeted spell (removes it from the stack)", () => {
         const lf = makeInstance(lifeforce.id, {
             id: "lf",
