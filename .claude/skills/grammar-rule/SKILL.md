@@ -22,18 +22,15 @@ once, the evidence is still paid per form.
 
 **Acceptance: every accepted form compiles** (ADR 0152 § 5, amending ADR 0146
 § 6 for `grammar`) — not every key closed. A cluster may claim a whole Clause
-Family, any number of keys; it is capped at **~10 accepted forms**, ordered by
-corpus cards. Forms past the cap are outside the cluster: **do not grow them
-into the PR**, even when the rule nearly reads them — name them in the PR's
-Grammar Gaps table as `past cap`. Keys still live when the cluster closes are
-re-homed by the first `gaps:sync` after it closes (ADR 0146 § 5) — into another
-open cluster whose signature matches, else into singles, which feed the
-family's next Cluster Cut; nothing to move by hand. A member gap that turns out out of
-reach (step 3) is refused and named in the PR with why — it does not hold the
-rest back, and the same re-home takes its claim, so it is never left
-`unclaimed`. **Do not widen a cluster mid-ticket** to a gap that is not in its
-list without saying so in the PR and adding its claim row — the claim, not the
-diff, is what `check:targets` reads.
+Family, capped at **~10 accepted forms**, ordered by corpus cards. Forms past
+the cap are outside the cluster: **do not grow them into the PR** — name them
+in the Grammar Gaps table as `past cap`. Keys still live at close are re-homed
+by the next `gaps:sync` (ADR 0146 § 5) into a matching open cluster, else
+singles; nothing to move by hand. A member gap out of reach (step 3) is refused
+and named in the PR with why — it does not hold the rest back, and the same
+re-home takes its claim. **Do not widen a cluster mid-ticket** to a gap not in
+its list without saying so in the PR and adding its claim row — the claim, not
+the diff, is what `check:targets` reads.
 
 ## The three anti-Forge guards — read before writing a line
 
