@@ -2992,6 +2992,8 @@ const DESTROY_COUNTERED_SOURCE =
  */
 const COUNTER_LIMIT_INSTEAD =
     /^counter that spell if its mana value is (\d+) or less instead$/;
+/** CR 115.2 — the Blast cycle's conditional destroy target. */
+const DESTROY_PERMANENT_IF_COLOR = /^target permanent if it's (blue|red)$/;
 /** CR 118.12a — where a counter's punisher clause begins. */
 const UNLESS_PAYS = " unless its controller pays ";
 /**
@@ -4275,7 +4277,19 @@ function effectSentence(
 
     // ── destroy (CR 701.8a) ────────────────────────────────────────────────
     if (span.startsWith("Destroy ")) {
-        const subject = sweepableSubject(span.slice("Destroy ".length), ctx);
+        // CR 115.2 + CR 105.1 — the Blast cycle's "target permanent if it's
+        // <colour>" is read AS "target <colour> permanent" by the destroy verb
+        // alone (same requirement as the hand-written cycle; the announcement
+        // offers coloured permanents only). No other verb reads the spelling.
+        const conditional = span
+            .slice("Destroy ".length)
+            .match(DESTROY_PERMANENT_IF_COLOR);
+        const subject = sweepableSubject(
+            conditional === null
+                ? span.slice("Destroy ".length)
+                : `target ${conditional[1]} permanent`,
+            ctx
+        );
         if (!subject.ok) return subject;
         return ok({
             kind: "destroy" as const,

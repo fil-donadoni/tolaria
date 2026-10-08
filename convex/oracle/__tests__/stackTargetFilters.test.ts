@@ -573,4 +573,12 @@ describe("the narrowed stack phrases are the counter verb's own", () => {
             )
         ).toMatch(/blue spell/);
     });
+
+    it("lets no other verb read 'permanent if it's <colour>'", () => {
+        expect(
+            refusedAt(
+                instant("Probe", "{U}", "Exile target permanent if it's blue.")
+            )
+        ).toMatch(/permanent if it's blue/);
+    });
 });

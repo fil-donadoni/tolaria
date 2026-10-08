@@ -1796,7 +1796,7 @@ function lowerSentenceBody(
             // CR 701.6a + CR 113.7a — the Counter rider "destroy that permanent"
             // acts on the SOURCE of a countered ability: the counter binds it,
             // a plain `destroy` reads the binding, and a countered spell binds nothing
-            // (so the destroy skips, CR 608.2b) — the oracle's own condition.
+            // (so the destroy skips an unwritten binding) — the oracle's own condition.
             if (sentence.destroysCounteredSource === true) {
                 const source = walk.nextBind("source");
                 counter.bindSource = source;

@@ -1281,8 +1281,6 @@ const STACK_COLOR_SPELL = /^target (blue|red|black) spell$/;
  * it; the colours are the two the cycle names.
  */
 const STACK_SPELL_IF_COLOR = /^target spell if it's (blue|red)$/;
-/** CR 115.2 — the permanent half of the Blast cycle's conditional spelling. */
-const PERMANENT_IF_COLOR = /^target permanent if it's (blue|red)$/;
 /** CR 202.3 + CR 115.2 — "target spell if its mana value is N or less". */
 const STACK_SPELL_MV_AT_MOST =
     /^target spell if its mana value is (\d+) or less$/;
@@ -1383,18 +1381,6 @@ export const targetFilterRule: Rule<TargetRequirement> = subGrammar(
                 type: "spell-or-permanent",
                 count: 1,
             } as TargetRequirement);
-        // CR 115.2 + CR 105.1 — "target permanent if it's <colour>": the
-        // Blast cycle's conditional spelling of "target <colour> permanent",
-        // read AS that descriptor so both spellings yield one requirement.
-        const permanentIfColor = span.match(PERMANENT_IF_COLOR);
-        if (permanentIfColor !== null) {
-            const descriptor = descriptorRule.run(
-                `${permanentIfColor[1]} permanent`,
-                ctx
-            );
-            if (!descriptor.ok) return descriptor;
-            return targetRequirementFromDescriptor(descriptor.value);
-        }
         for (const [head, count] of OPTIONAL_COUNT_HEADS) {
             if (!span.startsWith(head)) continue;
             const descriptor = descriptorRule.run(span.slice(head.length), ctx);
