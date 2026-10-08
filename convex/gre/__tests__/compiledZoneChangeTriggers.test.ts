@@ -265,9 +265,29 @@ describe("Planar Void: 'another card … from anywhere' (CR 603.6c)", () => {
 
     it("exiles a spell card that resolves off the stack", () => {
         const state = board();
-        pushSpell(state, darkRitual.id, "p2");
+        const ritual = pushSpell(state, darkRitual.id, "p2");
         resolveTopOfStack(state);
-        expect(triggersOf(state, PLANAR_VOID).length).toBeGreaterThan(0);
+        expect(triggersOf(state, PLANAR_VOID)).toHaveLength(1);
+        resolveTopOfStack(state);
+        expect(state.players[1].graveyard.map((c) => c.id)).not.toContain(
+            ritual.id
+        );
+        expect(state.players[1].exile.map((c) => c.id)).toContain(ritual.id);
+    });
+
+    it("does not fire for a TOKEN that dies (a token is not a card, CR 111.7)", () => {
+        const state = board();
+        state.players[1].battlefield.push(
+            makeInstance(grizzlyBears.id, {
+                id: "token",
+                controllerId: "p2",
+                ownerId: "p2",
+                zone: "battlefield",
+                isToken: true,
+            })
+        );
+        removePermanentTo(state, "token", "graveyard");
+        expect(triggersOf(state, PLANAR_VOID)).toHaveLength(0);
     });
 
     it("does not fire for ITS OWN trip to a graveyard ('another')", () => {
