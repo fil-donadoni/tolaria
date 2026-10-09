@@ -5976,4 +5976,58 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 205.1b + CR 613.1d — "This land becomes a 3/3 green Ape creature with
+    // trample until end of turn. It's still a land.": the source animates
+    // itself. Exhibits the `animate` Op acting on `$source`, which the canned
+    // smoke scenario cannot drive (the source must be a land with a payable
+    // activation), so this fixture is the evidence the Op is emitted as the
+    // hand-written manlands write it (sets/ulg/colorless.cards.ts, issue #4564).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b53f216d-1592-4eee-b204-502a805fbc8c",
+            name: "Treetop Village",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Treetop Village",
+            types: ["Land"],
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+            activatedAbilities: [
+                {
+                    id: "treetop-village-mana",
+                    oracleText: "{T}: Add {G}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { G: 1 },
+                },
+                {
+                    id: "treetop-village-ability-2",
+                    oracleText:
+                        "{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+                    cost: { mana: { X: 1, G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 3,
+                            toughness: 3,
+                            subtype: "Ape",
+                            colors: ["G"],
+                            grantedAbilities: ["trample"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    animatesSelf: true,
+                },
+            ],
+            entersTapped: true,
+        },
+    },
 ]);
