@@ -43,8 +43,11 @@
  * `/proc/meminfo` gives swap in use (`SwapTotal - SwapFree`) and reclaimable
  * RAM (`MemAvailable`, the kernel's own estimate of what a new workload can
  * get without swapping — the analogue of free + inactive); the pressure level
- * is PSI, `/proc/pressure/memory`, translated onto the Darwin scale by
- * `psiLevel` — a translation of the kernel's reading, not a policy threshold.
+ * is PSI, `/proc/pressure/memory`, mapped onto the Darwin scale by
+ * `psiLevel`. Darwin's levels are the kernel's own; PSI has no levels, so the
+ * two `avg10` cut-offs are OURS — chosen, not yet measured on the Omarchy
+ * machine (issue #5305): recalibrate them from `gate-lock.jsonl`'s
+ * `pressure_*` columns once Linux runs have accumulated.
  *
  * The two differ on LOAD, deliberately. The 1-minute load average is what an
  * admitted gate itself raises: four vitest workers and `tsc -b` hold it above
@@ -238,7 +241,8 @@ export function parseMeminfo(out: string): {
 }
 
 /** PSI `avg10` at or above which `full` reads critical (4): for a tenth of
- *  the last 10 s EVERY runnable task was stalled on memory — thrashing. */
+ *  the last 10 s EVERY runnable task was stalled on memory — thrashing.
+ *  Chosen, not measured (see the header). */
 export const PSI_FULL_CRITICAL = 10;
 /** PSI `avg10` at or above which `some` reads warning (2): for a tenth of
  *  the last 10 s some task waited on reclaim or swap-in — the kernel is
@@ -804,7 +808,9 @@ export function readProcessCwds(
                 // vanished, or not ours to read
             }
         }
-        return cwds;
+        // Not one readable (a `hidepid` /proc, another uid): an unread probe,
+        // as `lsof`'s empty answer is — never "no sessions", which admits open.
+        return pids.length > 0 && cwds.size === 0 ? null : cwds;
     }
     const lsof = spawnSync(
         "lsof",

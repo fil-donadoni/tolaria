@@ -408,10 +408,18 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
         // The one layer that is not about process groups: the machine must
         // stay awake whether or not anyone is watching the terminal —
         // `caffeinate` on macOS, `systemd-inhibit` on Linux (issue #5305).
+        // On Linux only where logind answers — the script's own probe.
+        const inhibit =
+            process.platform !== "darwin" &&
+            spawnSync("sh", ["-c", "systemd-inhibit --list"], {
+                stdio: "ignore",
+            }).status === 0;
         const awake =
             process.platform === "darwin"
                 ? /caffeinate -i -s/
-                : /systemd-inhibit --what=idle:sleep/;
+                : inhibit
+                  ? /systemd-inhibit --what=idle:sleep/
+                  : /^(?![\s\S]*(caffeinate|systemd-inhibit))/;
         const fg = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         const bg = run({
             args: ["--start", "--detach", "--dry-run", "--budget", "1"],

@@ -268,7 +268,12 @@ describe("gate.ts — a run whose command removes the gate's own cwd (issue #498
         expect(typeof row!.load_end).toBe("number");
         if (process.platform === "darwin" || process.platform === "linux") {
             expect(typeof row!.swap_end_mb).toBe("number");
-            expect(typeof row!.pressure_end).toBe("number");
+            // Linux reads pressure from PSI, absent on a kernel without it.
+            if (
+                process.platform === "darwin" ||
+                fs.existsSync("/proc/pressure/memory")
+            )
+                expect(typeof row!.pressure_end).toBe("number");
         }
     });
 

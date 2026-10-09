@@ -459,11 +459,14 @@ launch_driver() {
     [ -z "$_max_errors" ] || set -- "$@" --max-consecutive-errors "$_max_errors"
 
     # Keep the machine awake for the run: `caffeinate` on macOS,
-    # `systemd-inhibit` on Linux (issue #5305). Neither present → unguarded.
+    # `systemd-inhibit` on Linux (issue #5305). Neither usable → unguarded.
+    # `systemd-inhibit` present but with no logind to reach (SSH without a
+    # bus, a container) refuses to run the command at all, so it is probed.
     if [ "$NO_CAFFEINATE" -eq 0 ]; then
         if command -v caffeinate >/dev/null 2>&1; then
             set -- caffeinate -i -s "$@"
-        elif command -v systemd-inhibit >/dev/null 2>&1; then
+        elif command -v systemd-inhibit >/dev/null 2>&1 &&
+            systemd-inhibit --list >/dev/null 2>&1; then
             set -- systemd-inhibit --what=idle:sleep --who=tolaria-loop \
                 --why="unattended loop run" "$@"
         fi

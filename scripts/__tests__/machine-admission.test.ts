@@ -158,7 +158,7 @@ describe("probe parsers — the text each probe prints on this machine", () => {
         expect(psiLevel(psi(10, 0))).toBe(2);
         expect(psiLevel(psi(40, 9.99))).toBe(2);
         expect(psiLevel(psi(40, 10))).toBe(4);
-        // A kernel without `full` (pre-5.13 cgroup v1 roots) still reads.
+        // A `some`-only file still reads.
         expect(psiLevel("some avg10=12.00 avg60=0 avg300=0 total=1")).toBe(2);
         expect(psiLevel("")).toBeNull();
     });
