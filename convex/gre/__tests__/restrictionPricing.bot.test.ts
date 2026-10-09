@@ -115,6 +115,18 @@ describe("restriction pricing — the restricted side (issue #5154)", () => {
         expect(evaluate(open, "p1") - evaluate(moated, "p1")).toBeGreaterThan(
             moatBody
         );
+        // The lens prices the Moat at exactly what its removal moves on the
+        // per-permanent terms: the Moat's own `permanents` credit plus the
+        // creatures' recovery. (Per-player aggregates — colour coverage
+        // reads the Moat as white evidence — are deliberately not the lens's.)
+        const moat = moated.players[1].battlefield[0];
+        const withMoat = evaluateBreakdown(moated, "p1");
+        const without = evaluateBreakdown(open, "p1");
+        expect(
+            without.self.creatures -
+                withMoat.self.creatures +
+                (withMoat.opp.permanents - without.opp.permanents)
+        ).toBeCloseTo(permanentRealisedValue(moated, moat, W), 6);
     });
 
     it("CR 303.4 / 509.1b: Pacifism takes the host's attack and block shares, and the Aura is worth exactly what it took — on the board term and on the removal lens (one number)", () => {
@@ -139,26 +151,47 @@ describe("restriction pricing — the restricted side (issue #5154)", () => {
             taken,
             6
         );
-        // …on the removal lens: body + presence + what it took.
+        // …on the board term: p2's `permanents` moves by presence + body +
+        // that number, p1's `creatures` by what the host lost…
         const auraBody = permanentRealisedValue(
             board([], [inst(PACIFISM, "p2", "loose")]),
             inst(PACIFISM, "p2", "loose"),
             W
         );
-        expect(permanentRealisedValue(pacified, pacifism, W)).toBeCloseTo(
-            auraBody + taken,
-            6
-        );
-        // …and on the board term: p2's `permanents` moves by the SAME number
-        // the lens prices the Aura at, p1's `creatures` by what the host lost.
         const before = evaluateBreakdown(free, "p2");
         const after = evaluateBreakdown(pacified, "p2");
         expect(after.self.permanents - before.self.permanents).toBeCloseTo(
-            permanentRealisedValue(pacified, pacifism, W),
+            auraBody + taken,
             6
         );
         expect(after.opp.creatures - before.opp.creatures).toBeCloseTo(
             -taken,
+            6
+        );
+        // …and on the removal lens, which prices the Aura at the margin its
+        // removal MOVES: the source's credit plus the host's recovery — the
+        // same number `evaluateBreakdown` says the Aura's arrival moved.
+        expect(permanentRealisedValue(pacified, pacifism, W)).toBeCloseTo(
+            auraBody + 2 * taken,
+            6
+        );
+        expect(permanentRealisedValue(pacified, pacifism, W)).toBeCloseTo(
+            after.self.permanents -
+                before.self.permanents +
+                (before.opp.creatures - after.opp.creatures),
+            6
+        );
+    });
+
+    it("CR 509.1b: with no opposing creature there is nothing to block — only the attack share is lost", () => {
+        const giant = inst(GIANT, "p1", "giant");
+        const pacifism = inst(PACIFISM, "p2", "pacifism", {
+            attachedTo: "giant",
+        });
+        const free = board([giant], []);
+        const pacified = board([giant], [pacifism]);
+        expect(creatureWorth(pacified, giant)).toBeCloseTo(
+            creatureWorth(free, giant) - attackDiscount(giant),
             6
         );
     });
@@ -262,7 +295,10 @@ describe("restriction pricing — the source's standing worth (issue #5154)", ()
         const pacifism = inst(PACIFISM, "p2", "pacifism", {
             attachedTo: "giant",
         });
-        const state = board([giant, bears], [moat, pacifism]);
+        // A flier across the table: the block axis needs an attacker to be
+        // measured against, and a flier is not grounded by its own Moat.
+        const theirs = inst(SPRITES, "p2", "theirs");
+        const state = board([giant, bears], [moat, pacifism, theirs]);
         const pass = beginLayer7Pass(state);
         // Removing the Moat frees the Bears only — the Giant stays pacified.
         expect(restrictionSourceWorth(state, moat, W, pass)).toBeCloseTo(
@@ -276,7 +312,7 @@ describe("restriction pricing — the source's standing worth (issue #5154)", ()
             6
         );
         // The Giant itself is priced at its whole loss.
-        const open = board([giant, bears], []);
+        const open = board([giant, bears], [theirs]);
         expect(creatureWorth(state, giant)).toBeCloseTo(
             creatureWorth(open, giant) - fullDiscount(giant),
             6

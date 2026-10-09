@@ -1369,9 +1369,15 @@ export function permanentRealisedValue(
     // Issue #5154 — the permanent's standing worth AS a restriction source
     // (a Moat, a Pacifism, a Meekstone): what it takes from the opponent's
     // creatures minus what it takes from its controller's own. The SAME
-    // function the board term adds per permanent, so the lens prices the
-    // removal of a lock at exactly what the position term credits it.
-    total += restrictionSourceWorth(state, perm, weights, pass);
+    // function the board term adds per permanent — and it is added TWICE
+    // here, because a removal moves the margin by both halves: the source's
+    // own credit under `permanents` goes, AND the restricted creatures
+    // recover the discount `evaluateCreature` took from them (the opponent's
+    // under `creatures`, which is a loss for the source's controller; its
+    // own, which is a gain — the same sign the worth already carries). So
+    // `realisedLoss` of a Moat equals the margin its Disenchant actually
+    // moves, as it does for a creature kill, instead of half of it.
+    total += 2 * restrictionSourceWorth(state, perm, weights, pass);
     const controller = state.players.find((p) => p.id === perm.controllerId);
     // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
     // remaining CHARGES, not a renewable source's price: destroying a depletion
