@@ -345,7 +345,12 @@ fetch, every `Whenever you cast a <filter> spell` head, every keyword line of
 one parameter shape). The recompile, the lane, the review and the landing are
 paid per PR; the golden fixture is paid per form anyway — so a ticket per gap
 pays the fixed cost N times for no extra evidence. Cluster the ranked list
-before cutting: the family-boundary and long-tail rules ("one family, never a
+before cutting — rank it with `bun run oracle:report --set <code> --families`
+(**Clause Family**, ADR 0152 § 1; `GLOSSARY.md`), not `--gaps`: the Target
+chooses WHICH family is cut and its band, the cut is sized across the corpus
+(forms ordered by corpus cards, up to the cap), and a family-wide Cluster
+Signature is legitimate (ADR 0152 § 2–4). Open grammar issues are never
+re-cut (ADR 0152 § 6). The family-boundary and long-tail rules ("one family, never a
 grab-bag"; "the long tail clusters by its own axis") are `/cluster-gaps`'s
 (`.claude/skills/cluster-gaps/SKILL.md` § Cutting rules, ADR 0146) — shared
 with the other four gap kinds, not restated here. Invoke `/cluster-gaps
@@ -353,8 +358,10 @@ grammar` over this ranked list for the grouping decision (its "grouping-only
 mode" — this backlog is unfiled and one-shot, so it authors no `clusters` row
 and creates no issue itself); this skill still owns:
 
-- **Cap ~10 gaps.** Past that the PR is too big to review and one red form
-  blocks the rest; split by form.
+- **Cap ~10 accepted forms, not ~10 gaps** (ADR 0152 § 3). A compositional
+  rule reads many keys with one form; what a cluster pays per member is a
+  golden fixture and its proof of failure. Past ~10 forms the PR is too big to
+  review and one red form blocks the rest; split by sub-form.
 - **Every gap key is listed and claimed.** The body's `## Grammar Gaps` lists
   each key with its counts; each key gets a `claims` row (kind `grammar`) in
   `data/grammar-gaps.json` pointing at the cluster — or, for an Op-census key,

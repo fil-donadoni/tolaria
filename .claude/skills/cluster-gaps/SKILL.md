@@ -45,13 +45,13 @@ there is nothing to cut.
 Five kinds, five axes — this is the only part of the judgment that is
 kind-specific; §3's rules apply to whatever grouping comes out of it:
 
-| Kind        | Axis                                                                                                                                                                    |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `grammar`   | One rule family by **slot or shared sub-grammar path** — the same slot segment, or the same clause shape across slots.                                                  |
-| `bot`       | **Cause fixed** + an **Op or keyword glob** — e.g. every `never-chosen › … › …forEach…` row is one family, one per cause.                                               |
-| `hand-tail` | `{ set, colour }` — the set-file colour bucket a hand-written card lives in (ADR 0043); a Hand Tail gap is one card, so its siblings are the file they'd be written in. |
-| `mechanic`  | One family (the same quarantine class / keyword root), else a Standalone Gap.                                                                                           |
-| `scenario`  | One family (the same quarantine class), else a Standalone Gap.                                                                                                          |
+| Kind        | Axis                                                                                                                                                                                                                                                                    |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grammar`   | One **Clause Family** (ADR 0152; `oracle:report --families`) — slot and sub-grammar path plus the head of the unconsumed span. The family proposes, the signature decides: narrow its glob when too wide (e.g. `This <type> enters with …` mixing counters and tapped). |
+| `bot`       | **Cause fixed** + an **Op or keyword glob** — e.g. every `never-chosen › … › …forEach…` row is one family, one per cause.                                                                                                                                               |
+| `hand-tail` | `{ set, colour }` — the set-file colour bucket a hand-written card lives in (ADR 0043); a Hand Tail gap is one card, so its siblings are the file they'd be written in.                                                                                                 |
+| `mechanic`  | One family (the same quarantine class / keyword root), else a Standalone Gap.                                                                                                                                                                                           |
+| `scenario`  | One family (the same quarantine class), else a Standalone Gap.                                                                                                                                                                                                          |
 
 `grammar` and `bot` glob the key's `›`-joined segments (each with a space on
 either side, `keyMatchesGlob` in `scripts/lib/gap-issues.ts`) — write the
@@ -73,6 +73,10 @@ alone — moved here so every kind gets them once:
   one with a wider glob.
 - **Cap ~10 members.** Past that a landing PR is too big to review and one red
   member blocks every sibling; split by sub-form instead of widening the cap.
+  **`grammar` only: the cap is ~10 accepted forms, not ~10 members** (ADR 0152
+  § 3) — a cluster may claim a whole Clause Family, any number of keys, while
+  its rule reads them with about ten golden fixtures. Other kinds' caps and
+  axes are unchanged.
 - **The long tail clusters by its own axis, not by nothing.** Singles with no
   real family (one card, one shape, one cause with a single occurrence so far)
   go into a **long tail** cluster keyed on the coarsest shared segment (the
