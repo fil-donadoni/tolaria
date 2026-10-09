@@ -519,11 +519,10 @@ export type EffectSentenceIR =
            * turn."): the characteristics the clause prints beyond the P/T.
            * Set only with a `self` subject; a sweep prints a bare P/T. The
            * keeping of the land type is the rider's here too ("It's still a
-           * land."), recorded against `selfType` — the noun the subject
-           * named — so a rider restating a different type keeps nothing.
+           * land."); the subject and the rider both read the one noun
+           * `land`, so a rider naming another type is not read at all.
            */
           readonly self?: {
-              readonly selfType: CardType;
               readonly subtype: string;
               readonly additionalTypes: readonly CardType[];
               readonly colors: readonly Color[];
@@ -2238,14 +2237,14 @@ export function assembleSentences(
             const previous = effects[effects.length - 1];
             if (sentence.modifier.singular === true) {
                 // CR 205.1b — "It's still a land." restates the type the
-                // animated SOURCE named ("This land"); anything else keeps
-                // nothing that was asked.
+                // animated SOURCE named ("This land"): both are the one noun
+                // `land` (STILL_TYPE_SELF / ANIMATE_SELF), so no type is
+                // compared here.
                 if (
                     previous === undefined ||
                     previous.kind !== "animate" ||
                     previous.self === undefined ||
-                    previous.retainsTypes === true ||
-                    previous.self.selfType !== sentence.modifier.types[0]
+                    previous.retainsTypes === true
                 )
                     return {
                         ok: false,
@@ -4079,7 +4078,6 @@ function readSelfAnimation(
         toughness: signedModifier(m[3]!),
         duration: duration.value,
         self: {
-            selfType: "Land" as CardType,
             subtype,
             additionalTypes,
             colors,
