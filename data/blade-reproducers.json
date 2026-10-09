@@ -1516,6 +1516,59 @@
         "turn": 5,
         "libraryCount": 20
     },
+    "restriction pricing: Disenchant takes the Moat grounding three Bears, not the 4-MV artifact with a script (issue #5154)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "battlefield",
+                "summoningSick": true
+            },
+            {
+                "name": "Moat",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Rocket Launcher",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "sacrifice sign NEGATIVE CONTROL: still casts a genuine edict": {
         "cards": [
             {

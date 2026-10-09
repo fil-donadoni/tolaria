@@ -12059,19 +12059,21 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
         // Disenchant with two untapped Plains; the opponent has a Moat and a
-        // Mightstone (a 4-MV artifact with no script — the same `base + MV`
-        // body as the Moat) and sits at 6 life; the bot's board is three
-        // Grizzly Bears, grounded by the Moat. Disenchant the Moat and the
-        // Bears swing for exactly lethal this turn; Disenchant the Mightstone
-        // and nothing can attack.
+        // Rocket Launcher (a 4-MV artifact whose one-turn ping script prices
+        // it ABOVE a plain 4-drop) at 20 life; the bot's board is three
+        // Grizzly Bears, summoning sick, grounded by the Moat. Disenchant the
+        // Moat and six power attacks every turn from the next one on;
+        // Disenchant the Launcher and the Bears never attack.
         //
         // What it guards is the SOURCE reading of a restriction: the Moat is
         // worth what it takes from the bot's creatures, so the removal lens
         // (`permanentRealisedValue`) ranks it above an artifact of the same
-        // mana value. Without that reading the two targets tie on body and
-        // the search cannot see past its horizon to the attack it frees — a
-        // Moat on the other side read as a generic 4-drop.
-        label: "restriction pricing: Disenchant takes the Moat that grounds the lethal board, not the artifact of the same mana value (issue #5154)",
+        // mana value with a script. The Bears are summoning sick ON PURPOSE:
+        // with lethal in reach this turn the search finds the Moat through
+        // the attack it frees with no pricing at all (measured 20/20 either
+        // way), and the entry would guard nothing. With the attack beyond the
+        // horizon, only the lens separates the two targets.
+        label: "restriction pricing: Disenchant takes the Moat grounding three Bears, not the 4-MV artifact with a script (issue #5154)",
         classification: {
             kind: "conditional",
             discriminant: {
@@ -12092,16 +12094,15 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     name: "Grizzly Bears",
                     owner: "me" as const,
                     zone: "battlefield" as const,
-                    summoningSick: false,
+                    summoningSick: true,
                 })),
                 { name: "Moat", owner: "opp", zone: "battlefield" },
-                { name: "Mightstone", owner: "opp", zone: "battlefield" },
+                { name: "Rocket Launcher", owner: "opp", zone: "battlefield" },
             ],
             phase: "PRECOMBAT_MAIN",
             turn: 8,
             landCount: 0,
             libraryCount: 20,
-            life: { me: 20, opp: 6 },
         },
         bot: "me",
         budget: { iterations: 400 },
@@ -12116,7 +12117,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Proof of failure: returning 0 from `creatureRestrictionDiscount` and `restrictionSourceWorth` turns this entry red (see the PR for the seed count).",
+        note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
 ];
 
