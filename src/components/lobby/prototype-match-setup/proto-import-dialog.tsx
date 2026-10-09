@@ -143,8 +143,8 @@ export default function ProtoImportDialog({
                         <TooltipContent>
                             One card per line: {"<count> <card name>"} (e.g. "4
                             Lightning Bolt", "4x" also works). A line
-                            "Sideboard" starts the sideboard. Exports from
-                            MTGA, Moxfield and MTGO paste as-is.
+                            "Sideboard" starts the sideboard. Exports from MTGA,
+                            Moxfield and MTGO paste as-is.
                         </TooltipContent>
                     </Tooltip>
                 </div>

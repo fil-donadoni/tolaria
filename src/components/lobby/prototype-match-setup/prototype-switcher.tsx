@@ -11,7 +11,10 @@ export default function PrototypeSwitcher({
     current: string;
     onChange: (key: string) => void;
 }) {
-    const i = Math.max(0, variants.findIndex((v) => v.key === current));
+    const i = Math.max(
+        0,
+        variants.findIndex((v) => v.key === current)
+    );
     const go = (d: number) =>
         onChange(variants[(i + d + variants.length) % variants.length].key);
 
@@ -33,11 +36,15 @@ export default function PrototypeSwitcher({
     if (!import.meta.env.DEV) return null;
     return (
         <div className="fixed bottom-16 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full bg-fuchsia-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
-            <button type="button" onClick={() => go(-1)}>←</button>
+            <button type="button" onClick={() => go(-1)}>
+                ←
+            </button>
             <span>
                 {variants[i].key} ({variants[i].name})
             </span>
-            <button type="button" onClick={() => go(1)}>→</button>
+            <button type="button" onClick={() => go(1)}>
+                →
+            </button>
         </div>
     );
 }

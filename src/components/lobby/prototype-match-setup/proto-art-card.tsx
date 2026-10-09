@@ -5,9 +5,7 @@ import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import FeaturedDeckArt from "../featured-deck-art";
 
-export type ArtSource =
-    | { image: string }
-    | { cards: (string | null)[] };
+export type ArtSource = { image: string } | { cards: (string | null)[] };
 
 export default function ProtoArtCard({
     art,
@@ -78,21 +76,21 @@ export default function ProtoArtCard({
             />
             {"cards" in art && art.cards.length === 2 && (
                 <svg
-                            aria-hidden
-                            className="absolute inset-0 -z-10 h-full w-full"
-                            viewBox="0 0 100 100"
-                            preserveAspectRatio="none"
-                        >
-                            <line
-                                x1="58"
-                                y1="0"
-                                x2="42"
-                                y2="100"
-                                stroke="white"
-                                strokeWidth="3"
-                                vectorEffect="non-scaling-stroke"
-                            />
-                        </svg>
+                    aria-hidden
+                    className="absolute inset-0 -z-10 h-full w-full"
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                >
+                    <line
+                        x1="58"
+                        y1="0"
+                        x2="42"
+                        y2="100"
+                        stroke="white"
+                        strokeWidth="3"
+                        vectorEffect="non-scaling-stroke"
+                    />
+                </svg>
             )}
             <div className="flex flex-col items-start gap-1.5 p-4">
                 {chip && (
@@ -113,7 +111,9 @@ export default function ProtoArtCard({
                         {meta}
                     </span>
                 )}
-                {line && <span className="text-xs text-text-muted">{line}</span>}
+                {line && (
+                    <span className="text-xs text-text-muted">{line}</span>
+                )}
                 {children}
             </div>
         </div>

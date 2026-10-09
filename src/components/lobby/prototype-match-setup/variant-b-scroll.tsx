@@ -25,7 +25,9 @@ export default function VariantBScroll(p: ProtoVariantProps) {
                         key={s.key}
                         className={cn(
                             "rounded-[var(--panel-radius)] border bg-surface/80 px-4 py-3",
-                            expanded ? "border-border-strong" : "border-[var(--hairline)]",
+                            expanded
+                                ? "border-border-strong"
+                                : "border-[var(--hairline)]",
                             locked && "opacity-40"
                         )}
                     >
@@ -42,7 +44,10 @@ export default function VariantBScroll(p: ProtoVariantProps) {
                             </span>
                             {s.summary && !expanded && (
                                 <span className="text-sm text-parchment">
-                                    {s.summary} · <span className="text-xs text-text-muted">change</span>
+                                    {s.summary} ·{" "}
+                                    <span className="text-xs text-text-muted">
+                                        change
+                                    </span>
                                 </span>
                             )}
                         </button>

@@ -5,7 +5,12 @@ import type { FormatId } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import FeaturedDeckArt from "../featured-deck-art";
-import { ARENA_MATCH_FORMATS, deckMatchesQuery, formatLabel, matchedCardName } from "./match-setup-logic";
+import {
+    ARENA_MATCH_FORMATS,
+    deckMatchesQuery,
+    formatLabel,
+    matchedCardName,
+} from "./match-setup-logic";
 
 export default function ProtoDecksSection({
     userDecks,
@@ -27,43 +32,43 @@ export default function ProtoDecksSection({
     const group = (title: string, all: LobbyDeck[]) => {
         const decks = all.filter(keep);
         return decks.length === 0 ? null : (
-        <div className="flex flex-col gap-1.5">
-            <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
-                {title} · {decks.length}
-            </h3>
-            <div
-                className={cn(
-                    "gap-2",
-                    layout === "rows"
-                        ? "flex overflow-x-auto py-1"
-                        : "grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]"
-                )}
-            >
-                {decks.map((d) => (
-                    <button
-                        key={d.presetId}
-                        type="button"
-                        onClick={() => onOpen(d.presetId)}
-                        className="w-36 shrink-0 overflow-hidden rounded-[var(--panel-radius)] border border-border-strong bg-surface text-left hover:border-accent/60 data-[grid]:w-auto"
-                        data-grid={layout === "grid" || undefined}
-                    >
-                        <FeaturedDeckArt
-                            featuredCardId={d.featuredCardId}
-                            className="aspect-[16/10] w-full"
-                        />
-                        <span className="block truncate px-2 pt-1.5 text-sm text-parchment">
-                            {d.name}
-                        </span>
-                        <span className="block truncate px-2 pb-2 text-[10px] uppercase tracking-wide text-text-muted">
-                            {matchedCardName(d, query)
-                                ? `∋ ${matchedCardName(d, query)}`
-                                : formatLabel(d.format)}
-                            {!d.isLegal && " · illegal"}
-                        </span>
-                    </button>
-                ))}
+            <div className="flex flex-col gap-1.5">
+                <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
+                    {title} · {decks.length}
+                </h3>
+                <div
+                    className={cn(
+                        "gap-2",
+                        layout === "rows"
+                            ? "flex overflow-x-auto py-1"
+                            : "grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]"
+                    )}
+                >
+                    {decks.map((d) => (
+                        <button
+                            key={d.presetId}
+                            type="button"
+                            onClick={() => onOpen(d.presetId)}
+                            className="w-36 shrink-0 overflow-hidden rounded-[var(--panel-radius)] border border-border-strong bg-surface text-left hover:border-accent/60 data-[grid]:w-auto"
+                            data-grid={layout === "grid" || undefined}
+                        >
+                            <FeaturedDeckArt
+                                featuredCardId={d.featuredCardId}
+                                className="aspect-[16/10] w-full"
+                            />
+                            <span className="block truncate px-2 pt-1.5 text-sm text-parchment">
+                                {d.name}
+                            </span>
+                            <span className="block truncate px-2 pb-2 text-[10px] uppercase tracking-wide text-text-muted">
+                                {matchedCardName(d, query)
+                                    ? `∋ ${matchedCardName(d, query)}`
+                                    : formatLabel(d.format)}
+                                {!d.isLegal && " · illegal"}
+                            </span>
+                        </button>
+                    ))}
+                </div>
             </div>
-        </div>
         );
     };
     return (
@@ -84,11 +89,17 @@ export default function ProtoDecksSection({
                 <select
                     aria-label="Deck format"
                     value={format}
-                    onChange={(e) => setFormat(e.target.value as FormatId | "all")}
+                    onChange={(e) =>
+                        setFormat(e.target.value as FormatId | "all")
+                    }
                     className="rounded-sm border border-border-strong bg-surface/70 px-2 py-1.5 text-sm text-text"
                 >
                     <option value="all">All formats</option>
-                    {[...ARENA_MATCH_FORMATS, "limited" as FormatId, "manual" as FormatId].map((f) => (
+                    {[
+                        ...ARENA_MATCH_FORMATS,
+                        "limited" as FormatId,
+                        "manual" as FormatId,
+                    ].map((f) => (
                         <option key={f} value={f}>
                             {formatLabel(f)}
                         </option>

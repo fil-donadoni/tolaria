@@ -137,7 +137,12 @@ export function stepsFor(s: MatchSetup, decks: LobbyDeck[]): StepInfo[] {
         {
             key: "mode",
             title: "Game mode",
-            summary: s.mode === null ? null : s.mode === "arena" ? "Arena" : "Cockatrice",
+            summary:
+                s.mode === null
+                    ? null
+                    : s.mode === "arena"
+                      ? "Arena"
+                      : "Cockatrice",
         },
         {
             key: "opponent",
@@ -169,7 +174,10 @@ export function stepsFor(s: MatchSetup, decks: LobbyDeck[]): StepInfo[] {
     if (s.opponent === "bot" || s.opponent === "solo") {
         steps.push({
             key: "opponentDeck",
-            title: s.opponent === "bot" ? "Bot deck & difficulty" : "Second seat deck",
+            title:
+                s.opponent === "bot"
+                    ? "Bot deck & difficulty"
+                    : "Second seat deck",
             summary: !s.opponentDeckChosen
                 ? null
                 : `${deckName(s.opponentDeckId) ?? "Mirror"}${
@@ -232,7 +240,9 @@ export function payloadPreview(s: MatchSetup): Record<string, unknown> {
         ...(s.opponent === "bot" || s.opponent === "solo"
             ? { deck2: s.opponentDeckId ?? "(mirror)" }
             : {}),
-        ...(s.opponent === "bot" ? { vsAi: true, difficulty: s.difficulty } : {}),
+        ...(s.opponent === "bot"
+            ? { vsAi: true, difficulty: s.difficulty }
+            : {}),
         ...(s.opponent === "join" ? { gameId: s.joinTableId } : {}),
     };
 }

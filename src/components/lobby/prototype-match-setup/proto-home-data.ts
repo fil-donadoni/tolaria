@@ -74,18 +74,29 @@ export function buildHomeData(
             complete && my
                 ? {
                       summary: steps
-                          .filter((s) => s.key !== "myDeck" && s.key !== "opponentDeck")
+                          .filter(
+                              (s) =>
+                                  s.key !== "myDeck" && s.key !== "opponentDeck"
+                          )
                           .map((s) => s.summary)
                           .join(" · "),
                       myArt: my.featuredCardId,
                       oppArt: opp?.featuredCardId ?? null,
                       myName: my.name,
-                      oppName: last.opponentDeckId ? (opp?.name ?? "?") : "Mirror",
+                      oppName: last.opponentDeckId
+                          ? (opp?.name ?? "?")
+                          : "Mirror",
                   }
                 : null,
         tables: [
             ...(activeMatch
-                ? [{ id: "match", kind: "Constructed" as const, ...activeMatch }]
+                ? [
+                      {
+                          id: "match",
+                          kind: "Constructed" as const,
+                          ...activeMatch,
+                      },
+                  ]
                 : []),
             ...events.map((e) => ({
                 id: e._id,

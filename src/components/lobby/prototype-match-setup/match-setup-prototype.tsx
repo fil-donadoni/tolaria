@@ -130,7 +130,9 @@ export default function MatchSetupPrototype() {
 
                 {view === "home" ? (
                     (() => {
-                        const my = decks.find((d) => d.presetId === setup.myDeckId);
+                        const my = decks.find(
+                            (d) => d.presetId === setup.myDeckId
+                        );
                         const homeProps = {
                             data: buildHomeData(
                                 setup,
@@ -159,8 +161,12 @@ export default function MatchSetupPrototype() {
                             onReplay: start,
                             onEditLast: () => setView("setup"),
                             onOpenDeck: (slug: string) =>
-                                void navigate({ to: "/decks/$slug", params: { slug } }),
-                            onNewDeck: () => void navigate({ to: "/decks/create" }),
+                                void navigate({
+                                    to: "/decks/$slug",
+                                    params: { slug },
+                                }),
+                            onNewDeck: () =>
+                                void navigate({ to: "/decks/create" }),
                         };
                         return variant === "A" ? (
                             <HomeAHero {...homeProps} />
