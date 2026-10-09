@@ -14,7 +14,8 @@ interface PrintingTileProps {
 
 /** One printing in the picker grid (issue #4122): its image (lazy — a basic
  *  land's grid runs to hundreds), its Set code under it, a Promo / Digital
- *  badge, the full Set name on hover. The chosen one carries the zone
+ *  badge, the full Set name on hover. A long press keeps the ADR 0009 card
+ *  preview — the zoom a phone needs to compare two printings' art. The chosen one carries the zone
  *  pickers' `selected` ring (`pickerRingClass`), every other one `candidate`. */
 export default function PrintingTile({
     printing,
@@ -48,7 +49,6 @@ export default function PrintingTile({
                     card={{ id: printing.printId }}
                     lazy
                     promoteLayer={false}
-                    holdPreview={false}
                 />
                 {kind !== "paper" && (
                     <span className="absolute right-1 bottom-1 rounded-sm bg-surface-base/85 px-1 text-[9px] font-semibold uppercase tracking-wide text-text-muted">

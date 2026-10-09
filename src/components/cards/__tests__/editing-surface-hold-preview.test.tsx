@@ -37,6 +37,12 @@ import type { Id } from "@convex/_generated/dataModel";
 vi.mock("convex/react", () => ({
     useMutation: () => vi.fn().mockResolvedValue(null),
     useQuery: () => undefined,
+    // The result card's printing picker (issue #4122) — never opened here.
+    usePaginatedQuery: () => ({
+        results: [],
+        status: "LoadingFirstPage",
+        loadMore: () => {},
+    }),
 }));
 
 const BOLT_ID = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // Lightning Bolt
