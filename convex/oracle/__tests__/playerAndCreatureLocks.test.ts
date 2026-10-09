@@ -176,6 +176,80 @@ describe("golden: locks", () => {
         // One announcement serves both halves (lowering invariant).
         expect(def.targetRequirement).toEqual({ type: "player", count: 1 });
     });
+
+    it("Xantid Swarm — the defending player's cast lock behind its own attack (CR 506.2, CR 508.5, CR 601.2)", () => {
+        const card = oracleCard({
+            oracleId: "13ba9ef8-2010-4d3f-8c62-85b7c5620031",
+            name: "Xantid Swarm",
+            manaCost: "{G}",
+            typeLine: "Creature — Insect",
+            oracleText:
+                "Flying\nWhenever this creature attacks, defending player can't cast spells this turn.",
+            power: "0",
+            toughness: "1",
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Xantid Swarm",
+                types: ["Creature"],
+                subtypes: ["Insect"],
+                manaCost: { G: 1 },
+                power: 0,
+                toughness: 1,
+                oracleText:
+                    "Flying\nWhenever this creature attacks, defending player can't cast spells this turn.",
+                staticAbilities: ["flying"],
+                compiledTriggeredAbilities: [
+                    {
+                        id: "xantid-swarm-trigger",
+                        oracleText:
+                            "Whenever this creature attacks, defending player can't cast spells this turn.",
+                        head: { kind: "attacks" },
+                        effects: [
+                            { op: "restrictCasting", player: "opponent" },
+                        ],
+                    },
+                ],
+            })
+        );
+    });
+
+    it("Agate-Blade Assassin — the same defending-player reference behind another verb (CR 508.5)", () => {
+        const card = oracleCard({
+            oracleId: "381a3e8e-71dd-48e4-ab62-53478bde4a14",
+            name: "Agate-Blade Assassin",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Lizard Assassin",
+            oracleText:
+                "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+            power: "1",
+            toughness: "3",
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Agate-Blade Assassin",
+                types: ["Creature"],
+                subtypes: ["Lizard", "Assassin"],
+                manaCost: { B: 1, X: 1 },
+                power: 1,
+                toughness: 3,
+                oracleText:
+                    "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+                compiledTriggeredAbilities: [
+                    {
+                        id: "agate-blade-assassin-trigger",
+                        oracleText:
+                            "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+                        head: { kind: "attacks" },
+                        effects: [
+                            { op: "loseLife", player: "opponent", amount: 1 },
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+    });
 });
 
 describe("refusals: neighbours stay unparsed", () => {
@@ -202,6 +276,34 @@ describe("refusals: neighbours stay unparsed", () => {
         ],
         ["a regeneration sweep", "Creatures can't be regenerated this turn."],
     ];
+    // "defending player" has a referent only behind the source's own attack
+    // (CR 508.5): anywhere else the words name no one.
+    const creature = (oracleText: string) =>
+        oracleCard({
+            name: "Refused Creature",
+            manaCost: "{G}",
+            typeLine: "Creature — Insect",
+            oracleText,
+            power: "0",
+            toughness: "1",
+        });
+    for (const [label, text] of [
+        [
+            "a spell naming a defending player",
+            "Defending player can't cast spells this turn.",
+        ],
+        [
+            "another creature's attack",
+            "Whenever a creature you control attacks, defending player can't cast spells this turn.",
+        ],
+        [
+            "a block head",
+            "Whenever this creature blocks, defending player can't cast spells this turn.",
+        ],
+    ] as const)
+        it(`refuses ${label}`, () => {
+            expect(compileCard(creature(text)).state).toBe("unparsed");
+        });
     for (const [label, text] of refused)
         it(`refuses ${label}`, () => {
             expect(compileCard(spell("Refused", text, "{1}")).state).toBe(

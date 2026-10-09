@@ -158,6 +158,11 @@ export interface SiteAntecedents {
     /** "that opponent" — set only by a head that names an OPPONENT. */
     readonly opponent?: EffectPlayerRef;
     /**
+     * CR 506.2 + CR 508.5 — "defending player": the player the source is
+     * attacking, set only by a head that is the source's own attack.
+     */
+    readonly defendingPlayer?: EffectPlayerRef;
+    /**
      * CR 607.2a — "the exiled card": this object's linked exile, readable
      * only behind its own leaves-the-battlefield head.
      */
@@ -1450,6 +1455,12 @@ function playerRef(
                 ? lowered(named)
                 : unlowerable(`"${word}" names no player at this site`);
         }
+        case "defending-player":
+            return site.antecedents?.defendingPlayer !== undefined
+                ? lowered(site.antecedents.defendingPlayer)
+                : unlowerable(
+                      '"defending player" names no player at this site'
+                  );
         case "target": {
             const requirement: TargetRequirement = ref.opponent
                 ? { type: "player", count: 1, controller: "opponent" }
@@ -1969,7 +1980,9 @@ function lowerSentenceBody(
                 sentence.player === "opponents"
                     ? lowered("opponent")
                     : playerRef(
-                          { kind: "target", opponent: false },
+                          sentence.player === "defending"
+                              ? { kind: "defending-player" }
+                              : { kind: "target", opponent: false },
                           slots,
                           site
                       );

@@ -159,6 +159,12 @@ function headAntecedents(head: TriggerHeadIR): SiteAntecedents {
             ? { ref: "$event.damagedPlayer" }
             : null;
     return {
+        // CR 506.2 + CR 508.5 — the source's own attack names the player it
+        // attacks; this engine is two-player (ADR 0010), so that is the
+        // source's controller's one opponent.
+        ...(head.kind === "attacks" && head.scope === "self"
+            ? { defendingPlayer: "opponent" as const }
+            : {}),
         ...(playerField !== null
             ? { player: { ref: `$event.${playerField}` } }
             : {}),

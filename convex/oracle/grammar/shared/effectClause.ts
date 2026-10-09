@@ -812,7 +812,7 @@ export type EffectSentenceIR =
      */
     | {
           readonly kind: "player-lock";
-          readonly player: "opponents" | "target";
+          readonly player: "opponents" | "target" | "defending";
           readonly casting: "all" | readonly CardType[];
           readonly activation: boolean;
       }
@@ -3404,6 +3404,12 @@ const CANT_BE_REGENERATED_THIS_TURN = /^(.+) can't be regenerated this turn$/;
 /** CR 101.2 + CR 601.2 — the opponents' whole-turn cast lock, whole. */
 const OPPONENTS_CANT_CAST = "Your opponents can't cast spells this turn";
 /**
+ * CR 101.2 + CR 601.2 + CR 506.2 — the defending player's whole-turn cast
+ * lock, whole. WHO the defending player is the trigger head says (CR 508.5).
+ */
+const DEFENDING_PLAYER_CANT_CAST =
+    "Defending player can't cast spells this turn";
+/**
  * CR 101.2 + CR 601.2 + CR 602.2 — a targeted player's cast lock (instants and
  * sorceries) AND activation lock (non-mana abilities), whole. Both clauses
  * name the same player, so they are one sentence with one announcement.
@@ -4943,6 +4949,13 @@ function effectSentence(
         return ok({
             kind: "player-lock" as const,
             player: "opponents" as const,
+            casting: "all" as const,
+            activation: false,
+        } satisfies EffectSentenceIR);
+    if (span === DEFENDING_PLAYER_CANT_CAST)
+        return ok({
+            kind: "player-lock" as const,
+            player: "defending" as const,
             casting: "all" as const,
             activation: false,
         } satisfies EffectSentenceIR);
