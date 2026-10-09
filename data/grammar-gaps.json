@@ -752,7 +752,7 @@
         {
             "kind": "grammar",
             "key": "activated › activation cost › Discard your hand",
-            "issue": 4563
+            "issue": 5325
         },
         {
             "kind": "grammar",
@@ -762,27 +762,27 @@
         {
             "kind": "grammar",
             "key": "activated › activation cost › Exile the top card of your library",
-            "issue": 4563
+            "issue": 5327
         },
         {
             "kind": "grammar",
             "key": "activated › activation cost › Exile this card from your hand",
-            "issue": 4563
+            "issue": 5326
         },
         {
             "kind": "grammar",
             "key": "activated › activation cost › Put a -N/-N counter on this creature",
-            "issue": 4563
+            "issue": 5328
         },
         {
             "kind": "grammar",
             "key": "activated › activation cost › Return a Forest you control to its owner's hand",
-            "issue": 4563
+            "issue": 5329
         },
         {
             "kind": "grammar",
             "key": "activated › activation cost › Return an Elf you control to its owner's hand",
-            "issue": 4563
+            "issue": 5330
         },
         {
             "kind": "grammar",
