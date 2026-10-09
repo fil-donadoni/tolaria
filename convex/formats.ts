@@ -51,6 +51,31 @@ export function isFormatId(value: string): value is FormatId {
     return (FORMAT_IDS as readonly string[]).includes(value);
 }
 
+/** Format Compatibility family (CONTEXT.md § Format Compatibility, ADR 0145):
+ *  Formats in the same family may meet in one Match. `standard` is every
+ *  Standard-Variant Format (freeform, alpha-40, old-school, premodern — today
+ *  any two meet, so Premodern may meet Old School); `limited` and `manual`
+ *  each meet only themselves. The Commander Formats will add one family per
+ *  Commander Profile. */
+type CompatibilityFamily = "standard" | "limited" | "manual";
+
+function compatibilityFamily(format: FormatId): CompatibilityFamily {
+    if (format === "limited") return "limited";
+    if (format === "manual") return "manual";
+    return "standard";
+}
+
+/**
+ * Format Compatibility (CONTEXT.md, ADR 0145): may a Deck of Format `a` meet a
+ * Deck of Format `b` in one Match? A pure, symmetric function of the two
+ * Formats and the single authority — `joinGame`/`joinGameByCode` enforce it and
+ * the lobby filters by it. Limited's same-Event scoping is a separate check
+ * (`assertSameEventDeck`) that stays where it is.
+ */
+export function formatsCompatible(a: FormatId, b: FormatId): boolean {
+    return compatibilityFamily(a) === compatibilityFamily(b);
+}
+
 /**
  * A single legality failure reason: a stable machine `code` plus a precise,
  * human-readable `message`. The lobby list and the live builder panel render

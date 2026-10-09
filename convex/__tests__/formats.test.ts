@@ -13,6 +13,7 @@ import {
     checkSize,
     FORMAT_IDS,
     FORMAT_RULES,
+    formatsCompatible,
     isFormatId,
     OLD_SCHOOL_BANLIST_SEED,
     OLD_SCHOOL_RESTRICTED,
@@ -1997,5 +1998,40 @@ describe("Server-gate integration — Old School restricted + banned via loadBan
             assertDeckLegal(illegalDeck, undefined, seedOverride)
         ).toThrow(/restricted/i);
         expect(() => assertDeckLegal(illegalDeck)).toThrow(/restricted/i);
+    });
+});
+
+describe("formatsCompatible — Format Compatibility (issue #4611)", () => {
+    const standard: FormatId[] = [
+        "freeform",
+        "alpha-40",
+        "old-school",
+        "premodern",
+    ];
+
+    it("lets any two Standard-Variant Formats meet (Premodern may meet Old School)", () => {
+        for (const a of standard)
+            for (const b of standard)
+                expect(formatsCompatible(a, b)).toBe(true);
+    });
+
+    it("keeps Limited and Manual to themselves", () => {
+        expect(formatsCompatible("limited", "limited")).toBe(true);
+        expect(formatsCompatible("manual", "manual")).toBe(true);
+        for (const f of standard) {
+            expect(formatsCompatible("limited", f)).toBe(false);
+            expect(formatsCompatible(f, "limited")).toBe(false);
+            expect(formatsCompatible("manual", f)).toBe(false);
+            expect(formatsCompatible(f, "manual")).toBe(false);
+        }
+        expect(formatsCompatible("limited", "manual")).toBe(false);
+    });
+
+    it("is symmetric and reflexive over every FormatId", () => {
+        for (const a of FORMAT_IDS) {
+            expect(formatsCompatible(a, a)).toBe(true);
+            for (const b of FORMAT_IDS)
+                expect(formatsCompatible(a, b)).toBe(formatsCompatible(b, a));
+        }
     });
 });
