@@ -11997,6 +11997,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5145. Measured at 400 iterations over 20 seeds with the two artifacts in either listing order: Weakstone 20/20 before the change, the Disk 20/20 after. Proof of failure: removing the standing-ability reading from the non-creature branch of `latentValue` (`cardValue.ts`) turns this entry red on every seed.",
     },
+    {
+        // RECURRING STANDING TRIGGER (issue #5151) — the opponent's two
+        // artifacts are both MV 1: Black Vise (up to 4 damage EVERY upkeep,
+        // for as long as it stays) and Bear Trap (a one-shot sacrifice
+        // ability the value model cannot read, so it sits at the `base + MV`
+        // floor). A Disenchant in hand is plainly better spent on the Vise.
+        //
+        // WHY IT WAS WRONG. The standing reading (issue #5145) priced an
+        // upkeep trigger as if it fired ONCE: Black Vise's shadow script read
+        // 12.7 against a floor of 18, so the floor won and both artifacts
+        // stood at the same 18 — the removal lens (`permanentRealisedValue`)
+        // priced destroying either identically, and the pick fell to rollout
+        // noise. This is the #4141 slice's discriminating pair that issue
+        // #5145 could not carry: with `latent.recurrence` the Vise's stream is
+        // worth its expected firings and outruns the floor.
+        label: "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                // The floor artifact is listed FIRST on purpose: in the tie
+                // this entry guards against, listing order is part of what
+                // decides the pick, and this is the order the tie lost on
+                // most (6/20 Vise against 10/20 with the Vise first).
+                { name: "Bear Trap", owner: "opp", zone: "battlefield" },
+                { name: "Black Vise", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Black Vise",
+                },
+            ],
+        },
+        note: "Issue #5151. Measured at 400 iterations over 20 seeds: with `latent.recurrence` forced to 1 (the pre-#5151 reading) the Vise is taken 6/20 in this listing order (10/20 with the Vise listed first; the rest Bear Trap or a pass — the tie), 20/20 in either order with the multiplier. Proof of failure: dropping Black Vise's `aiEffects` shadow (`lea/colorless.cards.ts`) puts it back at the floor and turns this entry red — the criterion issue #4141 waived, discharged here.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
