@@ -230,22 +230,65 @@ export function isRecurringTriggerEvent(
 /** Issue #5151 — how many times a STANDING ability's script is expected to
  *  resolve over its permanent's life: `latent.recurrence` (the fitted turns
  *  the permanent survives) for a trigger on a recurring turn-structure event,
- *  1 for everything else — an activated ability (its gating is the cost,
- *  already valued, and how often it is used is the search's to find), a
- *  one-shot trigger ("when you cast", "when it dies"), and a recurring trigger
- *  whose script sacrifices its own source UNGUARDED ("at the beginning of
- *  your upkeep, sacrifice it"): that one fires exactly once. A sacrifice
- *  behind a `mayPay` (cumulative upkeep, "unless you pay") recurs — paying is
- *  what keeps the permanent — so the multiplier compounds its signed cost,
- *  exactly as it compounds a benefit. */
+ *  1 for everything else:
+ *
+ *   - an activated ability (its gating is the cost, already valued, and how
+ *     often it is used is the search's to find);
+ *   - a one-shot trigger ("when you cast", "when it dies");
+ *   - a graveyard-zoned trigger (CR 113.6b, `zone: "graveyard"`): its source
+ *     is a card in a graveyard, not a permanent with a lifetime, and what it
+ *     does is leave;
+ *   - a recurring trigger whose script can REMOVE ITS OWN SOURCE — sacrifice,
+ *     destroy, exile or move it out of play, at any depth and behind any
+ *     guard: "at the beginning of your upkeep, sacrifice it", "return this
+ *     Aura to its owner's hand", cumulative upkeep's "sacrifice it unless
+ *     you pay" (PR #5333 review). The removal happens at most ONCE, and the
+ *     script's whole reading is dominated by the charge for it (a guarded
+ *     cumulative-upkeep sacrifice reads the same −20 as an unguarded one), so
+ *     compounding it would charge the permanent's loss six times over. Weight
+ *     1 is the pre-#5151 reading for the whole class; pricing the recurring
+ *     PAYMENT apart from the one-time sacrifice is a refinement the reader
+ *     does not make yet. */
 function recurrenceWeight(
-    ability: { event?: GameEventType | GameEventType[] },
+    ability: {
+        event?: GameEventType | GameEventType[];
+        zone?: TriggeredAbility["zone"];
+    },
     script: EffectOp[] | undefined,
     ctx: GroundingContext
 ): number {
     if (!isRecurringTriggerEvent(ability.event)) return 1;
-    if (script && sacrificesSource(script, "hand", "unpaid")) return 1;
+    if (ability.zone === "graveyard") return 1;
+    if (script && removesSource(script)) return 1;
     return ctx.latent.weights.recurrence;
+}
+
+/** The Ops that take their `target` off the battlefield for good, or out of
+ *  play: named here for `removesSource` only. */
+const SOURCE_REMOVING_OPS: ReadonlySet<string> = new Set([
+    "sacrifice",
+    "destroy",
+    "exile",
+    "moveZone",
+]);
+
+/** Does this script remove its own source (`{ ref: "$source" }`) at any
+ *  nesting depth, on any branch, behind any guard? Deliberately broader than
+ *  `sacrificesSource`: a conditional or guarded self-removal still bounds the
+ *  trigger's lifetime, and the question here is "can this fire more than once
+ *  with its source still around", not "is the body gone for certain". */
+function removesSource(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(removesSource);
+    if (node === null || typeof node !== "object") return false;
+    const op = node as { op?: unknown; target?: { ref?: unknown } };
+    if (
+        typeof op.op === "string" &&
+        SOURCE_REMOVING_OPS.has(op.op) &&
+        op.target?.ref === "$source"
+    ) {
+        return true;
+    }
+    return Object.values(node).some(removesSource);
 }
 
 /** How much of a triggered ability's script value survives its check-time gate
@@ -583,11 +626,12 @@ function abilityScriptOpValue(
         // reading takes it too for a card that is not PRINTED a creature: a
         // non-creature permanent animated on the battlefield (an enchantment
         // under Opalescence) is scored by `evaluateCreature`, whose ability
-        // half is this reading — left at weight 1, Sylvan Library read 282
-        // in hand and ~47 on that board, and the fit paid for the gap by
-        // pulling the multiplier (and `cardAdvantage`) down for every card.
-        // A printed creature's triggers keep weight 1 (out of scope, issue
-        // #5151 — a creature's recurrence is a follow-up).
+        // half is this reading — left at weight 1 its board face is the body
+        // plus ONE firing while its hand face is the whole stream (Sylvan
+        // Library: 282 in hand against a 2/2 plus 94), so casting it read as
+        // a loss on exactly the boards that animate it. A printed creature's
+        // triggers keep weight 1 (out of scope, issue #5151 — a creature's
+        // recurrence is a follow-up).
         const recurs =
             selection === "standing" ||
             (selection === "realized" && !def.types.includes("Creature"));

@@ -265,45 +265,110 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     ).toBeGreaterThan(1);
                 });
 
-                it("a per-turn trigger that sacrifices its own source unguarded fires once (weight 1)", () => {
-                    const def = {
-                        id: "self-sac",
-                        name: "self-sac",
+                const flatGrounding = () =>
+                    contextFreeGrounding({
+                        ...DEFAULT_EVAL_WEIGHTS.latent,
+                        recurrence: 1,
+                    });
+                const upkeepArtifact = (
+                    id: string,
+                    effects: EffectOp[],
+                    zone?: "graveyard"
+                ) =>
+                    ({
+                        id,
+                        name: id,
                         rarity: "common",
                         types: ["Artifact"],
                         manaCost: { X: 1 },
                         triggeredAbilities: [
                             {
-                                id: "self-sac-upkeep",
+                                id: `${id}-upkeep`,
                                 oracleText: "",
                                 event: "PHASE_BEGIN",
+                                ...(zone ? { zone } : {}),
                                 matches: () => true,
-                                effects: [
-                                    {
-                                        op: "dealDamage",
-                                        amount: 3,
-                                        to: { player: "opponent" },
-                                    },
-                                    {
-                                        op: "sacrifice",
-                                        target: { ref: "$source" },
-                                    },
-                                ],
+                                effects,
                             },
                         ],
-                    } as unknown as CardDefinition;
-                    const once = dslStandingAbilityScriptValue(def);
-                    const unscaled = dslStandingAbilityScriptValue(def, {
-                        ...contextFreeGrounding(),
-                        latent: {
-                            ...contextFreeGrounding().latent,
-                            weights: {
-                                ...DEFAULT_EVAL_WEIGHTS.latent,
-                                recurrence: 1,
-                            },
-                        },
-                    });
-                    expect(once).toBe(unscaled);
+                    }) as unknown as CardDefinition;
+                const ping: EffectOp = {
+                    op: "dealDamage",
+                    amount: 3,
+                    to: { player: "opponent" },
+                };
+
+                it("a per-turn trigger that can remove its own source fires once (weight 1): sacrifice, guarded sacrifice, self-bounce, graveyard-zoned", () => {
+                    const shapes: [string, CardDefinition][] = [
+                        [
+                            "unguarded sacrifice",
+                            upkeepArtifact("self-sac", [
+                                ping,
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ]),
+                        ],
+                        [
+                            // Cumulative upkeep's shape (PR #5333 review): the
+                            // sacrifice happens at most once, so the charge
+                            // for losing the permanent must not compound.
+                            "sacrifice unless you pay",
+                            upkeepArtifact("cumulative", [
+                                ping,
+                                {
+                                    op: "mayPay",
+                                    player: "controller",
+                                    cost: { X: 1 },
+                                    bind: "$paid",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: { not: { binding: "$paid" } },
+                                    then: [
+                                        {
+                                            op: "sacrifice",
+                                            target: { ref: "$source" },
+                                        },
+                                    ],
+                                },
+                            ] as EffectOp[]),
+                        ],
+                        [
+                            "return this to hand",
+                            upkeepArtifact("self-bounce", [
+                                ping,
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    to: "hand",
+                                } as EffectOp,
+                            ]),
+                        ],
+                        [
+                            "graveyard-zoned",
+                            upkeepArtifact(
+                                "from-graveyard",
+                                [ping],
+                                "graveyard"
+                            ),
+                        ],
+                    ];
+                    for (const [label, def] of shapes) {
+                        const read = dslStandingAbilityScriptValue(def);
+                        const unscaled = dslStandingAbilityScriptValue(
+                            def,
+                            flatGrounding()
+                        );
+                        expect(read, label).toBeDefined();
+                        expect(read, label).toBe(unscaled);
+                    }
+                    // …and the same ping with nothing removing the source IS
+                    // scaled, so the four above are weight 1 on purpose.
+                    const plain = upkeepArtifact("plain", [ping]);
+                    expect(dslStandingAbilityScriptValue(plain)).toBeCloseTo(
+                        dslStandingAbilityScriptValue(plain, flatGrounding())! *
+                            DEFAULT_EVAL_WEIGHTS.latent.recurrence,
+                        9
+                    );
                 });
 
                 it("the hand face and the board face of a recurring-trigger permanent are one number", () => {
@@ -330,13 +395,14 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     expect(onBoard).toBeGreaterThan(floorOf(vise));
                 });
 
-                it("a non-creature card ANIMATED on the battlefield keeps the multiplier (Opalescence): board ≥ hand", () => {
+                it("a non-creature card ANIMATED on the battlefield keeps the multiplier (Opalescence): its board face is at least its hand face", () => {
                     // Under Opalescence an enchantment is a creature on the
                     // board, scored by `evaluateCreature` through the REALIZED
-                    // reader. Without the multiplier there, Sylvan Library
-                    // read 282 in hand and ~47 in play, and casting it was a
-                    // 230-point loss the Verdict corpus then paid for by
-                    // pulling `latent.recurrence` down for every card.
+                    // reader — undiscounted and unclamped, so the board face
+                    // is ABOVE the hand face, as it is for every creature
+                    // with an ability (issue #149). Without the multiplier
+                    // there, Sylvan Library read 282 in hand against a 2/2
+                    // plus one firing in play, and casting it was a loss.
                     const library = byName("Sylvan Library");
                     const opalescence = byName("Opalescence");
                     const perm = makeInstance(library.id, {

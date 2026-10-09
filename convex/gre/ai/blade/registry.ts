@@ -12005,9 +12005,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     {
         // RECURRING STANDING TRIGGER (issue #5151) — the opponent's two
         // artifacts are both MV 1: Black Vise (up to 4 damage EVERY upkeep,
-        // for as long as it stays) and Bear Trap (a one-shot sacrifice
-        // ability the value model cannot read, so it sits at the `base + MV`
-        // floor). A Disenchant in hand is plainly better spent on the Vise.
+        // for as long as it stays) and Bear Trap (its one ability sacrifices
+        // the Trap as its cost, which the standing reading excludes — issue
+        // #5145 — so it sits at the `base + MV` floor). A Disenchant in hand
+        // is plainly better spent on the Vise.
         //
         // WHY IT WAS WRONG. The standing reading (issue #5145) priced an
         // upkeep trigger as if it fired ONCE: Black Vise's shadow script read
