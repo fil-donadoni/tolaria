@@ -194,8 +194,9 @@ export function findBasicLandRemovalIndex(
 // --- Basic-land art picker (issue #1629, ADR 0075 § "Basic-land art") -----
 //
 // Every basic's fifteen printings differ ONLY by art (`lea×2, leb×3, ice,
-// 2ed×3, 3ed×3, 4ed×3`), so the existing per-card edition dropdown
-// (`src/lib/editions.ts`, `EditionDropdown`) is unusable here — a bare `LEB
+// 2ed×3, 3ed×3, 4ed×3`), so the per-card edition dropdown of the time
+// (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`,
+// issue #4122) was unusable here — a bare `LEB
 // #3` tells the player nothing about what they're picking. The functions
 // below are the pure half of the picker; the popover/grid UI lives in
 // `basic-land-art-picker.tsx`, and the two builders own the React state that

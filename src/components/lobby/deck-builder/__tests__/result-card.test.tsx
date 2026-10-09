@@ -10,10 +10,17 @@ import { render, fireEvent } from "@testing-library/react";
 import type { CardIndexEntry } from "../useCardSearch";
 import ResultCard from "../result-card";
 
-// The Card Prints edition query (issue #4117) is irrelevant to the
-// availability branch this file tests — never opened here, so `useQuery`
-// never runs, but the module import still needs a client-free stub.
-vi.mock("convex/react", () => ({ useQuery: () => undefined }));
+// The printing picker's Card Prints query (issues #4117, #4122) is irrelevant
+// to the branches this file tests — never opened here, so it always skips,
+// but the module import still needs a client-free stub.
+vi.mock("convex/react", () => ({
+    useQuery: () => undefined,
+    usePaginatedQuery: () => ({
+        results: [],
+        status: "LoadingFirstPage",
+        loadMore: () => {},
+    }),
+}));
 
 // Leaf presentational children — irrelevant to the availability branch, and
 // `DraggableCard` needs a dnd-kit provider we do not want in this test.
@@ -165,5 +172,46 @@ describe("ResultCard definitionId hand-off", () => {
             undefined
         );
         expect(onAdd.mock.calls[0][2]).toBeUndefined();
+    });
+});
+
+// The printing picker (issue #4122) is the cell's footer: a printing picked
+// there is the one the cell's click then adds — the wiring between the two,
+// not the picker's own grid (its own file covers that).
+describe("ResultCard printing picker", () => {
+    it("adds the printing picked in the picker", () => {
+        const onAdd = vi.fn();
+        const indexed: CardIndexEntry = {
+            ...entry(true),
+            cardId: "sliver-queen",
+            prints: [
+                { printId: "print-1", setCode: "sth" },
+                { printId: "print-2", setCode: "plst" },
+            ],
+            oracleText: "All Sliver creatures have this ability.",
+            oracleFold: "all sliver creatures have this ability.",
+        };
+        const { getByTestId, getByLabelText, getAllByRole } = render(
+            <ResultCard
+                entry={indexed}
+                activeSets={[]}
+                allowedSets={null}
+                enforceAvailability
+                onAdd={onAdd}
+            />
+        );
+        fireEvent.click(getByLabelText("Choose printing of Sliver Queen"));
+        // Opening the picker must not add the card.
+        expect(onAdd).not.toHaveBeenCalled();
+        const tile = getAllByRole("button").find(
+            (b) => b.dataset.printId === "print-2"
+        );
+        fireEvent.click(tile!);
+        fireEvent.click(getByTestId("draggable"));
+        expect(onAdd).toHaveBeenCalledWith(
+            "print-2",
+            "Sliver Queen",
+            "sliver-queen"
+        );
     });
 });
