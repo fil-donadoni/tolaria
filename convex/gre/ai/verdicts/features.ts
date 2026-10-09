@@ -95,8 +95,12 @@ import type { EvalTerms } from "../../evaluate";
 import { evaluateBreakdown } from "../../evaluate";
 import type { GameState } from "../../state";
 import { policyValueOfSettled } from "../../search";
-import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
-import { FEATURE_BASIS, type Feature } from "../featureBasis";
+import {
+    DEFAULT_EVAL_WEIGHTS,
+    type EvalWeights,
+    type LatentWeights,
+} from "../evalWeights";
+import { FEATURE_BASIS } from "../featureBasis";
 
 /** Every `EvalTerms` key, as a value. A `Record<keyof EvalTerms, true>` rather
  *  than a hand-typed array so `tsc` reds when a new term ships without a row
@@ -184,15 +188,19 @@ const FITTABLE_TERM_WEIGHTS = [
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];
-/** A latent feature-basis price, addressed as `latent.<dimension>`. */
-export type FittableLatentWeight = `latent.${Feature}`;
+/** A latent feature-basis price, addressed as `latent.<dimension>` — plus the
+ *  one non-dimension member of the record, the per-turn trigger multiplier
+ *  `latent.recurrence` (issue #5151). */
+export type FittableLatentWeight = `latent.${keyof LatentWeights}`;
 export type FittableWeightKey = FittableTermWeight | FittableLatentWeight;
 
 /** Every fittable weight, term weights first then the twelve latent
- *  dimensions — a stable order, so a printed vector is diffable. */
+ *  dimensions and the recurrence multiplier — a stable order, so a printed
+ *  vector is diffable. */
 export const FITTABLE_WEIGHT_KEYS: readonly FittableWeightKey[] = [
     ...FITTABLE_TERM_WEIGHTS,
     ...FEATURE_BASIS.map((f): FittableLatentWeight => `latent.${f}`),
+    "latent.recurrence",
 ];
 
 /** The value a fittable key currently holds in `weights`. */
@@ -201,7 +209,9 @@ export function weightValue(
     key: FittableWeightKey
 ): number {
     if (key.startsWith("latent.")) {
-        return weights.latent[key.slice("latent.".length) as Feature];
+        return weights.latent[
+            key.slice("latent.".length) as keyof LatentWeights
+        ];
     }
     return weights[key as FittableTermWeight];
 }
@@ -213,7 +223,7 @@ export function withWeight(
     value: number
 ): EvalWeights {
     if (key.startsWith("latent.")) {
-        const dim = key.slice("latent.".length) as Feature;
+        const dim = key.slice("latent.".length) as keyof LatentWeights;
         return { ...weights, latent: { ...weights.latent, [dim]: value } };
     }
     return { ...weights, [key]: value };

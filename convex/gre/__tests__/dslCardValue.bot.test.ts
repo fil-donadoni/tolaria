@@ -34,6 +34,9 @@ import {
     dslSpellScriptValue,
     dslStandingAbilityScriptValue,
 } from "../ai/cardScriptValue";
+import { contextFreeGrounding } from "../ai/grounding";
+import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
+import { permanentRealisedValue } from "../evaluate";
 import type { CardDefinition, EffectOp } from "../../cards/types";
 
 // Real, registered cards of equal mana value (probed from the catalogue):
@@ -184,6 +187,265 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                         undefined
                     );
                 }
+            });
+
+            // Issue #5151 — a standing trigger on a per-turn step is worth
+            // every firing its permanent lives to see.
+            describe("recurrence multiplier for per-turn standing triggers (issue #5151)", () => {
+                const byName = (name: string) => {
+                    const def = [...registeredDefinitions()].find(
+                        (d) => d.name === name
+                    );
+                    expect(def, name).toBeDefined();
+                    return def!;
+                };
+                const floorOf = (def: CardDefinition) =>
+                    latentValue({
+                        ...base,
+                        manaValue: manaValue(def.manaCost),
+                    });
+
+                it("Black Vise, Ivory Tower and Essence Flare read ABOVE their base+MV floor", () => {
+                    // Before the multiplier each sat exactly AT its floor
+                    // (12.7, 3.8 and 5.1 against 18 — issue #5150's inert
+                    // census), so Disenchant picked its target by mana value.
+                    for (const name of [
+                        "Black Vise",
+                        "Ivory Tower",
+                        "Essence Flare",
+                    ]) {
+                        const def = byName(name);
+                        expect(cardValueById(def.id), name).toBeGreaterThan(
+                            floorOf(def)
+                        );
+                    }
+                });
+
+                it("a one-shot trigger of the same script keeps weight 1; a per-turn one is scaled by latent.recurrence", () => {
+                    const script: EffectOp[] = [
+                        {
+                            op: "dealDamage",
+                            amount: 3,
+                            to: { player: "opponent" },
+                        },
+                    ];
+                    const artifact = (
+                        id: string,
+                        event: "PHASE_BEGIN" | "PERMANENT_ENTERED"
+                    ) =>
+                        ({
+                            id,
+                            name: id,
+                            rarity: "common",
+                            types: ["Artifact"],
+                            manaCost: { X: 1 },
+                            triggeredAbilities: [
+                                {
+                                    id: `${id}-trigger`,
+                                    oracleText: "",
+                                    event,
+                                    matches: () => true,
+                                    effects: script,
+                                },
+                            ],
+                        }) as unknown as CardDefinition;
+                    const oneShot = dslStandingAbilityScriptValue(
+                        artifact("one-shot", "PERMANENT_ENTERED")
+                    );
+                    const perTurn = dslStandingAbilityScriptValue(
+                        artifact("per-turn", "PHASE_BEGIN")
+                    );
+                    expect(oneShot).toBeDefined();
+                    expect(perTurn).toBeCloseTo(
+                        oneShot! * DEFAULT_EVAL_WEIGHTS.latent.recurrence,
+                        9
+                    );
+                    expect(
+                        DEFAULT_EVAL_WEIGHTS.latent.recurrence
+                    ).toBeGreaterThan(1);
+                });
+
+                const flatGrounding = () =>
+                    contextFreeGrounding({
+                        ...DEFAULT_EVAL_WEIGHTS.latent,
+                        recurrence: 1,
+                    });
+                const upkeepArtifact = (
+                    id: string,
+                    effects: EffectOp[],
+                    zone?: "graveyard"
+                ) =>
+                    ({
+                        id,
+                        name: id,
+                        rarity: "common",
+                        types: ["Artifact"],
+                        manaCost: { X: 1 },
+                        triggeredAbilities: [
+                            {
+                                id: `${id}-upkeep`,
+                                oracleText: "",
+                                event: "PHASE_BEGIN",
+                                ...(zone ? { zone } : {}),
+                                matches: () => true,
+                                effects,
+                            },
+                        ],
+                    }) as unknown as CardDefinition;
+                const ping: EffectOp = {
+                    op: "dealDamage",
+                    amount: 3,
+                    to: { player: "opponent" },
+                };
+
+                it("a per-turn trigger that can remove its own source fires once (weight 1): sacrifice, guarded sacrifice, self-bounce, graveyard-zoned", () => {
+                    const shapes: [string, CardDefinition][] = [
+                        [
+                            "unguarded sacrifice",
+                            upkeepArtifact("self-sac", [
+                                ping,
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ]),
+                        ],
+                        [
+                            // Cumulative upkeep's shape (PR #5333 review): the
+                            // sacrifice happens at most once, so the charge
+                            // for losing the permanent must not compound.
+                            "sacrifice unless you pay",
+                            upkeepArtifact("cumulative", [
+                                ping,
+                                {
+                                    op: "mayPay",
+                                    player: "controller",
+                                    cost: { X: 1 },
+                                    bind: "$paid",
+                                },
+                                {
+                                    op: "if",
+                                    predicate: { not: { binding: "$paid" } },
+                                    then: [
+                                        {
+                                            op: "sacrifice",
+                                            target: { ref: "$source" },
+                                        },
+                                    ],
+                                },
+                            ] as EffectOp[]),
+                        ],
+                        [
+                            "return this to hand",
+                            upkeepArtifact("self-bounce", [
+                                ping,
+                                {
+                                    op: "moveZone",
+                                    target: { ref: "$source" },
+                                    to: "hand",
+                                } as EffectOp,
+                            ]),
+                        ],
+                        [
+                            "graveyard-zoned",
+                            upkeepArtifact(
+                                "from-graveyard",
+                                [ping],
+                                "graveyard"
+                            ),
+                        ],
+                    ];
+                    for (const [label, def] of shapes) {
+                        const read = dslStandingAbilityScriptValue(def);
+                        const unscaled = dslStandingAbilityScriptValue(
+                            def,
+                            flatGrounding()
+                        );
+                        expect(read, label).toBeDefined();
+                        expect(read, label).toBe(unscaled);
+                    }
+                    // …and the same ping with nothing removing the source IS
+                    // scaled, so the four above are weight 1 on purpose.
+                    const plain = upkeepArtifact("plain", [ping]);
+                    expect(dslStandingAbilityScriptValue(plain)).toBeCloseTo(
+                        dslStandingAbilityScriptValue(plain, flatGrounding())! *
+                            DEFAULT_EVAL_WEIGHTS.latent.recurrence,
+                        9
+                    );
+                });
+
+                it("the hand face and the board face of a recurring-trigger permanent are one number", () => {
+                    // `nonCreatureBodyValue` (evaluate.ts) scores a permanent in
+                    // play through `cardValue` → the same `latentValue`
+                    // composition the hand reads, so the multiplier reaches
+                    // both faces and casting the permanent is never a loss
+                    // the multiplier causes (issue #5145's one-number rule).
+                    const vise = byName("Black Vise");
+                    const perm = makeInstance(vise.id, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    });
+                    const state = makeState({
+                        players: [
+                            makePlayer("p1", { battlefield: [perm] }),
+                            makePlayer("p2"),
+                        ],
+                    });
+                    const onBoard =
+                        permanentRealisedValue(state, perm) -
+                        DEFAULT_EVAL_WEIGHTS.permanentWeight;
+                    expect(onBoard).toBeCloseTo(cardValueById(vise.id), 9);
+                    expect(onBoard).toBeGreaterThan(floorOf(vise));
+                });
+
+                it("a non-creature card ANIMATED on the battlefield keeps the multiplier (Opalescence): its board face is at least its hand face", () => {
+                    // Under Opalescence an enchantment is a creature on the
+                    // board, scored by `evaluateCreature` through the REALIZED
+                    // reader — undiscounted and unclamped, so the board face
+                    // is ABOVE the hand face, as it is for every creature
+                    // with an ability (issue #149). Without the multiplier
+                    // there, Sylvan Library read 282 in hand against a 2/2
+                    // plus one firing in play, and casting it was a loss.
+                    const library = byName("Sylvan Library");
+                    const opalescence = byName("Opalescence");
+                    const perm = makeInstance(library.id, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    });
+                    const anim = makeInstance(opalescence.id, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    });
+                    const state = makeState({
+                        players: [
+                            makePlayer("p1", { battlefield: [anim, perm] }),
+                            makePlayer("p2"),
+                        ],
+                    });
+                    const onBoard =
+                        permanentRealisedValue(state, perm) -
+                        DEFAULT_EVAL_WEIGHTS.permanentWeight;
+                    const inHand = cardValueById(library.id);
+                    expect(inHand).toBeGreaterThan(floorOf(library));
+                    expect(onBoard).toBeGreaterThanOrEqual(inHand);
+                });
+
+                it("the multiplier is what lifts them: at recurrence 1 all three sit back at the floor", () => {
+                    const flat = contextFreeGrounding({
+                        ...DEFAULT_EVAL_WEIGHTS.latent,
+                        recurrence: 1,
+                    });
+                    for (const name of [
+                        "Black Vise",
+                        "Ivory Tower",
+                        "Essence Flare",
+                    ]) {
+                        const def = byName(name);
+                        const standing = dslStandingAbilityScriptValue(
+                            def,
+                            flat
+                        );
+                        expect(standing, name).toBeDefined();
+                        expect(standing!, name).toBeLessThan(floorOf(def));
+                    }
+                });
             });
 
             it("a real card: Nevinyrral's Disk outranks a script-less artifact of equal mana value", () => {

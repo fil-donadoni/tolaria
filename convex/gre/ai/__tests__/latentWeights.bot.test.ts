@@ -64,12 +64,14 @@ describe("the deleted per-Op point constants stay deleted (issue #3398)", () => 
 });
 
 describe("EvalWeights.latent is the complete fit surface (issue #3398)", () => {
-    it("carries exactly one weight per FEATURE_BASIS dimension", () => {
+    it("carries exactly one weight per FEATURE_BASIS dimension, plus the recurrence multiplier", () => {
         // A dimension with no weight is one no verdict can move — the gap
         // `DESTROY_VALUE` lived in (PRD #3397 story 11: lower removal without
-        // lowering card draw).
+        // lowering card draw). `recurrence` (issue #5151) is the record's one
+        // non-dimension member: a multiplier on a per-turn trigger's whole
+        // script, fitted like the prices and reaching the same readers.
         expect(Object.keys(DEFAULT_EVAL_WEIGHTS.latent).sort()).toEqual(
-            [...FEATURE_BASIS].sort()
+            [...FEATURE_BASIS, "recurrence"].sort()
         );
     });
 

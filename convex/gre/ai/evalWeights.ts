@@ -73,8 +73,28 @@ export interface LatentCreatureDiscounts {
  *  With NO board attached (a context-free valuation — the Bot Drafter's pick
  *  heuristic, the resolution-choice ordering, a catalogue tool) the unit count
  *  falls back to exactly ONE representative victim, which is what reproduces
- *  today's numbers byte-for-byte. */
-export type LatentWeights = Readonly<Record<Feature, number>>;
+ *  today's numbers byte-for-byte.
+ *
+ *  Plus ONE member that is not a dimension price but a MULTIPLIER on a whole
+ *  script (issue #5151): `recurrence` — how many times a standing triggered
+ *  ability that fires on a turn-structure step (`PHASE_BEGIN`: an upkeep, a
+ *  draw step, an end step, a combat step) is expected to fire over the life
+ *  of its permanent, i.e. the turns the permanent is expected to survive.
+ *  Read by `abilityScriptOpValue` (`ai/cardScriptValue.ts`) for a
+ *  non-creature permanent's standing reading, so Black Vise's "4 damage every
+ *  upkeep" is priced as a stream and not as one Shock. It rides in this record
+ *  rather than beside it so it reaches every reader the dimension prices
+ *  reach — through `contextFreeGrounding(latent)` — and is fitted like them
+ *  (`latent.recurrence`, `verdicts/features.ts`). */
+export type LatentWeights = Readonly<
+    Record<Feature, number> & {
+        /** Expected firings of a per-turn standing trigger over its
+         *  permanent's life (issue #5151). Strictly above 1, or a repeating
+         *  trigger is worth no more than a one-shot; asserted on the committed
+         *  vector in `evalWeights.bot.test.ts`. */
+        recurrence: number;
+    }
+>;
 
 export type EvalWeights = {
     // --- evaluate.ts: leaf material/position weights (ADR 0018) -----------
@@ -419,6 +439,27 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
         tokens: 0.85,
         pump: 9,
         protection: 60,
+        // Issue #5151 — the turns a non-creature permanent is expected to
+        // survive, so a per-turn standing trigger fires this many times.
+        // Eight: a sorcery-speed permanent cast around turn 2–4 of a game
+        // decided around turn 10–12 sees roughly that many of its own
+        // upkeeps, and few decks spend a card on a cheap artifact or
+        // enchantment. Two bounds the prior must respect, both measured:
+        //  - it must clear the `base + MV` floor for the SMALLEST recurring
+        //    script in the catalogue AFTER the fit, or the slice stays inert
+        //    (issue #5150's census): Ivory Tower, 1 life per upkeep at the
+        //    `lifeSwing` price, halved by `ABILITY_SCRIPT_DISCOUNT`, against
+        //    a floor of 18 for MV 1 — below ~4.8 the floor still hides it;
+        //  - the corpus pulls it DOWN by about a third (6 → 3.78 at the first
+        //    refit): two Verdict Lock positions cast Sylvan Library under
+        //    Enchantress's Presence, and the 1-ply probe spends its one
+        //    resolution on the cast trigger, leaving the Library itself on
+        //    the stack worth nothing while its hand face is the whole
+        //    stream (`docs/findings/5151-probe-cast-trigger-above-spell.md`).
+        //    That is a missing probe step, not a verdict about recurrence,
+        //    and the prior is set so the fit's answer still clears the first
+        //    bound while it stands.
+        recurrence: 8,
     }),
 });
 
@@ -450,32 +491,33 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
 export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     ...FIT_BASE_EVAL_WEIGHTS,
     lifeWeight: 8,
-    permanentWeight: 5.83676,
-    manaWeight: 13.386737,
-    tappedManaWeight: 11.886737,
+    permanentWeight: 5.827959,
+    manaWeight: 13.313611,
+    tappedManaWeight: 11.813611,
     finiteManaUseWeight: 4,
-    manaDevWeight: 15.220952,
-    colorCoverageWeight: 21.826279,
-    flexWeight: 7.325667,
+    manaDevWeight: 15.183669,
+    colorCoverageWeight: 21.840675,
+    flexWeight: 7.30061,
     deckingWeight: 1.5,
     graveyardEngineWeight: 60,
-    graveyardReachFraction: 0.160823,
+    graveyardReachFraction: 0.160965,
     recoverableSweepFraction: 0.8,
-    latentCreatureDiscount: 0.691134,
-    latentFlashCreatureDiscount: 0.807866,
+    latentCreatureDiscount: 0.692649,
+    latentFlashCreatureDiscount: 0.805752,
     latent: Object.freeze({
-        damage: 25.399281,
-        cardAdvantage: 44.020265,
-        lifeSwing: 7.517021,
-        boardRemoval: 171.755996,
+        damage: 25.935959,
+        cardAdvantage: 46.730389,
+        lifeSwing: 7.51296,
+        boardRemoval: 169.167358,
         ramp: 12,
         evasion: 40,
-        tempo: 53.465715,
-        disruption: 109.927397,
+        tempo: 53.47826,
+        disruption: 110.049107,
         recursion: 140,
-        tokens: 0.434378,
-        pump: 10.229241,
+        tokens: 0.436943,
+        pump: 10.227371,
         protection: 60,
+        recurrence: 5.987053,
     }),
 });
 

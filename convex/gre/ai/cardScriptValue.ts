@@ -22,6 +22,7 @@ import type {
     AbilityMode,
     CardDefinition,
     EffectOp,
+    GameEventType,
     ModeSelection,
     PermanentView,
     TargetRequirement,
@@ -202,6 +203,93 @@ const UNDECIDABLE_GATE_WEIGHT = 1;
  *  point — a gated BONUS stops being counted as guaranteed, a gated COST stops
  *  being charged as certain. */
 const UNDECIDED_SELF_GATE_WEIGHT = 0.5;
+
+/** Issue #5151 — the trigger events that RECUR every turn by the turn's own
+ *  structure (CR 500.1): a `PHASE_BEGIN` trigger fires at the beginning of a
+ *  step or phase of every turn it is scoped to — an upkeep, a draw step, a
+ *  combat step, an end step — for as long as its permanent stays. The ONE
+ *  place this set is named; both readers of a standing ability consult it
+ *  through `recurrenceWeight` below, never a local copy. An event raised by
+ *  what players DO (a spell cast, a creature dying, an attack declared) is
+ *  not recurring: nothing guarantees it happens again next turn. */
+export const RECURRING_TRIGGER_EVENTS: readonly GameEventType[] = [
+    "PHASE_BEGIN",
+];
+
+/** True when `event` (a `TriggeredAbility.event`, scalar or list) names a
+ *  recurring turn-structure event — the list case reads "any member", the
+ *  same way `triggerHandlesEventType` (`gre/triggers.ts`) matches one. */
+export function isRecurringTriggerEvent(
+    event: GameEventType | GameEventType[] | undefined
+): boolean {
+    if (event === undefined) return false;
+    const events = Array.isArray(event) ? event : [event];
+    return events.some((e) => RECURRING_TRIGGER_EVENTS.includes(e));
+}
+
+/** Issue #5151 — how many times a STANDING ability's script is expected to
+ *  resolve over its permanent's life: `latent.recurrence` (the fitted turns
+ *  the permanent survives) for a trigger on a recurring turn-structure event,
+ *  1 for everything else:
+ *
+ *   - an activated ability (its gating is the cost, already valued, and how
+ *     often it is used is the search's to find);
+ *   - a one-shot trigger ("when you cast", "when it dies");
+ *   - a graveyard-zoned trigger (CR 113.6b, `zone: "graveyard"`): its source
+ *     is a card in a graveyard, not a permanent with a lifetime, and what it
+ *     does is leave;
+ *   - a recurring trigger whose script can REMOVE ITS OWN SOURCE — sacrifice,
+ *     destroy, exile or move it out of play, at any depth and behind any
+ *     guard: "at the beginning of your upkeep, sacrifice it", "return this
+ *     Aura to its owner's hand", cumulative upkeep's "sacrifice it unless
+ *     you pay" (PR #5333 review). The removal happens at most ONCE, and the
+ *     script's whole reading is dominated by the charge for it (a guarded
+ *     cumulative-upkeep sacrifice reads the same −20 as an unguarded one), so
+ *     compounding it would charge the permanent's loss six times over. Weight
+ *     1 is the pre-#5151 reading for the whole class; pricing the recurring
+ *     PAYMENT apart from the one-time sacrifice is a refinement the reader
+ *     does not make yet. */
+function recurrenceWeight(
+    ability: {
+        event?: GameEventType | GameEventType[];
+        zone?: TriggeredAbility["zone"];
+    },
+    script: EffectOp[] | undefined,
+    ctx: GroundingContext
+): number {
+    if (!isRecurringTriggerEvent(ability.event)) return 1;
+    if (ability.zone === "graveyard") return 1;
+    if (script && removesSource(script)) return 1;
+    return ctx.latent.weights.recurrence;
+}
+
+/** The Ops that take their `target` off the battlefield for good, or out of
+ *  play: named here for `removesSource` only. */
+const SOURCE_REMOVING_OPS: ReadonlySet<string> = new Set([
+    "sacrifice",
+    "destroy",
+    "exile",
+    "moveZone",
+]);
+
+/** Does this script remove its own source (`{ ref: "$source" }`) at any
+ *  nesting depth, on any branch, behind any guard? Deliberately broader than
+ *  `sacrificesSource`: a conditional or guarded self-removal still bounds the
+ *  trigger's lifetime, and the question here is "can this fire more than once
+ *  with its source still around", not "is the body gone for certain". */
+function removesSource(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(removesSource);
+    if (node === null || typeof node !== "object") return false;
+    const op = node as { op?: unknown; target?: { ref?: unknown } };
+    if (
+        typeof op.op === "string" &&
+        SOURCE_REMOVING_OPS.has(op.op) &&
+        op.target?.ref === "$source"
+    ) {
+        return true;
+    }
+    return Object.values(node).some(removesSource);
+}
 
 /** How much of a triggered ability's script value survives its check-time gate
  *  (CR 603.4) — 1 when it always fires, 0 when the gate is decidably false for
@@ -462,6 +550,7 @@ function abilityScriptOpValue(
         modes?: AbilityMode[];
         modeSelection?: ModeSelection;
         gate?: TriggeredAbility["gate"];
+        event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
         etbAbility?: boolean;
@@ -528,7 +617,27 @@ function abilityScriptOpValue(
         if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.
-        const weight = gateWeight(ability, self);
+        // Issue #5151 — and a STANDING trigger on a per-turn step is worth
+        // every firing its permanent lives to see, not one: the hand face
+        // (`dslStandingAbilityScriptValue`) and the board face
+        // (`nonCreatureBodyValue` → `cardValue` → the same reader) both take
+        // this reading, so casting the permanent is never a value loss the
+        // multiplier causes (issue #5145's one-number rule). The REALIZED
+        // reading takes it too for a card that is not PRINTED a creature: a
+        // non-creature permanent animated on the battlefield (an enchantment
+        // under Opalescence) is scored by `evaluateCreature`, whose ability
+        // half is this reading — left at weight 1 its board face is the body
+        // plus ONE firing while its hand face is the whole stream (Sylvan
+        // Library: 282 in hand against a 2/2 plus 94), so casting it read as
+        // a loss on exactly the boards that animate it. A printed creature's
+        // triggers keep weight 1 (out of scope, issue #5151 — a creature's
+        // recurrence is a follow-up).
+        const recurs =
+            selection === "standing" ||
+            (selection === "realized" && !def.types.includes("Creature"));
+        const weight =
+            gateWeight(ability, self) *
+            (recurs ? recurrenceWeight(ability, script, abilityCtx) : 1);
         if (weight === 0) continue;
         // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
         // still loads onto the same feature dimension, so only points scale

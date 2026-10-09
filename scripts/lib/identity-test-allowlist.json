@@ -375,9 +375,14 @@
         "reason": "Invariant check that exported weight objects (incl. nested latent) are frozen."
     },
     {
+        "file": "convex/gre/ai/__tests__/evalWeights.bot.test.ts",
+        "test": "DEFAULT_EVAL_WEIGHTS (issue #2683) > prices a per-turn standing trigger as MORE than one firing (issue #5151)",
+        "reason": "Range invariant on the committed vector (latent.recurrence > 1) that no fit band can state; the fit's trust region could otherwise walk it to a one-shot."
+    },
+    {
         "file": "convex/gre/ai/__tests__/latentWeights.bot.test.ts",
-        "test": "EvalWeights.latent is the complete fit surface (issue #3398) > carries exactly one weight per FEATURE_BASIS dimension",
-        "reason": "Coverage check: latent weight keys match the independently maintained FEATURE_BASIS list."
+        "test": "EvalWeights.latent is the complete fit surface (issue #3398) > carries exactly one weight per FEATURE_BASIS dimension, plus the recurrence multiplier",
+        "reason": "Coverage check: latent weight keys match the independently maintained FEATURE_BASIS list plus the one non-dimension member (recurrence, issue #5151)."
     },
     {
         "file": "convex/gre/ai/__tests__/rootRuleMoratorium.bot.test.ts",

@@ -1408,6 +1408,41 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Bear Trap",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Black Vise",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)": {
         "cards": [
             {
