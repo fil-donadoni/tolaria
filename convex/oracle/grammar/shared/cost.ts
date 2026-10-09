@@ -76,6 +76,11 @@ export type CostAtomIR =
           readonly filter: EffectCardFilter;
           readonly count: number;
       }
+    /** CR 601.2b / 701.9a — "Discard X cards": X is announced by the caster
+     *  (CR 107.3a), any card qualifies. Only a spell's additional cost can
+     *  carry it (`additionalCosts.discard.count: "X"`); an activation cost has
+     *  no announced X, so `lowerActivationCost` refuses it. */
+    | { readonly kind: "discard-x" }
     /** CR 701.9a — discard: "Discard a card at random". */
     | { readonly kind: "discard-at-random"; readonly count: number }
     /** CR 122.1 — "Remove a charge counter from this artifact". */
@@ -134,6 +139,7 @@ export function isSelfPhrase(span: string): boolean {
 }
 
 const PAY_LIFE = /^Pay (\d+) life$/;
+const DISCARD_X = /^Discard X cards$/;
 const DISCARD_RANDOM = /^Discard (\S+) cards? at random$/;
 const REMOVE_COUNTER = /^Remove (\S+) (\S+) counters? from (.+)$/;
 const EXILE_GRAVEYARD =
@@ -323,6 +329,7 @@ const costAtom: Rule<CostAtomIR> = rule<CostAtomIR>(
                     ? fail(`"${random[1]}" is not a count`, span)
                     : ok({ kind: "discard-at-random" as const, count });
             }
+            if (DISCARD_X.test(span)) return ok({ kind: "discard-x" as const });
             const rest = span.slice("Discard ".length);
             const counted = splitCount(rest);
             if (counted === null)
@@ -468,6 +475,14 @@ export function lowerActivationCost(
             case "discard":
                 cost.discardFilter = { filter: atom.filter, count: atom.count };
                 break;
+            case "discard-x":
+                // CR 107.3a — the engine announces X for a spell's additional cost only
+                // (`discardFilter.count` is a fixed number): refuse, never
+                // drop the cost.
+                return fail(
+                    "a discard-X cost has no encoding on an activated ability",
+                    "Discard X cards"
+                );
             case "discard-at-random":
                 cost.discardAtRandom = atom.count;
                 break;

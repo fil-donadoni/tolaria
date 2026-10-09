@@ -207,14 +207,8 @@ type AdditionalCosts = NonNullable<CardDefinition["additionalCosts"]>;
  *   - `mana` — an additional MANA cost is folded into the printed mana cost by
  *     the engine's cast path, and no card prints one on this line.
  *
- * `discard X cards` (Sickening Dreams, 10 cards) never reaches this function
- * at all: the cost GRAMMAR refuses it, because `splitCount` reads its count
- * word through `readNumberWord`, which has no `X`. That is now the ONLY thing
- * refusing it — issue #2714 widened `additionalCosts.discard.count` to
- * `number | "X"`, so the encoding the finding said was missing exists and
- * Sickening Dreams ships hand-written against it. Teaching `readNumberWord`
- * the `X` case (and lowering it to `count: "X"`) is what would let the
- * compiler read the line. See docs/findings/2699-spell-slot-gaps.md.
+ * `discard X cards` (Sickening Dreams) is the `discard-x` atom, lowered to
+ * `additionalCosts.discard.count: "X"` (issue #2714's encoding).
  */
 export function lowerAdditionalCosts(
     atoms: readonly CostAtomIR[]
@@ -238,6 +232,10 @@ export function lowerAdditionalCosts(
                 break;
             case "discard":
                 costs.discard = { filter: atom.filter, count: atom.count };
+                break;
+            case "discard-x":
+                // CR 601.2b / 107.3a — the caster names X at announcement.
+                costs.discard = { filter: {}, count: "X" };
                 break;
             default:
                 return {
