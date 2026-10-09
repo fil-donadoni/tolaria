@@ -3558,7 +3558,7 @@ function assertFormatCompatibleWithHost(
         );
 }
 
-/** The whole of a second-seat join: twelve guards in a fixed order, then the
+/** The whole of a second-seat join: thirteen guards in a fixed order, then the
  *  seat write and the Match's coin-toss gate.
  *
  *  Extracted from `joinGame` (issue #2649) so "join by code" reuses it rather
