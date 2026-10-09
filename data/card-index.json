@@ -67664,6 +67664,16 @@
         "source": "compiled"
     },
     {
+        "name": "Wild Mongrel",
+        "scryfallId": "5bb8dd5c-a79a-4afc-80b2-64645bb17a34",
+        "oracleId": "e9441ab3-7a17-4f9b-a873-e5e82f6e9690",
+        "firstSet": "ody",
+        "firstPrintId": "5bb8dd5c-a79a-4afc-80b2-64645bb17a34",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Wild Nacatl",
         "scryfallId": "5eb18038-eb6a-4d27-ba52-52a1cee6b512",
         "oracleId": "35d3d96a-d303-4bf5-b972-f311331ec07a",
