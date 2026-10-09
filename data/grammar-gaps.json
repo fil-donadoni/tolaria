@@ -1682,7 +1682,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Activated abilities of creatures can't be activated",
-            "issue": 4562
+            "issue": 5309
         },
         {
             "kind": "grammar",
@@ -1757,7 +1757,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Black creatures can't attack you",
-            "issue": 4562
+            "issue": 5310
         },
         {
             "kind": "grammar",
@@ -1887,7 +1887,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This creature can't attack unless you control more creatures than defending player",
-            "issue": 4562
+            "issue": 5307
         },
         {
             "kind": "grammar",
@@ -1902,7 +1902,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This creature can't block unless you control more creatures than attacking player",
-            "issue": 4562
+            "issue": 5308
         },
         {
             "kind": "grammar",
