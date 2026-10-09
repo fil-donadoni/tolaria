@@ -77,7 +77,7 @@ describe("a land animating itself (CR 205.1b, 611.1)", () => {
             )
         ).toEqual(
             sortKeys({
-                id: "mishras-factory-ability-2",
+                id: "mishra-s-factory-ability-2",
                 oracleText:
                     "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.",
                 cost: { mana: { X: 1 } },
