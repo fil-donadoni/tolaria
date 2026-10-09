@@ -213,6 +213,43 @@ describe("golden: locks", () => {
             })
         );
     });
+
+    it("Agate-Blade Assassin — the same defending-player reference behind another verb (CR 508.5)", () => {
+        const card = oracleCard({
+            oracleId: "381a3e8e-71dd-48e4-ab62-53478bde4a14",
+            name: "Agate-Blade Assassin",
+            manaCost: "{1}{B}",
+            typeLine: "Creature — Lizard Assassin",
+            oracleText:
+                "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+            power: "1",
+            toughness: "3",
+        });
+        expect(sortKeys(compiled(card))).toEqual(
+            sortKeys({
+                name: "Agate-Blade Assassin",
+                types: ["Creature"],
+                subtypes: ["Lizard", "Assassin"],
+                manaCost: { B: 1, X: 1 },
+                power: 1,
+                toughness: 3,
+                oracleText:
+                    "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+                compiledTriggeredAbilities: [
+                    {
+                        id: "agate-blade-assassin-trigger",
+                        oracleText:
+                            "Whenever this creature attacks, defending player loses 1 life and you gain 1 life.",
+                        head: { kind: "attacks" },
+                        effects: [
+                            { op: "loseLife", player: "opponent", amount: 1 },
+                            { op: "gainLife", player: "controller", amount: 1 },
+                        ],
+                    },
+                ],
+            })
+        );
+    });
 });
 
 describe("refusals: neighbours stay unparsed", () => {

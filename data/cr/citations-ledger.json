@@ -16282,6 +16282,7 @@
         {"id":"508.5","line":"* lock, whole. WHO the defending player is the trigger head says (CR 508.5).","sites":1,"status":"confirmed","ruleHash":"f9bce4d586835cd9"},
         {"id":"508.5","line":"// (CR 508.5): anywhere else the words name no one.","sites":1,"status":"confirmed","ruleHash":"f9bce4d586835cd9"},
         {"id":"508.5","line":"// CR 506.2 + CR 508.5 — the source's own attack names the player it","sites":1,"status":"confirmed","ruleHash":"f9bce4d586835cd9"},
+        {"id":"508.5","line":"it(\"Agate-Blade Assassin — the same defending-player reference behind another verb (CR 508.5)\", () => {","sites":1,"status":"confirmed","ruleHash":"f9bce4d586835cd9"},
         {"id":"508.5","line":"it(\"Xantid Swarm — the defending player's cast lock behind its own attack (CR 506.2, CR 508.5, CR 601.2)\", () => {","sites":1,"status":"confirmed","ruleHash":"f9bce4d586835cd9"},
         {"id":"509","line":"### Hidden-assignment pile combat with randomness (CR 509 variant)","sites":1,"status":"baseline"},
         {"id":"509","line":"* anchor to the attacker it blocks (CR 509 — a blocker points at what it","sites":1,"status":"baseline"},

@@ -646,6 +646,16 @@
         "source": "compiled"
     },
     {
+        "name": "Agate-Blade Assassin",
+        "scryfallId": "39ebb84a-1c52-4b07-9bd0-b360523b3a5b",
+        "oracleId": "381a3e8e-71dd-48e4-ab62-53478bde4a14",
+        "firstSet": "blb",
+        "firstPrintId": "39ebb84a-1c52-4b07-9bd0-b360523b3a5b",
+        "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Agatha's Soul Cauldron",
         "scryfallId": "019b51b0-e5c6-4208-922b-7736686dddcd",
         "oracleId": "c259e16f-2a44-4552-8678-815f757a02e8",
@@ -19213,6 +19223,16 @@
         "firstPrintId": "b9c09887-6d2b-48b4-a483-16b8a45babd0",
         "firstPrintSet": "isd",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Falkenrath Perforator",
+        "scryfallId": "c40998e0-d7d0-4d79-a40a-9a381debd2cb",
+        "oracleId": "6e991808-fea4-46a8-9e87-7b5917f33ce8",
+        "firstSet": "mid",
+        "firstPrintId": "c40998e0-d7d0-4d79-a40a-9a381debd2cb",
+        "firstPrintSet": "mid",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -39098,6 +39118,16 @@
         "firstSet": "pls",
         "firstPrintId": "8c6a0ca4-5006-4c9b-91cd-e01d77e4fdc2",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Nemesis of Reason",
+        "scryfallId": "105176cc-26b0-42a8-8913-5540f54656f7",
+        "oracleId": "b1d70845-869b-45f7-b4bf-1549bac51d58",
+        "firstSet": "arb",
+        "firstPrintId": "105176cc-26b0-42a8-8913-5540f54656f7",
+        "firstPrintSet": "arb",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Nephalia Drownyard",

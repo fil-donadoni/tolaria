@@ -1438,7 +1438,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Wrath of Marit Lage",
     "Wrenn and Six",
     "Xander's Lounge",
-    "Xantid Swarm",
     "Xenic Poltergeist",
     "Yavimaya Kavu",
     "Yavimaya, Cradle of Growth",
