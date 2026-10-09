@@ -38,6 +38,13 @@ export type PlayerRefIR =
      */
     | { readonly kind: "that-opponent" }
     /**
+     * CR 506.2 + CR 508.5 — "defending player": the player an attacking
+     * creature is attacking. The words are read here; WHO they name is the
+     * lowering site's to say (an attack head of the source itself), and a site
+     * that names no defending player refuses the line.
+     */
+    | { readonly kind: "defending-player" }
+    /**
      * CR 110.2 + CR 608.2h — "that creature's controller": the controller of
      * the ONE creature the spell announced as its target. Never in `PHRASES`:
      * only the damage recipient reads it (`effectClause.ts` — the corpus
@@ -55,6 +62,7 @@ const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["target opponent", { kind: "target", opponent: true }],
     ["that player", { kind: "that-player" }],
     ["that opponent", { kind: "that-opponent" }],
+    ["defending player", { kind: "defending-player" }],
 ]);
 
 export const playerRefRule: Rule<PlayerRefIR> = subGrammar(
