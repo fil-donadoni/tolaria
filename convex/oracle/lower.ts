@@ -178,8 +178,16 @@ function censusGrantedKeywords(
                 acc.plannedMechanics.push("protection");
             continue;
         }
-        if (sentence.kind !== "grant-ability") continue;
-        const { ability, status } = sentence.keyword;
+        // CR 613.1f — an animation that prints "with <keyword>" grants it the
+        // same way a bare grant does, so it is censused against the same row.
+        const granted =
+            sentence.kind === "grant-ability"
+                ? sentence.keyword
+                : sentence.kind === "animate"
+                  ? sentence.self?.keyword
+                  : undefined;
+        if (granted === undefined) continue;
+        const { ability, status } = granted;
         if (status !== "implemented") acc.plannedMechanics.push(ability);
         // CR 702.1 — a keyword whose behaviour comes from an ADR 0054
         // definition-level expander produces NOTHING when granted to another

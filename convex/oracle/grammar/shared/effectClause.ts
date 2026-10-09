@@ -86,6 +86,7 @@ import {
 } from "./targetFilter";
 import { zoneRefRule, type ZoneRefIR } from "./zoneRef";
 import { BASIC_LAND_SUBTYPE_ORDER, CREATURE_SUBTYPES } from "./subtypes";
+import { readPumpThenColor } from "./pumpColorChain";
 import { readThenChain } from "./thenChain";
 import {
     foldCoinFlipSeries,
@@ -512,6 +513,22 @@ export type EffectSentenceIR =
           readonly toughness: number;
           readonly duration: DurationIR;
           readonly retainsTypes?: true;
+          /**
+           * CR 205.1b + CR 613.1d — the SOURCE's own animation ("This land
+           * becomes a 2/2 Assembly-Worker artifact creature until end of
+           * turn."): the characteristics the clause prints beyond the P/T.
+           * Set only with a `self` subject; a sweep prints a bare P/T. The
+           * keeping of the land type is the rider's here too ("It's still a
+           * land."), recorded against `selfType` — the noun the subject
+           * named — so a rider restating a different type keeps nothing.
+           */
+          readonly self?: {
+              readonly selfType: CardType;
+              readonly subtype: string;
+              readonly additionalTypes: readonly CardType[];
+              readonly colors: readonly Color[];
+              readonly keyword?: KeywordIR;
+          };
       }
     | {
           /**
@@ -1466,7 +1483,12 @@ export type ModifierIR =
      */
     | { readonly kind: "destroy-countered-source" }
     /** CR 205.1b — "They're still lands.": the animated set keeps its types. */
-    | { readonly kind: "still-types"; readonly types: readonly CardType[] };
+    | {
+          readonly kind: "still-types";
+          readonly types: readonly CardType[];
+          /** "It's still a land." — the SOURCE's own animation, not a sweep. */
+          readonly singular?: true;
+      };
 
 export type SentenceIR =
     | { readonly role: "effect"; readonly effect: EffectSentenceIR }
@@ -2214,6 +2236,27 @@ export function assembleSentences(
             sentence.modifier.kind === "still-types"
         ) {
             const previous = effects[effects.length - 1];
+            if (sentence.modifier.singular === true) {
+                // CR 205.1b — "It's still a land." restates the type the
+                // animated SOURCE named ("This land"); anything else keeps
+                // nothing that was asked.
+                if (
+                    previous === undefined ||
+                    previous.kind !== "animate" ||
+                    previous.self === undefined ||
+                    previous.retainsTypes === true ||
+                    previous.self.selfType !== sentence.modifier.types[0]
+                )
+                    return {
+                        ok: false,
+                        reason: '"It\'s still a <type>." follows no animation of that type',
+                    };
+                effects[effects.length - 1] = {
+                    ...previous,
+                    retainsTypes: true,
+                };
+                continue;
+            }
             const swept =
                 previous !== undefined &&
                 previous.kind === "animate" &&
@@ -2927,6 +2970,17 @@ const PUMP_PER_DOMAIN = / for each basic land type among lands you control$/;
 const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
 const STILL_TYPES = /^They(?:'|’)re still (.+)$/;
+/** CR 205.1b — the same rider after the SOURCE's own animation. */
+const STILL_TYPE_SELF = /^It(?:'|’)s still a (land)$/;
+/**
+ * CR 205.1b + CR 613.1d/f — "This land becomes a N/N [color] <Subtype>
+ * [artifact] creature[ with <keyword>] <duration>": the manland's own
+ * animation. The article is the printed "a" (a digit follows it, never "an");
+ * the middle is read word by word by `readSelfAnimation`, never by a lenient
+ * capture.
+ */
+const ANIMATE_SELF =
+    /^This (land) becomes a (\d+)\/(\d+) (.+?) creature(?: with (.+?))? (until .+)$/;
 const DAMAGE = /^(.+) deals (\S+|that much) damage to (.+)$/;
 const THAT_CREATURE_CONTROLLER = "that creature's controller";
 /** CR 601.2d — "deals N damage divided as you choose among <targets>". */
@@ -3626,6 +3680,15 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
         // prints it there, so only the sentence-initial casing is read).
         if (span === "Choose a color")
             return ok({ role: "choose-color" as const });
+        if (STILL_TYPE_SELF.test(span))
+            return ok({
+                role: "modifier" as const,
+                modifier: {
+                    kind: "still-types" as const,
+                    types: ["Land"] as readonly CardType[],
+                    singular: true as const,
+                },
+            });
         const still = span.match(STILL_TYPES);
         if (still !== null) {
             const noun = descriptorRule.run(still[1]!, ctx);
@@ -3700,6 +3763,11 @@ export const sentenceRule: Rule<SentenceIR> = subGrammar(
 
         const library = libraryHalf(span);
         if (library !== null) return library;
+
+        const recoloured = readPumpThenColor(span, (half) =>
+            sentenceRule.run(half, ctx)
+        );
+        if (recoloured !== null) return recoloured;
 
         const chained = readThenChain(span, ctx, (tail) =>
             sentenceRule.run(capitalise(tail), ctx)
@@ -3955,6 +4023,69 @@ function readUpgrade(
         default:
             return `"… instead" cannot replace a ${base.kind}`;
     }
+}
+
+/**
+ * CR 205.1b + CR 613.1d/f — the middle of "This land becomes a N/N … creature".
+ * Words are read in the order printers set them — colour, ONE creature
+ * subtype, then "artifact" — each against its own table; an unknown word, a
+ * second subtype or a colour list ("blue and black") refuses the line, so the
+ * rule reads exactly the forms with a fixture rather than a near-English
+ * superset (ADR 0105 § 2). A `with` tail must be ONE Mechanics Registry
+ * keyword: a quoted granted ability ("with \"{1}{B}: Regenerate this
+ * creature\"") is not a keyword and stays refused.
+ */
+function readSelfAnimation(
+    m: RegExpMatchArray,
+    span: string,
+    ctx: unknown
+): RuleResult<EffectSentenceIR> {
+    const words = m[4]!.split(" ");
+    const colors: Color[] = [];
+    let subtype: string | undefined;
+    const additionalTypes: CardType[] = [];
+    for (const word of words) {
+        const color = COLOR_WORDS.get(word);
+        if (color !== undefined && subtype === undefined && colors.length === 0)
+            colors.push(color);
+        else if (subtype === undefined && CREATURE_SUBTYPES.has(word))
+            subtype = word;
+        else if (
+            word === "artifact" &&
+            subtype !== undefined &&
+            additionalTypes.length === 0
+        )
+            additionalTypes.push("Artifact");
+        else
+            return fail(
+                `"${word}" is not read inside an animated source's type line`,
+                span
+            );
+    }
+    if (subtype === undefined)
+        return fail("an animated source names its creature subtype", span);
+    let keyword: KeywordIR | undefined;
+    if (m[5] !== undefined) {
+        keyword = KEYWORDS.get(m[5].toLowerCase());
+        if (keyword === undefined)
+            return fail(`"${m[5]}" is not a Mechanics Registry keyword`, span);
+    }
+    const duration = durationRule.run(m[6]!, ctx);
+    if (!duration.ok) return duration;
+    return ok({
+        kind: "animate" as const,
+        subject: { kind: "self" as const },
+        power: signedModifier(m[2]!),
+        toughness: signedModifier(m[3]!),
+        duration: duration.value,
+        self: {
+            selfType: "Land" as CardType,
+            subtype,
+            additionalTypes,
+            colors,
+            ...(keyword !== undefined ? { keyword } : {}),
+        },
+    } satisfies EffectSentenceIR);
 }
 
 /** A printed signed modifier as a number. "-0" ("gets -3/-0") is zero: the
@@ -4363,6 +4494,10 @@ function effectSentence(
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }
+
+    // ── animate the source itself (CR 205.1b, layers 4, 5, 6 and 7b) ───────
+    const animateSelf = span.match(ANIMATE_SELF);
+    if (animateSelf !== null) return readSelfAnimation(animateSelf, span, ctx);
 
     // ── grant a keyword (CR 613.1f, layer 6) ───────────────────────────────
     const gainsAt = span.indexOf(" gains ");
