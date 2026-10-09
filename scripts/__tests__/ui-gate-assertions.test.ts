@@ -511,6 +511,11 @@ describe("check:ui surface table — Named Assertions", () => {
                 "visible role=dialog name=Official banlist",
                 "reachable [data-game-dialog-close]",
             ],
+            "deck-builder-printing-picker": [
+                "visible role=dialog name=Lightning Bolt",
+                "reachable role=searchbox name=Filter by set",
+                "reachable [data-game-dialog-close]",
+            ],
             "deck-builder-filters": [
                 "reachable role=button name=Colorless",
                 "reachable role=button name=Color R",
