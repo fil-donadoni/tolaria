@@ -1,12 +1,11 @@
 import { useMemo, useState } from "react";
+import type { CardPrinting } from "@convex/cards/catalogue";
 import CardImage from "~/components/cards/card-image";
-import { defaultEdition, editionOptions } from "~/lib/editions";
-import type { EditionOption } from "~/lib/editions";
-import { useCardPrintEditions } from "~/lib/useCardPrintEditions";
+import { defaultEdition } from "~/lib/editions";
 import { useScryfallEditions } from "~/lib/scryfallApi";
 import type { CardIndexEntry } from "./useCardSearch";
 import DraggableCard from "./draggable-card";
-import EditionDropdown from "./edition-dropdown";
+import PrintingPicker from "./printing-picker";
 
 interface ResultCardProps {
     entry: CardIndexEntry;
@@ -15,8 +14,8 @@ interface ResultCardProps {
     activeSets: string[];
     /** The deck's Format allowed Sets (Old School / Alpha 40), `null`
      *  otherwise — pre-filters the `cardPrints` query so those two Formats'
-     *  selectors never offer a set they'd have to reject (ADR 0140, issue
-     *  #4117). */
+     *  printing pickers never offer a set they'd have to reject (ADR 0140,
+     *  issues #4117, #4122). */
     allowedSets: string[] | null;
     /** Whether an Unavailable Card (one the GRE does not implement) is dimmed
      *  and unselectable. TRUE for a real deck — it could not be played. FALSE
@@ -42,82 +41,53 @@ export default function ResultCard({
 }: ResultCardProps) {
     const isCatalogue = entry.oracleText === "";
 
-    // Card Prints (ADR 0140, issue #4117): the table is the source of truth
-    // for every printing — promos, Secret Lair and digital-only included —
-    // queried by Card ID only once the dropdown opens (`onOpen` below), never
-    // eagerly. `entry.prints` (the hand-written catalogue) is kept only as
-    // the pre-load fallback so the collapsed dropdown shows something before
-    // the query resolves, exactly like the Scryfall-editions path already did.
-    // Fed through the SAME `editionOptions`/`defaultEdition` (`~/lib/editions`)
-    // the catalogue path uses — both produce `CardPrinting[]`, so the labeling
-    // and default-selection logic is format-agnostic of its source.
-    const { prints: tablePrints, load: loadTablePrints } = useCardPrintEditions(
-        entry.cardId,
-        allowedSets
-    );
-
-    const indexOptions = useMemo(
-        () => editionOptions(entry.prints),
-        [entry.prints]
-    );
-    const indexDefault = useMemo(
-        () => defaultEdition(entry.prints, activeSets),
-        [entry.prints, activeSets]
-    );
-    const tableOptions = useMemo(
-        () => (tablePrints ? editionOptions(tablePrints) : undefined),
-        [tablePrints]
-    );
-    const tableDefault = useMemo(
-        () =>
-            tablePrints ? defaultEdition(tablePrints, activeSets) : undefined,
-        [tablePrints, activeSets]
-    );
-
-    const { editions: scryfallEditions, load: loadEditions } =
-        useScryfallEditions(isCatalogue ? entry.name : null);
-
-    const catalogueSingle: EditionOption = {
-        printId: entry.prints[0].printId,
-        label: entry.prints[0].setCode.toUpperCase(),
-    };
-
-    const options: EditionOption[] = isCatalogue
-        ? (scryfallEditions ?? [catalogueSingle])
-        : (tableOptions ?? indexOptions);
+    // The printing picker (issue #4122) reads every printing from the Card
+    // Prints table (ADR 0140) — promos, Secret Lair and digital-only
+    // included — but only once it opens, never eagerly for a results page.
+    // Until then the cell shows the hand-written catalogue's default:
+    // `defaultEdition` picks the active Set filter's printing when the card
+    // has one, else the Definition's own.
+    const defaultPrinting = useMemo<CardPrinting>(() => {
+        const id = defaultEdition(entry.prints, activeSets);
+        return entry.prints.find((p) => p.printId === id) ?? entry.prints[0];
+    }, [entry.prints, activeSets]);
 
     // A Full Catalogue entry's `cardId` is a PRINT id, which
-    // `cardPrints.listByCardId` can never match — and its options come from
-    // the Scryfall path anyway, so the table query is not merely useless but
-    // a billed read per dropdown open. Only the index path loads it.
-    const loadEditionOptions = () => {
-        loadEditions();
-        if (!isCatalogue) loadTablePrints();
-    };
+    // `cardPrints.listByCardId` can never match — its printings come from
+    // Scryfall's editions search instead, loaded when the picker opens.
+    const { editions: scryfallEditions, load: loadEditions } =
+        useScryfallEditions(isCatalogue ? entry.name : null);
+    const basePrintings = useMemo<readonly CardPrinting[]>(
+        () =>
+            isCatalogue
+                ? (scryfallEditions ?? entry.prints.slice(0, 1))
+                : entry.prints,
+        [isCatalogue, scryfallEditions, entry.prints]
+    );
 
-    const defaultPrintId = isCatalogue
-        ? entry.prints[0].printId
-        : (tableDefault ?? indexDefault);
-
-    const [override, setOverride] = useState<string | null>(null);
-    const selected = override ?? defaultPrintId;
+    const [override, setOverride] = useState<CardPrinting | null>(null);
+    const chosen = override ?? defaultPrinting;
+    const selected = chosen.printId;
     const unavailable = enforceAvailability && entry.available === false;
 
     // The footer is a FIXED-height slot, occupied or not. Every cell is then
     // the same height, which is what lets the grid be windowed by row
     // arithmetic (`gridWindow.ts`) instead of measuring each row — and it
     // also squares up a grid that used to sit ragged, cards at different
-    // vertical offsets depending on whether they had an edition dropdown.
+    // vertical offsets depending on whether they had an edition selector.
     const renderFooter = (content: React.ReactNode) => (
         <div className="flex h-6 items-center justify-center">{content}</div>
     );
 
-    const dropdown = (
-        <EditionDropdown
-            options={options}
-            value={selected}
-            onChange={setOverride}
-            onOpen={loadEditionOptions}
+    const picker = (
+        <PrintingPicker
+            cardName={entry.name}
+            cardId={isCatalogue ? null : entry.cardId}
+            basePrintings={basePrintings}
+            allowedSets={allowedSets}
+            selected={chosen}
+            onSelect={setOverride}
+            onOpen={loadEditions}
         />
     );
 
@@ -133,16 +103,12 @@ export default function ResultCard({
                     />
                 </div>
                 {renderFooter(
-                    options.length > 1 ? (
-                        dropdown
-                    ) : (
-                        // One line, so it fits the shared footer height. The
-                        // cell is already dimmed and click-through — this
-                        // names the reason, it does not carry it alone.
-                        <span className="text-[10px] text-text-disabled leading-none">
-                            Unavailable
-                        </span>
-                    )
+                    // One line, so it fits the shared footer height. The cell
+                    // is already dimmed and click-through — this names the
+                    // reason, it does not carry it alone.
+                    <span className="text-[10px] text-text-disabled leading-none">
+                        Unavailable
+                    </span>
                 )}
             </div>
         );
@@ -183,12 +149,7 @@ export default function ResultCard({
                     hovered (issue #2724). */}
                 <div className="card-ring pointer-events-none absolute inset-0 group-hover:[--card-ring-color:color-mix(in_oklab,var(--color-accent)_60%,transparent)]" />
             </DraggableCard>
-            {renderFooter(
-                options.length > 1 ||
-                    (isCatalogue && scryfallEditions === undefined)
-                    ? dropdown
-                    : null
-            )}
+            {renderFooter(picker)}
         </div>
     );
 }

@@ -3047,6 +3047,98 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "deck-builder-printing-picker",
+        // The visual printing picker, open at measurement (issue #4122): a
+        // result cell's footer opens a GameDialog grid of the card's printing
+        // images, with the Set text filter and the kind chips above it. The
+        // printings beyond the catalogue's are `cardPrints` deployment data,
+        // so the promise is the frame and its filter, not a tile count —
+        // the catalogue's own printing always renders one tile.
+        mounts: ["src/components/lobby/deck-builder/printing-picker.tsx"],
+        entries: ["src/routes/deck-builder.route.tsx"],
+        label: "Deck builder \u2014 printing picker (/decks/create \u2192 search Lightning Bolt \u2192 its printing button)",
+        asserts: [
+            {
+                label: "dialog: Lightning Bolt",
+                locator: { role: "dialog", name: "Lightning Bolt" },
+                check: "visible",
+            },
+            {
+                label: "Set text filter",
+                locator: { role: "searchbox", name: "Filter by set" },
+                check: "reachable",
+            },
+            {
+                label: "dialog close control",
+                locator: { selector: "[data-game-dialog-close]" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/decks/create");
+            const search = page
+                .getByRole("textbox", { name: "Search cards" })
+                .filter({ visible: true })
+                .first();
+            try {
+                await search.waitFor({
+                    state: "visible",
+                    timeout: STEP_TIMEOUT,
+                });
+            } catch {
+                throw new Unreachable(
+                    "the deck builder showed no `Search cards` field within 8s"
+                );
+            }
+            await search.fill("Lightning Bolt");
+            // This row measures the DIALOG — a centred portal, independent of
+            // the pane its trigger sits in. At phone landscape (844×390) the
+            // header stack squeezes the source pane to ~0px once a search is
+            // active, so the trigger is rendered but below the fold and no
+            // click can reach it: that is the shell's bug, issue #5316, and
+            // the `deck-builder` rows own it. Until it is fixed the trigger
+            // is dispatched there, and ONLY where it lies outside the
+            // viewport — everywhere else the press is a real click.
+            const trigger = page
+                .getByRole("button", {
+                    name: "Choose printing of Lightning Bolt",
+                    exact: true,
+                })
+                .first();
+            try {
+                await trigger.waitFor({
+                    state: "attached",
+                    timeout: STEP_TIMEOUT,
+                });
+            } catch {
+                throw new Unreachable(
+                    "the deck builder's search results: no `Choose printing of Lightning Bolt` button within 8s"
+                );
+            }
+            const box = await trigger.boundingBox();
+            const viewport = page.viewportSize();
+            const belowFold =
+                box !== null &&
+                viewport !== null &&
+                box.y + box.height > viewport.height;
+            if (belowFold) {
+                await trigger.dispatchEvent("click");
+            } else {
+                await pressNamed(
+                    page,
+                    "Choose printing of Lightning Bolt",
+                    "the deck builder's search results"
+                );
+            }
+            await settleOnLayer(
+                page,
+                "[role=dialog]",
+                "the printing button",
+                "Lightning Bolt"
+            );
+        },
+    },
+    {
         id: "deck-builder-filters",
         // The card filters, open at measurement (issue #4421). VIEWPORT-SPLIT
         // by design (issue #2585), like `draft-pool-peek`: on a phone

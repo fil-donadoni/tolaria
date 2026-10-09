@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { toDashedUuid } from "./scryfallId";
 
 export interface ScryfallEdition {
@@ -85,10 +85,11 @@ export function useScryfallEditions(cardName: string | null): {
         }
     }, [cardName]);
 
-    const editions = useMemo(
-        () => (cardName ? editionsCache.get(cardName) : undefined),
-        [cardName]
-    );
+    // Read the cache on every render, never memoised on `cardName` alone: the
+    // fetch fills it AFTER the first render, and only the `loading` flip
+    // re-renders — a `[cardName]` memo kept serving the empty first read, so
+    // the Full Catalogue printings never appeared (issue #4122).
+    const editions = cardName ? editionsCache.get(cardName) : undefined;
 
     const load = useCallback(() => {
         if (!cardName || startedRef.current) return;

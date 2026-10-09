@@ -69,6 +69,12 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("convex/react", () => ({
     useQuery: (ref: unknown) => h.resolveQuery(ref),
+    // The result cells' printing picker (issue #4122) — never opened here.
+    usePaginatedQuery: () => ({
+        results: [],
+        status: "LoadingFirstPage",
+        loadMore: () => {},
+    }),
 }));
 
 // The search index is a generated asset (issue #4861), fetched by its own
