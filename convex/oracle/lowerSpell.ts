@@ -235,7 +235,7 @@ export function lowerAdditionalCosts(
                 break;
             case "discard-x":
                 // CR 601.2b / 107.3a — the caster names X at announcement.
-                costs.discard = { filter: {}, count: "X" };
+                costs.discard = { count: "X" };
                 break;
             default:
                 return {

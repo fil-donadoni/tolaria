@@ -48,8 +48,6 @@ export const cabalRitual = defineCard(() => ({
 // Damage is split into two `forEach` sweeps, the Plague Spitter shape
 // (`inv/black.cards.ts`): the permanents set carries the creature filter, the players
 // set carries the player refs, and neither can name the other's members.
-//
-// compiler-gap: "As an additional cost to cast this spell, discard X cards." (#2693)
 export const sickeningDreams = defineCard(() => ({
     id: "9396ac77-9f53-46bd-b126-02441a0f5594",
     rarity: "uncommon",

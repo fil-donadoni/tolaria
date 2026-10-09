@@ -36,7 +36,7 @@ describe("Discard X cards — additional cost (CR 601.2b, CR 107.3a)", () => {
         if (outcome.state === "unparsed")
             throw new Error(JSON.stringify(outcome.gaps));
         expect(sortKeys(outcome.definition.additionalCosts)).toEqual(
-            sortKeys({ discard: { filter: {}, count: "X" } })
+            sortKeys({ discard: { count: "X" } })
         );
     });
 });

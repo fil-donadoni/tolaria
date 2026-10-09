@@ -5944,4 +5944,36 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 601.2b + CR 107.3a — "As an additional cost to cast this spell, discard X cards": the caster announces X with no {X} pip in the printed cost, and the effects read it back as the chosen-cost X. Exhibits the X draw count and X damage amount the canned smoke scenario cannot build (issue #4563).
+    {
+        rule: "additional cost",
+        card: {
+            oracleId: "e12ed186-01c1-4da5-b90f-cfbb77c4e8d0",
+            name: "Channeled Force",
+            manaCost: "{2}{U}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nTarget player draws X cards. Channeled Force deals X damage to up to one target creature or planeswalker.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Channeled Force",
+            types: ["Instant"],
+            manaCost: { X: 2, U: 1, R: 1 },
+            oracleText:
+                "As an additional cost to cast this spell, discard X cards.\nTarget player draws X cards. Channeled Force deals X damage to up to one target creature or planeswalker.",
+            effects: [
+                { op: "draw", player: { target: 0 }, count: { X: true } },
+                { op: "dealDamage", amount: { X: true }, to: { target: 1 } },
+            ],
+            targetRequirement: { type: "player", count: 1 },
+            additionalTargetRequirements: [
+                {
+                    type: ["Creature", "Planeswalker"],
+                    count: { min: 0, max: 1 },
+                },
+            ],
+            additionalCosts: { discard: { count: "X" } },
+        },
+    },
 ]);
