@@ -1103,6 +1103,10 @@ _Avoid_: Source band, landing priority, inherited band (the child's band; the or
 An owner's statement about one issue's band that no rule computed: a `## Band` line in the body (`P1`–`P3`, the truth for what the triage writes) or a hand-set `P0` on the board (never written or cleared by a script). On a standalone issue it is the **Priority Band**; on a **Slice** it orders the slice inside its umbrella's turn and moves the band not at all — an umbrella's ruling is the one the owner maintains.
 _Avoid_: Override (it does not override an umbrella), fiat (the retired name of the source), manual priority
 
+**Bot**:
+The engine-driven opponent a player can face in a Match. "Bot" in every user-facing label (Play vs Bot, Bot deck, Bot difficulty), never "AI": the word sets the expectation of a search-and-evaluation player, not a conversational one (grilled 2026-10-09).
+_Avoid_: AI, vs AI, CPU (in UI copy)
+
 **Bot Finding**:
 One card the play **Bot** is known to have trouble with, as the admin dashboard lists it — the per-card citizen a **Bot Gap** class is not. Keyed `(oracle id, source)`: a card may carry both a measured finding and a human-reported one, and they never overwrite each other. Its measured fields belong to the measurement artifact and are rewritten by every sweep; its human fields (note, reproducer, linked issue) are never touched by one; its state is DERIVED from the two, never declared — no "mark as resolved" button. A finding from any source other than the sweep is admissible only with a **Reproducer**: without one there is no defect, only an anecdote, and it waits in triage outside every count.
 _Avoid_: Bot bug, bot issue (that is the GitHub record), Bot Gap (that is the class, one issue per key), finding (the drawer sense)
@@ -1188,7 +1192,7 @@ A user's manual override placing one card in a chosen **Column**, recorded per *
 _Avoid_: Column override (the pre-unification name), assignment, manual placement
 
 **Format**:
-A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines the **Maindeck**/**Sideboard** size bounds, the copy/category limits, and — for most Formats — which **Sets** are legal; **Premodern** is the one exception (issue #2695): its legality is a generated, name-keyed map of Scryfall's `legalities.premodern` per card, not a Set list, so a card is legal exactly when Scryfall says the CARD is, regardless of which Set its only built printing sits in. Registered today: **Freeform** (no constraints), **Limited** (pool-scoped rather than set-scoped — legality is membership in the **Deck Pool**, ≥40 main, no sideboard cap), **Premodern** (Scryfall-legality by name, ≥60 main, ≤15 sideboard, 4-copy + code-seed/DB-backed **Banned** list, no Restricted list), **Manual** (Tabletop, unvalidated and unplayable by the engine), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** constrains deck authoring only — it is **not** a property of a **Game**. Which **Decks** may meet in one **Match** is a separate question, **Format Compatibility**: enforced at join by `formatsCompatible` (`convex/formats.ts`, issue #4611) — every Standard-Variant Format meets every other, **Limited** meets only Limited, **Manual** only Manual; the Commander family is the first to require it, and the rule generalises to the lobby (grilled 2026-09-24).
+A named set of deck-construction constraints a **Deck** is built under, chosen at deck creation and **immutable** thereafter. Determines the **Maindeck**/**Sideboard** size bounds, the copy/category limits, and — for most Formats — which **Sets** are legal; **Premodern** is the one exception (issue #2695): its legality is a generated, name-keyed map of Scryfall's `legalities.premodern` per card, not a Set list, so a card is legal exactly when Scryfall says the CARD is, regardless of which Set its only built printing sits in. Registered today: **Freeform** (no constraints), **Limited** (pool-scoped rather than set-scoped — legality is membership in the **Deck Pool**, ≥40 main, no sideboard cap), **Premodern** (Scryfall-legality by name, ≥60 main, ≤15 sideboard, 4-copy + code-seed/DB-backed **Banned** list, no Restricted list), **Manual** (Tabletop, unvalidated and unplayable by the engine), **Alpha 40** (Alpha/Beta only, ≥40 main, no sideboard, rarity- and category-based limits), **Old School** (Alpha/Beta/Arabian Nights/Antiquities/Legends/The Dark, ≥60 main, ≤15 sideboard, 4-copy + **Restricted**/**Banned** lists). A **Format** is a property of a **Deck**; a **Match** carries a **Match Format**, and which Decks may sit at it is decided against that, never deck against deck (grilled 2026-10-09, ADR 0153, superseding the 2026-09-24 pairwise **Format Compatibility**).
 _Avoid_: Mode, ruleset (overloaded — see **Format Ruleset**), variant
 
 **Game Variant**:
@@ -1199,9 +1203,9 @@ _Avoid_: Format (deck-construction only), mode, ruleset (that is **Format Rulese
 The game-rule numbers of a Commander **Game Variant**, a pure function of a **Deck**'s **Format** — never chosen at the table: _brawl_ (life 25 in two-player / 30 in multiplayer, no **Commander Damage**, the first mulligan free, planeswalker Commanders allowed — CR 903.12), _duel-commander_ (life 20, Commander Damage), _edh_ (life 40, Commander Damage). Deck size belongs to the Format, not the Profile: **Brawl** (100 cards, Arena's ex-"Historic Brawl") and **Standard Brawl** (60 cards, CR 903.12d) share the _brawl_ Profile. A **Match** admits only **Decks** whose Formats map to the same Profile — the one place a Match reads a Deck's Format.
 _Avoid_: Variant (the family), house rules, settings
 
-**Format Compatibility**:
-Whether two **Decks** may meet in one **Match** — a pure function of their two **Formats**, held in one place and enforced at join, never only hinted at in the lobby: a Commander-family Deck meets only a Deck of the same **Commander Profile**; a Standard-Variant Deck meets any other Standard-Variant Deck (today's behaviour, kept); a **Limited** Deck meets within its **Limited Event**. An **Open Game** advertises its host Deck's Format so a joiner is offered only compatible Decks, and the join mutation refuses the rest.
-_Avoid_: Same format (too strict — Brawl meets Standard Brawl), matchmaking rules (that is a lobby feature; this is the predicate it reads)
+**Format Compatibility** (retired):
+The deck-against-deck predicate (issue #4611) that decided which two **Decks** may meet in one **Match**. Replaced by the **Match Format** (grilled 2026-10-09): a Deck is admitted against the Format of the Match, never against the other Deck. A Commander **Profile** (ADR 0145) is itself a Match Format, admitting every Deck whose Format belongs to it — so Brawl still meets Standard Brawl.
+_Avoid_: using it for new work — say Match Format
 
 **Command Zone**:
 The per-**Player** **Zone** (CR 408) that holds that Player's **Commander** while it is not on the **Battlefield** — where the game starts it, and where its owner may return it instead of any other zone it would move to. Per CR 114/408 the command zone also holds a Player's emblems, but they are modelled and displayed apart: no rule ever counts commander and emblems together, and on the board they appear as two distinct areas. Not the **Companion Slot**, which is outside the game.
@@ -1256,7 +1260,7 @@ A card's print rarity (`common` / `uncommon` / `rare` / `mythic`), carried per *
 _Avoid_: Frequency, tier
 
 **Limited Event**:
-An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per **Seat** and then plays it out: setup (admin picks sets/boosters, **Match Format**, optional **Round Deadline**) → pool generation (**Sealed**) or **Draft** → deckbuild from the **Pool** → **Play Phase** (Swiss **Rounds**, ending in **Standings**). The Event owns the whole arc; it orchestrates its round **Matches** through the existing Match flow rather than replacing it. Its lifecycle is a four-member status — `open` → `started` → `playing` → `finished` — whose meaning is only ever read through named predicates, never a literal comparison (ADR 0076). The terminal status is reached either way: the last **Round** resolving on its own, or the creator manually **closing** the Event (issue #2357) — the two are indistinguishable once reached, by design (no separate "abandoned" status).
+An admin-created gathering of N **Players** that produces one **Limited**-legal **Deck** per **Seat** and then plays it out: setup (admin picks sets/boosters, **Games Format**, optional **Round Deadline**) → pool generation (**Sealed**) or **Draft** → deckbuild from the **Pool** → **Play Phase** (Swiss **Rounds**, ending in **Standings**). The Event owns the whole arc; it orchestrates its round **Matches** through the existing Match flow rather than replacing it. Its lifecycle is a four-member status — `open` → `started` → `playing` → `finished` — whose meaning is only ever read through named predicates, never a literal comparison (ADR 0076). The terminal status is reached either way: the last **Round** resolving on its own, or the creator manually **closing** the Event (issue #2357) — the two are indistinguishable once reached, by design (no separate "abandoned" status).
 _Historical_: ADR 0055 originally stopped the Event at the built Deck, with pairing/rounds/standings deferred; ADR 0076 reverses that — a drafted deck whose performance is never recorded loses the study loop the environment exists for.
 _Avoid_: Lobby (that's constructed matchmaking)
 
@@ -1428,16 +1432,20 @@ _Avoid_: Turn, cycle
 The unit inside a **Round**: two **Seats** matched against each other, or one Seat with a **Bye**. Keyed by **Seat** index, not by user — a bot Seat has no user. A Pairing is _chosen_ (with randomness among equal-score Seats) and therefore **persisted**, never re-derived, so a re-render can't disagree with what was actually played. It carries an optional result in **games won by each side** plus a `source` (`played` / `simulated` / `bye` / `timeout`) recording how the result came to be. A human Pairing gets a real **Match**; a bot-vs-bot Pairing is **evaluated** from both drafted decks, never simulated through the **GRE**.
 _Avoid_: Matchup, match (a Pairing may have no Match at all)
 
-**Match Format** (event-level):
-Whether every **Round** **Match** of a **Limited Event** is best-of-one or best-of-three (`bo1` / `bo3`), chosen once at creation and fixed for the event's life. Bo3 is the default, so an unconfigured event plays like real Limited. Stored optionally (events predating the **Play Phase** carry nothing) but resolved to a definite value by a single tolerant reader, so the wire shape and every consumer only ever see a concrete format — no client re-implements the default. Maps to the existing Match's best-of setting at one seam.
-_Avoid_: Format (that's the deck-construction constraint set — a different concept entirely), bestOf (that's the Match-flow field it maps onto)
+**Games Format**:
+Whether a **Match** is best-of-one or best-of-three (`bo1` / `bo3`). In a **Limited Event**, whether every **Round** **Match** of a **Limited Event** is best-of-one or best-of-three (`bo1` / `bo3`), chosen once at creation and fixed for the event's life. Bo3 is the default, so an unconfigured event plays like real Limited. Stored optionally (events predating the **Play Phase** carry nothing) but resolved to a definite value by a single tolerant reader, so the wire shape and every consumer only ever see a concrete format — no client re-implements the default. Maps to the existing Match's best-of setting at one seam.
+_Avoid_: Match Format (that is the Format of the Decks at the Match), Format (the deck-construction constraint set), bestOf (the Match-flow field it maps onto)
+
+**Match Format**:
+The **Format** assigned to a **Match** when it is set up, which every seated **Deck** must match: a Deck is admitted when its Format equals the Match Format, and a **Freeform** Match Format admits every playable Deck. A table waiting for an opponent advertises it, so a joiner — and the picker for a Bot's Deck — is offered only admitted Decks.
+_Avoid_: Games Format (Bo1/Bo3), Format Compatibility (the retired deck-against-deck predicate), game format (a Format is not a property of a single **Game**)
 
 **Round Deadline**:
 The optional per-**Round** clock of a **Limited Event**, configured at creation as a duration in **minutes** (not an epoch — each Round stamps its own expiry when it opens) and range-checked server-side. When it expires, an undecided human **Pairing** is closed as a loss with source `timeout`. Absent means the event has no clock: a relaxed table is never cut short. It is also how a Seat that goes away is handled — there is no explicit drop.
 _Avoid_: Timer, **Pick Timer** (that's the per-**Pick** clock), time limit
 
 **Bye**:
-A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd count — awarded the match win, worth the games its **Match Format** requires, with source `bye`. At most one per Seat per event.
+A **Pairing** with only one **Seat** — the odd Seat out at a table with an odd count — awarded the match win, worth the games its **Games Format** requires, with source `bye`. At most one per Seat per event.
 _Avoid_: Forfeit, walkover (those imply an opponent who lost)
 
 **Standings**:
@@ -1647,6 +1655,10 @@ _Avoid_: Action Sheet (that is the board's modal list of legal actions), card me
 **Inspect Overlay**:
 The **Card Preview Overlay** as opened from a **Peek Panel** CTA (or hover on desktop) on an editing surface: ≤100dvh, art | scrolling text in landscape, the surface's own actions inside it (builder: `→ Side`, `Move to…`; draft: `Pick`, ‹ › to step). In the **Draft Room** a tap anywhere except `Pick` closes it. Same component as the board's overlay; the trigger differs (no hold-preview on editing surfaces — long-press is drag there).
 _Avoid_: Zoom, preview (say which: board preview vs inspect)
+
+**Table**:
+A **Match** (Constructed) or a **Limited Event** a player is seated at, from the moment it is created or joined until it closes. A player may sit at several Tables at once; the lobby's **Your Tables** section lists them with their phase (waiting for an opponent, Game 2 of a Bo3, your turn; draft, deckbuild, Round 3).
+_Avoid_: Open table (reads as "a table I can join" — joining lives in the setup flow), active game (a Table is the Match, not one Game)
 
 **Table Ring**:
 The Arena-style dialog showing the draft table: seats, names/avatars, queued packs per seat, passing direction, self at the bottom. Opened from the **Draft Room** bar or the antechamber; never a dominant page element.
