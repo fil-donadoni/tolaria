@@ -967,7 +967,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › This land becomes a N/N black Skeleton creature with \"{…}: Regenerate this creature\" until end of turn",
-            "issue": 4564
+            "issue": 5335
         },
         {
             "kind": "grammar",
@@ -3718,6 +3718,11 @@
             "kind": "migration",
             "key": "triggered",
             "issue": 4034
+        },
+        {
+            "kind": "scenario",
+            "key": "smoke-scenario › Op \"animate\" acts on $source — covered by the card's own per-card test",
+            "issue": 5336
         },
         {
             "kind": "scenario",
