@@ -16,12 +16,13 @@ import {
 } from "~/lib/deckTypes";
 import LoadingScreen from "~/components/ui/loading-screen";
 import LobbyBackground from "../lobby-background";
-import ProtoHome from "./proto-home";
+import HomeAHero, { HOME_A_NAME } from "./home-a-hero";
+import HomeBDashboard, { HOME_B_NAME } from "./home-b-dashboard";
+import HomeCBento, { HOME_C_NAME } from "./home-c-bento";
+import { buildHomeData } from "./proto-home-data";
 import ProtoImportDialog from "./proto-import-dialog";
 import PrototypeSwitcher from "./prototype-switcher";
-import VariantAWizard, { VARIANT_A_NAME } from "./variant-a-wizard";
-import VariantBScroll, { VARIANT_B_NAME } from "./variant-b-scroll";
-import VariantCSplit, { VARIANT_C_NAME } from "./variant-c-split";
+import VariantCSplit from "./variant-c-split";
 import type { ProtoOpenTable } from "./proto-step-body";
 import {
     effectiveMatchFormat,
@@ -35,9 +36,9 @@ import {
 } from "./match-setup-logic";
 
 const VARIANTS = [
-    { key: "A", name: VARIANT_A_NAME },
-    { key: "B", name: VARIANT_B_NAME },
-    { key: "C", name: VARIANT_C_NAME },
+    { key: "A", name: HOME_A_NAME },
+    { key: "B", name: HOME_B_NAME },
+    { key: "C", name: HOME_C_NAME },
 ];
 
 function readVariant(): string {
@@ -128,32 +129,42 @@ export default function MatchSetupPrototype() {
                 </div>
 
                 {view === "home" ? (
-                    <ProtoHome
-                        last={setup}
-                        decks={decks}
-                        activeMatch={
-                            activeGame
-                                ? {
-                                      name: activeGame.name,
-                                      phase:
-                                          activeGame.status === "waiting"
-                                              ? "Waiting for opponent"
-                                              : "In progress",
-                                  }
-                                : null
-                        }
-                        events={myEvents}
-                        onConstructed={() => setView("setup")}
-                        onLimited={() => void navigate({ to: "/limited" })}
-                        onReplay={start}
-                        onEditLast={() => setView("setup")}
-                    />
+                    (() => {
+                        const my = decks.find((d) => d.presetId === setup.myDeckId);
+                        const homeProps = {
+                            data: buildHomeData(
+                                setup,
+                                decks,
+                                activeGame
+                                    ? {
+                                          name: activeGame.name,
+                                          phase:
+                                              activeGame.status === "waiting"
+                                                  ? "Waiting for opponent"
+                                                  : "In progress",
+                                          art: my?.featuredCardId ?? null,
+                                      }
+                                    : null,
+                                myEvents
+                            ),
+                            onConstructed: () => setView("setup"),
+                            onLimited: () => void navigate({ to: "/limited" }),
+                            onReplay: start,
+                            onEditLast: () => setView("setup"),
+                            onOpenDeck: (slug: string) =>
+                                void navigate({ to: "/decks/$slug", params: { slug } }),
+                            onNewDeck: () => void navigate({ to: "/decks/create" }),
+                        };
+                        return variant === "A" ? (
+                            <HomeAHero {...homeProps} />
+                        ) : variant === "B" ? (
+                            <HomeBDashboard {...homeProps} />
+                        ) : (
+                            <HomeCBento {...homeProps} />
+                        );
+                    })()
                 ) : (
-                    <>
-                        {variant === "A" && <VariantAWizard key="A" {...variantProps} />}
-                        {variant === "B" && <VariantBScroll key="B" {...variantProps} />}
-                        {variant === "C" && <VariantCSplit key="C" {...variantProps} />}
-                    </>
+                    <VariantCSplit {...variantProps} />
                 )}
 
                 <details className="rounded-sm border border-dashed border-fuchsia-500/40 p-2 text-xs text-text-muted">
