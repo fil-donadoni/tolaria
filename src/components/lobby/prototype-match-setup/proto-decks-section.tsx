@@ -1,8 +1,11 @@
 // PROTOTYPE — throwaway. The Decks section: the lobby's own Deck Shelves
 // (art + name), browse-only here — a click opens the deck.
+import { useState } from "react";
+import type { FormatId } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { cn } from "~/lib/utils";
 import FeaturedDeckArt from "../featured-deck-art";
+import { ARENA_MATCH_FORMATS, deckMatchesQuery, formatLabel, matchedCardName } from "./match-setup-logic";
 
 export default function ProtoDecksSection({
     userDecks,
@@ -17,7 +20,13 @@ export default function ProtoDecksSection({
     onNew: () => void;
     layout?: "rows" | "grid";
 }) {
-    const group = (title: string, decks: LobbyDeck[]) => (
+    const [query, setQuery] = useState("");
+    const [format, setFormat] = useState<FormatId | "all">("all");
+    const keep = (d: LobbyDeck) =>
+        (format === "all" || d.format === format) && deckMatchesQuery(d, query);
+    const group = (title: string, all: LobbyDeck[]) => {
+        const decks = all.filter(keep);
+        return decks.length === 0 ? null : (
         <div className="flex flex-col gap-1.5">
             <h3 className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">
                 {title} · {decks.length}
@@ -46,14 +55,17 @@ export default function ProtoDecksSection({
                             {d.name}
                         </span>
                         <span className="block truncate px-2 pb-2 text-[10px] uppercase tracking-wide text-text-muted">
-                            {d.format}
+                            {matchedCardName(d, query)
+                                ? `∋ ${matchedCardName(d, query)}`
+                                : formatLabel(d.format)}
                             {!d.isLegal && " · illegal"}
                         </span>
                     </button>
                 ))}
             </div>
         </div>
-    );
+        );
+    };
     return (
         <section className="flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -67,6 +79,28 @@ export default function ProtoDecksSection({
                 >
                     + New Deck
                 </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+                <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search deck or card name… (e.g. solitary)"
+                    className="min-w-0 flex-1 rounded-sm border border-border-strong bg-surface/70 px-3 py-1.5 text-sm text-text placeholder:text-text-disabled"
+                />
+                <select
+                    aria-label="Deck format"
+                    value={format}
+                    onChange={(e) => setFormat(e.target.value as FormatId | "all")}
+                    className="rounded-sm border border-border-strong bg-surface/70 px-2 py-1.5 text-sm text-text"
+                >
+                    <option value="all">All formats</option>
+                    {[...ARENA_MATCH_FORMATS, "limited" as FormatId, "manual" as FormatId].map((f) => (
+                        <option key={f} value={f}>
+                            {formatLabel(f)}
+                        </option>
+                    ))}
+                </select>
             </div>
             {group("Your decks", userDecks)}
             {group("Presets", presetDecks)}
