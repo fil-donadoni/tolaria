@@ -14,6 +14,7 @@ export default function ProtoArtCard({
     chip,
     title,
     line,
+    meta,
     onClick,
     className,
     titleClass = "text-2xl",
@@ -23,6 +24,8 @@ export default function ProtoArtCard({
     chip?: string;
     title: string;
     line?: string;
+    /** Small uppercase line UNDER the title (the chip sits above it). */
+    meta?: string;
     onClick?: () => void;
     className?: string;
     titleClass?: string;
@@ -65,6 +68,14 @@ export default function ProtoArtCard({
                     />
                 )}
             </div>
+            <span
+                aria-hidden
+                className="absolute inset-0 -z-10"
+                style={{
+                    background:
+                        "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.88) 100%)",
+                }}
+            />
             {"cards" in art && art.cards.length === 2 && (
                 <svg
                             aria-hidden
@@ -83,20 +94,7 @@ export default function ProtoArtCard({
                             />
                         </svg>
             )}
-            <span
-                aria-hidden
-                className="absolute inset-0 -z-10"
-                style={{
-                    background:
-                        "linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.88) 100%)",
-                }}
-            />
-            {"cards" in art && art.cards.length === 2 && (
-                <span className="absolute left-[52%] top-[38%] -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-surface-base/80 px-3 py-1 font-display text-2xl text-parchment drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
-                    vs
-                </span>
-            )}
-            <div className="flex flex-col items-start gap-1 p-4">
+            <div className="flex flex-col items-start gap-1.5 p-4">
                 {chip && (
                     <span className="rounded-sm border border-[var(--hairline-strong)] bg-surface-base/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-parchment">
                         {chip}
@@ -110,6 +108,11 @@ export default function ProtoArtCard({
                 >
                     {title}
                 </span>
+                {meta && (
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-parchment/85">
+                        {meta}
+                    </span>
+                )}
                 {line && <span className="text-xs text-text-muted">{line}</span>}
                 {children}
             </div>
