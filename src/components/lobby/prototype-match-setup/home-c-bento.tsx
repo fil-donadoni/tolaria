@@ -44,7 +44,7 @@ export default function HomeCBento(p: ProtoHomeProps) {
                 ) : (
                     <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                         {tables.map((t, i) => (
-                            <ProtoArtCard key={t.id} art={tableArt(t, i)} chip={t.phase} title={t.name} titleClass="text-base" line={t.kind} onClick={() => {}} className="h-36" />
+                            <ProtoArtCard key={t.id} art={tableArt(t, i)} chip={t.phase} title={t.name} titleClass="text-base" line={t.detail} onClick={() => {}} className="h-36" />
                         ))}
                     </div>
                 )}

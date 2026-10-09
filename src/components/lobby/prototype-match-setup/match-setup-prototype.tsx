@@ -143,6 +143,13 @@ export default function MatchSetupPrototype() {
                                                   ? "Waiting for opponent"
                                                   : "In progress",
                                           art: my?.featuredCardId ?? null,
+                                          detail: `Constructed · ${
+                                              activeGame.vsAi
+                                                  ? "vs Bot"
+                                                  : activeGame.solo
+                                                    ? "Solo"
+                                                    : "vs Human"
+                                          }`,
                                       }
                                     : null,
                                 myEvents

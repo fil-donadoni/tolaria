@@ -1,20 +1,23 @@
 // PROTOTYPE — throwaway. What every home variant renders, precomputed once.
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { limitedEventStatusChip } from "~/lib/limitedEventStatus";
+import { limitedEventName } from "~/lib/limitedEventName";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { firstOpenStep, stepsFor, type MatchSetup } from "./match-setup-logic";
 
 const CHIP_LABEL = {
     open: "Waiting for players",
     drafting: "Draft",
-    building: "Deckbuild",
-    playing: "Rounds",
+    building: "Deckbuilding",
+    playing: "Games",
     done: "Done",
 } as const;
 
 export interface ProtoTableRow {
     id: string;
     kind: "Constructed" | "Limited";
+    /** Second line: "Constructed · vs Bot" / "Limited". */
+    detail: string;
     name: string;
     phase: string;
     art: string | null;
@@ -52,7 +55,12 @@ export const PLAY_ART = {
 export function buildHomeData(
     last: MatchSetup,
     decks: LobbyDeck[],
-    activeMatch: { name: string; phase: string; art: string | null } | null,
+    activeMatch: {
+        name: string;
+        phase: string;
+        art: string | null;
+        detail: string;
+    } | null,
     events: LimitedEventSummaryView[]
 ): ProtoHomeData {
     const steps = stepsFor(last, decks);
@@ -82,7 +90,8 @@ export function buildHomeData(
             ...events.map((e) => ({
                 id: e._id,
                 kind: "Limited" as const,
-                name: e.label ?? `${e.type === "draft" ? "Draft" : "Sealed"} event`,
+                name: limitedEventName(e),
+                detail: "Limited",
                 phase: CHIP_LABEL[limitedEventStatusChip(e)],
                 art: null,
             })),
