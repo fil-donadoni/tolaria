@@ -101,7 +101,6 @@
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { issueWorktree } from "./lib/issue-worktree";
-import { NO_FILE_BOT_FLAG } from "./lib/gap-issues";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -1045,10 +1044,11 @@ export function umbrellaDetachStep(
  * rate limit or a network blip must never turn a merged PR into a reported
  * failure — the allowlist just stays stale until the next landing retries it.
  *
- * Bot Gaps are reconcile/close-only here (`--no-file-bot`, issue #4944): a
- * landing's sweep would mint a Bot Gap per landing and the Bot backlog would
- * refill itself. The batch health run's Bot Findings refresh files them,
- * clustered.
+ * Bot Gaps are FILED here like every other kind (issue #5301, reversing
+ * issue #4944 (a)): a gap a landing's sweep found is work owed now, not held
+ * for the next batch health run. Filing still adopts through the Cluster
+ * Signatures (ADR 0146), so one family still gets one issue; the batch health
+ * refresh files too, idempotently.
  */
 export function gapsSyncStep(
     primaryCheckout: string,
@@ -1062,7 +1062,7 @@ export function gapsSyncStep(
     // its computed band, exactly as before.
     const band = originBand === null ? "" : ` --band ${originBand}`;
     return (
-        `(cd ${p} && bun ${shQuote(GAPS_SYNC)} ${NO_FILE_BOT_FLAG}${band} || ` +
+        `(cd ${p} && bun ${shQuote(GAPS_SYNC)}${band} || ` +
         `echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2; true)`
     );
 }
