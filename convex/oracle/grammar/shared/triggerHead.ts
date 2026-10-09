@@ -156,6 +156,19 @@ export type TriggerHeadIR =
      * moment from "attacks" (declaration), so a distinct head, never a flag.
      */
     | { readonly kind: "attacks-unblocked" }
+    /**
+     * CR 701.26a — "whenever this land becomes tapped": the source itself
+     * going from untapped to tapped, however it was tapped (a {T} cost, a
+     * mana ability, an effect). Self only; "enchanted land is tapped for
+     * mana" names a recipient the payload does not reach and stays refused.
+     */
+    | { readonly kind: "becomes-tapped"; readonly scope: "self" }
+    /**
+     * CR 702.29c — "when you cycle this card": the source discarded to pay a
+     * cycling cost. Fires from the zone the card lands in, so the pronoun "it"
+     * of the body names the card itself.
+     */
+    | { readonly kind: "cycled" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -511,6 +524,18 @@ export const SELF_HEADS: readonly {
         tail: " attacks and isn't blocked",
         ir: { kind: "attacks-unblocked" },
     },
+    // CR 701.26a — the source itself becoming tapped, by any means.
+    {
+        opener: "whenever ",
+        tail: " becomes tapped",
+        ir: { kind: "becomes-tapped", scope: "self" },
+    },
+    // CR 702.29c — "when you cycle this card" (the subject is "you cycle X").
+    {
+        opener: "when you cycle ",
+        tail: "",
+        ir: { kind: "cycled" },
+    },
 ];
 
 /**
@@ -586,6 +611,12 @@ export function headPronounReferent(
         // object "it" names; `host` names the Aura's host, not the Aura.
         case "damage-taken":
             return head.scope === "self" ? "source" : null;
+        // CR 701.26a — the tapped permanent is the source itself.
+        case "becomes-tapped":
+            return "source";
+        // CR 702.29c — "it" is the cycled card, i.e. the source.
+        case "cycled":
+            return "source";
         case "phase":
         case "spell-cast":
             return null;

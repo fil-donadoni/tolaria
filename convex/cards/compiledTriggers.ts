@@ -62,6 +62,8 @@ import { libraryToGraveyardTrigger } from "./abilities/triggers/libraryToGraveya
 import { holdsExileBundle } from "./abilities/exileBundle";
 import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
+import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
+import { cycledTrigger } from "./abilities/cycling";
 import type { PermanentScope, TriggerScope } from "./abilities/triggers/shared";
 
 /**
@@ -197,6 +199,10 @@ export type CompiledTriggerHead =
     | { readonly kind: "damage-taken"; readonly scope: "host" | "self" }
     /** CR 509.1h — "whenever this creature attacks and isn't blocked". */
     | { readonly kind: "attacks-unblocked" }
+    /** CR 701.26a — "whenever this permanent becomes tapped" (any tap). Self only. */
+    | { readonly kind: "tapped"; readonly scope: "self" }
+    /** CR 702.29c — "when you cycle this card". */
+    | { readonly kind: "cycled" }
     /** CR 603.6a — "at the beginning of [your/each] <step>". */
     | {
           readonly kind: "phase";
@@ -479,6 +485,10 @@ export function resolveCompiledTrigger(
             });
         case "attacks-unblocked":
             return attackerUnblockedTrigger(common);
+        case "tapped":
+            return tappedTrigger({ ...common, scope: head.scope });
+        case "cycled":
+            return cycledTrigger(common);
         case "phase":
             return phaseTrigger({
                 ...common,

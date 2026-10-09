@@ -282,7 +282,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Circle of Protection: Red",
     "Circle of Protection: White",
     "Citanul Druid",
-    "City of Brass",
     "City of Shadows",
     "City of Traitors",
     "Clairvoyance",

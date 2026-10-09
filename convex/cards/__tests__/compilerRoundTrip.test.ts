@@ -242,7 +242,10 @@ import {
 //
 // Lowered 1351 -> 1348 by issue #4566 (hand reveal and pick): Duress,
 // Forsaken City and Thoughtseize round-trip.
-const BASELINE_CEILING = 1347;
+//
+// Lowered 1347 -> 1346 by issue #4547 (tap and cycle trigger heads): City of
+// Brass round-trips through the self "becomes tapped" head.
+const BASELINE_CEILING = 1346;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that
