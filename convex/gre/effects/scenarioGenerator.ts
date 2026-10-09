@@ -204,6 +204,11 @@ const COMPILED_TRIGGER_SOURCE_SURVIVES: Record<
     "damage-taken": () => true,
     // CR 509.1h — the attacker is still attacking when the block graph is final.
     "attacks-unblocked": () => true,
+    // CR 701.26a — the source just became tapped and is still on the battlefield.
+    tapped: () => true,
+    // CR 702.29c — the cycled card functions from the zone it was discarded
+    // to, the same departure `activatedAbilitySourceOnBattlefield` names.
+    cycled: () => false,
     phase: () => true,
     "spell-cast": () => true,
 };

@@ -113,6 +113,10 @@ function lowerHead(head: TriggerHeadIR): CompiledTriggerHead {
             return { kind: "damage-taken", scope: head.scope };
         case "attacks-unblocked":
             return { kind: "attacks-unblocked" };
+        case "becomes-tapped":
+            return { kind: "tapped", scope: head.scope };
+        case "cycled":
+            return { kind: "cycled" };
         case "phase":
             return { kind: "phase", phase: head.phase, scope: head.scope };
         case "spell-cast":
@@ -270,6 +274,13 @@ export function lowerTriggeredAbility(input: {
         return {
             ok: false,
             reason: 'a graveyard-zone ability needs an "at the beginning of" head (CR 113.6b)',
+        };
+    // CR 603.4 — the cycled factory takes no intervening-if, so a condition
+    // behind this head would be dropped silently: refuse it instead.
+    if (input.head.kind === "cycled" && input.condition !== undefined)
+        return {
+            ok: false,
+            reason: "an intervening-if behind a cycle head is not read",
         };
     const condition =
         input.condition !== undefined && !fromGraveyard

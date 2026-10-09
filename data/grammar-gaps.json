@@ -2287,17 +2287,12 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › When this creature is turned face up",
-            "issue": 4547
+            "issue": 5227
         },
         {
             "kind": "grammar",
             "key": "triggered › trigger head › When this creature's power is N or greater",
             "issue": 5206
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › When you cycle this card",
-            "issue": 4547
         },
         {
             "kind": "grammar",
@@ -2322,7 +2317,7 @@
         {
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever enchanted land is tapped for mana",
-            "issue": 4547
+            "issue": 5226
         },
         {
             "kind": "grammar",
@@ -2358,11 +2353,6 @@
             "kind": "grammar",
             "key": "triggered › trigger head › Whenever this creature is dealt damage",
             "issue": 4544
-        },
-        {
-            "kind": "grammar",
-            "key": "triggered › trigger head › Whenever this land becomes tapped",
-            "issue": 4547
         },
         {
             "kind": "hand-tail",

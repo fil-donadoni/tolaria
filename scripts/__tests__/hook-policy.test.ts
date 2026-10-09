@@ -2395,6 +2395,17 @@ describe("Agent spawns declare their role", () => {
  * recorded here or nowhere.
  */
 describe("claim-ledger — records the owning process (#2627)", () => {
+    // The name `ps` reports for THIS process — what the hook's ancestor walk
+    // compares. Not `basename(process.execPath)`: on Node 26 a worker's comm is
+    // `node-MainThread`, so the binary name never matches.
+    const ownComm = () =>
+        spawnSync("ps", ["-o", "comm=", "-p", String(process.pid)], {
+            encoding: "utf8",
+        })
+            .stdout.trim()
+            .split("/")
+            .pop()!;
+
     const claimRow = (env: NodeJS.ProcessEnv) => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hook-owner-"));
         const r = runHook(
@@ -2429,7 +2440,7 @@ describe("claim-ledger — records the owning process (#2627)", () => {
         // no `claude` ancestor, so without it the recording path could only
         // ever be asserted against a real Claude Code process, i.e. never.
         const row = claimRow({
-            TOLARIA_CLAIM_OWNER_COMM: path.basename(process.execPath),
+            TOLARIA_CLAIM_OWNER_COMM: ownComm(),
         });
         expect(row.owner).not.toBeNull();
         expect(row.owner!.pid).toBe(process.pid);
@@ -2465,7 +2476,7 @@ describe("claim-ledger — records the owning process (#2627)", () => {
         // unpinned stamp makes a LIVE owner read as a recycled pid the moment
         // the two sides disagree about locale or zone — the whole feature
         // going silently inert (safe direction, hence never noticed).
-        const comm = path.basename(process.execPath);
+        const comm = ownComm();
         const plain = claimRow({ TOLARIA_CLAIM_OWNER_COMM: comm });
         const foreign = claimRow({
             TOLARIA_CLAIM_OWNER_COMM: comm,

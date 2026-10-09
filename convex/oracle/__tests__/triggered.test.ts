@@ -327,7 +327,9 @@ describe("what the triggered slot refuses", () => {
 
     it("refuses a head the table does not print", () => {
         expect(
-            refusalReason("Whenever this creature becomes tapped, draw a card.")
+            refusalReason(
+                "Whenever this creature becomes untapped, draw a card."
+            )
         ).toMatch(/no slot consumed the line/);
     });
 
