@@ -869,21 +869,21 @@ describe("projectLimitedEvent — defaultPickId / unattendedPickIndices (ADR 009
 // receives — because a field the projection drops is this project's single
 // most recurring bug class, and a hand-built view would mask it entirely.
 describe("play phase projection (PRD #1628, ADR 0076, issue #1640)", () => {
-    it("defaults an absent matchFormat to Bo3 on the wire (never undefined)", () => {
+    it("defaults an absent gamesFormat to Bo3 on the wire (never undefined)", () => {
         // An event created before the play phase existed: the stored field is
         // absent, but the client must still receive a concrete format.
         const view = projectLimitedEvent(row(), "user1");
-        expect(view.matchFormat).toBe("bo3");
+        expect(view.gamesFormat).toBe("bo3");
     });
 
     it("carries an explicitly chosen Bo1 through the projection", () => {
-        const view = projectLimitedEvent(row({ matchFormat: "bo1" }), "user1");
-        expect(view.matchFormat).toBe("bo1");
+        const view = projectLimitedEvent(row({ gamesFormat: "bo1" }), "user1");
+        expect(view.gamesFormat).toBe("bo1");
     });
 
     it("carries an explicitly chosen Bo3 through the projection", () => {
-        const view = projectLimitedEvent(row({ matchFormat: "bo3" }), "user1");
-        expect(view.matchFormat).toBe("bo3");
+        const view = projectLimitedEvent(row({ gamesFormat: "bo3" }), "user1");
+        expect(view.gamesFormat).toBe("bo3");
     });
 
     it("carries the round deadline, and keeps 'no deadline' absent", () => {

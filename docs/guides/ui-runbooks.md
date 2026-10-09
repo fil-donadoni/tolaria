@@ -746,7 +746,7 @@ numbers mean, are in [Browser verification](browser-verification.md#the-probe).
 | `tolaria:selectedDeckId`   | lobby deck selection (a DB id — see the warning) |
 | `tolaria:aiDeckId`         | vs-AI opponent deck; unset = mirror the human    |
 | `tolaria:aiDifficulty`     | easy / medium / hard                             |
-| `tolaria:matchFormat`      | `1` (Bo1) or `3` (Bo3)                           |
+| `tolaria:gamesFormat`      | `1` (Bo1) or `3` (Bo3)                           |
 | `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId     |
 
 There is no player-name key: the nickname comes from the authenticated user.

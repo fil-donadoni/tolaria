@@ -37,7 +37,7 @@ export const CLIENT_PREF_KEYS: readonly string[] = [
     "tolaria:aiDeckId",
     "tolaria:playMode",
     "tolaria:selectedDeckId",
-    "tolaria:matchFormat",
+    "tolaria:gamesFormat",
     "tolaria:deckFormatFilter",
     "tolaria:deckViewPrefs:grouping:main",
     "tolaria:deckViewPrefs:ordering:main",

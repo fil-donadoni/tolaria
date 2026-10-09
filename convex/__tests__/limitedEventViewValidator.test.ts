@@ -55,7 +55,7 @@ import {
     generateSealedPools,
     type ResolveCardMeta,
 } from "../limited/eventLogic";
-import { resolveMatchFormat } from "../limited/matchFormat";
+import { resolveGamesFormat } from "../limited/gamesFormat";
 import { upsertPoolArrangementEntry } from "../limited/poolArrangement";
 import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
@@ -140,7 +140,7 @@ function startedEvent(): LimitedEventRow {
         seatCount: 8,
         packSlots,
         sealedBoosterCount: 6,
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         seats,
         createdAt: 0,
         updatedAt: 0,
@@ -214,7 +214,7 @@ function playingEvent(): LimitedEventRow {
         roundNumber: 1,
         seats: event.seats,
         previousRounds: [],
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        gamesFormat: resolveGamesFormat(event.gamesFormat),
         startedAt: 1_700_000_000_000,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,

@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import schema from "../schema";
 import { LIMITED_EVENT_STATUSES } from "../limited/eventStatus";
-import { LIMITED_MATCH_FORMATS } from "../limited/matchFormat";
+import { LIMITED_GAMES_FORMATS } from "../limited/gamesFormat";
 import { poolArrangementEntryValidator } from "../limited/eventTypes";
 import type {
     LimitedPairing,
@@ -90,7 +90,7 @@ describe("limitedEvents play-phase fields (PRD #1628, issue #1640)", () => {
     // Backward compatibility AC: an event created before the play phase
     // existed carries NONE of these, so every one must be optional or every
     // existing document instantly fails validation.
-    it.each(["matchFormat", "roundDeadlineMinutes", "currentRound", "rounds"])(
+    it.each(["gamesFormat", "roundDeadlineMinutes", "currentRound", "rounds"])(
         "declares %s as an OPTIONAL field (existing events keep working)",
         (f) => {
             expect(eventFields[f]).toBeDefined();
@@ -98,10 +98,10 @@ describe("limitedEvents play-phase fields (PRD #1628, issue #1640)", () => {
         }
     );
 
-    it("declares matchFormat as exactly the formats the domain module offers", () => {
+    it("declares gamesFormat as exactly the formats the domain module offers", () => {
         expect(
-            literalMembers(eventFields.matchFormat.fieldType).sort()
-        ).toEqual([...LIMITED_MATCH_FORMATS].sort());
+            literalMembers(eventFields.gamesFormat.fieldType).sort()
+        ).toEqual([...LIMITED_GAMES_FORMATS].sort());
     });
 });
 

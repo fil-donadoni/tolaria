@@ -12,12 +12,12 @@ import {
 import { CUBE_PACK_SIZE, maxCubeSeats } from "@convex/limited/cube";
 import type { LimitedEventType } from "@convex/limited/eventTypes";
 import {
-    DEFAULT_MATCH_FORMAT,
+    DEFAULT_GAMES_FORMAT,
     DEFAULT_ROUND_DEADLINE_MINUTES,
     MAX_ROUND_DEADLINE_MINUTES,
     MIN_ROUND_DEADLINE_MINUTES,
-    type LimitedMatchFormat,
-} from "@convex/limited/matchFormat";
+    type LimitedGamesFormat,
+} from "@convex/limited/gamesFormat";
 import IncompletenessNotice from "./incompleteness-notice";
 import CubeAvailabilityNote from "./cube-availability-note";
 
@@ -43,7 +43,7 @@ function isSourceSelectable(
 /** Keeps the typed round deadline inside the bounds `createLimitedEvent`
  *  actually accepts (`isValidRoundDeadlineMinutes`), so a stray keystroke
  *  produces a clamped value rather than a server error. Both bounds come from
- *  the shared `matchFormat` module — the client can't drift from the server. */
+ *  the shared `gamesFormat` module — the client can't drift from the server. */
 function clampRoundDeadline(value: number): number {
     if (!Number.isFinite(value)) return DEFAULT_ROUND_DEADLINE_MINUTES;
     return Math.max(
@@ -62,12 +62,12 @@ export interface CreateLimitedEventPayload {
      *  pick's countdown follows the official descending schedule indexed by
      *  cards remaining). Omitted/false when the admin leaves the timer off. */
     timerEnabled?: boolean;
-    /** Match Format of the event's round matches (PRD #1628 stories 1-2,
+    /** Games Format of the event's round matches (PRD #1628 stories 1-2,
      *  issue #1640) — Bo1 or Bo3, defaulting to Bo3 so the event plays like
      *  real Limited with nothing configured. Always sent (never omitted): the
      *  creator's choice is explicit, and the server's tolerant default exists
      *  for OLD documents, not for new ones. */
-    matchFormat: LimitedMatchFormat;
+    gamesFormat: LimitedGamesFormat;
     /** Optional round deadline in minutes (PRD #1628 stories 3-4). Omitted
      *  when the creator leaves the deadline off — a relaxed table among
      *  friends is never cut short by a timer. */
@@ -110,11 +110,11 @@ export default function CreateLimitedEventDialog({
         DEFAULT_SEALED_BOOSTER_COUNT
     );
     const [timerEnabled, setTimerEnabled] = useState(false);
-    // Match Format + round deadline (PRD #1628 stories 1-4). Bo3 is the
+    // Games Format + round deadline (PRD #1628 stories 1-4). Bo3 is the
     // default (story 2); the deadline is OFF by default (story 4), held as an
     // enabled flag + a value so toggling it off doesn't lose what was typed.
-    const [matchFormat, setMatchFormat] =
-        useState<LimitedMatchFormat>(DEFAULT_MATCH_FORMAT);
+    const [gamesFormat, setGamesFormat] =
+        useState<LimitedGamesFormat>(DEFAULT_GAMES_FORMAT);
     const [deadlineEnabled, setDeadlineEnabled] = useState(false);
     const [roundDeadlineMinutes, setRoundDeadlineMinutes] = useState(
         DEFAULT_ROUND_DEADLINE_MINUTES
@@ -174,7 +174,7 @@ export default function CreateLimitedEventDialog({
             packSlots,
             sealedBoosterCount,
             timerEnabled: type === "draft" && timerEnabled,
-            matchFormat,
+            gamesFormat,
             roundDeadlineMinutes: deadlineEnabled
                 ? roundDeadlineMinutes
                 : undefined,
@@ -408,11 +408,11 @@ export default function CreateLimitedEventDialog({
 
                 <div className="flex flex-col gap-1">
                     <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                        Match Format
+                        Games Format
                     </span>
                     <div
                         role="radiogroup"
-                        aria-label="Match Format"
+                        aria-label="Games Format"
                         className="inline-flex overflow-hidden rounded-sm border border-border-subtle/40"
                     >
                         {(
@@ -425,12 +425,12 @@ export default function CreateLimitedEventDialog({
                                 key={opt.value}
                                 type="button"
                                 role="radio"
-                                aria-checked={matchFormat === opt.value}
+                                aria-checked={gamesFormat === opt.value}
                                 disabled={pending}
-                                onClick={() => setMatchFormat(opt.value)}
+                                onClick={() => setGamesFormat(opt.value)}
                                 className={
                                     "px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 " +
-                                    (matchFormat === opt.value
+                                    (gamesFormat === opt.value
                                         ? "bg-accent text-surface-base"
                                         : "bg-surface-elevated/30 text-text hover:bg-surface-elevated/50")
                                 }
@@ -440,7 +440,7 @@ export default function CreateLimitedEventDialog({
                         ))}
                     </div>
                     <span className="text-xs text-text-muted">
-                        {matchFormat === "bo1"
+                        {gamesFormat === "bo1"
                             ? "Bo1 — one game decides each round pairing."
                             : "Bo3 — each round pairing is a best-of-three with sideboarding, like real Limited."}
                     </span>

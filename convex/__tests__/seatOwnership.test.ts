@@ -383,7 +383,7 @@ describe("event-bound vs-AI pairing — the bot's seat cannot be resigned (issue
 // MIRROR of the owning Match's `limitedPairing`. `buildNextGameForMatch` did
 // not copy it, so from Game 2 on the mirror said "unbound" and the gate
 // silently no-oped — while `recordLimitedPairingResult`, which reads the
-// MATCH, still wrote the standings row. Net effect on a `matchFormat: "bo3"`
+// MATCH, still wrote the standings row. Net effect on a `gamesFormat: "bo3"`
 // pairing: concede your own seat in G1, then the BOT's in G2 and G3, and the
 // event records a `source: "played"` 2-1 with zero games actually played.
 //

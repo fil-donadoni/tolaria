@@ -164,7 +164,7 @@ interface Fixture {
 function playingEvent(opts: {
     eventId: string;
     seed: number;
-    matchFormat: "bo1" | "bo3";
+    gamesFormat: "bo1" | "bo3";
     botSeat?: boolean;
 }): Fixture {
     let seats = assignFreeSeat(buildEmptySeats(2), "alice", "Alice");
@@ -189,7 +189,7 @@ function playingEvent(opts: {
         seatCount: 2,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: opts.matchFormat,
+        gamesFormat: opts.gamesFormat,
         currentRound: 1,
         rounds: [
             {
@@ -267,7 +267,7 @@ function playingEvent(opts: {
 async function playingEventViaSaveSeats(opts: {
     eventId: string;
     seed: number;
-    matchFormat: "bo1" | "bo3";
+    gamesFormat: "bo1" | "bo3";
     botSeat?: boolean;
 }): Promise<{ stub: Stub; deckForSeat: (seatIndex: number) => DeckPayload }> {
     let seats = assignFreeSeat(buildEmptySeats(2), "alice", "Alice");
@@ -329,7 +329,7 @@ async function playingEventViaSaveSeats(opts: {
         seatCount: 2,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: opts.matchFormat,
+        gamesFormat: opts.gamesFormat,
         currentRound: 1,
         rounds: [
             {
@@ -389,7 +389,7 @@ function fourHumanEvent(opts: { eventId: string; seed: number }): Fixture {
         seatCount: 4,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: "bo1",
+        gamesFormat: "bo1",
         currentRound: 1,
         rounds: [
             {
@@ -501,7 +501,7 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
         const fx = playingEvent({
             eventId: "event-h",
             seed: 555,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
 
@@ -528,11 +528,11 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
         expect(pairingOf(stub, "event-h").matchId).toBe(match._id);
     });
 
-    it("uses the EVENT's Bo3 Match Format, so the Match sideboards between games", async () => {
+    it("uses the EVENT's Bo3 Games Format, so the Match sideboards between games", async () => {
         const fx = playingEvent({
             eventId: "event-h3",
             seed: 556,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -554,7 +554,7 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
         const fx = playingEvent({
             eventId: "event-h2",
             seed: 777,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -576,7 +576,7 @@ describe("startPairingMatch — human pairing (PRD #1628 stories 8/10, issue #16
         const fx = playingEvent({
             eventId: "event-h4",
             seed: 778,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -614,7 +614,7 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         const fx = playingEvent({
             eventId: "event-b",
             seed: 999,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -643,7 +643,7 @@ describe("startPairingMatch — bot pairing (PRD #1628 stories 11-12)", () => {
         const { stub, deckForSeat } = await playingEventViaSaveSeats({
             eventId: "event-b-split",
             seed: 998,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
 
@@ -677,7 +677,7 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
         const fx = playingEvent({
             eventId: "event-g",
             seed: 4242,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         await runStart(stub.ctx, {
@@ -707,7 +707,7 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
         const fx = playingEvent({
             eventId: "event-g2",
             seed: 4243,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         await expect(
@@ -723,7 +723,7 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
         const fx = playingEvent({
             eventId: "event-g3",
             seed: 4244,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         await expect(
@@ -738,7 +738,7 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
         const fx = playingEvent({
             eventId: "event-g4",
             seed: 4245,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         (fx.event.rounds as { pairings: Row[] }[])[0].pairings[0].result = {
             winsA: 1,
@@ -758,7 +758,7 @@ describe("startPairingMatch — the guards (PRD #1628, issue #1645 ACs)", () => 
         const fx = playingEvent({
             eventId: "event-g5",
             seed: 4246,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         fx.event.status = "started";
         fx.event.currentRound = undefined;
@@ -778,7 +778,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-r",
             seed: 313,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -814,7 +814,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-r3",
             seed: 314,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -842,7 +842,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-f",
             seed: 424,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -878,7 +878,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-i",
             seed: 525,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -909,7 +909,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-o",
             seed: 626,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         // Seat 1 (Bob) is the one who starts, so the Match's own `players[0]`
         // is the pairing's seatB — the score must be flipped on the way in.
@@ -942,7 +942,7 @@ describe("recording the result — the full path to the standings (issue #1645)"
         const fx = playingEvent({
             eventId: "event-n",
             seed: 727,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         // A Match bound to the event but with no `limitedPairing` — the shape
@@ -987,7 +987,7 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
         const fx = playingEvent({
             eventId: "event-x",
             seed: 828,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -1020,7 +1020,7 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
         const fx = playingEvent({
             eventId: "event-bot-x",
             seed: 616,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -1049,7 +1049,7 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
         const fx = playingEvent({
             eventId: "event-bot-y",
             seed: 717,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             botSeat: true,
         });
         const stub = makeCtx("alice", fx.seeds);
@@ -1072,7 +1072,7 @@ describe("forfeitMatch — the caller must own the seat they forfeit (issue #164
         const fx = playingEvent({
             eventId: "event-y",
             seed: 929,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -1104,7 +1104,7 @@ describe("recording a result advances the round / finishes the event (issue #164
         const fx = playingEvent({
             eventId: "event-fin2",
             seed: 1646,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
         const gameId = await runStart(stub.ctx, {
@@ -1247,7 +1247,7 @@ describe("recordLimitedPairingResult — a cascade failure never rolls back a fi
         const fx = playingEvent({
             eventId: "event-cascade-fail",
             seed: 2001,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         const stub = makeCtx("alice", fx.seeds);
 
@@ -1314,7 +1314,7 @@ describe("expireRoundDeadline — human-vs-human presence (issue #1647 review fi
         const fx = playingEvent({
             eventId: "event-to-1",
             seed: 3001,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
         });
         (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1; // already elapsed
         const stub = makeCtx("alice", fx.seeds);
@@ -1342,7 +1342,7 @@ describe("expireRoundDeadline — human-vs-human presence (issue #1647 review fi
         const fx = playingEvent({
             eventId: "event-to-2",
             seed: 3002,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
         });
         (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
         const stub = makeCtx("alice", fx.seeds);
@@ -1373,7 +1373,7 @@ describe("expireRoundDeadline — human-vs-human presence (issue #1647 review fi
         const fx = playingEvent({
             eventId: "event-to-3",
             seed: 3003,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
         const stub = makeCtx("alice", fx.seeds);
@@ -1443,7 +1443,7 @@ describe("expireRoundDeadline — a cascade failure never discards the timeout r
         const fx = playingEvent({
             eventId: "event-expire-cascade-fail",
             seed: 3020,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
         });
         (fx.event.rounds as { deadlineAt?: number }[])[0].deadlineAt = 1;
         const stub = makeCtx("alice", fx.seeds);

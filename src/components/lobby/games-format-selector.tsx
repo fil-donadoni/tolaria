@@ -1,33 +1,33 @@
-// Bo1/Bo3 match format selector (PRD #387). A small segmented control shown
+// Bo1/Bo3 games format selector (PRD #387). A small segmented control shown
 // near deck selection in the lobby; the chosen value flows into Match creation
 // as `bestOf` for every start action (Solo, vs-AI, 2-player). Mirrors the
 // DifficultySelector pattern — same engine, one knob. Persisted by the lobby.
 
 import { cn } from "~/lib/utils";
-import type { MatchFormat } from "~/lib/session";
+import type { GamesFormat } from "~/lib/session";
 
-const OPTIONS: { value: MatchFormat; label: string }[] = [
+const OPTIONS: { value: GamesFormat; label: string }[] = [
     { value: 1, label: "Bo1" },
     { value: 3, label: "Bo3" },
 ];
 
-export default function MatchFormatSelector({
+export default function GamesFormatSelector({
     value,
     onChange,
     disabled = false,
 }: {
-    value: MatchFormat;
-    onChange: (format: MatchFormat) => void;
+    value: GamesFormat;
+    onChange: (format: GamesFormat) => void;
     disabled?: boolean;
 }) {
     return (
         <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                Match Format
+                Games Format
             </span>
             <div
                 role="radiogroup"
-                aria-label="Match Format"
+                aria-label="Games Format"
                 className="inline-flex overflow-hidden rounded-sm border border-border-subtle/40"
             >
                 {OPTIONS.map((opt) => {

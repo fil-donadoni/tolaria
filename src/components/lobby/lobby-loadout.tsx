@@ -2,14 +2,14 @@ import { FORMAT_RULES } from "@convex/formats";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import { lobbyActionGate } from "~/lib/lobbyGate";
 import type { LobbyModeTile } from "~/lib/lobbyModes";
-import type { MatchFormat, PlayMode } from "~/lib/session";
+import type { GamesFormat, PlayMode } from "~/lib/session";
 import { cn } from "~/lib/utils";
 import { Panel } from "~/components/ui/panel";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import ManaSymbol from "../cards/mana-symbol";
 import FeaturedDeckArt from "./featured-deck-art";
-import MatchFormatSelector from "./match-format-selector";
+import GamesFormatSelector from "./games-format-selector";
 
 interface LobbyLoadoutProps {
     deck: LobbyDeck | null;
@@ -22,8 +22,8 @@ interface LobbyLoadoutProps {
      *  action, and its `needsDeck` decides whether the deck gate applies —
      *  which is why the tile is passed whole rather than as a label string. */
     tile: LobbyModeTile;
-    matchFormat: MatchFormat;
-    onMatchFormatChange: (format: MatchFormat) => void;
+    gamesFormat: GamesFormat;
+    onGamesFormatChange: (format: GamesFormat) => void;
     /** Runs the mutation the selected tile stands for. Dispatch lives in
      *  `lobby.tsx` (it owns every `useMutation`); this component owns only
      *  whether the action is offered. */
@@ -63,8 +63,8 @@ export default function LobbyLoadout({
     deck,
     mode,
     tile,
-    matchFormat,
-    onMatchFormatChange,
+    gamesFormat,
+    onGamesFormatChange,
     onPrimary,
     onJoinByCode,
     onEditDeck,
@@ -135,9 +135,9 @@ export default function LobbyLoadout({
 
             <div className="flex flex-col gap-3 p-4">
                 <div className="flex flex-wrap items-end gap-3">
-                    <MatchFormatSelector
-                        value={matchFormat}
-                        onChange={onMatchFormatChange}
+                    <GamesFormatSelector
+                        value={gamesFormat}
+                        onChange={onGamesFormatChange}
                         disabled={busy}
                     />
                     <span

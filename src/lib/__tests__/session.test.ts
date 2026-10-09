@@ -5,13 +5,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { DEFAULT_DIFFICULTY } from "@convex/gre";
 import {
     DEFAULT_DECK_FORMAT_FILTER,
-    DEFAULT_MATCH_FORMAT,
+    DEFAULT_GAMES_FORMAT,
     getStoredDeckFormatFilter,
     getStoredDifficulty,
-    getStoredMatchFormat,
+    getStoredGamesFormat,
     storeDeckFormatFilter,
     storeDifficulty,
-    storeMatchFormat,
+    storeGamesFormat,
 } from "../session";
 
 describe("difficulty persistence (issue #114)", () => {
@@ -44,26 +44,37 @@ describe("difficulty persistence (issue #114)", () => {
     });
 });
 
-describe("match format persistence (PRD #387)", () => {
+describe("games format persistence (PRD #387)", () => {
     beforeEach(() => {
         localStorage.clear();
     });
 
     it("defaults to Bo1 when unset", () => {
-        expect(getStoredMatchFormat()).toBe(DEFAULT_MATCH_FORMAT);
-        expect(DEFAULT_MATCH_FORMAT).toBe(1);
+        expect(getStoredGamesFormat()).toBe(DEFAULT_GAMES_FORMAT);
+        expect(DEFAULT_GAMES_FORMAT).toBe(1);
     });
 
     it("round-trips Bo1 and Bo3", () => {
-        storeMatchFormat(3);
-        expect(getStoredMatchFormat()).toBe(3);
-        storeMatchFormat(1);
-        expect(getStoredMatchFormat()).toBe(1);
+        storeGamesFormat(3);
+        expect(getStoredGamesFormat()).toBe(3);
+        storeGamesFormat(1);
+        expect(getStoredGamesFormat()).toBe(1);
+    });
+
+    it("reads the pre-rename stored key when the new one is unset (issue #5337)", () => {
+        localStorage.setItem("tolaria:matchFormat", "3");
+        expect(getStoredGamesFormat()).toBe(3);
+    });
+
+    it("prefers the new key over the pre-rename one", () => {
+        localStorage.setItem("tolaria:matchFormat", "3");
+        storeGamesFormat(1);
+        expect(getStoredGamesFormat()).toBe(1);
     });
 
     it("falls back to Bo1 for a stale/invalid stored value", () => {
-        localStorage.setItem("tolaria:matchFormat", "7");
-        expect(getStoredMatchFormat()).toBe(1);
+        localStorage.setItem("tolaria:gamesFormat", "7");
+        expect(getStoredGamesFormat()).toBe(1);
     });
 });
 

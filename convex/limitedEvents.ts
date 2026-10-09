@@ -138,10 +138,11 @@ import {
 } from "./limited/eventStatus";
 import {
     isValidRoundDeadlineMinutes,
-    resolveMatchFormat,
+    resolveEventGamesFormat,
+    resolveGamesFormat,
     MAX_ROUND_DEADLINE_MINUTES,
     MIN_ROUND_DEADLINE_MINUTES,
-} from "./limited/matchFormat";
+} from "./limited/gamesFormat";
 import {
     projectViewerChallenges,
     type ChallengeGame,
@@ -194,7 +195,7 @@ const eventStatusValidator = v.union(
     v.literal("playing"),
     v.literal("finished")
 );
-const matchFormatValidator = v.union(v.literal("bo1"), v.literal("bo3"));
+const gamesFormatValidator = v.union(v.literal("bo1"), v.literal("bo3"));
 const pairingResultValidator = v.object({
     winsA: v.number(),
     winsB: v.number(),
@@ -400,10 +401,10 @@ export const limitedEventViewValidator = v.object({
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
     timerEnabled: v.optional(v.boolean()),
-    // Play phase (PRD #1628, issue #1640). `matchFormat` is REQUIRED on the
+    // Play phase (PRD #1628, issue #1640). `gamesFormat` is REQUIRED on the
     // wire even though the stored field is optional — `projectLimitedEvent`
     // resolves the default, so the client always receives a concrete Bo1/Bo3.
-    matchFormat: matchFormatValidator,
+    gamesFormat: gamesFormatValidator,
     roundDeadlineMinutes: v.optional(v.number()),
     currentRound: v.optional(v.number()),
     // Always an array (`[]` before the play phase) — pairings and results are
@@ -518,7 +519,7 @@ export const limitedEventSummaryValidator = v.object({
     seatCount: v.number(),
     packSlots: v.array(v.string()),
     draftCompletedAt: v.optional(v.number()),
-    matchFormat: matchFormatValidator,
+    gamesFormat: gamesFormatValidator,
     completed: v.boolean(),
     seatsWithDeck: v.number(),
     seats: v.array(limitedEventSummarySeatValidator),
@@ -1188,13 +1189,13 @@ export async function openPlayPhaseIfReady(
     if (!completion.completed) return false;
 
     const seatStrength = await buildSeatStrengthResolver(ctx, event);
-    const matchFormat = resolveMatchFormat(event.matchFormat);
+    const gamesFormat = resolveEventGamesFormat(event);
     const round = openRound({
         eventId,
         roundNumber: 1,
         seats: event.seats,
         previousRounds: [],
-        matchFormat,
+        gamesFormat,
         startedAt: now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
@@ -1208,7 +1209,7 @@ export async function openPlayPhaseIfReady(
         eventId,
         seats: event.seats,
         rounds: [round],
-        matchFormat,
+        gamesFormat,
         now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
@@ -1265,7 +1266,7 @@ export async function cascadeEventRounds(
         eventId: event._id,
         seats: event.seats,
         rounds,
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        gamesFormat: resolveEventGamesFormat(event),
         now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
@@ -1345,7 +1346,7 @@ export async function projectEventSummary(
         seatCount: event.seatCount,
         packSlots: event.packSlots,
         draftCompletedAt: event.draftCompletedAt,
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        gamesFormat: resolveEventGamesFormat(event),
         completed: completion.completed,
         seatsWithDeck: completion.seatsWithDeck,
         createdAt: event.createdAt,
@@ -1596,10 +1597,10 @@ export const createLimitedEvent = mutation({
         // actual per-pick length always follows the official descending
         // schedule). Absent/omitted/false === disabled.
         timerEnabled: v.optional(v.boolean()),
-        // Match Format of the event's round matches (PRD #1628 stories 1-2,
+        // Games Format of the event's round matches (PRD #1628 stories 1-2,
         // issue #1640). Omitted === the Bo3 default, so an existing client
         // that doesn't send it still creates a real-Limited-shaped event.
-        matchFormat: v.optional(matchFormatValidator),
+        gamesFormat: v.optional(gamesFormatValidator),
         // Optional round deadline in MINUTES (PRD #1628 stories 3-4). Omitted
         // === no deadline; a relaxed table is never cut short by a timer.
         roundDeadlineMinutes: v.optional(v.number()),
@@ -1689,10 +1690,10 @@ export const createLimitedEvent = mutation({
                 args.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
             timerEnabled: args.timerEnabled,
             // Persisted CONCRETE (never left absent to be defaulted later):
-            // the tolerant `resolveMatchFormat` read exists for rows written
+            // the tolerant `resolveGamesFormat` read exists for rows written
             // before the play phase, not as a licence for new rows to be
             // ambiguous about what the creator chose.
-            matchFormat: resolveMatchFormat(args.matchFormat),
+            gamesFormat: resolveGamesFormat(args.gamesFormat),
             roundDeadlineMinutes: args.roundDeadlineMinutes,
             seats: asDbSeats(seats),
             createdAt: now,
@@ -2673,7 +2674,7 @@ export const expireRoundDeadline = internalMutation({
         const now = Date.now();
         if (round.deadlineAt > now) return null; // defensive: not actually due yet
 
-        const matchFormat = resolveMatchFormat(event.matchFormat);
+        const gamesFormat = resolveEventGamesFormat(event);
 
         // Issue #1647 review finding 1: every undecided pairing that has a
         // bound Match is a candidate `resolveExpiredRound` needs a presence
@@ -2692,7 +2693,7 @@ export const expireRoundDeadline = internalMutation({
             rounds,
             roundNumber: args.roundNumber,
             seats: event.seats,
-            matchFormat,
+            gamesFormat,
             now,
             resolvePresence: buildPairingPresenceResolver(boundMatches),
         });

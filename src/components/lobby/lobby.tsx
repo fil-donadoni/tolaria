@@ -32,17 +32,17 @@ import {
     getStoredDeckFormatFilter,
     getStoredDeckPresetId,
     getStoredDifficulty,
-    getStoredMatchFormat,
+    getStoredGamesFormat,
     getStoredPlayMode,
     storeAiDeckId,
     storeDeckFormatFilter,
     storeDeckPresetId,
     storeDifficulty,
-    storeMatchFormat,
+    storeGamesFormat,
     storePlayMode,
     storeSession,
     type DeckFormatFilter as DeckFormatFilterValue,
-    type MatchFormat,
+    type GamesFormat,
     type PlayMode,
 } from "~/lib/session";
 import type { Difficulty } from "@convex/gre";
@@ -76,7 +76,7 @@ function Lobby() {
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
     // Two-step "Play vs AI" flow: the Bot Mode Tile's primary action opens this
     // dialog (the second step) where difficulty / AI deck are chosen; the match
-    // starts only on Confirm. Match format is picked in the Loadout, not here.
+    // starts only on Confirm. Games format is picked in the Loadout, not here.
     const [vsAiOpen, setVsAiOpen] = useState(false);
     const [joinByCodeOpen, setJoinByCodeOpen] = useState(false);
     const [difficulty, setDifficulty] = useState<Difficulty>(() =>
@@ -85,8 +85,8 @@ function Lobby() {
     const [aiDeckId, setAiDeckId] = useState<string | null>(() =>
         getStoredAiDeckId()
     );
-    const [matchFormat, setMatchFormat] = useState<MatchFormat>(() =>
-        getStoredMatchFormat()
+    const [gamesFormat, setGamesFormat] = useState<GamesFormat>(() =>
+        getStoredGamesFormat()
     );
     // Deck shelf Format filter (#513) — navigation only, persisted so the
     // choice survives a reload. Shared by BOTH shelves (it always was one piece
@@ -271,12 +271,12 @@ function Lobby() {
                     ? await createManualGame({
                           name: `${user.nickname}'s Manual Game`,
                           deck: deckPayload(deck),
-                          bestOf: matchFormat,
+                          bestOf: gamesFormat,
                       })
                     : await createGame({
                           name: `${user.nickname}'s game`,
                           deck: deckPayload(deck),
-                          bestOf: matchFormat,
+                          bestOf: gamesFormat,
                       });
             return { gameId: id, playerId: user._id };
         });
@@ -286,7 +286,7 @@ function Lobby() {
             const id = await createSoloGame({
                 name: `${user.nickname}'s solo game`,
                 deck: deckPayload(deck),
-                bestOf: matchFormat,
+                bestOf: gamesFormat,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -301,7 +301,7 @@ function Lobby() {
                 deck: deckPayload(deck),
                 deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,
-                bestOf: matchFormat,
+                bestOf: gamesFormat,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -311,7 +311,7 @@ function Lobby() {
             const id = await createManualSoloGame({
                 name: `${user.nickname}'s Manual Game`,
                 deck: deckPayload(deck),
-                bestOf: matchFormat,
+                bestOf: gamesFormat,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -411,9 +411,9 @@ function Lobby() {
         storeDifficulty(next);
     };
 
-    const handleMatchFormatChange = (next: MatchFormat) => {
-        setMatchFormat(next);
-        storeMatchFormat(next);
+    const handleGamesFormatChange = (next: GamesFormat) => {
+        setGamesFormat(next);
+        storeGamesFormat(next);
     };
 
     const handleDeckFormatFilterChange = (next: DeckFormatFilterValue) => {
@@ -665,8 +665,8 @@ function Lobby() {
                             deck={selectedDeck}
                             mode={playMode}
                             tile={activeTile}
-                            matchFormat={matchFormat}
-                            onMatchFormatChange={handleMatchFormatChange}
+                            gamesFormat={gamesFormat}
+                            onGamesFormatChange={handleGamesFormatChange}
                             onPrimary={runPrimaryAction}
                             onJoinByCode={() => setJoinByCodeOpen(true)}
                             onEditDeck={handleEditSelectedDeck}

@@ -207,7 +207,7 @@ async function insertFixtureEvent(
         status: "open",
         seatCount: FIXTURE_SEAT_COUNT,
         packSlots: [FIXTURE_SET, FIXTURE_SET, FIXTURE_SET],
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         // Timer OFF: a timer-on fixture would schedule real Auto-Pick
         // mutations that mutate the seat between two lane runs, which is the
         // exact class of drift this fixture exists to remove.

@@ -41,8 +41,8 @@ function renderLoadout(
         deck: makeDeck(),
         mode: "arena",
         tile: tileFor("arena", "bot"),
-        matchFormat: 1,
-        onMatchFormatChange: vi.fn(),
+        gamesFormat: 1,
+        onGamesFormatChange: vi.fn(),
         onPrimary: vi.fn(),
         onJoinByCode: vi.fn(),
         onEditDeck: vi.fn(),
@@ -178,13 +178,13 @@ describe("LobbyLoadout secondary affordances", () => {
     });
 
     it("carries the Bo1/Bo3 selector, exactly once", () => {
-        const onMatchFormatChange = vi.fn();
+        const onGamesFormatChange = vi.fn();
         const { getByRole, getByLabelText } = renderLoadout({
-            onMatchFormatChange,
+            onGamesFormatChange,
         });
-        expect(getByLabelText("Match Format")).toBeTruthy();
+        expect(getByLabelText("Games Format")).toBeTruthy();
         fireEvent.click(getByRole("radio", { name: "Bo3" }));
-        expect(onMatchFormatChange).toHaveBeenCalledWith(3);
+        expect(onGamesFormatChange).toHaveBeenCalledWith(3);
     });
 
     it("shows the deck's size, format and archetype line", () => {

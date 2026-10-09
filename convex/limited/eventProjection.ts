@@ -12,13 +12,13 @@ import type {
     LimitedEventSeat,
     LimitedEventStatus,
     LimitedEventType,
-    LimitedMatchFormat,
+    LimitedGamesFormat,
     LimitedPairingResult,
     LimitedPoolCard,
     LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
-import { resolveMatchFormat } from "./matchFormat";
+import { resolveEventGamesFormat } from "./gamesFormat";
 import { findSeatPairing, isRoundComplete } from "./rounds";
 import {
     classifyPairingResult,
@@ -49,9 +49,11 @@ export interface LimitedEventRow {
     /** Play phase (PRD #1628, ADR 0076). All four are OPTIONAL on the row: an
      *  event created before the play phase existed carries none of them, and a
      *  live event only gains `currentRound`/`rounds` when it starts playing.
-     *  `matchFormat` is the one the projection makes DEFINITE on the wire —
-     *  see `LimitedEventView.matchFormat`. */
-    matchFormat?: LimitedMatchFormat;
+     *  `gamesFormat` is the one the projection makes DEFINITE on the wire —
+     *  see `LimitedEventView.gamesFormat`. */
+    gamesFormat?: LimitedGamesFormat;
+    /** Pre-rename key (issue #5337): read-only, see `resolveEventGamesFormat`. */
+    matchFormat?: LimitedGamesFormat;
     roundDeadlineMinutes?: number;
     currentRound?: number;
     rounds?: LimitedRound[];
@@ -65,7 +67,7 @@ export interface LimitedEventRow {
      *  `convex/limited/scorerVersion.ts`'s `SCORER_VERSION` at the moment
      *  `startEvent` ran. Not privacy-sensitive (unlike `seed`, it names a code
      *  version, not entropy that regenerates hidden Pools), so it projects
-     *  unconditionally, same as `matchFormat`/`packSlots`. */
+     *  unconditionally, same as `gamesFormat`/`packSlots`. */
     scorerVersion?: number;
     seats: LimitedEventSeat[];
     createdAt: number;
@@ -268,12 +270,12 @@ export interface LimitedEventView {
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
     timerEnabled?: boolean;
-    /** The event's Match Format (PRD #1628 stories 1-2) — Bo1 or Bo3, chosen
+    /** The event's Games Format (PRD #1628 stories 1-2) — Bo1 or Bo3, chosen
      *  at creation. DEFINITE on the wire even though the stored field is
-     *  optional: the projection resolves it through `resolveMatchFormat`, so a
+     *  optional: the projection resolves it through `resolveGamesFormat`, so a
      *  client (and the event page's format line) never has to know that events
      *  predating the play phase stored nothing, nor re-implement the default. */
-    matchFormat: LimitedMatchFormat;
+    gamesFormat: LimitedGamesFormat;
     /** Configured round deadline in minutes (PRD #1628 stories 3-4). Absent =
      *  no deadline. Public, not viewer-scoped: every seat needs to know whether
      *  the table is on a clock before it starts drafting. */
@@ -486,10 +488,10 @@ export function projectLimitedEvent(
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
         timerEnabled: event.timerEnabled,
-        // Play phase (PRD #1628). `matchFormat` is resolved here — the one
+        // Play phase (PRD #1628). `gamesFormat` is resolved here — the one
         // place the "absent means bo3" tolerance lives — so the wire shape is
         // definite; `rounds` normalises to `[]` for the same reason.
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        gamesFormat: resolveEventGamesFormat(event),
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         currentRound: event.currentRound,
         rounds: event.rounds ?? [],

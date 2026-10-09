@@ -61,7 +61,7 @@ function open(overrides: Partial<OpenRoundInput> = {}): LimitedRound {
         roundNumber: 1,
         seats: botTable(8),
         previousRounds: [],
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         startedAt: 1_000_000,
         seatStrength: strengthBySeat,
         ...overrides,
@@ -119,7 +119,7 @@ describe("openRound — bot-vs-bot pairings decide immediately (AC 2)", () => {
     });
 
     it("records a Bo3 bot match as 2-0, 2-1, 1-2 or 0-2", () => {
-        const round = open({ seats: botTable(8), matchFormat: "bo3" });
+        const round = open({ seats: botTable(8), gamesFormat: "bo3" });
 
         for (const pairing of round.pairings) {
             const { winsA, winsB } = pairing.result!;
@@ -129,7 +129,7 @@ describe("openRound — bot-vs-bot pairings decide immediately (AC 2)", () => {
     });
 
     it("records a Bo1 bot match as a single game", () => {
-        const round = open({ seats: botTable(8), matchFormat: "bo1" });
+        const round = open({ seats: botTable(8), gamesFormat: "bo1" });
 
         for (const pairing of round.pairings) {
             const { winsA, winsB } = pairing.result!;
@@ -154,13 +154,13 @@ describe("openRound — bot-vs-bot pairings decide immediately (AC 2)", () => {
 
 describe("openRound — byes (AC 3)", () => {
     it("records a bye as a match win worth the format's games", () => {
-        const bo3 = open({ seats: botTable(7), matchFormat: "bo3" });
+        const bo3 = open({ seats: botTable(7), gamesFormat: "bo3" });
         const bo3Bye = bo3.pairings.find(
             (pairing) => pairing.seatB === undefined
         )!;
         expect(bo3Bye.result).toEqual({ winsA: 2, winsB: 0, source: "bye" });
 
-        const bo1 = open({ seats: botTable(7), matchFormat: "bo1" });
+        const bo1 = open({ seats: botTable(7), gamesFormat: "bo1" });
         const bo1Bye = bo1.pairings.find(
             (pairing) => pairing.seatB === undefined
         )!;
@@ -379,7 +379,7 @@ function advance(overrides: Partial<AdvanceRoundInput> = {}) {
         eventId: EVENT_ID,
         seats: botTable(8),
         rounds: [],
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         now: 2_000_000,
         seatStrength: strengthBySeat,
         ...overrides,
@@ -559,7 +559,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -587,7 +587,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -615,7 +615,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo1",
+            gamesFormat: "bo1",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -640,7 +640,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -665,7 +665,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: presentSeats(0), // only seat 0 started it
         });
@@ -690,7 +690,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: presentSeats(1), // only seat 1 started it
         });
@@ -715,7 +715,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: presentSeats(0, 1), // both joined
         });
@@ -745,7 +745,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -770,7 +770,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -791,7 +791,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 999_999_999,
             resolvePresence: noPresence,
         });
@@ -813,7 +813,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 999, // one ms before the deadline
             resolvePresence: noPresence,
         });
@@ -834,7 +834,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -842,7 +842,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [closedOnce],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 2000,
             resolvePresence: noPresence,
         });
@@ -874,7 +874,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round1, round2],
             roundNumber: 2,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: 1000,
             resolvePresence: noPresence,
         });
@@ -900,7 +900,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             rounds: [round1],
             roundNumber: 1,
             seats,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: round1.deadlineAt!,
             resolvePresence: noPresence,
         });
@@ -910,7 +910,7 @@ describe("resolveExpiredRound — closes an undecided pairing at the deadline", 
             eventId: EVENT_ID,
             seats,
             rounds: [closedRound1],
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             now: round1.deadlineAt! + 1,
             roundDeadlineMinutes: 20,
             seatStrength: strengthBySeat,

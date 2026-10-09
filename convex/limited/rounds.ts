@@ -27,10 +27,10 @@
 import { makeRng } from "../gre/rng";
 import type { LimitedPairing, LimitedRound } from "./eventTypes";
 import {
-    bestOfForMatchFormat,
+    bestOfForGamesFormat,
     gamesToWinMatch,
-    type LimitedMatchFormat,
-} from "./matchFormat";
+    type LimitedGamesFormat,
+} from "./gamesFormat";
 import { fnv1a32 } from "../lib/hash";
 import { simulateBotMatch, type DeckStrength, botMatchSeed } from "./matchSim";
 import { pairRound, roundsForSeatCount } from "./swiss";
@@ -73,7 +73,7 @@ export interface OpenRoundInput {
      *  round N+1 against an undecided round N would ignore results that are
      *  about to land. */
     previousRounds: readonly LimitedRound[];
-    matchFormat: LimitedMatchFormat;
+    gamesFormat: LimitedGamesFormat;
     /** Epoch ms the round starts (the mutation's `Date.now()`). Injected — a
      *  pure function never reads the clock. */
     startedAt: number;
@@ -125,7 +125,7 @@ export function openRound(input: OpenRoundInput): LimitedRound {
         roundNumber,
         seats,
         previousRounds,
-        matchFormat,
+        gamesFormat,
         startedAt,
         roundDeadlineMinutes,
         seatStrength,
@@ -138,14 +138,14 @@ export function openRound(input: OpenRoundInput): LimitedRound {
 
     const rng = makeRng(roundPairingSeed(eventId, roundNumber));
     const paired = pairRound(seatIndexes, previousRounds, rng);
-    const bestOf = bestOfForMatchFormat(matchFormat);
+    const bestOf = bestOfForGamesFormat(gamesFormat);
 
     const pairings: LimitedPairing[] = paired.map(({ seatA, seatB }) => {
         if (seatB === undefined) {
             return {
                 seatA,
                 result: {
-                    winsA: gamesToWinMatch(matchFormat),
+                    winsA: gamesToWinMatch(gamesFormat),
                     winsB: 0,
                     source: "bye" as const,
                 },
@@ -253,16 +253,16 @@ export function resolveExpiredRound(input: {
     rounds: readonly LimitedRound[];
     roundNumber: number;
     seats: readonly RoundSeatLookup[];
-    matchFormat: LimitedMatchFormat;
+    gamesFormat: LimitedGamesFormat;
     now: number;
     resolvePresence: ResolvePairingPresence;
 }): LimitedRound[] {
-    const { rounds, roundNumber, seats, matchFormat, now, resolvePresence } =
+    const { rounds, roundNumber, seats, gamesFormat, now, resolvePresence } =
         input;
     const botSeats = new Set(
         seats.filter(isBotSeat).map((seat) => seat.seatIndex)
     );
-    const winGames = gamesToWinMatch(matchFormat);
+    const winGames = gamesToWinMatch(gamesFormat);
 
     return rounds.map((round) => {
         if (round.roundNumber !== roundNumber) return round;
@@ -352,7 +352,7 @@ export interface AdvanceRoundInput {
      *  opened, for the round-1 call site) — this function only ever reads
      *  its identity, never mutates a pairing's own result. */
     rounds: readonly LimitedRound[];
-    matchFormat: LimitedMatchFormat;
+    gamesFormat: LimitedGamesFormat;
     /** Epoch ms every newly-opened round starts at — injected, same
      *  discipline as `OpenRoundInput.startedAt`. */
     now: number;
@@ -402,7 +402,7 @@ export function advanceRoundIfComplete(
     const {
         eventId,
         seats,
-        matchFormat,
+        gamesFormat,
         now,
         roundDeadlineMinutes,
         seatStrength,
@@ -428,7 +428,7 @@ export function advanceRoundIfComplete(
             roundNumber: nextRoundNumber,
             seats,
             previousRounds: rounds,
-            matchFormat,
+            gamesFormat,
             startedAt: now,
             roundDeadlineMinutes,
             seatStrength,
