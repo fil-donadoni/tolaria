@@ -51,15 +51,27 @@ Ognuno ha il suo confine e le sue regole; il § 8 li tratta uno per uno.
 
 ## 2. Stack & toolchain
 
-| Layer       | Tecnologia                         | Note                                                        |
-| ----------- | ---------------------------------- | ----------------------------------------------------------- |
-| Frontend    | React 19 + TypeScript + Vite 8     | React Compiler attivo via `babel-plugin-react-compiler`     |
-| Routing     | TanStack Router                    | route file-based in `src/routes/`                           |
-| Styling     | Tailwind 4 + design system interno | token semantici, non cromatici (ADR 0007 / 0069)            |
-| Backend/DB  | Convex                             | stato reattivo, mutation atomiche e transazionali           |
-| Auth        | `@convex-dev/auth` (Password)      | email + password + nickname. **Non Clerk** (scelta rivista) |
-| Package mgr | bun                                | mai `npx`: sempre `bunx`                                    |
-| Test        | vitest 4                           | due suite separate (§ 9)                                    |
+| Layer       | Tecnologia                            | Note                                                        |
+| ----------- | ------------------------------------- | ----------------------------------------------------------- |
+| Frontend    | React 19 + TypeScript + Vite 8        | React Compiler attivo via `babel-plugin-react-compiler`     |
+| Routing     | TanStack Router                       | route file-based in `src/routes/`                           |
+| Styling     | Tailwind 4 + design system interno    | token semantici, non cromatici (ADR 0007 / 0069)            |
+| Backend/DB  | Convex                                | stato reattivo, mutation atomiche e transazionali           |
+| Auth        | `@convex-dev/auth` (Password)         | email + password + nickname. **Non Clerk** (scelta rivista) |
+| Package mgr | bun                                   | mai `npx`: sempre `bunx`                                    |
+| Runtime     | Node 26 (pin in `.nvmrc`/`mise.toml`) | vitest, vite, Convex CLI; gli script girano su bun (#5305)  |
+| Test        | vitest 4                              | due suite separate (§ 9)                                    |
+
+### Macchine supportate (issue #5305)
+
+macOS e Omarchy (Arch Linux) eseguono lo stesso workflow. Node è pinnato in tre
+file che devono coincidere (`.nvmrc`, `mise.toml`, `engines.node` — guard
+`scripts/__tests__/node-version-pin.test.ts`): su macOS `nvm install && nvm
+alias default 26`, su Omarchy `mise install`. Prerequisiti su entrambe: `bun`,
+`git`, `gh`, `jq`, `perl`; per `check:ui` `bunx playwright install chromium`.
+Le sonde macchina (`scripts/lib/machine-admission.ts`) leggono `sysctl` /
+`vm_stat` / `lsof` su macOS e `/proc` (meminfo, PSI, `/proc/<pid>/cwd`) su
+Linux; il loop tiene sveglia la macchina con `caffeinate` o `systemd-inhibit`.
 
 ### Comandi essenziali
 

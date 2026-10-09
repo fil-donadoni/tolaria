@@ -39,6 +39,13 @@
  * `kern.memorystatus_vm_pressure_level`: 1 normal, 2 warning (the compressor
  * and swap are working NOW), 4 critical. Anything past normal saturates.
  *
+ * LINUX READS THE SAME THREE THINGS FROM `/proc` (issue #5305), no spawn:
+ * `/proc/meminfo` gives swap in use (`SwapTotal - SwapFree`) and reclaimable
+ * RAM (`MemAvailable`, the kernel's own estimate of what a new workload can
+ * get without swapping — the analogue of free + inactive); the pressure level
+ * is PSI, `/proc/pressure/memory`, translated onto the Darwin scale by
+ * `psiLevel` — a translation of the kernel's reading, not a policy threshold.
+ *
  * The two differ on LOAD, deliberately. The 1-minute load average is what an
  * admitted gate itself raises: four vitest workers and `tsc -b` hold it above
  * `machine.loadMax` for the whole run. Read at `wt:new` it would refuse
@@ -74,7 +81,13 @@
  * exist.
  */
 import { spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+    appendFileSync,
+    existsSync,
+    mkdirSync,
+    readFileSync,
+    readlinkSync,
+} from "node:fs";
 import { loadavg } from "node:os";
 import { dirname, join } from "node:path";
 import { CONFIG_PATH, sessionCap } from "./branches";
@@ -202,6 +215,48 @@ export function parseVmStat(out: string): number | null {
     return (
         ((Number(free[1]) + Number(inactive[1])) * Number(page[1])) / 1024 ** 2
     );
+}
+
+/** `/proc/meminfo` → swap in use and `MemAvailable`, both MB; a field the
+ *  kernel did not print reads null. */
+export function parseMeminfo(out: string): {
+    swapUsedMb: number | null;
+    reclaimableMb: number | null;
+} {
+    const kb = (key: string): number | null => {
+        const m = new RegExp(`^${key}:\\s+(\\d+) kB$`, "m").exec(out);
+        return m ? Number(m[1]) : null;
+    };
+    const total = kb("SwapTotal");
+    const free = kb("SwapFree");
+    const available = kb("MemAvailable");
+    return {
+        swapUsedMb:
+            total === null || free === null ? null : (total - free) / 1024,
+        reclaimableMb: available === null ? null : available / 1024,
+    };
+}
+
+/** PSI `avg10` at or above which `full` reads critical (4): for a tenth of
+ *  the last 10 s EVERY runnable task was stalled on memory — thrashing. */
+export const PSI_FULL_CRITICAL = 10;
+/** PSI `avg10` at or above which `some` reads warning (2): for a tenth of
+ *  the last 10 s some task waited on reclaim or swap-in — the kernel is
+ *  working for memory NOW, the meaning of Darwin's level 2. */
+export const PSI_SOME_WARNING = 10;
+
+/** `/proc/pressure/memory` → the Darwin pressure scale (1 normal, 2 warning,
+ *  4 critical), or null when the file is not PSI. */
+export function psiLevel(out: string): number | null {
+    const avg10 = (kind: string): number | null => {
+        const m = new RegExp(`^${kind} avg10=([\\d.]+)`, "m").exec(out);
+        return m ? Number(m[1]) : null;
+    };
+    const some = avg10("some");
+    const full = avg10("full");
+    if (some === null) return null;
+    if (full !== null && full >= PSI_FULL_CRITICAL) return 4;
+    return some >= PSI_SOME_WARNING ? 2 : 1;
 }
 
 /** `ps`'s `etime` — `[[dd-]hh:]mm:ss` — in seconds. */
@@ -687,6 +742,7 @@ export function readMachineSample(
             pressure: fake.pressure ?? null,
             reclaimableMb: fake.reclaimableMb ?? null,
         };
+    if (process.platform === "linux") return readLinuxSample();
     const darwin = process.platform === "darwin";
     // One `sysctl` for both readings: a line each, in the order asked.
     const sys = darwin
@@ -704,6 +760,58 @@ export function readMachineSample(
         pressure: sys === null ? null : parsePressure(pressureLine ?? ""),
         reclaimableMb: vm === null ? null : parseVmStat(vm),
     };
+}
+
+/** A file's text, or null when it cannot be read. */
+function readText(path: string): string | null {
+    try {
+        return readFileSync(path, "utf8");
+    } catch {
+        return null;
+    }
+}
+
+/** The Linux sample: plain file reads, no spawn (see the header). */
+function readLinuxSample(): MachineSample {
+    const meminfo = readText("/proc/meminfo");
+    const psi = readText("/proc/pressure/memory");
+    const mem = meminfo === null ? null : parseMeminfo(meminfo);
+    return {
+        load1: loadavg()[0],
+        swapUsedMb: mem?.swapUsedMb ?? null,
+        pressure: psi === null ? null : psiLevel(psi),
+        reclaimableMb: mem?.reclaimableMb ?? null,
+    };
+}
+
+/**
+ * The cwd of each pid, or null when the probe could not be read. Linux reads
+ * `/proc/<pid>/cwd` (no `lsof`, which a base Arch install lacks); elsewhere
+ * `lsof`, which exits 1 when ANY listed pid vanished between the two reads and
+ * still prints the rest — only an empty answer is an unread probe. A pid that
+ * vanished, or one we may not read, is simply absent from the map.
+ */
+export function readProcessCwds(
+    pids: number[],
+    timeoutMs = 5000
+): Map<number, string> | null {
+    if (process.platform === "linux") {
+        const cwds = new Map<number, string>();
+        for (const pid of pids) {
+            try {
+                cwds.set(pid, readlinkSync(`/proc/${pid}/cwd`));
+            } catch {
+                // vanished, or not ours to read
+            }
+        }
+        return cwds;
+    }
+    const lsof = spawnSync(
+        "lsof",
+        ["-a", "-d", "cwd", "-p", pids.join(","), "-Fpn"],
+        { encoding: "utf8", timeout: timeoutMs, cwd: "/" }
+    );
+    return lsof.stdout ? parseLsofCwd(lsof.stdout) : null;
 }
 
 export interface SessionCensus {
@@ -739,26 +847,9 @@ export function readSessionCensus(
     const candidates = rows.filter((r) => r.comm === SESSION_COMM);
     const self = owningSession(rows, pid);
     if (candidates.length === 0) return { all: [], self, others: [], rows };
-    const lsof = spawnSync(
-        "lsof",
-        [
-            "-a",
-            "-d",
-            "cwd",
-            "-p",
-            candidates.map((r) => r.pid).join(","),
-            "-Fpn",
-        ],
-        { encoding: "utf8", timeout: 5000, cwd: "/" }
-    );
-    // `lsof` exits 1 when ANY listed pid vanished between the two reads and
-    // still prints the rest; only an empty answer is an unread probe.
-    if (!lsof.stdout) return null;
-    const all = liveProjectSessions(
-        rows,
-        parseLsofCwd(lsof.stdout),
-        parseWorktreeRoots(worktrees)
-    );
+    const cwds = readProcessCwds(candidates.map((r) => r.pid));
+    if (cwds === null) return null;
+    const all = liveProjectSessions(rows, cwds, parseWorktreeRoots(worktrees));
     return { all, self, others: all.filter((s) => s.pid !== self), rows };
 }
 
@@ -815,22 +906,13 @@ export function readConsumers(
                 cwd: checkoutDir(),
             }
         );
-        const lsof = spawnSync(
-            "lsof",
-            [
-                "-a",
-                "-d",
-                "cwd",
-                "-p",
-                candidates.map((r) => r.pid).join(","),
-                "-Fpn",
-            ],
-            opts
+        const cwds = readProcessCwds(
+            candidates.map((r) => r.pid),
+            CONSUMER_PROBE_TIMEOUT_MS
         );
-        if (worktrees.status !== 0 || !lsof.stdout) sessions = null;
+        if (worktrees.status !== 0 || cwds === null) sessions = null;
         else {
             const roots = parseWorktreeRoots(worktrees.stdout);
-            const cwds = parseLsofCwd(lsof.stdout);
             for (const r of candidates) {
                 const cwd = cwds.get(r.pid);
                 if (cwd !== undefined && roots.some((root) => under(cwd, root)))

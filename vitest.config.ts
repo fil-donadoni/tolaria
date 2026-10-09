@@ -4,6 +4,7 @@ import { splitScriptsTests, splitSrcTests } from "./scripts/test-env-split";
 import { buildDefine } from "./scripts/lib/build-define";
 import { LongestFirstSequencer } from "./scripts/lib/vitest-sequencer";
 import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
+import { VITEST_NODE_ARGV } from "./scripts/lib/vitest-node-argv";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -268,6 +269,9 @@ export default defineConfig({
         expect: { requireAssertions: true },
         maxWorkers: WORKERS,
         minWorkers: 1,
+        // Node's own Web Storage off in every worker (issue #5305) — see
+        // `scripts/lib/vitest-node-argv.ts`.
+        execArgv: VITEST_NODE_ARGV,
         // Longest project first, each project's files contiguous, longest
         // file first — from vitest's own duration cache, never from the diff
         // (issue #4483, ADR 0104). The rule and its measurement live in

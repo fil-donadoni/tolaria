@@ -404,15 +404,20 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
         expect(r.stdout).toMatch(/loop-drain\.sh --single-instance/);
     });
 
-    it("caffeinate stays on BOTH paths — an overnight foreground run sleeps otherwise", () => {
-        // The one layer that is not about process groups: the Mac must stay
-        // awake whether or not anyone is watching the terminal.
+    it("the awake guard stays on BOTH paths — an overnight foreground run sleeps otherwise", () => {
+        // The one layer that is not about process groups: the machine must
+        // stay awake whether or not anyone is watching the terminal —
+        // `caffeinate` on macOS, `systemd-inhibit` on Linux (issue #5305).
+        const awake =
+            process.platform === "darwin"
+                ? /caffeinate -i -s/
+                : /systemd-inhibit --what=idle:sleep/;
         const fg = run({ args: ["--start", "--dry-run", "--budget", "1"] });
         const bg = run({
             args: ["--start", "--detach", "--dry-run", "--budget", "1"],
         });
         for (const out of [fg.stdout, bg.stdout]) {
-            expect(out).toMatch(/caffeinate -i -s/);
+            expect(out).toMatch(awake);
         }
         expect(
             run({
@@ -424,7 +429,7 @@ describe("foreground by default, --detach is the opt-in (issue #4389)", () => {
                     "1",
                 ],
             }).stdout
-        ).not.toMatch(/caffeinate/);
+        ).not.toMatch(/caffeinate|systemd-inhibit/);
     });
 
     it("blocks until the driver exits, stamps every line, and writes the SAME bytes to the log", () => {

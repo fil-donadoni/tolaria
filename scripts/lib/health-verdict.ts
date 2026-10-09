@@ -110,9 +110,48 @@ export function parseKernSleeptime(out: string): number | null {
     return sec * 1000 + Math.floor(Number(m[2]) / 1000);
 }
 
+/** systemd's sleep units — every way a Linux machine suspends. */
+export const SYSTEMD_SLEEP_UNITS = [
+    "systemd-suspend.service",
+    "systemd-hibernate.service",
+    "systemd-hybrid-sleep.service",
+    "systemd-suspend-then-hibernate.service",
+];
+
+/** `journalctl -o short-unix` → the epoch ms of its LAST line, or null.
+ *  `1790866381.538510 host systemd[1]: Starting System Suspend...` */
+export function parseJournalLastUnix(out: string): number | null {
+    const lines = out.trim().split("\n");
+    const m = /^(\d+)\.(\d{1,6})\s/.exec(lines[lines.length - 1] ?? "");
+    if (!m) return null;
+    return Number(m[1]) * 1000 + Math.floor(Number(m[2].padEnd(6, "0")) / 1000);
+}
+
 /** When the machine last entered system sleep (epoch ms), or null when the
- *  platform does not say. */
+ *  platform does not say. macOS: `kern.sleeptime`. Linux (issue #5305): the
+ *  latest journal entry of a systemd sleep unit this boot — its "Starting"
+ *  line at suspend, its "Finished" line at resume; either is at or after the
+ *  step's start exactly when the machine slept during it. A journal this user
+ *  may not read (not in `wheel`/`adm`/`systemd-journal`) reads null. */
 export function readLastSleepAt(): number | null {
+    if (process.platform === "linux") {
+        const r = spawnSync(
+            "journalctl",
+            [
+                "-b",
+                "-q",
+                "--no-pager",
+                "-o",
+                "short-unix",
+                "-n",
+                "1",
+                ...SYSTEMD_SLEEP_UNITS.flatMap((u) => ["-u", u]),
+            ],
+            { encoding: "utf8", timeout: 5000 }
+        );
+        if (r.status !== 0) return null;
+        return parseJournalLastUnix(r.stdout);
+    }
     if (process.platform !== "darwin") return null;
     const r = spawnSync("sysctl", ["-n", "kern.sleeptime"], {
         encoding: "utf8",

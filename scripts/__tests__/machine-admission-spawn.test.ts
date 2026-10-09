@@ -200,7 +200,7 @@ describe("gate.ts — nothing heavy starts on a saturated machine (issue #4966)"
         // Present on every platform; a number where the platform says.
         for (const key of ["swap_start_mb", "swap_end_mb"])
             expect(row, key).toHaveProperty(key);
-        if (process.platform === "darwin")
+        if (process.platform === "darwin" || process.platform === "linux")
             expect(typeof row!.swap_start_mb).toBe("number");
     });
 });
@@ -266,7 +266,7 @@ describe("gate.ts — a run whose command removes the gate's own cwd (issue #498
             .find((l) => l.event === "run");
         expect(row).toMatchObject({ tier: "light", exit: 0, cwd: worktree });
         expect(typeof row!.load_end).toBe("number");
-        if (process.platform === "darwin") {
+        if (process.platform === "darwin" || process.platform === "linux") {
             expect(typeof row!.swap_end_mb).toBe("number");
             expect(typeof row!.pressure_end).toBe("number");
         }
