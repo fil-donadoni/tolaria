@@ -244,7 +244,8 @@ export function evaluateCreature(
             Math.max(0, pt.power),
             Math.max(0, pt.toughness),
             manaValue(getInstanceManaCost(card)),
-            card.staticAbilities
+            card.staticAbilities,
+            card.counters ?? {}
         ) -
         // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
         // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
