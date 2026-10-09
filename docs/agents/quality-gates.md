@@ -1370,6 +1370,29 @@ end of the pipeline. The refusal breaks the count down —
 `bun run loop:doctor` plus the branches to resume, so the exit is the real one
 rather than `--no-cap`.
 
+**The cap is per machine (issue #5302, ADR 0136 amendment).** Two machines
+drain the queue in parallel, each with its own claim journal
+(`.claude/telemetry/claims.jsonl`, gitignored). Both verbs split the counted
+claims with `machineScope`: **local** — the last row in THIS machine's journal
+is a `claim` (`claimsHeldHere`) — count against `sessions.cap`; **foreign** —
+no such row, so the claim was taken on the other machine — hold no slot and
+are named in the refusal (`2 foreign (not counted): #70, #80`). The
+journal's presence is the machine identity: every row carries a `host` stamp,
+but it is diagnostic only and never compared, because macOS's hostname follows
+the network and a claim that stopped matching its own machine would leave the
+count — the cap failing open. Three properties hold the split safe:
+
+- **A foreign claim still collides.** `claimDecision` checks the collision
+  against every live claim, never against the local subset, and the planner
+  keeps every claimed issue out of its batch.
+- **A foreign claim is never resumed.** It has no recorded owner here, so
+  `ownerAlive` is `null` and the classifier never calls it `stranded` or
+  `recoverable`.
+- **An unreadable journal counts repository-wide**, never zero, and the
+  refusal says so (`Counted repository-wide`). A local claim whose row the
+  best-effort hook lost reads as foreign; the machine admission's process
+  census still counts its session.
+
 Before that, the cap was a count of `in-progress` labels minus an open PR minus
 24 hours of silence, with no process-liveness evidence anywhere in the path.
 Measured 2026-09-22: two `loop-drain` passes died mid-issue, three claims stood
