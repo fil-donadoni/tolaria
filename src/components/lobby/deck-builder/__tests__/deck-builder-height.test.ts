@@ -161,8 +161,27 @@ describe("DeckBuilderShell — source-panel dock split (issue #2585)", () => {
 
     it("the source panel keeps its base `flex-1 basis-0` height share (untouched viewports) AND gains a bounded-width `flex-none` override under the dock variant", () => {
         expect(SHELL_SRC).toContain(
-            "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
+            "min-h-0 flex-1 basis-0 short-viewport:min-h-[12rem] deck-source-dock:min-h-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
         );
+    });
+
+    // Issue #5316: at phone landscape (844×390) the header stack — top bar,
+    // toolbar, applied-filter tags, `Add Basic`, the pane tab strip — left
+    // the `flex-1 basis-0` source pane ~0px tall once a search was active:
+    // the results were in the DOM but no cell could be scrolled into view
+    // or clicked. A `short-viewport:` (max-height 500px) floor keeps the pane
+    // a real scroll port; the dock variant (≥ 501px tall by its own media
+    // query) hands the floor back so the side dock keeps stretching to the
+    // row. Pinned on the DOCK (non-portrait) branch only, like the test
+    // above: the portrait branch is `h-full` and never had the squeeze.
+    it("the source panel's non-portrait branch carries a `short-viewport:` height floor that the dock variant releases (issue #5316)", () => {
+        const classNameMatch = SHELL_SRC.match(
+            /data-deck-pane="source"[\s\S]*?className=\{\s*portrait\s*\?\s*"[^"]*"\s*:\s*"([^"]*)"/
+        );
+        expect(classNameMatch).not.toBeNull();
+        const dockBranchClassName = classNameMatch![1];
+        expect(dockBranchClassName).toContain("short-viewport:min-h-[12rem]");
+        expect(dockBranchClassName).toContain("deck-source-dock:min-h-0");
     });
 
     // Review finding #4 (PR #2653): the original slice ran from
