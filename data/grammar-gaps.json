@@ -962,7 +962,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › This land becomes a N/N Assembly-Worker artifact creature until end of turn",
-            "issue": 4564
+            "issue": 5348
         },
         {
             "kind": "grammar",
@@ -972,17 +972,17 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › This land becomes a N/N blue Faerie creature with flying until end of turn",
-            "issue": 4564
+            "issue": 5350
         },
         {
             "kind": "grammar",
             "key": "activated › effect clause › This land becomes a N/N green Ape creature with trample until end of turn",
-            "issue": 4564
+            "issue": 5351
         },
         {
             "kind": "grammar",
             "key": "activated › effect clause › duration › and becomes the color of your choice until end of turn",
-            "issue": 4564
+            "issue": 5352
         },
         {
             "kind": "grammar",
