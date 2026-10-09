@@ -2066,6 +2066,11 @@
         },
         {
             "kind": "grammar",
+            "key": "triggered › effect clause › Have it deal X damage to target creature, where X is the number of Goblins on the battlefield",
+            "issue": 5314
+        },
+        {
+            "kind": "grammar",
             "key": "triggered › effect clause › Pay {…}",
             "issue": 5203
         },
@@ -2198,6 +2203,11 @@
             "kind": "grammar",
             "key": "triggered › effect clause › duration › until end of turn for each other attacking Goblin",
             "issue": 4571
+        },
+        {
+            "kind": "grammar",
+            "key": "triggered › effect clause › effect clause › Create X N/N white Soldier creature tokens",
+            "issue": 5315
         },
         {
             "kind": "grammar",
