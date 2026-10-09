@@ -81,13 +81,6 @@ export default function ProtoDecksSection({
                 </button>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                    type="search"
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Search deck or card name… (e.g. solitary)"
-                    className="min-w-0 flex-1 rounded-sm border border-border-strong bg-surface/70 px-3 py-1.5 text-sm text-text placeholder:text-text-disabled"
-                />
                 <select
                     aria-label="Deck format"
                     value={format}
@@ -101,6 +94,13 @@ export default function ProtoDecksSection({
                         </option>
                     ))}
                 </select>
+                <input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search deck or card name… (e.g. solitary)"
+                    className="min-w-0 flex-1 rounded-sm border border-border-strong bg-surface/70 px-3 py-1.5 text-sm text-text placeholder:text-text-disabled"
+                />
             </div>
             {group("Your decks", userDecks)}
             {group("Presets", presetDecks)}
