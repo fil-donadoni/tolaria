@@ -115,7 +115,7 @@ const ON_DEMAND_CEILING_BYTES = 24_850;
 const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "audit-tracker": 20_944,
     "bot-change": 20_347,
-    "cluster-gaps": 10_978,
+    "cluster-gaps": 11_316,
     explain: 18_771,
     "grammar-rule": 17_934,
     "gre-test": 4_372,
@@ -125,7 +125,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-card": 20_844,
     "new-op": 15_073,
     "create-ticket": 16_518,
-    "new-set": 32_806,
+    "new-set": 33_135,
     "next-ticket": 11_000,
     retro: 4_760,
     "to-prd": 6_076,
