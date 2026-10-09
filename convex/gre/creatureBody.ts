@@ -146,6 +146,60 @@ export function keywordBonusFor(
     return timeLimitedPenalty(keyword, counters);
 }
 
+/** The keywords whose `KEYWORD_BONUS` is earned by ATTACKING (issue #5154):
+ *  evasion and the combat amplifiers push damage through a block, haste and
+ *  vigilance are about the attack declaration itself. `reach` is the one
+ *  block-side keyword the table prices; `defender` and `indestructible`,
+ *  `banding` are neither share. */
+const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
+    "flying",
+    "fear",
+    "unblockable",
+    "intimidate",
+    "skulk",
+    "horsemanship",
+    "shadow",
+    "trample",
+    "first strike",
+    "first-strike",
+    "vigilance",
+    "haste",
+]);
+const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
+
+/** The part of `creatureValueRaw` a creature earns by being ABLE TO ATTACK
+ *  (issue #5154): its power term plus every attack-side keyword bonus. What a
+ *  "can't attack" restriction takes away — the same fact `defender`'s flat
+ *  penalty prices for the printed keyword (CR 702.3a), read off the body
+ *  instead of a constant so a 6/6 under a Pacifism loses more than a 1/1.
+ *  Power must already be floored at 0. */
+export function creatureAttackShareRaw(
+    power: number,
+    staticAbilities: readonly string[]
+): number {
+    let share = power * W_CR_POWER;
+    for (const keyword of staticAbilities) {
+        if (!ATTACK_SHARE_KEYWORDS.has(keyword)) continue;
+        share += KEYWORD_BONUS[keyword]?.(power) ?? 0;
+    }
+    return share;
+}
+
+/** The block-side twin of {@link creatureAttackShareRaw}: the toughness term
+ *  plus the block-side keyword bonus. What a "can't block" restriction takes
+ *  away (CR 509.1b). Toughness must already be floored at 0. */
+export function creatureBlockShareRaw(
+    toughness: number,
+    staticAbilities: readonly string[]
+): number {
+    let share = toughness * W_CR_TOUGHNESS;
+    for (const keyword of staticAbilities) {
+        if (!BLOCK_SHARE_KEYWORDS.has(keyword)) continue;
+        share += KEYWORD_BONUS[keyword]?.(0) ?? 0;
+    }
+    return share;
+}
+
 /** Pure Forge-scale creature body value from raw characteristics — no game
  *  state. Shared by the realized `evaluateCreature` (effective P/T), the
  *  latent `cardValue*` (base P/T), and the per-Op `createToken` valuer, so all

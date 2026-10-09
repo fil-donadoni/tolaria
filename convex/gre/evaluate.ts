@@ -99,6 +99,13 @@ import {
 } from "./cardValue";
 import { findTriggeredAbility } from "./copy";
 import { keywordBonusFor } from "./creatureBody";
+// Issue #5154 — attack/block/untap restrictions priced on the RESTRICTED side
+// and credited to their source, off the engine's own legality collections.
+import {
+    creatureRestrictionDiscount,
+    restrictionSourceWorth,
+    type RestrictionShareWeights,
+} from "./ai/restrictionPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
@@ -234,7 +241,12 @@ export function evaluateCreature(
     /** Issue #4462 — the layer-7 pass of the evaluation this valuation is
      *  part of, so one leaf walks the board's P/T sources once rather than
      *  once per creature. Omitted, the creature is its own pass. */
-    pass: Layer7Pass = beginLayer7Pass(state)
+    pass: Layer7Pass = beginLayer7Pass(state),
+    /** Issue #5154 — the two restriction-share units this valuation prices a
+     *  "can't attack" / "can't block" / "doesn't untap" at. Defaulted to the
+     *  production vector like `latent`; `evaluate` and the combat deltas pass
+     *  their `weights` (an `EvalWeights` satisfies the pick). */
+    shares: RestrictionShareWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     // Until-boundary P/T excluded: a combat trick's buff is not lasting
     // material (ADR 0020 §2).
@@ -247,6 +259,12 @@ export function evaluateCreature(
             card.staticAbilities,
             card.counters ?? {}
         ) -
+        // Issue #5154 — CR 508.1c / 509.1b / 502.3: what a restriction the
+        // layer system cannot show (the creature keeps its P/T and keywords)
+        // takes off this body — its attack share when it cannot attack, its
+        // block share when it cannot block, both while it sits tapped under a
+        // hard untap lock. Zero on every board with no restriction source.
+        creatureRestrictionDiscount(state, card, shares, pass) -
         // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
         // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
         // for a printed characteristic and wrong for a duration-scoped
@@ -1344,10 +1362,16 @@ export function permanentRealisedValue(
 ): number {
     let total = weights.permanentWeight;
     if (isCreature(perm)) {
-        total += evaluateCreature(state, perm, weights.latent, pass);
+        total += evaluateCreature(state, perm, weights.latent, pass, weights);
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
     }
+    // Issue #5154 — the permanent's standing worth AS a restriction source
+    // (a Moat, a Pacifism, a Meekstone): what it takes from the opponent's
+    // creatures minus what it takes from its controller's own. The SAME
+    // function the board term adds per permanent, so the lens prices the
+    // removal of a lock at exactly what the position term credits it.
+    total += restrictionSourceWorth(state, perm, weights, pass);
     const controller = state.players.find((p) => p.id === perm.controllerId);
     // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
     // remaining CHARGES, not a renewable source's price: destroying a depletion
@@ -1541,12 +1565,19 @@ function playerTerms(
 
     for (const perm of player.battlefield) {
         terms.permanents += weights.permanentWeight;
+        // Issue #5154 — a restriction source's standing worth (see
+        // `permanentRealisedValue`, which reads the same function). Under
+        // `permanents` for a creature source too (Akron Legionnaire): its
+        // body stays in `creatures`, what it does to the rest of the board
+        // is a presence fact, not a body one.
+        terms.permanents += restrictionSourceWorth(state, perm, weights, pass);
         if (isCreature(perm)) {
             terms.creatures += evaluateCreature(
                 state,
                 perm,
                 weights.latent,
-                pass
+                pass,
+                weights
             );
         } else {
             // Non-creature, non-land beneficial permanents (a static buff
@@ -2151,7 +2182,8 @@ export function declaredCombatDelta(
         ids.reduce((sum, id) => {
             const c = owner.battlefield.find((x) => x.id === id);
             return c
-                ? sum + evaluateCreature(state, c, weights.latent, pass)
+                ? sum +
+                      evaluateCreature(state, c, weights.latent, pass, weights)
                 : sum;
         }, 0);
 
@@ -2283,7 +2315,8 @@ export function declaredBlockDelta(
 
     const value = (cards: CardInstanceState[]) =>
         cards.reduce(
-            (sum, c) => sum + evaluateCreature(state, c, weights.latent, pass),
+            (sum, c) =>
+                sum + evaluateCreature(state, c, weights.latent, pass, weights),
             0
         );
     // Defender's view: gains the dead attackers' worth, loses its dead blockers,
@@ -2364,7 +2397,7 @@ function cautiousBlockPenalty(
     if (!held.pump && !held.removal) return 0;
 
     const cval = (c: CardInstanceState) =>
-        evaluateCreature(state, c, weights.latent, pass);
+        evaluateCreature(state, c, weights.latent, pass, weights);
     // Lasting P/T — until-boundary buffs excluded (ADR 0020 §2).
     const lastingPT = (c: CardInstanceState) =>
         getEffectivePT(state, c, { includeTemporary: false, pass });
