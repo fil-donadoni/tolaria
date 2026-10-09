@@ -543,7 +543,7 @@ function lowerLine(
                 // printed mana cost, and only then. Judged HERE because it is
                 // a fact about the cost rather than about the sentence
                 // (`lowerEffects.ts` — `SiteOptions`).
-                allowX: hasVariableX(card.manaCost),
+                allowX: announcesX(card.manaCost, acc),
                 selfName: card.name,
                 resolvingSpell: true,
                 ...(acc.kickers !== undefined ? { kickers: acc.kickers } : {}),
@@ -570,7 +570,7 @@ function lowerLine(
                 ir.modes,
                 { slug: slugify(card.name), name: card.name },
                 {
-                    allowX: hasVariableX(card.manaCost),
+                    allowX: announcesX(card.manaCost, acc),
                     selfName: card.name,
                     ...(acc.kickers !== undefined
                         ? { kickers: acc.kickers }
@@ -657,6 +657,22 @@ function lowerLine(
  */
 function hasVariableX(printedManaCost: string): boolean {
     return printedManaCost.includes("{X}");
+}
+
+/**
+ * CR 107.3a — a spell announces X for the `{X}` pip in its printed mana cost
+ * OR for an additional cost that names X ("discard X cards", CR 601.2b); the
+ * additional-cost line is printed before the spell text, so `acc` already
+ * holds it when the body is lowered.
+ */
+function announcesX(
+    printedManaCost: string,
+    acc: { additionalCosts?: { discard?: { count: number | "X" } } }
+): boolean {
+    return (
+        hasVariableX(printedManaCost) ||
+        acc.additionalCosts?.discard?.count === "X"
+    );
 }
 
 /** CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700). */

@@ -5634,6 +5634,16 @@
         "firstPrintSet": "nem"
     },
     {
+        "name": "Blaze",
+        "scryfallId": "f175c959-3b5d-46a3-9194-fad2359bbff9",
+        "oracleId": "0596920f-9946-42f4-a03b-24aab67f9f1b",
+        "firstSet": "por",
+        "firstPrintId": "f175c959-3b5d-46a3-9194-fad2359bbff9",
+        "firstPrintSet": "por",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blaze of Glory",
         "scryfallId": "98fba951-c5bb-497c-9292-ce1b2a1e1247",
         "oracleId": "b330ac89-790e-4cc9-96a5-532c48252088",
@@ -6420,6 +6430,16 @@
         "firstSet": "ice",
         "firstPrintId": "b423bb5a-eaac-4c1d-981a-1c635001fc5a",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Blue Sun's Zenith",
+        "scryfallId": "a8150f78-e187-4949-9746-fec64d1675d1",
+        "oracleId": "613a41b8-0b4f-4995-bf1e-ca41f96e6438",
+        "firstSet": "mbs",
+        "firstPrintId": "a8150f78-e187-4949-9746-fec64d1675d1",
+        "firstPrintSet": "mbs",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Blue Ward",
@@ -9392,6 +9412,16 @@
         "source": "compiled"
     },
     {
+        "name": "Channeled Force",
+        "scryfallId": "8918d24e-8ae8-4028-9f06-ba6fafcc717e",
+        "oracleId": "e12ed186-01c1-4da5-b90f-cfbb77c4e8d0",
+        "firstSet": "iko",
+        "firstPrintId": "8918d24e-8ae8-4028-9f06-ba6fafcc717e",
+        "firstPrintSet": "iko",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Channeler Initiate",
         "scryfallId": "bef38c5a-07fc-477f-a1c0-70cc3ad64f96",
         "oracleId": "a98ea782-1c49-4207-a130-41329087fdf6",
@@ -9876,6 +9906,16 @@
         "firstSet": "ogw",
         "firstPrintId": "949f41a0-9082-4682-88b8-a29fbcb48d5d",
         "firstPrintSet": "ogw",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Cinder Elemental",
+        "scryfallId": "80b39056-2ee8-4cfd-acbd-ba99f74e788d",
+        "oracleId": "01805d0d-3a72-4d26-9475-3e68c278b7fe",
+        "firstSet": "mmq",
+        "firstPrintId": "80b39056-2ee8-4cfd-acbd-ba99f74e788d",
+        "firstPrintSet": "mmq",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -14575,6 +14615,16 @@
         "firstPrintId": "e150896e-8745-42ac-894b-8f42a92bd7a7",
         "firstPrintSet": "rtr",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Devil's Play",
+        "scryfallId": "e6dd2f9e-16c2-4d25-98c4-0017ccd42228",
+        "oracleId": "ee9f0b29-8a54-4cb8-8e2c-7bd67c2184ba",
+        "firstSet": "pisd",
+        "firstPrintId": "e6dd2f9e-16c2-4d25-98c4-0017ccd42228",
+        "firstPrintSet": "pisd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -24232,6 +24282,16 @@
         "source": "compiled"
     },
     {
+        "name": "Goblin Dynamo",
+        "scryfallId": "9462cb4e-a38c-4a41-bad2-4ea3b22b0edb",
+        "oracleId": "381fdb36-2467-421c-8b89-419d14955175",
+        "firstSet": "lgn",
+        "firstPrintId": "9462cb4e-a38c-4a41-bad2-4ea3b22b0edb",
+        "firstPrintSet": "lgn",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Goblin Electromancer",
         "scryfallId": "632af23c-eb5c-4725-afca-637e84cecf94",
         "oracleId": "81f06f84-1580-43c0-89d5-08d34541a519",
@@ -26995,6 +27055,16 @@
         "firstPrintId": "de263f02-8e3e-4785-9c06-9adc168994f3",
         "firstPrintSet": "tmp",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Heat Ray",
+        "scryfallId": "6a27f90e-d156-439c-b5e5-6d53bd510fe7",
+        "oracleId": "76ec76b9-da0f-4b9d-ad0a-d734052a5f2b",
+        "firstSet": "usg",
+        "firstPrintId": "6a27f90e-d156-439c-b5e5-6d53bd510fe7",
+        "firstPrintSet": "usg",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -41758,6 +41828,16 @@
         "firstSet": "inv",
         "firstPrintId": "81be27d6-e16f-4158-b2b6-66a0f3315327",
         "firstPrintSet": "inv",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Pain Kami",
+        "scryfallId": "693317ea-0237-4b65-812f-b31a6427b2a3",
+        "oracleId": "7d972a9b-86c4-4538-868b-4c64f0c80b1a",
+        "firstSet": "chk",
+        "firstPrintId": "693317ea-0237-4b65-812f-b31a6427b2a3",
+        "firstPrintSet": "chk",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -57466,6 +57546,16 @@
         "source": "compiled"
     },
     {
+        "name": "Stroke of Genius",
+        "scryfallId": "a5423cb8-38a2-4769-8999-de6ab5ebc294",
+        "oracleId": "0cc6d683-366f-4ae4-be60-20ad9621fdaf",
+        "firstSet": "jgp",
+        "firstPrintId": "a5423cb8-38a2-4769-8999-de6ab5ebc294",
+        "firstPrintSet": "jgp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Stromgald Cabal",
         "scryfallId": "6ac6fa0c-753e-4fbc-8a70-0f956503cf4e",
         "oracleId": "c8312964-5cf0-435a-8757-ea1bb67258a4",
@@ -65498,6 +65588,16 @@
         "firstSet": "lea",
         "firstPrintId": "a80582b1-09db-45f8-b362-0e5207a5a8e6",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Volcanic Geyser",
+        "scryfallId": "911787db-9023-46f8-9501-3ad26b6ca51d",
+        "oracleId": "846a4f9c-d955-403f-8a08-5c7c3d32e180",
+        "firstSet": "mir",
+        "firstPrintId": "911787db-9023-46f8-9501-3ad26b6ca51d",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Volcanic Hammer",
