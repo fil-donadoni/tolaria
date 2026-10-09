@@ -1192,7 +1192,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Stand or Fall",
     "Star Compass",
     "Starting Town",
-    "Stasis",
     "Steam Vents",
     "Stench of Evil",
     "Sterling Grove",
