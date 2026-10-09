@@ -315,6 +315,20 @@ export type EvalWeights = {
      *  held flash creature down with it and the bot dumps them at sorcery
      *  speed. Same invariant: strictly below 1. */
     latentFlashCreatureDiscount: number;
+    /** Issue #5154 — the fraction of a creature's ATTACK share
+     *  (`creatureAttackShareRaw`: its power term plus the attack-side keyword
+     *  bonuses) it loses while a static restriction forbids its attack
+     *  (CR 508.1c — a Pacifism, a Moat on the other side), or while it sits
+     *  tapped under a hard untap lock (CR 502.3, Meekstone). Below 1 at the
+     *  prior: the power of a creature that cannot attack still kills what it
+     *  blocks. Read by `ai/restrictionPricing.ts`; the restriction SOURCE
+     *  earns the same number back, so this unit also prices the lock. */
+    cannotAttackShare: number;
+    /** The block-side twin (CR 509.1b): the fraction of a creature's BLOCK
+     *  share (`creatureBlockShareRaw`) it loses for the attackers on the
+     *  board it may not block. Below 1 at the prior: toughness still shields
+     *  an attacker from burn. */
+    cannotBlockShare: number;
     latent: LatentWeights;
 
     /** How many determinized worlds the block-quality root tie-break averages
@@ -421,6 +435,13 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // Issue #4882 — the old `LATENT_DISCOUNT`, now fitted from this prior.
     latentCreatureDiscount: 0.85,
     latentFlashCreatureDiscount: 0.85,
+    // Issue #5154 — three quarters of the share: a creature that cannot
+    // attack still trades with what it blocks, one that cannot block still
+    // carries its toughness into combat as an attacker. On a vanilla 2/2
+    // (≈170) a Pacifism takes 0.75 × (30 + 28) ≈ 43, the same order as the
+    // flat −30 `defender` prices for the printed keyword.
+    cannotAttackShare: 0.75,
+    cannotBlockShare: 0.75,
     // Issue #3398 — chosen so today's per-Op numbers are reproduced where a
     // representative victim exists: `boardRemoval` 160 against one 2/2-worth
     // victim IS the old `DESTROY_VALUE`, `damage` 22 IS `DAMAGE_PER_POINT`,
@@ -504,6 +525,8 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     recoverableSweepFraction: 0.8,
     latentCreatureDiscount: 0.692649,
     latentFlashCreatureDiscount: 0.806879,
+    cannotAttackShare: 0.75,
+    cannotBlockShare: 0.75,
     latent: Object.freeze({
         damage: 25.936176,
         cardAdvantage: 46.726356,

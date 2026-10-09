@@ -185,6 +185,9 @@ const FITTABLE_TERM_WEIGHTS = [
     "recoverableSweepFraction",
     "latentCreatureDiscount",
     "latentFlashCreatureDiscount",
+    // Issue #5154 — the restriction-share units.
+    "cannotAttackShare",
+    "cannotBlockShare",
 ] as const;
 
 export type FittableTermWeight = (typeof FITTABLE_TERM_WEIGHTS)[number];

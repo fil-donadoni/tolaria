@@ -347,8 +347,12 @@ export type AttackerValidation =
  *  keep every existing call site (which didn't previously thread it) source
  *  compatible; without it only the card's own restrictions are returned,
  *  same degrade-gracefully contract `collectBlockRestrictions` already
- *  documents. */
-function collectAttackRestrictions(
+ *  documents.
+ *
+ *  Exported (issue #5154) so the Brain's restriction pricing
+ *  (`ai/restrictionPricing.ts`) reads the SAME collection the declaration
+ *  validator does, rather than re-implementing the aura walk. */
+export function collectAttackRestrictions(
     card: CardInstanceState,
     state?: GameState
 ): StaticAttackRestriction[] {
@@ -672,7 +676,9 @@ export type BlockerValidation =
  *  and from any auras attached to it (CR 303.4 — aura effects apply to
  *  their host). Requires `state` to discover attached auras; without state
  *  only the card's own restrictions are returned. */
-function collectBlockRestrictions(
+/** Exported (issue #5154) for the same reason as `collectAttackRestrictions`:
+ *  the Brain prices a "can't block" restriction off this exact collection. */
+export function collectBlockRestrictions(
     card: CardInstanceState,
     side: "attacker" | "blocker",
     state?: GameState

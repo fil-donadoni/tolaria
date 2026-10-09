@@ -21,6 +21,9 @@ import type {
     ContinuousEffect,
     ContinuousEffectSublayer,
 } from "./continuousEffects";
+// Type-only (issue #5154): the plan's shape belongs to the Brain module that
+// fills it; a runtime import here would be an engine → AI dependency.
+import type { RestrictionPlan } from "./ai/restrictionPricing";
 import type {
     CardType,
     Color,
@@ -349,6 +352,14 @@ type Layer7SourcePlan = {
 export type Layer7Pass = {
     readonly state: LayerStateView;
     sources?: Layer7SourcePlan;
+    /** Issue #5154 — the Brain's restriction plan for the same leaf: which
+     *  combat/untap restriction sources bind which creature, walked once per
+     *  pass exactly like `sources`. Filled lazily by
+     *  `ai/restrictionPricing.ts`, which owns the shape; this module never
+     *  reads it. It rides on the layer-7 pass because every caller that
+     *  prices a creature already threads this object, and a second pass
+     *  parameter at each of those sites would be the same lifetime twice. */
+    restrictions?: RestrictionPlan;
 };
 
 /** Opens a {@link Layer7Pass} over `state`. O(1): nothing is walked until a
