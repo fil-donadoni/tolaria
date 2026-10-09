@@ -45,16 +45,44 @@ export default function ProtoArtCard({
                         alt=""
                         className="h-full w-full object-cover object-[50%_30%] opacity-85 transition group-hover:opacity-100"
                     />
-                ) : (
-                    art.cards.map((c, i) => (
+                ) : art.cards.length === 2 ? (
+                    <>
+                        {/* Diagonal split: each art clipped to its side of
+                            a slanted cut, a white rule drawn along it. */}
                         <FeaturedDeckArt
-                            key={i}
-                            featuredCardId={c}
-                            className="h-full flex-1"
+                            featuredCardId={art.cards[0]}
+                            className="absolute inset-0 h-full w-full [clip-path:polygon(0_0,58%_0,42%_100%,0_100%)]"
                         />
-                    ))
+                        <FeaturedDeckArt
+                            featuredCardId={art.cards[1]}
+                            className="absolute inset-0 h-full w-full [clip-path:polygon(58%_0,100%_0,100%_100%,42%_100%)]"
+                        />
+                    </>
+                ) : (
+                    <FeaturedDeckArt
+                        featuredCardId={art.cards[0]}
+                        className="h-full w-full"
+                    />
                 )}
             </div>
+            {"cards" in art && art.cards.length === 2 && (
+                <svg
+                            aria-hidden
+                            className="absolute inset-0 -z-10 h-full w-full"
+                            viewBox="0 0 100 100"
+                            preserveAspectRatio="none"
+                        >
+                            <line
+                                x1="58"
+                                y1="0"
+                                x2="42"
+                                y2="100"
+                                stroke="white"
+                                strokeWidth="3"
+                                vectorEffect="non-scaling-stroke"
+                            />
+                        </svg>
+            )}
             <span
                 aria-hidden
                 className="absolute inset-0 -z-10"
@@ -64,7 +92,7 @@ export default function ProtoArtCard({
                 }}
             />
             {"cards" in art && art.cards.length === 2 && (
-                <span className="absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 font-display text-3xl text-parchment drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
+                <span className="absolute left-[52%] top-[38%] -z-10 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-surface-base/80 px-3 py-1 font-display text-2xl text-parchment drop-shadow-[0_2px_12px_rgba(0,0,0,0.9)]">
                     vs
                 </span>
             )}
