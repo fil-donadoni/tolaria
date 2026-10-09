@@ -12056,6 +12056,68 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5151. Measured at 400 iterations over 20 seeds: with `latent.recurrence` forced to 1 (the pre-#5151 reading) the Vise is taken 6/20 in this listing order (10/20 with the Vise listed first; the rest Bear Trap or a pass — the tie), 20/20 in either order with the multiplier. Proof of failure: dropping Black Vise's `aiEffects` shadow (`lea/colorless.cards.ts`) puts it back at the floor and turns this entry red — the criterion issue #4141 waived, discharged here.",
     },
+    {
+        // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
+        // Disenchant with two untapped Plains; the opponent has a Moat and a
+        // Mightstone (a 4-MV artifact with no script — the same `base + MV`
+        // body as the Moat) and sits at 6 life; the bot's board is three
+        // Grizzly Bears, grounded by the Moat. Disenchant the Moat and the
+        // Bears swing for exactly lethal this turn; Disenchant the Mightstone
+        // and nothing can attack.
+        //
+        // What it guards is the SOURCE reading of a restriction: the Moat is
+        // worth what it takes from the bot's creatures, so the removal lens
+        // (`permanentRealisedValue`) ranks it above an artifact of the same
+        // mana value. Without that reading the two targets tie on body and
+        // the search cannot see past its horizon to the attack it frees — a
+        // Moat on the other side read as a generic 4-drop.
+        label: "restriction pricing: Disenchant takes the Moat that grounds the lethal board, not the artifact of the same mana value (issue #5154)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Moat grounding the bot's otherwise-lethal attackers",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    summoningSick: false,
+                })),
+                { name: "Moat", owner: "opp", zone: "battlefield" },
+                { name: "Mightstone", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+            life: { me: 20, opp: 6 },
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Moat",
+                },
+            ],
+        },
+        note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Proof of failure: returning 0 from `creatureRestrictionDiscount` and `restrictionSourceWorth` turns this entry red (see the PR for the seed count).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
