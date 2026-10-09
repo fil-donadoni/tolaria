@@ -53,7 +53,7 @@ describe("OpenTablesStrip (issue #2726)", () => {
         expect(undef.container.innerHTML).toBe("");
     });
 
-    it("shows the creator's match format on the row, before joining (PRD #397)", () => {
+    it("shows the creator's games format on the row, before joining (PRD #397)", () => {
         const { getByText, unmount } = renderStrip({
             openGames: [makeGame({ bestOf: 3 })],
         });

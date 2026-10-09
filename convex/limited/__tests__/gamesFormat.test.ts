@@ -1,4 +1,4 @@
-// Match Format + round deadline configuration (PRD #1628 stories 1-4, ADR
+// Games Format + round deadline configuration (PRD #1628 stories 1-4, ADR
 // 0076, issue #1640). The default is a PRODUCT decision (story 2: Bo3 so the
 // event plays like real Limited with nothing configured), and the tolerant
 // read is a MIGRATION decision (the stored field is optional so events created
@@ -9,26 +9,38 @@ import {
     DEFAULT_ROUND_DEADLINE_MINUTES,
     MAX_ROUND_DEADLINE_MINUTES,
     MIN_ROUND_DEADLINE_MINUTES,
-    bestOfForMatchFormat,
+    bestOfForGamesFormat,
     gamesToWinMatch,
-    isLimitedMatchFormat,
+    isLimitedGamesFormat,
     isValidRoundDeadlineMinutes,
-    resolveMatchFormat,
-} from "../matchFormat";
+    resolveEventGamesFormat,
+    resolveGamesFormat,
+} from "../gamesFormat";
 
-describe("Match Format (PRD #1628 stories 1-2)", () => {
+describe("Games Format (PRD #1628 stories 1-2)", () => {
     it("resolves an absent stored value to the default", () => {
-        expect(resolveMatchFormat(undefined)).toBe("bo3");
+        expect(resolveGamesFormat(undefined)).toBe("bo3");
     });
 
     it("never overrides an explicitly stored choice", () => {
-        expect(resolveMatchFormat("bo1")).toBe("bo1");
-        expect(resolveMatchFormat("bo3")).toBe("bo3");
+        expect(resolveGamesFormat("bo1")).toBe("bo1");
+        expect(resolveGamesFormat("bo3")).toBe("bo3");
+    });
+
+    it("reads an event row written under the pre-rename key (issue #5337)", () => {
+        expect(resolveEventGamesFormat({ matchFormat: "bo1" })).toBe("bo1");
+        expect(resolveEventGamesFormat({})).toBe("bo3");
+    });
+
+    it("prefers the new key over the pre-rename one on an event row", () => {
+        expect(
+            resolveEventGamesFormat({ gamesFormat: "bo3", matchFormat: "bo1" })
+        ).toBe("bo3");
     });
 
     it("maps to the existing Match/Game flow's bestOf (ADR 0029)", () => {
-        expect(bestOfForMatchFormat("bo1")).toBe(1);
-        expect(bestOfForMatchFormat("bo3")).toBe(3);
+        expect(bestOfForGamesFormat("bo1")).toBe(1);
+        expect(bestOfForGamesFormat("bo3")).toBe(3);
     });
 
     it("knows how many games WIN a match of each format (story 28)", () => {
@@ -37,11 +49,11 @@ describe("Match Format (PRD #1628 stories 1-2)", () => {
     });
 
     it("parses only the two real formats at the outside boundary", () => {
-        expect(isLimitedMatchFormat("bo1")).toBe(true);
-        expect(isLimitedMatchFormat("bo3")).toBe(true);
-        expect(isLimitedMatchFormat("bo5")).toBe(false);
-        expect(isLimitedMatchFormat("BO3")).toBe(false);
-        expect(isLimitedMatchFormat("")).toBe(false);
+        expect(isLimitedGamesFormat("bo1")).toBe(true);
+        expect(isLimitedGamesFormat("bo3")).toBe(true);
+        expect(isLimitedGamesFormat("bo5")).toBe(false);
+        expect(isLimitedGamesFormat("BO3")).toBe(false);
+        expect(isLimitedGamesFormat("")).toBe(false);
     });
 });
 

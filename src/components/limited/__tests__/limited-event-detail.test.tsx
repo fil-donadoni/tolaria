@@ -460,7 +460,7 @@ function projectedChallengeableEvent(
         seatCount: 2,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         seats: [
             {
                 seatIndex: 0,

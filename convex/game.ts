@@ -164,9 +164,9 @@ import type { LimitedRound } from "./limited/eventTypes";
 import type { AdvanceRoundResult } from "./limited/rounds";
 import { areRoundsRunning } from "./limited/eventStatus";
 import {
-    bestOfForMatchFormat,
-    resolveMatchFormat,
-} from "./limited/matchFormat";
+    bestOfForGamesFormat,
+    resolveEventGamesFormat,
+} from "./limited/gamesFormat";
 // One-directional (issue #1645): `limitedEvents.ts` imports nothing from this
 // module, so this cannot cycle. A round Match against a bot seat must be built
 // from the deck the SERVER derives from that seat's Pool — never a
@@ -3112,7 +3112,7 @@ export const challengeLimitedSeat = mutation({
  *   challenge first: whichever of the two seats starts it, the other one gets
  *   the very same Match.
  *
- * The Match is Bo1 or Bo3 per the EVENT's Match Format (`bestOfForMatchFormat`),
+ * The Match is Bo1 or Bo3 per the EVENT's Games Format (`bestOfForGamesFormat`),
  * so a Bo3 sideboards from the pool through the existing between-games flow
  * (the Limited deck's `sideboard` IS the rest of its Pool, ADR 0055).
  *
@@ -3190,9 +3190,7 @@ export const startPairingMatch = mutation({
         );
 
         const now = Date.now();
-        const bestOf = bestOfForMatchFormat(
-            resolveMatchFormat(event.matchFormat)
-        );
+        const bestOf = bestOfForGamesFormat(resolveEventGamesFormat(event));
         // Match seat order: `players[0]` is always the seat that STARTED the
         // Match, which is what `recordPlayedPairing` re-orients the score from.
         const limitedPairing = {

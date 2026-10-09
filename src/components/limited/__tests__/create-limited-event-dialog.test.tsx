@@ -385,16 +385,16 @@ describe("CreateLimitedEventDialog — Incompleteness Notice (ADR 0059, PRD #124
     });
 });
 
-// Match Format + Round Deadline (PRD #1628 stories 1-4, ADR 0076, issue
+// Games Format + Round Deadline (PRD #1628 stories 1-4, ADR 0076, issue
 // #1640). Both are chosen at CREATION and fixed for the event's life, so the
 // assertions run against the real `onCreate` payload the dialog submits — a
 // hand-built payload would mask exactly the kind of wiring gap (a control that
 // renders but never reaches the mutation) this discipline exists to catch.
-describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", () => {
+describe("CreateLimitedEventDialog — Games Format (PRD #1628 stories 1-2)", () => {
     it("offers Bo1 / Bo3 for every event type, defaulting to Bo3", () => {
         renderDialog();
         expect(
-            screen.getByRole("radiogroup", { name: "Match Format" })
+            screen.getByRole("radiogroup", { name: "Games Format" })
         ).toBeTruthy();
         expect(
             screen
@@ -408,24 +408,24 @@ describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", ()
         ).toBe("false");
     });
 
-    it("still offers the Match Format once Draft is selected", () => {
+    it("still offers the Games Format once Draft is selected", () => {
         renderDialog();
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         expect(
-            screen.getByRole("radiogroup", { name: "Match Format" })
+            screen.getByRole("radiogroup", { name: "Games Format" })
         ).toBeTruthy();
     });
 
-    it("submits matchFormat: 'bo3' when the creator configures nothing", () => {
+    it("submits gamesFormat: 'bo3' when the creator configures nothing", () => {
         const onCreate = vi.fn();
         renderDialog({ onCreate });
         fireEvent.click(screen.getByText("Create Event"));
         expect(onCreate).toHaveBeenCalledWith(
-            expect.objectContaining({ matchFormat: "bo3" })
+            expect.objectContaining({ gamesFormat: "bo3" })
         );
     });
 
-    it("submits matchFormat: 'bo1' once Bo1 is picked", () => {
+    it("submits gamesFormat: 'bo1' once Bo1 is picked", () => {
         const onCreate = vi.fn();
         renderDialog({ onCreate });
         fireEvent.click(screen.getByRole("radio", { name: "Bo1" }));
@@ -437,7 +437,7 @@ describe("CreateLimitedEventDialog — Match Format (PRD #1628 stories 1-2)", ()
 
         fireEvent.click(screen.getByText("Create Event"));
         expect(onCreate).toHaveBeenCalledWith(
-            expect.objectContaining({ matchFormat: "bo1" })
+            expect.objectContaining({ gamesFormat: "bo1" })
         );
     });
 });

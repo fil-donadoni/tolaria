@@ -2,7 +2,7 @@
 // mode. This is the one place the mode is CHOSEN — it then drives deck
 // filtering and the Play box's action set, the inverse of the pre-#2591 flow
 // (which derived "manual or not" from whichever deck happened to be
-// selected). Mirrors MatchFormatSelector's segmented-control shape (same
+// selected). Mirrors GamesFormatSelector's segmented-control shape (same
 // radiogroup pattern, same test seam via `getByRole("radio", ...)`), plus a
 // three-line tooltip per option (ADR 0101 §10) — labels only, the domain
 // terms stay Game / Manual Game (GLOSSARY.md).

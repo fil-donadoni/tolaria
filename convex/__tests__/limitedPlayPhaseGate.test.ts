@@ -66,7 +66,7 @@ function buildTwoHumanEvent(
         seatCount: 2,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: "bo3" as const,
+        gamesFormat: "bo3" as const,
         seats,
         createdAt: 0,
         updatedAt: 0,

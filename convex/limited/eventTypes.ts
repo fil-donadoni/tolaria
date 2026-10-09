@@ -128,7 +128,7 @@ export type LimitedEventType = "sealed" | "draft";
 // literal. Re-exported here so this stays the one type barrel for the event
 // domain and no existing import path had to move.
 export type { LimitedEventStatus } from "./eventStatus";
-export type { LimitedMatchFormat } from "./matchFormat";
+export type { LimitedGamesFormat } from "./gamesFormat";
 
 /** How a pairing's result came to be recorded (PRD #1628). NOT decorative: a
  *  standings table where half the rows are simulated is unreadable without it,

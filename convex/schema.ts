@@ -658,11 +658,15 @@ export default defineSchema({
             v.literal("playing"),
             v.literal("finished")
         ),
-        // Match Format of every ROUND match (PRD #1628 stories 1-2), chosen at
+        // Games Format of every ROUND match (PRD #1628 stories 1-2), chosen at
         // creation. OPTIONAL only for backward compatibility — events created
         // before the play phase existed carry no value; every reader resolves
-        // it through `resolveMatchFormat` (`convex/limited/matchFormat.ts`),
+        // it through `resolveGamesFormat` (`convex/limited/gamesFormat.ts`),
         // which defaults to "bo3", so nothing downstream ever sees `undefined`.
+        gamesFormat: v.optional(v.union(v.literal("bo1"), v.literal("bo3"))),
+        // Pre-rename key of `gamesFormat` (issue #5337). Never written any
+        // more; kept so events created earlier keep validating and keep their
+        // value — `resolveEventGamesFormat` reads `gamesFormat ?? matchFormat`.
         matchFormat: v.optional(v.union(v.literal("bo1"), v.literal("bo3"))),
         // Optional round deadline in MINUTES (PRD #1628 stories 3-4/32-35).
         // Absent = no deadline: a relaxed table is never cut short by a timer.

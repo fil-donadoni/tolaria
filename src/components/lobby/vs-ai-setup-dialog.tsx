@@ -3,7 +3,7 @@
 // directly — it opens this dialog, the second step, which collects the two
 // vs-AI knobs (difficulty, AI opponent deck) and only fires `createSoloGame` on
 // Confirm. The player's OWN deck remains the lobby's active-deck selection and
-// is NOT asked here. Match format is NOT vs-AI-specific — it governs Solo and
+// is NOT asked here. Games format is NOT vs-AI-specific — it governs Solo and
 // Multiplayer too, so its selector lives in the Loadout (`lobby-loadout`) and
 // is not duplicated here.
 //

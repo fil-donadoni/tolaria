@@ -11,14 +11,16 @@ const PLAYER_KEY = "tolaria:playerId";
 const DECK_KEY = "tolaria:selectedDeckId";
 const AI_DECK_KEY = "tolaria:aiDeckId";
 const DIFFICULTY_KEY = "tolaria:aiDifficulty";
-const MATCH_FORMAT_KEY = "tolaria:matchFormat";
+const GAMES_FORMAT_KEY = "tolaria:gamesFormat";
+// Pre-rename key (issue #5337): read once when the new one is unset.
+const LEGACY_GAMES_FORMAT_KEY = "tolaria:matchFormat";
 const DECK_FORMAT_FILTER_KEY = "tolaria:deckFormatFilter";
 const PLAY_MODE_KEY = "tolaria:playMode";
 
-/** Best-of-N match format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
+/** Best-of-N games format (PRD #387). Bo1 (single Game) or Bo3 (first to two).
  *  Maps to the `bestOf` numeric the Match is created with. */
-export type MatchFormat = 1 | 3;
-export const DEFAULT_MATCH_FORMAT: MatchFormat = 1;
+export type GamesFormat = 1 | 3;
+export const DEFAULT_GAMES_FORMAT: GamesFormat = 1;
 
 export function getStoredSession() {
     const gameId = localStorage.getItem(GAME_KEY) as Id<"games"> | null;
@@ -83,15 +85,17 @@ export function storeDifficulty(difficulty: Difficulty) {
 
 /** Bo1/Bo3 lobby selection (PRD #387). Persisted so the next session defaults
  *  to the last-picked format; falls back to Bo1 when unset or stale. */
-export function getStoredMatchFormat(): MatchFormat {
-    const stored = localStorage.getItem(MATCH_FORMAT_KEY);
+export function getStoredGamesFormat(): GamesFormat {
+    const stored =
+        localStorage.getItem(GAMES_FORMAT_KEY) ??
+        localStorage.getItem(LEGACY_GAMES_FORMAT_KEY);
     if (stored === "3") return 3;
     if (stored === "1") return 1;
-    return DEFAULT_MATCH_FORMAT;
+    return DEFAULT_GAMES_FORMAT;
 }
 
-export function storeMatchFormat(format: MatchFormat) {
-    localStorage.setItem(MATCH_FORMAT_KEY, String(format));
+export function storeGamesFormat(format: GamesFormat) {
+    localStorage.setItem(GAMES_FORMAT_KEY, String(format));
 }
 
 /** The deck-list Format filter (PRD #509, ADR 0036, issue #513). `"all"` shows
@@ -123,7 +127,7 @@ export function storeDeckFormatFilter(filter: DeckFormatFilter) {
  *  printed card). This DRIVES deck filtering and the action set — the
  *  inverse of the pre-#2591 flow, which derived the mode from
  *  `selectedDeck.format === "manual"`. Persisted client-side like the three
- *  sibling lobby toggles above (match format, difficulty, deck-format
+ *  sibling lobby toggles above (games format, difficulty, deck-format
  *  filter) rather than in the Convex-backed `userSettings` table: it is a
  *  per-device "what am I about to do" toggle, not a cross-device profile
  *  preference (contrast the density/motion/phase-stop settings in

@@ -10,33 +10,44 @@
 // drift from what the mutation actually accepts.
 
 /** Best-of-N shape of every round Match in the event. */
-export type LimitedMatchFormat = "bo1" | "bo3";
+export type LimitedGamesFormat = "bo1" | "bo3";
 
-export const LIMITED_MATCH_FORMATS = ["bo1", "bo3"] as const;
+export const LIMITED_GAMES_FORMATS = ["bo1", "bo3"] as const;
 
 /** PRD #1628 story 2: Bo3 is the default so an event plays like real Limited
  *  with nothing configured. Also the tolerant-read fallback for every event
  *  row written before the field existed (issue #1640: the stored field is
  *  OPTIONAL so pre-play-phase documents keep validating — see
- *  `resolveMatchFormat`). */
-export const DEFAULT_MATCH_FORMAT: LimitedMatchFormat = "bo3";
+ *  `resolveGamesFormat`). */
+export const DEFAULT_GAMES_FORMAT: LimitedGamesFormat = "bo3";
 
-/** The stored (optional) match format resolved to a definite one. The schema
+/** The stored (optional) games format resolved to a definite one. The schema
  *  field is optional purely for backward compatibility with events created
  *  before the play phase existed; every READER goes through here, so the rest
  *  of the system — projection, wire shape, UI — only ever sees a concrete
  *  `"bo1" | "bo3"`, never `undefined`. */
-export function resolveMatchFormat(
-    stored: LimitedMatchFormat | undefined
-): LimitedMatchFormat {
-    return stored ?? DEFAULT_MATCH_FORMAT;
+export function resolveGamesFormat(
+    stored: LimitedGamesFormat | undefined
+): LimitedGamesFormat {
+    return stored ?? DEFAULT_GAMES_FORMAT;
+}
+
+/** The Limited Event's stored Games Format resolved from the event row,
+ *  tolerant of the pre-rename key (issue #5337): events created before the
+ *  rename carry `matchFormat`, new ones write `gamesFormat`. The ONE place
+ *  that names the legacy key — every event reader goes through here. */
+export function resolveEventGamesFormat(event: {
+    gamesFormat?: LimitedGamesFormat;
+    matchFormat?: LimitedGamesFormat;
+}): LimitedGamesFormat {
+    return resolveGamesFormat(event.gamesFormat ?? event.matchFormat);
 }
 
 /** The `matches.bestOf` value a round Match of this format is created with —
  *  the seam between the event's own vocabulary and the existing Match/Game
  *  flow (`matches.bestOf: 1 | 3`, ADR 0029), so the round-pairing builder
  *  never hardcodes the mapping. */
-export function bestOfForMatchFormat(format: LimitedMatchFormat): 1 | 3 {
+export function bestOfForGamesFormat(format: LimitedGamesFormat): 1 | 3 {
     return format === "bo1" ? 1 : 3;
 }
 
@@ -44,7 +55,7 @@ export function bestOfForMatchFormat(format: LimitedMatchFormat): 1 | 3 {
  *  the target the (later) bot-vs-bot simulator rolls towards. Bo1 = 1, Bo3 = 2
  *  (PRD #1628 story 28: "a bye recorded as a match win with the games it is
  *  worth"). */
-export function gamesToWinMatch(format: LimitedMatchFormat): 1 | 2 {
+export function gamesToWinMatch(format: LimitedGamesFormat): 1 | 2 {
     return format === "bo1" ? 1 : 2;
 }
 
@@ -71,11 +82,11 @@ export function isValidRoundDeadlineMinutes(minutes: number): boolean {
     );
 }
 
-/** Whether an arbitrary string is a valid Match Format — the parse boundary
+/** Whether an arbitrary string is a valid Games Format — the parse boundary
  *  for a value arriving from outside the type system (a stored document, a
  *  client payload). */
-export function isLimitedMatchFormat(
+export function isLimitedGamesFormat(
     value: string
-): value is LimitedMatchFormat {
-    return (LIMITED_MATCH_FORMATS as readonly string[]).includes(value);
+): value is LimitedGamesFormat {
+    return (LIMITED_GAMES_FORMATS as readonly string[]).includes(value);
 }

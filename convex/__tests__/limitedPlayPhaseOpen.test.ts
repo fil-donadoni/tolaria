@@ -32,7 +32,7 @@ import {
     generateSealedPools,
     type ResolveCardMeta,
 } from "../limited/eventLogic";
-import { resolveMatchFormat } from "../limited/matchFormat";
+import { resolveGamesFormat } from "../limited/gamesFormat";
 import { evaluateDeckStrength, type DeckStrength } from "../limited/matchSim";
 import { getRuntimeBoosterConfig } from "../limited/registry";
 import { openRound, type ResolveSeatStrength } from "../limited/rounds";
@@ -113,7 +113,7 @@ function startedEvent(seatCount = 8): LimitedEventRow {
         seatCount,
         packSlots,
         sealedBoosterCount,
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         seats,
         createdAt: 0,
         updatedAt: 0,
@@ -168,7 +168,7 @@ function openPlayPhase(
         roundNumber: 1,
         seats: event.seats,
         previousRounds: [],
-        matchFormat: resolveMatchFormat(event.matchFormat),
+        gamesFormat: resolveGamesFormat(event.gamesFormat),
         startedAt: now,
         roundDeadlineMinutes: event.roundDeadlineMinutes,
         seatStrength,
@@ -334,7 +334,7 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
             seatCount,
             packSlots,
             sealedBoosterCount: 6,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             seats,
             createdAt: 0,
             updatedAt: 0,
@@ -380,7 +380,7 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
             status: "started",
             seatCount,
             packSlots,
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             seats: afterBots.seats,
             draftRound: afterBots.draftRound,
             draftPacksRemaining: afterBots.draftPacksRemaining,
@@ -571,7 +571,7 @@ describe("an all-bot table reaches the play phase (issue #1644)", () => {
             seatCount: 8,
             packSlots: type === "draft" ? ["lea", "lea", "lea"] : ["lea"],
             ...(type === "sealed" ? { sealedBoosterCount: 6 } : {}),
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             seats: buildEmptySeats(8),
             createdAt: 0,
             updatedAt: 0,

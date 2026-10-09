@@ -165,7 +165,7 @@ beforeEach(() => {
     useUserDecksMock.mockImplementation(() => []);
     localStorage.clear();
     localStorage.setItem("tolaria:selectedDeckId", "mono-red-burn");
-    localStorage.setItem("tolaria:matchFormat", "3");
+    localStorage.setItem("tolaria:gamesFormat", "3");
 });
 
 /** One open (waiting) table, as `api.gameReads.listOpenGames` returns it: a games
@@ -349,7 +349,7 @@ describe("Lobby vs-AI two-step flow", () => {
         // present (title + confirm button).
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
-        expect(getByLabelText("Match Format")).toBeTruthy();
+        expect(getByLabelText("Games Format")).toBeTruthy();
         expect(getAllByText("Play vs AI").length).toBeGreaterThanOrEqual(2);
     });
 
@@ -479,7 +479,7 @@ describe("Lobby dashboard Open Events join (issue #2648)", () => {
             createdBy: "admin-1",
             type: "sealed",
             status: "open",
-            matchFormat: "bo3",
+            gamesFormat: "bo3",
             completed: false,
             seatCount: 2,
             seatsWithDeck: 0,

@@ -1,5 +1,5 @@
 // Two-step "Play vs AI" setup dialog: the second step that collects difficulty,
-// match format, and AI opponent deck, and only fires the create mutation on
+// games format, and AI opponent deck, and only fires the create mutation on
 // Confirm. The player's OWN deck stays the Lobby hero selection and is NOT asked
 // here. See `../vs-ai-setup-dialog`.
 import { describe, it, expect, vi } from "vitest";
@@ -55,9 +55,9 @@ describe("VsAiSetupDialog", () => {
         const { getByLabelText, queryByLabelText } = renderDialog();
         expect(getByLabelText("AI Difficulty")).toBeTruthy();
         expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
-        // Match format is not a vs-AI knob: it governs Solo / Create
+        // Games format is not a vs-AI knob: it governs Solo / Create
         // Multiplayer too and is picked in the Play box.
-        expect(queryByLabelText("Match Format")).toBeNull();
+        expect(queryByLabelText("Games Format")).toBeNull();
     });
 
     it("does not render its content while closed", () => {

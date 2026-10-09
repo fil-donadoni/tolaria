@@ -107,7 +107,7 @@ function projectedEvent(
         status: "playing",
         seatCount: 4,
         packSlots: ["lea"],
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         currentRound: 1,
         rounds: [{ roundNumber: 1, startedAt: 1000, pairings }],
         seats: [

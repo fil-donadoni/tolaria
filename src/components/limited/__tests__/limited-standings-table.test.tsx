@@ -57,7 +57,7 @@ function makeEvent(
         seatCount: seats.length,
         packSlots: ["lea"],
         sealedBoosterCount: 6,
-        matchFormat: "bo3",
+        gamesFormat: "bo3",
         rounds: [],
         standings: seats.map((s) => zeroRow(s.seatIndex)),
         completed: false,
