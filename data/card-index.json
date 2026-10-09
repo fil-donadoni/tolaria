@@ -37474,6 +37474,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Mishra's Foundry",
+        "scryfallId": "da7699b2-e1af-4bc0-8c5b-84ba3e868d7c",
+        "oracleId": "b43e9772-6ad4-49c7-9557-b18ee1e4587d",
+        "firstSet": "bro",
+        "firstPrintId": "da7699b2-e1af-4bc0-8c5b-84ba3e868d7c",
+        "firstPrintSet": "bro",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mishra's Onslaught",
         "scryfallId": "eda82e38-c1d4-4019-8f79-f91602d941b0",
         "oracleId": "3684edb5-bbf1-4ed7-b5b7-f24b452dbd64",
