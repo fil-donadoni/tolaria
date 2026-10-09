@@ -39,10 +39,15 @@ import { resolve } from "node:path";
 import { getAllCards } from "../convex/cards/index";
 import {
     AI_EFFECTS_BASELINE_PATH,
+    AI_EFFECTS_INERT_BASELINE_PATH,
+    describeInert,
     describeOffender,
     pruneBaseline,
+    pruneInertBaseline,
     serializeBaseline,
+    serializeInertBaseline,
     type AiEffectsBaselineRow,
+    type AiEffectsInertRow,
 } from "./lib/ai-effects-baseline";
 
 const checkOnly = process.argv.includes("--check");
@@ -89,10 +94,64 @@ if (drifted.length > 0) {
 
 if (grown.length > 0 || drifted.length > 0) process.exit(1);
 
-if (graduated.length === 0) {
-    console.log(
-        `= ai:allowlist: in sync, ${pruned.length} AI-blind site(s) baselined (nothing graduated)`
+// Inert shadows (issue #5150): graduated is not the same claim as "the Bot
+// sees it". Census first, then the prune-only baseline of inert sites.
+const inertPath = resolve(AI_EFFECTS_INERT_BASELINE_PATH);
+let inertBaseline: AiEffectsInertRow[];
+try {
+    inertBaseline = JSON.parse(
+        readFileSync(inertPath, "utf8")
+    ) as AiEffectsInertRow[];
+} catch (err) {
+    console.error(
+        `x ai:allowlist: cannot read ${AI_EFFECTS_INERT_BASELINE_PATH} - ${String(err)}`
     );
+    process.exit(1);
+}
+const inert = pruneInertBaseline(inertBaseline, getAllCards());
+
+console.log(
+    `${inert.live.length} inert shadow site(s) - the shadow leaves the card's latent value at the base + MV floor (script / floor):`
+);
+for (const site of inert.live) console.log(`    ${describeInert(site)}`);
+
+if (inert.grown.length > 0) {
+    console.error(
+        `x ai:allowlist: ${inert.grown.length} inert shadow site(s) have no baseline row. ` +
+            `A new aiEffects shadow must lift its card above the base + MV floor; the ` +
+            `inert baseline is prune-only and will not take a new row (issue #5150):`
+    );
+    for (const site of inert.grown) console.error(`    ${describeInert(site)}`);
+    process.exit(1);
+}
+const inertStale = inert.lifted.length > 0;
+if (inertStale) {
+    console.log(
+        `${inert.lifted.length} row(s) no longer inert - the shadow moves the card now:`
+    );
+    for (const row of inert.lifted) console.log(`    ${describeInert(row)}`);
+}
+
+if (graduated.length === 0 && !inertStale) {
+    console.log(
+        `= ai:allowlist: in sync, ${pruned.length} AI-blind site(s) baselined (nothing graduated), ${inert.pruned.length} inert`
+    );
+    process.exit(0);
+}
+if (inertStale && !checkOnly) {
+    writeFileSync(inertPath, serializeInertBaseline(inert.pruned));
+    console.log(
+        `= ai:allowlist: pruned ${inert.lifted.length} inert row(s) -> ${AI_EFFECTS_INERT_BASELINE_PATH}`
+    );
+}
+if (graduated.length === 0) {
+    if (checkOnly) {
+        console.error(
+            `x ai:allowlist: ${AI_EFFECTS_INERT_BASELINE_PATH} is stale by ${inert.lifted.length} row(s). ` +
+                `Prune it with: bun run ai:allowlist`
+        );
+        process.exit(1);
+    }
     process.exit(0);
 }
 

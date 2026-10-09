@@ -59,6 +59,9 @@
  * `REGENERATED_ARTIFACTS`.
  */
 
+import { dslLatentPieces, latentValue } from "../../convex/gre/cardValue";
+import { nonCreatureBodyRaw } from "../../convex/gre/creatureBody";
+import { manaValue } from "../../convex/gre/constants";
 import type {
     ActivatedAbility,
     CardDefinition,
@@ -411,4 +414,160 @@ export function pruneBaseline(
     }
 
     return { grown, graduated, drifted, pruned: sortBaseline(pruned) };
+}
+
+// Inert shadows (issue #5150).
+//
+// "Graduated" (a baseline row left because its site gained a shadow, a real
+// script or an `aiValue`) and "the Bot sees it" are different claims: a
+// non-creature's latent Card Value is `max(script, base + MV)`
+// (`latentValue`, `gre/cardValue.ts`), so a shadow whose script reads at or
+// below the floor changes nothing. This section measures that fact.
+
+/** Repo-relative path of the committed inert baseline. */
+export const AI_EFFECTS_INERT_BASELINE_PATH = "data/ai-effects-inert.json";
+
+/** One committed inert-baseline row: a shadow card whose latent value sits at
+ *  the `base + MV` floor. Identity only - the readout is derived live. */
+export interface AiEffectsInertRow {
+    readonly cardId: string;
+    readonly name: string;
+}
+
+/** A live inert site with its readout. */
+export interface AiEffectsInertSite extends AiEffectsInertRow {
+    /** The card's script value as the latent reading sees it. */
+    readonly script: number;
+    /** `nonCreatureBodyRaw(MV)` - the floor that wins. */
+    readonly floor: number;
+}
+
+/** True when `card` carries an `aiEffects` shadow, on the card or on one of
+ *  its activated/triggered abilities. */
+function carriesShadow(card: CardDefinition): boolean {
+    return (
+        (!!card.aiEffects && card.aiEffects.length > 0) ||
+        abilityOnlyOf(card).some(abilityHasShadowScript)
+    );
+}
+
+/** A mana value so negative that no script value can be at or below the
+ *  resulting floor: `latentValue` then returns the bare (clamped) script. */
+const NO_FLOOR_MANA_VALUE = -1_000_000;
+
+/**
+ * Every non-creature shadow card whose script leaves its latent value exactly
+ * at the floor. Computed through `dslLatentPieces` + `latentValue` against
+ * `nonCreatureBodyRaw(MV)` - the floor is never re-implemented here. A
+ * creature is never inert (body plus ability value add, no floor); an
+ * `aiValue` override replaces the reading outright; a card with no readable
+ * script falls back to the floor by construction, not because of a shadow.
+ */
+export function enumerateInertShadows(
+    cards: readonly CardDefinition[]
+): AiEffectsInertSite[] {
+    const sites: AiEffectsInertSite[] = [];
+    for (const card of cards) {
+        if (card.types.includes("Creature")) continue;
+        if (card.aiValue !== undefined) continue;
+        if (!carriesShadow(card)) continue;
+        const pieces = dslLatentPieces(card);
+        if (
+            pieces.dslSpellValue === undefined &&
+            pieces.dslStandingAbilityValue === undefined
+        ) {
+            continue;
+        }
+        const mv = manaValue(card.manaCost);
+        const chars = {
+            isCreature: false,
+            power: card.power ?? 0,
+            toughness: card.toughness ?? 0,
+            staticAbilities: card.staticAbilities ?? [],
+            ...pieces,
+        };
+        const floor = nonCreatureBodyRaw(mv);
+        const latent = latentValue({ ...chars, manaValue: mv });
+        if (latent !== floor) continue;
+        sites.push({
+            cardId: card.id,
+            name: card.name,
+            script: latentValue({ ...chars, manaValue: NO_FLOOR_MANA_VALUE }),
+            floor,
+        });
+    }
+    return sites;
+}
+
+/** A human-readable inert row for CLI and guard messages. */
+export function describeInert(
+    row: AiEffectsInertRow & Partial<AiEffectsInertSite>
+): string {
+    const readout =
+        row.script !== undefined && row.floor !== undefined
+            ? ` ${round1(row.script)} / ${round1(row.floor)}`
+            : "";
+    return `${row.cardId} (${row.name})${readout}`;
+}
+
+function round1(n: number): number {
+    return Math.round(n * 10) / 10;
+}
+
+/** Canonical order for the inert baseline: card name, then id. */
+export function sortInertBaseline(
+    rows: readonly AiEffectsInertRow[]
+): AiEffectsInertRow[] {
+    return [...rows].sort((a, b) =>
+        a.name !== b.name
+            ? a.name < b.name
+                ? -1
+                : 1
+            : a.cardId < b.cardId
+              ? -1
+              : a.cardId > b.cardId
+                ? 1
+                : 0
+    );
+}
+
+/** The committed bytes for the inert baseline (identity fields only). */
+export function serializeInertBaseline(
+    rows: readonly AiEffectsInertRow[]
+): string {
+    const lean = sortInertBaseline(rows).map(({ cardId, name }) => ({
+        cardId,
+        name,
+    }));
+    return `${JSON.stringify(lean, null, 4)}\n`;
+}
+
+export interface AiEffectsInertResult {
+    /** Live inert sites with no baseline row - GROWTH, a hard refusal. */
+    readonly grown: AiEffectsInertSite[];
+    /** Baseline rows no longer inert (lifted above the floor, no longer a
+     *  shadow, or gone) - what the prune removes. */
+    readonly lifted: AiEffectsInertRow[];
+    /** Every live inert site, for the census readout. */
+    readonly live: AiEffectsInertSite[];
+    /** The baseline after pruning, canonically ordered. */
+    readonly pruned: AiEffectsInertRow[];
+}
+
+/** PRUNE-ONLY comparison of the inert baseline against the live census. */
+export function pruneInertBaseline(
+    baseline: readonly AiEffectsInertRow[],
+    cards: readonly CardDefinition[]
+): AiEffectsInertResult {
+    const live = enumerateInertShadows(cards);
+    const liveIds = new Set(live.map((s) => s.cardId));
+    const baselineIds = new Set(baseline.map((r) => r.cardId));
+    return {
+        live,
+        grown: live.filter((s) => !baselineIds.has(s.cardId)),
+        lifted: baseline.filter((r) => !liveIds.has(r.cardId)),
+        pruned: sortInertBaseline(
+            baseline.filter((r) => liveIds.has(r.cardId))
+        ),
+    };
 }

@@ -91,6 +91,11 @@ import type { ActivatedAbility, CardDefinition } from "../types";
 import {
     AI_EFFECTS_BASELINE_PATH,
     AI_EFFECTS_BASELINE_SCRIPT,
+    AI_EFFECTS_INERT_BASELINE_PATH,
+    describeInert,
+    enumerateInertShadows,
+    serializeInertBaseline,
+    type AiEffectsInertRow,
     abilitiesOf,
     abilityHasShadowScript,
     abilityOnlyOf,
@@ -464,5 +469,45 @@ describe("aiEffects shadow-script guard — predicate correctness (fixture, issu
         // ...but the sweep never reaches it because the card is skipped
         // outright once it carries an aiValue.
         expect(enumerateAiEffectsOffenders([fixedCard])).toEqual([]);
+    });
+});
+
+// Inert shadows (issue #5150) - "graduated" is not "the Bot sees it". A shadow
+// whose script reads at or below `base + MV` leaves the card's latent value on
+// the floor, so a NEW such shadow is growth exactly like a missing one.
+describe("aiEffects shadow-script guard - inert shadows (issue #5150)", () => {
+    const inertText = readFileSync(
+        resolvePath(AI_EFFECTS_INERT_BASELINE_PATH),
+        "utf8"
+    );
+    const INERT_BASELINE = JSON.parse(inertText) as AiEffectsInertRow[];
+    const LIVE_INERT = enumerateInertShadows(CARDS);
+
+    it("no new aiEffects shadow leaves its card's latent value at the base + MV floor", () => {
+        const baselined = new Set(INERT_BASELINE.map((r) => r.cardId));
+        const grown = LIVE_INERT.filter((s) => !baselined.has(s.cardId)).map(
+            describeInert
+        );
+        expect(
+            grown,
+            "shadow(s) whose script reads at or below the base + MV floor (script / floor) - " +
+                "the Bot's Card Value does not move. Lift the card above the floor; the inert " +
+                `baseline is prune-only (${REGENERATE}) and takes no new row.`
+        ).toEqual([]);
+    });
+
+    it("no inert row outlives its site - a shadow that now moves the card is pruned", () => {
+        const live = new Set(LIVE_INERT.map((s) => s.cardId));
+        const lifted = INERT_BASELINE.filter((r) => !live.has(r.cardId)).map(
+            describeInert
+        );
+        expect(
+            lifted,
+            `${AI_EFFECTS_INERT_BASELINE_PATH} row(s) no longer inert. Prune with: ${REGENERATE}`
+        ).toEqual([]);
+    });
+
+    it("the inert baseline is in canonical form", () => {
+        expect(inertText).toBe(serializeInertBaseline(INERT_BASELINE));
     });
 });
