@@ -508,3 +508,47 @@ describe("listOpenGames — an unlisted table is never broadcast (issue #4670)",
         expect("unlisted" in row).toBe(false);
     });
 });
+
+describe("join — Format Compatibility enforced at join (issue #4611)", () => {
+    const limitedHost = {
+        players: [
+            {
+                id: ALICE,
+                name: "Alice",
+                bgColor: "#000",
+                deck: { id: "d", name: "D", format: "limited" },
+            },
+        ],
+    };
+
+    it("refuses a Standard-Variant Deck at a Limited host's table, by id and by code", async () => {
+        const byId = bobFacing(limitedHost);
+        const idMessage = await rejection(() =>
+            run(joinGame, byId.ctx, { gameId: "game-x", deck: DECK })
+        );
+        expect(idMessage).toMatch(/cannot join/i);
+        expect(byId.tables.games![0].status).toBe("waiting");
+
+        const byCode = bobFacing(limitedHost);
+        const codeMessage = await rejection(() =>
+            run(joinGameByCode, byCode.ctx, { code: "K3M9XZ", deck: DECK })
+        );
+        expect(codeMessage).toBe(idMessage);
+        expect(byCode.tables.games![0].status).toBe("waiting");
+    });
+
+    it("still seats two different Standard-Variant Formats together", async () => {
+        const db = bobFacing({
+            players: [
+                {
+                    id: ALICE,
+                    name: "Alice",
+                    bgColor: "#000",
+                    deck: { id: "d", name: "D", format: "premodern" },
+                },
+            ],
+        });
+        await run(joinGame, db.ctx, { gameId: "game-x", deck: DECK });
+        expect(db.tables.games![0].status).toBe("pregame");
+    });
+});

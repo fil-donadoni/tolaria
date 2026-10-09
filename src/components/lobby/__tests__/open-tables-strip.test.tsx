@@ -13,7 +13,13 @@ function makeGame(overrides: Partial<OpenGame> = {}): OpenGame {
         _creationTime: 0,
         name: "Tester's game",
         status: "waiting",
-        players: [{ id: "user-1", nickname: "Tester" }],
+        players: [
+            {
+                id: "user-1",
+                nickname: "Tester",
+                deck: { format: "freeform" },
+            },
+        ],
         bestOf: 1,
         ...overrides,
     } as unknown as OpenGame;
@@ -97,5 +103,27 @@ describe("OpenTablesStrip (issue #2726)", () => {
         }) as HTMLButtonElement;
         expect(arenaRow.disabled).toBe(true);
         expect(arenaRow.title).toContain("switch to Arena mode");
+    });
+
+    it("disables a table whose host Format cannot meet the picked deck, and says why (issue #4611)", () => {
+        const limitedTable = makeGame({
+            players: [
+                { id: "u", nickname: "Host", deck: { format: "limited" } },
+            ],
+        } as unknown as Partial<OpenGame>);
+        const { getByRole, props } = renderStrip({
+            openGames: [limitedTable],
+            deckFormat: "premodern",
+        });
+        const row = getByRole("button") as HTMLButtonElement;
+        expect(row.disabled).toBe(true);
+        expect(row.title).toMatch(/cannot join/i);
+        fireEvent.click(row);
+        expect(props.onJoin).not.toHaveBeenCalled();
+    });
+
+    it("keeps a table joinable across two different Standard-Variant Formats (issue #4611)", () => {
+        const { getByRole } = renderStrip({ deckFormat: "premodern" });
+        expect((getByRole("button") as HTMLButtonElement).disabled).toBe(false);
     });
 });

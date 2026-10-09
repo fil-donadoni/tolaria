@@ -131,7 +131,12 @@ import {
 } from "./gre/payWith";
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
-import { assertDeckLegal, type ResolvePool } from "./formats";
+import {
+    assertDeckLegal,
+    formatsCompatible,
+    isFormatId,
+    type ResolvePool,
+} from "./formats";
 import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import {
@@ -3537,7 +3542,23 @@ type JoinTargetResolver = (
     ctx: MutationCtx
 ) => Promise<Doc<"games"> | null | undefined>;
 
-/** The whole of a second-seat join: twelve guards in a fixed order, then the
+/** Refuses a joiner whose Deck's Format cannot meet the host's (Format
+ *  Compatibility). An unknown format string is treated as `freeform`, the same
+ *  fallback `assertDeckLegal` uses. */
+function assertFormatCompatibleWithHost(
+    game: Doc<"games">,
+    joinerFormat: string
+): void {
+    const hostFormat = game.players[0]?.deck.format;
+    if (hostFormat === undefined) return;
+    const asId = (f: string) => (isFormatId(f) ? f : "freeform");
+    if (!formatsCompatible(asId(hostFormat), asId(joinerFormat)))
+        throw new ConvexError(
+            `This table's host plays ${hostFormat}; a ${joinerFormat} deck cannot join it. Pick a compatible deck.`
+        );
+}
+
+/** The whole of a second-seat join: thirteen guards in a fixed order, then the
  *  seat write and the Match's coin-toss gate.
  *
  *  Extracted from `joinGame` (issue #2649) so "join by code" reuses it rather
@@ -3629,6 +3650,11 @@ async function joinWaitingGame(
         await loadBanlistOverrides(ctx, args.deck.format),
         await loadLimitedPoolResolver(ctx, args.deck, user._id)
     );
+
+    // Format Compatibility (CONTEXT.md, ADR 0145): enforced here, after the
+    // deck's own legality, not merely hinted by `getJoinInfo`. The host's Format
+    // rides on the seat row itself, so no decklist hydration is needed.
+    assertFormatCompatibleWithHost(game, args.deck.format);
 
     const player: PlayerInput = {
         id: user._id,

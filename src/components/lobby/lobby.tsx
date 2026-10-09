@@ -656,6 +656,7 @@ function Lobby() {
                             mode={playMode}
                             onJoin={handleJoin}
                             canAct={canAct}
+                            deckFormat={selectedDeck?.format}
                         />
                     </div>
 

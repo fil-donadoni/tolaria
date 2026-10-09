@@ -8,7 +8,7 @@ import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import {
     deckPayload,
-    filterDecksByFormat,
+    filterDecksCompatibleWith,
     selectPreset,
     toPresetLobbyDeck,
     type LobbyDeck,
@@ -52,13 +52,14 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     // The visitor's own decks and the presets, each pre-filtered to the game's
     // format and kept in their own list (the two lobby deck panels).
     const eligibleUserDecks = useMemo<LobbyDeck[]>(
-        () => (format ? filterDecksByFormat(userDecks ?? [], format) : []),
+        () =>
+            format ? filterDecksCompatibleWith(userDecks ?? [], format) : [],
         [userDecks, format]
     );
     const eligiblePresetDecks = useMemo<LobbyDeck[]>(
         () =>
             format
-                ? filterDecksByFormat(
+                ? filterDecksCompatibleWith(
                       (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
                       format
                   )
@@ -172,8 +173,8 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                     />
                     <PanelBody className="items-center text-center">
                         <p className="text-sm text-text-muted">
-                            Pick a deck to join. Only your {formatLabel} decks
-                            are shown.
+                            Pick a deck to join. Only decks that can meet a{" "}
+                            {formatLabel} deck are shown.
                         </p>
                     </PanelBody>
                 </Panel>
@@ -199,7 +200,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                                     selectedPresetId={selectedId}
                                     onFocus={selectIfLegal(eligibleUserDecks)}
                                     onSelect={setSelectedId}
-                                    emptyLabel={`You have no ${formatLabel} deck. Create one to join.`}
+                                    emptyLabel={`You have no deck that can meet a ${formatLabel} deck. Create one to join.`}
                                 />
                             </div>
                         </PanelBody>
@@ -214,7 +215,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                                     selectedPresetId={selectedId}
                                     onFocus={selectIfLegal(eligiblePresetDecks)}
                                     onSelect={setSelectedId}
-                                    emptyLabel={`No ${formatLabel} preset decks.`}
+                                    emptyLabel={`No preset deck can meet a ${formatLabel} deck.`}
                                 />
                             </div>
                         </PanelBody>

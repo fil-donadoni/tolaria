@@ -187,7 +187,7 @@ export const getManualLibraryTop = query({
 /** Lightweight info for the invite antechamber (`/join/<gameId>`). Deliberately
  *  does NOT return either player's decklist — a prospective joiner must never
  *  see the host's cards. Exposes only what the join page renders: who created
- *  the game, its format (for pre-filtering the joiner's deck list), and whether
+ *  the game, its format (the joiner's deck list is filtered by `formatsCompatible`; `joinGame` enforces it), and whether
  *  the game is still joinable. Returns `null` for an unknown id. */
 export const getJoinInfo = query({
     args: {
