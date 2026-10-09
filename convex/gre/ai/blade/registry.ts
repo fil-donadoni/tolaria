@@ -10717,9 +10717,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // A REACHABILITY claim at four times the sweep's budget, so a
+        // A REACHABILITY claim at eight times the sweep's budget, so a
         // PREDICATE, kept out of the weight fit like its discard sibling.
-        budget: { iterations: 200 },
+        // 400 since issue #5151's refit: at 200, seed 2 picked `pass` under
+        // the refitted vector (19/20 over twenty seeds; 20/20 under the
+        // previous one) — rollout noise at the budget edge, the drift its
+        // sibling's note records for issue #4764; at 400 the cast wins 20/20
+        // under both vectors.
+        budget: { iterations: 400 },
         seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
@@ -10731,7 +10736,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 ),
             describe: "casts Urborg Mindsucker",
         },
-        note: "Bot Gap `never-chosen › Creature › discardAtRandom` (1 card). Issue #4285.",
+        note: "Bot Gap `never-chosen › Creature › discardAtRandom` (1 card). Issue #4285. Budget 200 → 400 at issue #5151's refit: seed 2 chose `pass` at 200 under the refitted vector (19/20 over twenty seeds, 20/20 under the previous vector); 20/20 under both at 400.",
     },
     {
         // SACRIFICE-FOR-DRAIN reachability (CR 701.21a, CR 119.3, issue #4277).
