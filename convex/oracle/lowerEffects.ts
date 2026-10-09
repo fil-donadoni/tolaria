@@ -1564,11 +1564,34 @@ function lowerSentenceBody(
                 return unlowerable(
                     "an animation that does not say the permanents are still what they were replaces their types (CR 205.1a)"
                 );
+            const { power, toughness } = sentence;
+            // CR 205.1b + CR 613.1d — the source's own animation: one op on
+            // `$source`, carrying the type line the clause printed.
+            if (sentence.self !== undefined) {
+                const { subtype, additionalTypes, colors, keyword } =
+                    sentence.self;
+                return lowered([
+                    {
+                        op: "animate",
+                        target: { ref: "$source" },
+                        power,
+                        toughness,
+                        subtype,
+                        ...(additionalTypes.length > 0
+                            ? { additionalTypes: [...additionalTypes] }
+                            : {}),
+                        ...(colors.length > 0 ? { colors: [...colors] } : {}),
+                        ...(keyword !== undefined
+                            ? { grantedAbilities: [keyword.ability] }
+                            : {}),
+                        duration: durationSpec(sentence.duration),
+                    },
+                ]);
+            }
             if (sentence.subject.kind !== "mass")
                 return unlowerable(
                     "an animation reads a sweep, not one object"
                 );
-            const { power, toughness } = sentence;
             return sweepOps(sentence.subject, site, slots, (target) => ({
                 op: "animate",
                 target,

@@ -5976,4 +5976,178 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             additionalCosts: { discard: { count: "X" } },
         },
     },
+    // CR 205.1b + CR 613.1d — "This land becomes a 3/3 green Ape creature with
+    // trample until end of turn. It's still a land.": the source animates
+    // itself. Exhibits the `animate` Op acting on `$source`, which the canned
+    // smoke scenario cannot drive (the source must be a land with a payable
+    // activation), so this fixture is the evidence the Op is emitted as the
+    // hand-written manlands write it (sets/ulg/colorless.cards.ts, issue #4564).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b53f216d-1592-4eee-b204-502a805fbc8c",
+            name: "Treetop Village",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Treetop Village",
+            types: ["Land"],
+            oracleText:
+                "This land enters tapped.\n{T}: Add {G}.\n{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land. (It can deal excess combat damage to the player or planeswalker it's attacking.)",
+            activatedAbilities: [
+                {
+                    id: "treetop-village-mana",
+                    oracleText: "{T}: Add {G}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { G: 1 },
+                },
+                {
+                    id: "treetop-village-ability-2",
+                    oracleText:
+                        "{1}{G}: This land becomes a 3/3 green Ape creature with trample until end of turn. It's still a land.",
+                    cost: { mana: { X: 1, G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 3,
+                            toughness: 3,
+                            subtype: "Ape",
+                            colors: ["G"],
+                            grantedAbilities: ["trample"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    animatesSelf: true,
+                },
+            ],
+            entersTapped: true,
+        },
+    },
+    // The same self animation with another subtype, colour and keyword: the
+    // smoke form keeps those literals, so each distinct clause needs its own
+    // evidence (issue #4564).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Faerie Conclave",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "This land enters tapped.\n{T}: Add {U}.\n{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+            oracleId: "0c25f6b1-8fb3-4406-9605-0282d2dbbcec",
+            layout: "normal",
+        },
+        expected: {
+            name: "Faerie Conclave",
+            types: ["Land"],
+            oracleText:
+                "This land enters tapped.\n{T}: Add {U}.\n{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+            activatedAbilities: [
+                {
+                    id: "faerie-conclave-mana",
+                    oracleText: "{T}: Add {U}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { U: 1 },
+                },
+                {
+                    id: "faerie-conclave-ability-2",
+                    oracleText:
+                        "{1}{U}: This land becomes a 2/1 blue Faerie creature with flying until end of turn. It's still a land.",
+                    cost: { mana: { X: 1, U: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 2,
+                            toughness: 1,
+                            subtype: "Faerie",
+                            colors: ["U"],
+                            grantedAbilities: ["flying"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    animatesSelf: true,
+                },
+            ],
+            entersTapped: true,
+        },
+    },
+    // The same self animation with an added Artifact type and no colour or
+    // keyword (Mishra's Foundry prints the same clause; issue #4564).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Mishra's Factory",
+            manaCost: "",
+            typeLine: "Land",
+            oracleText:
+                "{T}: Add {C}.\n{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.\n{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
+            oracleId: "5963e0ef-e0bc-4611-ad4f-813a4c0eacfb",
+            layout: "normal",
+        },
+        expected: {
+            name: "Mishra's Factory",
+            types: ["Land"],
+            oracleText:
+                "{T}: Add {C}.\n{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.\n{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
+            activatedAbilities: [
+                {
+                    id: "mishra-s-factory-mana",
+                    oracleText: "{T}: Add {C}.",
+                    cost: { tap: true },
+                    useStack: false,
+                    manaProduced: { C: 1 },
+                },
+                {
+                    id: "mishra-s-factory-ability-2",
+                    oracleText:
+                        "{1}: This land becomes a 2/2 Assembly-Worker artifact creature until end of turn. It's still a land.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "animate",
+                            target: { ref: "$source" },
+                            power: 2,
+                            toughness: 2,
+                            subtype: "Assembly-Worker",
+                            additionalTypes: ["Artifact"],
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    animatesSelf: true,
+                },
+                {
+                    id: "mishra-s-factory-ability-3",
+                    oracleText:
+                        "{T}: Target Assembly-Worker creature gets +1/+1 until end of turn.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { target: 0 },
+                            power: 1,
+                            toughness: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        subtypeFilter: ["Assembly-Worker"],
+                    },
+                },
+            ],
+        },
+    },
 ]);

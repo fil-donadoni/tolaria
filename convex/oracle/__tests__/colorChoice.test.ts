@@ -13,9 +13,9 @@
 //     inside the real card, which `goldenFixtures`-style whole-card evidence
 //     for the union is not needed twice for.
 //  2. REFUSALS — the neighbouring colour templates this rule must NOT read: a
-//     plural target, "the color OR COLORS of your choice", a conjunct tail in
-//     the duration slot, and a fronted duration whose grant hangs off the
-//     colour that was picked. Each is a printed card, and each stays refused
+//     plural target, "the color OR COLORS of your choice", and a fronted
+//     duration whose grant hangs off the colour that was picked (the pump-and-
+//     recolour conjunct is read since issue #4564, `landAnimation.test.ts`). Each is a printed card, and each stays refused
 //     under its own Grammar Gap key.
 //  3. The two new TARGET phrases — each is exactly one spelling, and neither
 //     may be read by a verb that acts on the battlefield (CR 112.1: half of
@@ -403,28 +403,6 @@ describe("the neighbours this rule refuses (fail-closed, ADR 0105 § 2)", () => 
             )
         ).toEqual([
             "effect clause: Enchanted creature becomes the color or colors of your choice",
-        ]);
-    });
-
-    // A conjunct tail where the duration belongs: the sentence is a pump AND a
-    // colour change sharing one "until end of turn", which this rule does not
-    // assemble. It keeps its own gap key (`… › duration › and becomes …`).
-    it("refuses the conjunct tail — Wild Mongrel", () => {
-        expect(
-            refusedAt(
-                oracleCard({
-                    oracleId: "e9441ab3-7a17-4f9b-a873-e5e82f6e9690",
-                    name: "Wild Mongrel",
-                    manaCost: "{1}{G}",
-                    typeLine: "Creature — Dog",
-                    oracleText:
-                        "Discard a card: This creature gets +1/+1 and becomes the color of your choice until end of turn.",
-                    power: "2",
-                    toughness: "2",
-                })
-            )
-        ).toEqual([
-            "effect clause > duration: and becomes the color of your choice until end of turn",
         ]);
     });
 

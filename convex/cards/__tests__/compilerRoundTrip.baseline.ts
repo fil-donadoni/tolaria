@@ -838,7 +838,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Mirror Universe",
     "Mirrorwood Treefolk",
     "Mishra's Bauble",
-    "Mishra's Factory",
     "Mishra's War Machine",
     "Mishra's Workshop",
     "Mistfolk",

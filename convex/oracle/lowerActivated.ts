@@ -159,6 +159,16 @@ export function lowerActivatedAbility(input: {
         useStack: true,
         effects: ops,
     };
+    // An ability whose only effect animates its own source is marked so the
+    // Bot never pays for it twice (`ActivatedAbility.animatesSelf`).
+    const [only] = ops;
+    if (
+        ops.length === 1 &&
+        only!.op === "animate" &&
+        "ref" in only!.target &&
+        only!.target.ref === "$source"
+    )
+        ability.animatesSelf = true;
     // CR 702.33g — the kicked SWAP is a card-level field on a spell
     // (`kickedTargetRequirement`); an ability has no twin, so a gate that
     // announced one here has nowhere to declare it. UNREACHABLE today and
