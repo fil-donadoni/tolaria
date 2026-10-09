@@ -13,6 +13,10 @@
  * What is here is exactly what both have.
  */
 
+import {
+    lowerUnlessPayment,
+    unlessPaymentPrompt,
+} from "./grammar/shared/unlessPayment";
 import type {
     EffectObjectSelector,
     EffectOp,
@@ -2666,6 +2670,31 @@ function lowerSentenceBody(
                     bind,
                 },
                 { op: "discard", player: player.value, cards: { ref: bind } },
+            ]);
+        }
+        // CR 118.12a — "sacrifice it unless you <payment>" MEANS "you may pay;
+        // if you don't, sacrifice it": the `mayPay` + `if not` pair verbatim
+        // (Phyrexian Dreadnought). The payment is one `CostLegs` leg.
+        case "sacrifice-unless": {
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            const bind = walk.nextBind("may");
+            return lowered([
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    cost: lowerUnlessPayment(sentence.payment),
+                    prompt: unlessPaymentPrompt(
+                        sentence.payment,
+                        site.selfName
+                    ),
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { not: { binding: bind } },
+                    then: [{ op: "sacrifice", target: target.value }],
+                },
             ]);
         }
         case "sacrifice": {

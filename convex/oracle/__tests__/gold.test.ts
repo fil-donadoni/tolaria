@@ -235,7 +235,13 @@ describe("gold round-trip — precision", () => {
         // Winter Orb's the `condition` closure of its "as long as this
         // artifact is untapped" gate — all now compiled, the same move as the
         // entries above, out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(46);
+        //
+        // 45 -> 49 by issue #4548 ("sacrifice it unless you <payment>"):
+        // Phantasmal Forces, Stasis, Sunken City and Vaevictis Asmadi now compile to
+        // `mayPay` + `if not` while their hand-written upkeep triggers are
+        // `resolve()` closures — the same move as the entries above, out of
+        // "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(50);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

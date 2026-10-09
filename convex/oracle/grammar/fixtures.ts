@@ -5828,4 +5828,120 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 118.12a (issue #4548) — "sacrifice it unless you <payment>" as the
+    // body of an enters trigger. Both cards exhibit the card-dependent forms
+    // the canned smoke scenario cannot size: the `sacrifice` Op reading the
+    // `if not paid` branch, and (Phyrexian Dreadnought) the `mayPay` cost leg
+    // whose threshold is a runtime "count". Together they are the evidence
+    // that the `mayPay` + `if not` pair the grammar emits is the one the
+    // hand-written catalogue writes (Phyrexian Dreadnought round-trips).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Rogue Elephant",
+            manaCost: "{G}",
+            typeLine: "Creature — Elephant",
+            oracleText:
+                "When this creature enters, sacrifice it unless you sacrifice a Forest.",
+            power: "3",
+            toughness: "3",
+            oracleId: "bed7ac55-fe40-46d0-bc22-1c8d11f41459",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rogue Elephant",
+            types: ["Creature"],
+            subtypes: ["Elephant"],
+            manaCost: { G: 1 },
+            power: 3,
+            toughness: 3,
+            oracleText:
+                "When this creature enters, sacrifice it unless you sacrifice a Forest.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "rogue-elephant-trigger",
+                    oracleText:
+                        "When this creature enters, sacrifice it unless you sacrifice a Forest.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                permanent: {
+                                    action: "sacrifice",
+                                    filter: { subtypes: ["Forest"] },
+                                    count: 1,
+                                },
+                            },
+                            prompt: "Sacrifice a permanent, or sacrifice Rogue Elephant?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$may1" } },
+                            then: [
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            name: "Phyrexian Dreadnought",
+            manaCost: "{1}",
+            typeLine: "Artifact Creature — Phyrexian Dreadnought",
+            oracleText:
+                "Trample\nWhen this creature enters, sacrifice it unless you sacrifice any number of creatures with total power 12 or greater.",
+            power: "12",
+            toughness: "12",
+            oracleId: "a7950edb-5670-46fd-a30e-0fe888a5a32b",
+            layout: "normal",
+        },
+        expected: {
+            name: "Phyrexian Dreadnought",
+            types: ["Artifact", "Creature"],
+            subtypes: ["Phyrexian", "Dreadnought"],
+            manaCost: { X: 1 },
+            power: 12,
+            toughness: 12,
+            oracleText:
+                "Trample\nWhen this creature enters, sacrifice it unless you sacrifice any number of creatures with total power 12 or greater.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "phyrexian-dreadnought-trigger",
+                    oracleText:
+                        "When this creature enters, sacrifice it unless you sacrifice any number of creatures with total power 12 or greater.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: {
+                                permanent: {
+                                    action: "sacrifice",
+                                    filter: { types: ["Creature"] },
+                                    count: { minTotalPower: 12 },
+                                },
+                            },
+                            prompt: "Sacrifice creatures with total power 12 or greater, or sacrifice Phyrexian Dreadnought?",
+                            bind: "$may1",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$may1" } },
+                            then: [
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
