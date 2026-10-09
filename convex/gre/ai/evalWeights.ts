@@ -73,8 +73,28 @@ export interface LatentCreatureDiscounts {
  *  With NO board attached (a context-free valuation — the Bot Drafter's pick
  *  heuristic, the resolution-choice ordering, a catalogue tool) the unit count
  *  falls back to exactly ONE representative victim, which is what reproduces
- *  today's numbers byte-for-byte. */
-export type LatentWeights = Readonly<Record<Feature, number>>;
+ *  today's numbers byte-for-byte.
+ *
+ *  Plus ONE member that is not a dimension price but a MULTIPLIER on a whole
+ *  script (issue #5151): `recurrence` — how many times a standing triggered
+ *  ability that fires on a turn-structure step (`PHASE_BEGIN`: an upkeep, a
+ *  draw step, an end step, a combat step) is expected to fire over the life
+ *  of its permanent, i.e. the turns the permanent is expected to survive.
+ *  Read by `abilityScriptOpValue` (`ai/cardScriptValue.ts`) for a
+ *  non-creature permanent's standing reading, so Black Vise's "4 damage every
+ *  upkeep" is priced as a stream and not as one Shock. It rides in this record
+ *  rather than beside it so it reaches every reader the dimension prices
+ *  reach — through `contextFreeGrounding(latent)` — and is fitted like them
+ *  (`latent.recurrence`, `verdicts/features.ts`). */
+export type LatentWeights = Readonly<
+    Record<Feature, number> & {
+        /** Expected firings of a per-turn standing trigger over its
+         *  permanent's life (issue #5151). Strictly above 1, or a repeating
+         *  trigger is worth no more than a one-shot; asserted on the committed
+         *  vector in `evalWeights.bot.test.ts`. */
+        recurrence: number;
+    }
+>;
 
 export type EvalWeights = {
     // --- evaluate.ts: leaf material/position weights (ADR 0018) -----------
@@ -419,6 +439,18 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
         tokens: 0.85,
         pump: 9,
         protection: 60,
+        // Issue #5151 — the turns a non-creature permanent is expected to
+        // survive, so a per-turn standing trigger fires this many times. Six:
+        // a sorcery-speed permanent cast around turn 3–4 of a game that is
+        // decided around turn 10 sees roughly that many of its own upkeeps,
+        // and few decks spend a card on a cheap artifact or enchantment. The
+        // prior must also clear the `base + MV` floor for the SMALLEST
+        // recurring script in the catalogue (Ivory Tower, 1 life per upkeep
+        // at the `lifeSwing` price, halved by `ABILITY_SCRIPT_DISCOUNT`
+        // against a floor of 18 for MV 1): below ~4.8 the floor still hides
+        // it and the whole slice stays inert (issue #5150's census). The fit
+        // moves it from here within its trust region.
+        recurrence: 6,
     }),
 });
 
@@ -476,6 +508,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
         tokens: 0.434378,
         pump: 10.229241,
         protection: 60,
+        recurrence: 6,
     }),
 });
 

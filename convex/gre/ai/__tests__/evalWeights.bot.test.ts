@@ -94,6 +94,18 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         );
     });
 
+    it("prices a per-turn standing trigger as MORE than one firing (issue #5151)", () => {
+        // `latent.recurrence` multiplies the script of a trigger on a
+        // recurring turn-structure event. At 1 or below a repeating tax or
+        // engine is worth no more than a one-shot trigger of the same script
+        // — the inert slice issue #5150's census measured. The fit's trust
+        // region around the prior reaches below 1 only if the prior is
+        // under 2, and no fit band bounds a single weight, so the range is
+        // asserted here on the committed vector.
+        expect(DEFAULT_EVAL_WEIGHTS.latent.recurrence).toBeGreaterThan(1);
+        expect(FIT_BASE_EVAL_WEIGHTS.latent.recurrence).toBeGreaterThan(1);
+    });
+
     it("is frozen — a mutation attempt is a no-op / throws in strict mode", () => {
         expect(Object.isFrozen(DEFAULT_EVAL_WEIGHTS)).toBe(true);
         expect(Object.isFrozen(FIT_BASE_EVAL_WEIGHTS)).toBe(true);

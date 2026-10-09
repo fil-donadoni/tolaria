@@ -22,6 +22,7 @@ import type {
     AbilityMode,
     CardDefinition,
     EffectOp,
+    GameEventType,
     ModeSelection,
     PermanentView,
     TargetRequirement,
@@ -202,6 +203,50 @@ const UNDECIDABLE_GATE_WEIGHT = 1;
  *  point — a gated BONUS stops being counted as guaranteed, a gated COST stops
  *  being charged as certain. */
 const UNDECIDED_SELF_GATE_WEIGHT = 0.5;
+
+/** Issue #5151 — the trigger events that RECUR every turn by the turn's own
+ *  structure (CR 500.1): a `PHASE_BEGIN` trigger fires at the beginning of a
+ *  step or phase of every turn it is scoped to — an upkeep, a draw step, a
+ *  combat step, an end step — for as long as its permanent stays. The ONE
+ *  place this set is named; both readers of a standing ability consult it
+ *  through `recurrenceWeight` below, never a local copy. An event raised by
+ *  what players DO (a spell cast, a creature dying, an attack declared) is
+ *  not recurring: nothing guarantees it happens again next turn. */
+export const RECURRING_TRIGGER_EVENTS: readonly GameEventType[] = [
+    "PHASE_BEGIN",
+];
+
+/** True when `event` (a `TriggeredAbility.event`, scalar or list) names a
+ *  recurring turn-structure event — the list case reads "any member", the
+ *  same way `triggerHandlesEventType` (`gre/triggers.ts`) matches one. */
+export function isRecurringTriggerEvent(
+    event: GameEventType | GameEventType[] | undefined
+): boolean {
+    if (event === undefined) return false;
+    const events = Array.isArray(event) ? event : [event];
+    return events.some((e) => RECURRING_TRIGGER_EVENTS.includes(e));
+}
+
+/** Issue #5151 — how many times a STANDING ability's script is expected to
+ *  resolve over its permanent's life: `latent.recurrence` (the fitted turns
+ *  the permanent survives) for a trigger on a recurring turn-structure event,
+ *  1 for everything else — an activated ability (its gating is the cost,
+ *  already valued, and how often it is used is the search's to find), a
+ *  one-shot trigger ("when you cast", "when it dies"), and a recurring trigger
+ *  whose script sacrifices its own source UNGUARDED ("at the beginning of
+ *  your upkeep, sacrifice it"): that one fires exactly once. A sacrifice
+ *  behind a `mayPay` (cumulative upkeep, "unless you pay") recurs — paying is
+ *  what keeps the permanent — so the multiplier compounds its signed cost,
+ *  exactly as it compounds a benefit. */
+function recurrenceWeight(
+    ability: { event?: GameEventType | GameEventType[] },
+    script: EffectOp[] | undefined,
+    ctx: GroundingContext
+): number {
+    if (!isRecurringTriggerEvent(ability.event)) return 1;
+    if (script && sacrificesSource(script, "hand", "unpaid")) return 1;
+    return ctx.latent.weights.recurrence;
+}
 
 /** How much of a triggered ability's script value survives its check-time gate
  *  (CR 603.4) — 1 when it always fires, 0 when the gate is decidably false for
@@ -462,6 +507,7 @@ function abilityScriptOpValue(
         modes?: AbilityMode[];
         modeSelection?: ModeSelection;
         gate?: TriggeredAbility["gate"];
+        event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
         etbAbility?: boolean;
@@ -528,7 +574,19 @@ function abilityScriptOpValue(
         if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.
-        const weight = gateWeight(ability, self);
+        // Issue #5151 — and a STANDING trigger on a per-turn step is worth
+        // every firing its permanent lives to see, not one: the hand face
+        // (`dslStandingAbilityScriptValue`) and the board face
+        // (`nonCreatureBodyValue` → `cardValue` → the same reader) both take
+        // this reading, so casting the permanent is never a value loss the
+        // multiplier causes (issue #5145's one-number rule). The realized
+        // reading of a CREATURE's triggers keeps weight 1 (out of scope,
+        // issue #5151 — its recurrence is a follow-up).
+        const weight =
+            gateWeight(ability, self) *
+            (selection === "standing"
+                ? recurrenceWeight(ability, script, abilityCtx)
+                : 1);
         if (weight === 0) continue;
         // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
         // still loads onto the same feature dimension, so only points scale

@@ -92,8 +92,7 @@
 // in a life total `ScenarioSpec` cannot yet carry (issue #2147): a finding
 // about the corpus, not about the weights.
 
-import type { EvalWeights } from "../evalWeights";
-import type { Feature } from "../featureBasis";
+import type { EvalWeights, LatentWeights } from "../evalWeights";
 import {
     FITTABLE_WEIGHT_KEYS,
     weightValue,
@@ -511,14 +510,14 @@ export function weightsFromCoordinates(
     w0: EvalWeights,
     u: Record<FittableWeightKey, number>
 ): EvalWeights {
-    const latent = { ...w0.latent } as Record<Feature, number>;
+    const latent = { ...w0.latent } as Record<keyof LatentWeights, number>;
     const out = { ...w0 } as Record<string, unknown>;
     for (const key of FITTABLE_WEIGHT_KEYS) {
         const value = roundWeight(
             weightValue(w0, key) + scaleOf(w0, key) * u[key]
         );
         if (key.startsWith("latent.")) {
-            latent[key.slice("latent.".length) as Feature] = value;
+            latent[key.slice("latent.".length) as keyof LatentWeights] = value;
         } else {
             out[key] = value;
         }
