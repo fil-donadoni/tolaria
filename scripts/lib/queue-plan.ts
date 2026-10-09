@@ -1303,6 +1303,86 @@ export function releasedClaims(ledgerText: string): number[] {
 }
 
 /**
+ * Fold the claim journal into the issues THIS machine holds: those whose last
+ * row is a `claim` (issue #5302). The journal is per-machine by construction —
+ * gitignored, written only by this checkout's `queue:claim` and
+ * `claim-ledger.sh` — so a row's presence is the machine identity. The row's
+ * `host` stamp is diagnostic only and is never compared: macOS's hostname
+ * follows the network, and a claim that stopped matching its own machine's
+ * name would vanish from the local count — the cap failing open.
+ *
+ * Same tolerance as `releasedClaims`: torn or malformed lines are skipped.
+ */
+export function claimsHeldHere(ledgerText: string): number[] {
+    const held = new Set<number>();
+    for (const line of ledgerText.split("\n")) {
+        if (line.trim() === "") continue;
+        let row: { issue?: unknown; event?: unknown };
+        try {
+            row = JSON.parse(line) as { issue?: unknown; event?: unknown };
+        } catch {
+            continue;
+        }
+        if (typeof row.issue !== "number") continue;
+        if (row.event === "claim") held.add(row.issue);
+        else held.delete(row.issue);
+    }
+    return [...held].sort((a, b) => a - b);
+}
+
+/**
+ * `claimsHeldHere` over a journal reader, with the two failure modes told
+ * apart (issue #5302 review): an ABSENT journal (ENOENT) is a machine that
+ * never claimed — nothing held here, `[]` — or a fresh second machine would
+ * be refused by the other's claims, the very symptom the split exists to
+ * cure. Any OTHER read failure (EACCES, EIO, …) is `null`: we cannot tell,
+ * and `machineScope` then counts repository-wide. Should a wrong root make
+ * the journal look absent, the machine admission's process census still
+ * bounds the sessions this machine runs.
+ */
+export function heldFromJournal(read: () => string): number[] | null {
+    try {
+        return claimsHeldHere(read());
+    } catch (err) {
+        return (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : null;
+    }
+}
+
+/**
+ * The live claims split by machine (issue #5302): the cap counts `local`
+ * only — it measures CPU contention, and the PR/h knee behind `sessions.cap`
+ * was measured on ONE machine — while `foreign` claims run on another machine
+ * and occupy no slot here. They still collide: `claimDecision` checks the
+ * whole live set, never this split.
+ *
+ * `heldHere` = `null` means the journal could not be read (`heldFromJournal`;
+ * an absent one is `[]`), and then nothing is foreign: the count falls back to the repository-wide one, `scoped`
+ * false. Fail-closed on purpose — an intersection with a missing journal once
+ * made the cap fail open to zero (see `liveClaims`). A local claim whose row
+ * the best-effort hook lost reads as foreign; the machine admission's process
+ * census still counts its session.
+ */
+export interface MachineScope {
+    local: number[];
+    foreign: number[];
+    scoped: boolean;
+}
+
+export function machineScope(
+    live: number[],
+    heldHere: number[] | null
+): MachineScope {
+    const sorted = [...new Set(live)].sort((a, b) => a - b);
+    if (heldHere === null) return { local: sorted, foreign: [], scoped: false };
+    const here = new Set(heldHere);
+    return {
+        local: sorted.filter((n) => here.has(n)),
+        foreign: sorted.filter((n) => !here.has(n)),
+        scoped: true,
+    };
+}
+
+/**
  * The cap's census: split the reconciled claims into the ones that COUNT and
  * the ones the liveness classifier proved recoverable (issue #4384).
  *
@@ -1493,7 +1573,12 @@ export function capRefusal(
      *  (issue #4384). */
     recoverable: number[] = [],
     /** Same, for `stranded` claims (issue #4763). */
-    stranded: number[] = []
+    stranded: number[] = [],
+    /** How `claims` was scoped to this machine (`machineScope`, issue
+     *  #5302): the foreign claims it left out are named, and an unscoped
+     *  count (journal unreadable) says why it is repository-wide. Omitted =
+     *  a caller that never scoped, with nothing to explain. */
+    scope?: Pick<MachineScope, "foreign" | "scoped">
 ): Admission {
     if (noCap || claims.length < cap) return { admitted: true };
     const recoverableLine =
@@ -1506,14 +1591,21 @@ export function capRefusal(
         stranded.length === 0
             ? ""
             : `  ${stranded.length} stranded (not counted): ${stranded.map((n) => `#${n}`).join(", ")} — a dead pass left pushed work (PR or branch); the plan's \`resume\` hands it to the next pass.\n`;
-    const breakdown = recoverableLine + strandedLine;
+    const foreignLine =
+        !scope || scope.foreign.length === 0
+            ? ""
+            : `  ${scope.foreign.length} foreign (not counted): ${scope.foreign.map((n) => `#${n}`).join(", ")} — claimed on another machine; they still collide, they hold no slot here.\n`;
+    const breakdown = recoverableLine + strandedLine + foreignLine;
     return {
         admitted: false,
         refusal: "cap",
         message:
-            `session cap reached — ${claims.length}/${cap} live claims: ${claims
+            `session cap reached — ${claims.length}/${cap} live claims${scope?.scoped ? " on this machine" : ""}: ${claims
                 .map((n) => `#${n}`)
                 .join(", ")}.\n` +
+            (!scope || scope.scoped
+                ? ""
+                : `  Counted repository-wide: this machine's claim journal is unreadable, so no claim can be shown foreign.\n`) +
             breakdown +
             `  Per-session yield halves past the knee (PR/h by active sessions: 0.59 at 1, 1.44 at 3, 1.19 at 4).\n` +
             `  Wait for one to land, or re-run with --no-cap to plan past it deliberately.`,

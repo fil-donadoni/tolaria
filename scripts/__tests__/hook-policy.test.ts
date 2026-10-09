@@ -1665,6 +1665,8 @@ describe("claim-ledger — records what THIS session claimed", () => {
             session: "sess-A",
             event: "claim",
         });
+        // Diagnostic machine stamp (issue #5302) — never compared, but present.
+        expect(rows[0].host).toEqual(expect.stringMatching(/./));
     });
 
     it("does NOT record an issue edit that is not a claim", () => {

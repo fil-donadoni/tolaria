@@ -22,7 +22,7 @@
 // behind a ten-minute health gate would be exactly the wait the light tier
 // exists to avoid.
 
-import { capRefusal, type Admission } from "./queue-plan";
+import { capRefusal, type Admission, type MachineScope } from "./queue-plan";
 
 // ── The decision ─────────────────────────────────────────────────────────────
 
@@ -49,6 +49,16 @@ export interface ClaimInput {
     /** Same, for `stranded` claims (issue #4763). Not in `live` either — so
      *  the collision check below admits a pass RESUMING one. */
     stranded?: number[];
+    /** `live` split by machine (`machineScope`, issue #5302): the CAP counts
+     *  `scope.local`, the collision check still reads all of `live` — a
+     *  foreign claim holds no slot here but is still somebody's work.
+     *  Omitted = the cap counts `live` whole. */
+    scope?: MachineScope;
+    /** The set the COLLISION check reads, when wider than `live` (issue #5302
+     *  review): live claims NOT reconciled against this machine's `released`
+     *  rows, since a local release says nothing about the other machine's
+     *  re-claim. Omitted = `live`. */
+    collide?: number[];
 }
 
 /**
@@ -58,7 +68,7 @@ export interface ClaimInput {
  * never disagree on what "at the cap" means.
  */
 export function claimDecision(input: ClaimInput): ClaimDecision {
-    if (input.live.includes(input.issue)) {
+    if ((input.collide ?? input.live).includes(input.issue)) {
         return {
             admitted: false,
             refusal: "claimed",
@@ -68,11 +78,12 @@ export function claimDecision(input: ClaimInput): ClaimDecision {
         };
     }
     return capRefusal(
-        input.live,
+        input.scope?.local ?? input.live,
         input.cap,
         input.noCap,
         input.recoverable ?? [],
-        input.stranded ?? []
+        input.stranded ?? [],
+        input.scope
     );
 }
 
@@ -218,6 +229,9 @@ export interface ClaimRow {
     plan: string | null;
     planMismatch: { claimed: number; planned: number[] } | null;
     owner: ClaimRowOwner | null;
+    /** The machine that wrote the row (issue #5302) — diagnostic only: the
+     *  journal is per-machine, so `claimsHeldHere` never compares it. */
+    host: string;
     /** Which path wrote the row — the verb, or a hand claim the hook saw. */
     via: "queue:claim";
 }
@@ -243,6 +257,7 @@ export function buildClaimRow(input: {
     planId: string | null;
     planned: number[] | null;
     owner: ClaimRowOwner | null;
+    host: string;
 }): ClaimRow {
     const mismatch =
         input.planned !== null && !input.planned.includes(input.issue)
@@ -256,6 +271,7 @@ export function buildClaimRow(input: {
         plan: input.planId,
         planMismatch: mismatch,
         owner: input.owner,
+        host: input.host,
         via: "queue:claim",
     };
 }

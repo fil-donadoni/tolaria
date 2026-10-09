@@ -53,9 +53,11 @@ import {
     capCensus,
     resumeItems,
     capRefusal,
+    heldFromJournal,
     buildPlanRecord,
     lineageRefusal,
     liveClaims,
+    machineScope,
     redRefusal,
     releasedClaims,
     planBatch,
@@ -697,6 +699,18 @@ function releasedClaimsOnThisMachine(): number[] {
     }
 }
 
+/**
+ * The claims the same journal says THIS machine holds (issue #5302) — what
+ * the cap counts. Total the other way round from the function above: an
+ * unreadable journal is `null`, which `machineScope` reads as "nothing is
+ * foreign", so the cap falls back to the repository-wide count; an ABSENT one
+ * holds nothing (`heldFromJournal`).
+ */
+function claimsHeldOnThisMachine(): number[] | null {
+    const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
+    return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
+}
+
 function main(): void {
     // RED first, and before the first `gh` round-trip: it needs neither the
     // queue nor the network, and a session on a broken base should not pay a
@@ -857,12 +871,17 @@ function main(): void {
         reconciled,
         new Map(classified.map((c) => [c.issue, c.verdict.state]))
     );
+    // The cap counts THIS machine's claims (issue #5302): a claim another
+    // machine holds runs on another CPU. The planner already keeps every
+    // claimed issue out of the batch, so foreign work is never re-picked.
+    const scope = machineScope(census.live, claimsHeldOnThisMachine());
     const admission = capRefusal(
-        census.live,
+        scope.local,
         sessionCap(),
         process.argv.includes("--no-cap"),
         census.recoverable,
-        census.stranded
+        census.stranded,
+        scope
     );
     // Refuse BEFORE the artefact is written and before anything reaches
     // stdout: no plan was handed out, so no plan record should claim one was,

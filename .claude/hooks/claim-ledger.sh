@@ -235,7 +235,8 @@ for issue in $issues; do
         --argjson plan "$plan_json" \
         --argjson planMismatch "$mismatch_json" \
         --argjson owner "$owner_json" \
-        '{ts: $ts, session: $session, issue: $issue, event: "claim", plan: $plan, planMismatch: $planMismatch, owner: $owner}' \
+        --arg host "$(hostname 2>/dev/null || true)" \
+        '{ts: $ts, session: $session, issue: $issue, event: "claim", plan: $plan, planMismatch: $planMismatch, owner: $owner, host: $host}' \
         >>"$dir/claims.jsonl" 2>/dev/null
 done
 

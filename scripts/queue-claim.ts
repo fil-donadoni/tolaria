@@ -29,7 +29,7 @@ import {
     statSync,
     writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, hostname } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { gh } from "./lib/gh";
@@ -46,7 +46,13 @@ import {
     claimVerdicts,
     interpretPsResult,
 } from "./loop-doctor";
-import { capCensus, isStaleClaim, releasedClaims } from "./lib/queue-plan";
+import {
+    capCensus,
+    heldFromJournal,
+    isStaleClaim,
+    machineScope,
+    releasedClaims,
+} from "./lib/queue-plan";
 import { DEFAULTS, issuesWithOpenPr } from "./queue-plan";
 import {
     buildClaimRow,
@@ -209,6 +215,13 @@ function releasedOnThisMachine(root: string): number[] {
     }
 }
 
+/** The claims this machine's journal holds (issue #5302); `[]` when it was
+ *  never written, `null` when it cannot be read, which `machineScope` turns
+ *  into a repository-wide count — never into zero. */
+function heldOnThisMachine(root: string): number[] | null {
+    return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
+}
+
 // ── owner stamp (issue #2627), the hook's walk in TypeScript ────────────────
 // Nearest ancestor whose command basename is `claude`; `TOLARIA_CLAIM_OWNER_COMM`
 // is the tests' seam, as in `claim-ledger.sh`. Best-effort: `null` reads
@@ -267,6 +280,7 @@ function appendJournalRow(root: string, issue: number, session: string): void {
         planId,
         planned,
         owner: ownerStamp(),
+        host: hostname(),
     });
     if (row.planMismatch)
         console.error(
@@ -328,9 +342,10 @@ async function main(): Promise<void> {
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const now = new Date().toISOString();
         const claimed = claimedIssues();
+        const openPrs = issuesWithOpenPr();
         const reconciled = liveClaimSet(
             claimed,
-            issuesWithOpenPr(),
+            openPrs,
             releasedOnThisMachine(root),
             now,
             DEFAULTS.staleClaimHours,
@@ -353,13 +368,32 @@ async function main(): Promise<void> {
                 root
             )
         );
+        // The cap counts THIS machine's claims (issue #5302); the collision
+        // check reads every live claim, and WITHOUT this machine's `released`
+        // rows: an issue claimed here, released here and re-claimed on the
+        // other machine has a local `released` last row, yet its label is the
+        // other machine's live work (issue #5302 review).
+        const scope = machineScope(live, heldOnThisMachine(root));
+        // A claim the census proved dead (`recoverable`/`stranded`) stays out
+        // of it, so a pass RESUMING one is still admitted.
+        const dead = new Set([...recoverable, ...stranded]);
+        const collide = liveClaimSet(
+            claimed,
+            openPrs,
+            [],
+            now,
+            DEFAULTS.staleClaimHours,
+            isStaleClaim
+        ).filter((n) => !dead.has(n));
         const decision = claimDecision({
             issue,
             live,
+            collide,
             cap: sessionCap(),
             noCap,
             recoverable,
             stranded,
+            scope,
         });
         if (!decision.admitted) return decision;
         gh([
@@ -372,7 +406,7 @@ async function main(): Promise<void> {
             "@me",
         ]);
         appendJournalRow(root, issue, session);
-        return { admitted: true as const, live, recoverable, stranded };
+        return { admitted: true as const, scope, recoverable, stranded };
     });
 
     if (!outcome.admitted) {
@@ -388,8 +422,13 @@ async function main(): Promise<void> {
         outcome.stranded.length === 0
             ? ""
             : `, ${outcome.stranded.length} stranded not counted (${outcome.stranded.map((n) => `#${n}`).join(", ")} — \`bun run loop:doctor\`)`;
+    const { local, foreign, scoped } = outcome.scope;
+    const foreignNote =
+        foreign.length === 0
+            ? ""
+            : `, ${foreign.length} foreign not counted (${foreign.map((n) => `#${n}`).join(", ")} — another machine)`;
     console.log(
-        `queue:claim: claimed issue #${issue} (${outcome.live.length + 1}/${cap} live claims${noCap && outcome.live.length >= cap ? ", past the cap by --no-cap" : ""}${recovered}${strandedNote})`
+        `queue:claim: claimed issue #${issue} (${local.length + 1}/${cap} live claims${scoped ? " on this machine" : " repository-wide — claim journal unreadable"}${noCap && local.length >= cap ? ", past the cap by --no-cap" : ""}${recovered}${strandedNote}${foreignNote})`
     );
 }
 

@@ -14,7 +14,12 @@ import {
     performRelease,
     type ReleaseRow,
 } from "../lib/queue-claim";
-import { releasedClaims } from "../lib/queue-plan";
+import {
+    claimsHeldHere,
+    heldFromJournal,
+    machineScope,
+    releasedClaims,
+} from "../lib/queue-plan";
 import { capCensus, isStaleClaim } from "../lib/queue-plan";
 import {
     claimVerdicts,
@@ -209,6 +214,7 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
             planId: "sess-1-1700000000000.json",
             planned: [20, 30],
             owner: { pid: 99, startedAt: "Tue Sep 22 09:00:00 2026" },
+            host: "mac-a",
         });
         expect(row).toEqual({
             ts: 1_700_000_000,
@@ -218,6 +224,7 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
             plan: "sess-1-1700000000000.json",
             planMismatch: null,
             owner: { pid: 99, startedAt: "Tue Sep 22 09:00:00 2026" },
+            host: "mac-a",
             via: "queue:claim",
         });
     });
@@ -230,6 +237,7 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
             planId: "sess-1-1.json",
             planned: [20, 30],
             owner: null,
+            host: "mac-a",
         });
         expect(row.planMismatch).toEqual({ claimed: 40, planned: [20, 30] });
     });
@@ -242,6 +250,7 @@ describe("queue:claim — the journal row is the hook's row (issue #4375, #2518,
             planId: null,
             planned: null,
             owner: null,
+            host: "mac-a",
         });
         expect(row.plan).toBeNull();
         expect(row.planMismatch).toBeNull();
@@ -773,5 +782,150 @@ describe("queue:release — the claim's inverse is ONE act: label, assignee, jou
         const { rows, error } = release(true);
         expect(error).toBeInstanceOf(Error);
         expect(rows).toEqual([]);
+    });
+});
+
+describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", () => {
+    // Two machines drain the queue in parallel. Each keeps its own claim
+    // journal; a label with no `claim` row here was taken on the other one.
+    const journal = (...rows: object[]) =>
+        rows.map((r) => JSON.stringify(r)).join("\n") + "\n";
+
+    it("the journal fold: last row per issue wins, a torn line is skipped, `host` is never compared", () => {
+        const text =
+            journal(
+                { issue: 10, event: "claim", host: "mac-a" },
+                { issue: 20, event: "claim", host: "renamed-by-dhcp" },
+                { issue: 30, event: "claim" },
+                { issue: 30, event: "released" },
+                { issue: 40, event: "released" },
+                { issue: 40, event: "claim" }
+            ) + '{"issue": 50, "ev';
+        expect(claimsHeldHere(text)).toEqual([10, 20, 40]);
+    });
+
+    it("admits a claim at 3/3 repository-wide when all three claims are foreign", () => {
+        const scope = machineScope([10, 20, 30], []);
+        expect(scope).toEqual({
+            local: [],
+            foreign: [10, 20, 30],
+            scoped: true,
+        });
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            scope,
+        });
+        expect(d.admitted).toBe(true);
+    });
+
+    it("refuses at 3 LOCAL claims, naming the foreign ones it did not count", () => {
+        const live = [10, 20, 30, 70, 80];
+        const d = claimDecision({
+            issue: 40,
+            live,
+            cap: 3,
+            noCap: false,
+            scope: machineScope(live, [10, 20, 30, 99]),
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) {
+            expect(d.refusal).toBe("cap");
+            expect(d.message).toMatch(
+                /3\/3 live claims on this machine: #10, #20, #30\./
+            );
+            expect(d.message).toMatch(/2 foreign \(not counted\): #70, #80/);
+        }
+    });
+
+    it("a foreign claim still COLLIDES — it holds no slot here, but it is somebody's work", () => {
+        const d = claimDecision({
+            issue: 70,
+            live: [70],
+            cap: 3,
+            noCap: true,
+            scope: machineScope([70], []),
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.refusal).toBe("claimed");
+    });
+
+    it("an unreadable journal counts repository-wide — never zero — and says so", () => {
+        const scope = machineScope([10, 20, 30], null);
+        expect(scope).toEqual({
+            local: [10, 20, 30],
+            foreign: [],
+            scoped: false,
+        });
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            scope,
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) {
+            expect(d.message).toMatch(/3\/3 live claims: /);
+            expect(d.message).toMatch(/Counted repository-wide/);
+        }
+    });
+
+    it("an ABSENT journal holds nothing (a fresh machine is not refused by the other's claims); any other read failure is unknown", () => {
+        const fail = (code: string) => () => {
+            throw Object.assign(new Error(code), { code });
+        };
+        expect(heldFromJournal(fail("ENOENT"))).toEqual([]);
+        expect(heldFromJournal(fail("EACCES"))).toBeNull();
+        expect(heldFromJournal(fail("EIO"))).toBeNull();
+        expect(
+            heldFromJournal(() => journal({ issue: 10, event: "claim" }))
+        ).toEqual([10]);
+        // ENOENT, end to end: three foreign claims, a fresh machine admitted.
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            scope: machineScope([10, 20, 30], heldFromJournal(fail("ENOENT"))),
+        });
+        expect(d.admitted).toBe(true);
+    });
+
+    it("released HERE, re-claimed on the other machine: still a collision", () => {
+        // #70's last local row is `released`, so the reconciled `live` set
+        // omits it — but its label is the other machine's live work. The
+        // collision check reads the set NOT reconciled against local releases.
+        const d = claimDecision({
+            issue: 70,
+            live: [],
+            collide: [70],
+            cap: 3,
+            noCap: true,
+            scope: machineScope([], []),
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.refusal).toBe("claimed");
+    });
+
+    it("a foreign claim with an open PR classifies `live`, never `stranded` — no local owner reading", () => {
+        // The other machine's claim has no row in this journal, so no owner:
+        // `ownerAlive` is null, and only a POSITIVE death reading may strand
+        // a claim. Were it `stranded`, this machine's next pass would
+        // `resume` — take over — the other machine's live work.
+        const [c] = classifyClaims(
+            [{ number: 70, title: "a", updatedAt: "2026-10-09T08:00:00Z" }],
+            {
+                prBranches: new Set(["feat/issue-70"]),
+                branches: { local: [], remote: ["feat/issue-70"] },
+                owners: new Map(),
+                baseRef: "origin/staging",
+                now: Date.parse("2026-10-09T09:00:00Z"),
+                probe: () => "",
+            }
+        );
+        expect(c.verdict.state).toBe("live");
     });
 });
