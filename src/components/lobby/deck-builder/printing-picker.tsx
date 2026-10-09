@@ -93,7 +93,10 @@ export default function PrintingPicker({
         () => filterByKind(printings, kind),
         [printings, kind]
     );
-    const labels = useMemo(() => editionOptions(visible), [visible]);
+    const labels = useMemo(
+        () => new Map(editionOptions(visible).map((o) => [o.printId, o.label])),
+        [visible]
+    );
 
     const handleOpenChange = (next: boolean) => {
         setOpen(next);
@@ -155,15 +158,20 @@ export default function PrintingPicker({
                     <p className="py-6 text-center text-sm text-text-muted">
                         {table.loading
                             ? "Loading printings…"
-                            : "No printing matches."}
+                            : table.canLoadMore
+                              ? "No match among the printings loaded so far."
+                              : "No printing matches."}
                     </p>
                 ) : (
                     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-                        {visible.map((p, i) => (
+                        {visible.map((p) => (
                             <PrintingTile
                                 key={p.printId}
                                 printing={p}
-                                label={labels[i].label}
+                                label={
+                                    labels.get(p.printId) ??
+                                    p.setCode.toUpperCase()
+                                }
                                 setName={nameOf(p.setCode)}
                                 selected={p.printId === selected.printId}
                                 onSelect={pick}

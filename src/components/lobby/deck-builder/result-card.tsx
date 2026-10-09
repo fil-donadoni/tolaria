@@ -57,9 +57,13 @@ export default function ResultCard({
     // Scryfall's editions search instead, loaded when the picker opens.
     const { editions: scryfallEditions, load: loadEditions } =
         useScryfallEditions(isCatalogue ? entry.name : null);
-    const basePrintings: readonly CardPrinting[] = isCatalogue
-        ? (scryfallEditions ?? entry.prints.slice(0, 1))
-        : entry.prints;
+    const basePrintings = useMemo<readonly CardPrinting[]>(
+        () =>
+            isCatalogue
+                ? (scryfallEditions ?? entry.prints.slice(0, 1))
+                : entry.prints,
+        [isCatalogue, scryfallEditions, entry.prints]
+    );
 
     const [override, setOverride] = useState<CardPrinting | null>(null);
     const chosen = override ?? defaultPrinting;

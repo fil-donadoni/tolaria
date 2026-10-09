@@ -170,7 +170,9 @@ describe("PrintingPicker", () => {
         fireEvent.click(screen.getByRole("button", { name: /^Digital/ }));
         expect(tileIds()).toEqual(["arena-1"]);
         fireEvent.click(
-            await screen.findByLabelText("Arena New Player Experience (ANA)")
+            await screen.findByLabelText(
+                "Arena New Player Experience (ANA), digital"
+            )
         );
         expect(onSelect).toHaveBeenCalledWith(
             expect.objectContaining({ printId: "arena-1", setCode: "ana" })

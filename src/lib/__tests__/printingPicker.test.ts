@@ -94,6 +94,13 @@ describe("matchSetCodes", () => {
         expect(matchSetCodes("le", NAMES)).toEqual([]);
     });
 
+    it("matches a name only from MIN_SET_NAME_QUERY characters — a code always", () => {
+        expect(matchSetCodes("od", NAMES)).toEqual([]);
+        expect(matchSetCodes("ody", NAMES)).toEqual(["ody"]);
+        expect(matchSetCodes("ice", NAMES)).toEqual(["ice"]);
+        expect(matchSetCodes("age", NAMES)).toEqual(["ice"]);
+    });
+
     it("matches a code the name table does not know yet", () => {
         expect(matchSetCodes("STH", NAMES, ["STH"])).toEqual(["sth"]);
     });
@@ -118,6 +125,7 @@ describe("restrictSets", () => {
     it("intersects the two, so a filter never widens Old School / Alpha 40", () => {
         expect(restrictSets(["lea", "leb"], ["leb", "ody"])).toEqual(["leb"]);
         expect(restrictSets(["lea", "leb"], ["ody"])).toEqual([]);
+        expect(restrictSets(["LEA"], null)).toEqual(["lea"]);
     });
 
     it("inSets applies the restriction to a catalogue printing, case-insensitively", () => {

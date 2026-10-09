@@ -29,7 +29,11 @@ export default function PrintingTile({
             type="button"
             onClick={() => onSelect(printing)}
             aria-pressed={selected}
-            aria-label={`${setName} (${label})`}
+            aria-label={
+                kind === "paper"
+                    ? `${setName} (${label})`
+                    : `${setName} (${label}), ${kind}`
+            }
             title={setName}
             data-print-id={printing.printId}
             className="flex min-w-0 flex-col items-center gap-1"

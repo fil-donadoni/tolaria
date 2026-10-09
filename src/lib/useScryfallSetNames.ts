@@ -7,23 +7,30 @@ export type SetNames = ReadonlyMap<string, string>;
 
 /** The catalogue's own Sets (`convex/cards/setMeta.ts`) — known offline, the
  *  floor the Scryfall list extends. */
-function catalogueSetNames(): Map<string, string> {
-    return new Map(
+let catalogue: SetNames | null = null;
+function catalogueSetNames(): SetNames {
+    catalogue ??= new Map(
         getAllSetCodes().map((code) => [code.toLowerCase(), setName(code)])
     );
+    return catalogue;
 }
+
+// A hung request must not pin `pending` forever — the next open retries.
+const FETCH_TIMEOUT_MS = 10_000;
 
 // One fetch per page load, shared by every picker that opens.
 let pending: Promise<SetNames> | null = null;
 let loaded: SetNames | null = null;
 
 async function fetchScryfallSetNames(): Promise<SetNames> {
-    const res = await fetch("https://api.scryfall.com/sets");
+    const res = await fetch("https://api.scryfall.com/sets", {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) throw new Error(`Scryfall sets fetch failed: ${res.status}`);
     const body = (await res.json()) as {
         data: Array<{ code: string; name: string }>;
     };
-    const names = catalogueSetNames();
+    const names = new Map(catalogueSetNames());
     for (const s of body.data) names.set(s.code.toLowerCase(), s.name);
     return names;
 }

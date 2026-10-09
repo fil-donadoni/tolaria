@@ -73,9 +73,15 @@ function fold(s: string): string {
         .trim();
 }
 
+/** Shortest text matched against Set NAMES. Below it ("a", "ar") a name
+ *  fragment hits hundreds of Sets — a query restriction of hundreds of codes,
+ *  and no narrowing for the player — so only an exact code counts. */
+export const MIN_SET_NAME_QUERY = 3;
+
 /** The set codes a free-text set query names: a code typed exactly
  *  ("ody"), or any set whose full name contains the text ("odyssey",
- *  "alpha"), accent- and case-insensitive. `setNames` maps lower-case code →
+ *  "alpha"; from `MIN_SET_NAME_QUERY` characters), accent- and
+ *  case-insensitive. `setNames` maps lower-case code →
  *  name; `knownCodes` are codes with no name entry (yet) that still match by
  *  code. `null` for a blank query — no set restriction. */
 export function matchSetCodes(
@@ -85,9 +91,10 @@ export function matchSetCodes(
 ): string[] | null {
     const q = fold(query);
     if (q === "") return null;
+    const byName = q.length >= MIN_SET_NAME_QUERY;
     const hits = new Set<string>();
     for (const [code, name] of setNames) {
-        if (code === q || fold(name).includes(q)) hits.add(code);
+        if (code === q || (byName && fold(name).includes(q))) hits.add(code);
     }
     for (const code of knownCodes) {
         if (code.toLowerCase() === q) hits.add(code.toLowerCase());
@@ -103,10 +110,10 @@ export function restrictSets(
     allowedSets: readonly string[] | null,
     matched: readonly string[] | null
 ): string[] | null {
-    if (matched === null) return allowedSets ? [...allowedSets] : null;
-    if (allowedSets === null) return [...matched];
-    const allowed = new Set(allowedSets.map((s) => s.toLowerCase()));
-    return matched.filter((s) => allowed.has(s));
+    const allowed = allowedSets?.map((s) => s.toLowerCase()) ?? null;
+    if (matched === null) return allowed;
+    if (allowed === null) return [...matched];
+    return matched.filter((s) => allowed.includes(s));
 }
 
 /** Whether one printing survives the Set restriction — applied to the
