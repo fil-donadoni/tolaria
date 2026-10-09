@@ -321,6 +321,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › addMana",
+            "issue": 5297
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › choice+discard",
             "issue": 4276
         },
@@ -401,6 +406,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › revealUntilMatch",
+            "issue": 5299
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › sacrifice",
             "issue": 4838
         },
@@ -438,6 +448,11 @@
             "kind": "bot",
             "key": "never-chosen › Instant target:Creature › dealDamage+grantAbility+pump",
             "issue": 4290
+        },
+        {
+            "kind": "bot",
+            "key": "never-chosen › Instant target:Creature › destroy+gainLife",
+            "issue": 5298
         },
         {
             "kind": "bot",
@@ -643,6 +658,11 @@
             "kind": "bot",
             "key": "no-legal-move › Instant target:Artifact|Battle|Creature|Enchantment|Land|Planeswalker",
             "issue": 4268
+        },
+        {
+            "kind": "bot",
+            "key": "no-legal-move › Sorcery target:Land",
+            "issue": 5300
         },
         {
             "kind": "bot",
