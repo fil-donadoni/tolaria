@@ -70,9 +70,12 @@ import { forest } from "../../cards/sets/lea/colorless.cards";
 import { lightningBolt } from "../../cards/sets/lea/red.cards";
 import { blackLotus } from "../../cards/sets/lea/colorless.cards";
 import { mindStone } from "../../cards/sets/wth/colorless.cards";
-import { mirrisGuile } from "../../cards/sets/tmp/green.cards";
 import { kavuChameleon } from "../../cards/sets/inv/green.cards";
 import { motherOfRunes } from "../../cards/sets/ulg/white.cards";
+
+// Index — a one-shot `scryReorder` sorcery (compiled catalogue, state `ready`),
+// the scry-only seat of the issue #1513 ordering test since issue #5151.
+const INDEX = "637ebd57-ba92-48ff-9ad4-d40dad2ff418";
 
 afterEach(() => resetChoicePriorFn());
 
@@ -1714,47 +1717,53 @@ describe("dslChoicePrior: OP_VALUERS context-aware (issue #1433)", () => {
         expect(diskCand.prior).toBeGreaterThan(creatureCand.prior);
     });
 
-    it("search-library: three REAL sub-90-point scripts (burn / draw-1 / scry-only) stay strictly ordered by script value — the flat floor no longer collapses them (issue #1513)", () => {
+    it("search-library: three REAL sub-90-point scripts (burn / scry-only / draw-1) stay strictly ordered by script value — the flat floor no longer collapses them (issue #1513)", () => {
         // Before the fix, `noncreatureCardWorth` clamped EVERY scripted
         // noncreature UP to `NONCREATURE_FLOOR` (30) whenever its rescaled
         // value fell below it — i.e. whenever its raw OP_VALUERS points fell
         // below 90. All three cards below score under that line (Lightning
-        // Bolt's own 3-damage script is 66 raw points, Mind Stone's
-        // ability-discounted draw is 22.5, Mirri's Guile's ability-discounted
-        // scry is 15), so under the old flat floor they were ALL priced at
-        // 30 — indistinguishable from a do-nothing card, and from each
-        // other. Real, low-cost, already-shipped cards (not synthetic test
+        // Bolt's own 3-damage script is 66 raw points, Index's one-shot
+        // scry 5 is 50, Mind Stone's ability-discounted draw is 22.5), so
+        // under the old flat floor they were ALL priced at 30 —
+        // indistinguishable from a do-nothing card, and from each other.
+        // Real, low-cost, already-shipped cards (not synthetic test
         // fixtures) so the assertion pins the actual catalogue, not a
         // hand-tuned stand-in.
+        //
+        // The scry-only seat was Mirri's Guile until issue #5151: its scry is
+        // an UPKEEP trigger, and a per-turn standing trigger is now priced
+        // at its expected firings (`latent.recurrence`), which takes it to
+        // 90 raw — the very line this test is about. Index is the same
+        // script as a one-shot sorcery.
         const state = stateWithLibrarySearch([
             lightningBolt().id, // burn: dealDamage 3 (own spell script)
+            INDEX, // scry-only: one-shot sorcery, look at five and reorder
             mindStone().id, // draw-1: sacrifice ability draws a card
-            mirrisGuile().id, // scry-only: upkeep ability, may-look-and-reorder
         ]);
         const cands = choiceCandidates(state, state.pendingChoices![0]);
         const boltCand = cands.find((c) => c.key.includes("Lightning Bolt"))!;
+        const indexCand = cands.find((c) => c.key.includes("Index"))!;
         const stoneCand = cands.find((c) => c.key.includes("Mind Stone"))!;
-        const guileCand = cands.find((c) => c.key.includes("Mirri's Guile"))!;
         expect(boltCand).toBeDefined();
+        expect(indexCand).toBeDefined();
         expect(stoneCand).toBeDefined();
-        expect(guileCand).toBeDefined();
 
-        // Strict ordering by script value: burn > draw-1 cantrip > scry-only.
+        // Strict ordering by script value: burn > scry-only > draw-1 cantrip.
         expect(boltCand.hint?.materialGained ?? 0).toBeGreaterThan(
-            stoneCand.hint?.materialGained ?? 0
+            indexCand.hint?.materialGained ?? 0
         );
-        expect(stoneCand.hint?.materialGained ?? 0).toBeGreaterThan(
-            guileCand.hint?.materialGained ?? 0
+        expect(indexCand.hint?.materialGained ?? 0).toBeGreaterThan(
+            stoneCand.hint?.materialGained ?? 0
         );
         // And every one of them is strictly ABOVE zero — a real script,
         // however small, is never a "do-nothing" card.
-        expect(guileCand.hint?.materialGained ?? 0).toBeGreaterThan(0);
+        expect(stoneCand.hint?.materialGained ?? 0).toBeGreaterThan(0);
 
         // The prior itself carries the same distinction, and Lightning Bolt
         // — the strongest real script — leads the ranked candidate set.
         expect(cands[0].key).toBe("search-library:Lightning Bolt");
-        expect(boltCand.prior).toBeGreaterThan(stoneCand.prior);
-        expect(stoneCand.prior).toBeGreaterThan(guileCand.prior);
+        expect(boltCand.prior).toBeGreaterThan(indexCand.prior);
+        expect(indexCand.prior).toBeGreaterThan(stoneCand.prior);
     });
 
     it("search-library: a card with NO script anywhere (Black Lotus's `effect:`-shorthand mana ability) keeps a non-zero fallback worth (issue #1513)", () => {
