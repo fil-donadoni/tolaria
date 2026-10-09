@@ -328,7 +328,7 @@ export default function DeckBuilderShell({
                                 className={
                                     portrait
                                         ? "h-full w-full shrink-0 snap-start snap-always overflow-y-auto"
-                                        : "min-h-0 flex-1 basis-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
+                                        : "min-h-0 flex-1 basis-0 short-viewport:min-h-[12rem] deck-source-dock:min-h-0 overflow-y-auto border-b border-border-subtle/30 deck-source-dock:w-[22rem] deck-source-dock:max-w-[38%] deck-source-dock:flex-none deck-source-dock:self-stretch deck-source-dock:border-b-0 deck-source-dock:border-r"
                                 }
                             >
                                 {sourcePanel.content}

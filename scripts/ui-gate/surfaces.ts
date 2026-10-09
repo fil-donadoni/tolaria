@@ -3092,13 +3092,8 @@ export const SURFACES: readonly Surface[] = [
             }
             await search.fill("Lightning Bolt");
             // This row measures the DIALOG — a centred portal, independent of
-            // the pane its trigger sits in. At phone landscape (844×390) the
-            // header stack squeezes the source pane to ~0px once a search is
-            // active, so the trigger is rendered but below the fold and no
-            // click can reach it: that is the shell's bug, issue #5316, and
-            // the `deck-builder` rows own it. Until it is fixed the trigger
-            // is dispatched there, and ONLY where it lies outside the
-            // viewport — everywhere else the press is a real click.
+            // the pane its trigger sits in; the trigger is a real click at all
+            // five viewports (issue #5316 gave the source pane a height floor).
             const trigger = page
                 .getByRole("button", {
                     name: "Choose printing of Lightning Bolt",
@@ -3115,21 +3110,11 @@ export const SURFACES: readonly Surface[] = [
                     "the deck builder's search results: no `Choose printing of Lightning Bolt` button within 8s"
                 );
             }
-            const box = await trigger.boundingBox();
-            const viewport = page.viewportSize();
-            const belowFold =
-                box !== null &&
-                viewport !== null &&
-                box.y + box.height > viewport.height;
-            if (belowFold) {
-                await trigger.dispatchEvent("click");
-            } else {
-                await pressNamed(
-                    page,
-                    "Choose printing of Lightning Bolt",
-                    "the deck builder's search results"
-                );
-            }
+            await pressNamed(
+                page,
+                "Choose printing of Lightning Bolt",
+                "the deck builder's search results"
+            );
             await settleOnLayer(
                 page,
                 "[role=dialog]",
