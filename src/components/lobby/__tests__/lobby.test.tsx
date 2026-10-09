@@ -180,7 +180,13 @@ function makeOpenGame(overrides: Record<string, unknown> = {}) {
         mode: "standard",
         status: "waiting",
         bestOf: 1 as const,
-        players: [{ id: "user-2", nickname: "Opponent" }],
+        players: [
+            {
+                id: "user-2",
+                nickname: "Opponent",
+                deck: { format: "freeform" },
+            },
+        ],
         ...overrides,
     };
 }

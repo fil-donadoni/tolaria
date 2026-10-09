@@ -1,4 +1,6 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
+import { formatsCompatible, type FormatId } from "@convex/formats";
+import { tableHostFormat } from "~/lib/deckTypes";
 import type { PlayMode } from "~/lib/session";
 import { cn } from "~/lib/utils";
 
@@ -16,6 +18,11 @@ interface OpenTablesStripProps {
      *  joining a table is the same commitment as opening one, so it must never
      *  be offered under a condition the primary action refuses. */
     canAct: boolean;
+    /** Format of the Deck the player would join with (Format Compatibility,
+     *  issue #4611). A row whose host Format cannot meet it is disabled with
+     *  the reason, instead of dispatched into a server refusal. Absent = no
+     *  deck picked yet, so nothing to be incompatible with. */
+    deckFormat?: FormatId;
 }
 
 /**
@@ -33,6 +40,7 @@ export default function OpenTablesStrip({
     mode,
     onJoin,
     canAct,
+    deckFormat,
 }: OpenTablesStripProps) {
     if (!openGames || openGames.length === 0) return null;
     const isCockatrice = mode === "cockatrice";
@@ -50,7 +58,12 @@ export default function OpenTablesStrip({
                     // the row instead.
                     const tableIsManual = g.mode === "manual";
                     const rowMatchesMode = tableIsManual === isCockatrice;
-                    const canJoin = canAct && rowMatchesMode;
+                    const hostFormat = tableHostFormat(g);
+                    const formatMismatch =
+                        deckFormat !== undefined &&
+                        hostFormat !== null &&
+                        !formatsCompatible(deckFormat, hostFormat);
+                    const canJoin = canAct && rowMatchesMode && !formatMismatch;
                     return (
                         <button
                             key={g._id}
@@ -58,11 +71,13 @@ export default function OpenTablesStrip({
                             onClick={() => onJoin(g._id)}
                             disabled={!canJoin}
                             title={
-                                rowMatchesMode
-                                    ? undefined
-                                    : tableIsManual
-                                      ? "This is a Manual Game — switch to Cockatrice mode to join."
-                                      : "This is an Arena game — switch to Arena mode to join."
+                                !rowMatchesMode
+                                    ? tableIsManual
+                                        ? "This is a Manual Game — switch to Cockatrice mode to join."
+                                        : "This is an Arena game — switch to Arena mode to join."
+                                    : formatMismatch
+                                      ? `This table plays ${hostFormat}; your ${deckFormat} deck cannot join it. Pick a compatible deck.`
+                                      : undefined
                             }
                             className={cn(
                                 "flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm transition",
