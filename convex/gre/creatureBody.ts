@@ -164,6 +164,11 @@ const ATTACK_SHARE_KEYWORDS: ReadonlySet<string> = new Set([
     "first-strike",
     "vigilance",
     "haste",
+    // Issue #5152 rows that are earned by attacking.
+    "menace",
+    "double strike",
+    "double-strike",
+    "infect",
 ]);
 const BLOCK_SHARE_KEYWORDS: ReadonlySet<string> = new Set(["reach"]);
 

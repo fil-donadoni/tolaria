@@ -107,6 +107,11 @@
             "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
             "tier": "must",
             "needsSetup": false
+        },
+        {
+            "label": "restriction pricing: Disenchant takes the Moat grounding three Bears, not the 4-MV artifact with a script (issue #5154)",
+            "tier": "must",
+            "needsSetup": false
         }
     ],
     "Exalted Angel": [
