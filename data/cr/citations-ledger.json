@@ -14586,6 +14586,7 @@
         {"id":"500.1","line":"* opponent's end step is a DIFFERENT turn (CR 500.1 / 513.1: one ending","sites":1,"status":"baseline"},
         {"id":"500.1","line":"* predicate needing the CONTROLLER'S OWN turn ordinal (CR 500.1 — \"your","sites":1,"status":"baseline"},
         {"id":"500.1","line":"* step\" are present: CR 500.1 gives every turn an end step, so the unqualified","sites":1,"status":"baseline"},
+        {"id":"500.1","line":"* structure (CR 500.1): a `PHASE_BEGIN` trigger fires at the beginning of a","sites":1,"status":"confirmed","ruleHash":"2a08085160c6d165"},
         {"id":"500.1","line":"/** A PHASE_BEGIN UPKEEP trigger event for `playerId` (CR 500.1). */","sites":1,"status":"baseline"},
         {"id":"500.1","line":"/** A PHASE_BEGIN UPKEEP trigger event for `playerId`'s upkeep (CR 500.1). */","sites":1,"status":"baseline"},
         {"id":"500.1","line":"/** Active player at trigger time (CR 500.1). Used by PlayerFilter's","sites":1,"status":"baseline"},
