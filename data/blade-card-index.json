@@ -102,6 +102,13 @@
             "needsSetup": false
         }
     ],
+    "Disenchant": [
+        {
+            "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Exalted Angel": [
         {
             "label": "morph: casts Exalted Angel face down for {3} on three lands",

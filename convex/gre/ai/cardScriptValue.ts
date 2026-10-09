@@ -579,14 +579,21 @@ function abilityScriptOpValue(
         // (`dslStandingAbilityScriptValue`) and the board face
         // (`nonCreatureBodyValue` → `cardValue` → the same reader) both take
         // this reading, so casting the permanent is never a value loss the
-        // multiplier causes (issue #5145's one-number rule). The realized
-        // reading of a CREATURE's triggers keeps weight 1 (out of scope,
-        // issue #5151 — its recurrence is a follow-up).
+        // multiplier causes (issue #5145's one-number rule). The REALIZED
+        // reading takes it too for a card that is not PRINTED a creature: a
+        // non-creature permanent animated on the battlefield (an enchantment
+        // under Opalescence) is scored by `evaluateCreature`, whose ability
+        // half is this reading — left at weight 1, Sylvan Library read 282
+        // in hand and ~47 on that board, and the fit paid for the gap by
+        // pulling the multiplier (and `cardAdvantage`) down for every card.
+        // A printed creature's triggers keep weight 1 (out of scope, issue
+        // #5151 — a creature's recurrence is a follow-up).
+        const recurs =
+            selection === "standing" ||
+            (selection === "realized" && !def.types.includes("Creature"));
         const weight =
             gateWeight(ability, self) *
-            (selection === "standing"
-                ? recurrenceWeight(ability, script, abilityCtx)
-                : 1);
+            (recurs ? recurrenceWeight(ability, script, abilityCtx) : 1);
         if (weight === 0) continue;
         // Tags are a MEMBERSHIP fact, not a magnitude — a weighted ability
         // still loads onto the same feature dimension, so only points scale

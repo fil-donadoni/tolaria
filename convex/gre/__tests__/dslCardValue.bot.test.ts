@@ -330,6 +330,37 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     expect(onBoard).toBeGreaterThan(floorOf(vise));
                 });
 
+                it("a non-creature card ANIMATED on the battlefield keeps the multiplier (Opalescence): board ≥ hand", () => {
+                    // Under Opalescence an enchantment is a creature on the
+                    // board, scored by `evaluateCreature` through the REALIZED
+                    // reader. Without the multiplier there, Sylvan Library
+                    // read 282 in hand and ~47 in play, and casting it was a
+                    // 230-point loss the Verdict corpus then paid for by
+                    // pulling `latent.recurrence` down for every card.
+                    const library = byName("Sylvan Library");
+                    const opalescence = byName("Opalescence");
+                    const perm = makeInstance(library.id, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    });
+                    const anim = makeInstance(opalescence.id, {
+                        controllerId: "p1",
+                        ownerId: "p1",
+                    });
+                    const state = makeState({
+                        players: [
+                            makePlayer("p1", { battlefield: [anim, perm] }),
+                            makePlayer("p2"),
+                        ],
+                    });
+                    const onBoard =
+                        permanentRealisedValue(state, perm) -
+                        DEFAULT_EVAL_WEIGHTS.permanentWeight;
+                    const inHand = cardValueById(library.id);
+                    expect(inHand).toBeGreaterThan(floorOf(library));
+                    expect(onBoard).toBeGreaterThanOrEqual(inHand);
+                });
+
                 it("the multiplier is what lifts them: at recurrence 1 all three sit back at the floor", () => {
                     const flat = contextFreeGrounding({
                         ...DEFAULT_EVAL_WEIGHTS.latent,
