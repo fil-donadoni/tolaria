@@ -541,8 +541,8 @@ export interface GapMove {
     readonly to: number;
 }
 
-/** The flag `land` passes: reconcile and close the Bot Gaps already filed, but
- *  file no new one (issue #4944). Filing is the batch health refresh's. */
+/** Reconcile and close the Bot Gaps already filed, but file no new one
+ *  (issue #4944). `land` no longer passes it (issue #5301): a landing files. */
 export const NO_FILE_BOT_FLAG = "--no-file-bot";
 
 export interface GapSyncResult {

@@ -29,8 +29,9 @@ export function batchTouchesBot(changed: readonly string[] | null): boolean {
     return changed === null || touchesBotGlobs(changed);
 }
 
-/** The step that FILES Bot Gaps (issue #4944) — the only run that does: `land`
- *  passes `--no-file-bot`. Not a refresh step: failing it leaves the page fresh. */
+/** The step that FILES Bot Gaps (issue #4944) — `land`'s post-merge
+ *  `gaps:sync` files them too (issue #5301). Not a refresh step: failing it
+ *  leaves the page fresh. */
 export const FILING_STEP_NAME = "gaps:sync";
 
 /**

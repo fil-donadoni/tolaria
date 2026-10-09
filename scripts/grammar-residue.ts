@@ -23,7 +23,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { ORIGIN_BASE, BASE_BRANCH } from "./lib/branches";
-import { NO_FILE_BOT_FLAG } from "./lib/gap-issues";
 import {
     buildResidue,
     LEDGER_MARKER,
@@ -209,7 +208,6 @@ function main(): void {
             "bun",
             [
                 resolve(ROOT, "scripts/gaps-sync.ts"),
-                NO_FILE_BOT_FLAG,
                 ...(band === null ? [] : ["--band", band]),
             ],
             { cwd: ROOT, stdio: "inherit" }

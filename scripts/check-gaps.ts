@@ -330,8 +330,8 @@ export function renderBotGaps(
         `… gaps: ${unclaimed.length} of ${inScope} in-scope Bot Gap key(s) have no \`bot\` claim row yet — pending, not red:\n`,
         ...unclaimed.map((key) => `  - ${key}`),
         "",
-        "  `land` files no Bot Gap (issue #4944): the next batch health refresh",
-        "  files them, clustered (`bun run gaps:sync` does the same by hand).",
+        "  `land`'s post-merge `gaps:sync` files them, clustered (issue #5301);",
+        "  `bun run gaps:sync` does the same by hand.",
     ].join("\n");
 }
 
@@ -414,8 +414,9 @@ export function gapsVerdict(
     mismatches: readonly HandTailClaimMismatch[]
 ): { ok: boolean; out: string } {
     return {
-        // `unclaimed` is PENDING, never red (issue #4944): `land` files no Bot
-        // Gap, so a landed sweep's new keys wait for the batch health refresh.
+        // `unclaimed` is PENDING, never red (issue #4944): a branch's new keys
+        // are filed by `land`'s post-merge `gaps:sync` (issue #5301), after the
+        // lane that runs this.
         ok: census.violations.length === 0 && mismatches.length === 0,
         out: [
             render(census),

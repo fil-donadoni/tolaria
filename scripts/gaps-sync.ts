@@ -1413,7 +1413,7 @@ async function main(): Promise<void> {
     );
     for (const id of result.held)
         console.log(
-            `held       ${id} — ${NO_FILE_BOT_FLAG}: not filed here, the next batch health refresh files it`
+            `held       ${id} — ${NO_FILE_BOT_FLAG}: not filed here; a run without the flag files it`
         );
 
     const counts = new Map<string, number>();
