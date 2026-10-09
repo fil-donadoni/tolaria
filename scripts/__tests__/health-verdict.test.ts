@@ -10,6 +10,7 @@ import {
     infraCause,
     infraNotice,
     infraRecordToKeep,
+    parseJournalLastUnix,
     parseKernSleeptime,
     PREFLIGHT_CONVEX_STEP,
     readLastSleepAt,
@@ -69,6 +70,28 @@ describe("health verdict — a step cut by system sleep (issue #4938)", () => {
     });
 });
 
+describe("health verdict — reading the Linux journal's last sleep (issue #5305)", () => {
+    it("takes the epoch ms of the LAST short-unix line", () => {
+        expect(
+            parseJournalLastUnix(
+                [
+                    "1790866381.538510 omarchy systemd[1]: Starting System Suspend...",
+                    "1790870000.000001 omarchy systemd[1]: Finished System Suspend.",
+                ].join("\n") + "\n"
+            )
+        ).toBe(1790870000000);
+        expect(parseJournalLastUnix("1790866381.5 h s: x")).toBe(1790866381500);
+    });
+
+    it("is null for an empty journal or another output format", () => {
+        expect(parseJournalLastUnix("")).toBeNull();
+        expect(parseJournalLastUnix("-- No entries --\n")).toBeNull();
+        expect(
+            parseJournalLastUnix("Oct 01 16:53:01 omarchy systemd[1]: x")
+        ).toBeNull();
+    });
+});
+
 describe("health verdict — reading kern.sleeptime", () => {
     it("parses sysctl's struct timeval to epoch ms", () => {
         expect(
@@ -83,15 +106,16 @@ describe("health verdict — reading kern.sleeptime", () => {
         expect(parseKernSleeptime("")).toBeNull();
     });
 
-    it("reads a real past instant on darwin, null elsewhere", () => {
+    it("reads a real past instant on darwin and linux, null elsewhere", () => {
         const at = readLastSleepAt();
-        if (process.platform !== "darwin") {
+        if (process.platform !== "darwin" && process.platform !== "linux") {
             expect(at).toBeNull();
             return;
         }
         // A machine up since boot without sleeping reads null, also fine —
         // asserted either way, or the test has no assertion and reds
-        // (`kern.sleeptime` reads 0 until the first sleep; issue #5001).
+        // (`kern.sleeptime` reads 0 until the first sleep; issue #5001; a
+        // Linux journal with no sleep unit this boot reads null too).
         expect(at === null || at <= Date.now()).toBe(true);
     });
 });

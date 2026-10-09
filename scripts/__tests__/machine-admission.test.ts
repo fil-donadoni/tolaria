@@ -13,11 +13,13 @@ import {
     parseEtime,
     parseLsofCwd,
     parseMachineConfig,
+    parseMeminfo,
     parsePressure,
     parseProcRows,
     parseSwapUsage,
     parseVmStat,
     parseWorktreeRoots,
+    psiLevel,
     processOwner,
     runSaturated,
     saturation,
@@ -125,6 +127,40 @@ describe("probe parsers — the text each probe prints on this machine", () => {
             ((3907 + 264264) * 16384) / 1024 ** 2
         );
         expect(parseVmStat("Pages free: 1.")).toBeNull();
+    });
+
+    it("reads swap in use and MemAvailable from Linux `/proc/meminfo`, in MB (issue #5305)", () => {
+        const out = [
+            "MemTotal:       32617888 kB",
+            "MemFree:         1203364 kB",
+            "MemAvailable:   18874368 kB",
+            "SwapTotal:       8388604 kB",
+            "SwapFree:        6291452 kB",
+        ].join("\n");
+        expect(parseMeminfo(out)).toEqual({
+            swapUsedMb: (8388604 - 6291452) / 1024,
+            reclaimableMb: 18874368 / 1024,
+        });
+        expect(parseMeminfo("MemTotal: 1 kB")).toEqual({
+            swapUsedMb: null,
+            reclaimableMb: null,
+        });
+    });
+
+    it("translates Linux PSI onto the kernel pressure scale: 1 normal, 2 warning, 4 critical (issue #5305)", () => {
+        const psi = (some: number, full: number): string =>
+            [
+                `some avg10=${some.toFixed(2)} avg60=0.00 avg300=0.00 total=123`,
+                `full avg10=${full.toFixed(2)} avg60=0.00 avg300=0.00 total=45`,
+            ].join("\n");
+        expect(psiLevel(psi(0, 0))).toBe(1);
+        expect(psiLevel(psi(9.99, 0))).toBe(1);
+        expect(psiLevel(psi(10, 0))).toBe(2);
+        expect(psiLevel(psi(40, 9.99))).toBe(2);
+        expect(psiLevel(psi(40, 10))).toBe(4);
+        // A `some`-only file still reads.
+        expect(psiLevel("some avg10=12.00 avg60=0 avg300=0 total=1")).toBe(2);
+        expect(psiLevel("")).toBeNull();
     });
 
     it("reads `ps` etime in every width it prints", () => {

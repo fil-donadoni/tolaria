@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import path from "path";
 import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
+import { VITEST_NODE_ARGV } from "./scripts/lib/vitest-node-argv";
 
 /**
  * Blade-suite vitest config (issue #1427, PRD #1423).
@@ -55,6 +56,8 @@ export default defineConfig({
         name: "blade",
         maxWorkers: WORKERS,
         minWorkers: 1,
+        // Same worker flags as `vitest.config.ts` (issue #5305).
+        execArgv: VITEST_NODE_ARGV,
         globals: true,
         // Same rule as `vitest.config.ts` (issue #4492): a block that reaches
         // no `expect` fails.

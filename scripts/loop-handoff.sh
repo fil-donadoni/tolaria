@@ -21,8 +21,9 @@
 #   1b. `--detach` is the opt-in that restores the old shape — new session via
 #      `perl POSIX::setsid()`, SIGHUP-immune under `nohup` — for a run that
 #      must outlive the shell, the SSH connection or the Claude Code session
-#      that started it. `caffeinate` holds the Mac awake on BOTH paths: an
-#      overnight FOREGROUND run sleeps through the night otherwise.
+#      that started it. `caffeinate` (macOS) / `systemd-inhibit` (Linux)
+#      holds the machine awake on BOTH paths: an overnight FOREGROUND run
+#      sleeps through the night otherwise.
 #   1c. `--watch` (issue #4720) is the READ-ONLY counterpart: the rendered view
 #      of a `--detach` run, or of a foreground run in another terminal. It
 #      never writes to `loop-afk.log`, never touches the pid/stop files, and
@@ -427,8 +428,9 @@ run_foreground() {
 
 # Build the driver argv and run it — in this terminal by default, in its own
 # session under --detach. The optional-but-defaulted layers:
-#   caffeinate   — BOTH paths. The Mac must stay awake, or an overnight run
-#                  stops the moment the display sleeps.
+#   caffeinate   — BOTH paths (`systemd-inhibit` on Linux). The machine must
+#                  stay awake, or an overnight run stops the moment the
+#                  display sleeps.
 #   perl setsid  — --detach ONLY. A new session is exactly what makes Ctrl-C
 #                  unable to reach the driver, so it is the opt-in, never the
 #                  default.
@@ -456,8 +458,18 @@ launch_driver() {
     [ -z "$_max_passes" ] || set -- "$@" --max-passes "$_max_passes"
     [ -z "$_max_errors" ] || set -- "$@" --max-consecutive-errors "$_max_errors"
 
-    if [ "$NO_CAFFEINATE" -eq 0 ] && command -v caffeinate >/dev/null 2>&1; then
-        set -- caffeinate -i -s "$@"
+    # Keep the machine awake for the run: `caffeinate` on macOS,
+    # `systemd-inhibit` on Linux (issue #5305). Neither usable → unguarded.
+    # `systemd-inhibit` present but with no logind to reach (SSH without a
+    # bus, a container) refuses to run the command at all, so it is probed.
+    if [ "$NO_CAFFEINATE" -eq 0 ]; then
+        if command -v caffeinate >/dev/null 2>&1; then
+            set -- caffeinate -i -s "$@"
+        elif command -v systemd-inhibit >/dev/null 2>&1 &&
+            systemd-inhibit --list >/dev/null 2>&1; then
+            set -- systemd-inhibit --what=idle:sleep --who=tolaria-loop \
+                --why="unattended loop run" "$@"
+        fi
     fi
 
     if [ "$DETACH" -eq 0 ]; then
