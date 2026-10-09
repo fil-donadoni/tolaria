@@ -48,7 +48,7 @@ import {
 } from "./loop-doctor";
 import {
     capCensus,
-    claimsHeldHere,
+    heldFromJournal,
     isStaleClaim,
     machineScope,
     releasedClaims,
@@ -215,15 +215,11 @@ function releasedOnThisMachine(root: string): number[] {
     }
 }
 
-/** The claims this machine's journal holds (issue #5302); `null` when the
- *  journal cannot be read, which `machineScope` turns into a repository-wide
- *  count — never into zero. */
+/** The claims this machine's journal holds (issue #5302); `[]` when it was
+ *  never written, `null` when it cannot be read, which `machineScope` turns
+ *  into a repository-wide count — never into zero. */
 function heldOnThisMachine(root: string): number[] | null {
-    try {
-        return claimsHeldHere(readFileSync(claimLedgerPath(root), "utf8"));
-    } catch {
-        return null;
-    }
+    return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
 }
 
 // ── owner stamp (issue #2627), the hook's walk in TypeScript ────────────────
@@ -346,9 +342,10 @@ async function main(): Promise<void> {
     const outcome = await withClaimLock(`claim #${issue}`, () => {
         const now = new Date().toISOString();
         const claimed = claimedIssues();
+        const openPrs = issuesWithOpenPr();
         const reconciled = liveClaimSet(
             claimed,
-            issuesWithOpenPr(),
+            openPrs,
             releasedOnThisMachine(root),
             now,
             DEFAULTS.staleClaimHours,
@@ -372,11 +369,26 @@ async function main(): Promise<void> {
             )
         );
         // The cap counts THIS machine's claims (issue #5302); the collision
-        // check inside `claimDecision` still reads every live claim.
+        // check reads every live claim, and WITHOUT this machine's `released`
+        // rows: an issue claimed here, released here and re-claimed on the
+        // other machine has a local `released` last row, yet its label is the
+        // other machine's live work (issue #5302 review).
         const scope = machineScope(live, heldOnThisMachine(root));
+        // A claim the census proved dead (`recoverable`/`stranded`) stays out
+        // of it, so a pass RESUMING one is still admitted.
+        const dead = new Set([...recoverable, ...stranded]);
+        const collide = liveClaimSet(
+            claimed,
+            openPrs,
+            [],
+            now,
+            DEFAULTS.staleClaimHours,
+            isStaleClaim
+        ).filter((n) => !dead.has(n));
         const decision = claimDecision({
             issue,
             live,
+            collide,
             cap: sessionCap(),
             noCap,
             recoverable,

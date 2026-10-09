@@ -53,7 +53,7 @@ import {
     capCensus,
     resumeItems,
     capRefusal,
-    claimsHeldHere,
+    heldFromJournal,
     buildPlanRecord,
     lineageRefusal,
     liveClaims,
@@ -703,15 +703,12 @@ function releasedClaimsOnThisMachine(): number[] {
  * The claims the same journal says THIS machine holds (issue #5302) — what
  * the cap counts. Total the other way round from the function above: an
  * unreadable journal is `null`, which `machineScope` reads as "nothing is
- * foreign", so the cap falls back to the repository-wide count.
+ * foreign", so the cap falls back to the repository-wide count; an ABSENT one
+ * holds nothing (`heldFromJournal`).
  */
 function claimsHeldOnThisMachine(): number[] | null {
     const root = process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout();
-    try {
-        return claimsHeldHere(readFileSync(claimLedgerPath(root), "utf8"));
-    } catch {
-        return null;
-    }
+    return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
 }
 
 function main(): void {

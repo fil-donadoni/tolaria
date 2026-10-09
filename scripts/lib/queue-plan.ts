@@ -1331,14 +1331,32 @@ export function claimsHeldHere(ledgerText: string): number[] {
 }
 
 /**
+ * `claimsHeldHere` over a journal reader, with the two failure modes told
+ * apart (issue #5302 review): an ABSENT journal (ENOENT) is a machine that
+ * never claimed — nothing held here, `[]` — or a fresh second machine would
+ * be refused by the other's claims, the very symptom the split exists to
+ * cure. Any OTHER read failure (EACCES, EIO, …) is `null`: we cannot tell,
+ * and `machineScope` then counts repository-wide. Should a wrong root make
+ * the journal look absent, the machine admission's process census still
+ * bounds the sessions this machine runs.
+ */
+export function heldFromJournal(read: () => string): number[] | null {
+    try {
+        return claimsHeldHere(read());
+    } catch (err) {
+        return (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : null;
+    }
+}
+
+/**
  * The live claims split by machine (issue #5302): the cap counts `local`
  * only — it measures CPU contention, and the PR/h knee behind `sessions.cap`
  * was measured on ONE machine — while `foreign` claims run on another machine
  * and occupy no slot here. They still collide: `claimDecision` checks the
  * whole live set, never this split.
  *
- * `heldHere` = `null` means the journal could not be read, and then nothing
- * is foreign: the count falls back to the repository-wide one, `scoped`
+ * `heldHere` = `null` means the journal could not be read (`heldFromJournal`;
+ * an absent one is `[]`), and then nothing is foreign: the count falls back to the repository-wide one, `scoped`
  * false. Fail-closed on purpose — an intersection with a missing journal once
  * made the cap fail open to zero (see `liveClaims`). A local claim whose row
  * the best-effort hook lost reads as foreign; the machine admission's process

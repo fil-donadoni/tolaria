@@ -167,7 +167,8 @@ machine, so it now counts the live claims held by THIS machine: an
 `claim`. A foreign claim holds no slot, but it still collides — no machine
 claims an issue another one holds — and the liveness classifier never reads
 it as dead, because no local owner was recorded for it. An unreadable journal
-falls back to the repository-wide count, never to zero. No repository-wide
+falls back to the repository-wide count, never to zero; an absent one holds
+nothing. No repository-wide
 ceiling sits above the per-machine one: each machine's own admission (process
 census, RAM, load) already bounds what it runs, and a repository ceiling would
 only stop a machine that has room. `docs/agents/quality-gates.md`

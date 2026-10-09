@@ -16,6 +16,7 @@ import {
 } from "../lib/queue-claim";
 import {
     claimsHeldHere,
+    heldFromJournal,
     machineScope,
     releasedClaims,
 } from "../lib/queue-plan";
@@ -870,6 +871,43 @@ describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", (
             expect(d.message).toMatch(/3\/3 live claims: /);
             expect(d.message).toMatch(/Counted repository-wide/);
         }
+    });
+
+    it("an ABSENT journal holds nothing (a fresh machine is not refused by the other's claims); any other read failure is unknown", () => {
+        const fail = (code: string) => () => {
+            throw Object.assign(new Error(code), { code });
+        };
+        expect(heldFromJournal(fail("ENOENT"))).toEqual([]);
+        expect(heldFromJournal(fail("EACCES"))).toBeNull();
+        expect(heldFromJournal(fail("EIO"))).toBeNull();
+        expect(
+            heldFromJournal(() => journal({ issue: 10, event: "claim" }))
+        ).toEqual([10]);
+        // ENOENT, end to end: three foreign claims, a fresh machine admitted.
+        const d = claimDecision({
+            issue: 40,
+            live: [10, 20, 30],
+            cap: 3,
+            noCap: false,
+            scope: machineScope([10, 20, 30], heldFromJournal(fail("ENOENT"))),
+        });
+        expect(d.admitted).toBe(true);
+    });
+
+    it("released HERE, re-claimed on the other machine: still a collision", () => {
+        // #70's last local row is `released`, so the reconciled `live` set
+        // omits it — but its label is the other machine's live work. The
+        // collision check reads the set NOT reconciled against local releases.
+        const d = claimDecision({
+            issue: 70,
+            live: [],
+            collide: [70],
+            cap: 3,
+            noCap: true,
+            scope: machineScope([], []),
+        });
+        expect(d.admitted).toBe(false);
+        if (!d.admitted) expect(d.refusal).toBe("claimed");
     });
 
     it("a foreign claim with an open PR classifies `live`, never `stranded` — no local owner reading", () => {

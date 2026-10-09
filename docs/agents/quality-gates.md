@@ -1383,13 +1383,17 @@ the network and a claim that stopped matching its own machine would leave the
 count — the cap failing open. Three properties hold the split safe:
 
 - **A foreign claim still collides.** `claimDecision` checks the collision
-  against every live claim, never against the local subset, and the planner
-  keeps every claimed issue out of its batch.
+  against every live claim, never against the local subset — and against the
+  set NOT reconciled with this machine's `released` rows, because an issue
+  released here and re-claimed on the other machine is that machine's work.
+  The planner keeps every claimed issue out of its batch.
 - **A foreign claim is never resumed.** It has no recorded owner here, so
   `ownerAlive` is `null` and the classifier never calls it `stranded` or
   `recoverable`.
 - **An unreadable journal counts repository-wide**, never zero, and the
-  refusal says so (`Counted repository-wide`). A local claim whose row the
+  refusal says so (`Counted repository-wide`). An ABSENT one (ENOENT) holds
+  nothing: a fresh machine has claimed nothing, and refusing it on the other
+  machine's claims is the symptom the split cures. A local claim whose row the
   best-effort hook lost reads as foreign; the machine admission's process
   census still counts its session.
 

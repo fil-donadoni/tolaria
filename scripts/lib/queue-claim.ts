@@ -54,6 +54,11 @@ export interface ClaimInput {
      *  foreign claim holds no slot here but is still somebody's work.
      *  Omitted = the cap counts `live` whole. */
     scope?: MachineScope;
+    /** The set the COLLISION check reads, when wider than `live` (issue #5302
+     *  review): live claims NOT reconciled against this machine's `released`
+     *  rows, since a local release says nothing about the other machine's
+     *  re-claim. Omitted = `live`. */
+    collide?: number[];
 }
 
 /**
@@ -63,7 +68,7 @@ export interface ClaimInput {
  * never disagree on what "at the cap" means.
  */
 export function claimDecision(input: ClaimInput): ClaimDecision {
-    if (input.live.includes(input.issue)) {
+    if ((input.collide ?? input.live).includes(input.issue)) {
         return {
             admitted: false,
             refusal: "claimed",
