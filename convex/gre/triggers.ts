@@ -844,6 +844,48 @@ export function collectTriggers(
         }
     }
 
+    // CR 603.7d / 510.2 (issue #2142, Vigorous Charge) — a `timing:
+    // "this-turn-watched-creature-deals-combat-damage"` instance watches ONE
+    // creature and fires once per combat DAMAGE_DEALT event it is the source
+    // of: no recipient restriction and no per-batch collapse (a trampler
+    // assigning to a blocker AND the player is two events, so two firings).
+    // Repeating — stays queued, purged at CLEANUP (phases.ts). The event
+    // rides onto the StackItem so the body reads `$event.amount`. Fired
+    // BEFORE the CR 400.7 drop below, so a creature that deals damage and
+    // leaves in the same batch still triggers; afterwards the watch is gone
+    // (its return would be a new object).
+    if (state.delayedTriggers?.length) {
+        const damageWatchers = state.delayedTriggers.filter(
+            (t) =>
+                t.timing === "this-turn-watched-creature-deals-combat-damage" &&
+                t.watchInstanceId !== undefined
+        );
+        if (damageWatchers.length > 0) {
+            for (const event of events) {
+                if (event.type !== "DAMAGE_DEALT" || !event.isCombat) continue;
+                for (const t of damageWatchers) {
+                    if (event.sourceInstanceId !== t.watchInstanceId) continue;
+                    out.push({
+                        ...buildDelayedTriggerStackItem(state, t),
+                        triggerEvent: event,
+                    });
+                }
+            }
+            if (recentlyLeft.size > 0) {
+                const kept = state.delayedTriggers.filter(
+                    (t) =>
+                        !(
+                            t.timing ===
+                                "this-turn-watched-creature-deals-combat-damage" &&
+                            t.watchInstanceId !== undefined &&
+                            recentlyLeft.has(t.watchInstanceId)
+                        )
+                );
+                state.delayedTriggers = kept.length > 0 ? kept : undefined;
+            }
+        }
+    }
+
     // CR 606 / 603.7a / 506.2 (issue #2385, Tamiyo, Seasoned Scholar's +2)
     // — a `timing: "until-next-turn-creature-attacks-you"` instance is the
     // "until your next turn" (NOT "this turn") twin of the repeating

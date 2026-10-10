@@ -7672,7 +7672,25 @@ export type DelayedTriggerTiming =
      *  0049) rather than adding a new one — a length-1 `attackerIds` array is
      *  exactly what that row already flattens. Rejects `targetPlayer` /
      *  `watch`, like the other repeating combat-event timings. */
-    | "until-next-turn-creature-attacks-you";
+    | "until-next-turn-creature-attacks-you"
+    /** CR 603.7d / 510.2 (issue #2142) — an INSTANCE-scoped, REPEATING, this-
+     *  turn-bounded combat-damage watch: "Whenever that creature deals combat
+     *  damage this turn, …" (Vigorous Charge). Names ONE watched instance
+     *  (`watch` required, resolved to `watchInstanceId` at scheduling) and
+     *  repeats like `this-turn-creature-blocks`: it stays queued after firing
+     *  and fires once PER matching combat `DAMAGE_DEALT` event whose
+     *  `sourceInstanceId` is the watched instance — NO recipient restriction
+     *  (a player, planeswalker, battle or creature) and NO batch collapse
+     *  (CR 510.2: one creature assigning damage to a blocker AND the player
+     *  is two separate damage events, so the ability triggers twice). Unlike
+     *  `this-turn-creature-deals-combat-damage-to-player` it is scoped by the
+     *  watched object, not the scheduling controller. The firing event is
+     *  threaded onto the stack item, so the body reads the damage as
+     *  `{ ref: "$event.amount" }` ("gain life equal to that damage"). Purged
+     *  at CLEANUP (the "this turn" bound, CR 514.2) and dropped when the
+     *  watched creature leaves the battlefield (CR 400.7 — its return is a
+     *  new object). Rejects `targetPlayer`. */
+    | "this-turn-watched-creature-deals-combat-damage";
 
 /** ADR 0048 — the inline body of an Effect-Script-scheduled delayed trigger
  *  (CR 603.7a): a pure-JSON Op list persisted ON the `DelayedTriggerInstance`

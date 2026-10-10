@@ -8106,6 +8106,44 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
     });
 });
 
+describe("validateEffectScript — instance combat-damage watch (CR 603.7d / 510.2, issue #2142)", () => {
+    const run = (effects: unknown[]) =>
+        validateEffectScript(host({ effects: effects as EffectOp[] }));
+    const damageWatch = (extra: Record<string, unknown> = {}) => ({
+        op: "delayedTrigger",
+        timing: "this-turn-watched-creature-deals-combat-damage",
+        oracleText: "o",
+        watch: { target: 0 },
+        effects: [
+            {
+                op: "gainLife",
+                player: "controller",
+                amount: { ref: "$event.amount" },
+            },
+        ],
+        ...extra,
+    });
+
+    it("requires `watch`, reads the live `$event.amount`, rejects `targetPlayer` / `blockerColors`", () => {
+        expect(run([damageWatch()])).toEqual([]);
+        const noWatch: Record<string, unknown> = damageWatch();
+        delete noWatch.watch;
+        expect(run([noWatch]).length).toBeGreaterThan(0);
+        expect(
+            run([damageWatch({ targetPlayer: { target: 0 } })]).length
+        ).toBeGreaterThan(0);
+        expect(
+            run([damageWatch({ blockerColors: ["G"] })]).length
+        ).toBeGreaterThan(0);
+    });
+
+    it("`$event` stays illegal in a one-shot instance watch body (only the repeating timings read it)", () => {
+        expect(
+            run([damageWatch({ timing: "attacks-unblocked" })]).length
+        ).toBeGreaterThan(0);
+    });
+});
+
 describe("validateEffectScript — face-down whole-zone exile + bound list capture + player-next-turn-end-step (CR 406.3 / 603.7, issue #3812)", () => {
     const suppressShape = (
         overrides: {
