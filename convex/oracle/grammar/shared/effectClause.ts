@@ -5358,7 +5358,7 @@ function effectSentence(
     }
 
     // ── put an announced permanent on top of its owner's library ───────────
-    // CR 401.4 — "Put target creature you control on top of its owner's
+    // CR 400.3 — "Put target creature you control on top of its owner's
     // library": the same zone change as "Return … to", spelled with "on" and
     // the library end in the destination phrase. Only the top-of-library
     // spelling is read; the subject must be a single announced object.

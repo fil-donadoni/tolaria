@@ -3684,7 +3684,7 @@ function lowerMoveZone(
         return each("graveyard");
     if (zone.zone === "exile") return each("exile");
     if (reanimated) return each("battlefield");
-    // CR 401.4 — "put target creature you control on top of its owner's
+    // CR 400.3 — "put target creature you control on top of its owner's
     // library": an object only ever reaches its OWNER's library, and "on top"
     // is the 1-based `position: 1` that `moveZone` ships (Teferi, Oust). One
     // announced object only: N objects put on top at once need the owner's

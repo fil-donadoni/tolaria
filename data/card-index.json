@@ -3468,6 +3468,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Aura Extraction",
+        "scryfallId": "55d16883-5e98-4dd2-92dd-0ba92f1099cb",
+        "oracleId": "84100106-1f97-4859-aadd-a35796ee000f",
+        "firstSet": "ons",
+        "firstPrintId": "55d16883-5e98-4dd2-92dd-0ba92f1099cb",
+        "firstPrintSet": "ons",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Aura Fracture",
         "scryfallId": "de8d3e36-977f-4169-8f2a-a4057b912ccb",
         "oracleId": "3495d83a-b103-42be-8708-9ce971b352bd",
@@ -4268,6 +4278,16 @@
         "firstSet": "jou",
         "firstPrintId": "fbaa4800-30cc-4a80-a6cc-9a24ada9eb40",
         "firstPrintSet": "jou"
+    },
+    {
+        "name": "Banishment Decree",
+        "scryfallId": "2c5f605c-9d16-493e-bc44-0e15bdf8c0bf",
+        "oracleId": "567b676b-54f3-44c7-8654-4d2b0262ea12",
+        "firstSet": "mbs",
+        "firstPrintId": "2c5f605c-9d16-493e-bc44-0e15bdf8c0bf",
+        "firstPrintSet": "mbs",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Banners Raised",
@@ -10096,6 +10116,16 @@
         "source": "compiled"
     },
     {
+        "name": "Civic Guildmage",
+        "scryfallId": "a9319039-db2f-47bf-9ef0-8d3a381d54fb",
+        "oracleId": "6e93cb9a-44c8-49fb-b6a7-bfdf7bd725fe",
+        "firstSet": "mir",
+        "firstPrintId": "a9319039-db2f-47bf-9ef0-8d3a381d54fb",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Civic Stalwart",
         "scryfallId": "aa981489-4301-43f6-b1d7-2aa42e00cf75",
         "oracleId": "80d7e395-f774-44b5-9442-fa2fc03aaa29",
@@ -15110,6 +15140,16 @@
         "source": "compiled"
     },
     {
+        "name": "Disempower",
+        "scryfallId": "3a86a2ae-aaf3-4d4d-ae06-ec3d4a539550",
+        "oracleId": "ff9f4bfe-1585-4eaa-943c-1e85ed79a820",
+        "firstSet": "mir",
+        "firstPrintId": "3a86a2ae-aaf3-4d4d-ae06-ec3d4a539550",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Disenchant",
         "scryfallId": "2722d7e2-61c6-4934-9c21-875ee78fd06c",
         "oracleId": "a7e97fa9-4b72-4548-b854-5be5f18a6f1a",
@@ -18914,6 +18954,16 @@
         "source": "compiled"
     },
     {
+        "name": "Excommunicate",
+        "scryfallId": "6fe080bc-e642-4fce-b4ee-bbe25d735673",
+        "oracleId": "6c2cf22e-5dbb-4fa9-8ece-17069e6f1d7f",
+        "firstSet": "ala",
+        "firstPrintId": "6fe080bc-e642-4fce-b4ee-bbe25d735673",
+        "firstPrintSet": "ala",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Excoriate",
         "scryfallId": "7d5023a5-b77c-48c6-9e84-ef525300ecdf",
         "oracleId": "a9aedd96-1aee-480d-87fe-3ed94bd64599",
@@ -19486,6 +19536,16 @@
         "firstSet": "pls",
         "firstPrintId": "6e54c84d-ccc9-4c52-b02c-e0392e8fe447",
         "firstPrintSet": "pls"
+    },
+    {
+        "name": "Fallow Earth",
+        "scryfallId": "1482c390-69cf-484e-a06c-8d63f770c7de",
+        "oracleId": "05a4acfd-3bf3-4ec2-a28a-bc43ba7c6fbf",
+        "firstSet": "mir",
+        "firstPrintId": "1482c390-69cf-484e-a06c-8d63f770c7de",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Fallowsage",
@@ -21727,6 +21787,16 @@
         "firstPrintId": "36eae0e1-7100-449d-a259-7abfcd429117",
         "firstPrintSet": "mmq",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Forced Retreat",
+        "scryfallId": "9753d211-3436-4a9b-86d9-54a541770ec2",
+        "oracleId": "ccf1336c-2ea5-4582-84a5-0b29b3cca6c2",
+        "firstSet": "ptk",
+        "firstPrintId": "9753d211-3436-4a9b-86d9-54a541770ec2",
+        "firstPrintSet": "ptk",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -25348,6 +25418,16 @@
         "source": "compiled"
     },
     {
+        "name": "Grasp of Phantoms",
+        "scryfallId": "02655d3d-82d0-4be6-bb64-25e1478edfc3",
+        "oracleId": "0d96e4bc-ff4e-4f37-89b6-8a4e3c1069a0",
+        "firstSet": "isd",
+        "firstPrintId": "02655d3d-82d0-4be6-bb64-25e1478edfc3",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Grasping Dunes",
         "scryfallId": "a8fcc939-6a31-4fb3-abe7-7663b85868dd",
         "oracleId": "47d16c11-3033-44f3-9a12-2daf3453cc5b",
@@ -25809,6 +25889,16 @@
         "firstPrintId": "72de2f66-0b86-4c21-b4c8-c2d97e3fd095",
         "firstPrintSet": "ons",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Griptide",
+        "scryfallId": "27f92b74-86bb-4bb3-8f78-640984698f28",
+        "oracleId": "5a6bbc45-6cb8-40ff-9f7c-7b2c5713dd78",
+        "firstSet": "dka",
+        "firstPrintId": "27f92b74-86bb-4bb3-8f78-640984698f28",
+        "firstPrintSet": "dka",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -31778,6 +31868,16 @@
         "source": "compiled"
     },
     {
+        "name": "King Crab",
+        "scryfallId": "aedea953-b5f1-4ec7-bd9f-b7827f9d40fe",
+        "oracleId": "24982bfe-5276-44a8-99a5-43b497ebf51f",
+        "firstSet": "ulg",
+        "firstPrintId": "aedea953-b5f1-4ec7-bd9f-b7827f9d40fe",
+        "firstPrintSet": "ulg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "King Suleiman",
         "scryfallId": "4d3dce0f-2168-4f63-b2f9-156a11beeea7",
         "oracleId": "97f548b1-6398-4dc7-b5eb-da5a3f24ddb7",
@@ -34321,6 +34421,16 @@
         "firstPrintId": "cfcff1c6-0db6-4ff6-b4af-d7048b426368",
         "firstPrintSet": "xln",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Looming Hoverguard",
+        "scryfallId": "29de2f4c-81a6-42c7-94d1-f9109c3331ff",
+        "oracleId": "e1c49bdb-cfd1-4ebf-90f7-73bd5009f75e",
+        "firstSet": "mrd",
+        "firstPrintId": "29de2f4c-81a6-42c7-94d1-f9109c3331ff",
+        "firstPrintSet": "mrd",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -39836,6 +39946,16 @@
         "firstSet": "lea",
         "firstPrintId": "b8cdd6a7-f772-4ccb-914f-63f52ed54d6b",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Nightscape Apprentice",
+        "scryfallId": "7498ca4c-614a-4776-8886-0a6ed58520f6",
+        "oracleId": "429de3c3-3f2e-4d55-a04a-f414912aff3a",
+        "firstSet": "inv",
+        "firstPrintId": "7498ca4c-614a-4776-8886-0a6ed58520f6",
+        "firstPrintSet": "inv",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Nightscape Battlemage",
@@ -47110,6 +47230,16 @@
         "source": "compiled"
     },
     {
+        "name": "Repel",
+        "scryfallId": "68ea14a6-539a-47eb-9147-a310be7b63fe",
+        "oracleId": "6e072b3a-7a83-4d77-bae3-72de0e646b81",
+        "firstSet": "ody",
+        "firstPrintId": "68ea14a6-539a-47eb-9147-a310be7b63fe",
+        "firstPrintSet": "ody",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Repel the Vile",
         "scryfallId": "9a37d5b4-af3a-48b0-895f-91b652108ef6",
         "oracleId": "aa108554-f1a0-45b6-aa15-597d42be7a8a",
@@ -48840,6 +48970,16 @@
         "firstSet": "m13",
         "firstPrintId": "cc5b622c-83a4-477e-a99c-2674e2bd6bb9",
         "firstPrintSet": "m13",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Run Aground",
+        "scryfallId": "9ed573c6-2b95-4052-8b43-106cbaacb721",
+        "oracleId": "6ef9bf18-6b09-4398-a502-6867d999ab0c",
+        "firstSet": "xln",
+        "firstPrintId": "9ed573c6-2b95-4052-8b43-106cbaacb721",
+        "firstPrintSet": "xln",
         "rarity": "common",
         "source": "compiled"
     },
@@ -51610,6 +51750,16 @@
         "firstSet": "kld",
         "firstPrintId": "9aba0c60-78e2-4e1c-a6ad-6f1c001ad7ee",
         "firstPrintSet": "kld",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Set Adrift",
+        "scryfallId": "cdad122d-a872-449f-9a7c-0f054b711d11",
+        "oracleId": "f27f51e1-b881-4639-9d36-47cdf2a61117",
+        "firstSet": "ktk",
+        "firstPrintId": "cdad122d-a872-449f-9a7c-0f054b711d11",
+        "firstPrintSet": "ktk",
         "rarity": "uncommon",
         "source": "compiled"
     },
@@ -57746,6 +57896,16 @@
         "firstPrintSet": "atq"
     },
     {
+        "name": "Submerge",
+        "scryfallId": "d2741fe4-37fe-427f-ae85-5107991d4eee",
+        "oracleId": "99427ebe-c00d-4206-84ca-9764f6e952c6",
+        "firstSet": "nem",
+        "firstPrintId": "d2741fe4-37fe-427f-ae85-5107991d4eee",
+        "firstPrintSet": "nem",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Submerged Boneyard",
         "scryfallId": "6479a246-21ac-490a-aefb-6ed72aabdb88",
         "oracleId": "f27d52e6-aab9-4f95-ae46-33d1173bf4fe",
@@ -58208,6 +58368,16 @@
         "firstSet": "xln",
         "firstPrintId": "709d87b3-bf42-47ed-961d-d0e86d3e1d90",
         "firstPrintSet": "xln",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sunscape Apprentice",
+        "scryfallId": "a9d6bd19-77c9-4a1a-a2d5-6f9737693fea",
+        "oracleId": "4ab1411e-b255-4a6e-b81a-5de7b2d4ea12",
+        "firstSet": "inv",
+        "firstPrintId": "a9d6bd19-77c9-4a1a-a2d5-6f9737693fea",
+        "firstPrintSet": "inv",
         "rarity": "common",
         "source": "compiled"
     },
@@ -59623,6 +59793,16 @@
         "firstPrintId": "07bb9695-a8b0-47b4-9a03-11d559412f33",
         "firstPrintSet": "uds",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Temporal Eddy",
+        "scryfallId": "3cab2147-d496-489b-aaf0-b354e31a6b45",
+        "oracleId": "3a35e772-2547-41a3-a2a2-125b48c23aa5",
+        "firstSet": "tsp",
+        "firstPrintId": "3cab2147-d496-489b-aaf0-b354e31a6b45",
+        "firstPrintSet": "tsp",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -61154,6 +61334,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Time Ebb",
+        "scryfallId": "e5fd26ca-dc7d-453d-8653-7f967e8f6dc7",
+        "oracleId": "30cc8f7b-3c28-40f5-8f8f-157e8212280b",
+        "firstSet": "por",
+        "firstPrintId": "e5fd26ca-dc7d-453d-8653-7f967e8f6dc7",
+        "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Time Spiral",
         "scryfallId": "f3d62dbd-63db-4ac9-950f-9852627f23f2",
         "oracleId": "cac55e46-b730-4569-b92c-a4b5922fc20c",
@@ -61670,6 +61860,16 @@
         "firstSet": "ice",
         "firstPrintId": "6107388b-ec1e-401e-a407-a821c908ed8d",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Totally Lost",
+        "scryfallId": "ec8e4142-7c46-4d2f-aaa6-6410f323d9f0",
+        "oracleId": "e0462a2c-fb88-495f-813b-6476ee3e62bb",
+        "firstSet": "gtc",
+        "firstPrintId": "ec8e4142-7c46-4d2f-aaa6-6410f323d9f0",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Toucan-Puffin",
@@ -63734,6 +63934,16 @@
         "firstPrintSet": "ody"
     },
     {
+        "name": "Uproot",
+        "scryfallId": "88357572-0edd-4115-93c3-49f6f5a191b4",
+        "oracleId": "891d5c5e-3d4d-4183-b9fd-ab694639d1c3",
+        "firstSet": "bok",
+        "firstPrintId": "88357572-0edd-4115-93c3-49f6f5a191b4",
+        "firstPrintSet": "bok",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ur-Golem's Eye",
         "scryfallId": "00cd61eb-a526-46db-8675-334663e0d63a",
         "oracleId": "fb34fc00-e60d-41fc-9393-ca4248ec0a1c",
@@ -64376,6 +64586,16 @@
         "firstSet": "kld",
         "firstPrintId": "572c15ab-2229-4536-b586-638ec77d9cb7",
         "firstPrintSet": "kld",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Vedalken Dismisser",
+        "scryfallId": "5225169f-f45b-49f9-890b-b78cb629e0a7",
+        "oracleId": "e6ed8820-4276-4ead-ba82-4654a92c415d",
+        "firstSet": "psal",
+        "firstPrintId": "5225169f-f45b-49f9-890b-b78cb629e0a7",
+        "firstPrintSet": "psal",
         "rarity": "common",
         "source": "compiled"
     },

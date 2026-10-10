@@ -1,5 +1,5 @@
 // "Put target creature you control on top of its owner's library" — an
-// activated-ability zone change (CR 401.4 + CR 400.3), lowered to `moveZone`
+// activated-ability zone change (CR 400.3), lowered to `moveZone`
 // with `position: 1` (issue #5406). The golden for the accepted form is the
 // Civic Guildmage row in `grammar/fixtures.ts` (`goldenFixtures.test.ts`);
 // this file pins the fail-closed neighbours and the other two graduates.
@@ -30,7 +30,7 @@ function moveEffects(card: OracleCard) {
     return outcome.definition.activatedAbilities?.[0]?.effects;
 }
 
-describe("put on top of its owner's library (CR 401.4, issue #5406)", () => {
+describe("put on top of its owner's library (CR 400.3, issue #5406)", () => {
     it("Sunscape Apprentice's second line lowers to moveZone position 1", () => {
         expect(
             moveEffects(creature("Sunscape Apprentice", PUT_ON_TOP))

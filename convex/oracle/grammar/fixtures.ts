@@ -6203,7 +6203,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             flashback: { X: 1, G: 1 },
         },
     },
-    // CR 401.4 + CR 400.3 — "Put target creature you control on top of its
+    // CR 400.3 — "Put target creature you control on top of its
     // owner's library": exhibits `moveZone` of a live permanent to a library,
     // a zone change the canned smoke scenario does not model (issue #5406).
     {
