@@ -12343,8 +12343,18 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     owner: "opp",
                     zone: "battlefield",
                 },
+                ...Array.from({ length: 7 }, () => ({
+                    name: "Island",
+                    owner: "opp" as const,
+                    zone: "hand" as const,
+                })),
             ],
-            hiddenHand: { opp: 7 },
+            // Seven REAL cards, not `hiddenHand` placeholders: the Debug panel's
+            // blade loader puts every `must` entry into a LIVE game
+            // (`debugLoadBladeScenario.test.ts`), which cannot hold a card of
+            // unknown identity. Seven Islands value exactly what seven
+            // placeholders did (the land floor each) and keep the Library's
+            // draw live (its activation condition: exactly seven cards in hand).
             phase: "END_STEP",
             activePlayer: "opp",
             priority: "me",

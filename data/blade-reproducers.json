@@ -1507,11 +1507,43 @@
                 "name": "Library of Alexandria",
                 "owner": "opp",
                 "zone": "battlefield"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "hand"
             }
         ],
-        "hiddenHand": {
-            "opp": 7
-        },
         "phase": "END_STEP",
         "activePlayer": "opp",
         "priority": "me",
