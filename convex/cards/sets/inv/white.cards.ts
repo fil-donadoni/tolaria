@@ -1120,9 +1120,69 @@ export const glimmeringAngel = defineCard(() => ({
 // Protective Sphere — {2}{W} Enchantment. "{1}, Pay 1 life: Prevent all
 // damage that would be dealt to you this turn by a source of your choice
 // that shares a color with the mana spent on this activation cost."
-// tracked-by: #1331 (the colour-provenance half has shipped —
-// `noteManaSpent` / `getNotedManaSpent()`; what is left is the choose-a-source
-// prevention shield keyed on a colour match).
+// (issue #5410)
+//
+// CR 106.10 — `noteManaSpent` snapshots the colours paid for THIS
+// activation; CR 609.7a — the source is chosen on resolution ("when the
+// effect is created"), never targeted, so it cannot be keyed at announcement
+// (CR 602.2b orders targets before costs: the mana spent is not known yet).
+// The `choice` filter reads those noted colours (`{ manaSpent: { read:
+// "colors" } }`); CR 105.2 "shares a color" is any one of them. Colourless
+// mana has no colour (CR 105.1), so a {C}-only payment leaves no legal
+// source and the shield is never created — the reminder text's "Colorless
+// mana prevents no damage."
+//
+// CR 615.1a — the shield is recipient-scoped (`to: { player: "controller" }`):
+// the chosen source's damage to anything other than you is untouched.
+//
+// DIVERGENCE (tracked-by: #3732) — the DSL `choice` reaches permanents only;
+// CR 609.7a also allows a spell on the stack as the source.
+//
+// hand-tail: "Prevent all damage that would be dealt to you this turn by a source of your choice that shares a color with the mana spent on this activation cost." (#4596)
+export const protectiveSphere = defineCard(() => ({
+    id: "ef5ef13e-1cf0-42a9-95d0-30ade254d6a8", // INV 26
+    name: "Protective Sphere",
+    rarity: "common",
+    oracleText:
+        "{1}, Pay 1 life: Prevent all damage that would be dealt to you this turn by a source of your choice that shares a color with the mana spent on this activation cost. (Colorless mana prevents no damage.)",
+    manaCost: { X: 2, W: 1 },
+    types: ["Enchantment"],
+    activatedAbilities: [
+        {
+            id: "protective-sphere-prevent",
+            oracleText:
+                "{1}, Pay 1 life: Prevent all damage that would be dealt to you this turn by a source of your choice that shares a color with the mana spent on this activation cost.",
+            cost: { mana: { X: 1 }, life: 1 },
+            useStack: true,
+            noteManaSpent: true,
+            effects: [
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: { color: { manaSpent: { read: "colors" } } },
+                    count: 1,
+                    prompt: "Protective Sphere: choose a source that shares a color with the mana spent.",
+                    bind: "$chosen",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$chosen" },
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "all-from-source",
+                            source: { ref: "$each" },
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));
 
 // Pure Reflection — {2}{W} Enchantment. "Whenever a player casts a creature
 // spell, destroy all Reflections. Then that player creates an X/X white

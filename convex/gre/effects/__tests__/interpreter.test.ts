@@ -11504,6 +11504,104 @@ describe("Effect Script Op: preventDamage source-scoped + divided modes (CR 615,
         expect(blocked(state, "srcA", false)).toBe(false);
     });
 
+    it("all-from-source + to: prevents only the source's damage dealt to that player (CR 615.1a, issue #5410)", () => {
+        const id = registerScript("test-op-prevent-from-source-to", [
+            {
+                op: "preventDamage",
+                mode: "all-from-source",
+                source: { target: 0 },
+                to: { player: "controller" },
+            },
+        ]);
+        const state = twoBears();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "srcA" }]);
+        resolveTopOfStack(state);
+        // To the controller (p1): prevented, combat or not.
+        expect(blocked(state, "srcA", true)).toBe(true);
+        expect(blocked(state, "srcA", false)).toBe(true);
+        // The same source's damage to anyone else is untouched.
+        expect(
+            blocked(state, "srcA", false, { type: "player", id: "p2" })
+        ).toBe(false);
+        expect(
+            blocked(state, "srcA", false, { type: "permanent", id: "srcB" })
+        ).toBe(false);
+        // Another source's damage to the controller is untouched.
+        expect(blocked(state, "srcB", false)).toBe(false);
+    });
+
+    describe("choice filter color { manaSpent: { read: 'colors' } } (CR 106.10 / 105.2, issue #5410)", () => {
+        /** srcA red, srcB green; p1 resolves "choose a source sharing a
+         *  colour with the mana spent, prevent its damage to you". */
+        function castWithNoted(noted: Record<string, number>): GameState {
+            const id = registerScript("test-op-choice-mana-spent-colors", [
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: { color: { manaSpent: { read: "colors" } } },
+                    count: 1,
+                    bind: "$src",
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: "$src" },
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "all-from-source",
+                            source: { ref: "$each" },
+                            to: { player: "controller" },
+                        },
+                    ],
+                },
+            ]);
+            const state = twoBears();
+            state.players[1].battlefield[0].colorOverride = ["R"];
+            state.players[1].battlefield[1].colorOverride = ["G"];
+            pushSpell(state, id, "p1").notedManaSpent = noted;
+            resolveTopOfStack(state);
+            return state;
+        }
+
+        function submit(state: GameState, pick: string): void {
+            const head = state.pendingChoices![0];
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [pick],
+            });
+        }
+
+        it("offers only sources sharing a colour of the mana spent", () => {
+            const state = castWithNoted({ R: 1 });
+            expect(state.pendingChoices).toHaveLength(1);
+            // The green source shares no colour with {R}: refused at submit.
+            expect(() => submit(state, "srcB")).toThrow();
+            submit(state, "srcA");
+            expect(blocked(state, "srcA", false)).toBe(true);
+            expect(blocked(state, "srcB", false)).toBe(false);
+        });
+
+        it("colourless mana spent gives no colour to share: no choice, no shield (CR 105.1)", () => {
+            const state = castWithNoted({ C: 1 });
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(state.stack).toHaveLength(0);
+            expect(blocked(state, "srcA", false)).toBe(false);
+            expect(blocked(state, "srcB", false)).toBe(false);
+        });
+
+        it("no noted payment at all also fails closed", () => {
+            const state = castWithNoted({});
+            expect(state.pendingChoices ?? []).toHaveLength(0);
+            expect(blocked(state, "srcA", false)).toBe(false);
+        });
+    });
+
     it("all-from-source: is a no-op when the source is gone (CR 608.2b) and still resolves", () => {
         const id = registerScript("test-op-prevent-from-source-gone", [
             {

@@ -33,10 +33,16 @@ import {
     type GameState,
     type StackItem,
 } from "../../../../gre/state";
-import { sourcePreventionShieldApplies } from "../../../../gre/state";
+import {
+    runDamageReplacement,
+    sourcePreventionShieldApplies,
+} from "../../../../gre/state";
 import { applyPendingChoiceSubmit } from "../../../../gre/pendingChoiceSubmit";
 import { raiseTriggerTargetSelection } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    activateAbilityOnState,
+    finalizeTargetSelection,
+} from "../../../../game";
 import { validateAttackerEligibility } from "../../../../gre/combat";
 import {
     getEffectivePower,
@@ -1402,5 +1408,99 @@ describe("Winnow (CR 608.2 resolution condition + CR 201.2 same name, issue #206
         expect(
             projected.players[1].graveyard.some((c) => c.id === "wire-target")
         ).toBe(true);
+    });
+});
+
+// Protective Sphere (CR 106.10 / 609.7a / 615.1a, issue #5410) — driven through
+// the REAL activation entry point, so the colours checked are the ones
+// `noteManaSpent` recorded off the actual pool payment, never a hand-set
+// snapshot.
+describe("Protective Sphere — source of your choice sharing a colour with the mana spent (issue #5410)", () => {
+    const SPHERE_ID = "ef5ef13e-1cf0-42a9-95d0-30ade254d6a8";
+    const GRIZZLY_BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870"; // green
+    const SAVANNAH_LIONS_ID = "d05b92bd-797e-413f-a8b0-32e0937a1ee0"; // white
+    const GRAY_OGRE_ID = "73ae5276-b607-4f23-a9d2-e8cc7b8e3693"; // red
+
+    /** p1: the Sphere, a green creature of its own, and a one-mana pool;
+     *  p2: a white source and a red source. */
+    function board(pool: Partial<Record<string, number>>): GameState {
+        const creature = (cardId: string, id: string, controllerId: string) =>
+            makeInstance(cardId, { id, controllerId, ownerId: controllerId });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        creature(SPHERE_ID, "sphere", "p1"),
+                        creature(GRIZZLY_BEARS_ID, "mine", "p1"),
+                    ],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 0, ...pool },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(SAVANNAH_LIONS_ID, "white-src", "p2"),
+                        creature(GRAY_OGRE_ID, "red-src", "p2"),
+                    ],
+                }),
+            ],
+        });
+    }
+
+    function activateAndResolve(state: GameState): void {
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "sphere",
+            abilityId: "protective-sphere-prevent",
+        });
+        resolveTopOfStack(state);
+    }
+
+    function prevented(
+        state: GameState,
+        sourceId: string,
+        target: { type: "player" | "permanent"; id: string }
+    ): boolean {
+        return (
+            runDamageReplacement(state, sourceId, "p2", target, 2, false) ===
+            null
+        );
+    }
+
+    const ME = { type: "player", id: "p1" } as const;
+
+    it("paid with {W}: only a white source is offered; its damage to you — and only to you — is prevented", () => {
+        const state = board({ W: 1 });
+        const lifeBefore = state.players[0].life;
+        activateAndResolve(state);
+        // "Pay 1 life" (CR 119.4 / 602.2).
+        expect(state.players[0].life).toBe(lifeBefore - 1);
+        const head = state.pendingChoices![0];
+        expect(head.playerId).toBe("p1");
+        const submit = (pick: string) =>
+            applyPendingChoiceSubmit(state, {
+                playerId: head.playerId,
+                stackItemId: head.stackItemId,
+                step: head.step,
+                choiceId: head.choiceId,
+                cardInstanceIds: [pick],
+            });
+        // The red source shares no colour with {W} (CR 105.2).
+        expect(() => submit("red-src")).toThrow();
+        submit("white-src");
+        expect(prevented(state, "white-src", ME)).toBe(true);
+        // CR 615.1a — "dealt to you": the chosen source's damage to your
+        // creature is untouched, and so is another source's damage to you.
+        expect(
+            prevented(state, "white-src", { type: "permanent", id: "mine" })
+        ).toBe(false);
+        expect(prevented(state, "red-src", ME)).toBe(false);
+    });
+
+    it("paid with {C}: colourless mana gives no colour to share — no choice, no shield (CR 105.1)", () => {
+        const state = board({ C: 1 });
+        activateAndResolve(state);
+        expect(state.pendingChoices ?? []).toHaveLength(0);
+        expect(state.stack).toHaveLength(0);
+        expect(prevented(state, "white-src", ME)).toBe(false);
+        expect(prevented(state, "red-src", ME)).toBe(false);
     });
 });

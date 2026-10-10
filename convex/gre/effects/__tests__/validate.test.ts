@@ -1365,6 +1365,74 @@ describe("EffectCardFilter.color — { sacrificed: { read: 'colors' } } (issue #
     });
 });
 
+describe("EffectCardFilter.color — { manaSpent: { read: 'colors' } } (issue #5410)", () => {
+    const choiceOp = (color: unknown): EffectOp =>
+        ({
+            op: "choice",
+            kind: "choose-permanents",
+            player: "controller",
+            zone: "battlefield",
+            allControllers: true,
+            filter: { color },
+            count: 1,
+            prompt: "Choose a source",
+            bind: "$src",
+        }) as never;
+
+    it("accepts the dynamic mana-spent-colours shape", () => {
+        expect(
+            validateEffectScript(
+                host({
+                    effects: [choiceOp({ manaSpent: { read: "colors" } })],
+                })
+            )
+        ).toEqual([]);
+    });
+
+    it("REJECTS a malformed mana-spent shape", () => {
+        for (const color of [
+            { manaSpent: { read: "colors", plus: 1 } },
+            { manaSpent: { read: "colors" }, of: "controller" },
+            { manaSpent: { read: "amount" } },
+            { manaSpent: "colors" },
+        ]) {
+            const errors = validateEffectScript(
+                host({ effects: [choiceOp(color)] })
+            );
+            expect(errors.length).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("preventDamage all-from-source `to` — a player only (CR 615.1a, issue #5410)", () => {
+    const op = (to: unknown): EffectOp =>
+        ({
+            op: "preventDamage",
+            mode: "all-from-source",
+            source: { target: 0 },
+            to,
+        }) as never;
+
+    it("accepts `to: { player }`", () => {
+        expect(
+            validateEffectScript(
+                host({ effects: [op({ player: "controller" })] })
+            )
+        ).toEqual([]);
+    });
+
+    it("REJECTS a permanent recipient, an extra key and a bare player ref", () => {
+        for (const to of [
+            { target: 0 },
+            { player: "controller", target: 0 },
+            "controller",
+        ]) {
+            const errors = validateEffectScript(host({ effects: [op(to)] }));
+            expect(errors.length).toBeGreaterThan(0);
+        }
+    });
+});
+
 // --- EffectCardFilter.hasAbility — battlefield-only (issue #1097) -----------
 //
 // `hasAbility` reads the LIVE `staticAbilities` array via `toPermanentFilter`
