@@ -254,6 +254,27 @@ production deploy.
 `bun run health:status` shows the last verdict at any time. `bun run health`
 runs the same gate by hand (`--branch=<name>` picks the tip).
 
+### Card Prints tables: where `prints:sync` runs (issue #5414)
+
+Token art resolves from the `cardPrints` and `definitionTokenPrints` tables;
+while they are empty every token renders the placeholder, with no error. Three
+places fill them, all through `bun scripts/prints-sync.ts`:
+
+- **Local deployment**: `bun run dev` runs `bun run prints:ensure`
+  (`--if-empty --warn-only`) after `catalogue:ensure`. A first start downloads
+  the Scryfall bulk and fills the tables; later starts only ask the deployment
+  and skip. A failure prints `prints-sync: FAILED` and `dev` continues. By
+  hand: `bun run prints:sync`.
+- **Production**: the push of the release branch triggers the hosting build,
+  whose `buildCommand` in `vercel.json` ends with `bun run prints:sync:deploy`
+  (`--deploy --if-empty --warn-only`) right after `convex deploy`, so the
+  functions it calls exist. `--deploy` writes to the deployment
+  `CONVEX_DEPLOY_KEY` selects, `--prod` included; with no key it is an error,
+  never a local write. Once filled, every later deploy skips. Failure is loud
+  in the build log but does not red the deploy: rerun
+  `CONVEX_DEPLOY_KEY=… bun run prints:sync:deploy` by hand.
+- `--dry-run` builds the rows and writes nothing.
+
 ### The RED path: the fix loop
 
 A RED verdict starts a repair rather than ending the run (ADR 0118). One round
