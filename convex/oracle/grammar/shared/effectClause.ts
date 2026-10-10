@@ -831,15 +831,15 @@ export type EffectSentenceIR =
      */
     | { readonly kind: "prevent-regeneration"; readonly subject: SubjectIR }
     /**
-     * CR 101.2 + CR 601.2 / 602.2 — a turn-scoped lock on what a player may
-     * cast or activate. `casting` is `"all"` (every spell) or the printed
-     * card types the lock names; `activation` is the non-mana-ability half.
-     */
-    /**
      * CR 305.1 + CR 101.2 + CR 514.2 — "Target player can't play lands this
      * turn": a turn-scoped per-player land-play lock, on the announced player.
      */
     | { readonly kind: "land-play-lock"; readonly player: "target" }
+    /**
+     * CR 101.2 + CR 601.2 / 602.2 — a turn-scoped lock on what a player may
+     * cast or activate. `casting` is `"all"` (every spell) or the printed
+     * card types the lock names; `activation` is the non-mana-ability half.
+     */
     | {
           readonly kind: "player-lock";
           readonly player: "opponents" | "target" | "defending";
