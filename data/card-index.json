@@ -65612,6 +65612,14 @@
         "source": "compiled"
     },
     {
+        "name": "Vigorous Charge",
+        "scryfallId": "af6f57ad-d370-4c81-8da0-c15d87725ab1",
+        "oracleId": "b8ce3f84-2053-4d16-ab3d-e552bd8d0e8c",
+        "firstSet": "inv",
+        "firstPrintId": "af6f57ad-d370-4c81-8da0-c15d87725ab1",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Vile Consumption",
         "scryfallId": "7f7e5716-77f3-45d2-a40a-f5bf500f6ad7",
         "oracleId": "b6a005db-e7e2-4b88-bc8a-c257bcc31cf5",

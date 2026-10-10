@@ -3683,6 +3683,13 @@ const DELAYED_TIMINGS = new Set([
     // `$event` (checked below) — and purged at CLEANUP. The only timing that
     // accepts `blockerColors`.
     "becomes-blocked-by",
+    // Instance combat-damage watch (CR 603.7b / 510.2, issue #2142) — fires
+    // once per combat DAMAGE_DEALT event whose source is the WATCHED
+    // permanent ("Whenever that creature deals combat damage this turn",
+    // Vigorous Charge). Instance-scoped (requires `watch`, rejects
+    // `targetPlayer`) and REPEATING — its body reads the live `$event`
+    // (`$event.amount`, checked below) — purged at CLEANUP.
+    "this-turn-watched-creature-deals-combat-damage",
 ]);
 
 function isDelayedTiming(value: unknown): boolean {
@@ -6164,7 +6171,9 @@ const OP_SCHEMAS: OpSchemaTable = {
                 entry.timing === "leaves-battlefield-indefinite" ||
                 entry.timing === "dies" ||
                 entry.timing === "attacks-unblocked" ||
-                entry.timing === "becomes-blocked-by";
+                entry.timing === "becomes-blocked-by" ||
+                entry.timing ===
+                    "this-turn-watched-creature-deals-combat-damage";
             if (instanceScoped && !("watch" in entry)) {
                 errors.push(
                     `timing "${String(entry.timing)}" is instance-scoped (CR 603.7a) — field "watch" is required`
@@ -6172,7 +6181,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             }
             if (!instanceScoped && "watch" in entry) {
                 errors.push(
-                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked" / "becomes-blocked-by"`
+                    `field "watch" is only valid with the instance-scoped timings "leaves-battlefield" / "leaves-battlefield-indefinite" / "dies" / "attacks-unblocked" / "becomes-blocked-by" / "this-turn-watched-creature-deals-combat-damage"`
                 );
             }
             // CR 509.3d (issue #3809) — the blocker condition only has a
@@ -7933,14 +7942,21 @@ function checkOpListRefs(
             // 0049) — `inDelayedBody` flips on for those.
             // "becomes-blocked-by" (issue #3809) is the third: it fires per
             // BLOCKERS_CONFIRMED pair and threads that event the same way.
+            // "this-turn-watched-creature-deals-combat-damage" (issue #2142)
+            // is the fourth: it fires per combat DAMAGE_DEALT event.
             const eventBody =
                 entry.timing === "this-turn-creature-blocks" ||
                 entry.timing === "becomes-blocked-by" ||
-                entry.timing === "until-next-turn-creature-attacks-you";
+                entry.timing === "until-next-turn-creature-attacks-you" ||
+                entry.timing ===
+                    "this-turn-watched-creature-deals-combat-damage";
             const liveEventType =
                 entry.timing === "until-next-turn-creature-attacks-you"
                     ? "ATTACKERS_DECLARED"
-                    : "BLOCKERS_CONFIRMED";
+                    : entry.timing ===
+                        "this-turn-watched-creature-deals-combat-damage"
+                      ? "DAMAGE_DEALT"
+                      : "BLOCKERS_CONFIRMED";
             checkOpListRefs(
                 entry.effects,
                 (j) => `${at}: effects[${j}]`,

@@ -1613,21 +1613,68 @@ export const verdelothTheAncient = defineCard(() => ({
 
 // Vigorous Charge — "Kicker {W}. Target creature gains trample until end of
 // turn. Whenever that creature deals combat damage this turn, if this spell
-// was kicked, you gain life equal to that damage." The trample grant is
-// free, but "whenever THAT CREATURE deals combat damage THIS TURN" needs a
-// `delayedTrigger` timing keyed to a repeating damage-dealt-by-a-specific-
-// permanent event, and `DelayedTriggerTiming` has no such member: the two
-// nearest members each hold half of it —
-// `this-turn-creature-deals-combat-damage-to-player` (#1199) repeats but is
-// scoped by scheduling CONTROLLER, matches player targets only and collapses
-// a whole damage batch into one firing; `attacks-unblocked` (#2117) is
-// instance-scoped via `watch` but one-shot and forbids `$event` in its body
-// (which "life equal to that damage" must read).
-// tracked-by: #2142
-// export const vigorousCharge: CardDefinition = {
-//     id: "af6f57ad-d370-4c81-8da0-c15d87725ab1",
-//     name: "Vigorous Charge",
-//     rarity: "common",
-//     manaCost: { G: 1 },
-//     types: ["Instant"],
-// };
+// was kicked, you gain life equal to that damage." The trample grant is plain
+// `grantAbility`; the second sentence is the INSTANCE-scoped repeating
+// `this-turn-watched-creature-deals-combat-damage` timing (CR 603.7b, issue
+// #2142): it fires once per combat damage event the target deals — any
+// recipient, no batch collapse (CR 510.2: trample over a blocker gains life
+// for the blocker's share AND the player's) — and the body reads
+// `{ ref: "$event.amount" }`.
+//
+// "If this spell was kicked" is an intervening-if (CR 603.4) over a fact fixed
+// at cast time, so the delayed trigger is SCHEDULED ONLY when kicked (the `if`
+// on `additionalCostPaid` reads the resolving stack item's own
+// `kickerPayments`). That is observationally equivalent and sidesteps issue
+// #2042: the trigger carries no `interveningIf` reading transient
+// `kickerPayments` that a CR 400.7 re-entry would clear.
+//
+// compiler-gap: Whenever that creature deals combat damage this turn, if this spell was kicked, you gain life equal to that damage. (#2693)
+export const vigorousCharge = defineCard(() => ({
+    id: "af6f57ad-d370-4c81-8da0-c15d87725ab1",
+    name: "Vigorous Charge",
+    rarity: "common",
+    oracleText:
+        "Kicker {W} (You may pay an additional {W} as you cast this spell.)\nTarget creature gains trample until end of turn. Whenever that creature deals combat damage this turn, if this spell was kicked, you gain life equal to that damage.",
+    manaCost: { G: 1 },
+    types: ["Instant"],
+    kickers: [
+        {
+            id: "kicker",
+            description: "Kicker {W}",
+            mana: { W: 1 },
+        },
+    ],
+    targetRequirement: { type: "Creature", count: 1 },
+    effects: [
+        {
+            op: "grantAbility",
+            ability: "trample",
+            target: { target: 0 },
+            duration: { phase: "end-of-turn" },
+        },
+        {
+            op: "if",
+            predicate: {
+                left: { additionalCostPaid: "kicker" },
+                op: "ge",
+                right: 1,
+            },
+            then: [
+                {
+                    op: "delayedTrigger",
+                    timing: "this-turn-watched-creature-deals-combat-damage",
+                    oracleText:
+                        "Whenever that creature deals combat damage this turn, you gain life equal to that damage.",
+                    watch: { target: 0 },
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: { ref: "$event.amount" },
+                        },
+                    ],
+                },
+            ],
+        },
+    ],
+}));

@@ -2936,7 +2936,9 @@ export function finalizeCleanup(state: GameState): void {
     // here is a watch whose creature never attacked unblocked this turn.
     // `becomes-blocked-by` (CR 509.3d, issue #3809, Zombie Boa) is a
     // REPEATING this-turn instance watch — purged unconditionally, like
-    // `this-turn-creature-blocks`.
+    // `this-turn-creature-blocks`; so is
+    // `this-turn-watched-creature-deals-combat-damage` (CR 603.7b, issue
+    // #2142, Vigorous Charge).
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(
             (t) =>
@@ -2945,6 +2947,7 @@ export function finalizeCleanup(state: GameState): void {
                 t.timing !== "attacks-unblocked" &&
                 t.timing !== "becomes-blocked-by" &&
                 t.timing !== "this-turn-creature-blocks" &&
+                t.timing !== "this-turn-watched-creature-deals-combat-damage" &&
                 t.timing !== "this-turn-creature-deals-combat-damage-to-player"
         );
         state.delayedTriggers = kept.length > 0 ? kept : undefined;

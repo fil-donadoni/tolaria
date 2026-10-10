@@ -6596,7 +6596,8 @@ export const OP_EXECUTORS: {
             op.timing === "leaves-battlefield-indefinite" ||
             op.timing === "dies" ||
             op.timing === "attacks-unblocked" ||
-            op.timing === "becomes-blocked-by"
+            op.timing === "becomes-blocked-by" ||
+            op.timing === "this-turn-watched-creature-deals-combat-damage"
         ) {
             const watched =
                 op.watch !== undefined
