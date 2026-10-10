@@ -72,11 +72,19 @@ export default function VariantBTabs() {
                 <ZoneTabs
                     value={tab}
                     onChange={setTab}
-                    counts={{
-                        creatures: creatures.length,
-                        spells: spells.length,
-                        side: side.length,
-                    }}
+                    tabs={[
+                        {
+                            key: "creatures",
+                            label: "Creatures",
+                            count: creatures.length,
+                        },
+                        {
+                            key: "spells",
+                            label: "Non-creatures",
+                            count: spells.length,
+                        },
+                        { key: "side", label: "Sideboard", count: side.length },
+                    ]}
                 />
                 <BuilderPanel>
                     {tab === "side" ? (

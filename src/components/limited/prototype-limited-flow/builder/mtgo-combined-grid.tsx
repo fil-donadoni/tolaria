@@ -23,6 +23,7 @@ export default function MtgoCombinedGrid({
     filter,
     onCardClick,
     showHeaders = true,
+    split = true,
 }: {
     cards: ProtoCard[];
     groupBy: GroupBy;
@@ -30,15 +31,36 @@ export default function MtgoCombinedGrid({
     filter: TypeFilter;
     onCardClick: (card: ProtoCard, el: Element) => void;
     showHeaders?: boolean;
+    /** False: one pile per column, no divider (cards already filtered). */
+    split?: boolean;
 }) {
     const columns = buildColumns(cards, groupBy, sortBy, groupBy === "mv");
-    const split = columns.map((col) => ({
+    if (!split) {
+        return (
+            <div
+                data-hscroll
+                className="overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin]"
+            >
+                <div className="flex w-max gap-2 sm:gap-3">
+                    {columns.map((col) => (
+                        <PileColumn
+                            key={col.key}
+                            column={col}
+                            onCardClick={onCardClick}
+                            showHeader={showHeaders}
+                        />
+                    ))}
+                </div>
+            </div>
+        );
+    }
+    const halves = columns.map((col) => ({
         col,
         top: { ...col, cards: col.cards.filter(isCreature) },
         bottom: { ...col, cards: col.cards.filter((c) => !isCreature(c)) },
     }));
-    const creatureSlots = Math.max(1, ...split.map((s) => s.top.cards.length));
-    const nCreatures = split.reduce((n, s) => n + s.top.cards.length, 0);
+    const creatureSlots = Math.max(1, ...halves.map((s) => s.top.cards.length));
+    const nCreatures = halves.reduce((n, s) => n + s.top.cards.length, 0);
     const nSpells = cards.length - nCreatures;
 
     return (
@@ -49,12 +71,12 @@ export default function MtgoCombinedGrid({
             <div
                 className="grid w-max gap-x-2 sm:gap-x-3"
                 style={{
-                    gridTemplateColumns: `repeat(${split.length}, var(--cw))`,
+                    gridTemplateColumns: `repeat(${halves.length}, var(--cw))`,
                     gridTemplateRows: "auto auto auto auto",
                 }}
             >
                 {showHeaders &&
-                    split.map(({ col }) => (
+                    halves.map(({ col }) => (
                         <div
                             key={`h-${col.key}`}
                             className="row-start-1 flex h-6 items-center justify-between border-b border-border-subtle/40 pb-1 text-[11px] font-semibold text-text-muted"
@@ -74,7 +96,7 @@ export default function MtgoCombinedGrid({
                             </span>
                         </div>
                     ))}
-                {split.map(({ col, top }) => (
+                {halves.map(({ col, top }) => (
                     <div
                         key={`t-${col.key}`}
                         className="row-start-2 pt-2"
@@ -111,7 +133,7 @@ export default function MtgoCombinedGrid({
                         </span>
                     </span>
                 </div>
-                {split.map(({ col, bottom }) => (
+                {halves.map(({ col, bottom }) => (
                     <div key={`b-${col.key}`} className="row-start-4">
                         <PileColumn
                             column={bottom}

@@ -1,29 +1,27 @@
-// PROTOTYPE — throwaway. Variant B's phone segmented tabs: Creatures /
-// Non-creatures / Sideboard with live counts. Each pill is a fly fallback
+// PROTOTYPE — throwaway. Phone segmented tabs (Creatures / Non-creatures /
+// Sideboard, or Deck / Sideboard) with live counts. Each pill is a fly fallback
 // target (`data-fly-tab`) when a card moves into a hidden tab.
 import { cn } from "~/lib/utils";
 
-export type ZoneTab = "creatures" | "spells" | "side";
+export type ZoneTab = "creatures" | "spells" | "deck" | "side";
 
 export default function ZoneTabs({
     value,
     onChange,
-    counts,
+    tabs,
 }: {
     value: ZoneTab;
     onChange: (t: ZoneTab) => void;
-    counts: Record<ZoneTab, number>;
+    tabs: { key: ZoneTab; label: string; count: number }[];
 }) {
-    const tabs: { key: ZoneTab; label: string }[] = [
-        { key: "creatures", label: "Creatures" },
-        { key: "spells", label: "Non-creatures" },
-        { key: "side", label: "Sideboard" },
-    ];
     return (
         <div
             role="tablist"
             aria-label="Deck zone"
-            className="sticky top-0 z-30 grid grid-cols-3 gap-1 rounded-[var(--panel-radius)] border border-border-strong bg-surface-base/95 p-1 backdrop-blur"
+            style={{
+                gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))`,
+            }}
+            className="sticky top-0 z-30 grid gap-1 rounded-[var(--panel-radius)] border border-border-strong bg-surface-base/95 p-1 backdrop-blur"
         >
             {tabs.map((t) => {
                 const active = t.key === value;
@@ -49,7 +47,7 @@ export default function ZoneTabs({
                                 active ? "text-surface-base" : "text-parchment"
                             )}
                         >
-                            {counts[t.key]}
+                            {t.count}
                         </span>
                     </button>
                 );

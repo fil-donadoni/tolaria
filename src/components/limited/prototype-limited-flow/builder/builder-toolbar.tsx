@@ -8,6 +8,7 @@ import { cn } from "~/lib/utils";
 import { DEFAULT_SORT, type GroupBy, type TypeFilter } from "./builder-data";
 import PackSourceChip from "./pack-source-chip";
 import SortChip from "./sort-chip";
+import SplitToggle from "./split-toggle";
 import type { Builder } from "./useBuilder";
 
 const GROUP_OPTIONS = [
@@ -24,10 +25,13 @@ export default function BuilderToolbar({
     b,
     showFilter = true,
     compact = false,
+    showSplit = false,
 }: {
     b: Builder;
     showFilter?: boolean;
     compact?: boolean;
+    /** Show the "Split creatures" switch (variant d). */
+    showSplit?: boolean;
 }) {
     const total = b.deck.length + b.basicsTotal;
     return (
@@ -74,6 +78,9 @@ export default function BuilderToolbar({
                     flip={b.sortFlip}
                     isDefault={b.sortBy === DEFAULT_SORT[b.groupBy]}
                 />
+                {showSplit && (
+                    <SplitToggle on={b.split} onChange={b.setSplit} />
+                )}
                 {showFilter && (
                     <SegmentedControl
                         ariaLabel="Filter by card type"

@@ -63,3 +63,9 @@ All UI text in English. Must work at phone portrait (375), phone landscape, tabl
 - **Event page → variant A (Bento)**: wide Feature Card header (chips, ⋯ menu,
   horizontal stepper), next-action hero left + sticky "The table" ring tile right,
   phase tiles below; ring becomes a tile + dialog on phones.
+- **Builder → viewport mix**: desktop = c (MTGO grid with divider), phone portrait
+  = b (tabs), phone landscape = b (rows side by side). The creature/non-creature
+  split is an OPTION ("Split creatures" toggle, default OFF, remembered), distinct
+  from the All/Creatures/Non-creatures filter. Variant d renders this mix.
+- **Card fly animation** (builder variant a demo, pack → pool / sideboard and
+  pool ↔ deck): approved as is.

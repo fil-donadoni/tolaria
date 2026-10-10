@@ -37,6 +37,11 @@ export function useBuilder() {
     /** Bumped when the coupled sort flips, so the chip can replay its flash. */
     const [sortFlip, setSortFlip] = useState(0);
     const [filter, setFilter] = useState<TypeFilter>("all");
+    /** Creature / non-creature split of the piles — a layout OPTION,
+     *  distinct from the type filter. Owner: default OFF (persisted in
+     *  localStorage in the real thing). */
+    const [split, setSplitRaw] = useState(false);
+    const setSplit = (on: boolean) => setSplitRaw(on);
     const [deckName, setDeckName] = useState(DEFAULT_DECK_NAME);
     const launch = useFly();
 
@@ -98,6 +103,8 @@ export function useBuilder() {
         filter,
         setFilter,
         passesFilter,
+        split,
+        setSplit,
         deckName,
         setDeckName,
         move,
