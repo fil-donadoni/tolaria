@@ -535,7 +535,6 @@
         {"id":"105.1","line":"/** CR 105.1 — the five colour words, as the Oracle prints them. */","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"/** CR 105.1 — the five coloured mana symbols a caster may pick from for a","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"/** CR 105.1 — the five colours, in WUBRG order, as a kicker id names them. */","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
-        {"id":"105.1","line":"/** CR 105.1 — the five colours, the only keys of a noted payment that can","sites":1,"status":"confirmed","ruleHash":"a0773a550784c5c5"},
         {"id":"105.1","line":"/** CR 702.44a + CR 105.1 — how many DISTINCT COLORS of mana a record of spent","sites":1,"status":"baseline"},
         {"id":"105.1","line":"/** Canonical WUBRG order (CR 105.1) — both the color-scoring iteration order","sites":1,"status":"baseline"},
         {"id":"105.1","line":"/** Set when this mode IS a choice of color (CR 105.1) — Prismatic Ward /","sites":1,"status":"baseline"},

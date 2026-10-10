@@ -66,6 +66,7 @@
 // `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
+import { COLORED_MANA_COLORS } from "../manaColors";
 import type {
     Color,
     ControlChangeCondition,
@@ -1270,14 +1271,10 @@ function resolveFilterColors(
         // this activation's payment. {C} is not a colour, so a colourless-only
         // payment reads as the empty set: fail-closed, matches nothing.
         const spent = ctx.getNotedManaSpent();
-        return FILTER_COLORS.filter((c) => (spent[c] ?? 0) > 0);
+        return COLORED_MANA_COLORS.filter((c) => (spent[c] ?? 0) > 0);
     }
     return ctx.getAdditionalSacrificeColors() ?? [];
 }
-
-/** CR 105.1 — the five colours, the only keys of a noted payment that can
- *  give a source a colour to share. */
-const FILTER_COLORS: readonly Color[] = ["W", "U", "B", "R", "G"];
 
 /** Resolves an `EffectCardFilter.subtype` to the literal list the matchers
  *  compare against (issue #3721). A literal string or array passes through; a

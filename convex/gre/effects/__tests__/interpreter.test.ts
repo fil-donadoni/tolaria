@@ -11543,6 +11543,7 @@ describe("Effect Script Op: preventDamage source-scoped + divided modes (CR 615,
                     allControllers: true,
                     filter: { color: { manaSpent: { read: "colors" } } },
                     count: 1,
+                    prompt: "Choose a source",
                     bind: "$src",
                 },
                 {
