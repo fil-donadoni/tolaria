@@ -247,7 +247,13 @@ describe("gold round-trip — precision", () => {
         // side is a `resolveSteps` closure the projection cannot compare — the
         // same move as the entries above, out of "the compiler refuses it" and
         // into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(51);
+        //
+        // 50 -> 51 by issue #4565 (characteristic-setting statics): Water
+        // Wurm's "as long as an opponent controls an Island" is now compiled
+        // while its hand-written side carries the `condition` closure — the
+        // same move as the entries above, out of "the compiler refuses it" and
+        // into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(52);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
