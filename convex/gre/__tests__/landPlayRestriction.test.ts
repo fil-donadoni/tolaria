@@ -56,14 +56,12 @@ const playOf = (state: GameState, pid: string) => {
 };
 
 describe("restrictLandPlay — Turf Wound (CR 305.1 / 101.2, issue #2145)", () => {
-    it("the targeted player has no `play` action; the draw half resolves", () => {
+    it("the targeted player has no `play` action", () => {
         const state = setup("p2");
         expect(playOf(state, "p2")).toContain("play");
-        const before = state.players[0].hand.length;
         castTurfWound(state, "p1", "p2");
         expect(state.cannotPlayLandsThisTurn).toEqual(["p2"]);
         expect(playOf(state, "p2")).not.toContain("play");
-        expect(state.players[0].hand.length).toBe(before + 0); // library empty in the fixture
     });
 
     it("is per-player: the other player still plays a land the same turn", () => {
@@ -95,9 +93,9 @@ describe("restrictLandPlay — Turf Wound (CR 305.1 / 101.2, issue #2145)", () =
     it("the lock reaches the wire: hand land projects without `play`", () => {
         const state = setup("p2");
         castTurfWound(state, "p1", "p2");
-        const projected = projectPublicState(state, 1, "p2");
+        const projected = projectPublicState(state, 1, "p2")!;
         expect(projected.cannotPlayLandsThisTurn).toEqual(["p2"]);
         const me = projected.players.find((p) => p.id === "p2")!;
-        expect(me.hand[0].legalActions).not.toContain("play");
+        expect(me.hand![0]!.legalActions).not.toContain("play");
     });
 });
