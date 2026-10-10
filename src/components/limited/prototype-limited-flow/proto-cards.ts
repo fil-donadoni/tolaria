@@ -1,2628 +1,1773 @@
 // PROTOTYPE — throwaway. Generated mock card data (real ids) for the Limited flow prototype.
-export interface ProtoCard { name: string; id: string; colors: string[]; types: string[]; cmc: number; rarity: string | null }
+export interface ProtoCard {
+    name: string;
+    id: string;
+    colors: string[];
+    types: string[];
+    cmc: number;
+    rarity: string | null;
+}
 export const PROTO_CARDS: ProtoCard[] = [
- {
-  "name": "Mox Sapphire",
-  "id": "82da0972-b17b-4600-9efd-e9430a0db04b",
-  "colors": [],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Necropotence",
-  "id": "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Maze of Ith",
-  "id": "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "uncommon"
- },
- {
-  "name": "Fact or Fiction",
-  "id": "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 4,
-  "rarity": "uncommon"
- },
- {
-  "name": "Dromar, the Banisher",
-  "id": "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
-  "colors": [
-   "W",
-   "U",
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Black Lotus",
-  "id": "b0faa7f2-b547-42c4-a810-839da50dadfe",
-  "colors": [],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Plains",
-  "id": "b1623d57-4729-4796-b3f7-f1837a05c6ed",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "common"
- },
- {
-  "name": "Island",
-  "id": "90a57c0e-fa61-45ef-955d-d296403967d5",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "common"
- },
- {
-  "name": "Swamp",
-  "id": "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "common"
- },
- {
-  "name": "Mountain",
-  "id": "eace2c85-976c-425e-9800-5a6ccbd91b56",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "common"
- },
- {
-  "name": "Forest",
-  "id": "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "common"
- },
- {
-  "name": "Giver of Runes",
-  "id": "4e117771-5a8b-4812-b487-32ba34b7f724",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Guide of Souls",
-  "id": "76c3cad2-1e25-4abe-878d-9194de6fcc27",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Mother of Runes",
-  "id": "0b1a46ab-95cb-4c24-924f-fc2afd4fcac7",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Ocelot Pride",
-  "id": "89cf6f57-230f-497e-a14e-ad1e8737fd42",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "mythic"
- },
- {
-  "name": "Thraben Inspector",
-  "id": "d140c3b7-ca78-483d-baeb-307b624fea8b",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Cathar Commando",
-  "id": "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Containment Priest",
-  "id": "c2c794b9-09da-49be-b258-b0e21f1663e3",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Jacked Rabbit",
-  "id": "2c695df6-6bf2-4e6b-8500-e3116137ca27",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Lion Sash",
-  "id": "3e1766e9-2fa7-4446-a255-7beea1467ece",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Artifact",
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Luminarch Aspirant",
-  "id": "fe964e7e-e2c5-4263-889d-0a531eb51442",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Phelia, Exuberant Shepherd",
-  "id": "55707746-da6e-46e5-a5ca-7ac843fdc38e",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Securitron Squadron",
-  "id": "b689a206-aec3-4a31-95cf-3d4b840db04c",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Artifact",
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Stoneforge Mystic",
-  "id": "19557351-b65f-4b04-b971-66abdc07000a",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Adeline, Resplendent Cathar",
-  "id": "18092f68-b96e-4084-9eba-b240d2195d81",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Elite Spellbinder",
-  "id": "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Enduring Innocence",
-  "id": "08f79439-b8f8-418f-9772-26d81844749e",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Enchantment",
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Flickerwisp",
-  "id": "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Loran of the Third Path",
-  "id": "59faa45d-868b-4bc7-934c-0e077642e129",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Sanguine Evangelist",
-  "id": "269ddd84-fdc4-4c94-b183-32ecec56967c",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Skyclave Apparition",
-  "id": "b83cfbaa-7890-4f6f-878b-4edb45677371",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Palace Jailer",
-  "id": "78cef262-c753-4658-b3ec-fec8db47f944",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "uncommon"
- },
- {
-  "name": "Guardian Scalelord",
-  "id": "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "rare"
- },
- {
-  "name": "Solitude",
-  "id": "47a6234f-309f-4e03-9263-66da48b57153",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Eagles of the North",
-  "id": "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 6,
-  "rarity": "common"
- },
- {
-  "name": "Elspeth, Storm Slayer",
-  "id": "73a065e3-b530-4e62-ab3c-4f6f908184ec",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Planeswalker"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Ephemerate",
-  "id": "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Erode",
-  "id": "32e670da-7563-4f6a-a7db-4c126a440eb8",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Mana Tithe",
-  "id": "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Path to Exile",
-  "id": "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Swords to Plowshares",
-  "id": "386ea9eb-abc1-4862-aa2d-8fb808d79490",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Reprieve",
-  "id": "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Unexpectedly Absent",
-  "id": "6dff437b-ef68-48f7-afd3-3b72d3c56187",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Oust",
-  "id": "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Balance",
-  "id": "6f9ea46a-411f-40ce-a873-a905180093f4",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Winds of Abandon",
-  "id": "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Lingering Souls",
-  "id": "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Sevinne's Reclamation",
-  "id": "7e68f4df-88ce-4e09-a03c-7edf40bff167",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Wrath of God",
-  "id": "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Sunfall",
-  "id": "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 5,
-  "rarity": "rare"
- },
- {
-  "name": "Portable Hole",
-  "id": "80fca8c0-ae3e-439e-b202-228b9f360e9a",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Glimmer Lens",
-  "id": "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Staff of the Storyteller",
-  "id": "ab1d1461-1625-4163-aacd-a939f4871fad",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Aang's Iceberg",
-  "id": "720fbd87-b1c1-4b3b-97a1-46b943b115e3",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Parallax Wave",
-  "id": "cef789e8-e4cc-4f61-bc15-debc2487777f",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Leyline Binding",
-  "id": "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Abandoned Air Temple",
-  "id": "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Witch Enchanter",
-  "id": "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
-  "colors": [
-   "W"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "uncommon"
- },
- {
-  "name": "Tamiyo, Inquisitive Student",
-  "id": "2a717b98-cdac-416d-bf6c-f6b6638e65d1",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "mythic"
- },
- {
-  "name": "Azure Beastbinder",
-  "id": "211af1bf-910b-41a5-b928-f378188d1871",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Faerie Mastermind",
-  "id": "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Jace, Vryn's Prodigy",
-  "id": "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "mythic"
- },
- {
-  "name": "Ledger Shredder",
-  "id": "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Malcolm, Alluring Scoundrel",
-  "id": "19d6834d-afa3-4747-a62d-0654f4d9729f",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Phantasmal Image",
-  "id": "98e7bf8f-dba7-4005-8cee-634c9153931d",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Snapcaster Mage",
-  "id": "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Thassa's Oracle",
-  "id": "726e8b29-13e9-4138-b6a9-d2a0d8188d1c",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Brazen Borrower",
-  "id": "c2089ec9-0665-448f-bfe9-d181de127814",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "mythic"
- },
- {
-  "name": "Emry, Lurker of the Loch",
-  "id": "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Forensic Gadgeteer",
-  "id": "97d08a15-e61c-4421-a541-c68a4f87cb74",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Hullbreacher",
-  "id": "4df8aabc-7fcb-4b7b-980b-18f499e6c170",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Spellseeker",
-  "id": "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Tishana's Tidebinder",
-  "id": "907b3d1d-8c85-4707-80b5-c4d832df9846",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Displacer Kitten",
-  "id": "c7a401b8-29fb-46ef-a663-427f66724d5c",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Subtlety",
-  "id": "701256d5-1389-48b7-9581-d6037209bd06",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Urza, Lord High Artificer",
-  "id": "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Quantum Riddler",
-  "id": "120be808-ff3b-4fca-96a1-4db6b9825856",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Wan Shi Tong, All-Knowing",
-  "id": "777fcc21-2856-4181-8ecd-c272f9769e36",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Kappa Cannoneer",
-  "id": "85a89077-b384-4fca-9d26-7297962c1541",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Artifact",
-   "Creature"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Narset, Parter of Veils",
-  "id": "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Planeswalker"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Jace, the Mind Sculptor",
-  "id": "0e606072-a3aa-4300-ba90-ec92a721fa76",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Planeswalker"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Ancestral Recall",
-  "id": "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Brainstorm",
-  "id": "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Consider",
-  "id": "a211d505-4d40-4914-a9da-220770d6ddbc",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Mystical Tutor",
-  "id": "5d98101f-e32a-4a4a-a649-faa920d111ee",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Occult Epiphany",
-  "id": "6920c895-bc98-4871-a53f-219fa27a74e5",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Spell Pierce",
-  "id": "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Stern Scolding",
-  "id": "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Thought Scour",
-  "id": "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Brain Freeze",
-  "id": "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Consult the Star Charts",
-  "id": "a16a6555-2e3a-4587-aacd-0307d696b26c",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Counterspell",
-  "id": "0df55e3f-14de-46ef-b6b1-616618724d9e",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Daze",
-  "id": "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Flash",
-  "id": "63af3c26-5b1f-46f6-9aa2-036c615bf5ea",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Lose Focus",
-  "id": "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Mana Drain",
-  "id": "e691adef-3027-4e6a-889f-9f4e2df36a7c",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Mana Leak",
-  "id": "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Memory Lapse",
-  "id": "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Miscalculation",
-  "id": "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Remand",
-  "id": "581f3780-c480-48c6-b15c-1618f2feccb9",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Force of Negation",
-  "id": "e9be371c-c688-44ad-ab71-bd4c9f242d58",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Frantic Search",
-  "id": "1904db14-6df7-424f-afa5-e3dfab31300a",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 3,
-  "rarity": "common"
- },
- {
-  "name": "Force of Will",
-  "id": "9a879b60-4381-447d-8a5a-8e0b6a1d49ca",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 5,
-  "rarity": "uncommon"
- },
- {
-  "name": "Gush",
-  "id": "e755bbef-bf34-49c0-ae72-d70e3599de52",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 5,
-  "rarity": "common"
- },
- {
-  "name": "Ponder",
-  "id": "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Preordain",
-  "id": "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Time Walk",
-  "id": "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Show and Tell",
-  "id": "4b851c17-55ed-4671-b471-dc7b34944432",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Stock Up",
-  "id": "0a786855-6eb4-42c0-a528-4842db46809d",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Timetwister",
-  "id": "9a49dc44-616e-4bdd-8220-0bb71eccc512",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Tinker",
-  "id": "7da23b15-dfb8-4267-9b33-d7a4c035c434",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Lórien Revealed",
-  "id": "0ce44270-a684-4489-9077-521456e6dfaa",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 5,
-  "rarity": "common"
- },
- {
-  "name": "Time Warp",
-  "id": "3447aeaf-3b26-442a-99d4-0a7ee76c8e76",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 5,
-  "rarity": "rare"
- },
- {
-  "name": "Echo of Eons",
-  "id": "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 6,
-  "rarity": "mythic"
- },
- {
-  "name": "Time Spiral",
-  "id": "f3d62dbd-63db-4ac9-950f-9852627f23f2",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Upheaval",
-  "id": "9e201229-34a6-48c8-a07c-d8aefcf5f8a7",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Treasure Cruise",
-  "id": "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 8,
-  "rarity": "common"
- },
- {
-  "name": "Aether Spellbomb",
-  "id": "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
-  "colors": [],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Astrologian's Planisphere",
-  "id": "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Stormchaser's Talent",
-  "id": "a36e682d-b43d-4e08-bf5b-70d7e924dbe5",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Proft's Eidetic Memory",
-  "id": "af5b29b3-974c-4200-8df8-b072c11e1600",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Otawara, Soaring City",
-  "id": "486d7edc-d983-41f0-8b78-c99aecd72996",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Shelldock Isle",
-  "id": "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Sink into Stupor",
-  "id": "5358b87a-1a29-426d-b165-40c97da2c14d",
-  "colors": [
-   "U"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Moonshadow",
-  "id": "2573e694-eaa0-42ca-b470-2ab507cbcec1",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "mythic"
- },
- {
-  "name": "Nethergoyf",
-  "id": "3ee3945e-5089-4751-b7b3-5961c39d2a33",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "mythic"
- },
- {
-  "name": "Dark Confidant",
-  "id": "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Dauthi Voidwalker",
-  "id": "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Deep-Cavern Bat",
-  "id": "69c68c95-b788-43b1-9f22-1b22c5a00b25",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Emperor of Bones",
-  "id": "df9d9075-2d1e-4848-b661-816d539e05eb",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Iron-Shield Elf",
-  "id": "9e0140b2-0185-4adb-b365-2611ce89a0e2",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Orcish Bowmasters",
-  "id": "7c024bae-5631-4e20-ac69-df392ac9e109",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Super Shredder",
-  "id": "37a497b8-e908-4ddc-996e-a8470df72afb",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "mythic"
- },
- {
-  "name": "Barrowgoyf",
-  "id": "f979fc86-2c7e-49b3-965e-607a203cbfb1",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Twilight Diviner",
-  "id": "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Grief",
-  "id": "e6befbc4-1320-4f26-bd9f-b1814fedda10",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Sheoldred, the Apocalypse",
-  "id": "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Harvester of Misery",
-  "id": "a3012af9-621d-4fae-b00d-079a89ae35fe",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Troll of Khazad-dûm",
-  "id": "a6539e26-b63b-4725-9407-caaf451de084",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 6,
-  "rarity": "common"
- },
- {
-  "name": "Archon of Cruelty",
-  "id": "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 8,
-  "rarity": "mythic"
- },
- {
-  "name": "Griselbrand",
-  "id": "b51666ae-2aef-4cb1-9cd4-44aec81530f8",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 8,
-  "rarity": "mythic"
- },
- {
-  "name": "Liliana of the Veil",
-  "id": "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Planeswalker"
-  ],
-  "cmc": 3,
-  "rarity": "mythic"
- },
- {
-  "name": "Dark Ritual",
-  "id": "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Entomb",
-  "id": "f60a2091-fb97-4f04-911b-fce9b6351044",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Fatal Push",
-  "id": "b5e81649-9954-424c-89d1-f87d73b66047",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Vampiric Tutor",
-  "id": "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Bitter Triumph",
-  "id": "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Cabal Ritual",
-  "id": "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Infernal Grasp",
-  "id": "17824929-f131-4b8d-addb-66c25323155e",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Shallow Grave",
-  "id": "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Sheoldred's Edict",
-  "id": "a9225cc3-90f0-448f-a8d9-7c6c2796d077",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Corpse Dance",
-  "id": "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Snuff Out",
-  "id": "18a3cca1-e50e-49b6-9e1a-f86640e3b177",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 4,
-  "rarity": "common"
- },
- {
-  "name": "Bloodchief's Thirst",
-  "id": "059e8447-6b1c-4651-a734-a8fea2cbf7b2",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Bone Shards",
-  "id": "1ee98955-4c47-4d45-9377-608dfa755337",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Duress",
-  "id": "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Imperial Seal",
-  "id": "822e30db-40c5-4099-868b-185ad9b7c7dc",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Inquisition of Kozilek",
-  "id": "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Mind Twist",
-  "id": "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Reanimate",
-  "id": "ae1ef31c-8ca5-444c-8f39-e1d1827318f5",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Thoughtseize",
-  "id": "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "rare"
- },
- {
-  "name": "Unearth",
-  "id": "b6cb2549-e485-44d6-9d65-7605c568909e",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Demonic Tutor",
-  "id": "711d4d54-5520-4de8-9b93-79902ed8e562",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Exhume",
-  "id": "a88b23ce-ce19-47da-b9f2-055a4d6bdc79",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Hymn to Tourach",
-  "id": "eb9273ea-9a41-42e3-8c9c-0d50b127a818",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "common"
- },
- {
-  "name": "Life // Death",
-  "id": "7ab75cdb-93a1-4f78-b404-37566295c321",
-  "colors": [
-   "B",
-   "G"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Night's Whisper",
-  "id": "61f0c6f6-b90d-4eb1-a5db-86e0a3997501",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Doomsday",
-  "id": "5b3c6d87-9383-450b-bba5-33435b6b0d08",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Toxic Deluge",
-  "id": "564caf57-4ba5-4993-a35e-945699c94eb7",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Yawgmoth's Will",
-  "id": "6d3e3c3a-d351-4d91-8884-312d4b6f540d",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Damnation",
-  "id": "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Tendrils of Agony",
-  "id": "0559352e-95c1-403b-bd8f-d0679717cfa2",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 4,
-  "rarity": "uncommon"
- },
- {
-  "name": "Wishclaw Talisman",
-  "id": "07c17b01-ee5d-491a-8403-b3f819b778c4",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Bolas's Citadel",
-  "id": "d2124603-d20e-40eb-97f0-a66323397ac2",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Artifact"
-  ],
-  "cmc": 6,
-  "rarity": "rare"
- },
- {
-  "name": "Animate Dead",
-  "id": "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Necromancy",
-  "id": "311a6257-dd77-4bb6-81cb-c8e7862350f3",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Recurring Nightmare",
-  "id": "c8173030-1c33-417c-b8e9-79231b6a85a7",
-  "colors": [
-   "B"
-  ],
-  "types": [
-   "Enchantment"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Urborg, Tomb of Yawgmoth",
-  "id": "19e1224f-82cb-4f41-8739-f880cba61bbb",
-  "colors": [],
-  "types": [
-   "Land"
-  ],
-  "cmc": 0,
-  "rarity": "rare"
- },
- {
-  "name": "Blazing Rootwalla",
-  "id": "4404fc9c-ef02-479c-9638-0cc163f0b48f",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Dragon's Rage Channeler",
-  "id": "4ced112a-e775-4f97-97b3-74877e9dce12",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- },
- {
-  "name": "Marauding Mako",
-  "id": "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Orcish Lumberjack",
-  "id": "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Ragavan, Nimble Pilferer",
-  "id": "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "mythic"
- },
- {
-  "name": "Voldaren Epicure",
-  "id": "ae154e64-f626-45fb-bd52-840c1c27b2d3",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Fear of Missing Out",
-  "id": "9d48aaff-46ab-411b-9456-171d4709f951",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Enchantment",
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Gau, Feral Youth",
-  "id": "89175ce1-0746-4ba1-970e-617d134b0527",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Generous Plunderer",
-  "id": "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "mythic"
- },
- {
-  "name": "Inti, Seneschal of the Sun",
-  "id": "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Ivora, Insatiable Heir",
-  "id": "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Magda, Brazen Outlaw",
-  "id": "079e6263-e54c-4899-a336-5315909b9322",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "rare"
- },
- {
-  "name": "Robber of the Rich",
-  "id": "0ecbe097-ba51-42e5-957c-382eb66c08f0",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 2,
-  "rarity": "mythic"
- },
- {
-  "name": "Anje's Ravager",
-  "id": "22924c44-5551-4a48-a574-dfef91a5d4d7",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Bonecrusher Giant",
-  "id": "ff984a4c-1818-4f8f-a9d7-fce57e77937d",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Broadside Bombardiers",
-  "id": "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Death-Greeter's Champion",
-  "id": "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Gut, True Soul Zealot",
-  "id": "3d8ca18d-9099-4f1e-95c1-f04da58a26bd",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "uncommon"
- },
- {
-  "name": "Laelia, the Blade Reforged",
-  "id": "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Squee, Goblin Nabob",
-  "id": "4ba8325a-1203-4125-9111-94d9e2b1f14b",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 3,
-  "rarity": "rare"
- },
- {
-  "name": "Headliner Scarlett",
-  "id": "be77b98a-dd79-477c-8ab2-7ebf5637a89e",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Pyrogoyf",
-  "id": "f60be310-4461-4b84-95f0-b2095108bd79",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 4,
-  "rarity": "rare"
- },
- {
-  "name": "Fury",
-  "id": "bd281158-8180-40b9-a5b7-03cfc712d81a",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "mythic"
- },
- {
-  "name": "Glorybringer",
-  "id": "3277ad99-5682-4baa-b106-de15721876a6",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 5,
-  "rarity": "rare"
- },
- {
-  "name": "Oliphaunt",
-  "id": "6989018c-37b1-4282-a4af-9cc97f160b4d",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Creature"
-  ],
-  "cmc": 6,
-  "rarity": "common"
- },
- {
-  "name": "Chandra, Torch of Defiance",
-  "id": "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Planeswalker"
-  ],
-  "cmc": 4,
-  "rarity": "mythic"
- },
- {
-  "name": "Burst Lightning",
-  "id": "2dc16614-5cf8-444d-a5ae-cac25018af68",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Galvanic Discharge",
-  "id": "32aa6e33-221f-414c-9b51-850d97a7e051",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Lightning Bolt",
-  "id": "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Tarfire",
-  "id": "d13a898e-6a97-4fd9-980e-3bfd8d755386",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant",
-   "Kindred"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Unholy Heat",
-  "id": "2b73d294-6ab1-4051-9b0f-d8e335d37674",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Abrade",
-  "id": "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Sear",
-  "id": "aeb4612c-758b-4492-ba03-eb6741b4176e",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 2,
-  "rarity": "uncommon"
- },
- {
-  "name": "Mine Collapse",
-  "id": "56e2e8b5-660d-4469-a4fe-2367dfadb709",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 4,
-  "rarity": "common"
- },
- {
-  "name": "Through the Breach",
-  "id": "6da09e6a-2965-4855-bd41-41b41ba188fb",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 5,
-  "rarity": "rare"
- },
- {
-  "name": "Fireblast",
-  "id": "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 6,
-  "rarity": "common"
- },
- {
-  "name": "Pyrokinesis",
-  "id": "db2a5e85-6cbc-43c1-9362-4056ad017ef0",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Instant"
-  ],
-  "cmc": 6,
-  "rarity": "uncommon"
- },
- {
-  "name": "Chain Lightning",
-  "id": "b5883762-ca0a-4932-8d2a-41a45796a5f8",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Faithless Looting",
-  "id": "a1b0da17-d595-441d-811c-a2d28d2bb232",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Firebolt",
-  "id": "d5e45005-dd81-4d80-b043-02f719aca929",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Flame Slash",
-  "id": "006d2bf1-20f7-4b09-8d98-8233d91682bd",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "common"
- },
- {
-  "name": "Impractical Joke",
-  "id": "39a816b4-39b8-421c-b828-68db901d34b7",
-  "colors": [
-   "R"
-  ],
-  "types": [
-   "Sorcery"
-  ],
-  "cmc": 1,
-  "rarity": "uncommon"
- }
+    {
+        name: "Mox Sapphire",
+        id: "82da0972-b17b-4600-9efd-e9430a0db04b",
+        colors: [],
+        types: ["Artifact"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Necropotence",
+        id: "54d7a0c1-efb4-4a8d-ad92-a96d43835052",
+        colors: ["B"],
+        types: ["Enchantment"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Maze of Ith",
+        id: "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "uncommon",
+    },
+    {
+        name: "Fact or Fiction",
+        id: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 4,
+        rarity: "uncommon",
+    },
+    {
+        name: "Dromar, the Banisher",
+        id: "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
+        colors: ["W", "U", "B"],
+        types: ["Creature"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Black Lotus",
+        id: "b0faa7f2-b547-42c4-a810-839da50dadfe",
+        colors: [],
+        types: ["Artifact"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Plains",
+        id: "b1623d57-4729-4796-b3f7-f1837a05c6ed",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "common",
+    },
+    {
+        name: "Island",
+        id: "90a57c0e-fa61-45ef-955d-d296403967d5",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "common",
+    },
+    {
+        name: "Swamp",
+        id: "6176936d-72e2-4205-8871-4c5a4f1cb2d8",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "common",
+    },
+    {
+        name: "Mountain",
+        id: "eace2c85-976c-425e-9800-5a6ccbd91b56",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "common",
+    },
+    {
+        name: "Forest",
+        id: "6f1c8cb0-38eb-408b-94e8-16db83999b3b",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "common",
+    },
+    {
+        name: "Giver of Runes",
+        id: "4e117771-5a8b-4812-b487-32ba34b7f724",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Guide of Souls",
+        id: "76c3cad2-1e25-4abe-878d-9194de6fcc27",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Mother of Runes",
+        id: "0b1a46ab-95cb-4c24-924f-fc2afd4fcac7",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Ocelot Pride",
+        id: "89cf6f57-230f-497e-a14e-ad1e8737fd42",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "mythic",
+    },
+    {
+        name: "Thraben Inspector",
+        id: "d140c3b7-ca78-483d-baeb-307b624fea8b",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Cathar Commando",
+        id: "98cbc1c2-b76e-4da3-aa43-00e10b2ce532",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Containment Priest",
+        id: "c2c794b9-09da-49be-b258-b0e21f1663e3",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Jacked Rabbit",
+        id: "2c695df6-6bf2-4e6b-8500-e3116137ca27",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Lion Sash",
+        id: "3e1766e9-2fa7-4446-a255-7beea1467ece",
+        colors: ["W"],
+        types: ["Artifact", "Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Luminarch Aspirant",
+        id: "fe964e7e-e2c5-4263-889d-0a531eb51442",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Phelia, Exuberant Shepherd",
+        id: "55707746-da6e-46e5-a5ca-7ac843fdc38e",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Securitron Squadron",
+        id: "b689a206-aec3-4a31-95cf-3d4b840db04c",
+        colors: ["W"],
+        types: ["Artifact", "Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Stoneforge Mystic",
+        id: "19557351-b65f-4b04-b971-66abdc07000a",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Adeline, Resplendent Cathar",
+        id: "18092f68-b96e-4084-9eba-b240d2195d81",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Elite Spellbinder",
+        id: "9d3a7998-ccac-45ad-a4e9-3a2cb057f63b",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Enduring Innocence",
+        id: "08f79439-b8f8-418f-9772-26d81844749e",
+        colors: ["W"],
+        types: ["Enchantment", "Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Flickerwisp",
+        id: "5bb3cb5c-8d66-4f5e-a9a9-917e6045f024",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Loran of the Third Path",
+        id: "59faa45d-868b-4bc7-934c-0e077642e129",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Sanguine Evangelist",
+        id: "269ddd84-fdc4-4c94-b183-32ecec56967c",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Skyclave Apparition",
+        id: "b83cfbaa-7890-4f6f-878b-4edb45677371",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Palace Jailer",
+        id: "78cef262-c753-4658-b3ec-fec8db47f944",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "uncommon",
+    },
+    {
+        name: "Guardian Scalelord",
+        id: "94716d24-e8c6-4cd2-a3ac-20cdb929bfd4",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "rare",
+    },
+    {
+        name: "Solitude",
+        id: "47a6234f-309f-4e03-9263-66da48b57153",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Eagles of the North",
+        id: "c1bd3bc0-77bd-40fe-b4f1-835a04cb6e41",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 6,
+        rarity: "common",
+    },
+    {
+        name: "Elspeth, Storm Slayer",
+        id: "73a065e3-b530-4e62-ab3c-4f6f908184ec",
+        colors: ["W"],
+        types: ["Planeswalker"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Ephemerate",
+        id: "2da5f3f8-5eef-498f-ba2c-2f3fbc3745aa",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Erode",
+        id: "32e670da-7563-4f6a-a7db-4c126a440eb8",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Mana Tithe",
+        id: "7d48d622-f397-4f31-b1a5-0c23f60aa71c",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Path to Exile",
+        id: "29b7a8b1-b98e-483a-87a4-73bd831c03d4",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Swords to Plowshares",
+        id: "386ea9eb-abc1-4862-aa2d-8fb808d79490",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Reprieve",
+        id: "1bd3fa8a-6c50-4f7f-9ae3-0810eec5e3db",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Unexpectedly Absent",
+        id: "6dff437b-ef68-48f7-afd3-3b72d3c56187",
+        colors: ["W"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Oust",
+        id: "07313dd3-d0dc-40ca-98a3-fa4d39e5bcae",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Balance",
+        id: "6f9ea46a-411f-40ce-a873-a905180093f4",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Winds of Abandon",
+        id: "3bb17913-fe4d-4acd-9b75-71f5a90f898b",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Lingering Souls",
+        id: "891a92d7-9ccf-4de1-8286-aa5254f27ba9",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Sevinne's Reclamation",
+        id: "7e68f4df-88ce-4e09-a03c-7edf40bff167",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Wrath of God",
+        id: "a2788d69-6a3a-42f0-8736-cc6b57755ecd",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Sunfall",
+        id: "32e29c7d-ed4b-4eff-b3c2-d99e5b63ef8d",
+        colors: ["W"],
+        types: ["Sorcery"],
+        cmc: 5,
+        rarity: "rare",
+    },
+    {
+        name: "Portable Hole",
+        id: "80fca8c0-ae3e-439e-b202-228b9f360e9a",
+        colors: ["W"],
+        types: ["Artifact"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Glimmer Lens",
+        id: "c9262000-e6f3-4da1-ad1c-038f65d3bef6",
+        colors: ["W"],
+        types: ["Artifact"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Staff of the Storyteller",
+        id: "ab1d1461-1625-4163-aacd-a939f4871fad",
+        colors: ["W"],
+        types: ["Artifact"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Aang's Iceberg",
+        id: "720fbd87-b1c1-4b3b-97a1-46b943b115e3",
+        colors: ["W"],
+        types: ["Enchantment"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Parallax Wave",
+        id: "cef789e8-e4cc-4f61-bc15-debc2487777f",
+        colors: ["W"],
+        types: ["Enchantment"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Leyline Binding",
+        id: "3c3ac3dd-35db-447f-8674-37b4680a1ef7",
+        colors: ["W"],
+        types: ["Enchantment"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Abandoned Air Temple",
+        id: "9c0433f9-8f1e-4a19-a83f-a41925f1b1a9",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Witch Enchanter",
+        id: "62061e7c-cf19-4f03-b8fa-2bdba62d6b0b",
+        colors: ["W"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "uncommon",
+    },
+    {
+        name: "Tamiyo, Inquisitive Student",
+        id: "2a717b98-cdac-416d-bf6c-f6b6638e65d1",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "mythic",
+    },
+    {
+        name: "Azure Beastbinder",
+        id: "211af1bf-910b-41a5-b928-f378188d1871",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Faerie Mastermind",
+        id: "52d3005f-a1c7-4ef5-911f-ccc0752f4181",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Jace, Vryn's Prodigy",
+        id: "02d6d693-f1f3-4317-bcc0-c21fa8490d38",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "mythic",
+    },
+    {
+        name: "Ledger Shredder",
+        id: "7ea4b5bc-18a4-45db-a56a-ab3f8bd2fb0d",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Malcolm, Alluring Scoundrel",
+        id: "19d6834d-afa3-4747-a62d-0654f4d9729f",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Phantasmal Image",
+        id: "98e7bf8f-dba7-4005-8cee-634c9153931d",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Snapcaster Mage",
+        id: "9e5b279e-4670-4a1e-87d0-3cab7e4f9e58",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Thassa's Oracle",
+        id: "726e8b29-13e9-4138-b6a9-d2a0d8188d1c",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Brazen Borrower",
+        id: "c2089ec9-0665-448f-bfe9-d181de127814",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "mythic",
+    },
+    {
+        name: "Emry, Lurker of the Loch",
+        id: "bf4b9a8a-b42a-46fb-b0d0-9cf800f63c8a",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Forensic Gadgeteer",
+        id: "97d08a15-e61c-4421-a541-c68a4f87cb74",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Hullbreacher",
+        id: "4df8aabc-7fcb-4b7b-980b-18f499e6c170",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Spellseeker",
+        id: "74b4c336-5d4c-4bc5-b82a-35084a6ad808",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Tishana's Tidebinder",
+        id: "907b3d1d-8c85-4707-80b5-c4d832df9846",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Displacer Kitten",
+        id: "c7a401b8-29fb-46ef-a663-427f66724d5c",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Subtlety",
+        id: "701256d5-1389-48b7-9581-d6037209bd06",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Urza, Lord High Artificer",
+        id: "9e7fb3c0-5159-4d1f-8490-ce4c9a60f567",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Quantum Riddler",
+        id: "120be808-ff3b-4fca-96a1-4db6b9825856",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Wan Shi Tong, All-Knowing",
+        id: "777fcc21-2856-4181-8ecd-c272f9769e36",
+        colors: ["U"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Kappa Cannoneer",
+        id: "85a89077-b384-4fca-9d26-7297962c1541",
+        colors: ["U"],
+        types: ["Artifact", "Creature"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Narset, Parter of Veils",
+        id: "8c39f9b4-02b9-4d44-b8d6-4fd02ebbb0c5",
+        colors: ["U"],
+        types: ["Planeswalker"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Jace, the Mind Sculptor",
+        id: "0e606072-a3aa-4300-ba90-ec92a721fa76",
+        colors: ["U"],
+        types: ["Planeswalker"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Ancestral Recall",
+        id: "70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Brainstorm",
+        id: "8d42d7aa-7f53-4cfc-842a-086aab2448d1",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Consider",
+        id: "a211d505-4d40-4914-a9da-220770d6ddbc",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Mystical Tutor",
+        id: "5d98101f-e32a-4a4a-a649-faa920d111ee",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Occult Epiphany",
+        id: "6920c895-bc98-4871-a53f-219fa27a74e5",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Spell Pierce",
+        id: "cb3d3901-e4a6-45ab-a7b5-c65d91e1875e",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Stern Scolding",
+        id: "3ca1e1de-b916-445f-b3b2-0f4d0cc7ceeb",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Thought Scour",
+        id: "88bf1ebb-9d85-4b9b-a614-c7f965c0893d",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Brain Freeze",
+        id: "59a43ef5-08f0-44fc-802d-b6cfd56b7d1f",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Consult the Star Charts",
+        id: "a16a6555-2e3a-4587-aacd-0307d696b26c",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Counterspell",
+        id: "0df55e3f-14de-46ef-b6b1-616618724d9e",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Daze",
+        id: "d03bff25-0d5e-4dcf-8d75-6df846afea3b",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Flash",
+        id: "63af3c26-5b1f-46f6-9aa2-036c615bf5ea",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Lose Focus",
+        id: "985bdb0c-ce6c-4506-8163-76f3b2fdf5fb",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Mana Drain",
+        id: "e691adef-3027-4e6a-889f-9f4e2df36a7c",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Mana Leak",
+        id: "abcaf16d-aa02-43e2-aa38-bb1835d47a05",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Memory Lapse",
+        id: "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Miscalculation",
+        id: "4b4956a2-9a39-4152-9c98-70e4b2acfa26",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Remand",
+        id: "581f3780-c480-48c6-b15c-1618f2feccb9",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Force of Negation",
+        id: "e9be371c-c688-44ad-ab71-bd4c9f242d58",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Frantic Search",
+        id: "1904db14-6df7-424f-afa5-e3dfab31300a",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 3,
+        rarity: "common",
+    },
+    {
+        name: "Force of Will",
+        id: "9a879b60-4381-447d-8a5a-8e0b6a1d49ca",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 5,
+        rarity: "uncommon",
+    },
+    {
+        name: "Gush",
+        id: "e755bbef-bf34-49c0-ae72-d70e3599de52",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 5,
+        rarity: "common",
+    },
+    {
+        name: "Ponder",
+        id: "ba6b6fc5-5077-4812-b8e9-906783dbaf67",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Preordain",
+        id: "e3868c3d-4fcd-444b-866f-0f8e50ce7b67",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Time Walk",
+        id: "e0139f60-d48e-46fb-9f5a-1e3d7558c834",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Show and Tell",
+        id: "4b851c17-55ed-4671-b471-dc7b34944432",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Stock Up",
+        id: "0a786855-6eb4-42c0-a528-4842db46809d",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Timetwister",
+        id: "9a49dc44-616e-4bdd-8220-0bb71eccc512",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Tinker",
+        id: "7da23b15-dfb8-4267-9b33-d7a4c035c434",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Lórien Revealed",
+        id: "0ce44270-a684-4489-9077-521456e6dfaa",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 5,
+        rarity: "common",
+    },
+    {
+        name: "Time Warp",
+        id: "3447aeaf-3b26-442a-99d4-0a7ee76c8e76",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 5,
+        rarity: "rare",
+    },
+    {
+        name: "Echo of Eons",
+        id: "ff590af2-2d6c-4f16-a9b8-1a6dab6e9ad5",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 6,
+        rarity: "mythic",
+    },
+    {
+        name: "Time Spiral",
+        id: "f3d62dbd-63db-4ac9-950f-9852627f23f2",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Upheaval",
+        id: "9e201229-34a6-48c8-a07c-d8aefcf5f8a7",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Treasure Cruise",
+        id: "7a59d4b1-6cf4-44ec-8a96-1bb7094fea21",
+        colors: ["U"],
+        types: ["Sorcery"],
+        cmc: 8,
+        rarity: "common",
+    },
+    {
+        name: "Aether Spellbomb",
+        id: "f3792e8b-4ad7-4e2d-994c-c4eaac0fa55f",
+        colors: [],
+        types: ["Artifact"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Astrologian's Planisphere",
+        id: "bfa4e927-1d6f-4a64-9801-7d168a5ef3f6",
+        colors: ["U"],
+        types: ["Artifact"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Stormchaser's Talent",
+        id: "a36e682d-b43d-4e08-bf5b-70d7e924dbe5",
+        colors: ["U"],
+        types: ["Enchantment"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Proft's Eidetic Memory",
+        id: "af5b29b3-974c-4200-8df8-b072c11e1600",
+        colors: ["U"],
+        types: ["Enchantment"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Otawara, Soaring City",
+        id: "486d7edc-d983-41f0-8b78-c99aecd72996",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Shelldock Isle",
+        id: "4216656e-90e8-45fc-a0f6-0d0d79d0a021",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Sink into Stupor",
+        id: "5358b87a-1a29-426d-b165-40c97da2c14d",
+        colors: ["U"],
+        types: ["Instant"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Moonshadow",
+        id: "2573e694-eaa0-42ca-b470-2ab507cbcec1",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "mythic",
+    },
+    {
+        name: "Nethergoyf",
+        id: "3ee3945e-5089-4751-b7b3-5961c39d2a33",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "mythic",
+    },
+    {
+        name: "Dark Confidant",
+        id: "94f7a441-bf2d-46fb-a7b6-9bd6137f86d9",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Dauthi Voidwalker",
+        id: "dce5db87-4a78-4b8d-b5c2-918ccd1ba4e3",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Deep-Cavern Bat",
+        id: "69c68c95-b788-43b1-9f22-1b22c5a00b25",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Emperor of Bones",
+        id: "df9d9075-2d1e-4848-b661-816d539e05eb",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Iron-Shield Elf",
+        id: "9e0140b2-0185-4adb-b365-2611ce89a0e2",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Orcish Bowmasters",
+        id: "7c024bae-5631-4e20-ac69-df392ac9e109",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Super Shredder",
+        id: "37a497b8-e908-4ddc-996e-a8470df72afb",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "mythic",
+    },
+    {
+        name: "Barrowgoyf",
+        id: "f979fc86-2c7e-49b3-965e-607a203cbfb1",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Twilight Diviner",
+        id: "443b6f30-1493-4d48-93d9-a91e22a7ebb3",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Grief",
+        id: "e6befbc4-1320-4f26-bd9f-b1814fedda10",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Sheoldred, the Apocalypse",
+        id: "d67be074-cdd4-41d9-ac89-0a0456c4e4b2",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Harvester of Misery",
+        id: "a3012af9-621d-4fae-b00d-079a89ae35fe",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Troll of Khazad-dûm",
+        id: "a6539e26-b63b-4725-9407-caaf451de084",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 6,
+        rarity: "common",
+    },
+    {
+        name: "Archon of Cruelty",
+        id: "1be9d9a4-d7ee-4854-abc2-85cabf993ec9",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 8,
+        rarity: "mythic",
+    },
+    {
+        name: "Griselbrand",
+        id: "b51666ae-2aef-4cb1-9cd4-44aec81530f8",
+        colors: ["B"],
+        types: ["Creature"],
+        cmc: 8,
+        rarity: "mythic",
+    },
+    {
+        name: "Liliana of the Veil",
+        id: "ac506c17-adc8-49c6-9d8d-43db7cb1ec9d",
+        colors: ["B"],
+        types: ["Planeswalker"],
+        cmc: 3,
+        rarity: "mythic",
+    },
+    {
+        name: "Dark Ritual",
+        id: "ebb6664d-23ca-456e-9916-afcd6f26aa7f",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Entomb",
+        id: "f60a2091-fb97-4f04-911b-fce9b6351044",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Fatal Push",
+        id: "b5e81649-9954-424c-89d1-f87d73b66047",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Vampiric Tutor",
+        id: "0a07cba3-2e8d-48ec-a6f8-4d2edfcd833d",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Bitter Triumph",
+        id: "05bdd22c-3e11-4c29-bdfa-d3dfc0e90a9f",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Cabal Ritual",
+        id: "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Infernal Grasp",
+        id: "17824929-f131-4b8d-addb-66c25323155e",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Shallow Grave",
+        id: "d5c782cc-c951-4c6f-a93f-774ae6c1c214",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Sheoldred's Edict",
+        id: "a9225cc3-90f0-448f-a8d9-7c6c2796d077",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Corpse Dance",
+        id: "76ae81ea-13e3-4ab8-b956-4c7b139a5e9c",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Snuff Out",
+        id: "18a3cca1-e50e-49b6-9e1a-f86640e3b177",
+        colors: ["B"],
+        types: ["Instant"],
+        cmc: 4,
+        rarity: "common",
+    },
+    {
+        name: "Bloodchief's Thirst",
+        id: "059e8447-6b1c-4651-a734-a8fea2cbf7b2",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Bone Shards",
+        id: "1ee98955-4c47-4d45-9377-608dfa755337",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Duress",
+        id: "ca367f49-0f4a-4b7f-8104-851893fbcd8a",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Imperial Seal",
+        id: "822e30db-40c5-4099-868b-185ad9b7c7dc",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Inquisition of Kozilek",
+        id: "6a3ff5c3-0fdb-4d54-b4e5-ce7bad9953f0",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Mind Twist",
+        id: "eee9e106-a248-49d2-b8c8-6bbcd56ce739",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Reanimate",
+        id: "ae1ef31c-8ca5-444c-8f39-e1d1827318f5",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Thoughtseize",
+        id: "3df8c148-e87d-4043-9d8b-ec72bf8b6d5d",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "rare",
+    },
+    {
+        name: "Unearth",
+        id: "b6cb2549-e485-44d6-9d65-7605c568909e",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Demonic Tutor",
+        id: "711d4d54-5520-4de8-9b93-79902ed8e562",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Exhume",
+        id: "a88b23ce-ce19-47da-b9f2-055a4d6bdc79",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Hymn to Tourach",
+        id: "eb9273ea-9a41-42e3-8c9c-0d50b127a818",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "common",
+    },
+    {
+        name: "Life // Death",
+        id: "7ab75cdb-93a1-4f78-b404-37566295c321",
+        colors: ["B", "G"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Night's Whisper",
+        id: "61f0c6f6-b90d-4eb1-a5db-86e0a3997501",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Doomsday",
+        id: "5b3c6d87-9383-450b-bba5-33435b6b0d08",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Toxic Deluge",
+        id: "564caf57-4ba5-4993-a35e-945699c94eb7",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Yawgmoth's Will",
+        id: "6d3e3c3a-d351-4d91-8884-312d4b6f540d",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Damnation",
+        id: "26c68473-70ca-40ba-b5c6-71ec30f88a2c",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Tendrils of Agony",
+        id: "0559352e-95c1-403b-bd8f-d0679717cfa2",
+        colors: ["B"],
+        types: ["Sorcery"],
+        cmc: 4,
+        rarity: "uncommon",
+    },
+    {
+        name: "Wishclaw Talisman",
+        id: "07c17b01-ee5d-491a-8403-b3f819b778c4",
+        colors: ["B"],
+        types: ["Artifact"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Bolas's Citadel",
+        id: "d2124603-d20e-40eb-97f0-a66323397ac2",
+        colors: ["B"],
+        types: ["Artifact"],
+        cmc: 6,
+        rarity: "rare",
+    },
+    {
+        name: "Animate Dead",
+        id: "8fd7861d-925f-4b4c-a4ab-60be6f43d50b",
+        colors: ["B"],
+        types: ["Enchantment"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Necromancy",
+        id: "311a6257-dd77-4bb6-81cb-c8e7862350f3",
+        colors: ["B"],
+        types: ["Enchantment"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Recurring Nightmare",
+        id: "c8173030-1c33-417c-b8e9-79231b6a85a7",
+        colors: ["B"],
+        types: ["Enchantment"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Urborg, Tomb of Yawgmoth",
+        id: "19e1224f-82cb-4f41-8739-f880cba61bbb",
+        colors: [],
+        types: ["Land"],
+        cmc: 0,
+        rarity: "rare",
+    },
+    {
+        name: "Blazing Rootwalla",
+        id: "4404fc9c-ef02-479c-9638-0cc163f0b48f",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Dragon's Rage Channeler",
+        id: "4ced112a-e775-4f97-97b3-74877e9dce12",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
+    {
+        name: "Marauding Mako",
+        id: "9efbfd67-e0f5-43e0-9fff-1eb4a2bed0d8",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Orcish Lumberjack",
+        id: "21ef13e3-658c-43a3-a290-4c5dde8e8b55",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Ragavan, Nimble Pilferer",
+        id: "a9738cda-adb1-47fb-9f4c-ecd930228c4d",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "mythic",
+    },
+    {
+        name: "Voldaren Epicure",
+        id: "ae154e64-f626-45fb-bd52-840c1c27b2d3",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Fear of Missing Out",
+        id: "9d48aaff-46ab-411b-9456-171d4709f951",
+        colors: ["R"],
+        types: ["Enchantment", "Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Gau, Feral Youth",
+        id: "89175ce1-0746-4ba1-970e-617d134b0527",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Generous Plunderer",
+        id: "4c6cf93a-d073-48ac-88db-c46bf3e10beb",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "mythic",
+    },
+    {
+        name: "Inti, Seneschal of the Sun",
+        id: "fa7a55aa-ae61-4933-b7a4-dcc55dac6fcd",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Ivora, Insatiable Heir",
+        id: "2ba70366-b6ae-423a-a8d8-29d2b8afd939",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Magda, Brazen Outlaw",
+        id: "079e6263-e54c-4899-a336-5315909b9322",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "rare",
+    },
+    {
+        name: "Robber of the Rich",
+        id: "0ecbe097-ba51-42e5-957c-382eb66c08f0",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 2,
+        rarity: "mythic",
+    },
+    {
+        name: "Anje's Ravager",
+        id: "22924c44-5551-4a48-a574-dfef91a5d4d7",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Bonecrusher Giant",
+        id: "ff984a4c-1818-4f8f-a9d7-fce57e77937d",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Broadside Bombardiers",
+        id: "ec9df172-9fdb-4b0c-a23a-865b83c8fa40",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Death-Greeter's Champion",
+        id: "7cb2b582-1c45-4bb2-8aef-59a71a5a9e94",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Gut, True Soul Zealot",
+        id: "3d8ca18d-9099-4f1e-95c1-f04da58a26bd",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "uncommon",
+    },
+    {
+        name: "Laelia, the Blade Reforged",
+        id: "a3bb2881-e8fb-4fba-a9f9-d93e6ca24378",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Squee, Goblin Nabob",
+        id: "4ba8325a-1203-4125-9111-94d9e2b1f14b",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 3,
+        rarity: "rare",
+    },
+    {
+        name: "Headliner Scarlett",
+        id: "be77b98a-dd79-477c-8ab2-7ebf5637a89e",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Pyrogoyf",
+        id: "f60be310-4461-4b84-95f0-b2095108bd79",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 4,
+        rarity: "rare",
+    },
+    {
+        name: "Fury",
+        id: "bd281158-8180-40b9-a5b7-03cfc712d81a",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "mythic",
+    },
+    {
+        name: "Glorybringer",
+        id: "3277ad99-5682-4baa-b106-de15721876a6",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 5,
+        rarity: "rare",
+    },
+    {
+        name: "Oliphaunt",
+        id: "6989018c-37b1-4282-a4af-9cc97f160b4d",
+        colors: ["R"],
+        types: ["Creature"],
+        cmc: 6,
+        rarity: "common",
+    },
+    {
+        name: "Chandra, Torch of Defiance",
+        id: "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
+        colors: ["R"],
+        types: ["Planeswalker"],
+        cmc: 4,
+        rarity: "mythic",
+    },
+    {
+        name: "Burst Lightning",
+        id: "2dc16614-5cf8-444d-a5ae-cac25018af68",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Galvanic Discharge",
+        id: "32aa6e33-221f-414c-9b51-850d97a7e051",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Lightning Bolt",
+        id: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Tarfire",
+        id: "d13a898e-6a97-4fd9-980e-3bfd8d755386",
+        colors: ["R"],
+        types: ["Instant", "Kindred"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Unholy Heat",
+        id: "2b73d294-6ab1-4051-9b0f-d8e335d37674",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Abrade",
+        id: "84319dfb-eaf7-4b98-8c4f-30f5e779591b",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Sear",
+        id: "aeb4612c-758b-4492-ba03-eb6741b4176e",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 2,
+        rarity: "uncommon",
+    },
+    {
+        name: "Mine Collapse",
+        id: "56e2e8b5-660d-4469-a4fe-2367dfadb709",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 4,
+        rarity: "common",
+    },
+    {
+        name: "Through the Breach",
+        id: "6da09e6a-2965-4855-bd41-41b41ba188fb",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 5,
+        rarity: "rare",
+    },
+    {
+        name: "Fireblast",
+        id: "b1eb5b2c-1f02-48a6-a287-88eb189d6780",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 6,
+        rarity: "common",
+    },
+    {
+        name: "Pyrokinesis",
+        id: "db2a5e85-6cbc-43c1-9362-4056ad017ef0",
+        colors: ["R"],
+        types: ["Instant"],
+        cmc: 6,
+        rarity: "uncommon",
+    },
+    {
+        name: "Chain Lightning",
+        id: "b5883762-ca0a-4932-8d2a-41a45796a5f8",
+        colors: ["R"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Faithless Looting",
+        id: "a1b0da17-d595-441d-811c-a2d28d2bb232",
+        colors: ["R"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Firebolt",
+        id: "d5e45005-dd81-4d80-b043-02f719aca929",
+        colors: ["R"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Flame Slash",
+        id: "006d2bf1-20f7-4b09-8d98-8233d91682bd",
+        colors: ["R"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "common",
+    },
+    {
+        name: "Impractical Joke",
+        id: "39a816b4-39b8-421c-b828-68db901d34b7",
+        colors: ["R"],
+        types: ["Sorcery"],
+        cmc: 1,
+        rarity: "uncommon",
+    },
 ];
-export const protoCard = (name: string): ProtoCard => PROTO_CARDS.find((c) => c.name === name) ?? PROTO_CARDS[0];
+export const protoCard = (name: string): ProtoCard =>
+    PROTO_CARDS.find((c) => c.name === name) ?? PROTO_CARDS[0];
