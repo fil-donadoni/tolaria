@@ -73,18 +73,18 @@ export const DEFAULT_LIVENESS_MS = 60_000;
  * it is not in `check:all` (`docs/agents/quality-gates.md` § check:ui). It is
  * LAST, after every offline verdict, and it is the backstop for what a PR's
  * SCOPED receipt accepts not to see (ADR 0131 amendment): a PR walks the
- * surfaces its diff can reach, the batch walks them all. It takes the
+ * surfaces its diff can reach, `release` (`--ui-all`) walks them all — a
+ * batch run owes no walk (issue #5378). It takes the
  * machine-wide `check:ui` lane (`ui-admission.ts`), a separate mutex from the
  * heavy gate's, so a PR's own run and this one never overlap on the backend.
  *
- * The walk runs OUTSIDE the heavy-mutex hold (issue #4962): the per-batch gate
- * takes the mutex for the offline gates only (`health-main --phase=offline`),
- * releases it, and walks afterwards (`--phase=walk`) under the `check:ui` lane
- * alone — a 12–60 min browser walk needs no suite's CPU budget, and every
+ * The walk runs OUTSIDE the heavy-mutex hold (issue #4962): a gate that holds
+ * the mutex for the offline gates (`health-main --phase=offline`) releases it
+ * and walks afterwards (`--phase=walk`) under the `check:ui` lane alone — a 12–60 min browser walk needs no suite's CPU budget, and every
  * queued `land` used to wait it out. `splitHealthGates` is that cut. The
  * verdict is still ONE record per tip: offline green + walk green = GREEN.
- * A walk the environment cut short is `infra`, and a walk still in probation
- * raises no RED marker (`lib/health-verdict.ts`).
+ * A walk the environment cut short is `infra` (`lib/health-verdict.ts`); one
+ * the tree failed is RED.
  *
  * THE RULE IS COST, NOT PHASE (issue #4963): a guard whose measured cost is
  * ≤ 10 s on the heavy tier belongs in the lane (`check:lane`, paid once by

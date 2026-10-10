@@ -6,17 +6,14 @@ import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
 import { LANDINGS_PER_BATCH } from "../lib/health-cadence";
-import {
-    PREFLIGHT_CONVEX_STEP,
-    UI_WALK_FILE,
-    UI_WALK_PROBATION_RUNS,
-} from "../lib/health-verdict";
+import { PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
+import { SKIPPED_REASON } from "../lib/health-walk-plan";
 
 /**
- * The per-batch health run, driven for real through `health-cadence detach`
- * (issue #4962): the offline gates run under the `gate.ts yield` hold, the
- * browser walk runs AFTER it is released, holding only the `check:ui` lane,
- * and the walk's verdict decides the run's ONE record.
+ * The health run, driven for real. The per-batch run (`health-cadence
+ * detach`) owes no browser walk (issue #5378); the full walk is `--ui-all`'s,
+ * which `release` passes — it runs off the heavy mutex, holding only the
+ * `check:ui` lane, and its verdict decides the run's ONE record (issue #4962).
  *
  * A scratch primary checkout whose `origin` is a local bare repo; its
  * `package.json` stands in every gate. `check:all` and `check:ui` each record
@@ -104,10 +101,6 @@ beforeEach(async () => {
     fs.writeFileSync(
         path.join(primary, "fake-ui.ts"),
         `import { acquireUiLane, gateLockRoot } from ${JSON.stringify(UI_ADMISSION)};
-if (process.argv.includes("--scope-only")) {
-    process.stdout.write(process.env.FAKE_SCOPE_OUTPUT ?? "scope (diff base x): FULL — fixture global input\\n");
-    process.exit(0);
-}
 if (process.env.WALK_ARGV) require("fs").appendFileSync(process.env.WALK_ARGV, process.argv.slice(2).join(" ") + "\\n");
 const hold = await acquireUiLane({ root: gateLockRoot(), label: "check:ui --all", announce: () => {} });
 ${WHO}
@@ -122,8 +115,8 @@ process.exit(Number(process.env.FAKE_UI_EXIT ?? "0"));
     baseSha = git(["rev-parse", "HEAD"], primary);
     git(["remote", "add", "origin", bare], primary);
     git(["push", "-q", "origin", BASE_BRANCH], primary);
-    // The batch since the last GREEN tip reaches a global input by default:
-    // the full walk, so the walk-phase tests below keep their walk.
+    // The batch since the last GREEN tip reaches a global input — what the
+    // batch-scoped plan of issue #5076 walked in full.
     land("src/index.css");
     const tip = baseSha;
 
@@ -166,11 +159,12 @@ afterEach(async () => {
 
 const healthDir = () => path.join(primary, ".claude", "telemetry", "health");
 
-async function detach(ui: {
-    exit: number;
-    output?: string;
-    scope?: string;
-}): Promise<{
+/** `health-cadence detach` (the batch run), or `health-main --ui-all`
+ *  (what `release` runs), with the fake walk exiting `ui.exit`. */
+async function run(
+    argv: string[],
+    ui: { exit: number; output?: string }
+): Promise<{
     code: number | null;
     out: string;
 }> {
@@ -181,7 +175,6 @@ async function detach(ui: {
         WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
         WHO_WALK: path.join(tmp, "who-walk.txt"),
         WALK_ARGV: path.join(tmp, "walk-argv.txt"),
-        ...(ui.scope ? { FAKE_SCOPE_OUTPUT: ui.scope } : {}),
         FAKE_UI_EXIT: String(ui.exit),
         FAKE_UI_OUTPUT: ui.output ?? "",
     };
@@ -189,7 +182,7 @@ async function detach(ui: {
     delete env.TOLARIA_ALLOW_FULL_SUITE;
     delete env.TOLARIA_GATE_ROLE;
     return await new Promise((resolve) => {
-        const child = spawn("bun", [CADENCE, "detach"], { cwd: primary, env });
+        const child = spawn("bun", argv, { cwd: primary, env });
         let out = "";
         child.stdout.on("data", (c) => (out += c));
         child.stderr.on("data", (c) => (out += c));
@@ -200,6 +193,11 @@ async function detach(ui: {
         });
     });
 }
+
+const detach = (ui: { exit: number; output?: string }) =>
+    run([CADENCE, "detach"], ui);
+const release = (ui: { exit: number; output?: string }) =>
+    run([HEALTH_MAIN, `--branch=${BASE_BRANCH}`, "--ui-all"], ui);
 
 const lastJson = () =>
     JSON.parse(fs.readFileSync(path.join(healthDir(), "last.json"), "utf8"));
@@ -213,119 +211,56 @@ const ASSERT_FAIL_RECEIPT = [
     "assert   lobby                1440x900x2   FAIL Create table",
 ].join("\n");
 
-describe("health-cadence detach — the batch decides the walk (issue #5076)", () => {
+describe("batch health owes no walk; release walks in full (issue #5378)", () => {
     const walkArgv = () =>
         fs.existsSync(path.join(tmp, "walk-argv.txt"))
             ? fs.readFileSync(path.join(tmp, "walk-argv.txt"), "utf8")
             : "";
 
-    it("a prose-only batch runs no walk: GREEN on the offline half, ui skipped, ledger untouched", async () => {
-        land("docs/notes.md");
+    it("a batch run runs no check:ui step, even on a global input: GREEN on the offline half, walk skipped with its reason", async () => {
         const r = await detach({ exit: 1 });
         expect(r.code, r.out).toBe(0);
+        // Neither the walk nor the scoper: no `check:ui` invocation at all.
         expect(walkArgv()).toBe("");
+        expect(fs.existsSync(path.join(tmp, "who-walk.txt"))).toBe(false);
         expect(lastJson()).toMatchObject({
             status: "green",
             offline: "green",
             ui: "skipped",
-            walk: expect.stringContaining("skipped"),
+            walk: `skipped — ${SKIPPED_REASON}`,
         });
-        expect(fs.existsSync(path.join(healthDir(), UI_WALK_FILE))).toBe(false);
     }, 120_000);
 
-    it("release's --ui-all walks a tip batch health proved without a full walk", async () => {
-        land("docs/notes.md");
+    it("--ui-all on a tip green with a skipped walk runs exactly the full walk", async () => {
         const first = await detach({ exit: 0 });
         expect(first.code, first.out).toBe(0);
         expect(walkArgv()).toBe("");
-        const r = spawnSync("bun", [HEALTH_MAIN, "--ui-all"], {
-            cwd: primary,
-            encoding: "utf8",
-            timeout: 90_000,
-            env: {
-                ...process.env,
-                TOLARIA_GATE_LOCK_ROOT: lockRoot,
-                VITE_CONVEX_URL: convexUrl,
-                WHO_WALK: path.join(tmp, "who-walk.txt"),
-                WALK_ARGV: path.join(tmp, "walk-argv.txt"),
-                FAKE_UI_EXIT: "0",
-            },
-        });
-        expect(r.status, r.stdout + r.stderr).toBe(0);
-        expect(walkArgv().trim()).toBe("--all");
+        fs.rmSync(path.join(tmp, "who-offline.txt"));
+        const r = await release({ exit: 0 });
+        expect(r.code, r.out).toBe(0);
+        expect(walkArgv()).toBe("--all\n");
+        // The offline half stands: only the walk ran.
+        expect(fs.existsSync(path.join(tmp, "who-offline.txt"))).toBe(false);
         expect(lastJson()).toMatchObject({ status: "green", ui: "green" });
         expect(lastJson().walk).toMatch(/^full — /);
     }, 180_000);
-
-    it("a batch the scoper places on one surface walks SCOPED, diffed from the last GREEN tip", async () => {
-        land("src/components/Thing.tsx");
-        const r = await detach({
-            exit: 0,
-            scope: `scope (diff base ${baseSha}): SCOPED — 1 surface(s)\n  · lobby\n`,
-        });
-        expect(r.code, r.out).toBe(0);
-        expect(walkArgv().trim()).toBe(`--base=${baseSha}`);
-        expect(lastJson()).toMatchObject({
-            status: "green",
-            ui: "green",
-            walk: expect.stringContaining("scoped — 1 surface(s): lobby"),
-        });
-    }, 120_000);
-
-    it("a batch with a global input walks FULL (--all)", async () => {
-        const r = await detach({ exit: 0 });
-        expect(r.code, r.out).toBe(0);
-        expect(walkArgv().trim()).toBe("--all");
-        expect(lastJson().walk).toMatch(/^full — /);
-    }, 120_000);
-
-    it("an unknown last-GREEN tip walks FULL, fail-closed", async () => {
-        fs.rmSync(path.join(primary, ".claude", "telemetry", "green-sha"));
-        const r = await detach({ exit: 0 });
-        expect(r.code, r.out).toBe(0);
-        expect(walkArgv().trim()).toBe("--all");
-        expect(lastJson().walk).toMatch(/unknown or unreadable/);
-    }, 120_000);
 });
 
-describe("health-cadence detach — the walk runs off the heavy mutex (issue #4962)", () => {
-    it("holds the heavy mutex for the offline gates, then walks with it free and the check:ui lane held — and a green walk is GREEN", async () => {
-        const r = await detach({ exit: 0 });
+describe("health-main --ui-all — the walk runs off the heavy mutex (issue #4962)", () => {
+    it("walks with the heavy mutex free and the check:ui lane held — and a green walk is GREEN", async () => {
+        const r = await release({ exit: 0 });
         expect(r.code, r.out).toBe(0);
-        expect(whoAt("offline")).not.toMatch(/heavy mutex is free/);
         expect(whoAt("walk")).toMatch(/heavy mutex is free/);
         expect(whoAt("walk")).not.toMatch(/check:ui lane is free/);
-        const last = lastJson();
-        expect(last).toMatchObject({
+        expect(lastJson()).toMatchObject({
             status: "green",
             offline: "green",
             ui: "green",
         });
-        expect(
-            JSON.parse(
-                fs.readFileSync(path.join(healthDir(), UI_WALK_FILE), "utf8")
-            )
-        ).toEqual({ streak: 1 });
     }, 120_000);
 
-    it("a walk the tree failed during probation is INFRA ui-unproven, with no RED marker", async () => {
-        const r = await detach({ exit: 1, output: ASSERT_FAIL_RECEIPT });
-        expect(r.code, r.out).toBe(1);
-        expect(lastJson()).toMatchObject({
-            status: "infra",
-            infraCause: "ui-unproven",
-            offline: "green",
-            ui: "unproven",
-        });
-        expect(redMarker()).toBe(false);
-    }, 120_000);
-
-    it("the same failure once the walk is armed is RED, with the marker", async () => {
-        fs.writeFileSync(
-            path.join(healthDir(), UI_WALK_FILE),
-            JSON.stringify({ streak: UI_WALK_PROBATION_RUNS })
-        );
-        const r = await detach({ exit: 1, output: ASSERT_FAIL_RECEIPT });
+    it("a walk the tree failed is RED, with the marker — no probation (issue #5378)", async () => {
+        const r = await release({ exit: 1, output: ASSERT_FAIL_RECEIPT });
         expect(r.code, r.out).toBe(1);
         expect(lastJson()).toMatchObject({
             status: "red",
@@ -336,12 +271,8 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
         expect(redMarker()).toBe(true);
     }, 120_000);
 
-    it("an armed walk that exits 2 is INFRA ui-walk, no marker, and the probation restarts", async () => {
-        fs.writeFileSync(
-            path.join(healthDir(), UI_WALK_FILE),
-            JSON.stringify({ streak: UI_WALK_PROBATION_RUNS })
-        );
-        const r = await detach({ exit: 2, output: "sign-in failed" });
+    it("a walk that exits 2 is INFRA ui-walk, no marker", async () => {
+        const r = await release({ exit: 2, output: "sign-in failed" });
         expect(r.code, r.out).toBe(1);
         expect(lastJson()).toMatchObject({
             status: "infra",
@@ -349,11 +280,6 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
             ui: "infra",
         });
         expect(redMarker()).toBe(false);
-        expect(
-            JSON.parse(
-                fs.readFileSync(path.join(healthDir(), UI_WALK_FILE), "utf8")
-            )
-        ).toEqual({ streak: 0 });
     }, 120_000);
 
     it("an infra walk under a standing RED keeps the red record the marker names", async () => {
@@ -370,7 +296,7 @@ describe("health-cadence detach — the walk runs off the heavy mutex (issue #49
             JSON.stringify(red)
         );
         fs.writeFileSync(path.join(healthDir(), "RED"), "red at test\n");
-        const r = await detach({ exit: 2, output: "sign-in failed" });
+        const r = await release({ exit: 2, output: "sign-in failed" });
         expect(r.code, r.out).toBe(1);
         expect(lastJson()).toEqual(red);
         expect(redMarker()).toBe(true);
@@ -460,8 +386,11 @@ describe("health-main — a terminal verdict on the tip: the waiter skips it, a 
         seedInfra();
         // An unreachable deployment ends the run at its Convex preflight —
         // AFTER the skip decision and the new `running` record, before any
-        // gate: the cheapest run that still proves a gate was attempted.
-        const r = healthMain([], { VITE_CONVEX_URL: "http://127.0.0.1:1" });
+        // gate: the cheapest run that still proves a gate was attempted. Only
+        // a run that walks preflights (`--ui-all`, issue #5378).
+        const r = healthMain(["--ui-all"], {
+            VITE_CONVEX_URL: "http://127.0.0.1:1",
+        });
         expect(r.stdout).not.toMatch(/already has a INFRA verdict/);
         const last = lastJson();
         expect(last.startedAt).not.toBe(INFRA_STARTED_AT);

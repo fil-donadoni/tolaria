@@ -110,8 +110,6 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "parses GitHub PR BODIES for the ADR 0044 preset-scenario block, which are not files in this repo — the ```json / ``` fences in its fixtures are PR-body shapes, not repo prose",
     "scripts/__tests__/branches.test.ts":
         "walks `.claude/hooks/**/*.sh` for an `origin/<branch>` literal — hooks are programs and stay in the `full` lane (check-lane.ts CLAUDE_PROSE_PATTERNS), so no prose diff this lane carries can red it; it reads no document",
-    "scripts/__tests__/health-walk-plan.test.ts":
-        "the docs/adr and *.md paths are synthetic batch-diff fixtures fed to planHealthWalk(); the release.ts source it reads is code, not prose",
     "scripts/__tests__/health-walk-off-mutex.test.ts":
         "the `.claude/telemetry/health/` path is the RUNTIME verdict directory and docs/notes.md is a synthetic file committed into a scratch repo; it reads no repo document",
     "scripts/__tests__/health-fix.test.ts":

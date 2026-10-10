@@ -1609,7 +1609,7 @@ One screen state the headless browser lane can reach by a fixed click sequence a
 _Avoid_: Page (a surface may be an overlay on one), screen (ambiguous with the device), route (several surfaces share one)
 
 **Specimen Row**:
-A **Walked Surface** that opens ONE overlay component from fixture props on the design-system census page (`/admin/design-system` § 16–18: `dlg-*`, `pick-*`) and measures that layer. It is scoped to a diff by the closure of the module it mounts plus its section's (the page module that renders the openers and fixture props for its rows) plus the page's shared scaffolding — never by the page's whole route closure, which every row on the page shares (issue #4913, ADR 0131 amendment). The full walk of every surface is a batch-health step, not a PR's.
+A **Walked Surface** that opens ONE overlay component from fixture props on the design-system census page (`/admin/design-system` § 16–18: `dlg-*`, `pick-*`) and measures that layer. It is scoped to a diff by the closure of the module it mounts plus its section's (the page module that renders the openers and fixture props for its rows) plus the page's shared scaffolding — never by the page's whole route closure, which every row on the page shares (issue #4913, ADR 0131 amendment). The full walk of every surface is a release step (`--ui-all`, issue #5378), not a PR's nor a batch-health run's.
 _Avoid_: Specimen surface (the census page's other sections are specimens too, but static), dialog surface (a board dialog walked on the game route is not one)
 
 **Floor**:

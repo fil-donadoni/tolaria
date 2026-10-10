@@ -8,12 +8,11 @@
  * 0136 §6), and `bun run health` runs it by hand. It runs the FULL gate
  * (`HEALTH_SCRIPTS` in `lib/health-step.ts`: `check:all`, the derived Op census
  * `check:gaps`, the Coverage Invariant `check:targets`, the test-suite
- * hygiene census `check:test-hygiene`, all three test suites, and the
- * `check:ui` browser walk the BATCH owes — none, its scope, or `--all`; always
- * `--all` under `--ui-all`, which `release` passes: `lib/health-walk-plan.ts`,
- * issue #5076) against the
- * merged tip, in a throwaway worktree, and leaves a durable verdict in
- * `.claude/telemetry/health/`:
+ * hygiene census `check:test-hygiene`, all three test suites, and — under
+ * `--ui-all`, which `release` passes, and only then — the full `check:ui`
+ * browser walk: a batch run owes none (`lib/health-walk-plan.ts`, issue
+ * #5378)) against the merged tip, in a throwaway worktree, and leaves a
+ * durable verdict in `.claude/telemetry/health/`:
  *
  *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.
@@ -29,9 +28,9 @@
  * `infra` at step `preflight:convex` before any gate runs, in seconds rather
  * than after ~40 minutes of gates. Health never STARTS the backend: the AFK
  * loop's `convex:ensure` does (issue #4945). So is a walk the environment cut
- * short (a fatal `check:ui` exit, or every failing row `INFRA`), and a
- * walk the tree failed while the walk is still in probation (issue #4962,
- * `ui-unproven`): `last.json` names the two halves, `offline` and `ui`.
+ * short (a fatal `check:ui` exit, or every failing row `INFRA`): `last.json`
+ * names the two halves, `offline` and `ui`. A walk the tree failed is RED
+ * (its probation, issue #4962, retired by issue #5378).
  *
  * TWO PHASES (issue #4962). The offline gates and the browser walk are cut by
  * `splitHealthGates`. `--phase=offline` runs the first and, when green, leaves
@@ -137,30 +136,21 @@ import {
     convexPreflight,
     INFRA_REMEDY,
     infraCause,
-    nextUiWalkLedger,
-    parseUiWalkLedger,
     PREFLIGHT_CONVEX_STEP,
     PREFLIGHT_MACHINE_STEP,
     readLastSleepAt,
     recordInfra,
     repeatedMachineTimeout,
-    UI_WALK_FILE,
-    UI_WALK_PROBATION_RUNS,
-    uiWalkArmed,
-    uiWalkStateOf,
-    walkFailureCause,
     type HealthStatus,
     type InfraCause,
-    type UiWalkLedger,
     type UiWalkState,
-    type WalkOutcome,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
 import { waitForWalkWindow } from "./lib/health-walk-wait";
 import {
     describeWalkPlan,
+    FORCED_REASON,
     planHealthWalk,
-    walkEntriesFor,
     walkWasFull,
     type WalkPlan,
 } from "./lib/health-walk-plan";
@@ -208,17 +198,15 @@ interface LastRun {
      *  the offline gates, and the browser walk. */
     offline?: "green" | "red" | "infra";
     ui?: UiWalkState;
-    /** Which walk this run owed (issue #5076): `describeWalkPlan`'s text, for
-     *  `health:status`. */
+    /** Which walk this run owed (issues #5076, #5378): `describeWalkPlan`'s
+     *  text, for `health:status`. */
     walk?: string;
     /** Which blade robustness audit this run owed (issue #5078):
      *  `describeRobustnessMode`'s text — mode and the first triggering path —
      *  for `health:status`. */
     robustness?: string;
-    /** `running`, `phase: "walk"` only: the plan the walk phase executes, and
-     *  the last GREEN tip a scoped walk diffs against. */
+    /** `running`, `phase: "walk"` only: the plan the walk phase executes. */
     walkPlan?: WalkPlan;
-    walkBase?: string;
     /** `running` only: `walk` once the offline gates passed and the walk is
      *  owed, off the heavy mutex (`--phase=walk`). */
     phase?: "walk";
@@ -295,22 +283,6 @@ function batchChangedFiles(root: string, tip: string): string[] | null {
     return r.stdout.split("\n").filter((line) => line !== "");
 }
 
-/** `check:ui --scope-only` at the tip, diffed from the last GREEN tip: its
- *  output, or `null` when it did not run clean (the plan then walks full). */
-function scopeOnlyOutput(
-    wt: string,
-    green: string | null,
-    env: NodeJS.ProcessEnv
-): string | null {
-    if (green === null) return null;
-    const r = spawnSync(
-        "bun",
-        ["run", "check:ui", "--scope-only", `--base=${green}`],
-        { cwd: wt, env, encoding: "utf8", timeout: 180_000 }
-    );
-    return r.status === 0 ? `${r.stdout}\n${r.stderr}` : null;
-}
-
 /** Worktrees whose checked-out branch is already merged into origin/main —
  *  the corpses `land`'s teardown missed (killed passes, abandoned batches). */
 function staleWorktrees(cwd: string): string[] {
@@ -361,15 +333,10 @@ function status(root: string): never {
         `  cadence: ${describeLastDecision(parseCadence(existsSync(cadence) ? readFileSync(cadence, "utf8") : null))}`
     );
     // The two halves, each on its own (issue #4962): a walk the environment
-    // cut short, or one still in probation, says so instead of hiding inside
-    // the run's single status.
-    const ledger = readUiWalk(dir);
-    const probation = uiWalkArmed(ledger)
-        ? "armed — a walk failure is RED"
-        : `probation ${ledger.streak}/${UI_WALK_PROBATION_RUNS} non-infra walks — a walk failure is not RED`;
+    // cut short says so instead of hiding inside the run's single status.
     if (last)
         console.log(
-            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"} (${probation})${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
+            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"}${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
         );
     const audit = readAuditRecord(dir);
     if (audit)
@@ -427,10 +394,8 @@ interface RunCtx {
     /** The record as it stood BEFORE this run's `running` record replaced
      *  it — what an infra verdict may have to keep (`infraRecordToKeep`). */
     previous: LastRun | null;
-    /** The walk this run owes, once planned (issue #5076). */
+    /** The walk this run owes, once planned (issues #5076, #5378). */
     walkPlan?: WalkPlan;
-    /** The last GREEN tip the plan's batch diff started from. */
-    walkBase?: string | null;
     /** The blade audit this run owed, as `describeRobustnessMode` words it
      *  (issue #5078); carried into the walk phase from the offline record. */
     robustness?: string;
@@ -517,11 +482,6 @@ function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
         `${ctx.tip}\n`
     );
     console.log(`health-main: GREEN @ ${ctx.tip.slice(0, 8)}`);
-}
-
-function readUiWalk(dir: string): UiWalkLedger {
-    const p = join(dir, UI_WALK_FILE);
-    return parseUiWalkLedger(existsSync(p) ? readFileSync(p, "utf8") : null);
 }
 
 /**
@@ -625,37 +585,23 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
     }
 
     // A bootstrap that passed in the offline phase on this very sha and
-    // fails here is the environment's; the walk never ran, so the probation
-    // ledger does not move.
+    // fails here is the environment's: the walk never ran.
     if (failed && !walked)
         finishInfra(ctx, failed.cause ?? "ui-walk", failed.step, ctx.logPath, {
             offline: "green",
             ui: "not run",
         });
 
-    const ledger = readUiWalk(ctx.dir);
-    const outcome: WalkOutcome =
-        failed === undefined
-            ? "green"
-            : failed.cause === null
-              ? "red"
-              : "infra";
-    writeFileSync(
-        join(ctx.dir, UI_WALK_FILE),
-        JSON.stringify(nextUiWalkLedger(ledger, outcome), null, 2)
-    );
     if (failed === undefined) {
         finishGreen(ctx, "green");
         return;
     }
-    const cause = walkFailureCause(failed.cause, ledger);
-    const halves = {
-        offline: "green",
-        ui: uiWalkStateOf(outcome, cause),
-    } as const;
-    if (cause !== null)
-        finishInfra(ctx, cause, failed.step, ctx.logPath, halves);
-    finishRed(ctx, failed.step, halves);
+    if (failed.cause !== null)
+        finishInfra(ctx, failed.cause, failed.step, ctx.logPath, {
+            offline: "green",
+            ui: "infra",
+        });
+    finishRed(ctx, failed.step, { offline: "green", ui: "red" });
 }
 
 /** `--phase=walk`: the walk the offline phase left owed, or nothing. */
@@ -675,17 +621,12 @@ async function walkPhase(root: string, dir: string): Promise<void> {
         );
         return;
     }
-    // The plan the offline phase made; a record without one (an older run)
-    // walks everything.
-    const plan: WalkPlan = last.walkPlan ?? {
+    // An owed walk is the full one: a record from before issue #5378 may
+    // still name a scoped plan, and is walked in full.
+    const plan: WalkPlan = {
         kind: "full",
-        reason: "no walk plan recorded",
+        reason: last.walkPlan?.reason ?? "no walk plan recorded",
     };
-    const walk = walkEntriesFor(
-        splitHealthGates(HEALTH_SCRIPTS).walk,
-        plan,
-        last.walkBase ?? null
-    );
     await runWalk(
         {
             root,
@@ -698,10 +639,9 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             // its phases: an infra walk must keep a standing red record.
             previous: last.prior ?? null,
             walkPlan: plan,
-            walkBase: last.walkBase ?? null,
             robustness: last.robustness,
         },
-        walk
+        splitHealthGates(HEALTH_SCRIPTS).walk
     );
 }
 
@@ -737,10 +677,12 @@ async function main(): Promise<void> {
     const tip = git(["rev-parse", `origin/${branch}`], root);
 
     const last = readLast(dir);
-    // `release` and an explicit `--ui-all` keep the full walk (issue #5076).
+    // `release` and an explicit `--ui-all` walk in full; nothing else walks
+    // (issue #5378).
     const forceAll = process.argv.includes("--ui-all");
-    // A tip batch health already proved with a skipped or scoped walk owes
-    // the full one: the offline half stands, only the walk runs.
+    // A tip batch health already proved without a full walk (skipped, or
+    // scoped before issue #5378) owes it: the offline half stands, only the
+    // walk runs.
     if (
         forceAll &&
         last !== null &&
@@ -760,11 +702,7 @@ async function main(): Promise<void> {
                 startedAt: new Date().toISOString(),
                 logPath: join(dir, `${tip.slice(0, 12)}.log`),
                 previous: last,
-                walkPlan: {
-                    kind: "full",
-                    reason: "forced (--ui-all, release)",
-                },
-                walkBase: null,
+                walkPlan: { kind: "full", reason: FORCED_REASON },
             },
             splitHealthGates(HEALTH_SCRIPTS).walk
         );
@@ -843,14 +781,10 @@ async function main(): Promise<void> {
     const { offline, walk } = splitHealthGates(gates);
     // The deployment `check:ui` needs, asked BEFORE ~40 minutes of gates
     // (issue #4943) — the same probe `check:ui` makes, on the URL it reads.
-    // A batch no cheap rule can place may still plan out to no walk, only
-    // once the tree is built: it preflights, a batch that is certainly
-    // skipped does not (the backend is not its business).
-    const certainSkip =
-        planHealthWalk({ forceAll, changed: batch, scopeOutput: () => null })
-            .kind === "skipped";
+    // A run that owes no walk does not ask: the backend is not its business.
+    const walkPlan = planHealthWalk({ forceAll });
     const preflight = await convexPreflight({
-        gates: certainSkip ? offline : gates,
+        gates: walkPlan.kind === "skipped" ? offline : gates,
         url: process.env.VITE_CONVEX_URL ?? readEnvLocal(root).VITE_CONVEX_URL,
         probe: (url) => reachable(url, 5000),
     });
@@ -932,15 +866,10 @@ async function main(): Promise<void> {
                 break;
             }
         }
-        // The walk this batch owes, planned in the tree the offline gates
-        // proved (issue #5076): the scoper is the tip's own `check:ui`.
+        // The walk this run owes, once the offline gates proved the tip:
+        // none for a batch, the full one under `--ui-all` (issue #5378).
         if (failedStep === undefined && walk.length > 0) {
-            ctx.walkBase = greenBase;
-            ctx.walkPlan = planHealthWalk({
-                forceAll,
-                changed: batch,
-                scopeOutput: () => scopeOnlyOutput(wt, greenBase, env),
-            });
+            ctx.walkPlan = walkPlan;
             console.log(
                 `health-main: walk plan — ${describeWalkPlan(ctx.walkPlan)}`
             );
@@ -1019,8 +948,8 @@ async function main(): Promise<void> {
         return;
     }
     if (ctx.walkPlan?.kind === "skipped") {
-        // The offline half alone decides GREEN; the probation ledger neither
-        // advances nor resets (issue #5076).
+        // The offline half alone decides GREEN; `release` walks this tip in
+        // full before it trusts it (`walkWasFull`, issue #5378).
         finishGreen(ctx, "skipped");
         return;
     }
@@ -1038,7 +967,6 @@ async function main(): Promise<void> {
             ui: "pending",
             ...walkFields(ctx),
             walkPlan: ctx.walkPlan,
-            walkBase: ctx.walkBase ?? undefined,
             log: logPath,
             prior: priorOf(last),
         });
@@ -1047,12 +975,7 @@ async function main(): Promise<void> {
         );
         return;
     }
-    await runWalk(
-        ctx,
-        ctx.walkPlan
-            ? walkEntriesFor(walk, ctx.walkPlan, ctx.walkBase ?? null)
-            : walk
-    );
+    await runWalk(ctx, walk);
 }
 
 main().catch((err: unknown) => {

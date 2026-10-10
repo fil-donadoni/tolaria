@@ -13,7 +13,8 @@ import { INFRA_REMEDY, PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
  * worktree, no gate — instead of paying ~40 minutes of gates to learn it at
  * `check:ui`. Driven for real: a scratch primary checkout whose `origin` is a
  * local bare repo carrying the base branch, and `VITE_CONVEX_URL` on a port
- * nothing listens on.
+ * nothing listens on. Only a run that walks needs the backend: `--ui-all`,
+ * as `release` runs it (a batch run owes no walk, issue #5378).
  */
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
@@ -78,7 +79,7 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
         const port = await closedPort();
         const r = await new Promise<{ code: number | null; stderr: string }>(
             (resolve) => {
-                const child = spawn("bun", [HEALTH_MAIN], {
+                const child = spawn("bun", [HEALTH_MAIN, "--ui-all"], {
                     cwd: primary,
                     env: {
                         ...process.env,
@@ -115,5 +116,35 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
         expect(fs.readdirSync(dir).filter((f) => f.endsWith(".log"))).toEqual(
             []
         );
+    }, 60_000);
+
+    it("a batch run (no --ui-all) owes no walk, so it never preflights the backend (issue #5378)", () => {
+        const r = spawnSync("bun", [HEALTH_MAIN, "--phase=offline"], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 45_000,
+            env: {
+                ...process.env,
+                VITE_CONVEX_URL: "http://127.0.0.1:1",
+                TOLARIA_GATE_HELD: "",
+                // A busy machine ends the run at its next preflight at once
+                // rather than waiting: any step past the Convex preflight
+                // proves it was passed.
+                TOLARIA_MACHINE_WAIT_MAX_MS: "0",
+            },
+        });
+        const last = JSON.parse(
+            fs.readFileSync(
+                path.join(
+                    primary,
+                    ".claude",
+                    "telemetry",
+                    "health",
+                    "last.json"
+                ),
+                "utf8"
+            )
+        ) as Record<string, unknown>;
+        expect(last.failedStep, r.stderr).not.toBe(PREFLIGHT_CONVEX_STEP);
     }, 60_000);
 });
