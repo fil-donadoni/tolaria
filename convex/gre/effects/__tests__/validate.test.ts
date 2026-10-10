@@ -8106,7 +8106,7 @@ describe("chosen type / colour as an effect parameter (CR 205.3m / 607.2d / 509.
     });
 });
 
-describe("validateEffectScript — instance combat-damage watch (CR 603.7d / 510.2, issue #2142)", () => {
+describe("validateEffectScript — instance combat-damage watch (CR 603.7b / 510.2, issue #2142)", () => {
     const run = (effects: unknown[]) =>
         validateEffectScript(host({ effects: effects as EffectOp[] }));
     const damageWatch = (extra: Record<string, unknown> = {}) => ({

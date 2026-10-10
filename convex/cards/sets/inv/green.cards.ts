@@ -1615,7 +1615,7 @@ export const verdelothTheAncient = defineCard(() => ({
 // turn. Whenever that creature deals combat damage this turn, if this spell
 // was kicked, you gain life equal to that damage." The trample grant is plain
 // `grantAbility`; the second sentence is the INSTANCE-scoped repeating
-// `this-turn-watched-creature-deals-combat-damage` timing (CR 603.7d, issue
+// `this-turn-watched-creature-deals-combat-damage` timing (CR 603.7b, issue
 // #2142): it fires once per combat damage event the target deals — any
 // recipient, no batch collapse (CR 510.2: trample over a blocker gains life
 // for the blocker's share AND the player's) — and the body reads

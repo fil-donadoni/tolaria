@@ -7673,7 +7673,7 @@ export type DelayedTriggerTiming =
      *  exactly what that row already flattens. Rejects `targetPlayer` /
      *  `watch`, like the other repeating combat-event timings. */
     | "until-next-turn-creature-attacks-you"
-    /** CR 603.7d / 510.2 (issue #2142) — an INSTANCE-scoped, REPEATING, this-
+    /** CR 603.7b / 510.2 (issue #2142) — an INSTANCE-scoped, REPEATING, this-
      *  turn-bounded combat-damage watch: "Whenever that creature deals combat
      *  damage this turn, …" (Vigorous Charge). Names ONE watched instance
      *  (`watch` required, resolved to `watchInstanceId` at scheduling) and

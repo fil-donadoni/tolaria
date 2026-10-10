@@ -3683,7 +3683,7 @@ const DELAYED_TIMINGS = new Set([
     // `$event` (checked below) — and purged at CLEANUP. The only timing that
     // accepts `blockerColors`.
     "becomes-blocked-by",
-    // Instance combat-damage watch (CR 603.7d / 510.2, issue #2142) — fires
+    // Instance combat-damage watch (CR 603.7b / 510.2, issue #2142) — fires
     // once per combat DAMAGE_DEALT event whose source is the WATCHED
     // permanent ("Whenever that creature deals combat damage this turn",
     // Vigorous Charge). Instance-scoped (requires `watch`, rejects

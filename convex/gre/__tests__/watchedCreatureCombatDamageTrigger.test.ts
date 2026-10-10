@@ -1,4 +1,4 @@
-// CR 603.7d / 510.2 (issue #2142) — the instance-scoped repeating
+// CR 603.7b / 510.2 (issue #2142) — the instance-scoped repeating
 // `this-turn-watched-creature-deals-combat-damage` delayed trigger, driven
 // through the REAL Vigorous Charge definition ({G} instant, Kicker {W}).
 //
@@ -86,7 +86,7 @@ const watches = (state: GameState) =>
 const fired = (state: GameState) =>
     state.stack.filter((i) => i.delayedTriggerId !== undefined);
 
-describe("Vigorous Charge — instance combat-damage watch (CR 603.7d / 510.2, issue #2142)", () => {
+describe("Vigorous Charge — instance combat-damage watch (CR 603.7b / 510.2, issue #2142)", () => {
     it("unkicked: trample is granted but nothing is scheduled", () => {
         const state = board();
         cast(state, false);

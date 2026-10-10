@@ -2937,7 +2937,7 @@ export function finalizeCleanup(state: GameState): void {
     // `becomes-blocked-by` (CR 509.3d, issue #3809, Zombie Boa) is a
     // REPEATING this-turn instance watch — purged unconditionally, like
     // `this-turn-creature-blocks`; so is
-    // `this-turn-watched-creature-deals-combat-damage` (CR 603.7d, issue
+    // `this-turn-watched-creature-deals-combat-damage` (CR 603.7b, issue
     // #2142, Vigorous Charge).
     if (state.delayedTriggers?.length) {
         const kept = state.delayedTriggers.filter(

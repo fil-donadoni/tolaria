@@ -844,7 +844,7 @@ export function collectTriggers(
         }
     }
 
-    // CR 603.7d / 510.2 (issue #2142, Vigorous Charge) — a `timing:
+    // CR 603.7b / 510.2 (issue #2142, Vigorous Charge) — a `timing:
     // "this-turn-watched-creature-deals-combat-damage"` instance watches ONE
     // creature and fires once per combat DAMAGE_DEALT event it is the source
     // of: no recipient restriction and no per-batch collapse (a trampler
