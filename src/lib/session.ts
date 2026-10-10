@@ -4,7 +4,7 @@ import {
     DIFFICULTIES,
     type Difficulty,
 } from "@convex/gre/difficulty";
-import { isFormatId, type FormatId } from "@convex/formats";
+import { isFormatId, type FormatId } from "@convex/formatAdmission";
 
 const GAME_KEY = "tolaria:gameId";
 const PLAYER_KEY = "tolaria:playerId";

@@ -4,7 +4,7 @@ import {
     createRouter,
     lazyRouteComponent,
 } from "@tanstack/react-router";
-import { type FormatId, isFormatId } from "@convex/formats";
+import { type FormatId, isFormatId } from "@convex/formatAdmission";
 import {
     isLimitedEventStatusChip,
     type LimitedEventStatusChip,

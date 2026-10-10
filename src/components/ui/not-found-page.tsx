@@ -11,7 +11,11 @@
 // doesn't reshuffle the artwork under the user.
 import { useState } from "react";
 import AmbientPageGround from "@/components/ui/ambient-page-ground";
-import { getImageFallbackUrl, getImageSrcSet, getImageUrl } from "@/lib/images";
+import {
+    getImageFallbackUrl,
+    getImageSrcSet,
+    getImageUrl,
+} from "@/lib/imageUrls";
 import { pickLostInCard } from "@/lib/lostInCards";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 
