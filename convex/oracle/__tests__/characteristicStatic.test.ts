@@ -225,6 +225,16 @@ describe("characteristic-setting statics — refusals (fail-closed)", () => {
         ).toBe(true);
     });
 
+    it("REFUSES an animation frame that adds a non-creature type", () => {
+        expect(
+            unparsed({
+                typeLine: "Enchantment",
+                oracleText:
+                    "Each other non-Aura enchantment is an artifact in addition to its other types and has base power and base toughness each equal to its mana value.",
+            })
+        ).toBe(true);
+    });
+
     it("REFUSES a star P/T with no defining ability on the card", () => {
         expect(
             unparsed({

@@ -158,9 +158,11 @@ export const animateManaValueRule: Rule<CharacteristicStaticIR> = pattern(
             "materialised"
         );
         if (!filter.ok) return filter;
+        // The base P/T below only means something on a creature, so "creature"
+        // is the one type this frame adds.
         const added = CARD_TYPE_WORDS.get(match[2]!);
-        if (added === undefined)
-            return fail(`"${match[2]}" is not a card type`, match[2]!);
+        if (added !== "Creature")
+            return fail(`"${match[2]}" is not the creature type`, match[2]!);
         return ok({
             kind: "animate-mana-value-pt" as const,
             filter: other
