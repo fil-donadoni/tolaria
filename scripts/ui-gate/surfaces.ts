@@ -3637,6 +3637,68 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
+        id: "match-setup",
+        entries: ["src/routes/match-setup.route.tsx"],
+        label: "Constructed setup (/play/constructed, Match Format step)",
+        // The Constructed setup flow (PRD #5334, issue #5340): the recap rail
+        // beside the active step. Walked to step 3 — Arena, Bot — because the
+        // Match Format step is the widest one (every playable Format with its
+        // deck count, plus the Games Format selector); a fresh context has no
+        // remembered setup, so the walk always starts from step 1.
+        asserts: [
+            {
+                label: "page heading",
+                locator: { role: "heading", name: "Constructed" },
+                check: "visible",
+            },
+            {
+                label: "recap rail",
+                locator: { role: "navigation", name: "Setup steps" },
+                check: "visible",
+            },
+            {
+                label: "Match Format options",
+                locator: { role: "group", name: "Match Format" },
+                check: "reachable",
+            },
+            {
+                label: "Games Format selector",
+                locator: { role: "radiogroup", name: "Games Format" },
+                check: "reachable",
+            },
+            {
+                label: "Start match",
+                locator: { role: "button", name: "Start match" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await goto(page, ctx, "/play/constructed");
+            if (!(await visible(page, "h1:has-text('Constructed')", 10_000))) {
+                throw new Unreachable(
+                    "/play/constructed did not render its heading"
+                );
+            }
+            for (const choice of ["Arena", "Bot"]) {
+                await page
+                    .getByRole("button", { name: new RegExp(`^${choice}`) })
+                    .click({ timeout: STEP_TIMEOUT });
+            }
+            if (
+                !(await visible(
+                    page,
+                    "[role=group][aria-label='Match Format']",
+                    STEP_TIMEOUT
+                ))
+            ) {
+                throw new Unreachable(
+                    "Arena → Bot did not open the Match Format step"
+                );
+            }
+            await settle(page);
+        },
+    },
+    {
         id: "limited-list",
         entries: ["src/routes/limited-events.route.tsx"],
         // Issue #2822: the list is walked FILTERED to the seeded fixture
