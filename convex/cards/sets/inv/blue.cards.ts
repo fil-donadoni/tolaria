@@ -28,11 +28,11 @@
 //   wrong; the actual fix is a `wasKicked`-gated `keyword-grant`, CR 611.2b /
 //   614.1c).
 //
+//   SHIPPED by #2765: Shoreline Raider — the CR 702.16a SUBTYPE protection
+//   quality (not CR 702.16k, a player quality that already shipped).
+//
 //   OWNED BY A CAPABILITY ISSUE:
 //     Crystal Spray      -> #2763  one-shot text-changing Op (CR 612)
-//     Shoreline Raider   -> #2765  the CR 702.16a SUBTYPE protection quality
-//                                  (NOT CR 702.16k, a player quality that
-//                                  already ships)
 //     Breaking Wave      -> #3714  `EffectCardFilter.tapped` (its cast
 //                                  rider shipped with #2146)
 //
@@ -1156,26 +1156,27 @@ export const rainbowCrow = defineCard(() => ({
     ],
 }));
 
-// Shoreline Raider — "Protection from Kavu."
+// Shoreline Raider — {2}{U} Creature — Merfolk, 2/2. "Protection from Kavu."
 //
-// CORRECTED 2026-08-25 (#1841 audit) on both counts. (1) The rule is
-// CR 702.16a, which says a protection quality may be a card type, subtype or
-// supertype — NOT CR 702.16k, which is protection from a PLAYER and is a
-// family this engine already ships. (2) `convex/gre/protection.ts` does not
-// "only parse protection from <color|colorless>": four quality families ship
-// behind one parser (colour/colourless, player, characteristic types +
-// supertypes, coloured spell). The genuine gap is one leg — a SUBTYPE
-// quality, which that module excludes deliberately for lack of a closed
-// subtype vocabulary. Shipping the string anyway is not an option: the
-// parser fails closed and the catalogue guard reds CI.
-// tracked-by: #2765
-// export const shorelineRaider: CardDefinition = {
-//     id: "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
-//     name: "Shoreline Raider",
-//     rarity: "common",
-//     manaCost: { X: 2, U: 1 },
-//     types: ["Creature"],
-// };
+// CR 702.16a protection from a SUBTYPE quality (issue #2765): "if the quality
+// is a card type, subtype, or supertype, the ability applies to sources that
+// are permanents with that subtype and to any sources not on the battlefield
+// that are of that subtype" — so a Kavu SPELL on the stack and a Kavu card in
+// a graveyard are barred too, not only Kavu permanents. `gre/protection.ts`
+// parses the string against the CR 205.3m creature-type table and the single
+// `isProtectedFrom` predicate honours it at every CR 702.16b-f consult site.
+export const shorelineRaider = defineCard(() => ({
+    id: "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
+    name: "Shoreline Raider",
+    rarity: "common",
+    oracleText: "Protection from Kavu",
+    manaCost: { X: 2, U: 1 },
+    types: ["Creature"],
+    subtypes: ["Merfolk"],
+    power: 2,
+    toughness: 2,
+    staticAbilities: ["protection from kavu"],
+}));
 
 // Sway of Illusion — {1}{U} Instant. "Any number of target creatures become
 // the color of your choice until end of turn. Draw a card." (CR 601.2c a

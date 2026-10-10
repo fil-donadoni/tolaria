@@ -99,6 +99,7 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
             kind: "characteristic",
             types: ["Creature"],
             supertypes: ["Legendary"],
+            subtypes: [],
         });
     });
 
@@ -107,12 +108,14 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
             kind: "characteristic",
             types: ["Artifact"],
             supertypes: [],
+            subtypes: [],
         });
         // "sorceries", not "sorcerys" — the -y → -ies plural.
         expect(parseProtectionQuality("protection from sorceries")).toEqual({
             kind: "characteristic",
             types: ["Sorcery"],
             supertypes: [],
+            subtypes: [],
         });
     });
 
@@ -123,6 +126,7 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
             kind: "characteristic",
             types: ["Artifact", "Creature"],
             supertypes: [],
+            subtypes: [],
         });
     });
 
@@ -147,16 +151,52 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
         // "protection from everything" is NO LONGER on this list: CR 702.16j
         // is a named family since issue #2386 (Hexdrinker's LEVEL 8+ band) —
         // its own parse/consult rows are the CR 702.16j block further down.
-        expect(parseProtectionQuality("protection from goblins")).toBeNull();
+        // CR 702.16a subtype quality (issue #2765) is closed against the
+        // CR 205.3m creature-type table: a misspelling, a negation and a
+        // planeswalker-only word all stay unnameable.
+        expect(parseProtectionQuality("protection from gobblins")).toBeNull();
         expect(
-            parseProtectionQuality("protection from legendary wizards")
+            parseProtectionQuality("protection from non-goblin creatures")
         ).toBeNull();
+        expect(
+            parseProtectionQuality("protection from legendary kavuu")
+        ).toBeNull();
+    });
+
+    it("CR 702.16a — parses a creature-SUBTYPE quality (issue #2765)", () => {
+        const kavu = {
+            kind: "characteristic",
+            types: [],
+            supertypes: [],
+            subtypes: ["Kavu"],
+        };
+        expect(parseProtectionQuality("protection from Kavu")).toEqual(kavu);
+        expect(parseProtectionQuality("protection from kavu")).toEqual(kavu);
+        // Regular, -ies and -ves plurals resolve to the canonical singular.
+        expect(parseProtectionQuality("protection from Goblins")).toMatchObject(
+            { subtypes: ["Goblin"] }
+        );
+        expect(parseProtectionQuality("protection from Zombies")).toMatchObject(
+            { subtypes: ["Zombie"] }
+        );
+        expect(parseProtectionQuality("protection from Elves")).toMatchObject({
+            subtypes: ["Elf"],
+        });
+        // Composes with the other legs as a conjunction.
+        expect(
+            parseProtectionQuality("protection from legendary Goblin creatures")
+        ).toEqual({
+            kind: "characteristic",
+            types: ["Creature"],
+            supertypes: ["Legendary"],
+            subtypes: ["Goblin"],
+        });
     });
 
     it("distinguishes a non-protection ability from an unnameable quality", () => {
         expect(parseProtectionQuality("flying")).toBeNull();
         expect(isProtectionAbility("flying")).toBe(false);
-        expect(isProtectionAbility("protection from goblins")).toBe(true);
+        expect(isProtectionAbility("protection from gobblins")).toBe(true);
     });
 
     it("CR 702.16m — duplicate qualities collapse", () => {
@@ -292,6 +332,7 @@ describe("isProtectedFrom — characteristic quality (CR 702.16a)", () => {
                 colors: [],
                 types: [],
                 supertypes: [],
+                subtypes: [],
                 controllerId: "p2",
                 isSpell: false,
             })
@@ -1596,6 +1637,7 @@ describe("parseProtectionQuality — everything (CR 702.16j)", () => {
             kind: "characteristic",
             types: ["Instant"],
             supertypes: [],
+            subtypes: [],
         });
     });
 });
@@ -1621,6 +1663,7 @@ describe("isProtectedFrom — everything (CR 702.16j)", () => {
                 colors: [],
                 types: [],
                 supertypes: [],
+                subtypes: [],
                 controllerId: undefined,
                 isSpell: false,
             })
@@ -1646,6 +1689,7 @@ describe("isProtectedFrom — everything (CR 702.16j)", () => {
                 colors: ["U"],
                 types: ["Instant"],
                 supertypes: [],
+                subtypes: [],
                 controllerId: "p2",
                 isSpell: true,
             })
