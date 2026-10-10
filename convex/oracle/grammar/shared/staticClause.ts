@@ -228,6 +228,12 @@ export type StaticClauseIR =
     /** CR 502.3 — "doesn't untap during your untap step". */
     | { readonly kind: "does-not-untap" }
     /**
+     * CR 509.1b — "This creature can't block": the source's own printed
+     * restriction as a BLOCKER. The Aura twin ("Enchanted creature can't
+     * block") is an `enchanted-host` effect; this one binds the card itself.
+     */
+    | { readonly kind: "self-block-restriction"; readonly sentence: string }
+    /**
      * CR 502.3 — an untap-step lock over a SET: "Islands don't untap during
      * their controllers' untap steps" (`maxUntap: 0`), "players can't untap
      * more than one land during their untap steps" (`maxUntap: 1`). The
@@ -1267,6 +1273,25 @@ const doesNotUntapRule: Rule<StaticClauseIR> = pattern(
             : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
 );
 
+const SELF_CANT_BLOCK = /^(.+) can't block$/;
+
+/**
+ * "<self> can't block" (Craven Giant, Kavu Aggressor) — CR 509.1b. Only the
+ * bare sentence: "can't attack or block", "can't block <set>" and a tail
+ * ("… unless …") do not match, so they stay refused.
+ */
+const selfCantBlockRule: Rule<StaticClauseIR> = pattern(
+    "self can't block",
+    SELF_CANT_BLOCK,
+    (match): RuleResult<StaticClauseIR> =>
+        isSelfPhrase(uncapitalise(match[1]!))
+            ? ok({
+                  kind: "self-block-restriction" as const,
+                  sentence: `${match[1]!} can't block.`,
+              })
+            : fail(`"${match[1]}" is not this permanent (CR 109.2)`, match[1]!)
+);
+
 // ── Frames: untap-step locks over a set (CR 502.3) ─────────────────────────
 
 /**
@@ -1875,6 +1900,7 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         kickedEntersWithRule,
         entersWithEachKickRule,
         doesNotUntapRule,
+        selfCantBlockRule,
         setDoesNotUntapRule,
         landUntapCapRule,
         nonManaAbilityLandLockRule,
