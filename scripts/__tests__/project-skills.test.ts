@@ -38,6 +38,7 @@ const IN_REPO_SKILLS = [
     "to-tickets",
     "cluster-gaps",
     "grill",
+    "triage",
 ];
 
 function isTracked(relPath: string): boolean {
