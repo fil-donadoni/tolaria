@@ -58,7 +58,7 @@ Be specific about edge cases and error conditions.
 - `functionName()` return type — what it currently returns vs what it should return
 - Config shape — any new configuration options needed
 
-**Acceptance criteria:**
+## Acceptance criteria
 
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
@@ -104,7 +104,7 @@ and append "..." to indicate truncation.
   word boundaries
 - Any function that reads SKILL.md frontmatter and extracts the description
 
-**Acceptance criteria:**
+## Acceptance criteria
 
 - [ ] Descriptions under 1024 chars are unchanged
 - [ ] Descriptions over 1024 chars are truncated at the last word boundary
@@ -146,7 +146,7 @@ checked for matches.
 - The triage workflow should read all `.out-of-scope/*.md` files early
   and match incoming issues against them by concept similarity
 
-**Acceptance criteria:**
+## Acceptance criteria
 
 - [ ] Closing a feature as wontfix creates/updates a file in `.out-of-scope/`
 - [ ] The file includes the decision, reasoning, and link to the closed issue

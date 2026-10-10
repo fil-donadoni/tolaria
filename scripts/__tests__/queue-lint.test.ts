@@ -367,6 +367,42 @@ describe("template, lint hint and reader name the same form (issue #3535)", () =
     });
 });
 
+describe("acceptance criteria — heading canonical, bold label read (issue #5381)", () => {
+    const withAcceptance = (block: string) =>
+        WELL_FORMED.replace(
+            /## Acceptance criteria[\s\S]*?(?=## Target files)/,
+            block
+        );
+
+    it("does not flag a body that only uses the bold label", () => {
+        const body = withAcceptance(
+            "**Acceptance criteria:**\n\n- [ ] it works\n\n**Out of scope:**\n\n- x\n\n"
+        );
+        expect(rules(issue({ body }))).not.toContain("no-acceptance-criteria");
+    });
+
+    it("still flags a body with neither form", () => {
+        const body = withAcceptance("**Out of scope:**\n\n- x\n\n");
+        expect(rules(issue({ body }))).toContain("no-acceptance-criteria");
+    });
+
+    it("the HITL check reads the bold-label section and stops at the next label", () => {
+        const body = withAcceptance(
+            "**Acceptance criteria:**\n\n- [ ] it works\n\n**Out of scope:**\n\n- check it in the browser\n\n"
+        );
+        // `browser` sits OUTSIDE the criteria: HITL has no human-judgment line.
+        expect(rules(issue({ body: `⚠️ HITL\n\n${body}` }))).toContain(
+            "hitl-machine-checkable"
+        );
+        const inside = withAcceptance(
+            "**Acceptance criteria:**\n\n- [ ] verified in the browser\n\n**Out of scope:**\n\n- x\n\n"
+        );
+        expect(rules(issue({ body: `⚠️ HITL\n\n${inside}` }))).not.toContain(
+            "hitl-machine-checkable"
+        );
+    });
+});
+
 describe("queue lint — unlinked-card-name (issue #3666)", () => {
     // A slice of the catalogue vocabulary: two multi-word names, one that is a
     // strict substring of neither, and a single-word name the rule must skip.
