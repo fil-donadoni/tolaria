@@ -169,10 +169,11 @@ export function latentValue(chars: {
      *  same reason). */
     dslDelayedTemplateValue?: number;
     /** Issue #5145 — the (latent-discounted, signed) value of a NON-CREATURE
-     *  permanent's own standing ability scripts, delayed templates and ETB
-     *  Abilities excluded (the former ride in `dslDelayedTemplateValue`, the
-     *  latter are spent on entering). Undefined when the card carries no
-     *  readable ability script or is not a permanent worth one (land, instant,
+     *  permanent's own standing ability scripts, delayed templates, ETB
+     *  Abilities and mana abilities excluded (the first ride in
+     *  `dslDelayedTemplateValue`, the second are spent on entering, the third
+     *  are the `mana` term's — issue #5155). Undefined when the card carries
+     *  no readable ability script or is not a permanent worth one (instant,
      *  sorcery — see `dslLatentPieces`). Read by the NON-CREATURE branch only. */
     dslStandingAbilityValue?: number;
     /** Issue #3398 — true when `dslSpellValue` was MEASURED against a real
@@ -273,12 +274,16 @@ export function latentValue(chars: {
     return Math.min(fallback + delayed, MAX_LATENT_SCRIPT_VALUE);
 }
 
-/** Issue #5145 — true for a non-creature PERMANENT card other than a land: the
- *  class whose standing ability scripts are part of its latent worth. */
+/** Issue #5145 — true for a non-creature PERMANENT card: the class whose
+ *  standing ability scripts are part of its latent worth. A LAND is in it
+ *  (issue #5155): its NON-mana abilities — a Library of Alexandria's draw, a
+ *  Maze of Ith's untap, a Factory's animate — are read exactly as an
+ *  artifact's are, while its mana abilities are skipped by the reader itself
+ *  (`abilityScriptOpValue`, `"standing"`) because the `mana` term already
+ *  scores them; a basic or a dual therefore still reads `undefined`. */
 function carriesStandingAbilityWorth(def: CardDefinition): boolean {
     return (
         !def.types.includes("Creature") &&
-        !def.types.includes("Land") &&
         // A planeswalker's loyalty abilities are priced by the loyalty model
         // (`ai/loyaltyValue.ts`, ADR 0107), and `nonCreatureBodyValue` scales
         // its worth by current/starting loyalty: summing every loyalty ability
@@ -351,11 +356,12 @@ export function dslLatentPieces(
         ),
         etbSelfSacrificeWeight: selfSacrificeWeight,
         // Issue #5145 — only a NON-CREATURE PERMANENT reads it: a creature
-        // already carries its abilities in `dslAbilityValue`, a land's mana
-        // abilities are scored by the mana term (counting them here would
-        // double it), and an instant/sorcery has no standing abilities on the
-        // battlefield to value (flashback-style grants are not a permanent's
-        // worth).
+        // already carries its abilities in `dslAbilityValue`, and an
+        // instant/sorcery has no standing abilities on the battlefield to
+        // value (flashback-style grants are not a permanent's worth). A land
+        // reads it too (issue #5155) — its mana abilities are scored by the
+        // mana term, so the reader skips them, and only its utility abilities
+        // count.
         dslStandingAbilityValue: carriesStandingAbilityWorth(def)
             ? dslStandingAbilityScriptValue(def, contextFreeGrounding(latent))
             : undefined,
@@ -417,6 +423,32 @@ export function dslRealizedAbilityValueById(
     return def
         ? dslRealizedAbilityScriptValue(def, contextFreeGrounding(latent), self)
         : 0;
+}
+
+/** Issue #5155 — the standing-ability worth a LAND IN PLAY contributes to its
+ *  controller's `permanents` term, from its REGISTRY id (projection-safe, like
+ *  `dslRealizedAbilityValueById`): the same `"standing"` reading its hand face
+ *  takes through `latentValue` (mana abilities skipped — the `mana` term
+ *  scores them beside this; sacrifice-cost abilities skipped — issue #5145,
+ *  the effect is priced where it is spent), clamped to the same
+ *  `[0, MAX_LATENT_SCRIPT_VALUE]` band, so the two faces move together and
+ *  playing the land is never a value loss this reading causes. A land has no
+ *  `nonCreatureBodyValue` on the board (its body IS the mana term, issue
+ *  #149), so this is the only script worth a land carries there. 0 for a land
+ *  with no readable non-mana ability (a basic, a dual) and for an unknown
+ *  id. Not restricted to lands by type: the caller branches on `isLand`. */
+export function standingAbilityValueById(
+    cardId: string,
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+): number {
+    const def = tryGetDefinition(cardId);
+    if (!def || !carriesStandingAbilityWorth(def)) return 0;
+    const standing = dslStandingAbilityScriptValue(
+        def,
+        contextFreeGrounding(latent)
+    );
+    if (standing === undefined) return 0;
+    return Math.max(0, Math.min(standing, MAX_LATENT_SCRIPT_VALUE));
 }
 
 /** Issue #4758 — the in-flight value of one ETB Ability, from its source's

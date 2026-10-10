@@ -96,6 +96,7 @@ import {
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
     latentValue,
+    standingAbilityValueById,
 } from "./cardValue";
 import { findTriggeredAbility } from "./copy";
 import { keywordBonusFor } from "./creatureBody";
@@ -1330,6 +1331,21 @@ function nonCreatureBodyValue(
     );
 }
 
+/** Issue #5155 — the standing worth of a LAND's non-mana abilities, the
+ *  land-branch counterpart of `nonCreatureBodyValue`: a Library of Alexandria
+ *  or a Maze of Ith in play is worth more than the Island beside it, and the
+ *  removal lens (`permanentRealisedValue`) prices its loss accordingly. A
+ *  land has no latent body on the board — the `mana` term IS its body (issue
+ *  #149), so this is read BESIDE that term, never instead of it, and a basic
+ *  or a dual contributes exactly 0 here. Read from the registry id that
+ *  survives the wire projection, like every script reading. */
+function landStandingAbilityValue(
+    perm: CardInstanceState,
+    weights: EvalWeights
+): number {
+    return standingAbilityValueById(String(perm.card.id ?? ""), weights.latent);
+}
+
 /** What one permanent's REMOVAL costs its controller, on `evaluate`'s own
  *  scale — the sum of every term that permanent contributes and that its
  *  destruction takes away (issue #3398):
@@ -1339,6 +1355,8 @@ function nonCreatureBodyValue(
  *     the layer system plus its realized ability scripts);
  *   - a non-creature, non-land's latent body (a Jayemdae Tome, a
  *     loyalty-scaled planeswalker);
+ *   - a LAND's standing non-mana ability worth (`landStandingAbilityValue`,
+ *     issue #5155 — a Library of Alexandria above an Island);
  *   - the mana term of ANY permanent with a mana ability — a land, but also a
  *     Llanowar Elves or a Sol Ring — at the same tapped/untapped split
  *     `manaSourceTermFor` uses (CR 502.3, issue #3377).
@@ -1365,6 +1383,8 @@ export function permanentRealisedValue(
         total += evaluateCreature(state, perm, weights.latent, pass, weights);
     } else if (!isLand(perm)) {
         total += nonCreatureBodyValue(state, perm, weights, pass);
+    } else {
+        total += landStandingAbilityValue(perm, weights);
     }
     // Issue #5154 — the permanent's standing worth AS a restriction source
     // (a Moat, a Pacifism, a Meekstone): what it takes from the opponent's
@@ -1595,9 +1615,11 @@ function playerTerms(
             // `cardValue` body assigns latently (an `aiValue` override or
             // `NONCREATURE_BASE + MV × W_NC_MV`), so their loss is a measurable,
             // correctly-signed material change in both `materialMargin` and
-            // `evaluate`. Lands are excluded — their worth is already counted by
-            // the `mana` term (an untapped source), so adding the body here
-            // would double-count and skew the land-drop invariant (issue #149).
+            // `evaluate`. A land takes no body here — its worth is already
+            // counted by the `mana` term (an untapped source), so adding the
+            // body would double-count and skew the land-drop invariant (issue
+            // #149) — only the standing worth of its NON-mana abilities (issue
+            // #5155, `landStandingAbilityValue`), which that term cannot see.
             //
             // CR 306.5b / 606.4 (issue #2491, ADR 0107) — a PLANESWALKER's
             // realized worth is that same body scaled by how much of its
@@ -1617,6 +1639,8 @@ function playerTerms(
                     weights,
                     pass
                 );
+            } else {
+                terms.permanents += landStandingAbilityValue(perm, weights);
             }
         }
     }

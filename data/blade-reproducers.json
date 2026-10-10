@@ -1478,6 +1478,47 @@
         "landCount": 0,
         "libraryCount": 20
     },
+    "removal: Strip Mine takes the Library of Alexandria, not the Island (issue #5155)": {
+        "cards": [
+            {
+                "name": "Strip Mine",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Island",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Library of Alexandria",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "hiddenHand": {
+            "opp": 7
+        },
+        "phase": "END_STEP",
+        "activePlayer": "opp",
+        "priority": "me",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "replenish: casts the mass return with three enchantments in the graveyard": {
         "cards": [
             {

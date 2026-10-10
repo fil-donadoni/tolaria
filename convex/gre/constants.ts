@@ -2608,6 +2608,33 @@ export function getManaChoiceCounterCost(
     };
 }
 
+/** CR 605.1a — whether an ACTIVATED ability DEFINITION is a mana ability: it
+ *  does not use the stack and declares a mana output — `manaProduced`,
+ *  `manaChoices`, or a `manaColorSource` descriptor (issue #1941: a descriptor
+ *  is a mana-output declaration in its own right, exactly like the other two;
+ *  every shipped descriptor card also carries a static `manaChoices` fallback,
+ *  so this clause is inert today, but a descriptor-ONLY ability would
+ *  otherwise read as having NO mana ability). The ONE predicate every site
+ *  that classifies a definition's abilities reads (issue #5155):
+ *  `getActivatedManaAbility` / `hasNonManaActivatedAbility` below, and the
+ *  Brain's standing-ability reader (`ai/cardScriptValue.ts`), which must skip
+ *  a land's mana abilities because the `mana` term already scores them. */
+export function isManaAbilityDefinition(
+    ability: Pick<
+        ActivatedAbility,
+        "useStack" | "manaProduced" | "manaChoices" | "manaColorSource"
+    >
+): boolean {
+    return (
+        !ability.useStack &&
+        Boolean(
+            ability.manaProduced ||
+            ability.manaChoices ||
+            ability.manaColorSource
+        )
+    );
+}
+
 /** Returns the activated mana ability definition for a card, or null.
  *
  *  CR 602.5b (issue #947) — when the found ability declares its own
@@ -2634,18 +2661,8 @@ export function getActivatedManaAbility(
 ) {
     if (abilitiesSuppressed(card)) return null;
     const ability =
-        getEffectiveActivatedAbilities(card).find(
-            ({ ability: a }) =>
-                !a.useStack &&
-                // CR 605.1a (issue #1941) — a DESCRIPTOR (`manaColorSource`)
-                // is a mana-output declaration in its own right, exactly like
-                // `manaProduced` / `manaChoices`. Every shipped descriptor card
-                // also carries a static `manaChoices` fallback, so this is
-                // inert today — but a descriptor-ONLY ability would otherwise
-                // read as having NO mana ability here (and as "dual-purpose"
-                // in `hasNonManaActivatedAbility`), which is precisely the
-                // single-authority claim this predicate is supposed to hold.
-                (a.manaProduced || a.manaChoices || a.manaColorSource)
+        getEffectiveActivatedAbilities(card).find(({ ability: a }) =>
+            isManaAbilityDefinition(a)
         )?.ability ?? null;
     if (!ability) return null;
     if (ability.canActivate && state && !ability.canActivate(card, state)) {
@@ -2795,13 +2812,7 @@ export function isUntappedManaSource(
 export function hasNonManaActivatedAbility(card: CardInstanceState): boolean {
     if (abilitiesSuppressed(card)) return false;
     return getEffectiveActivatedAbilities(card).some(
-        ({ ability: a }) =>
-            a.useStack === true ||
-            // CR 605.1a (issue #1941) — a `manaColorSource` descriptor makes
-            // the ability a mana ability, so it must NOT read as the
-            // "something beyond tapping for mana" that marks a source
-            // dual-purpose.
-            !(a.manaProduced || a.manaChoices || a.manaColorSource)
+        ({ ability: a }) => !isManaAbilityDefinition(a)
     );
 }
 
