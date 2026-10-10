@@ -6203,4 +6203,70 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             flashback: { X: 1, G: 1 },
         },
     },
+    // CR 401.4 + CR 400.3 — "Put target creature you control on top of its
+    // owner's library": exhibits `moveZone` of a live permanent to a library,
+    // a zone change the canned smoke scenario does not model (issue #5406).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "6e93cb9a-44c8-49fb-b6a7-bfdf7bd725fe",
+            name: "Civic Guildmage",
+            manaCost: "{W}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "{G}, {T}: Target creature gets +0/+1 until end of turn.\n{U}, {T}: Put target creature you control on top of its owner's library.",
+            power: "1",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Civic Guildmage",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { W: 1 },
+            power: 1,
+            toughness: 1,
+            oracleText:
+                "{G}, {T}: Target creature gets +0/+1 until end of turn.\n{U}, {T}: Put target creature you control on top of its owner's library.",
+            activatedAbilities: [
+                {
+                    id: "civic-guildmage-ability",
+                    oracleText:
+                        "{G}, {T}: Target creature gets +0/+1 until end of turn.",
+                    cost: { mana: { G: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { target: 0 },
+                            power: 0,
+                            toughness: 1,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+                {
+                    id: "civic-guildmage-ability-2",
+                    oracleText:
+                        "{U}, {T}: Put target creature you control on top of its owner's library.",
+                    cost: { mana: { U: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { target: 0 },
+                            to: "library",
+                            position: 1,
+                        },
+                    ],
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        controller: "you",
+                    },
+                },
+            ],
+        },
+    },
 ]);

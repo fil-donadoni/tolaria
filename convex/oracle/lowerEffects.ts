@@ -3684,6 +3684,26 @@ function lowerMoveZone(
         return each("graveyard");
     if (zone.zone === "exile") return each("exile");
     if (reanimated) return each("battlefield");
+    // CR 401.4 — "put target creature you control on top of its owner's
+    // library": an object only ever reaches its OWNER's library, and "on top"
+    // is the 1-based `position: 1` that `moveZone` ships (Teferi, Oust). One
+    // announced object only: N objects put on top at once need the owner's
+    // chosen order, which a sequence of single Ops does not give.
+    if (
+        zone.zone === "library" &&
+        zone.owner === "its-owner" &&
+        zone.position === "top" &&
+        subject.kind === "target" &&
+        subject.requirement.count === 1
+    )
+        return lowered(
+            targets.value.map((target) => ({
+                op: "moveZone",
+                target,
+                to: "library",
+                position: 1,
+            }))
+        );
     return unlowerable(
         `"${zone.zone}" is not a zone destination in grammar v0`
     );
