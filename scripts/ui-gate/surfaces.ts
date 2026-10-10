@@ -3697,7 +3697,9 @@ export const SURFACES: readonly Surface[] = [
                 page
                     .getByRole("button", { name: new RegExp(`^${name}`) })
                     .click({ timeout: STEP_TIMEOUT });
-            for (let i = 0; i < 5; i++) {
+            // Four answers at most; the slack absorbs a read that lands
+            // before the rail re-renders.
+            for (let i = 0; i < 8; i++) {
                 const step = await current
                     .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
                     .catch(() => null);

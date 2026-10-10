@@ -137,7 +137,10 @@ const DIFFICULTY_LABEL: Record<Difficulty, string> = {
 export const modeLabel = (m: GameMode): string => MODE_LABEL[m];
 export const opponentLabel = (o: Opponent): string => OPPONENT_LABEL[o];
 
-/** A deck the setup may still use: it exists and the Match Format admits it. */
+/** A deck the setup may still use: it exists, the Match Format admits it and
+ *  it is legal for its own Format — an illegal deck is shown in the grid but
+ *  never selectable (story 34), so a remembered one reads as unanswered
+ *  rather than enabling a Start the server would refuse. */
 function admittedDeck(
     s: MatchSetup,
     id: string | null,
@@ -146,7 +149,8 @@ function admittedDeck(
     const mf = effectiveMatchFormat(s);
     if (mf === null) return null;
     const deck = selectPreset(decks, id);
-    return deck && filterDecksAdmittedBy([deck], mf).length > 0 ? deck : null;
+    if (!deck?.isLegal) return null;
+    return filterDecksAdmittedBy([deck], mf).length > 0 ? deck : null;
 }
 
 export interface StepInfo {

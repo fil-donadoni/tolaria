@@ -29,8 +29,15 @@ export default function DeckGrid({
     mirror?: { selected: boolean; onSelect: () => void };
 }) {
     const [query, setQuery] = useState("");
-    const [format, setFormat] = useState<DeckGridFormat>("all");
+    const [chosenFormat, setFormat] = useState<DeckGridFormat>("all");
     const freeform = matchFormat === "freeform";
+    const formatOptions = freeformFormatOptions(decks);
+    // A Format whose last deck went away falls back to every Format rather
+    // than leaving the select on an option it no longer lists.
+    const format =
+        chosenFormat !== "all" && formatOptions.includes(chosenFormat)
+            ? chosenFormat
+            : "all";
     const admitted = deckGrid(decks, matchFormat, "");
     const empty = admitted.mine.length + admitted.presets.length === 0;
     const grid = deckGrid(decks, matchFormat, query, format);
@@ -59,7 +66,7 @@ export default function DeckGrid({
                         className="input-field px-2 py-1.5 text-sm"
                     >
                         <option value="all">All Formats</option>
-                        {freeformFormatOptions(decks).map((f) => (
+                        {formatOptions.map((f) => (
                             <option key={f} value={f}>
                                 {FORMAT_LABELS[f]}
                             </option>
@@ -92,7 +99,7 @@ export default function DeckGrid({
             {shown === 0 && (
                 <p className="rounded-sm border border-dashed border-[var(--hairline)] px-3 py-3 text-sm text-text-muted">
                     {empty
-                        ? `No ${FORMAT_LABELS[matchFormat]} deck yet. Import one, or change the Match Format.`
+                        ? `No ${FORMAT_LABELS[matchFormat]} deck yet. Import one, ${mirror ? "play the Mirror, " : ""}or change the Match Format.`
                         : "No deck matches this search."}
                 </p>
             )}
