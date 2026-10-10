@@ -734,6 +734,7 @@ export const factOrFiction = defineCard(() => ({
 // permanents or a color tied for most common." (CR 400.7 zone move; CR 105.2
 // colour census at resolution, CR 608.2b — the `sharesMostCommonColor`
 // `if` predicate, issue #5409.)
+// hand-tail: "Return target permanent to its owner's hand if that permanent shares a color with the most common color among all permanents or a color tied for most common." (#4596)
 export const barrinsUnmaking = defineCard(() => ({
     id: "4d4cecb0-12b5-4678-b5e7-8cec8fc86cef",
     name: "Barrin's Unmaking",
