@@ -130,6 +130,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     retro: 4_760,
     "to-prd": 6_076,
     "to-tickets": 13_587,
+    triage: 6_808,
 };
 
 /** Every tracked skill manifest, keyed by skill name. */
