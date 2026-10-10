@@ -94,7 +94,7 @@ describe("AiDecisionTraceBox (debug-sheet child)", () => {
         });
         const { container } = render(<AiDecisionTraceBox />);
         const text = body(container).textContent ?? "";
-        const ring = text.indexOf("AI · last decisions");
+        const ring = text.indexOf("Bot · last decisions");
         const log = text.indexOf("Bot decisions");
         expect(ring).toBeGreaterThanOrEqual(0);
         expect(log).toBeGreaterThanOrEqual(0);

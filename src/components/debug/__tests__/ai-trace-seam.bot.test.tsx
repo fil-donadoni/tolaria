@@ -1,4 +1,4 @@
-// The DEV-only AI trace seam, and the one property `check:ui`'s
+// The DEV-only Bot trace seam, and the one property `check:ui`'s
 // `game-debug-sheet-ai` surface rests on (ADR 0132 §4, issue #3652): the
 // decision ring the surface measures is NON-EMPTY, and it got that way without
 // a Bot ever holding priority.
@@ -75,7 +75,7 @@ function seedThroughTheGlobal(): number {
     return seeded;
 }
 
-describe("the AI trace seam (issue #3652)", () => {
+describe("the Bot trace seam (issue #3652)", () => {
     it("is installed by the box the surface measures, under the name the walk evaluates", () => {
         expect(window.__tolariaAiTrace).toBeUndefined();
         render(<AiDecisionTraceBox />);

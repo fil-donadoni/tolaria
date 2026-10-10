@@ -1,4 +1,4 @@
-// Two-step "Play vs AI" setup dialog: the second step that collects difficulty,
+// Two-step "Play vs Bot" setup dialog: the second step that collects difficulty,
 // games format, and AI opponent deck, and only fires the create mutation on
 // Confirm. The player's OWN deck stays the Lobby hero selection and is NOT asked
 // here. See `../vs-ai-setup-dialog`.
@@ -53,8 +53,8 @@ function renderDialog(
 describe("VsAiSetupDialog", () => {
     it("renders the two vs-AI selectors when open", () => {
         const { getByLabelText, queryByLabelText } = renderDialog();
-        expect(getByLabelText("AI Difficulty")).toBeTruthy();
-        expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
+        expect(getByLabelText("Bot difficulty")).toBeTruthy();
+        expect(getByLabelText("Bot deck")).toBeTruthy();
         // Games format is not a vs-AI knob: it governs Solo / Create
         // Multiplayer too and is picked in the Play box.
         expect(queryByLabelText("Games Format")).toBeNull();
@@ -62,13 +62,13 @@ describe("VsAiSetupDialog", () => {
 
     it("does not render its content while closed", () => {
         const { queryByLabelText } = renderDialog({ open: false });
-        expect(queryByLabelText("AI Difficulty")).toBeNull();
+        expect(queryByLabelText("Bot difficulty")).toBeNull();
     });
 
-    it("fires onConfirm when the primary 'Play vs AI' button is clicked", () => {
+    it("fires onConfirm when the primary 'Play vs Bot' button is clicked", () => {
         const onConfirm = vi.fn();
         const { getByRole } = renderDialog({ onConfirm });
-        fireEvent.click(getByRole("button", { name: "Play vs AI" }));
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
@@ -90,7 +90,7 @@ describe("VsAiSetupDialog", () => {
         });
         fireEvent.click(getByText("Hard"));
         expect(onDifficultyChange).toHaveBeenCalledWith("hard");
-        fireEvent.change(getByLabelText("AI Opponent Deck"), {
+        fireEvent.change(getByLabelText("Bot deck"), {
             target: { value: "white-weenie" },
         });
         expect(onAiDeckChange).toHaveBeenCalledWith("white-weenie");
@@ -100,7 +100,7 @@ describe("VsAiSetupDialog", () => {
         const onConfirm = vi.fn();
         const { getByRole } = renderDialog({ pending: true, onConfirm });
         const confirm = getByRole("button", {
-            name: "Play vs AI",
+            name: "Play vs Bot",
         }) as HTMLButtonElement;
         const cancel = getByRole("button", {
             name: "Cancel",

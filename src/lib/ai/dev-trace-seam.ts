@@ -1,7 +1,7 @@
 // A DEV-only seam that fills the AI decision ring with a CONSTANT trace.
 //
 // WHY IT EXISTS. `check:ui`'s `game-debug-sheet-ai` surface measures the debug
-// sheet with its AI trace box open and NON-EMPTY (ADR 0132 §4, issue #3652).
+// sheet with its Bot trace box open and NON-EMPTY (ADR 0132 §4, issue #3652).
 // The ring is a client-only store (`trace-store.ts`), written by the vs-AI
 // driver when the Brain answers a window — so a headless walk has exactly two
 // ways to see a populated ring: let the Bot actually decide, or push a

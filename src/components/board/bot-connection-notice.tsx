@@ -29,7 +29,7 @@ export default function BotConnectionNotice({
                 role="alert"
                 className="flex-row items-center gap-3"
             >
-                <span>The AI lost contact with the game.</span>
+                <span>The Bot lost contact with the game.</span>
                 <Button
                     type="button"
                     variant="secondary"

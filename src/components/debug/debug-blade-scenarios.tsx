@@ -80,7 +80,7 @@ export default function DebugBladeScenarios({
             // driving one of them — so it is announced here or not at all.
             setNotice(
                 result.convertedToVsAi
-                    ? "This solo game is now a vs-AI game: the Bot drives the seat under test."
+                    ? "This solo game is now a vs-Bot game: the Bot drives the seat under test."
                     : null
             );
         } catch (e) {

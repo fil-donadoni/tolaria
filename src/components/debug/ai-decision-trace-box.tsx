@@ -47,7 +47,7 @@ export default function AiDecisionTraceBox() {
                 onClick={() => setOpen((v) => !v)}
                 className="flex w-full items-center justify-between gap-6 text-text-muted hover:text-parchment"
             >
-                <span className="font-semibold">AI trace</span>
+                <span className="font-semibold">Bot trace</span>
                 <span className="text-text-disabled">{open ? "▾" : "▸"}</span>
             </button>
             {open && (

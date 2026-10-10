@@ -74,7 +74,7 @@ function Lobby() {
         getStoredDeckPresetId()
     );
     const [deleteTarget, setDeleteTarget] = useState<LobbyDeck | null>(null);
-    // Two-step "Play vs AI" flow: the Bot Mode Tile's primary action opens this
+    // Two-step "Play vs Bot" flow: the Bot Mode Tile's primary action opens this
     // dialog (the second step) where difficulty / AI deck are chosen; the match
     // starts only on Confirm. Games format is picked in the Loadout, not here.
     const [vsAiOpen, setVsAiOpen] = useState(false);
@@ -297,7 +297,7 @@ function Lobby() {
     const handleCreateVsAi = () =>
         enterGame(async ({ user, deck }) => {
             const id = await createSoloGame({
-                name: `${user.nickname} vs AI`,
+                name: `${user.nickname} vs Bot`,
                 deck: deckPayload(deck),
                 deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,

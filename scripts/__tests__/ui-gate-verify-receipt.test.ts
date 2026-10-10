@@ -45,7 +45,7 @@ const UNWALKED: UnwalkedSurface[] = [
 const ASSERTS: Record<string, readonly string[]> = {
     "deck-builder": [],
     lobby: ["mode tile: Solo game", "Loadout primary action"],
-    "lobby-vs-ai": ["dialog primary: Play vs AI"],
+    "lobby-vs-ai": ["dialog primary: Play vs Bot"],
     "game-board": [],
 };
 const VOCAB: ReceiptVocabulary = {
@@ -591,7 +591,7 @@ describe("verify-receipt — the assertion lines", () => {
         const text = body(
             run(surfaces, { diffScope: { base: BASE, surfaces } })
         );
-        expect(text).not.toContain("dialog primary: Play vs AI");
+        expect(text).not.toContain("dialog primary: Play vs Bot");
         expect(verify(text, scoped(surfaces))).toEqual({
             ok: true,
             problems: [],

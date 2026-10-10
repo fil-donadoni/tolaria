@@ -44,9 +44,9 @@ describe("AiDeckSelector", () => {
         const { getByLabelText } = render(
             <AiDeckSelector decks={DECKS} value={null} onChange={() => {}} />
         );
-        expect(
-            (getByLabelText("AI Opponent Deck") as HTMLSelectElement).value
-        ).toBe("");
+        expect((getByLabelText("Bot deck") as HTMLSelectElement).value).toBe(
+            ""
+        );
     });
 
     it("reflects the selected deck presetId", () => {
@@ -57,9 +57,9 @@ describe("AiDeckSelector", () => {
                 onChange={() => {}}
             />
         );
-        expect(
-            (getByLabelText("AI Opponent Deck") as HTMLSelectElement).value
-        ).toBe("white-weenie");
+        expect((getByLabelText("Bot deck") as HTMLSelectElement).value).toBe(
+            "white-weenie"
+        );
     });
 
     it("reports the chosen deck presetId on change", () => {
@@ -67,7 +67,7 @@ describe("AiDeckSelector", () => {
         const { getByLabelText } = render(
             <AiDeckSelector decks={DECKS} value={null} onChange={onChange} />
         );
-        fireEvent.change(getByLabelText("AI Opponent Deck"), {
+        fireEvent.change(getByLabelText("Bot deck"), {
             target: { value: "mono-red-burn" },
         });
         expect(onChange).toHaveBeenCalledWith("mono-red-burn");
@@ -82,7 +82,7 @@ describe("AiDeckSelector", () => {
                 onChange={onChange}
             />
         );
-        fireEvent.change(getByLabelText("AI Opponent Deck"), {
+        fireEvent.change(getByLabelText("Bot deck"), {
             target: { value: "" },
         });
         expect(onChange).toHaveBeenCalledWith(null);
