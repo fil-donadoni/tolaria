@@ -45,11 +45,12 @@
  *
  * CONDITIONAL statics ("… as long as …", CR 611.3a) are refused whole, with
  * ONE exception: "<self> gets +N/+N as long as you control a <descriptor>"
- * (issue #4126). Its condition is not a second vocabulary — it IS the
- * `CompiledTriggerCondition` a trigger's intervening-if carries, read by the
- * shared `controlsRule`, and the descriptor rebuilds it into
- * `StaticPTBuff.condition`. Every other "as long as" tail ("an opponent
- * controls", "it's untapped", "you have …") still fails the line.
+ * (issue #4126), and its opponent twin "… as long as an opponent controls a
+ * <descriptor>" (issue #4565). The condition is not a second vocabulary — it
+ * IS the `controls` condition a trigger's intervening-if carries, read by the
+ * shared `controlsRule` / `opponentControlsRule`, and the descriptor rebuilds
+ * it into `StaticPTBuff.condition`. Every other "as long as" tail ("it's
+ * untapped", "you have …") still fails the line.
  *
  * ENCHANTED-scope statics are read by their own frames (issue #3833), now
  * that an Aura's "Enchant <filter>" line parses (issue #3825):

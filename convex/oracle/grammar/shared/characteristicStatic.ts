@@ -33,6 +33,7 @@ import {
     type Rule,
     type RuleResult,
 } from "../../rule";
+import type { ParseContext } from "../../types";
 import type { CardType, PermanentFilter } from "../../../cards/types";
 
 /** What one characteristic-setting static line means. */
@@ -192,7 +193,10 @@ export const selfPtCdaGraveyardsRule: Rule<CharacteristicStaticIR> = rule(
         // (a name followed by `'` is deliberately not substituted), so the
         // self reference is the printed name itself (CR 201.5).
         const subject = match[1]!;
-        if (!isSelfPhrase(subject) && subject !== ctx?.card.name)
+        if (
+            !isSelfPhrase(subject) &&
+            subject !== (ctx as Partial<ParseContext> | undefined)?.card?.name
+        )
             return fail(`"${subject}" is not the permanent itself`, subject);
         const cardType = CARD_TYPE_WORDS.get(match[2]!);
         if (cardType === undefined)
