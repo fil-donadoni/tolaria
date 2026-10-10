@@ -60,3 +60,6 @@ All UI text in English. Must work at phone portrait (375), phone landscape, tabl
   large hero (Feature Card art, one-line blurb, implemented bar), ‹ › arrows
   (top corners on phones), thumbnail strip below. Incompleteness Notice names the
   pool ("Vintage Cube is missing…").
+- **Event page → variant A (Bento)**: wide Feature Card header (chips, ⋯ menu,
+  horizontal stepper), next-action hero left + sticky "The table" ring tile right,
+  phase tiles below; ring becomes a tile + dialog on phones.
