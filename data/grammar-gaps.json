@@ -1382,12 +1382,12 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Target player shuffles up to three target cards from their graveyard into their library",
-            "issue": 4567
+            "issue": 5368
         },
         {
             "kind": "grammar",
             "key": "spell › effect clause › Target player shuffles up to two target cards from their graveyard into their library",
-            "issue": 4567
+            "issue": 5370
         },
         {
             "kind": "grammar",
@@ -1457,7 +1457,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › You may have that player shuffle",
-            "issue": 4567
+            "issue": 5369
         },
         {
             "kind": "grammar",
@@ -1692,12 +1692,12 @@
         {
             "kind": "grammar",
             "key": "static › static clause › All creatures lose all abilities and have base power and toughness N/N",
-            "issue": 4565
+            "issue": 5371
         },
         {
             "kind": "grammar",
             "key": "static › static clause › All creatures of the chosen type get -N/-N",
-            "issue": 4565
+            "issue": 5372
         },
         {
             "kind": "grammar",
@@ -1777,7 +1777,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Each other non-Aura enchantment is a creature in addition to its other types and has base power and base toughness each equal to its mana value",
-            "issue": 4565
+            "issue": 5373
         },
         {
             "kind": "grammar",
@@ -1872,7 +1872,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › Terravore's power and toughness are each equal to the number of land cards in all graveyards",
-            "issue": 4565
+            "issue": 5375
         },
         {
             "kind": "grammar",
@@ -1922,7 +1922,7 @@
         {
             "kind": "grammar",
             "key": "static › static clause › This creature gets +N/+N as long as an opponent controls a nonbasic land",
-            "issue": 4565
+            "issue": 5376
         },
         {
             "kind": "grammar",
