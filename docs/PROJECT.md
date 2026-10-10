@@ -59,7 +59,7 @@ Ognuno ha il suo confine e le sue regole; il § 8 li tratta uno per uno.
 | Backend/DB  | Convex                                | stato reattivo, mutation atomiche e transazionali           |
 | Auth        | `@convex-dev/auth` (Password)         | email + password + nickname. **Non Clerk** (scelta rivista) |
 | Package mgr | bun                                   | mai `npx`: sempre `bunx`                                    |
-| Runtime     | Node 26 (pin in `.nvmrc`/`mise.toml`) | vitest, vite, Convex CLI; gli script girano su bun (#5305)  |
+| Runtime     | Node 24 (pin in `.nvmrc`/`mise.toml`) | vitest, vite, Convex CLI; gli script girano su bun (#5305)  |
 | Test        | vitest 4                              | due suite separate (§ 9)                                    |
 
 ### Macchine supportate (issue #5305)
@@ -67,7 +67,9 @@ Ognuno ha il suo confine e le sue regole; il § 8 li tratta uno per uno.
 macOS e Omarchy (Arch Linux) eseguono lo stesso workflow. Node è pinnato in tre
 file che devono coincidere (`.nvmrc`, `mise.toml`, `engines.node` — guard
 `scripts/__tests__/node-version-pin.test.ts`): su macOS `nvm install && nvm
-alias default 26`, su Omarchy `mise install`. Prerequisiti su entrambe: `bun`,
+alias default 24`, su Omarchy `mise install`. Il pin non sale oltre 24: il
+backend Convex locale esegue le azioni `"use node"` solo su Node 20/22/24
+(issue #5420). Prerequisiti su entrambe: `bun`,
 `git`, `gh`, `jq`, `perl`; per `check:ui` `bunx playwright install chromium`.
 Le sonde macchina (`scripts/lib/machine-admission.ts`) leggono `sysctl` /
 `vm_stat` / `lsof` su macOS e `/proc` (meminfo, PSI, `/proc/<pid>/cwd`) su
