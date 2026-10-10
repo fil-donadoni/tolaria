@@ -1,7 +1,10 @@
 // PROTOTYPE — throwaway. Variant A: bento grid, big hero tile for the first event.
+import { Fragment } from "react";
+import { getArtCropImageUrl } from "~/lib/images";
 import { cn } from "~/lib/utils";
 import {
     Art,
+    artId,
     ChipBar,
     CtaButton,
     eventName,
@@ -145,51 +148,75 @@ function HistoryTile({ h }: { h: HistoryEvent }) {
     );
 }
 
-function NewEventButton() {
-    return (
-        <button
-            type="button"
-            onClick={() => console.log("[proto] New event")}
-            className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-display text-base font-semibold text-surface-base shadow-[0_0_24px_-4px_var(--color-accent)] transition hover:scale-[1.03]"
-        >
-            <span className="text-xl leading-none">+</span> New event
-        </button>
-    );
-}
+/** Last event the user created (localStorage in the real thing); first
+ *  visit falls back to the default setup. */
+const LAST_SETUP = {
+    feature: "Black Lotus",
+    name: "Vintage Cube Draft",
+    meta: "8 seats · Bo3 · pick timer on",
+};
 
-/** Zero events in progress: the whole hero becomes the call to start one. */
-function StartHero() {
+/** The New-event bento: a solid parchment tile, the one light surface on a
+ *  page of artwork — it wins the eye by contrast, not by size alone. */
+function NewEventBento({ alone }: { alone?: boolean }) {
     return (
-        <div className="relative isolate flex min-h-[300px] flex-col justify-end overflow-hidden rounded-[var(--panel-radius)] border border-accent/60 sm:col-span-2 lg:col-span-4">
-            <Art feature="Black Lotus" className="absolute inset-0 -z-10" />
-            <Scrim className="-z-10" />
-            <div className="flex flex-col gap-3 p-5 sm:p-7">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-parchment/80">
-                    No event in progress
+        <div
+            className={cn(
+                "flex flex-col justify-between gap-4 rounded-[var(--panel-radius)] bg-parchment p-5 text-surface-base shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)] sm:p-6",
+                alone
+                    ? "min-h-[280px] sm:col-span-2 lg:col-span-4 lg:flex-row lg:items-center"
+                    : "min-h-[200px] sm:col-span-2"
+            )}
+        >
+            <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-60">
+                    {alone ? "No event in progress" : "New event"}
                 </span>
-                <span className="font-display text-3xl leading-none text-parchment drop-shadow sm:text-5xl">
-                    Start a Draft
+                <span
+                    className={cn(
+                        "font-display leading-none",
+                        alone ? "text-4xl sm:text-5xl" : "text-3xl"
+                    )}
+                >
+                    {alone ? "Start an event" : "Start another"}
                 </span>
-                <span className="max-w-md text-sm text-parchment/85">
-                    Vintage Cube, 8 seats, bots fill the empty ones. Ready in
-                    one click — or change anything first.
+                <span className="mt-1 text-sm opacity-70">
+                    Bots fill every empty seat — you can draft right now.
                 </span>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => console.log("[proto] Quick start")}
-                        className="rounded-full bg-accent px-6 py-3 font-display text-lg font-semibold text-surface-base shadow-[0_0_32px_-4px_var(--color-accent)] transition hover:scale-[1.03]"
-                    >
-                        Start Vintage Cube Draft
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => console.log("[proto] Customise")}
-                        className="rounded-full border border-parchment/50 bg-black/40 px-5 py-3 text-sm font-semibold text-parchment backdrop-blur hover:border-parchment"
-                    >
-                        Customise…
-                    </button>
-                </div>
+            </div>
+            <div className={cn("flex flex-col gap-2", alone && "lg:w-[26rem]")}>
+                <button
+                    type="button"
+                    onClick={() => console.log("[proto] Quick start last")}
+                    className="group flex items-center gap-3 rounded-xl bg-surface-base p-2 pr-4 text-left text-parchment transition hover:scale-[1.02]"
+                >
+                    <img
+                        src={getArtCropImageUrl(artId(LAST_SETUP.feature))}
+                        alt=""
+                        className="size-14 shrink-0 rounded-lg object-cover"
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-[10px] uppercase tracking-widest text-text-muted">
+                            Your last event
+                        </span>
+                        <span className="truncate font-display text-lg leading-tight">
+                            {LAST_SETUP.name}
+                        </span>
+                        <span className="truncate text-xs text-text-muted">
+                            {LAST_SETUP.meta}
+                        </span>
+                    </span>
+                    <span className="font-display text-base font-semibold">
+                        Start ▸
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => console.log("[proto] Customise")}
+                    className="rounded-xl border-2 border-surface-base/80 px-4 py-2.5 text-sm font-bold transition hover:bg-surface-base/10"
+                >
+                    + New event — choose format, seats, timers
+                </button>
             </div>
         </div>
     );
@@ -204,7 +231,7 @@ export default function HubBento() {
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-            <PageHeader aside={<NewEventButton />} />
+            <PageHeader />
             <div className="-mt-2 flex justify-end">
                 <SimToggle count={count} setCount={setCount} />
             </div>
@@ -227,9 +254,14 @@ export default function HubBento() {
                         </SectionTitle>
                     )}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(110px,auto)]">
-                        {count === 0 && view === "all" && <StartHero />}
+                        {count === 0 && view === "all" && (
+                            <NewEventBento alone />
+                        )}
                         {myShown.map((e, i) => (
-                            <Hero key={e.id} e={e} big={i === 0} />
+                            <Fragment key={e.id}>
+                                <Hero e={e} big={i === 0} />
+                                {i === 0 && view === "all" && <NewEventBento />}
+                            </Fragment>
                         ))}
                         {myShown.length > 0 && myShown.length < 3 && (
                             <div className="hidden" />
