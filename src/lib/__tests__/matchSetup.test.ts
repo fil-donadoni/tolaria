@@ -210,6 +210,7 @@ describe("persistence — round-trip and tolerant load", () => {
     it.each(["not json", "[]", "42", "null", '"arena"'])(
         "loads garbage %s as the empty setup",
         (raw) => {
+            expect(parseSetup(raw)).toEqual(EMPTY_SETUP);
             localStorage.setItem(MATCH_SETUP_STORAGE_KEY, raw);
             expect(loadSetup()).toEqual(EMPTY_SETUP);
         }
@@ -231,6 +232,10 @@ describe("persistence — round-trip and tolerant load", () => {
         expect(loaded).toEqual(setup({ mode: "arena" }));
     });
 
+    it("an unknown game mode loads unanswered", () => {
+        expect(parseSetup(JSON.stringify({ mode: "online" })).mode).toBe(null);
+    });
+
     it("a stored Join loads unanswered until the table step exists", () => {
         expect(parseSetup(JSON.stringify({ opponent: "join" })).opponent).toBe(
             null
@@ -244,6 +249,16 @@ describe("startRequest — the payload Start sends per opponent", () => {
     it("is null while any step is unanswered", () => {
         expect(
             startRequest({ ...READY_BOT, myDeckId: null }, DECKS, NICK)
+        ).toBeNull();
+    });
+
+    it("is null while the second deck is unanswered", () => {
+        expect(
+            startRequest(
+                { ...READY_BOT, opponentDeckChosen: false },
+                DECKS,
+                NICK
+            )
         ).toBeNull();
     });
 
