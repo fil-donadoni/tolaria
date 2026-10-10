@@ -2368,6 +2368,65 @@ function lowerSentenceBody(
                 { op: "mill", player: player.value, count: count.value },
             ]);
         }
+        case "optional-shuffle-that-player-library": {
+            // CR 701.24a + CR 608.2c — "that player" is the player whose
+            // library the sentence before looked at; with no such sentence
+            // (or a gate that forgot it) it names no one we can.
+            const looked = walk.libraryLookedAt;
+            if (looked === null)
+                return unlowerable(
+                    '"that player" names no library announced before it'
+                );
+            const bind = walk.nextBind("may");
+            return lowered([
+                {
+                    op: "mayPay",
+                    player: "controller",
+                    prompt: "Have that player shuffle?",
+                    bind,
+                },
+                {
+                    op: "if",
+                    predicate: { binding: bind },
+                    then: [
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: looked,
+                        },
+                    ],
+                },
+            ]);
+        }
+        case "shuffle-graveyard-into-library": {
+            // CR 404.1 + CR 701.24a — the controller picks up to N cards from
+            // the player's graveyard, they go into that player's library,
+            // and that library is shuffled. The pick is a `choice` (the
+            // cards are not announced targets), its bind read by the move.
+            const player = playerRef(sentence.player, slots, site);
+            if (!player.ok) return player;
+            const bind = walk.nextBind("reclaimed");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-graveyard-card",
+                    player: "controller",
+                    zoneOwnerId: player.value,
+                    zone: "graveyard",
+                    count: { min: 0, max: sentence.max },
+                    prompt: `Shuffle up to ${sentence.word} target cards from that player's graveyard into their library.`,
+                    bind,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: player.value,
+                    from: "graveyard",
+                    to: "library",
+                },
+                { op: "libraryLook", action: "shuffle", player: player.value },
+            ]);
+        }
         case "return-own-permanent": {
             // CR 400.3 — the controller picks one of their own permanents and
             // it returns to its owner's hand. The pick is routed through

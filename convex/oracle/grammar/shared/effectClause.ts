@@ -896,6 +896,31 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.24a + CR 401.4 — "You may have that player shuffle": the
+           * controller decides, and the player whose library the sentence
+           * before looked at shuffles it (Portent, Natural Selection). The
+           * decision is part of the sentence (the spell site has no "you may"
+           * wrapper), so the shuffle alone is never read. "That player" is
+           * anaphora (CR 608.2c) the lowering resolves against the walk's
+           * last-looked-at library, and refuses with none.
+           */
+          readonly kind: "optional-shuffle-that-player-library";
+      }
+    | {
+          /**
+           * CR 701.24a + CR 404.1 — "Target player shuffles up to N target
+           * cards from their graveyard into their library": that player's
+           * graveyard cards are chosen (up to N, the controller picks), moved
+           * into their library, and the library is shuffled.
+           */
+          readonly kind: "shuffle-graveyard-into-library";
+          readonly player: PlayerRefIR;
+          /** The printed count word ("two"), kept for the choice prompt. */
+          readonly word: string;
+          readonly max: number;
+      }
+    | {
+          /**
            * CR 400.3 — "return a blue or black creature you control to its
            * owner's hand": the controller CHOOSES one of their own permanents
            * as the sentence resolves; nothing is announced. `phrase` is the
@@ -3343,6 +3368,11 @@ const REVEAL_UNTIL_FILTERS = new Map<string, EffectCardFilter>([
     ["a creature card", { type: "Creature" }],
     ["a white card", { color: "W" }],
 ]);
+/** CR 701.24a — the shuffle a "You may" offers after a looked-at library. */
+const SHUFFLE_THAT_PLAYER = "You may have that player shuffle";
+/** CR 701.24a — "Target player shuffles up to two target cards from their graveyard into their library". */
+const SHUFFLE_GRAVEYARD_BACK =
+    /^Target player shuffles up to (\S+) target cards from their graveyard into their library$/;
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
@@ -5482,6 +5512,30 @@ function effectSentence(
             kind: "mill" as const,
             player,
             count,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── "You may have that player shuffle" (CR 701.24a) ─────────────────────
+    if (span === SHUFFLE_THAT_PLAYER)
+        return ok({
+            kind: "optional-shuffle-that-player-library" as const,
+        } satisfies EffectSentenceIR);
+
+    // ── shuffle cards from a graveyard into the library (CR 701.24a) ───────
+    const shuffleBack = span.match(SHUFFLE_GRAVEYARD_BACK);
+    if (shuffleBack !== null) {
+        const word = shuffleBack[1]!;
+        const count = readAmount(word);
+        if (count === null || count.kind !== "fixed")
+            return fail(`"${word}" is not a printed count`, span);
+        const player = playerSubject("Target player", ctx);
+        if (player === null)
+            return fail('"Target player" is not a player', span);
+        return ok({
+            kind: "shuffle-graveyard-into-library" as const,
+            player,
+            word,
+            max: count.value,
         } satisfies EffectSentenceIR);
     }
 

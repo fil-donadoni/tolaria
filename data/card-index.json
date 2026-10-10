@@ -16838,6 +16838,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dwell on the Past",
+        "scryfallId": "77ac905a-839b-4fb5-8c17-7fd6c2c0c492",
+        "oracleId": "08f361c5-bcb5-4a9b-9610-70609cdc047f",
+        "firstSet": "tor",
+        "firstPrintId": "77ac905a-839b-4fb5-8c17-7fd6c2c0c492",
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Dying Wail",
         "scryfallId": "2a25a472-495e-4062-b66f-c37f148b494f",
         "oracleId": "78a9cb8d-52bb-4182-ad7d-e4f8f0bb9797",
@@ -36344,6 +36354,16 @@
         "firstSet": "hml",
         "firstPrintId": "3d2cc591-3a81-468a-91a4-3c3aac83a21a",
         "firstPrintSet": "hml"
+    },
+    {
+        "name": "Memory's Journey",
+        "scryfallId": "265aaa73-1a1e-4282-a860-f7c422f21db3",
+        "oracleId": "75e9ac31-5993-4039-93b2-9380ced2499a",
+        "firstSet": "isd",
+        "firstPrintId": "265aaa73-1a1e-4282-a860-f7c422f21db3",
+        "firstPrintSet": "isd",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Mending Hands",
@@ -57449,6 +57469,16 @@
         "firstPrintId": "55371d0e-29da-4517-ab16-075782a1326f",
         "firstPrintSet": "eve",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Stream of Consciousness",
+        "scryfallId": "499be0ce-928b-496f-9d81-4ef39752377c",
+        "oracleId": "9013214f-c066-4a09-871f-e9f8396f38a4",
+        "firstSet": "bok",
+        "firstPrintId": "499be0ce-928b-496f-9d81-4ef39752377c",
+        "firstPrintSet": "bok",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
