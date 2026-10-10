@@ -1285,8 +1285,16 @@ A weighted list of **Card Prints** (an MTGJSON print sheet) from which one **Boo
 _Avoid_: Rarity slot (a sheet may mix rarities)
 
 **Pack Source**:
-What generates the packs of a **Limited Event**. Today the only kind is a **Draftable Set**'s **Booster Config**, chosen per pack slot by the **Admin** (e.g. three INV boosters, or a mixed sequence). A cube (custom card list dealt into 15-card packs, Draftmancer-style) is a planned second kind of Pack Source, deferred.
+What generates the packs of a **Limited Event**, picked whole from a predefined list: one **Draftable Set**'s **Booster Config** (three INV boosters), a fixed block sequence (INV → PLS → APC), or a cube (custom card list dealt into 15-card packs, Draftmancer-style). A mixed sequence is a new predefined entry, never assembled pack by pack at setup. Each one has a display name and a **Feature Card**.
 _Avoid_: Booster type, product
+
+**Feature Card**:
+The one card whose art represents a **Pack Source** wherever the player chooses or recognises it (Black Lotus for the Vintage Cube, Mox Sapphire for Limited Edition Alpha). Chosen by hand beside the Pack Source; when none is chosen, the rare with the highest **Pick Rating** stands in.
+_Avoid_: Featured art (that's a **Deck**'s), cover card, key card
+
+**Open Decklists**:
+A **Limited Event** setting, chosen at creation and off by default, that reveals every **Seat**'s **Deck** and pick order to every **Player** from the **Play Phase** on, instead of only once the Event is finished. Never during the **Draft**. Every human Player is warned before joining an Event that has it on.
+_Avoid_: Open decks, public pools, spoiler mode
 
 **Seat**:
 A numbered position (2–8, chosen by the **Admin**) at a **Limited Event**, occupied by either a **User** (joined via the event lobby) or a **Bot Drafter** (auto-filling every seat still empty at event start). Seat order defines **Draft** passing adjacency. The solo draft — one human, all other seats bots — is a primary use case, not a degenerate one.
