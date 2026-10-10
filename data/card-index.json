@@ -46214,6 +46214,14 @@
         "source": "compiled"
     },
     {
+        "name": "Rampant Elephant",
+        "scryfallId": "752642d2-3dad-4f58-b154-beb5982141dc",
+        "oracleId": "aaaaf370-6486-4e17-9a93-92e05ebcf29f",
+        "firstSet": "inv",
+        "firstPrintId": "752642d2-3dad-4f58-b154-beb5982141dc",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Rampant Growth",
         "scryfallId": "a9dd8043-4099-42bb-9d54-4efc8b38fe18",
         "oracleId": "8539f295-5d58-4436-a73a-b9277c4c7795",
@@ -59614,6 +59622,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Tangle Angler",
+        "scryfallId": "b678bd68-e866-4081-95f9-2bd93a84d400",
+        "oracleId": "887a9f2f-17b4-4a20-a464-9665cde6f293",
+        "firstSet": "som",
+        "firstPrintId": "b678bd68-e866-4081-95f9-2bd93a84d400",
+        "firstPrintSet": "som",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Tangle Hulk",
         "scryfallId": "8ed3c301-8d8e-45fe-902a-af03a79525be",
         "oracleId": "f6d0360c-ebc6-48b5-80ad-d52dadcdd5f5",
@@ -63056,6 +63074,16 @@
         "firstSet": "gtc",
         "firstPrintId": "39610192-6d3c-4d03-9c3e-cda966c924b1",
         "firstPrintSet": "gtc",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Trumpeting Armodon",
+        "scryfallId": "38f94fd1-6f85-41ad-9674-f05cc893324f",
+        "oracleId": "7fc3c2a5-2754-4237-8a37-cb3166c20c3c",
+        "firstSet": "tmp",
+        "firstPrintId": "38f94fd1-6f85-41ad-9674-f05cc893324f",
+        "firstPrintSet": "tmp",
         "rarity": "uncommon",
         "source": "compiled"
     },
