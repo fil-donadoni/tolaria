@@ -6243,18 +6243,36 @@ const OP_SCHEMAS: OpSchemaTable = {
                 v === "cant-attack" ||
                 v === "cant-block" ||
                 v === "cant-be-blocked" ||
-                v === "cant-attack-all",
+                v === "cant-attack-all" ||
+                v === "must-block",
         },
         optional: {
             target: isObjectSelector,
+            attacker: isObjectSelector,
         },
-        check: (entry) =>
-            entry.restriction !== "cant-attack-all" &&
-            entry.target === undefined
-                ? [
-                      '"target" is required unless "restriction" is "cant-attack-all"',
-                  ]
-                : [],
+        check: (entry) => {
+            const problems: string[] = [];
+            if (
+                entry.restriction !== "cant-attack-all" &&
+                entry.target === undefined
+            )
+                problems.push(
+                    '"target" is required unless "restriction" is "cant-attack-all"'
+                );
+            // CR 509.1c — the named attacker is the whole point of "must-block"
+            // and meaningless on every other mode.
+            if (entry.restriction === "must-block") {
+                if (entry.attacker === undefined)
+                    problems.push(
+                        '"attacker" is required when "restriction" is "must-block"'
+                    );
+            } else if (entry.attacker !== undefined) {
+                problems.push(
+                    '"attacker" is only allowed when "restriction" is "must-block"'
+                );
+            }
+            return problems;
+        },
     },
     // CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "can't be
     // attacked except by flying/islandwalk" protection. `player` is the
@@ -6687,7 +6705,14 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // mis-tagged "number" and rejected as a malformed
                                 // ref (issue #2392). No other field in the
                                 // vocabulary is named `host`.
-                                keyHint === "host"
+                                keyHint === "host" ||
+                                // `restrictCombat`'s `attacker` (CR 509.1c, issue
+                                // #3713) — the object a "must-block" requirement
+                                // names, an `EffectObjectSelector` exactly like
+                                // `target` (`{ ref: "$source" }` on Rampant
+                                // Elephant). Without a row a bare ref here
+                                // mis-tags "number" and `$source` is rejected.
+                                keyHint === "attacker"
                               ? "object"
                               : "number",
         });

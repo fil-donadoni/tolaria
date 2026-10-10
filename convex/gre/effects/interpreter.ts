@@ -6732,6 +6732,14 @@ export const OP_EXECUTORS: {
         }
         const target = resolveObjectRef(ctx, op.target);
         if (!target) return;
+        // CR 509.1c (issue #3713) — "target creature blocks <attacker> this
+        // turn if able": the blocker is `target`, the named attacker `attacker`.
+        if (op.restriction === "must-block") {
+            const attacker = resolveObjectRef(ctx, op.attacker);
+            if (!attacker) return;
+            ctx.setMustBlockAttacker(target, attacker);
+            return;
+        }
         if (op.restriction === "cant-attack") {
             ctx.setCantAttackThisTurn(target);
         } else if (op.restriction === "cant-block") {

@@ -191,6 +191,7 @@ export const CARD_FIELD_LIFECYCLE = {
     mustAttackThisTurn:         { codec: "flag",    reset: TURN },
     canBlockAdditional:         { codec: "defined", reset: TURN },
     mustBlockAllThisTurn:       { codec: "flag",    reset: TURN },
+    mustBlockAttackersThisTurn: { codec: "list",    reset: TURN_ZONE },
     cantBlockThisTurn:          { codec: "flag",    reset: TURN },
     cantAttackThisTurn:         { codec: "flag",    reset: TURN },
     cantBeBlockedThisTurn:      { codec: "flag",    reset: TURN_ZONE },

@@ -1993,6 +1993,20 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "forced-block": {
+            // CR 509.1c — the blocker is the announced creature; the attacker
+            // it must block is the ability's own source.
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([
+                {
+                    op: "restrictCombat",
+                    restriction: "must-block",
+                    target: target.value,
+                    attacker: { ref: "$source" },
+                },
+            ]);
+        }
         case "prevent-regeneration": {
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;

@@ -8810,6 +8810,25 @@ export function revertTypeLine(card: CardInstanceState): void {
     revertTypeProvenance(card);
 }
 
+/** CR 400.7 / 509.1c (issue #3713) — removes `attackerId` from every
+ *  battlefield creature's `mustBlockAttackersThisTurn`. Called when the named
+ *  attacker changes zones: the returned permanent is a new object that no
+ *  earlier "blocks this creature if able" requirement named. */
+function dropMustBlockRequirementsNaming(
+    state: GameState,
+    attackerId: string
+): void {
+    for (const player of state.players) {
+        for (const perm of player.battlefield) {
+            const named = perm.mustBlockAttackersThisTurn;
+            if (!named?.includes(attackerId)) continue;
+            const rest = named.filter((id) => id !== attackerId);
+            if (rest.length > 0) perm.mustBlockAttackersThisTurn = rest;
+            else delete perm.mustBlockAttackersThisTurn;
+        }
+    }
+}
+
 /** CR 400.7 — when a card moves from the battlefield to a non-graveyard /
  *  non-exile zone (hand, library), it becomes a new object with no memory of
  *  its previous existence. Strips battlefield-only transient fields so the
@@ -8840,6 +8859,11 @@ export function resetBattlefieldTransientState(
     // re-derived from the live board at every read and the departing permanent
     // is simply no longer in it.
     purgeContinuousEffectsForInstance(state, card.id);
+    // CR 400.7 / 509.1c (issue #3713) — instance ids survive zone changes, so a
+    // "blocks <this creature> this turn if able" requirement recorded on a
+    // blocker would keep matching the NEW object an attacker becomes. The
+    // requirement named the old object; it goes with it.
+    dropMustBlockRequirementsNaming(state, card.id);
     card.isTapped = false;
     // CR 400.7 / 611.2b (issue #1470) — an INDEFINITE animation (earthbend N's
     // "becomes a 0/0 creature with haste that's still a land") mutates the
@@ -15671,6 +15695,24 @@ export function buildSpellContext(
             const found = findOnBattlefield(state, target.id);
             if (!found) return;
             found.card.mustBlockAllThisTurn = true;
+        },
+
+        setMustBlockAttacker(
+            blocker: TargetSelection,
+            attacker: TargetSelection
+        ): void {
+            // CR 509.1c — "target creature blocks <attacker> this turn if
+            // able". Records the attacker's instance id on the BLOCKER; the
+            // requirement applies in every declare-blockers step of the turn
+            // and is read by `getRequiredBlockerAssignments`. No-op when
+            // either object is off the battlefield. Cleared at CLEANUP.
+            if (blocker.type !== "permanent" || attacker.type !== "permanent")
+                return;
+            const found = findOnBattlefield(state, blocker.id);
+            if (!found || !findOnBattlefield(state, attacker.id)) return;
+            const existing = found.card.mustBlockAttackersThisTurn ?? [];
+            if (existing.includes(attacker.id)) return;
+            found.card.mustBlockAttackersThisTurn = [...existing, attacker.id];
         },
 
         setCantBlockThisTurn(target: TargetSelection): void {

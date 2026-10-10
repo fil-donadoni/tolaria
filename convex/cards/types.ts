@@ -6133,6 +6133,16 @@ export interface SpellContext {
     /** Marks a target permanent as "must block all attackers if able" this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     setMustBlockAll: (target: TargetSelection) => void;
+    /** Marks `blocker` as "blocks `attacker` this turn if able" (CR 509.1c —
+     *  Rampant Elephant; Provoke's resolution half). The per-attacker twin of
+     *  `setMustBlockAll`: records the attacker's instance id on the blocker,
+     *  read by `getRequiredBlockerAssignments` in every declare-blockers step
+     *  of the turn. Cleared at CLEANUP. No-op unless both are permanents on
+     *  the battlefield. */
+    setMustBlockAttacker: (
+        blocker: TargetSelection,
+        attacker: TargetSelection
+    ) => void;
     /** Marks a target permanent as unable to block this turn (CR 509.1b).
      *  Twin of `setMustBlockAll`. Cleared at CLEANUP. Used by Ydwen Efreet's
      *  lost block flip. No-op if target is not a permanent on the
@@ -18762,6 +18772,23 @@ export type EffectOp =
     | {
           op: "restrictCombat";
           restriction: "cant-attack-all";
+      }
+    /** CR 509.1c (issue #3713) — Rampant Elephant's "target creature blocks
+     *  this creature this turn if able": a turn-scoped, ATTACKER-NAMED block
+     *  requirement on `target` (the blocker). A thin declarative skin over
+     *  `SpellContext.setMustBlockAttacker`, one execution path (ADR 0045),
+     *  kept as a `restriction` value on `restrictCombat` ("generalize, don't
+     *  add"). `attacker` is the object the blocker must block — `$source` for
+     *  the Elephant. The requirement applies in each declare-blockers step of
+     *  the turn but binds only while `attacker` is attacking and the block is
+     *  legal (evasion, protection, a tapped blocker all excuse it). Skipped
+     *  when either object is gone (CR 608.2b). Does NOT untap the blocker —
+     *  that is Provoke's keyword half (CR 702.39a), its own consumer. */
+    | {
+          op: "restrictCombat";
+          restriction: "must-block";
+          target: EffectObjectSelector;
+          attacker: EffectObjectSelector;
       }
     /** CR 508.1c (issue #1283) — Island Sanctuary's player-scoped "until your
      *  next turn, you can't be attacked except by creatures with flying
