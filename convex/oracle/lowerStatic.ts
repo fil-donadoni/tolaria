@@ -473,6 +473,21 @@ export function lowerStaticClause(
             };
         case "kicked-enters-with":
             return lowerKickedRider(clause, kickers, nextId);
+        // CR 509.1b — the engine collects a block restriction from the
+        // creature's own definition (`collectBlockRestrictions`), so no scope.
+        case "self-block-restriction":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "block-restriction",
+                            id: nextId("cant-block"),
+                            oracleText: clause.sentence,
+                        },
+                    ],
+                },
+            };
         case "does-not-untap":
             return {
                 ok: true,
