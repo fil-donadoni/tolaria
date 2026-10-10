@@ -241,7 +241,13 @@ describe("gold round-trip — precision", () => {
         // `mayPay` + `if not` while their hand-written upkeep triggers are
         // `resolve()` closures — the same move as the entries above, out of
         // "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(50);
+        //
+        // 49 -> 50 by issue #4567 (shuffle clauses): Natural Selection's "You
+        // may have that player shuffle" is now compiled while its hand-written
+        // side is a `resolveSteps` closure the projection cannot compare — the
+        // same move as the entries above, out of "the compiler refuses it" and
+        // into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(51);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
