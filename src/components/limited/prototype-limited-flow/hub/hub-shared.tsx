@@ -221,7 +221,7 @@ export const HISTORY: HistoryEvent[] = [
 ];
 
 export const PHASE_LABEL: Record<Phase, string> = {
-    open: "Open",
+    open: "Waiting for players",
     drafting: "Drafting",
     building: "Building",
     playing: "Playing",
@@ -404,7 +404,7 @@ export function SectionTitle({
 export type View = "all" | Phase | "history";
 export const VIEWS: { key: View; label: string }[] = [
     { key: "all", label: "All" },
-    { key: "open", label: "Open" },
+    { key: "open", label: "Waiting" },
     { key: "drafting", label: "Drafting" },
     { key: "building", label: "Building" },
     { key: "playing", label: "Playing" },

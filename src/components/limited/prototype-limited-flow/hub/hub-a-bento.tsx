@@ -3,9 +3,7 @@ import { cn } from "~/lib/utils";
 import {
     Art,
     ChipBar,
-    CreateTile,
     CtaButton,
-    EmptyHero,
     eventName,
     HISTORY,
     JoinButton,
@@ -147,6 +145,56 @@ function HistoryTile({ h }: { h: HistoryEvent }) {
     );
 }
 
+function NewEventButton() {
+    return (
+        <button
+            type="button"
+            onClick={() => console.log("[proto] New event")}
+            className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-2.5 font-display text-base font-semibold text-surface-base shadow-[0_0_24px_-4px_var(--color-accent)] transition hover:scale-[1.03]"
+        >
+            <span className="text-xl leading-none">+</span> New event
+        </button>
+    );
+}
+
+/** Zero events in progress: the whole hero becomes the call to start one. */
+function StartHero() {
+    return (
+        <div className="relative isolate flex min-h-[300px] flex-col justify-end overflow-hidden rounded-[var(--panel-radius)] border border-accent/60 sm:col-span-2 lg:col-span-4">
+            <Art feature="Black Lotus" className="absolute inset-0 -z-10" />
+            <Scrim className="-z-10" />
+            <div className="flex flex-col gap-3 p-5 sm:p-7">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-parchment/80">
+                    No event in progress
+                </span>
+                <span className="font-display text-3xl leading-none text-parchment drop-shadow sm:text-5xl">
+                    Start a Draft
+                </span>
+                <span className="max-w-md text-sm text-parchment/85">
+                    Vintage Cube, 8 seats, bots fill the empty ones. Ready in
+                    one click — or change anything first.
+                </span>
+                <div className="flex flex-wrap items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => console.log("[proto] Quick start")}
+                        className="rounded-full bg-accent px-6 py-3 font-display text-lg font-semibold text-surface-base shadow-[0_0_32px_-4px_var(--color-accent)] transition hover:scale-[1.03]"
+                    >
+                        Start Vintage Cube Draft
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => console.log("[proto] Customise")}
+                        className="rounded-full border border-parchment/50 bg-black/40 px-5 py-3 text-sm font-semibold text-parchment backdrop-blur hover:border-parchment"
+                    >
+                        Customise…
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function HubBento() {
     const { count, setCount, view, setView, mine, counts } = useHub();
     const show = (e: HubEvent) => view === "all" || view === e.phase;
@@ -156,9 +204,10 @@ export default function HubBento() {
 
     return (
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-            <PageHeader
-                aside={<SimToggle count={count} setCount={setCount} />}
-            />
+            <PageHeader aside={<NewEventButton />} />
+            <div className="-mt-2 flex justify-end">
+                <SimToggle count={count} setCount={setCount} />
+            </div>
             <ChipBar view={view} setView={setView} counts={counts} />
 
             {hist ? (
@@ -172,10 +221,13 @@ export default function HubBento() {
                 </>
             ) : (
                 <>
+                    {myShown.length > 0 && (
+                        <SectionTitle aside={`${myShown.length} in progress`}>
+                            Your events
+                        </SectionTitle>
+                    )}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(110px,auto)]">
-                        {count === 0 && view === "all" && (
-                            <EmptyHero className="sm:col-span-2 lg:col-span-4" />
-                        )}
+                        {count === 0 && view === "all" && <StartHero />}
                         {myShown.map((e, i) => (
                             <Hero key={e.id} e={e} big={i === 0} />
                         ))}
@@ -183,16 +235,15 @@ export default function HubBento() {
                             <div className="hidden" />
                         )}
                     </div>
-                    <SectionTitle aside={`${openShown.length} open to join`}>
-                        Open events
+                    <SectionTitle
+                        aside={`${openShown.length} waiting for players`}
+                    >
+                        Join a table
                     </SectionTitle>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         {openShown.map((e) => (
                             <OpenTile key={e.id} e={e} />
                         ))}
-                        {(view === "all" || view === "open") && (
-                            <CreateTile className="min-h-[210px]" />
-                        )}
                     </div>
                     {view === "all" && (
                         <>
