@@ -104,6 +104,15 @@ const presetEditRoute = createRoute({
     component: () => <LazyDeckBuilderRoute mode="edit" kind="preset" />,
 });
 
+// Constructed setup flow (PRD #5334, issue #5340): Game mode → Opponent →
+// Match Format → decks, as a recap rail beside the active step. Reached from a
+// temporary lobby entry until the lobby home replaces the dashboard.
+const matchSetupRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/play/constructed",
+    component: lazyRouteComponent(() => import("./routes/match-setup.route")),
+});
+
 const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
@@ -362,6 +371,7 @@ const routeTree = rootRoute.addChildren([
     deckEditRoute,
     presetCreateRoute,
     presetEditRoute,
+    matchSetupRoute,
     gameRoute,
     joinRoute,
     limitedEventsRoute,
