@@ -253,7 +253,13 @@ describe("gold round-trip — precision", () => {
         // while its hand-written side carries the `condition` closure — the
         // same move as the entries above, out of "the compiler refuses it" and
         // into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(52);
+        //
+        // 51 -> 53 by issue #5407 ("This creature can't block"): Foul
+        // Familiar's and Kavu Aggressor's hand-written `block-restriction`
+        // carries a `predicate` closure the projection cannot compare, while
+        // the line is now compiled — the same move as the entries above, out of
+        // "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(54);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
