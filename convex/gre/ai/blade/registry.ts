@@ -12119,6 +12119,197 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
+    // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
+    // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
+    // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
+    // every snapshot the weights feed. These pin a row of a table the fit does
+    // not touch, so they stay Test Positions. Each pair: Terror vs two vanilla
+    // 2/2s of one mana value, a layer-6 grant on ONE of them the only
+    // difference. Lifelink and menace have no pair: zeroing the lifelink row
+    // left both entries 20/20 (rollouts play the real life gain), menace was
+    // 17-18/20 with the row.
+    {
+        label: "keyword bonus (deathtouch): Terror takes the Runeclaw Bear that carries deathtouch, not the identical Grizzly Bears (issue #5345)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Runeclaw Bear"] },
+                    controller: "opp",
+                    payload: { kind: "keyword-grant", keyword: "deathtouch" },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Runeclaw Bear",
+                }),
+            describe:
+                "Terror is cast on the Runeclaw Bear, the one holding deathtouch",
+        },
+        note: "Issue #5345 (follow-up of #5152). Guards `deathtouch: (p) => 20 + 2 * p` in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+    },
+    {
+        label: "keyword bonus (deathtouch): Terror takes the Grizzly Bears that carries deathtouch, not the identical Runeclaw Bear (issue #5345)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Grizzly Bears"] },
+                    controller: "opp",
+                    payload: { kind: "keyword-grant", keyword: "deathtouch" },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Grizzly Bears",
+                }),
+            describe:
+                "Terror is cast on the Grizzly Bears, the one holding deathtouch",
+        },
+        note: "Issue #5345 (follow-up of #5152). Guards `deathtouch: (p) => 20 + 2 * p` in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+    },
+    {
+        label: "keyword bonus (protection): Terror takes the Runeclaw Bear that carries protection from red, not the identical Grizzly Bears (issue #5345)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Runeclaw Bear"] },
+                    controller: "opp",
+                    payload: {
+                        kind: "keyword-grant",
+                        keyword: "protection from red",
+                    },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Runeclaw Bear",
+                }),
+            describe:
+                "Terror is cast on the Runeclaw Bear, the one holding protection from red",
+        },
+        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+    },
+    {
+        label: "keyword bonus (protection): Terror takes the Grizzly Bears that carries protection from red, not the identical Runeclaw Bear (issue #5345)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Grizzly Bears"] },
+                    controller: "opp",
+                    payload: {
+                        kind: "keyword-grant",
+                        keyword: "protection from red",
+                    },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Grizzly Bears",
+                }),
+            describe:
+                "Terror is cast on the Grizzly Bears, the one holding protection from red",
+        },
+        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
