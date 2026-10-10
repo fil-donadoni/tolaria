@@ -6,7 +6,7 @@
 
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { internalMutation, query } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 
 // Kept in sync with `Rarity` (`convex/cards/types.ts`) and the copy in
@@ -169,6 +169,25 @@ export const upsertDefinitionTokensBatch = internalMutation({
         }
         return { inserted, patched, unchanged: unchangedCount };
     },
+});
+
+/**
+ * Are the Token Print tables filled? `bun run prints:sync --if-empty` asks
+ * before downloading the Scryfall bulk (issue #5414): empty tables make every
+ * token render the placeholder, with no error anywhere else. Point reads only
+ * (`.first()`), never a count.
+ */
+export const populated = internalQuery({
+    args: {},
+    returns: v.object({
+        cardPrints: v.boolean(),
+        definitionTokenPrints: v.boolean(),
+    }),
+    handler: async (ctx) => ({
+        cardPrints: (await ctx.db.query("cardPrints").first()) !== null,
+        definitionTokenPrints:
+            (await ctx.db.query("definitionTokenPrints").first()) !== null,
+    }),
 });
 
 /**

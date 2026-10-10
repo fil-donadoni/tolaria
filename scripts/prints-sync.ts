@@ -22,13 +22,32 @@
  *                                      count, token-link count and total
  *                                      bytes, WRITES NOTHING (no Convex call
  *                                      at all).
+ *
+ * Bootstrap flags (issue #5414 — empty tables make every token render the
+ * placeholder, silently):
+ *
+ *   --if-empty    skip (before the Scryfall download) when both tables
+ *                 already have rows. `bun run prints:ensure` and the
+ *                 hosting build use it, so they cost nothing once filled.
+ *   --deploy      write to the deployment CONVEX_DEPLOY_KEY selects instead
+ *                 of the local one (`bun run prints:sync:deploy`, chained
+ *                 after `convex deploy` in `vercel.json`).
+ *   --warn-only   a failure prints loudly and exits 0, for chains a red exit
+ *                 would block for an unrelated reason (`dev`, a deploy).
  */
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { primaryCheckout } from "./lib/primary-checkout";
+import {
+    emptyPrintTables,
+    emptyTablesMessage,
+    parsePrintsSyncArgs,
+    printsSyncTarget,
+    type PrintsPopulated,
+} from "./lib/prints-sync-run";
+import type { SeedTargetPlan } from "./lib/seed-preset-run";
 import { convexRunErrorMessage } from "./lib/convex-run-error";
 import { streamDefaultCards } from "./lib/prints-bulk";
 import {
@@ -92,19 +111,44 @@ function runDryRun(
 }
 
 function runWrite(
+    plan: Required<SeedTargetPlan>,
     rows: readonly CardPrintRow[],
     definitionTokens: readonly DefinitionTokenRow[]
 ): void {
-    upsertAll("cardPrints:upsertBatch", rows, "matched rows");
+    upsertAll(plan, "cardPrints:upsertBatch", rows, "matched rows");
     upsertAll(
+        plan,
         "cardPrints:upsertDefinitionTokensBatch",
         definitionTokens,
         "definition token rows"
     );
 }
 
-function upsertAll(fn: string, rows: readonly unknown[], what: string): void {
-    const cwd = primaryCheckout();
+function readPopulated(plan: Required<SeedTargetPlan>): PrintsPopulated {
+    const result = spawnSync(
+        "npx",
+        ["convex", "run", ...plan.flags, "cardPrints:populated"],
+        { cwd: plan.cwd, encoding: "utf8", timeout: 120_000 }
+    );
+    if (result.error || result.status !== 0) {
+        throw new Error(
+            result.error
+                ? result.error.message
+                : convexRunErrorMessage(
+                      `${result.stderr ?? ""}${result.stdout ?? ""}`
+                  )
+        );
+    }
+    return JSON.parse((result.stdout ?? "").trim()) as PrintsPopulated;
+}
+
+function upsertAll(
+    plan: Required<SeedTargetPlan>,
+    fn: string,
+    rows: readonly unknown[],
+    what: string
+): void {
+    const { cwd, flags } = plan;
     let inserted = 0;
     let patched = 0;
     let unchanged = 0;
@@ -112,7 +156,7 @@ function upsertAll(fn: string, rows: readonly unknown[], what: string): void {
         const batch = rows.slice(i, i + BATCH_SIZE);
         const result = spawnSync(
             "npx",
-            ["convex", "run", fn, JSON.stringify({ rows: batch })],
+            ["convex", "run", ...flags, fn, JSON.stringify({ rows: batch })],
             { cwd, encoding: "utf8", timeout: 120_000 }
         );
         if (result.error || result.status !== 0) {
@@ -144,8 +188,22 @@ function upsertAll(fn: string, rows: readonly unknown[], what: string): void {
     );
 }
 
-async function main(): Promise<void> {
-    const dryRun = process.argv.includes("--dry-run");
+async function sync(
+    args: ReturnType<typeof parsePrintsSyncArgs>
+): Promise<void> {
+    const target = printsSyncTarget(args);
+    const plan = target.cwd ? (target as Required<SeedTargetPlan>) : null;
+    if (!args.dryRun) {
+        if (!plan) throw new Error(target.error ?? "no deployment selected");
+        if (args.ifEmpty) {
+            const empty = emptyPrintTables(readPopulated(plan));
+            if (empty.length === 0) {
+                console.log("prints-sync: tables already populated, skipping.");
+                return;
+            }
+            console.warn(emptyTablesMessage(empty));
+        }
+    }
 
     const { rows, definitionTokens, scanned } = await buildRows();
     process.stderr.write(
@@ -153,8 +211,22 @@ async function main(): Promise<void> {
             `${definitionTokens.length} definition printing(s) link a token\n`
     );
 
-    if (dryRun) return runDryRun(rows, definitionTokens);
-    return runWrite(rows, definitionTokens);
+    if (args.dryRun) return runDryRun(rows, definitionTokens);
+    return runWrite(plan!, rows, definitionTokens);
+}
+
+async function main(): Promise<void> {
+    const args = parsePrintsSyncArgs(process.argv);
+    try {
+        await sync(args);
+    } catch (err) {
+        const message = (err as Error).message;
+        if (!args.warnOnly) throw err;
+        console.error(
+            `prints-sync: FAILED — ${message}\n` +
+                `prints-sync: tokens render the placeholder until \`bun run prints:sync\` succeeds`
+        );
+    }
 }
 
 if (import.meta.main) {
