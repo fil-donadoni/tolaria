@@ -12126,7 +12126,6 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
-    ...keywordBonusPair("lifelink", "lifelink", "`lifelink: (p) => 6 * p`"),
     ...keywordBonusPair(
         "deathtouch",
         "deathtouch",
@@ -12204,7 +12203,7 @@ function keywordBonusPair(
                     },
                 ],
             },
-            note: `Issue #5345 (follow-up of #5152). Guards ${row} in \`creatureBody.ts\`'s keyword bonus table. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both halves with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting.`,
+            note: `Issue #5345 (follow-up of #5152). Guards ${row} in \`creatureBody.ts\`'s keyword bonus table. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both halves with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH halves red (0/4). Lifelink and menace have no pair: zeroing the lifelink row left both halves 20/20 (rollouts play the real life gain), menace was 17-18/20 with the row.`,
         },
         {
             // DISCRIMINATING PAIR, HALF 2 of 2 — the carrier swaps.
