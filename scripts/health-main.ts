@@ -11,8 +11,8 @@
  * hygiene census `check:test-hygiene`, all three test suites, and — under
  * `--ui-all`, which `release` passes, and only then — the full `check:ui`
  * browser walk: a batch run owes none (`lib/health-walk-plan.ts`, issue
- * #5378)) against the merged tip, in a throwaway worktree, and leaves a durable verdict in
- * `.claude/telemetry/health/`:
+ * #5378)) against the merged tip, in a throwaway worktree, and leaves a
+ * durable verdict in `.claude/telemetry/health/`:
  *
  *   - `last.json`  — { sha, status: running|green|red|infra, startedAt, finishedAt, log }
  *   - `RED`        — marker file, present iff the last completed run was red.

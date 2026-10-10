@@ -117,4 +117,34 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
             []
         );
     }, 60_000);
+
+    it("a batch run (no --ui-all) owes no walk, so it never preflights the backend (issue #5378)", () => {
+        const r = spawnSync("bun", [HEALTH_MAIN, "--phase=offline"], {
+            cwd: primary,
+            encoding: "utf8",
+            timeout: 45_000,
+            env: {
+                ...process.env,
+                VITE_CONVEX_URL: "http://127.0.0.1:1",
+                TOLARIA_GATE_HELD: "",
+                // A busy machine ends the run at its next preflight at once
+                // rather than waiting: any step past the Convex preflight
+                // proves it was passed.
+                TOLARIA_MACHINE_WAIT_MAX_MS: "0",
+            },
+        });
+        const last = JSON.parse(
+            fs.readFileSync(
+                path.join(
+                    primary,
+                    ".claude",
+                    "telemetry",
+                    "health",
+                    "last.json"
+                ),
+                "utf8"
+            )
+        ) as Record<string, unknown>;
+        expect(last.failedStep, r.stderr).not.toBe(PREFLIGHT_CONVEX_STEP);
+    }, 60_000);
 });
