@@ -1,4 +1,4 @@
-// Two-step "Play vs AI" setup (PRD #589 lobby flow). Running the primary
+// Two-step "Play vs Bot" setup (PRD #589 lobby flow). Running the primary
 // action while the "Play vs Bot" Mode Tile is selected no longer starts a match
 // directly — it opens this dialog, the second step, which collects the two
 // vs-AI knobs (difficulty, AI opponent deck) and only fires `createSoloGame` on
@@ -50,8 +50,8 @@ export default function VsAiSetupDialog({
         <GameDialog
             open={open}
             onOpenChange={onOpenChange}
-            title="Play vs AI"
-            subtitle="Choose the difficulty and the deck your AI opponent will play."
+            title="Play vs Bot"
+            subtitle="Choose the difficulty and the deck your Bot opponent will play."
             footer={
                 <>
                     <ActionButton
@@ -62,7 +62,7 @@ export default function VsAiSetupDialog({
                     />
                     <ActionButton
                         onClick={onConfirm}
-                        label="Play vs AI"
+                        label="Play vs Bot"
                         tone="primary"
                         disabled={pending}
                     />

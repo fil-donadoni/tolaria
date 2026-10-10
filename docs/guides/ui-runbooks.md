@@ -104,8 +104,8 @@ each prints its own line on every receipt at every viewport:
 | `profile menu entry`                | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one                        |
 
 Change a step here and change that list in the same PR, the same way the walk
-itself is changed. The vs-AI dialog's own promises (`AI Difficulty selector`,
-`dialog primary: Play vs AI`, `dialog Cancel`) belong to the `lobby-vs-ai`
+itself is changed. The vs-AI dialog's own promises (`Bot difficulty selector`,
+`dialog primary: Play vs Bot`, `dialog Cancel`) belong to the `lobby-vs-ai`
 surface.
 
 The executable copy of this sequence is `ensureBoard` in

@@ -591,7 +591,7 @@ describe("bot liveness invariant (issue #2284)", () => {
         // exhausted the ladder and surfaced rung 5 — never a dead end.
         expect(calls.map((c) => c.ref)).toContain("passPriority");
         expect(screen.getByRole("alert").textContent).toContain(
-            "The AI could not act"
+            "The Bot could not act"
         );
     });
 
@@ -830,7 +830,7 @@ describe("bot liveness invariant (issue #2284)", () => {
         // `getBy*`, not `findBy*`: the async queries poll on real timers, which
         // never advance under `vi.useFakeTimers()`.
         const notice = screen.getByRole("alert");
-        expect(notice.textContent).toContain("The AI could not act");
+        expect(notice.textContent).toContain("The Bot could not act");
         const button = screen.getByRole("button", { name: /continue game/i });
 
         // ── The server is still broken: the player clicks anyway ────────────

@@ -1,5 +1,5 @@
 // vs-AI difficulty selector (issue #114). A small segmented control over the
-// difficulty presets, shown next to "Play vs AI". The chosen value is persisted
+// difficulty presets, shown next to "Play vs Bot". The chosen value is persisted
 // by the lobby and flows through to the bot's search budget — same engine, one
 // knob (see `convex/gre/difficulty.ts`).
 
@@ -38,11 +38,11 @@ export default function DifficultySelector({
     return (
         <div className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                AI Difficulty
+                Bot difficulty
             </span>
             <div
                 role="radiogroup"
-                aria-label="AI Difficulty"
+                aria-label="Bot difficulty"
                 className="inline-flex overflow-hidden rounded-sm border border-border-subtle/40"
             >
                 {DIFFICULTIES.map((d) => {

@@ -125,7 +125,7 @@ describe("check:ui surface table — Named Assertions", () => {
      * Issue #3651's half of the same contract: the game, debug and admin
      * surfaces, each held to the entry points its runbook names
      * (`docs/guides/ui-runbooks.md`) — the controller's primary action, the
-     * debug sheet's toggle and scenario list, the AI trace's Judge action,
+     * debug sheet's toggle and scenario list, the Bot trace's Judge action,
      * the yield rows and their remove action, the admin pages' primary
      * controls — plus the zone pile whose CTA carries `contrast`
      * (`docs/findings/2900-zone-cta-not-in-check-ui-dom.md`).

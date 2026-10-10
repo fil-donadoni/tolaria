@@ -337,32 +337,32 @@ describe("Lobby vs-AI two-step flow", () => {
     it("running the 'Play vs Bot' primary action opens the dialog without firing the mutation", async () => {
         const { getByRole, getAllByText, getByLabelText } = await renderLobby();
         // The Loadout's one ivory plate, named by the selected Mode Tile
-        // (issue #2726; the label itself is #2591's "Play vs AI" → "Play vs
+        // (issue #2726; the label itself is #2591's "Play vs Bot" → "Play vs
         // Bot", ADR 0101 §10). Before opening, no create mutation.
         fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         expect(createSoloGame).not.toHaveBeenCalled();
         // Dialog content is now present (the two vs-AI selectors). Match
         // Format is not among them — it governs Solo / Multiplayer too
         // and is picked in the Play box, so exactly one instance exists. The
-        // dialog itself keeps its own "Play vs AI" title/confirm wording
+        // dialog itself keeps its own "Play vs Bot" title/confirm wording
         // (`vs-ai-setup-dialog.tsx` — out of this slice's scope): both now
         // present (title + confirm button).
-        expect(getByLabelText("AI Difficulty")).toBeTruthy();
-        expect(getByLabelText("AI Opponent Deck")).toBeTruthy();
+        expect(getByLabelText("Bot difficulty")).toBeTruthy();
+        expect(getByLabelText("Bot deck")).toBeTruthy();
         expect(getByLabelText("Games Format")).toBeTruthy();
-        expect(getAllByText("Play vs AI").length).toBeGreaterThanOrEqual(2);
+        expect(getAllByText("Play vs Bot").length).toBeGreaterThanOrEqual(2);
     });
 
     it("Confirm fires createSoloGame with the chosen bestOf and deck2", async () => {
         const { getByRole, getAllByText, getByLabelText } = await renderLobby();
         fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         // Pick White Weenie as the AI opponent deck (deck2).
-        fireEvent.change(getByLabelText("AI Opponent Deck"), {
+        fireEvent.change(getByLabelText("Bot deck"), {
             target: { value: "white-weenie" },
         });
-        // Confirm — the dialog footer's "Play vs AI" button. Filter to actual
+        // Confirm — the dialog footer's "Play vs Bot" button. Filter to actual
         // buttons (the dialog title is an <h2>, not a button).
-        const buttons = getAllByText("Play vs AI")
+        const buttons = getAllByText("Play vs Bot")
             .map((n) => n.closest("button"))
             .filter((b): b is HTMLButtonElement => b !== null);
         fireEvent.click(buttons[buttons.length - 1]);
@@ -378,10 +378,10 @@ describe("Lobby vs-AI two-step flow", () => {
     it("Cancel closes the dialog without firing the mutation", async () => {
         const { getByRole, getByText, queryByLabelText } = await renderLobby();
         fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
-        expect(queryByLabelText("AI Difficulty")).toBeTruthy();
+        expect(queryByLabelText("Bot difficulty")).toBeTruthy();
         fireEvent.click(getByText("Cancel"));
         expect(createSoloGame).not.toHaveBeenCalled();
-        expect(queryByLabelText("AI Difficulty")).toBeNull();
+        expect(queryByLabelText("Bot difficulty")).toBeNull();
     });
 
     // Regression guard for issue #910: the dialog renders through a base-ui
@@ -395,7 +395,7 @@ describe("Lobby vs-AI two-step flow", () => {
         const { getByRole, getByLabelText } = await renderLobby();
         fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
         // The portal is live while the dialog is open.
-        expect(getByLabelText("AI Difficulty")).toBeTruthy();
+        expect(getByLabelText("Bot difficulty")).toBeTruthy();
         expect(
             document.querySelectorAll("[data-base-ui-portal]").length
         ).toBeGreaterThan(0);

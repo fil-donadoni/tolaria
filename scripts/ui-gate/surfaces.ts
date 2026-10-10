@@ -2595,13 +2595,13 @@ export const SURFACES: readonly Surface[] = [
         // dialog, and the two plates that leave it.
         asserts: [
             {
-                label: "AI Difficulty selector",
-                locator: { role: "radiogroup", name: "AI Difficulty" },
+                label: "Bot difficulty selector",
+                locator: { role: "radiogroup", name: "Bot difficulty" },
                 check: "visible",
             },
             {
-                label: "dialog primary: Play vs AI",
-                locator: { role: "button", name: "Play vs AI" },
+                label: "dialog primary: Play vs Bot",
+                locator: { role: "button", name: "Play vs Bot" },
                 check: "reachable",
             },
             {
@@ -2657,12 +2657,12 @@ export const SURFACES: readonly Surface[] = [
             if (
                 !(await visible(
                     page,
-                    '[role=dialog] [role=radiogroup][aria-label="AI Difficulty"]',
+                    '[role=dialog] [role=radiogroup][aria-label="Bot difficulty"]',
                     STEP_TIMEOUT
                 ))
             ) {
                 throw new Unreachable(
-                    "the vs-AI setup dialog opened without its AI Difficulty selector"
+                    "the vs-AI setup dialog opened without its Bot difficulty selector"
                 );
             }
             await settle(page);

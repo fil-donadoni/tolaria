@@ -59,7 +59,7 @@ export default function BotStuckNotice({
                 className="flex-row items-center gap-3"
             >
                 <span>
-                    The AI could not act ({WINDOW_LABEL[stuck.expectedKind]}).
+                    The Bot could not act ({WINDOW_LABEL[stuck.expectedKind]}).
                 </span>
                 <Button
                     type="button"

@@ -108,7 +108,7 @@ describe("DebugBladeScenarios — the vs-AI conversion is announced (issue #3443
         );
 
         await waitFor(() =>
-            expect(screen.getByText(/now a vs-AI game/)).toBeTruthy()
+            expect(screen.getByText(/now a vs-Bot game/)).toBeTruthy()
         );
     });
 
@@ -120,7 +120,7 @@ describe("DebugBladeScenarios — the vs-AI conversion is announced (issue #3443
         );
 
         await waitFor(() => expect(loadMock).toHaveBeenCalled());
-        expect(screen.queryByText(/now a vs-AI game/)).toBeNull();
+        expect(screen.queryByText(/now a vs-Bot game/)).toBeNull();
     });
 
     it("shows the loader's refusal instead of a notice when it throws", async () => {
@@ -136,6 +136,6 @@ describe("DebugBladeScenarios — the vs-AI conversion is announced (issue #3443
         await waitFor(() =>
             expect(screen.getByText(/owes input/)).toBeTruthy()
         );
-        expect(screen.queryByText(/now a vs-AI game/)).toBeNull();
+        expect(screen.queryByText(/now a vs-Bot game/)).toBeNull();
     });
 });

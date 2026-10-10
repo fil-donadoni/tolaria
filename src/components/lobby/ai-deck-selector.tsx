@@ -22,10 +22,10 @@ export default function AiDeckSelector({
     return (
         <label className="flex flex-col gap-1">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                AI Opponent Deck
+                Bot deck
             </span>
             <select
-                aria-label="AI Opponent Deck"
+                aria-label="Bot deck"
                 disabled={disabled}
                 value={value ?? MIRROR_VALUE}
                 onChange={(e) =>
