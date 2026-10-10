@@ -12138,7 +12138,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     ),
 ];
 
-/** One Minimal Pair for a `KEYWORD_BONUS` row (CR 702, issue #5345): Terror in
+/** One Minimal Pair for a `KEYWORD_BONUS` row (issue #5345): Terror in
  *  hand against two vanilla 2/2s of the same mana value, a Continuous Effects
  *  Registry entry granting `keyword` to ONE of them. The keyword is the only
  *  difference between the creatures AND between the two halves, so the removal
