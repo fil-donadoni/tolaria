@@ -6705,7 +6705,14 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // mis-tagged "number" and rejected as a malformed
                                 // ref (issue #2392). No other field in the
                                 // vocabulary is named `host`.
-                                keyHint === "host"
+                                keyHint === "host" ||
+                                // `restrictCombat`'s `attacker` (CR 509.1c, issue
+                                // #3713) — the object a "must-block" requirement
+                                // names, an `EffectObjectSelector` exactly like
+                                // `target` (`{ ref: "$source" }` on Rampant
+                                // Elephant). Without a row a bare ref here
+                                // mis-tags "number" and `$source` is rejected.
+                                keyHint === "attacker"
                               ? "object"
                               : "number",
         });
