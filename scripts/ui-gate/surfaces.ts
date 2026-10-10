@@ -3667,9 +3667,11 @@ export const SURFACES: readonly Surface[] = [
                 check: "reachable",
             },
             {
+                // `visible`, not `reachable`: Start is disabled until steps
+                // 4–5 land, and `reachable` proves a click would land.
                 label: "Start match",
                 locator: { role: "button", name: "Start match" },
-                check: "reachable",
+                check: "visible",
             },
         ],
         async walk(page, ctx) {
