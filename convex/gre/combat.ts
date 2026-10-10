@@ -975,6 +975,43 @@ function unobeyedBlockRequirement(state: GameState): string | undefined {
     return `${name} must block this combat if able`;
 }
 
+/** CR 509.1c — a creature that is bound to block a particular attacker but has
+ *  declared ONLY other blocks, with every block it may make already spent, obeys
+ *  none of the requirements it could have obeyed (the maximum is one). The fold
+ *  below only ADDS blocks, so such a creature would dodge the requirement by
+ *  blocking something else (Rampant Elephant's target blocking a different
+ *  attacker). Replace its blocks with the ones it is required to make. A
+ *  creature with room left is untouched — the fold adds to it. */
+function rerouteFullBlockersToRequirement(state: GameState): void {
+    const combat = state.combat;
+    const defender = state.players.find((p) => p.id !== state.activePlayerId);
+    if (!combat || !defender) return;
+    const attacker = state.players.find((p) => p.id === state.activePlayerId);
+    const { baseline } = blockRequirementMaps(state);
+    for (const [blockerId, requiredIds] of Object.entries(baseline)) {
+        const declared = combat.blockerAssignments[blockerId] ?? [];
+        if (declared.length === 0) continue;
+        const blocker = defender.battlefield.find((c) => c.id === blockerId);
+        if (!blocker || declared.length < getMaxBlockTargets(blocker)) continue;
+        // Blocking ANY attacker that binds this blocker obeys a requirement —
+        // `baseline` lists only the first one it could take (Lure, two lured
+        // attackers, one block), so membership in it is too narrow a test.
+        const obeys = declared.some((id) => {
+            if (blocker.mustBlockAllThisTurn) return true;
+            if (blocker.mustBlockAttackersThisTurn?.includes(id)) return true;
+            const atk = attacker?.battlefield.find((c) => c.id === id);
+            return (
+                atk !== undefined &&
+                collectBlockRequirements(atk, state).some(
+                    (r) => r.scope === "all-able"
+                )
+            );
+        });
+        if (obeys) continue;
+        combat.blockerAssignments[blockerId] = [...requiredIds];
+    }
+}
+
 /** CR 509.1a/509.1c — folds must-block requirements (Lure, Blaze of Glory)
  *  into the declaration, obeying the MAXIMUM number the declared-blocker cap
  *  leaves room for. The block-side twin of `foldAttackRequirements`, and the
@@ -993,8 +1030,8 @@ export function foldBlockRequirements(state: GameState): void {
     const combat = state.combat;
     if (!combat) return;
     const cap = getBlockerCapEffect(state)?.max;
-    const { baseline, missing } = blockRequirementMaps(state);
     const assignments = combat.blockerAssignments;
+    const { baseline, missing } = blockRequirementMaps(state);
 
     for (const [blockerId, attackerIds] of Object.entries(missing)) {
         const existing = assignments[blockerId] ?? [];
@@ -1016,6 +1053,10 @@ export function foldBlockRequirements(state: GameState): void {
             ...attackerIds,
         ];
     }
+    // Last: a blocker the loop above could not add to (every block it may make
+    // already spent) but that still obeys nothing it could have obeyed. Runs
+    // after the cap trade so that path keeps resolving as it always did.
+    rerouteFullBlockersToRequirement(state);
 }
 
 /** Validates the COMPLETE set of declared blockers against every blocker's
@@ -1503,29 +1544,10 @@ export function getRequiredBlockerAssignments(
         ];
         const maxTargets = getMaxBlockTargets(blocker);
 
-        // Check mustBlockAllThisTurn (Blaze of Glory)
-        if (blocker.mustBlockAllThisTurn) {
-            for (const attacker of attackers) {
-                if (currentBlocks.length >= maxTargets) break;
-                if (currentBlocks.includes(attacker.id)) continue;
-                if (
-                    validateBlockerEligibility(
-                        attacker,
-                        blocker,
-                        defenderBattlefield,
-                        state
-                    ).eligible
-                ) {
-                    if (!result[blocker.id]) result[blocker.id] = [];
-                    result[blocker.id].push(attacker.id);
-                    currentBlocks.push(attacker.id);
-                }
-            }
-        }
-
         // CR 509.1c — "blocks <attacker> this turn if able" (Rampant Elephant).
         // Only an id naming a CURRENT attacker binds (`attackers` is built from
-        // `attackerIds`, so a stale or non-attacking id finds nothing), and only
+        // `attackerIds`; an id whose object changed zones is dropped by
+        // `resetBattlefieldTransientState`, CR 400.7), and only
         // when the block is legal — evasion, protection or a "can't block"
         // flag excuse it through `validateBlockerEligibility`.
         for (const attackerId of blocker.mustBlockAttackersThisTurn ?? []) {
@@ -1562,6 +1584,29 @@ export function getRequiredBlockerAssignments(
                 if (!result[blocker.id]) result[blocker.id] = [];
                 result[blocker.id].push(attacker.id);
                 currentBlocks.push(attacker.id);
+            }
+        }
+
+        // Check mustBlockAllThisTurn (Blaze of Glory). Runs AFTER the
+        // specific requirements: blocking any attacker obeys it, so a creature
+        // with a single block left takes the attacker that also obeys the
+        // named / Lure requirement (CR 509.1c — maximum requirements).
+        if (blocker.mustBlockAllThisTurn) {
+            for (const attacker of attackers) {
+                if (currentBlocks.length >= maxTargets) break;
+                if (currentBlocks.includes(attacker.id)) continue;
+                if (
+                    validateBlockerEligibility(
+                        attacker,
+                        blocker,
+                        defenderBattlefield,
+                        state
+                    ).eligible
+                ) {
+                    if (!result[blocker.id]) result[blocker.id] = [];
+                    result[blocker.id].push(attacker.id);
+                    currentBlocks.push(attacker.id);
+                }
             }
         }
     }

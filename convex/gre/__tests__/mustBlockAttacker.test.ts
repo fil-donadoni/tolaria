@@ -18,6 +18,7 @@ import {
 } from "../combat";
 import { finalizeCleanup } from "../phases";
 import { compactState, expandState } from "../serialize";
+import { resetBattlefieldTransientState } from "../state";
 import type { CardInstanceState, GameState } from "../state";
 
 function creature(
@@ -236,5 +237,64 @@ describe("lifecycle of the requirement", () => {
         expect(
             back.players[1].battlefield[0].mustBlockAttackersThisTurn
         ).toEqual(["ele"]);
+    });
+});
+
+describe("the requirement cannot be dodged by blocking something else (CR 509.1c)", () => {
+    it("re-routes a full blocker that declared only a different attacker", () => {
+        const state = combatState(
+            [
+                creature("ele", "p1", { isAttacking: true }),
+                creature("other", "p1", { isAttacking: true }),
+            ],
+            [creature("blk", "p2", { mustBlockAttackersThisTurn: ["ele"] })]
+        );
+        state.combat!.blockerAssignments = { blk: ["other"] };
+        foldBlockRequirements(state);
+        expect(state.combat!.blockerAssignments).toEqual({ blk: ["ele"] });
+    });
+
+    it("keeps a block that already obeys the requirement", () => {
+        const state = combatState(
+            [
+                creature("ele", "p1", { isAttacking: true }),
+                creature("other", "p1", { isAttacking: true }),
+            ],
+            [creature("blk", "p2", { mustBlockAttackersThisTurn: ["ele"] })]
+        );
+        state.combat!.blockerAssignments = { blk: ["ele"] };
+        foldBlockRequirements(state);
+        expect(state.combat!.blockerAssignments).toEqual({ blk: ["ele"] });
+    });
+
+    it("takes the attacker that obeys BOTH a named and a mustBlockAll requirement", () => {
+        const state = combatState(
+            [
+                creature("first", "p1", { isAttacking: true }),
+                creature("ele", "p1", { isAttacking: true }),
+            ],
+            [
+                creature("blk", "p2", {
+                    mustBlockAllThisTurn: true,
+                    mustBlockAttackersThisTurn: ["ele"],
+                }),
+            ]
+        );
+        expect(required(state)).toEqual({ blk: ["ele"] });
+    });
+});
+
+describe("a named attacker that changes zones is forgotten (CR 400.7)", () => {
+    it("drops the id from the blocker when the attacker is reset on leaving the battlefield", () => {
+        const ele = creature("ele", "p1", { isAttacking: true });
+        const state = combatState(
+            [ele],
+            [creature("blk", "p2", { mustBlockAttackersThisTurn: ["ele"] })]
+        );
+        resetBattlefieldTransientState(ele, state);
+        expect(
+            state.players[1].battlefield[0].mustBlockAttackersThisTurn
+        ).toBeUndefined();
+        expect(required(state)).toEqual({});
     });
 });
