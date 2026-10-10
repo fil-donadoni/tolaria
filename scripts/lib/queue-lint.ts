@@ -113,7 +113,7 @@ export const TARGET_FILES_FIX =
     "add a `## Target files` section listing the modules/globs it touches (coarse is fine) — the template's `**Target files:**` label is read too";
 
 function hasSection(body: string, name: RegExp): boolean {
-    return body.split("\n").some((l) => HEADING.test(l) && name.test(l));
+    return body.split("\n").some((l) => name.test(l.trim()));
 }
 
 /**
@@ -168,13 +168,13 @@ function looksLikePath(span: string): boolean {
     return span.includes("/") || span.includes(".") || /^\*{1,2}$/.test(span);
 }
 
-/** Lines of the named section, up to the next heading. */
+/** Lines of the named section, up to the next heading or bold section label. */
 function section(body: string, name: RegExp): string[] {
     const lines = body.split("\n");
-    const start = lines.findIndex((l) => HEADING.test(l) && name.test(l));
+    const start = lines.findIndex((l) => name.test(l.trim()));
     if (start === -1) return [];
     const rest = lines.slice(start + 1);
-    const end = rest.findIndex((l) => HEADING.test(l));
+    const end = rest.findIndex((l) => SECTION_BREAK.test(l.trim()));
     return end === -1 ? rest : rest.slice(0, end);
 }
 
@@ -224,7 +224,15 @@ export function parseDependencies(body: string, self: number): number[] {
     return [...found].sort((a, b) => a - b);
 }
 
-const ACCEPTANCE = /acceptance criteria/i;
+/**
+ * The `Acceptance criteria` section label, in BOTH forms the queue contains
+ * (issue #5381). The heading is canonical — every issue-authoring template
+ * writes it — but the Agent Brief template used to emit a bold label, and 104
+ * open issues carry it; they are read, not rewritten.
+ */
+export const ACCEPTANCE_LABEL =
+    /^(?:#{1,6}\s+.*acceptance criteria|\*\*\s*acceptance criteria\s*:?\s*\*\*\s*:?\s*)/i;
+const ACCEPTANCE = ACCEPTANCE_LABEL;
 const PARENT = /^#{1,6}\s+parent/i;
 
 /** Words that mean a human has to look at it. Deliberately narrow: the cost of a

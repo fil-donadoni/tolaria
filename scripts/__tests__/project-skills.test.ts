@@ -3,6 +3,7 @@ import { execFileSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
+import { lintIssue } from "../lib/queue-lint";
 
 /**
  * Project-skill residency guard.
@@ -527,6 +528,74 @@ describe("every queue-facing skill instructs `Target files`", () => {
             silent,
             `queue-facing skill(s) that never mention \`Target files\`:\n${silent.join("\n")}`
         ).toEqual([]);
+    });
+});
+
+describe("every Agent Brief template passes the queue lint's section rules (issue #5381)", () => {
+    const SKILLS = path.join(REPO_ROOT, ".claude", "skills");
+
+    /**
+     * Content-derived: the FIRST fenced block of each skill file that opens
+     * with `## Agent Brief` is its template (later blocks are worked examples,
+     * one of which is deliberately malformed). The template ran bold-labelled
+     * `**Acceptance criteria:**` while the lint read headings only, so every
+     * issue filed verbatim tripped `no-acceptance-criteria`.
+     */
+    const templates = (): { file: string; body: string }[] => {
+        const out: { file: string; body: string }[] = [];
+        for (const name of fs.readdirSync(SKILLS).sort()) {
+            const dir = path.join(SKILLS, name);
+            if (!fs.statSync(dir).isDirectory()) continue;
+            for (const f of fs
+                .readdirSync(dir)
+                .filter((x) => x.endsWith(".md"))) {
+                const text = fs.readFileSync(path.join(dir, f), "utf8");
+                const block = text.match(
+                    /```markdown\n(## Agent Brief\n[\s\S]*?)\n```/
+                );
+                if (block) out.push({ file: `${name}/${f}`, body: block[1] });
+            }
+        }
+        return out;
+    };
+
+    it("finds the real corpus", () => {
+        const files = templates().map((t) => t.file);
+        expect(files).toContain("create-ticket/SKILL.md");
+        expect(files).toContain("triage/AGENT-BRIEF.md");
+    });
+
+    it("writes the canonical heading, never the legacy bold label", () => {
+        // The lint still READS the bold label (104 open issues carry it), so
+        // lint parity alone would let a template drift back to it.
+        const bold = templates()
+            .filter(({ body }) => /\*\*\s*acceptance criteria/i.test(body))
+            .map((t) => t.file);
+        expect(bold).toEqual([]);
+        const noHeading = templates()
+            .filter(({ body }) => !/^## Acceptance criteria$/m.test(body))
+            .map((t) => t.file);
+        expect(noHeading).toEqual([]);
+    });
+
+    it("lints clean on acceptance criteria and target files", () => {
+        const bad = templates().flatMap(({ file, body }) =>
+            lintIssue({
+                number: 1,
+                title: "feat: template",
+                labels: ["enhancement", "ready-for-agent"],
+                parentNumber: null,
+                blockedByNative: null,
+                body,
+            })
+                .filter(
+                    (f) =>
+                        f.rule === "no-acceptance-criteria" ||
+                        f.rule === "no-target-files"
+                )
+                .map((f) => `${file}: ${f.rule}`)
+        );
+        expect(bad).toEqual([]);
     });
 });
 

@@ -61,7 +61,7 @@ What should happen after the fix. Be specific about edge cases.
 - `TypeName` — what needs to change and why
 - `functionName()` — current vs expected behavior
 
-**Acceptance criteria:**
+## Acceptance criteria
 
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
