@@ -49,7 +49,7 @@ export default function SetupPackHero(api: SetupApi) {
                         aria-label={k === 0 ? "Previous source" : "Next source"}
                         onClick={() => step(k === 0 ? -1 : 1)}
                         className={cn(
-                            "absolute top-1/2 flex size-10 -translate-y-1/2 items-center justify-center rounded-full border border-[var(--hairline-strong)] bg-surface-base/80 text-2xl text-parchment hover:border-accent",
+                            "absolute top-3 flex size-10 items-center sm:top-1/2 sm:-translate-y-1/2 justify-center rounded-full border border-[var(--hairline-strong)] bg-surface-base/80 text-2xl text-parchment hover:border-accent",
                             k === 0 ? "left-2" : "right-2"
                         )}
                     >

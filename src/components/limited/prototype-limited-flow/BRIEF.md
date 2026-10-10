@@ -46,3 +46,17 @@ All UI text in English. Must work at phone portrait (375), phone landscape, tabl
   non-creature piles below, with the creature/non-creature filter still available.
   Default sort: colour when grouped by mana value, mana value when grouped by colour.
   Default deck name carries the Pack Source ("Vintage Cube Draft").
+
+## Owner verdicts (prototype review)
+
+- **Hub → variant A (Bento)**, revised: section "Your events"; the New-event
+  bento is a solid parchment tile (wins by contrast), always LAST in Your events,
+  same height as an event tile (half row with 1 or 3 events). It offers "Again:
+  your last event" (localStorage; first visit = Vintage Cube Draft) + "Choose
+  format, seats, timers…". Zero events in progress: the bento is 1/3 width beside
+  the joinable tables (section "Start or join a table"). "Open events" → "Join a
+  table"; chip/badge "Open" → "Waiting" / "Waiting for players".
+- **Setup → variant B (Recap rail + hero showcase)**: selected Pack Source as a
+  large hero (Feature Card art, one-line blurb, implemented bar), ‹ › arrows
+  (top corners on phones), thumbnail strip below. Incompleteness Notice names the
+  pool ("Vintage Cube is missing…").
