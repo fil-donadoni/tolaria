@@ -12310,6 +12310,63 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
     },
+    {
+        // UTILITY LAND STANDING WORTH (issue #5155) — the bot holds a Strip
+        // Mine; the opponent's two lands are an Island and a Library of
+        // Alexandria, with seven cards in hand (the Library's draw is live).
+        // A Strip Mine is plainly better spent on the Library.
+        //
+        // WHY IT WAS WRONG. A land was excluded from the standing-ability
+        // reading (issue #5145) and `permanentRealisedValue` added nothing
+        // beside its mana term, so both lands priced at `permanentWeight +
+        // manaWeight` and the removal lens could not tell them apart: the
+        // pick was the Island, or no activation at all, by rollout noise.
+        label: "removal: Strip Mine takes the Library of Alexandria, not the Island (issue #5155)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Strip Mine",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Island", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Library of Alexandria",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            hiddenHand: { opp: 7 },
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "activate-ability",
+                    card: "Strip Mine",
+                    target: "Library of Alexandria",
+                },
+            ],
+        },
+        note: "Issue #5155. Guards the land branch of `permanentRealisedValue` (`landStandingAbilityValue`, `evaluate.ts`) and the land admission in `carriesStandingAbilityWorth` (`cardValue.ts`). Measured at 400 iterations over 20 seeds: the Library 20/20 with the change (mechanism `material-tiebreak`); with the `!def.types.includes(\"Land\")` exclusion restored in `carriesStandingAbilityWorth`, the Island 20/20. Placed in the OPPONENT'S END STEP on purpose: in the bot's own main phase the same position is held to `pass` by the frozen `hold-trick` root rule (the activation sits inside `outcomeEps` of passing), on the before and after trees alike — a timing gap, not a valuation one, recorded in `docs/findings/5155-hold-trick-defers-instant-speed-land-destruction.md`.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

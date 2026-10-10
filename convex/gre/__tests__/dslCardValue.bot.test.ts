@@ -610,6 +610,41 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     ).toBe(bare);
                 });
 
+                it("a cycling land's hand-only ability is never battlefield worth (review #5155): Triome and channel lands sit at the floor on both faces", () => {
+                    const offBoard = [...registeredDefinitions()].filter(
+                        (d) =>
+                            d.types.includes("Land") &&
+                            !d.types.includes("Creature") &&
+                            (d.activatedAbilities ?? []).some(
+                                (a) =>
+                                    a.activateFromHand === true ||
+                                    a.cost?.discardThis === true
+                            )
+                    );
+                    expect(offBoard.length).toBeGreaterThan(10);
+                    for (const d of offBoard) {
+                        const rest = [
+                            ...(d.activatedAbilities ?? []).filter(
+                                (a) =>
+                                    !isManaAbilityDefinition(a) &&
+                                    a.activateFromHand !== true &&
+                                    a.cost?.discardThis !== true
+                            ),
+                            ...(d.triggeredAbilities ?? []),
+                        ];
+                        // Only a land whose EVERY non-mana ability is the
+                        // hand-only one is pinned at the floor: a cycling
+                        // land with a standing ability besides keeps that.
+                        if (rest.length > 0) continue;
+                        expect(
+                            dslStandingAbilityScriptValue(d),
+                            d.name
+                        ).toBeUndefined();
+                        expect(standingAbilityValueById(d.id), d.name).toBe(0);
+                        expect(cardValueById(d.id), d.name).toBe(landFloor);
+                    }
+                });
+
                 it("census: every catalogue land whose abilities are all mana abilities has no standing worth", () => {
                     const lands = [...registeredDefinitions()].filter(
                         (d) =>

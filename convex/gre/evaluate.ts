@@ -1338,7 +1338,11 @@ function nonCreatureBodyValue(
  *  land has no latent body on the board — the `mana` term IS its body (issue
  *  #149), so this is read BESIDE that term, never instead of it, and a basic
  *  or a dual contributes exactly 0 here. Read from the registry id that
- *  survives the wire projection, like every script reading. */
+ *  survives the wire projection, like every script reading — so, exactly as
+ *  `nonCreatureBodyValue` does for an artifact, it reads the PRINTED
+ *  abilities: a Library under Blood Moon or an ability-stripping effect keeps
+ *  its worth (the pre-existing shape of every registry-keyed reading, not a
+ *  regression of this one). */
 function landStandingAbilityValue(
     perm: CardInstanceState,
     weights: EvalWeights

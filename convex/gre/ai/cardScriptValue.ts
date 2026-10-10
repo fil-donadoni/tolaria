@@ -554,9 +554,14 @@ function abilityScriptOpValue(
         event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
+        activateFromHand?: boolean;
         etbAbility?: boolean;
         targetRequirement?: TargetRequirement;
-        cost?: { sacrifice?: boolean; exileThis?: boolean };
+        cost?: {
+            sacrifice?: boolean;
+            exileThis?: boolean;
+            discardThis?: boolean;
+        };
         /** CR 605.1a / 605.1b — a mana ability, on either shape: an activated
          *  one classified by the engine's one predicate
          *  (`isManaAbilityDefinition`), a triggered one by its own flag. */
@@ -589,10 +594,19 @@ function abilityScriptOpValue(
         // a loss — Seal of Cleansing worth 86 in play would never trade itself
         // for a 48-point artifact. Such a card keeps its `base + MV` worth; the
         // effect is priced where it is spent (the move that activates it).
+        // Issue #5155 (review) — the same class on its HAND side: an ability
+        // activated only from hand (`activateFromHand`) that discards the
+        // card as its cost (`cost.discardThis`) — cycling,
+        // CR 702.29a, "functions only while the card ... is in a player's
+        // hand"; channel takes the same shape — is no part of the permanent's
+        // standing worth either: a Triome on the battlefield is a tapped-in
+        // tri-land, not a cantrip.
         if (
             selection === "standing" &&
             (ability.cost?.sacrifice === true ||
-                ability.cost?.exileThis === true)
+                ability.cost?.exileThis === true ||
+                ability.cost?.discardThis === true ||
+                ability.activateFromHand === true)
         ) {
             continue;
         }

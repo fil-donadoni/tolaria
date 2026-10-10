@@ -19,7 +19,7 @@
 // core) to this module so there is exactly one implementation.
 import type { CardDefinition, PermanentView } from "../cards/types";
 import { tryGetDefinition } from "../cards";
-import { manaValue } from "./constants";
+import { isManaAbilityDefinition, manaValue } from "./constants";
 import {
     dslAbilityScriptValue,
     dslEtbAbilityInFlightValue,
@@ -443,6 +443,15 @@ export function standingAbilityValueById(
 ): number {
     const def = tryGetDefinition(cardId);
     if (!def || !carriesStandingAbilityWorth(def)) return 0;
+    // Read at every leaf for every land on both battlefields (review #5155):
+    // a basic or a dual — the bulk of them — carries nothing the reader could
+    // see, so answer it without building the ability walk.
+    if (
+        !(def.triggeredAbilities?.length ?? 0) &&
+        (def.activatedAbilities ?? []).every(isManaAbilityDefinition)
+    ) {
+        return 0;
+    }
     const standing = dslStandingAbilityScriptValue(
         def,
         contextFreeGrounding(latent)

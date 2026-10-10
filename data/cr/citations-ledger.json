@@ -41429,6 +41429,7 @@
         {"id":"702.29a","line":"// CR 702.29a — the card left the hand to the graveyard as a cost.","sites":1,"status":"baseline"},
         {"id":"702.29a","line":"// CR 702.29a — the discard-this cost moved the source hand → graveyard.","sites":1,"status":"baseline"},
         {"id":"702.29a","line":"// CR 702.29a's \"functions only while the card is in a player's hand\" is","sites":1,"status":"baseline"},
+        {"id":"702.29a","line":"// CR 702.29a, \"functions only while the card ... is in a player's","sites":1,"status":"confirmed","ruleHash":"9fcffeae8954421a"},
         {"id":"702.29a","line":"// CR 702.29a/f — the discard is a COST, paid on the way to the stack.","sites":1,"status":"baseline"},
         {"id":"702.29a","line":"// CR 702.29a: \"Cycling [cost]\" means \"[cost], Discard this card: Draw a card.\"","sites":2,"status":"baseline"},
         {"id":"702.29a","line":"// Cycling is the shared `cyclingAbility` factory (CR 702.29a Cycling).","sites":1,"status":"baseline"},

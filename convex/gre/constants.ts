@@ -1776,18 +1776,9 @@ export function manaTapExertsSource(
 export function finiteManaCounterLeg(
     ability: ActivatedAbility
 ): { type: string; count: number } | null {
-    if (ability.useStack) return null;
     // The same mana-output declaration `getActivatedManaAbility` reads, so a
     // descriptor-only ability counts here exactly as it counts there.
-    if (
-        !(
-            ability.manaProduced ||
-            ability.manaChoices ||
-            ability.manaColorSource
-        )
-    ) {
-        return null;
-    }
+    if (!isManaAbilityDefinition(ability)) return null;
     const leg = ability.cost.removeCounter;
     if (!leg || leg.count <= 0) return null;
     // The SAME admission the payment planner uses (PR #3566 review finding 3):
@@ -2616,9 +2607,14 @@ export function getManaChoiceCounterCost(
  *  so this clause is inert today, but a descriptor-ONLY ability would
  *  otherwise read as having NO mana ability). The ONE predicate every site
  *  that classifies a definition's abilities reads (issue #5155):
- *  `getActivatedManaAbility` / `hasNonManaActivatedAbility` below, and the
- *  Brain's standing-ability reader (`ai/cardScriptValue.ts`), which must skip
- *  a land's mana abilities because the `mana` term already scores them. */
+ *  `getActivatedManaAbility` / `hasNonManaActivatedAbility` /
+ *  `finiteManaCounterLeg` here, the search's standing-spend hold
+ *  (`search.ts`), and the Brain's standing-ability reader
+ *  (`ai/cardScriptValue.ts`), which must skip a land's mana abilities because
+ *  the `mana` term already scores them. A `getManaChoices` chooser with no
+ *  static output declared beside it is NOT counted — no shipped card has one,
+ *  every chooser card also carries `manaChoices` — because it reads every
+ *  battlefield, which a definition-level predicate cannot supply. */
 export function isManaAbilityDefinition(
     ability: Pick<
         ActivatedAbility,
