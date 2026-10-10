@@ -1,4 +1,9 @@
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
+import {
+    admissionRefusal,
+    resolveMatchFormat,
+    type FormatId,
+} from "./formatAdmission";
 import { snapshotDeck, type MatchPlayer } from "./matches";
 
 // The seat-building vocabulary shared by every function that opens a table
@@ -109,6 +114,40 @@ export const deckValidator = v.object({
 });
 
 export const bestOfValidator = v.optional(v.union(v.literal(1), v.literal(3)));
+
+/** A creating mutation's Match Format argument (ADR 0153). Optional so a client
+ *  that predates it keeps working: an absent one is the first seat's Deck
+ *  Format, the same default `resolveMatchFormat` gives a legacy row. */
+export const matchFormatValidator = v.optional(
+    v.union(
+        v.literal("freeform"),
+        v.literal("alpha-40"),
+        v.literal("old-school"),
+        v.literal("premodern"),
+        v.literal("limited"),
+        v.literal("manual")
+    )
+);
+
+/** Refuses a seat whose Deck the Match Format does not admit (ADR 0153) — the
+ *  one throw every create and join mutation shares, so the wording a player
+ *  reads is the same however they reached the table. */
+export function assertDeckAdmitted(
+    deck: { format: string },
+    matchFormat: FormatId
+): void {
+    const refusal = admissionRefusal(deck.format, matchFormat);
+    if (refusal !== null) throw new ConvexError(refusal);
+}
+
+/** A waiting table's Match Format: the owning Match's stored one, or — for a
+ *  Match created before ADR 0153 — its host's Deck Format. */
+export function waitingMatchFormat(
+    match: { matchFormat?: FormatId } | null,
+    game: { players: readonly { deck: { format: string } }[] }
+): FormatId | null {
+    return resolveMatchFormat(match?.matchFormat, game.players[0]?.deck.format);
+}
 
 /**
  * The Tabletop-side deck gate (ADR 0080), mirroring the three real-engine

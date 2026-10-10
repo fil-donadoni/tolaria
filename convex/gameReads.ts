@@ -4,6 +4,8 @@ import { auth, getCurrentUser } from "./auth";
 import { seatBelongsToUser } from "./gameLifecycle";
 import { activeGameOpponentName, findActiveMatchForUser } from "./matches";
 import { loadGameSeatCards } from "./deckStore";
+import { waitingMatchFormat } from "./gameSeats";
+import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
     getLatestManualState,
     projectManualState,
@@ -187,8 +189,9 @@ export const getManualLibraryTop = query({
 /** Lightweight info for the invite antechamber (`/join/<gameId>`). Deliberately
  *  does NOT return either player's decklist — a prospective joiner must never
  *  see the host's cards. Exposes only what the join page renders: who created
- *  the game, its format (the joiner's deck list is filtered by `formatsCompatible`; `joinGame` enforces it), and whether
- *  the game is still joinable. Returns `null` for an unknown id. */
+ *  the game, its Match Format (ADR 0153 — the joiner's deck list is filtered by
+ *  `isDeckAdmitted`; `joinGame` enforces it) and Games Format, and whether the
+ *  game is still joinable. Returns `null` for an unknown id. */
 export const getJoinInfo = query({
     args: {
         gameId: v.id("games"),
@@ -199,13 +202,14 @@ export const getJoinInfo = query({
         if (!game) return null;
         const host = game.players[0];
         const isHost = game.players.some((p) => p.id === user._id);
+        const match = game.matchId ? await ctx.db.get(game.matchId) : null;
         return {
             gameId: game._id,
             name: game.name,
             hostName: host?.name ?? "Unknown",
-            // Game format = the host deck's declared format (ADR 0036). Solo
-            // games shouldn't surface here, but fall back defensively.
-            format: host?.deck.format ?? "freeform",
+            // A seatless row shouldn't surface here; fall back defensively.
+            matchFormat: waitingMatchFormat(match, game) ?? "freeform",
+            gamesFormat: gamesFormatForBestOf(match?.bestOf ?? 1),
             status: game.status,
             playerCount: game.players.length,
             isHost,
@@ -222,9 +226,10 @@ export const getJoinInfo = query({
  *  subscription only re-fires (and reads docs) for `waiting` games — not the
  *  whole table. Finished/solo games never enter this query's bandwidth.
  *
- *  Each row carries the owning Match's `bestOf` (PRD #387 / #397) so the join
- *  UI can surface the inherited format ("Bo3 Match") BEFORE the player commits
- *  — a joiner inherits the creator's format, not their own lobby selection. */
+ *  Each row carries the owning Match's Match Format (ADR 0153) and Games Format
+ *  (PRD #387 / #397) so the join UI can surface and gate on them BEFORE the
+ *  player commits — a joiner inherits both from the creator, not from their own
+ *  lobby selection. */
 export const listOpenGames = query({
     handler: async (ctx) => {
         const userId = await auth.getUserId(ctx);
@@ -245,8 +250,9 @@ export const listOpenGames = query({
         );
         return Promise.all(
             mine.map(async (g) => {
-                // The Match owns `bestOf`; a waiting Game always has a matchId
-                // (createGame inserts both). Default to Bo1 if the Match is gone.
+                // The Match owns both Formats; a waiting Game always has a
+                // matchId (createGame inserts both). A Match that is gone reads
+                // as Bo1 with its host's Deck Format.
                 const match = g.matchId ? await ctx.db.get(g.matchId) : null;
                 // A join code is the HOST's to share (issue #2649). This query
                 // spreads the raw row, so without the strip every open table's
@@ -254,7 +260,14 @@ export const listOpenGames = query({
                 // handing out by broadcast the one thing a code is for.
                 const { joinCode, ...row } = g;
                 void joinCode;
-                return { ...row, bestOf: (match?.bestOf ?? 1) as 1 | 3 };
+                return {
+                    ...row,
+                    // Kept beside `gamesFormat` for a lobby on the previous
+                    // bundle, which still reads it.
+                    bestOf: (match?.bestOf ?? 1) as 1 | 3,
+                    matchFormat: waitingMatchFormat(match, g) ?? "freeform",
+                    gamesFormat: gamesFormatForBestOf(match?.bestOf ?? 1),
+                };
             })
         );
     },

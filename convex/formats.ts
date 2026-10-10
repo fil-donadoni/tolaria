@@ -21,60 +21,20 @@ import { resolveDeckCardMeta, type DeckCardMeta } from "./cards";
 // name-vs-oracle-id join rationale and the collision handling.
 import oracleLegalityData from "../data/oracle-legality.json";
 
-/**
- * The three shipped Formats (ADR 0036). A row's `format` field is one of these
- * three literals — the schema types it as a `v.union` of exactly these values,
- * so a non-conforming string is rejected at the DB boundary.
- */
-export type FormatId =
-    | "freeform"
-    | "alpha-40"
-    | "old-school"
-    | "premodern"
-    | "limited"
-    | "manual";
-
-/** Every valid `FormatId`, in display order. The single source of truth the
- *  schema union, the create-flow select, and the validators all key off. */
-export const FORMAT_IDS: readonly FormatId[] = [
-    "freeform",
-    "alpha-40",
-    "old-school",
-    "premodern",
-    "limited",
-    "manual",
-] as const;
-
-/** Type guard: is an arbitrary string a known `FormatId`? Used by the schema
- *  validator boundary and the migration to reject/normalize legacy values. */
-export function isFormatId(value: string): value is FormatId {
-    return (FORMAT_IDS as readonly string[]).includes(value);
-}
-
-/** Format Compatibility family (CONTEXT.md § Format Compatibility, ADR 0145):
- *  Formats in the same family may meet in one Match. `standard` is every
- *  Standard-Variant Format (freeform, alpha-40, old-school, premodern — today
- *  any two meet, so Premodern may meet Old School); `limited` and `manual`
- *  each meet only themselves. The Commander Formats will add one family per
- *  Commander Profile. */
-type CompatibilityFamily = "standard" | "limited" | "manual";
-
-function compatibilityFamily(format: FormatId): CompatibilityFamily {
-    if (format === "limited") return "limited";
-    if (format === "manual") return "manual";
-    return "standard";
-}
-
-/**
- * Format Compatibility (CONTEXT.md, ADR 0145): may a Deck of Format `a` meet a
- * Deck of Format `b` in one Match? A pure, symmetric function of the two
- * Formats and the single authority — `joinGame`/`joinGameByCode` enforce it and
- * the lobby filters by it. Limited's same-Event scoping is a separate check
- * (`assertSameEventDeck`) that stays where it is.
- */
-export function formatsCompatible(a: FormatId, b: FormatId): boolean {
-    return compatibilityFamily(a) === compatibilityFamily(b);
-}
+// The Format identity and Match Format admission (ADR 0153) live in the
+// card-free `./formatAdmission` so the lobby reads and the Tabletop mutations
+// can enforce admission without importing the card registry this module needs.
+import { FORMAT_LABELS, isFormatId, type FormatId } from "./formatAdmission";
+export {
+    FORMAT_IDS,
+    FORMAT_LABELS,
+    admissionRefusal,
+    isDeckAdmitted,
+    isFormatId,
+    resolveMatchFormat,
+    toFormatId,
+    type FormatId,
+} from "./formatAdmission";
 
 /**
  * A single legality failure reason: a stable machine `code` plus a precise,
@@ -1278,14 +1238,14 @@ function limitedValidate(
  */
 export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
     freeform: {
-        label: "Freeform",
+        label: FORMAT_LABELS.freeform,
         allowedSets: null,
         minMain: 0,
         maxSide: null,
         validate: noReasons,
     },
     "alpha-40": {
-        label: "Alpha 40",
+        label: FORMAT_LABELS["alpha-40"],
         // Alpha/Beta only (lea/leb), >=40 maindeck, no sideboard.
         allowedSets: ["lea", "leb"],
         minMain: 40,
@@ -1296,7 +1256,7 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         validate: alpha40Validate,
     },
     "old-school": {
-        label: "Old School (93/94)",
+        label: FORMAT_LABELS["old-school"],
         // The implemented eternal sets, >=60 maindeck, <=15 sideboard.
         // Unlimited (2ed) reprints the Beta list and is Old-School-legal (#560).
         // Revised (3ed) is a 100% reprint of the eternal pool — also legal (#561).
@@ -1308,7 +1268,7 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         validate: oldSchoolValidate,
     },
     premodern: {
-        label: "Premodern",
+        label: FORMAT_LABELS.premodern,
         // 4th Edition → Scourge + Portal, intersected with the built pool,
         // >=60 maindeck, <=15 sideboard. See PREMODERN_LEGAL_SETS.
         allowedSets: [...PREMODERN_LEGAL_SETS],
@@ -1319,7 +1279,7 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
         validate: premodernValidate,
     },
     limited: {
-        label: "Limited",
+        label: FORMAT_LABELS.limited,
         // Pool-scoped, not set-scoped (ADR 0054/0055) — checkSets is never
         // called; checkPoolMembership is the whole legality surface.
         allowedSets: null,
@@ -1335,7 +1295,7 @@ export const FORMAT_RULES: Record<FormatId, FormatMeta> = {
     // createGame/joinGame/createSoloGame, not in the format validator —
     // this validator never reads which mode it runs in.
     manual: {
-        label: "Tabletop",
+        label: FORMAT_LABELS.manual,
         allowedSets: null,
         minMain: 0,
         maxSide: null,

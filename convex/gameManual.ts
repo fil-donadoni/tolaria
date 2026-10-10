@@ -22,7 +22,9 @@ import {
     assertTabletopDeck,
     bestOfValidator,
     buildMatchPlayers,
+    assertDeckAdmitted,
     deckValidator,
+    waitingMatchFormat,
     toGamePlayers,
     type PlayerInput,
 } from "./gameSeats";
@@ -111,6 +113,9 @@ export const createManualSoloGame = mutation({
         const matchPlayers = buildMatchPlayers(allPlayers);
         const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
+            // Cockatrice fixes the Match Format to Manual (ADR 0153 § 4);
+            // `assertTabletopDeck` above is that Format's admission.
+            matchFormat: "manual",
             status: "playing",
             players: matchPlayers,
             currentGameNumber: 1,
@@ -186,6 +191,8 @@ export const createManualGame = mutation({
 
         const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
+            // Cockatrice fixes the Match Format to Manual (ADR 0153 § 4).
+            matchFormat: "manual",
             status: "waiting",
             players: buildMatchPlayers([player]),
             currentGameNumber: 1,
@@ -241,6 +248,10 @@ export const joinManualGame = mutation({
         if (game.players.length >= 2) throw new Error("Game is full");
         if (game.players.some((p) => p.id === user._id))
             throw new Error("Cannot join a game you are already in");
+        // Match Format admission (ADR 0153): the join inherits the host's.
+        const match = game.matchId ? await ctx.db.get(game.matchId) : null;
+        const matchFormat = waitingMatchFormat(match, game);
+        if (matchFormat !== null) assertDeckAdmitted(args.deck, matchFormat);
 
         const player: PlayerInput = {
             id: user._id,
@@ -259,19 +270,11 @@ export const joinManualGame = mutation({
         // No coin toss, no pregame gate: the table is live the moment the
         // second player sits down (ADR 0080 — no automation, concede is the
         // only terminator).
-        if (game.matchId) {
-            const match = await ctx.db.get(game.matchId);
-            if (match) {
-                await appendMatchSeat(
-                    ctx,
-                    match,
-                    buildMatchPlayers([player])[0],
-                    {
-                        status: "playing",
-                        updatedAt: now,
-                    }
-                );
-            }
+        if (match) {
+            await appendMatchSeat(ctx, match, buildMatchPlayers([player])[0], {
+                status: "playing",
+                updatedAt: now,
+            });
         }
 
         await patchGameSeats(ctx, args.gameId, allPlayers, {

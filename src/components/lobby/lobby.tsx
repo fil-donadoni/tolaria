@@ -14,6 +14,7 @@ import {
 } from "~/hooks/useLimitedEvent";
 import {
     deckPayload,
+    filterDecksAdmittedBy,
     filterDecksByFormat,
     selectPreset,
     toPresetLobbyDeck,
@@ -213,11 +214,23 @@ function Lobby() {
         [allDecks, storedPresetId]
     );
 
-    // null aiDeckId → mirror the human's deck. A stale id (deleted deck) also
-    // resolves to null here and silently falls back to mirror at create time.
+    // The Bot's Deck is admitted against the Match Format exactly like the
+    // player's (ADR 0153) — and in today's lobby the Match Format IS the
+    // selected deck's Format — so the picker offers only admitted decks.
+    const aiDeckCandidates = useMemo<LobbyDeck[]>(
+        () =>
+            selectedDeck
+                ? filterDecksAdmittedBy(allDecks, selectedDeck.format)
+                : [],
+        [allDecks, selectedDeck]
+    );
+
+    // null aiDeckId → mirror the human's deck. A stale id (deleted deck, or
+    // one the current Match Format no longer admits) also resolves to null
+    // here and falls back to mirror at create time.
     const selectedAiDeck = useMemo(
-        () => selectPreset(allDecks, aiDeckId),
-        [allDecks, aiDeckId]
+        () => selectPreset(aiDeckCandidates, aiDeckId),
+        [aiDeckCandidates, aiDeckId]
     );
 
     useEffect(() => {
@@ -277,6 +290,7 @@ function Lobby() {
                           name: `${user.nickname}'s game`,
                           deck: deckPayload(deck),
                           bestOf: gamesFormat,
+                          matchFormat: deck.format,
                       });
             return { gameId: id, playerId: user._id };
         });
@@ -287,6 +301,7 @@ function Lobby() {
                 name: `${user.nickname}'s solo game`,
                 deck: deckPayload(deck),
                 bestOf: gamesFormat,
+                matchFormat: deck.format,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -302,6 +317,7 @@ function Lobby() {
                 deck2: selectedAiDeck ? deckPayload(selectedAiDeck) : undefined,
                 vsAi: true,
                 bestOf: gamesFormat,
+                matchFormat: deck.format,
             });
             return { gameId: id, playerId: `${user._id}-p1` };
         });
@@ -760,8 +776,8 @@ function Lobby() {
                 onOpenChange={setVsAiOpen}
                 difficulty={difficulty}
                 onDifficultyChange={handleDifficultyChange}
-                decks={allDecks}
-                aiDeckId={aiDeckId}
+                decks={aiDeckCandidates}
+                aiDeckId={selectedAiDeck?.presetId ?? null}
                 onAiDeckChange={handleAiDeckChange}
                 onConfirm={handleCreateVsAi}
                 pending={isBusy}

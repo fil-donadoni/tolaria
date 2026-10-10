@@ -131,12 +131,7 @@ import {
 } from "./gre/payWith";
 import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
-import {
-    assertDeckLegal,
-    formatsCompatible,
-    isFormatId,
-    type ResolvePool,
-} from "./formats";
+import { assertDeckLegal, toFormatId, type ResolvePool } from "./formats";
 import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import {
@@ -284,9 +279,12 @@ import { asDbRounds, callerOwnsSeat } from "./gameLifecycle";
 import {
     ACTIVE_GAME_MESSAGE,
     PLAYER_COLORS,
+    assertDeckAdmitted,
     bestOfValidator,
     buildMatchPlayers,
     deckValidator,
+    matchFormatValidator,
+    waitingMatchFormat,
     toGamePlayers,
     type DeckInput,
     type PlayerInput,
@@ -2908,6 +2906,9 @@ export const createGame = mutation({
         bgColor: v.optional(v.string()),
         // Bo1 | Bo3 (PRD #387). Defaults to Bo1 — the only format #392 plays.
         bestOf: bestOfValidator,
+        // The Match Format every seat is admitted against (ADR 0153).
+        // Absent ⇒ the host Deck's Format.
+        matchFormat: matchFormatValidator,
         // An UNLISTED table (issue #4670, `schema.ts` § games): joinable by
         // link or code, never broadcast by `listOpenGames`.
         unlisted: v.optional(v.boolean()),
@@ -2937,6 +2938,9 @@ export const createGame = mutation({
             await loadBanlistOverrides(ctx, args.deck.format),
             await loadLimitedPoolResolver(ctx, args.deck, user._id)
         );
+        // Match Format admission (ADR 0153): the host's own seat too.
+        const matchFormat = args.matchFormat ?? toFormatId(args.deck.format);
+        assertDeckAdmitted(args.deck, matchFormat);
         const now = Date.now();
 
         const player: PlayerInput = {
@@ -2950,6 +2954,7 @@ export const createGame = mutation({
         // builds Game 1. The waiting game row carries the matchId up front.
         const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
+            matchFormat,
             status: "waiting",
             players: buildMatchPlayers([player]),
             currentGameNumber: 1,
@@ -3356,6 +3361,10 @@ export const createSoloGame = mutation({
         limitedEventId: v.optional(v.id("limitedEvents")),
         // Bo1 | Bo3 (PRD #387). Defaults to Bo1.
         bestOf: bestOfValidator,
+        // The Match Format both seats are admitted against (ADR 0153) —
+        // `deck2` (the Bot's or the second seat's) included. Absent ⇒ seat
+        // 1's Deck Format.
+        matchFormat: matchFormatValidator,
     },
     handler: async (ctx, args) => {
         // ADR 0080 — a manual-format deck is rejected by the real engine.
@@ -3390,6 +3399,19 @@ export const createSoloGame = mutation({
                 );
         }
         const deck2 = args.deck2 ?? args.deck;
+        // Match Format admission (ADR 0153): both seats, before any legality
+        // work — a client that offered an inadmissible Bot deck is refused
+        // here, not trusted. An absent one is seat 1's Deck Format — except
+        // for an event-bound "Play vs the Table" playtest, whose Bot list
+        // rides as Freeform (`limited-vs-ai-panel.tsx` sends "freeform"
+        // explicitly; this keeps a tab on the pre-ADR-0153 bundle working).
+        const matchFormat =
+            args.matchFormat ??
+            (args.limitedEventId && args.deck2
+                ? "freeform"
+                : toFormatId(args.deck.format));
+        assertDeckAdmitted(args.deck, matchFormat);
+        assertDeckAdmitted(deck2, matchFormat);
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be
         // legal before the solo/vs-AI Match starts. Each deck's own DB banlist
         // override (PRD #1138, issue #1144) is loaded independently — the two
@@ -3438,6 +3460,7 @@ export const createSoloGame = mutation({
         const tossWinnerId = pickCoinTossWinner(matchPlayers, Math.random());
         const matchId = await insertMatchWithDecks(ctx, {
             bestOf: args.bestOf ?? 1,
+            matchFormat,
             status: "pregame",
             players: matchPlayers,
             currentGameNumber: 1,
@@ -3540,22 +3563,6 @@ type JoinTargetResolver = (
     ctx: MutationCtx
 ) => Promise<Doc<"games"> | null | undefined>;
 
-/** Refuses a joiner whose Deck's Format cannot meet the host's (Format
- *  Compatibility). An unknown format string is treated as `freeform`, the same
- *  fallback `assertDeckLegal` uses. */
-function assertFormatCompatibleWithHost(
-    game: Doc<"games">,
-    joinerFormat: string
-): void {
-    const hostFormat = game.players[0]?.deck.format;
-    if (hostFormat === undefined) return;
-    const asId = (f: string) => (isFormatId(f) ? f : "freeform");
-    if (!formatsCompatible(asId(hostFormat), asId(joinerFormat)))
-        throw new ConvexError(
-            `This table's host plays ${hostFormat}; a ${joinerFormat} deck cannot join it. Pick a compatible deck.`
-        );
-}
-
 /** The whole of a second-seat join: thirteen guards in a fixed order, then the
  *  seat write and the Match's coin-toss gate.
  *
@@ -3649,10 +3656,14 @@ async function joinWaitingGame(
         await loadLimitedPoolResolver(ctx, args.deck, user._id)
     );
 
-    // Format Compatibility (CONTEXT.md, ADR 0145): enforced here, after the
-    // deck's own legality, not merely hinted by `getJoinInfo`. The host's Format
-    // rides on the seat row itself, so no decklist hydration is needed.
-    assertFormatCompatibleWithHost(game, args.deck.format);
+    // Match Format admission (ADR 0153): enforced here, after the deck's own
+    // legality, not merely hinted by `getJoinInfo`. The joiner is admitted
+    // against the Match Format the host's Match stores (or, for a Match from
+    // before it was stored, the host's Deck Format) — never against the
+    // host's Deck.
+    const match = game.matchId ? await ctx.db.get(game.matchId) : null;
+    const matchFormat = waitingMatchFormat(match, game);
+    if (matchFormat !== null) assertDeckAdmitted(args.deck, matchFormat);
 
     const player: PlayerInput = {
         id: user._id,
@@ -3672,20 +3683,17 @@ async function joinWaitingGame(
     // 103.2-103.4): add the joiner's deck snapshot, flip the Match to
     // "pregame", and record the toss winner as the play/draw chooser. Game 1
     // is NOT built yet — `chooseFirstPlayer` builds it once the choice lands.
-    if (game.matchId) {
-        const match = await ctx.db.get(game.matchId);
-        if (match) {
-            const joiner = buildMatchPlayers([player])[0];
-            const tossWinnerId = pickCoinTossWinner(
-                [...match.players, joiner],
-                Math.random()
-            );
-            await appendMatchSeat(ctx, match, joiner, {
-                status: "pregame",
-                playDrawChooserId: tossWinnerId,
-                updatedAt: now,
-            });
-        }
+    if (match) {
+        const joiner = buildMatchPlayers([player])[0];
+        const tossWinnerId = pickCoinTossWinner(
+            [...match.players, joiner],
+            Math.random()
+        );
+        await appendMatchSeat(ctx, match, joiner, {
+            status: "pregame",
+            playDrawChooserId: tossWinnerId,
+            updatedAt: now,
+        });
     }
 
     // Update game record (no gameStates row until the toss is resolved).

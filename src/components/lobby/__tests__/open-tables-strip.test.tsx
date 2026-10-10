@@ -1,6 +1,6 @@
 // Tables other players opened (issue #2726) — extracted from the retired
 // `dashboard-play-box.tsx`, and carrying forward the two things its own tests
-// guarded: the joiner sees the creator's Bo1/Bo3 format BEFORE committing
+// guarded: the joiner sees the creator's Match Format and Bo1/Bo3 BEFORE committing
 // (PRD #387 / #397), and a row whose table mode the current game mode cannot
 // join is disabled rather than dispatched into a server rejection (ADR 0080).
 import { describe, it, expect, vi } from "vitest";
@@ -20,7 +20,8 @@ function makeGame(overrides: Partial<OpenGame> = {}): OpenGame {
                 deck: { format: "freeform" },
             },
         ],
-        bestOf: 1,
+        matchFormat: "freeform",
+        gamesFormat: "bo1",
         ...overrides,
     } as unknown as OpenGame;
 }
@@ -53,16 +54,16 @@ describe("OpenTablesStrip (issue #2726)", () => {
         expect(undef.container.innerHTML).toBe("");
     });
 
-    it("shows the creator's games format on the row, before joining (PRD #397)", () => {
+    it("shows the creator's Match Format and Games Format on the row, before joining (PRD #397, ADR 0153)", () => {
         const { getByText, unmount } = renderStrip({
-            openGames: [makeGame({ bestOf: 3 })],
+            openGames: [
+                makeGame({ matchFormat: "premodern", gamesFormat: "bo3" }),
+            ],
         });
-        expect(getByText("Bo3 Match")).toBeTruthy();
+        expect(getByText("Premodern · Bo3")).toBeTruthy();
         unmount();
         expect(
-            renderStrip({ openGames: [makeGame({ bestOf: 1 })] }).getByText(
-                "Bo1 Match"
-            )
+            renderStrip({ openGames: [makeGame()] }).getByText("Freeform · Bo1")
         ).toBeTruthy();
     });
 
@@ -105,24 +106,29 @@ describe("OpenTablesStrip (issue #2726)", () => {
         expect(arenaRow.title).toContain("switch to Arena mode");
     });
 
-    it("disables a table whose host Format cannot meet the picked deck, and says why (issue #4611)", () => {
-        const limitedTable = makeGame({
+    it("disables a table whose Match Format does not admit the picked deck, and says why (ADR 0153)", () => {
+        // The HOST's deck is Premodern too: the gate reads the Match Format,
+        // never the host's Deck.
+        const table = makeGame({
+            matchFormat: "old-school",
             players: [
-                { id: "u", nickname: "Host", deck: { format: "limited" } },
+                { id: "u", nickname: "Host", deck: { format: "premodern" } },
             ],
         } as unknown as Partial<OpenGame>);
         const { getByRole, props } = renderStrip({
-            openGames: [limitedTable],
+            openGames: [table],
             deckFormat: "premodern",
         });
         const row = getByRole("button") as HTMLButtonElement;
         expect(row.disabled).toBe(true);
-        expect(row.title).toMatch(/cannot join/i);
+        expect(row.title).toBe(
+            "This Match's Format is Old School (93/94); Premodern decks cannot sit at it."
+        );
         fireEvent.click(row);
         expect(props.onJoin).not.toHaveBeenCalled();
     });
 
-    it("keeps a table joinable across two different Standard-Variant Formats (issue #4611)", () => {
+    it("keeps a Freeform Match joinable with any non-Manual deck (ADR 0153)", () => {
         const { getByRole } = renderStrip({ deckFormat: "premodern" });
         expect((getByRole("button") as HTMLButtonElement).disabled).toBe(false);
     });
