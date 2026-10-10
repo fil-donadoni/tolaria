@@ -46,9 +46,10 @@ export default function DeckGrid({
     return (
         <div className="flex flex-col gap-3">
             {mirror && (
-                <div data-mirror-choice className="flex">
+                <div className="flex">
                     <SetupChoice
                         title="Mirror"
+                        seam="mirror"
                         hint="Plays your deck — always admitted"
                         selected={mirror.selected}
                         onSelect={mirror.onSelect}

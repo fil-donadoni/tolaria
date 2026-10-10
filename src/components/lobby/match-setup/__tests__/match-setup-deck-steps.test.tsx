@@ -62,7 +62,7 @@ const tileButton = (id: string) =>
     )!;
 
 const mirror = () =>
-    document.querySelector<HTMLButtonElement>("[data-mirror-choice] button")!;
+    document.querySelector<HTMLButtonElement>('[data-setup-choice="mirror"]')!;
 
 /** Nothing stored: the setup a first visit opens on, answered to step 4. */
 const firstVisit = (patch: Partial<MatchSetup>): MatchSetup => ({

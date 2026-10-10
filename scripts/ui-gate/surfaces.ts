@@ -3666,7 +3666,7 @@ export const SURFACES: readonly Surface[] = [
                 // A selector, not role+name: the choice's accessible name
                 // carries its hint line too, and role names match exactly.
                 label: "Mirror",
-                locator: { selector: "[data-mirror-choice] button" },
+                locator: { selector: '[data-setup-choice="mirror"]' },
                 check: "reachable",
             },
             {
