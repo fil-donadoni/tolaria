@@ -52916,6 +52916,14 @@
         "source": "compiled"
     },
     {
+        "name": "Shoreline Raider",
+        "scryfallId": "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
+        "oracleId": "79dcc432-e8f5-4f2b-bff8-5ae964714666",
+        "firstSet": "inv",
+        "firstPrintId": "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Shoreline Salvager",
         "scryfallId": "17d87345-9f89-4b65-ae9c-a0f46b1e9f31",
         "oracleId": "02c08d0b-0d76-4533-a7e9-d40c7c4b3450",
