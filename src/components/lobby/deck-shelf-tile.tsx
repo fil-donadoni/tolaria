@@ -10,12 +10,15 @@ interface DeckShelfTileProps {
      *  browses (none today — stated as a prop so the affordance is explicit
      *  rather than implied by the presence of an `onSelect` closure). */
     onSelect: (presetId: string) => void;
-    onOpen: (presetId: string) => void;
+    /** Open the deck. Absent on a pick-only grid (the setup flow's deck
+     *  steps, issue #5341), which drops the whole "⋯" overflow: a picker
+     *  offers no deck management. */
+    onOpen?: (presetId: string) => void;
     /** Overflow actions. `undefined` when the viewer may not perform them (a
      *  non-admin over a preset shelf), which drops that ITEM from the "⋯" menu
-     *  rather than rendering a dead row. The trigger itself always renders:
-     *  `onOpen` is mandatory, and Open is the one action a shelf tile can never
-     *  show inline (its own click is spent on selecting). */
+     *  rather than rendering a dead row. The trigger renders whenever
+     *  `onOpen` does: Open is the one action a shelf tile can never show
+     *  inline (its own click is spent on selecting). */
     onEdit?: (presetId: string) => void;
     onDelete?: (presetId: string) => void;
 }
@@ -109,16 +112,20 @@ export default function DeckShelfTile({
                 </span>
             )}
 
-            <div className="absolute right-0.5 top-0.5 z-10">
-                <DeckRowMenu
-                    deckName={deck.name}
-                    onOpen={() => onOpen(deck.presetId)}
-                    onEdit={onEdit ? () => onEdit(deck.presetId) : undefined}
-                    onDelete={
-                        onDelete ? () => onDelete(deck.presetId) : undefined
-                    }
-                />
-            </div>
+            {onOpen && (
+                <div className="absolute right-0.5 top-0.5 z-10">
+                    <DeckRowMenu
+                        deckName={deck.name}
+                        onOpen={() => onOpen(deck.presetId)}
+                        onEdit={
+                            onEdit ? () => onEdit(deck.presetId) : undefined
+                        }
+                        onDelete={
+                            onDelete ? () => onDelete(deck.presetId) : undefined
+                        }
+                    />
+                </div>
+            )}
         </div>
     );
 }

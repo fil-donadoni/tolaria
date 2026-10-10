@@ -1,10 +1,10 @@
-// Steps 4–5 until their deck grids land (PRD #5334, issue #5340 → the next
-// slice): the step is reachable in the rail, it just has nothing to pick yet.
+// The table step until Join a table lands (PRD #5334 story 27): no stored
+// setup reaches it today (`OFFERED_OPPONENTS` omits Join), but the step key
+// exists, so it renders something rather than nothing.
 export default function PendingStep() {
     return (
         <p className="text-sm text-text-muted">
-            Deck choice arrives in the next update. Until then, start a match
-            from the lobby.
+            Joining a table arrives in a later update.
         </p>
     );
 }
