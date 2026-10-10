@@ -20,7 +20,11 @@ export default function ModeStep({
     onChange: (patch: Partial<MatchSetup>) => void;
 }) {
     return (
-        <div className="flex flex-wrap gap-2">
+        <div
+            role="group"
+            aria-label="Game mode"
+            className="flex flex-wrap gap-2"
+        >
             {OPTIONS.map((o) => (
                 <SetupChoice
                     key={o.mode}

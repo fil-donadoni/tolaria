@@ -23,7 +23,11 @@ export default function OpponentStep({
     onChange: (patch: Partial<MatchSetup>) => void;
 }) {
     return (
-        <div className="flex flex-wrap gap-2">
+        <div
+            role="group"
+            aria-label="Opponent"
+            className="flex flex-wrap gap-2"
+        >
             {OFFERED_OPPONENTS.map((o) => {
                 const refusal = opponentUnavailableReason(setup.mode, o);
                 return (

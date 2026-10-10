@@ -184,7 +184,7 @@ describe("matchFormatOptions — step 3", () => {
             ["old-school", 1],
             ["premodern", 2],
         ]);
-        expect(options[0].hint).toBe("Admits every deck · 3 decks");
+        expect(options[0].hint).toBe("Admits every Arena deck · 3 decks");
         expect(options[2].hint).toBe("1 deck");
     });
 });

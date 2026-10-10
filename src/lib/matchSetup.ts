@@ -285,7 +285,9 @@ export function matchFormatOptions(
             label: FORMAT_LABELS[format],
             admitted,
             hint:
-                format === "freeform" ? `Admits every deck · ${count}` : count,
+                format === "freeform"
+                    ? `Admits every Arena deck · ${count}`
+                    : count,
         };
     });
 }

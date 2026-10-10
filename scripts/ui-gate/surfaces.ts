@@ -3679,18 +3679,20 @@ export const SURFACES: readonly Surface[] = [
                     "/play/constructed did not render its heading"
                 );
             }
-            for (const choice of ["Arena", "Bot"]) {
-                await page
-                    .getByRole("button", { name: new RegExp(`^${choice}`) })
-                    .click({ timeout: STEP_TIMEOUT });
+            // A retry inside the same viewport reuses the context, whose
+            // storage already remembers Arena → Bot: the flow then opens on
+            // step 3 and there is nothing to click.
+            const formatStep = "[role=group][aria-label='Match Format']";
+            if (!(await page.locator(formatStep).isVisible())) {
+                for (const choice of ["Arena", "Bot"]) {
+                    await page
+                        .getByRole("button", {
+                            name: new RegExp(`^${choice}`),
+                        })
+                        .click({ timeout: STEP_TIMEOUT });
+                }
             }
-            if (
-                !(await visible(
-                    page,
-                    "[role=group][aria-label='Match Format']",
-                    STEP_TIMEOUT
-                ))
-            ) {
+            if (!(await visible(page, formatStep, STEP_TIMEOUT))) {
                 throw new Unreachable(
                     "Arena → Bot did not open the Match Format step"
                 );
