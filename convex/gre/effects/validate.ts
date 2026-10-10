@@ -362,6 +362,23 @@ function isSacrificedColorsRef(value: unknown): boolean {
     );
 }
 
+/** CR 106.10 / 105.2 (issue #5410) — `EffectCardFilter.color`'s second dynamic
+ *  shape, `{ manaSpent: { read: "colors" } }`: the colours of the mana noted on
+ *  this activation's payment. Shape-only, like {@link isSacrificedColorsRef}. */
+function isManaSpentColorsRef(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    if (keys.length !== 1 || keys[0] !== "manaSpent") return false;
+    const inner = (value as { manaSpent: unknown }).manaSpent;
+    if (typeof inner !== "object" || inner === null) return false;
+    const innerKeys = Object.keys(inner);
+    return (
+        innerKeys.length === 1 &&
+        innerKeys[0] === "read" &&
+        (inner as { read: unknown }).read === "colors"
+    );
+}
+
 /** A value or a non-empty array of values, each satisfying `check` — the
  *  shared OR-within-a-field shape `EffectCardFilter.type` / `.subtype` /
  *  `.color` use (issue #677, mirrors `PermanentFilter`'s own array fields). */
@@ -461,6 +478,8 @@ function isCardFilter(
             // `resolveValue`'s `sacrificed` branch can never be handed a
             // colour read.
             if (isSacrificedColorsRef(v)) return true;
+            // issue #5410 — the mana-spent colours (Protective Sphere).
+            if (isManaSpentColorsRef(v)) return true;
             return isValueOrArray(
                 v,
                 (m) => typeof m === "string" && TOKEN_COLORS.has(m)
@@ -1939,6 +1958,17 @@ function isOpponentOfRef(value: unknown): boolean {
  *  (`"$x.controller"`) or — inside a players-set forEach body (issue #807) —
  *  the bare `{ ref: "$each" }`; which of the two is legal WHERE is decided by
  *  the ordered ref pass. */
+/** `{ player: EffectPlayerRef }` and nothing else (issue #5410). */
+function isPlayerRecipient(value: unknown): boolean {
+    if (typeof value !== "object" || value === null) return false;
+    const keys = Object.keys(value);
+    return (
+        keys.length === 1 &&
+        keys[0] === "player" &&
+        isPlayerRef((value as { player: unknown }).player)
+    );
+}
+
 function isPlayerRef(value: unknown): boolean {
     return (
         value === "controller" ||
@@ -5475,7 +5505,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             } else if (entry.mode === "combat-to-and-by") {
                 requireFields(["target", "duration"]);
             } else if (entry.mode === "all-from-source") {
-                requireFields(["source"], ["combatOnly"]);
+                requireFields(["source"], ["combatOnly", "to"]);
+                // issue #5410 — a source shield's recipient is a PLAYER only
+                // ("dealt to you"); a permanent `to` would validate under the
+                // shared `isDamageRecipient` and then match nothing.
+                if (has("to") && !isPlayerRecipient(entry.to)) {
+                    errors.push(
+                        'mode "all-from-source" takes `to: { player }` only'
+                    );
+                }
             } else if (entry.mode === "all-from-matching") {
                 requireFields(["match"], ["combatOnly"]);
                 if (has("match") && !isSourceShieldMatch(entry.match)) {
