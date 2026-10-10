@@ -565,6 +565,19 @@ describe("every Agent Brief template passes the queue lint's section rules (issu
         expect(files).toContain("triage/AGENT-BRIEF.md");
     });
 
+    it("writes the canonical heading, never the legacy bold label", () => {
+        // The lint still READS the bold label (104 open issues carry it), so
+        // lint parity alone would let a template drift back to it.
+        const bold = templates()
+            .filter(({ body }) => /\*\*\s*acceptance criteria/i.test(body))
+            .map((t) => t.file);
+        expect(bold).toEqual([]);
+        const noHeading = templates()
+            .filter(({ body }) => !/^## Acceptance criteria$/m.test(body))
+            .map((t) => t.file);
+        expect(noHeading).toEqual([]);
+    });
+
     it("lints clean on acceptance criteria and target files", () => {
         const bad = templates().flatMap(({ file, body }) =>
             lintIssue({
