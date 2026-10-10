@@ -394,7 +394,7 @@ describe("Lobby vs-AI two-step flow", () => {
     it("offers Mirror plus only the decks the Match Format admits as the Bot's deck (ADR 0153)", async () => {
         const { getByRole, getByLabelText } = await renderLobby();
         fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
-        const picker = getByLabelText("AI Opponent Deck") as HTMLSelectElement;
+        const picker = getByLabelText("Bot deck") as HTMLSelectElement;
         expect([...picker.options].map((o) => o.text)).toEqual([
             "Same as your deck (mirror)",
             "Mono Red Burn",
