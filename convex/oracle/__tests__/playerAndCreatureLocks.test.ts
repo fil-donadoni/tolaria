@@ -252,6 +252,38 @@ describe("golden: locks", () => {
     });
 });
 
+describe("golden: land-play lock (CR 305.1, CR 101.2, issue #2145)", () => {
+    it("Turf Wound — one announced player, then the draw", () => {
+        const card = oracleCard({
+            oracleId: "9a31a3ee-2c8f-4f5e-8b6e-0a53a3b8f6d2",
+            name: "Turf Wound",
+            manaCost: "{2}{R}",
+            typeLine: "Instant",
+            oracleText:
+                "Target player can't play lands this turn.\nDraw a card.",
+            power: undefined,
+            toughness: undefined,
+        });
+        const def = compiled(card);
+        expect(def.effects).toEqual([
+            { op: "restrictLandPlay", player: { target: 0 } },
+            { op: "draw", player: "controller", count: 1 },
+        ]);
+        expect(def.targetRequirement).toEqual({ type: "player", count: 1 });
+    });
+
+    it("refuses a lowercase / qualified neighbour", () => {
+        const outcome = compileCard(
+            spell(
+                "Neighbour",
+                "Target opponent can't play lands this turn.",
+                "{R}"
+            )
+        );
+        expect(outcome.state).not.toBe("ready");
+    });
+});
+
 describe("refusals: neighbours stay unparsed", () => {
     const refused: [string, string][] = [
         // A sweep also binds creatures that arrive later (CR 611.2c).
