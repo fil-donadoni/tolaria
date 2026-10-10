@@ -570,8 +570,8 @@ overlapping target file is deferred today. `/next-ticket` lands one issue at a
 time, so a `skin` PR carries its own `check:ui` receipt and `land` re-derives
 it (ADR 0110 §4); the batch-level `check:ui` of the retired fan-out is gone
 with it. What stands in its place (issue #4913) is the full `check:ui --all`
-walk as the LAST batch-health step: a PR walks the surfaces its diff can reach,
-the batch walks them all.
+walk as a RELEASE step (issue #5378): a PR walks the surfaces its diff can
+reach, `bun run release` walks them all, and a batch-health run walks nothing.
 
 ### Guard tier is measured cost, not phase — cheap guards ride the lane (issue #4963)
 
@@ -977,8 +977,10 @@ order of weight:
    surfaces × five viewports on this machine, most of it axe.
 
 **The full walk runs at `release`, never on a PR** (issue #4913, ADR 0131
-amendment; batch health walks only the batch's scope — skipped, scoped or full
-by the same scoper — issue #5076). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
+amendment; batch health walks nothing — its walk is `skipped` with the reason
+named, the scoper never asked — issue #5378, which retired the batch-scoped
+plan of issue #5076 after 30 batch walks in a week came out full, 9.2 h, no
+defect). A PR's receipt is `SCOPED` to what its diff can reach — a specimen
 row of `/admin/design-system` by its section and its mount, a route surface by
 its route closure, a type-only import counting as no edge. What the scoper
 accepts not to see (a mount a section renders unconditionally, a sibling
@@ -991,16 +993,18 @@ the shared local deployment serves, since `check:ui` pushes none — on a PR as
 in health (ADR 0131 § Amendment).
 
 **The walk runs off the heavy mutex, and the environment never makes it RED**
-(issue #4962). Of its first ten verdicts inside health, nine were RED and none
+(issue #4962). Of its first ten verdicts inside batch health, nine were RED and none
 was a product defect: a down backend, a sign-in the auth backend refused, walks
 whose own rows said `INFRA` at load 7–12.5 — and every one of them raised the
 marker that stops the queue, while the walk (4–60 min) held the `--under-lock`
 block every queued `land` waits on. Three rules:
 
-1. **Two phases.** `health-cadence detach` runs `health-main --phase=offline`
-   under its `gate.ts yield` hold, releases it, then runs
-   `health-main --phase=walk`, which holds only the `check:ui` lane — so
-   `gate:who` during the walk shows the heavy mutex free. The verdict is still
+1. **Two phases.** A gate that holds the mutex for the offline gates
+   (`health-cadence detach`: `health-main --phase=offline` under its
+   `gate.ts yield`) releases it before any walk, and `health-main
+--phase=walk` holds only the `check:ui` lane; `release` passes no hold and
+   the walk scrubs one — so `gate:who` during the walk shows the heavy mutex
+   free. Since issue #5378 the cadence's walk phase finds none owed. The verdict is still
    ONE `last.json` record per tip: offline green + walk green = `GREEN`, and
    it names the two halves (`offline`, `ui`), which `health:status` prints.
 2. **An environment failure is `infra`, never `RED`.** `check:ui` exit 2 (a
@@ -1011,12 +1015,11 @@ block every queued `land` waits on. Three rules:
    on the next trigger. One `FAIL` row (a broken Floor on a settled cell), one
    `assert … FAIL` row, or any `UNWALKED` row (the walk failed on a quiet
    machine, by its own classification) is the tree's.
-3. **Probation.** Until the walk has shown 5 consecutive non-infra verdicts
-   (`UI_WALK_PROBATION_RUNS`, ledger `ui-walk.json` beside `last.json`; an
-   `infra` walk restarts it), even a failure the tree owns is recorded
-   `infra` with cause `ui-unproven` — `ui: unproven` in `health:status` —
-   and raises no marker. `bun run release` reads only `GREEN`, so it still
-   requires the walk to pass.
+3. **No probation** (retired, issue #5378). The walk once had to show 5
+   consecutive non-infra verdicts (`ui-walk.json`) before a failure the tree
+   owns could raise the marker; at one walk per release that would take weeks
+   to arm. A tree-failed walk is `RED`, and `bun run release` reads only
+   `GREEN`.
 
 So `check:ui` is a standalone command, and **its output is the receipt a UI PR
 pastes**. The enforcement is the same as it was for the manual browser check

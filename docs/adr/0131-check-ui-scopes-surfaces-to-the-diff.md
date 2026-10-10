@@ -11,6 +11,8 @@ the full walk moves to batch health — § Amendment below. **Amended
 (issue #5075)**: staff-only tooling (the debug sheet, the `/admin` pages) is out
 of scope. **Amended (issue #5076)**: batch
 health walks the batch's scope, never `--all`; the full walk is `release`'s.
+**Amended 2026-10-10 (issue #5378)**: batch health walks nothing; the full
+walk is a release step, and the walk's probation is retired.
 
 ## Context
 
@@ -421,3 +423,43 @@ with the full walk before the release branch moves.
 A prose-only batch is the one case planned without the scoper, and the only
 one whose Convex preflight is skipped: every other batch preflights, since it
 may still plan to a walk.
+
+## Amendment (issue #5378) — batch health walks nothing; the full walk is a release step
+
+### What the batch-scoped walk measured
+
+The batch plan above came out `full` on every run: any engine or card path
+reaches the app shell through the scoper, and several repo-config paths are
+unplaced. Week 2026-10-03 → 2026-10-10: 30 batch walks, all full, 33,096 s
+(9.2 h) of machine time, mean 18.4 min, and no UI defect found (29 exit 0, one
+Infra Verdict). The one real UI defect of the week (the printing picker
+control unreachable at 844×390, issue #4122) was caught by the PR's own scoped
+walk before it landed.
+
+### The rule
+
+Decisions 8, 9 and 11 of the previous amendment are replaced; 10 stands:
+
+8. **Batch health owes no browser walk.** A health run without `--ui-all`
+   plans `skipped` (`lib/health-walk-plan.ts`) with a reason naming this
+   decision, never invokes the scoper, runs no `check:ui` step and does not
+   preflight the Convex deployment: the offline half alone decides GREEN, and
+   `last.json` records `ui: "skipped"`, `walk: "skipped — <reason>"`.
+9. **The full walk is a release step.** `bun run release` (and an explicit
+   `--ui-all`) runs `check:ui --all`, unchanged. A tip GREEN with a skipped (or
+   an older scoped) walk is walked in full — offline half standing, only the
+   walk running — before `release` reads it.
+10. **The walk's probation (issue #4962) is retired.** It counted
+    `UI_WALK_PROBATION_RUNS` = 5 consecutive non-infra walks before a
+    tree-failed walk could raise the RED marker; at one walk per release it
+    would take weeks to arm, and `release` already read only `green`. A walk
+    the tree failed is RED; one the environment cut short stays `infra`
+    (`walkRunVerdict`). `ui-walk.json` is no longer read or written.
+
+### Residual
+
+Between releases nothing walks every surface: a drift the PR's scoped receipt
+accepts not to see (the Tailwind class scan, sibling sections, graph drift)
+can sit across many GREEN batches and is found at release, which then stops
+on a RED marker and fixes forward (ADR 0116). The PR-level receipt and
+`land`'s verification of it are unchanged.

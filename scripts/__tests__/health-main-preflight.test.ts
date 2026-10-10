@@ -13,7 +13,8 @@ import { INFRA_REMEDY, PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
  * worktree, no gate — instead of paying ~40 minutes of gates to learn it at
  * `check:ui`. Driven for real: a scratch primary checkout whose `origin` is a
  * local bare repo carrying the base branch, and `VITE_CONVEX_URL` on a port
- * nothing listens on.
+ * nothing listens on. Only a run that walks needs the backend: `--ui-all`,
+ * as `release` runs it (a batch run owes no walk, issue #5378).
  */
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
@@ -78,7 +79,7 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
         const port = await closedPort();
         const r = await new Promise<{ code: number | null; stderr: string }>(
             (resolve) => {
-                const child = spawn("bun", [HEALTH_MAIN], {
+                const child = spawn("bun", [HEALTH_MAIN, "--ui-all"], {
                     cwd: primary,
                     env: {
                         ...process.env,

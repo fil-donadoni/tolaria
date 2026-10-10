@@ -30,13 +30,10 @@
  * `infra` is ALSO a browser walk the ENVIRONMENT cut short (issue #4962):
  * `check:ui` exiting 2 (a fatal error before any surface was judged — the
  * sign-in the auth backend refused on aa785cf0), or exiting 1 with every
- * failing row `INFRA` (`walkRunVerdict`, `ui-gate/infra-verdict.ts`).
- * And until the walk has earned `UI_WALK_PROBATION_RUNS` consecutive
- * non-infra verdicts (`uiWalkArmed`), even a walk the tree failed is recorded
- * `infra` with cause `ui-unproven` — `ui: unproven` in `health:status` —
- * never a RED marker: nine of its first ten verdicts were environment, and a
- * gate that has not yet shown it can tell the two apart may not stop the
- * queue. `release` reads only `green`, so it still requires the walk to pass.
+ * failing row `INFRA` (`walkRunVerdict`, `ui-gate/infra-verdict.ts`). A
+ * walk the TREE failed is RED: the probation that once recorded it `infra` /
+ * `ui-unproven` (issue #4962) is retired (issue #5378) — the walk now runs
+ * only at release, so five consecutive walks would have taken weeks to arm.
  *
  * `infra` is ALSO a run the MACHINE could not carry (issue #4966): a gate that
  * waited out `machine.waitMaxS` on a saturated machine and never started
@@ -68,7 +65,6 @@ export type InfraCause =
     | "sleep"
     | "convex-down"
     | "ui-walk"
-    | "ui-unproven"
     /** A gate waited out its bound on a saturated machine: nothing ran. */
     | "machine-saturated"
     /** A step ran, and failed ONLY by timing out, on a saturated machine. */
@@ -92,8 +88,6 @@ export const INFRA_REMEDY: Record<InfraCause, string> = {
         "the local Convex backend did not answer; start it with `bun run convex:ensure` (the AFK loop's next pass does), then the next health run re-gates the tip",
     "ui-walk":
         "the browser walk was cut short by the environment (a fatal check:ui error, or every failing row INFRA); the next health run re-walks the tip",
-    "ui-unproven":
-        "the browser walk failed while still in probation, so it raises no RED marker; read the log, and the next health run re-walks the tip",
     "machine-saturated":
         "the machine stayed over machine.loadMax or under memory pressure past machine.waitMaxS, so nothing ran; see `bun run machine`, and the next health run re-gates the tip",
     "machine-timeout":
@@ -357,86 +351,16 @@ export function infraNotice(r: InfraRecord): string {
     return `release health is INFRA @ ${sha} (at ${r.failedStep ?? "unknown step"}) — the tip is unproven, not red: ${r.reason ?? "re-run `bun run health`"}`;
 }
 
-/**
- * The browser walk's probation (issue #4962). A walk failure writes the RED
- * marker only once the walk has shown `UI_WALK_PROBATION_RUNS` consecutive
- * non-infra verdicts (a pass, or a failure the tree owns) — before that it is
- * recorded `infra` / `ui-unproven`. Any infra walk restarts the count: a gate
- * whose environment still fails it is not yet a gate that can stop the queue.
- */
-export const UI_WALK_PROBATION_RUNS = 5;
-
-/** The probation ledger, `ui-walk.json` beside `last.json`. */
-export const UI_WALK_FILE = "ui-walk.json";
-
-export interface UiWalkLedger {
-    /** Consecutive non-infra walk verdicts, the latest included. */
-    streak: number;
-}
-
-/** What one walk's verdict was, for the ledger. */
-export type WalkOutcome = "green" | "red" | "infra";
-
-export function parseUiWalkLedger(text: string | null): UiWalkLedger {
-    try {
-        const v = JSON.parse(text ?? "") as { streak?: unknown };
-        const n = v.streak;
-        return {
-            streak:
-                typeof n === "number" && Number.isInteger(n) && n >= 0 ? n : 0,
-        };
-    } catch {
-        return { streak: 0 };
-    }
-}
-
-/** The ledger after one walk: infra restarts it, anything else extends it. */
-export function nextUiWalkLedger(
-    ledger: UiWalkLedger,
-    outcome: WalkOutcome
-): UiWalkLedger {
-    return { streak: outcome === "infra" ? 0 : ledger.streak + 1 };
-}
-
-/** Whether a walk failure may write the RED marker: the walk has served its
- *  probation BEFORE this run. */
-export function uiWalkArmed(ledger: UiWalkLedger): boolean {
-    return ledger.streak >= UI_WALK_PROBATION_RUNS;
-}
-
-/**
- * The verdict a FAILED walk step stands as: `infraCause` when the environment
- * cut it short, `ui-unproven` when the tree failed it during probation, and
- * null — a RED — only once the walk is armed.
- */
-export function walkFailureCause(
-    cause: InfraCause | null,
-    ledger: UiWalkLedger
-): InfraCause | null {
-    if (cause !== null) return cause;
-    return uiWalkArmed(ledger) ? null : "ui-unproven";
-}
-
 /** The walk's state as `health:status` prints it, separately from the
  *  offline verdict. */
 export type UiWalkState =
     | "green"
     | "red"
     | "infra"
-    | "unproven"
     /** The offline gates passed and the walk is owed (`--phase=walk`). */
     | "pending"
     /** A process is walking now — another `--phase=walk` must not start. */
     | "walking"
-    /** The batch reached no surface: no walk ran (issue #5076). */
+    /** Batch health owes no walk: none ran (issue #5378). */
     | "skipped"
     | "not run";
-
-export function uiWalkStateOf(
-    outcome: WalkOutcome,
-    cause: InfraCause | null
-): UiWalkState {
-    if (outcome === "green") return "green";
-    if (cause === "ui-unproven") return "unproven";
-    return cause === null ? "red" : "infra";
-}

@@ -59,7 +59,8 @@
  * wraps `health-main --phase=offline`; once that hold is released, this
  * process runs `health-main --phase=walk`, which finds the walk owed in
  * `last.json` and writes the run's one verdict. A queued `land` waits for the
- * offline block, never for the walk.
+ * offline block, never for the walk. Since issue #5378 a batch run owes no
+ * walk, so the walk phase finds none owed; it stays for a run that does.
  *
  * RED reuses `health-fix.ts` unchanged: `health-main` has already written the
  * durable marker and `last.json`, so the handover is the same one `release`

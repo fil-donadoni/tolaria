@@ -1,20 +1,12 @@
-// The browser walk inside batch health (issue #4962): an environment failure
-// is INFRA, never RED; a walk the tree failed is RED only once the walk has
-// served its probation; and the walk is cut away from the offline gates so it
-// can run off the heavy mutex.
+// The browser walk inside a health run (issue #4962): an environment failure
+// is INFRA, never RED; a walk the tree failed is RED (its probation retired,
+// issue #5378); and the walk is cut away from the offline gates so it can run
+// off the heavy mutex.
 import { describe, expect, it } from "vitest";
 import { DEPLOYMENT_DOWN_EXIT } from "../lib/convex-reachable";
 import { healthRunInFlight, walkOwedSince } from "../lib/health-cadence";
 import { HEALTH_SCRIPTS, splitHealthGates } from "../lib/health-step";
-import {
-    infraCause,
-    nextUiWalkLedger,
-    parseUiWalkLedger,
-    UI_WALK_PROBATION_RUNS,
-    uiWalkArmed,
-    uiWalkStateOf,
-    walkFailureCause,
-} from "../lib/health-verdict";
+import { infraCause } from "../lib/health-verdict";
 import { walkRunVerdict } from "../ui-gate/infra-verdict";
 
 /** Rows in the exact shapes `receipt.ts` prints them, lifted from the health
@@ -160,45 +152,6 @@ describe("infraCause reads the walk's verdict on the check:ui step only", () => 
                 output: run(INFRA_ROW),
             })
         ).toBeNull();
-    });
-});
-
-describe("the walk's probation — RED only after five non-infra walks", () => {
-    it("a walk the tree failed is ui-unproven until the walk is armed", () => {
-        for (let streak = 0; streak < UI_WALK_PROBATION_RUNS; streak++)
-            expect(walkFailureCause(null, { streak })).toBe("ui-unproven");
-        expect(
-            walkFailureCause(null, { streak: UI_WALK_PROBATION_RUNS })
-        ).toBeNull();
-    });
-
-    it("an environment failure stays its own cause, armed or not", () => {
-        expect(walkFailureCause("ui-walk", { streak: 9 })).toBe("ui-walk");
-        expect(walkFailureCause("convex-down", { streak: 0 })).toBe(
-            "convex-down"
-        );
-    });
-
-    it("infra restarts the count; a pass or a tree failure extends it", () => {
-        expect(nextUiWalkLedger({ streak: 4 }, "infra")).toEqual({ streak: 0 });
-        expect(nextUiWalkLedger({ streak: 4 }, "green")).toEqual({ streak: 5 });
-        expect(nextUiWalkLedger({ streak: 4 }, "red")).toEqual({ streak: 5 });
-        expect(uiWalkArmed({ streak: 5 })).toBe(true);
-        expect(uiWalkArmed({ streak: 4 })).toBe(false);
-    });
-
-    it("a missing or unreadable ledger is a walk with no record", () => {
-        expect(parseUiWalkLedger(null)).toEqual({ streak: 0 });
-        expect(parseUiWalkLedger("{")).toEqual({ streak: 0 });
-        expect(parseUiWalkLedger('{"streak":-2}')).toEqual({ streak: 0 });
-        expect(parseUiWalkLedger('{"streak":3}')).toEqual({ streak: 3 });
-    });
-
-    it("names the walk's state for health:status", () => {
-        expect(uiWalkStateOf("green", null)).toBe("green");
-        expect(uiWalkStateOf("red", "ui-unproven")).toBe("unproven");
-        expect(uiWalkStateOf("red", null)).toBe("red");
-        expect(uiWalkStateOf("infra", "ui-walk")).toBe("infra");
     });
 });
 
