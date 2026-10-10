@@ -70,6 +70,7 @@ describe("protection from each of your opponents (CR 702.16k)", () => {
                 colors: ["R"],
                 types: ["Instant"],
                 supertypes: [],
+                subtypes: [],
                 controllerId: undefined,
                 isSpell: true,
             })

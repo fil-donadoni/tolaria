@@ -69,7 +69,7 @@ describe("keyword line slot (CR 702.1)", () => {
             },
         });
         for (const line of [
-            "Protection from Goblins",
+            "Protection from Gobblins",
             "Rampage 1",
             "Ward {4}",
             "Cycling {X}",
