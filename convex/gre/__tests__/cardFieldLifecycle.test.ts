@@ -375,6 +375,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
     // The bare scopes, FROZEN as the key sets the hand-written ladders
     // deleted before the table existed (origin/staging at issue #4453:
     // `finalizeCleanup` 18, `resetBattlefieldTransientState` 64,
+    // issue #3713 widened both on purpose: +`mustBlockAttackersThisTurn`,
     // `resetStackTransientState` 9). The ladder tests above cannot catch a
     // row moved INTO a scope (the loop then clears it), so the sets are
     // pinned here: widening a scope is a CR 400.7 / 514.2 decision that
@@ -398,6 +399,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "hasBlockedThisTurn",
             "mustAttackThisTurn",
             "mustBlockAllThisTurn",
+            "mustBlockAttackersThisTurn",
             "regenerationShields",
         ],
         "zone-change": [
@@ -446,6 +448,7 @@ describe("Card Field Lifecycle — reset scopes (issue #4453)", () => {
             "manaCommitted",
             "manaCounterRemoval",
             "manaPaidThisTap",
+            "mustBlockAttackersThisTurn",
             "overloaded",
             "regenerationShields",
             "removedSupertypes",

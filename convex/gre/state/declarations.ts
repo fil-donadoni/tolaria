@@ -1012,6 +1012,14 @@ export type CardInstanceState = {
     /** Transient flag: this creature must block every attacker it can this
      *  turn (Blaze of Glory). Cleared at CLEANUP. */
     mustBlockAllThisTurn?: boolean;
+    /** Transient list of attacker instance ids this creature must block this
+     *  turn if able (CR 509.1c — Rampant Elephant's "target creature blocks
+     *  this creature this turn if able"). The per-attacker twin of
+     *  `mustBlockAllThisTurn`; enforced in `getRequiredBlockerAssignments`,
+     *  which excuses an id that is not attacking (a stale id names no
+     *  object — CR 400.7). Cleared at CLEANUP and when this creature changes
+     *  zones. */
+    mustBlockAttackersThisTurn?: string[];
     /** Transient flag: this creature can't block this turn (CR 509.1b).
      *  Twin of `mustBlockAllThisTurn`. Set by Ydwen Efreet's lost block
      *  flip; enforced in `validateBlockerEligibility`. Cleared at CLEANUP. */

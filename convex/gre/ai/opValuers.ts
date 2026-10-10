@@ -2110,6 +2110,9 @@ const restrictCombat: Valuer<"restrictCombat"> = (op, ctx) => {
                 : ["evasion"],
         };
     }
+    // "must-block" (CR 509.1c, issue #3713) forces an OPPONENT's creature into
+    // one named block: a smaller lever than removal, but the same board-
+    // disruption family, so it shares the flat `cant-block` price and tags.
     return {
         points: RESTRICT_COMBAT_VALUE,
         tags: isAnnouncedTarget(op.target)

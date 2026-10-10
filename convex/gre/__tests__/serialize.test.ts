@@ -1229,6 +1229,7 @@ describe("gameStates serialize round-trip", () => {
         ];
         lion.pileLabel = "left";
         lion.mustBlockAllThisTurn = true;
+        lion.mustBlockAttackersThisTurn = ["att-1"];
         lion.cantBlockThisTurn = true;
         lion.cantBeBlockedThisTurn = true;
         lion.chosenPlayerId = "p2";
@@ -1368,6 +1369,7 @@ describe("gameStates serialize round-trip", () => {
         ]);
         expect(got.pileLabel).toBe("left");
         expect(got.mustBlockAllThisTurn).toBe(true);
+        expect(got.mustBlockAttackersThisTurn).toEqual(["att-1"]);
         expect(got.cantBlockThisTurn).toBe(true);
         expect(got.cantBeBlockedThisTurn).toBe(true);
         expect(got.chosenPlayerId).toBe("p2");

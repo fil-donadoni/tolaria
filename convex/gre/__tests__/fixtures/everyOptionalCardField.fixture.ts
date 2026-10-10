@@ -146,6 +146,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         pileLabel: "A",
         canBlockAdditional: 1,
         mustBlockAllThisTurn: true,
+        mustBlockAttackersThisTurn: ["att-1"],
         cantBlockThisTurn: true,
         cantAttackThisTurn: true,
         cantBeBlockedThisTurn: true,

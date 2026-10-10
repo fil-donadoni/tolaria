@@ -6269,4 +6269,50 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 509.1c — "Target creature blocks this creature this turn if able":
+    // exhibits `restrictCombat` `must-block` naming the ability's own source as
+    // the attacker, a turn-scoped requirement that only manifests at a later
+    // declare-blockers step (issue #3713).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "aaaaf370-6486-4e17-9a93-92e05ebcf29f",
+            name: "Rampant Elephant",
+            manaCost: "{3}{W}",
+            typeLine: "Creature — Elephant",
+            oracleText:
+                "{G}: Target creature blocks this creature this turn if able.",
+            power: "2",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rampant Elephant",
+            types: ["Creature"],
+            subtypes: ["Elephant"],
+            manaCost: { X: 3, W: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "{G}: Target creature blocks this creature this turn if able.",
+            activatedAbilities: [
+                {
+                    id: "rampant-elephant-ability",
+                    oracleText:
+                        "{G}: Target creature blocks this creature this turn if able.",
+                    cost: { mana: { G: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "restrictCombat",
+                            restriction: "must-block",
+                            target: { target: 0 },
+                            attacker: { ref: "$source" },
+                        },
+                    ],
+                    targetRequirement: { type: "Creature", count: 1 },
+                },
+            ],
+        },
+    },
 ]);

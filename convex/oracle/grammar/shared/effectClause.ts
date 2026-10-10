@@ -816,6 +816,14 @@ export type EffectSentenceIR =
           readonly subject: SubjectIR;
       }
     /**
+     * CR 509.1c — "<target creature> blocks this creature this turn if able":
+     * a turn-scoped block requirement on ONE announced creature, naming the
+     * ability's own source as the attacker (issue #3713). Only the self
+     * spelling is read — a requirement naming another attacker is a different
+     * clause and stays a Grammar Gap.
+     */
+    | { readonly kind: "forced-block"; readonly subject: SubjectIR }
+    /**
      * CR 701.19c — "<target creature> can't be regenerated this turn": the
      * turn-scoped suppression of a regeneration shield, on an announced
      * creature. The modifier form ("It can't be regenerated.") is
@@ -3499,6 +3507,12 @@ const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
         ["block", "cant-block"],
         ["be blocked", "cant-be-blocked"],
     ]);
+/**
+ * CR 509.1c — "<subject> blocks this creature this turn if able". The attacker
+ * is the ability's own source, so the subject (the blocker) is the only
+ * variable; "blocks target creature …" and "blocks ~" are not read.
+ */
+const FORCED_BLOCK = /^(.+) blocks this creature this turn if able$/;
 /** CR 701.19c — the regeneration lock's printed form. */
 const CANT_BE_REGENERATED_THIS_TURN = /^(.+) can't be regenerated this turn$/;
 /** CR 101.2 + CR 601.2 — the opponents' whole-turn cast lock, whole. */
@@ -5104,6 +5118,22 @@ function effectSentence(
         return ok({
             kind: "combat-restriction" as const,
             restriction: COMBAT_RESTRICTION_WORDS.get(combat[2]!)!,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── forced block (CR 509.1c) ───────────────────────────────────────────
+    const forced = span.match(FORCED_BLOCK);
+    if (forced !== null) {
+        const subject = subjectRule.run(forced[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (!isAnnouncedCreature(subject.value))
+            return fail(
+                "a block requirement names one announced creature (a sweep also binds later arrivals)",
+                span
+            );
+        return ok({
+            kind: "forced-block" as const,
             subject: subject.value,
         } satisfies EffectSentenceIR);
     }

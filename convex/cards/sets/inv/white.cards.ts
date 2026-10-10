@@ -1205,11 +1205,38 @@ export const protectiveSphere = defineCard(() => ({
 //      no expression.
 // tracked-by: #2066 (umbrella #1329).
 
-// Rampant Elephant — {3}{W} Creature, 2/2. "{G}: Target creature blocks
-// this creature this turn if able." tracked-by: #3713 (forced blocks DO
-// exist — Lure's attacker-side `block-requirement` static, Blaze of Glory's
-// blocker-side `mustBlockAllThisTurn` — but nothing makes ONE creature block
-// ONE named attacker this turn, and no DSL Op sets any block requirement).
+// Rampant Elephant — "{G}: Target creature blocks this creature this turn if
+// able." (CR 509.1c — a turn-scoped, attacker-named block requirement on the
+// targeted creature: `restrictCombat`'s `"must-block"` mode, issue #3713.)
+export const rampantElephant = defineCard(() => ({
+    id: "752642d2-3dad-4f58-b154-beb5982141dc",
+    rarity: "common",
+    name: "Rampant Elephant",
+    oracleText: "{G}: Target creature blocks this creature this turn if able.",
+    manaCost: { X: 3, W: 1 },
+    types: ["Creature"],
+    subtypes: ["Elephant"],
+    power: 2,
+    toughness: 2,
+    activatedAbilities: [
+        {
+            id: "rampant-elephant-must-block",
+            oracleText:
+                "{G}: Target creature blocks this creature this turn if able.",
+            cost: { mana: { G: 1 } },
+            useStack: true,
+            targetRequirement: { type: "Creature", count: 1 },
+            effects: [
+                {
+                    op: "restrictCombat",
+                    restriction: "must-block",
+                    target: { target: 0 },
+                    attacker: { ref: "$source" },
+                },
+            ],
+        },
+    ],
+}));
 
 // Rout — the CR 601.3c conditional-flash rider (issue #2146), shipped as the
 // declarative `flashSurcharge` field: the card is legal to ANNOUNCE whenever

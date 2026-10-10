@@ -1462,7 +1462,8 @@ export function getMaxBlockTargets(card: CardInstanceState): number {
 }
 
 /** Computes mandatory blocker assignments for must-block requirements
- *  (CR 509.1c — Lure, Blaze of Glory mustBlockAll). Returns a map of
+ *  (CR 509.1c — Lure, Blaze of Glory mustBlockAll, Rampant Elephant's
+ *  per-attacker `mustBlockAttackersThisTurn`). Returns a map of
  *  blockerId → attackerIds[] that must be added to the current
  *  blockerAssignments. Only assigns blockers that are:
  *  - untapped creatures
@@ -1519,6 +1520,30 @@ export function getRequiredBlockerAssignments(
                     result[blocker.id].push(attacker.id);
                     currentBlocks.push(attacker.id);
                 }
+            }
+        }
+
+        // CR 509.1c — "blocks <attacker> this turn if able" (Rampant Elephant).
+        // Only an id naming a CURRENT attacker binds (`attackers` is built from
+        // `attackerIds`, so a stale or non-attacking id finds nothing), and only
+        // when the block is legal — evasion, protection or a "can't block"
+        // flag excuse it through `validateBlockerEligibility`.
+        for (const attackerId of blocker.mustBlockAttackersThisTurn ?? []) {
+            if (currentBlocks.length >= maxTargets) break;
+            if (currentBlocks.includes(attackerId)) continue;
+            const attacker = attackers.find((a) => a.id === attackerId);
+            if (!attacker) continue;
+            if (
+                validateBlockerEligibility(
+                    attacker,
+                    blocker,
+                    defenderBattlefield,
+                    state
+                ).eligible
+            ) {
+                if (!result[blocker.id]) result[blocker.id] = [];
+                result[blocker.id].push(attacker.id);
+                currentBlocks.push(attacker.id);
             }
         }
 

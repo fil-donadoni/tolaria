@@ -284,6 +284,9 @@
           "mustAttackThisTurn": true,
           "canBlockAdditional": 1,
           "mustBlockAllThisTurn": true,
+          "mustBlockAttackersThisTurn": [
+            "att-1"
+          ],
           "cantBlockThisTurn": true,
           "cantAttackThisTurn": true,
           "cantBeBlockedThisTurn": true,
@@ -671,6 +674,9 @@
       "mustAttackThisTurn": true,
       "canBlockAdditional": 1,
       "mustBlockAllThisTurn": true,
+      "mustBlockAttackersThisTurn": [
+        "att-1"
+      ],
       "cantBlockThisTurn": true,
       "cantAttackThisTurn": true,
       "cantBeBlockedThisTurn": true,

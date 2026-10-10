@@ -15673,6 +15673,24 @@ export function buildSpellContext(
             found.card.mustBlockAllThisTurn = true;
         },
 
+        setMustBlockAttacker(
+            blocker: TargetSelection,
+            attacker: TargetSelection
+        ): void {
+            // CR 509.1c — "target creature blocks <attacker> this turn if
+            // able". Records the attacker's instance id on the BLOCKER; the
+            // requirement applies in every declare-blockers step of the turn
+            // and is read by `getRequiredBlockerAssignments`. No-op when
+            // either object is off the battlefield. Cleared at CLEANUP.
+            if (blocker.type !== "permanent" || attacker.type !== "permanent")
+                return;
+            const found = findOnBattlefield(state, blocker.id);
+            if (!found || !findOnBattlefield(state, attacker.id)) return;
+            const existing = found.card.mustBlockAttackersThisTurn ?? [];
+            if (existing.includes(attacker.id)) return;
+            found.card.mustBlockAttackersThisTurn = [...existing, attacker.id];
+        },
+
         setCantBlockThisTurn(target: TargetSelection): void {
             if (target.type !== "permanent") return;
             const found = findOnBattlefield(state, target.id);
