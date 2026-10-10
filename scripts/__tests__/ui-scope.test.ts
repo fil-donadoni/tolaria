@@ -36,14 +36,23 @@ const FILES: Record<string, string> = {
         `import DraftLab from "./routes/draft-lab.route";`,
         `import AppShell from "./components/chrome/app-shell";`,
     ].join("\n"),
-    "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\n`,
+    "src/components/chrome/app-shell.tsx": `import { NavLink } from "./nav-link";\nimport { Outlet } from "./route-outlet";\n`,
+    // The catalogue gate (issue #5379): a lazy chunk the shell mounts around
+    // gated routes, loading every set module into the registry. Only the game
+    // route reads that registry.
+    "src/components/chrome/route-outlet.tsx": `const Gate = () => import("~/components/ui/catalogue-gate");\nexport const Outlet = 1;\n`,
+    "src/components/ui/catalogue-gate.tsx": `import { hydrate } from "~/lib/catalogue-artifact";\n`,
+    "src/lib/catalogue-artifact.ts": `import { register } from "../../convex/cards/catalogue";\nexport const hydrate = 1;\n`,
+    "convex/cards/catalogue.ts": `import * as lea from "./sets/lea/index.cards";\nimport { register } from "./registry";\n`,
+    "convex/cards/sets/lea/index.cards.ts": `export const card = 1;\n`,
+    "convex/cards/registry.ts": `export const register = 1;\n`,
     "src/components/chrome/nav-link.tsx": `export const NavLink = 1;\n`,
     // The primitive, the token source and the route-local stylesheet are
     // imported by a ROUTE only, never by the shell — so each forces full
     // through its own rule, and removing that rule would scope it to `lobby`.
     "src/components/ui/button.tsx": `export const Button = 1;\n`,
     "src/routes/lobby.route.tsx": `import { Button } from "~/components/ui/button";\nimport { TOKENS } from "~/lib/design-tokens";\nimport { DeckShelf } from "~/components/deck-shelf";\nimport { Card } from "~/components/card";\nimport type { Shape } from "~/components/shape";\n`,
-    "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nimport { PauseDialog } from "~/components/dialogs/pause";\nconst quiz = () => import("~/components/debug/quiz");\n`,
+    "src/routes/game.route.tsx": `import { Card } from "~/components/card";\nimport { register } from "../../convex/cards/registry";\nimport { PauseDialog } from "~/components/dialogs/pause";\nconst quiz = () => import("~/components/debug/quiz");\n`,
     // A route the router mounts and NO surface declares: whatever it renders
     // is reachable at runtime, and nothing walks it.
     "src/routes/orphan.route.tsx": `import { Widget } from "~/components/orphan-widget";\n`,
@@ -207,6 +216,42 @@ describe("computeUiScope — scoped", () => {
 
     it("an empty diff selects nothing", () => {
         expect(scopeOf()).toEqual({ kind: "scoped", surfaces: [] });
+    });
+});
+
+describe("computeUiScope — the catalogue gate (issue #5379)", () => {
+    it("a set module only the gate loads selects the registry's readers — not full", () => {
+        expect(scopeOf("convex/cards/sets/lea/index.cards.ts")).toEqual({
+            kind: "scoped",
+            surfaces: ["game-board", "game-debug"],
+        });
+    });
+
+    it("the gate's catalogue glue under src/ selects the registry's readers too", () => {
+        expect(scopeOf("src/lib/catalogue-artifact.ts")).toEqual({
+            kind: "scoped",
+            surfaces: ["game-board", "game-debug"],
+        });
+    });
+
+    it("with no surface reading the registry, a gate-only path selects full", () => {
+        const scope = computeUiScope({
+            changed: ["convex/cards/sets/lea/index.cards.ts"],
+            surfaces: SURFACES.filter((s) => s.id === "lobby"),
+            graph: createImportGraph({ root }),
+        });
+        expect(scope).toEqual({
+            kind: "full",
+            reason: expect.stringContaining(
+                "no surface reads convex/cards/registry.ts"
+            ),
+        });
+    });
+
+    it("the gate module itself is a shared UI primitive — full", () => {
+        expect(scopeOf("src/components/ui/catalogue-gate.tsx").kind).toBe(
+            "full"
+        );
     });
 });
 

@@ -28,7 +28,11 @@
  *     a type change that matters fails `check:ts`, not a walk);
  *   - GLOBAL (`globalReason`) → `full`;
  *   - in the app SHELL's closure (`src/main.tsx`, not descending into route
- *     modules) → `full`: the shell renders around every surface;
+ *     modules nor the catalogue gate) → `full`: the shell renders around
+ *     every surface;
+ *   - reached from the shell only through the CATALOGUE GATE (the lazy chunk
+ *     that loads the catalogue into the card registry, issue #5379) → selects
+ *     every surface that reads that registry, or `full` if none does;
  *   - in one or more surfaces' closures → selects those surfaces;
  *   - in no closure at all, and SERVER-ONLY (`isServerOnlyPath`: `convex/**`
  *     or `data/**` outside `convex/_generated/`) → contributes nothing: the
@@ -86,6 +90,12 @@ export const SHELL_ENTRY = "src/main.tsx";
 export const ROUTER_MODULE = "src/router.tsx";
 /** The build configuration; its closure shapes every route's bundle. */
 export const BUILD_CONFIG = "vite.config.ts";
+/** The loading gate the shell mounts, as a lazy chunk, around every route
+ *  that is not a `lightSurface`; it fetches the catalogue into the registry. */
+export const CATALOGUE_GATE = "src/components/ui/catalogue-gate.tsx";
+/** The card registry the gate fills: the only way a surface reads what the
+ *  gate loads. */
+export const CARD_REGISTRY = "convex/cards/registry.ts";
 /** The lane's own walks, probe and floors. */
 export const UI_GATE_DIR = "scripts/ui-gate/";
 /** The one lane file that also holds per-surface definitions. */
@@ -175,6 +185,15 @@ export function globalReason(path: string): string | null {
     return null;
 }
 
+/** What renders around every surface: the shell entry's runtime closure, not
+ *  descending into route modules nor into the lazily-loaded catalogue gate,
+ *  which `computeUiScope` places on its own. */
+export function shellClosure(graph: ImportGraph): Set<string> {
+    return graph.closureOf(SHELL_ENTRY, {
+        prune: (p) => isRouteModulePath(p) || p === CATALOGUE_GATE,
+    });
+}
+
 export interface ComputeUiScopeInput {
     changed: readonly string[];
     surfaces: readonly ScopeSurface[];
@@ -190,13 +209,22 @@ export function computeUiScope({
     graph,
     surfaceEdits = null,
 }: ComputeUiScopeInput): UiScope {
-    const shell = graph.closureOf(SHELL_ENTRY, { prune: isRouteModulePath });
+    const shell = shellClosure(graph);
     const build = graph.closureOf(BUILD_CONFIG);
     const specimens = specimenIndex(surfaces);
     const closures = surfaces.map((surface) => ({
         id: surface.id,
         files: surfaceClosure(surface, graph, specimens),
     }));
+    // What only the catalogue gate reaches (issue #5379): the catalogue it
+    // loads into the registry. A surface observes it solely by reading that
+    // registry, and a load that breaks breaks every gated surface alike — so
+    // the registry's readers carry it, and with no reader it stays `full`.
+    const gateOnly = graph.closureOf(CATALOGUE_GATE);
+    for (const file of shell) gateOnly.delete(file);
+    const registryReaders = closures
+        .filter((c) => c.files.has(CARD_REGISTRY))
+        .map((c) => c.id);
     // A path the app names ONLY through type-only edges: in the type-inclusive
     // closure of the roots below and NOT in their runtime closure — taken
     // once, and only when a path lands in no surface's closure. The runtime
@@ -285,7 +313,17 @@ export function computeUiScope({
             };
         }
         const hits = closures.filter((c) => c.files.has(path));
+        if (gateOnly.has(path)) {
+            if (registryReaders.length === 0) {
+                return {
+                    kind: "full",
+                    reason: `${path} is loaded by the catalogue gate (${CATALOGUE_GATE}) and no surface reads ${CARD_REGISTRY}`,
+                };
+            }
+            for (const id of registryReaders) selected.add(id);
+        }
         if (hits.length === 0) {
+            if (gateOnly.has(path)) continue;
             if (typeOnlyReachable(path)) continue;
             if (staffOnlyReachable(path)) continue;
             if (isServerOnlyPath(path)) continue;
