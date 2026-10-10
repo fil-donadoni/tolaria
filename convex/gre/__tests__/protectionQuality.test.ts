@@ -153,7 +153,7 @@ describe("parseProtectionQuality (CR 702.16a)", () => {
         // its own parse/consult rows are the CR 702.16j block further down.
         // CR 702.16a subtype quality (issue #2765) is closed against the
         // CR 205.3m creature-type table: a misspelling, a negation and a
-        // planeswalker-only word all stay unnameable.
+        // doubled-letter word all stay unnameable.
         expect(parseProtectionQuality("protection from gobblins")).toBeNull();
         expect(
             parseProtectionQuality("protection from non-goblin creatures")
