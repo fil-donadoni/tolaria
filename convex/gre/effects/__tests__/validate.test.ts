@@ -4547,6 +4547,36 @@ describe("validateEffectScript — moveZone target → library position (issue #
         expect(script(["cant-be-blocked-by-anything"])).not.toEqual([]);
     });
 
+    it('restrictCombat "must-block" requires an "attacker" and no other mode accepts one (CR 509.1c, issue #3713)', () => {
+        const check = (op: Record<string, unknown>) =>
+            validateEffectScript(
+                host({ effects: [op as unknown as EffectOp] })
+            );
+        expect(
+            check({
+                op: "restrictCombat",
+                restriction: "must-block",
+                target: { target: 0 },
+                attacker: { target: 1 },
+            })
+        ).toEqual([]);
+        expect(
+            check({
+                op: "restrictCombat",
+                restriction: "must-block",
+                target: { target: 0 },
+            }).join("\n")
+        ).toMatch(/"attacker" is required when "restriction" is "must-block"/);
+        expect(
+            check({
+                op: "restrictCombat",
+                restriction: "cant-block",
+                target: { target: 0 },
+                attacker: { target: 1 },
+            }).join("\n")
+        ).toMatch(/"attacker" is only allowed/);
+    });
+
     it('rejects "position" with a non-library destination', () => {
         const errors = validateEffectScript(
             host({
