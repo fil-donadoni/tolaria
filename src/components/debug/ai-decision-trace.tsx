@@ -35,7 +35,7 @@ export default function AiDecisionTrace() {
         <div className="flex flex-col gap-1">
             <div className="flex items-baseline justify-between gap-2">
                 <span className="text-label">
-                    AI · last decisions
+                    Bot · last decisions
                     {records.length > 0 ? ` (${records.length})` : ""}
                 </span>
                 {records.length > 0 && (
