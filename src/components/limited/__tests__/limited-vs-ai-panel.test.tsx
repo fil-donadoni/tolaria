@@ -191,6 +191,9 @@ describe("LimitedVsAiPanel (issue #1115)", () => {
         // (issue #1115: the ownership gate would reject it), and Freeform's
         // validator is a permissive no-op.
         expect(arg.deck2.format).toBe("freeform");
+        // …so the playtest is a Freeform Match, the one Match Format that
+        // admits both seats (ADR 0153).
+        expect(arg.matchFormat).toBe("freeform");
         expect(arg.deck2.cards).toEqual([
             { cardId: "c1", cardName: "Shivan Dragon" },
             { cardId: "c2", cardName: "Mountain" },

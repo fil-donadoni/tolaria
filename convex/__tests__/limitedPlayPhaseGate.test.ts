@@ -333,6 +333,9 @@ describe("event-bound Play-vs-Bots playtest is rejected server-side while the ev
             deck2: freeformOpponentDeck(deck),
             vsAi: true,
             limitedEventId: event._id,
+            // The Bot's list rides as Freeform, so the playtest is a
+            // Freeform Match (ADR 0153), as `limited-vs-ai-panel` sends.
+            matchFormat: "freeform",
         });
 
         expect(gameId).toBeTruthy();
@@ -355,6 +358,9 @@ describe("event-bound Play-vs-Bots playtest is rejected server-side while the ev
             deck2: freeformOpponentDeck(deck),
             vsAi: true,
             limitedEventId: event._id,
+            // The Bot's list rides as Freeform, so the playtest is a
+            // Freeform Match (ADR 0153), as `limited-vs-ai-panel` sends.
+            matchFormat: "freeform",
         });
 
         expect(gameId).toBeTruthy();

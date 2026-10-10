@@ -23,7 +23,9 @@ interface VsAiSetupDialogProps {
     onOpenChange: (open: boolean) => void;
     difficulty: Difficulty;
     onDifficultyChange: (difficulty: Difficulty) => void;
-    /** All decks selectable as the AI opponent's deck (user + preset). */
+    /** The decks selectable as the AI opponent's deck (user + preset): only
+     *  those the Match Format admits (ADR 0153) — the server refuses any other
+     *  `deck2`. Mirror is always offered on top. */
     decks: LobbyDeck[];
     /** Selected AI opponent deck presetId, or null to mirror the player. */
     aiDeckId: string | null;

@@ -51,6 +51,12 @@ export function bestOfForGamesFormat(format: LimitedGamesFormat): 1 | 3 {
     return format === "bo1" ? 1 : 3;
 }
 
+/** The inverse seam (ADR 0153): a Match's `bestOf` read back as its Games
+ *  Format, for the open-table and join reads that advertise it. */
+export function gamesFormatForBestOf(bestOf: 1 | 3): LimitedGamesFormat {
+    return bestOf === 1 ? "bo1" : "bo3";
+}
+
 /** Games needed to WIN a match of this format — the score a bye is worth and
  *  the target the (later) bot-vs-bot simulator rolls towards. Bo1 = 1, Bo3 = 2
  *  (PRD #1628 story 28: "a bye recorded as a match win with the games it is

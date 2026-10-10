@@ -314,6 +314,12 @@ export default defineSchema({
     // optional purely so rows written before the split keep working.
     matches: defineTable({
         bestOf: v.union(v.literal(1), v.literal(3)),
+        // The Match Format (ADR 0153): the Format every seated Deck is
+        // admitted against, chosen at creation. Optional only for Matches
+        // created before it existed — read it through `resolveMatchFormat`
+        // (`convex/formats.ts`), which derives a missing one from the host's
+        // Deck Format.
+        matchFormat: v.optional(formatValidator),
         status: v.union(
             // Mirrors the game lifecycle: a 2-player Match opens "waiting" for
             // an opponent; "pregame" is the G1 coin-toss + play/draw gate (CR

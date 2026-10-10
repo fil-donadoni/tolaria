@@ -74,6 +74,12 @@ export default function LimitedVsAiPanel({
                     sideboard: seat.autoBuiltDeck.sideboard,
                 },
                 vsAi: true,
+                // The Bot's auto-built list rides as Freeform (its Pool is
+                // another seat's, not the caller's to resolve), so the
+                // playtest is a Freeform Match — which admits the player's
+                // Limited deck (ADR 0153). A Limited Match Format would
+                // refuse the Bot's seat.
+                matchFormat: "freeform",
                 // Binds the playtest to this event so ending it returns to the
                 // EVENT lobby, not the general one (`lobbyHrefForMatch`). The
                 // server re-checks the binding against the viewer's own deck.

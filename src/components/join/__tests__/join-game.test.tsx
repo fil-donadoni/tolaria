@@ -1,5 +1,5 @@
 // Invite antechamber (`/join/<gameId>`): the join page names the host, states
-// the game format, and lists ONLY the visitor's decks that can meet that format (Format Compatibility). Picking a
+// the game's Match Format, and lists ONLY the visitor's decks it admits (ADR 0153). Picking a
 // legal deck and confirming fires `joinGame` with that deck and enters /game.
 // Not-joinable games (own game, started, full, missing) show a fallback instead
 // of the deck picker. See `../join-game`.
@@ -11,8 +11,9 @@ const navigate = vi.fn();
 const joinGame = vi.fn().mockResolvedValue(undefined);
 const storeSession = vi.fn();
 
-// Two presets: only the old-school one may meet an old-school host. A limited
-// deck is Format-incompatible with a Standard-Variant table (issue #4611). Shape mirrors the preset source `toPresetLobbyDeck` accepts
+// Two presets: only the old-school one is admitted to an Old School Match — a
+// Premodern deck no longer is (ADR 0153 narrowed #4611's family table); a
+// Freeform Match admits both. Shape mirrors the preset source `toPresetLobbyDeck` accepts
 // (server-derived legality present → used as-is).
 const PRESET_DECKS = [
     {
@@ -31,7 +32,7 @@ const PRESET_DECKS = [
         presetId: "future-blue",
         name: "Future Blue",
         description: "Draw-Go",
-        format: "limited",
+        format: "premodern",
         colors: ["U"],
         cards: [{ cardId: "card-b", cardName: "Counterspell" }],
         sideboard: [],
@@ -45,7 +46,8 @@ const JOINABLE_INFO = {
     gameId: "game-1",
     name: "Tester's game",
     hostName: "Tester",
-    format: "old-school",
+    matchFormat: "old-school",
+    gamesFormat: "bo1",
     status: "waiting",
     playerCount: 1,
     isHost: false,
@@ -104,9 +106,19 @@ describe("JoinGame antechamber", () => {
         const { getByText, queryByText } = renderJoin(JOINABLE_INFO);
         // Host surfaced in the subtitle.
         expect(getByText(/invited you/)).toBeTruthy();
-        // Old-school deck shown; the Format-incompatible limited deck filtered out.
+        // Old-school deck shown; the Premodern deck the Match does not admit
+        // filtered out.
         expect(getByText("Mono Red Burn")).toBeTruthy();
         expect(queryByText("Future Blue")).toBeNull();
+    });
+
+    it("offers every non-Manual deck at a Freeform Match", () => {
+        const { getByText } = renderJoin({
+            ...JOINABLE_INFO,
+            matchFormat: "freeform",
+        });
+        expect(getByText("Mono Red Burn")).toBeTruthy();
+        expect(getByText("Future Blue")).toBeTruthy();
     });
 
     it("renders both the Your Decks and Preset Decks panels", () => {

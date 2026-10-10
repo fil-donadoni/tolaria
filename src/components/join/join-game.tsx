@@ -3,12 +3,12 @@ import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { FORMAT_RULES, type FormatId } from "@convex/formats";
+import { FORMAT_RULES } from "@convex/formats";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import {
     deckPayload,
-    filterDecksCompatibleWith,
+    filterDecksAdmittedBy,
     selectPreset,
     toPresetLobbyDeck,
     type LobbyDeck,
@@ -47,19 +47,19 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     const [isBusy, setIsBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const format = info?.format as FormatId | undefined;
+    const format = info?.matchFormat;
 
-    // The visitor's own decks and the presets, each pre-filtered to the game's
-    // format and kept in their own list (the two lobby deck panels).
+    // The visitor's own decks and the presets, each pre-filtered to the Decks
+    // the game's Match Format admits (ADR 0153) and kept in their own list (the
+    // two lobby deck panels).
     const eligibleUserDecks = useMemo<LobbyDeck[]>(
-        () =>
-            format ? filterDecksCompatibleWith(userDecks ?? [], format) : [],
+        () => (format ? filterDecksAdmittedBy(userDecks ?? [], format) : []),
         [userDecks, format]
     );
     const eligiblePresetDecks = useMemo<LobbyDeck[]>(
         () =>
             format
-                ? filterDecksCompatibleWith(
+                ? filterDecksAdmittedBy(
                       (presetDecks ?? []).map((d) => toPresetLobbyDeck(d)),
                       format
                   )
@@ -143,6 +143,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
     }
 
     const formatLabel = format ? FORMAT_RULES[format].label : "";
+    const gamesFormatLabel = info.gamesFormat === "bo3" ? "Bo3" : "Bo1";
 
     return (
         // The shell's remainder as a FLOOR, and NO `overflow-hidden` (issue
@@ -167,14 +168,15 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                                 <span className="text-text">
                                     {info.hostName}
                                 </span>{" "}
-                                invited you · {formatLabel}
+                                invited you · {formatLabel} Match ·{" "}
+                                {gamesFormatLabel}
                             </>
                         }
                     />
                     <PanelBody className="items-center text-center">
                         <p className="text-sm text-text-muted">
-                            Pick a deck to join. Only decks that can meet a{" "}
-                            {formatLabel} deck are shown.
+                            Pick a deck to join. Only decks a {formatLabel}{" "}
+                            Match admits are shown.
                         </p>
                     </PanelBody>
                 </Panel>
@@ -200,7 +202,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                                     selectedPresetId={selectedId}
                                     onFocus={selectIfLegal(eligibleUserDecks)}
                                     onSelect={setSelectedId}
-                                    emptyLabel={`You have no deck that can meet a ${formatLabel} deck. Create one to join.`}
+                                    emptyLabel={`You have no deck a ${formatLabel} Match admits. Create one to join.`}
                                 />
                             </div>
                         </PanelBody>
@@ -215,7 +217,7 @@ export default function JoinGame({ gameId }: JoinGameProps) {
                                     selectedPresetId={selectedId}
                                     onFocus={selectIfLegal(eligiblePresetDecks)}
                                     onSelect={setSelectedId}
-                                    emptyLabel={`No preset deck can meet a ${formatLabel} deck.`}
+                                    emptyLabel={`No preset deck is admitted to a ${formatLabel} Match.`}
                                 />
                             </div>
                         </PanelBody>

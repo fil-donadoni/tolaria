@@ -7,8 +7,7 @@ import {
 import {
     type BanlistOverride,
     type FormatId,
-    formatsCompatible,
-    isFormatId,
+    isDeckAdmitted,
     type Reason,
     validateDeck,
 } from "@convex/formats";
@@ -196,26 +195,16 @@ export function filterDecksByFormat<T extends { format: FormatId }>(
 }
 
 /**
- * Narrow a deck list to the Decks that may meet a host's Deck in one Match
- * (Format Compatibility, CONTEXT.md, issue #4611). The server enforces the same
- * predicate at join (`formatsCompatible` is the single authority); this is the
- * client's pre-filter so a joiner is only offered Decks the join will accept.
+ * Narrow a deck list to the Decks a Match Format admits (ADR 0153). The server
+ * enforces the same predicate on every create and join (`isDeckAdmitted` is
+ * the single authority); this is the client's pre-filter so a joiner — or the
+ * picker for a Bot's Deck — is only offered Decks the server will accept.
  */
-export function filterDecksCompatibleWith<T extends { format: FormatId }>(
+export function filterDecksAdmittedBy<T extends { format: FormatId }>(
     decks: readonly T[],
-    hostFormat: FormatId
+    matchFormat: FormatId
 ): T[] {
-    return decks.filter((d) => formatsCompatible(d.format, hostFormat));
-}
-
-/** A table's host Format, read off its first seat. An unrecognised string
- *  falls back to `freeform`, the same fallback the server's join gate uses. */
-export function tableHostFormat(game: {
-    players: readonly { deck: { format: string } }[];
-}): FormatId | null {
-    const raw = game.players[0]?.deck.format;
-    if (raw === undefined) return null;
-    return isFormatId(raw) ? raw : "freeform";
+    return decks.filter((d) => isDeckAdmitted(d.format, matchFormat));
 }
 
 export function deckPayload(d: LobbyDeck): {

@@ -1,13 +1,20 @@
 import type { Doc, Id } from "@convex/_generated/dataModel";
-import { formatsCompatible, type FormatId } from "@convex/formats";
-import { tableHostFormat } from "~/lib/deckTypes";
+import {
+    FORMAT_LABELS,
+    admissionRefusal,
+    type FormatId,
+} from "@convex/formats";
+import type { LimitedGamesFormat } from "@convex/limited/gamesFormat";
 import type { PlayMode } from "~/lib/session";
 import { cn } from "~/lib/utils";
 
-/** An open (waiting) game enriched with its owning Match's format (PRD #387 /
- *  #397). The joiner inherits the creator's `bestOf`, so the format is shown in
- *  the join row BEFORE committing. */
-export type OpenGame = Doc<"games"> & { bestOf: 1 | 3 };
+/** An open (waiting) game enriched with its owning Match's Match Format (ADR
+ *  0153) and Games Format (PRD #387 / #397). The joiner inherits both from the
+ *  creator, so both are shown in the join row BEFORE committing. */
+export type OpenGame = Doc<"games"> & {
+    matchFormat: FormatId;
+    gamesFormat: LimitedGamesFormat;
+};
 
 interface OpenTablesStripProps {
     openGames: OpenGame[] | undefined;
@@ -18,10 +25,10 @@ interface OpenTablesStripProps {
      *  joining a table is the same commitment as opening one, so it must never
      *  be offered under a condition the primary action refuses. */
     canAct: boolean;
-    /** Format of the Deck the player would join with (Format Compatibility,
-     *  issue #4611). A row whose host Format cannot meet it is disabled with
-     *  the reason, instead of dispatched into a server refusal. Absent = no
-     *  deck picked yet, so nothing to be incompatible with. */
+    /** Format of the Deck the player would join with. A row whose Match
+     *  Format does not admit it (ADR 0153) is disabled with the reason,
+     *  instead of dispatched into a server refusal. Absent = no deck picked
+     *  yet, so nothing to refuse. */
     deckFormat?: FormatId;
 }
 
@@ -58,11 +65,12 @@ export default function OpenTablesStrip({
                     // the row instead.
                     const tableIsManual = g.mode === "manual";
                     const rowMatchesMode = tableIsManual === isCockatrice;
-                    const hostFormat = tableHostFormat(g);
-                    const formatMismatch =
-                        deckFormat !== undefined &&
-                        hostFormat !== null &&
-                        !formatsCompatible(deckFormat, hostFormat);
+                    // The server's own refusal, word for word (ADR 0153).
+                    const formatRefusal =
+                        deckFormat === undefined
+                            ? null
+                            : admissionRefusal(deckFormat, g.matchFormat);
+                    const formatMismatch = formatRefusal !== null;
                     const canJoin = canAct && rowMatchesMode && !formatMismatch;
                     return (
                         <button
@@ -75,9 +83,7 @@ export default function OpenTablesStrip({
                                     ? tableIsManual
                                         ? "This is a Manual Game — switch to Cockatrice mode to join."
                                         : "This is an Arena game — switch to Arena mode to join."
-                                    : formatMismatch
-                                      ? `This table plays ${hostFormat}; your ${deckFormat} deck cannot join it. Pick a compatible deck.`
-                                      : undefined
+                                    : (formatRefusal ?? undefined)
                             }
                             className={cn(
                                 "flex items-center justify-between gap-3 rounded-sm border px-3 py-2 text-sm transition",
@@ -93,7 +99,8 @@ export default function OpenTablesStrip({
                             <span className="flex min-w-0 items-center gap-2 font-medium">
                                 <span className="truncate">{g.name}</span>
                                 <span className="shrink-0 rounded-sm border border-[var(--hairline-strong)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">
-                                    {g.bestOf === 3 ? "Bo3" : "Bo1"} Match
+                                    {FORMAT_LABELS[g.matchFormat]} ·{" "}
+                                    {g.gamesFormat === "bo3" ? "Bo3" : "Bo1"}
                                 </span>
                                 {tableIsManual && (
                                     <span className="shrink-0 rounded-sm border border-[var(--hairline)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted">

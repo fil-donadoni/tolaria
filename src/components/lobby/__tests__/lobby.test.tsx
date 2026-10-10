@@ -53,8 +53,9 @@ function convexRejection(fn: string, payload: string): ConvexError<string> {
     return error;
 }
 
-// One preset deck the lobby can select as the hero, and a second one usable as
-// the AI opponent deck.
+// One preset deck the lobby can select as the hero, a second one usable as the
+// AI opponent deck, and a third whose Format the hero's Old School Match Format
+// does not admit (ADR 0153) — so the AI picker must leave it out.
 const PRESET_DECKS = [
     {
         presetId: "mono-red-burn",
@@ -80,6 +81,18 @@ const PRESET_DECKS = [
         // renders for a deck that HAS a Featured Card, which is what makes
         // "selecting a deck swaps the ambient" (AC #3) falsifiable below.
         featuredCardId: "print-white-weenie",
+        isLegal: true,
+        reasons: [],
+    },
+    {
+        presetId: "premodern-elves",
+        name: "Premodern Elves",
+        description: "Elves",
+        format: "premodern",
+        colors: ["G"],
+        cards: [{ id: "card-c", quantity: 4 }],
+        sideboard: [],
+        featuredCardId: null,
         isLegal: true,
         reasons: [],
     },
@@ -179,7 +192,8 @@ function makeOpenGame(overrides: Record<string, unknown> = {}) {
         name: "Someone's game",
         mode: "standard",
         status: "waiting",
-        bestOf: 1 as const,
+        matchFormat: "freeform",
+        gamesFormat: "bo1",
         players: [
             {
                 id: "user-2",
@@ -373,6 +387,19 @@ describe("Lobby vs-AI two-step flow", () => {
         expect(arg.deck).toBeTruthy();
         expect(arg.deck2).toBeTruthy();
         expect(arg.deck2.name).toBe("White Weenie");
+        // Today's lobby: the Match Format is the selected deck's Format.
+        expect(arg.matchFormat).toBe("old-school");
+    });
+
+    it("offers Mirror plus only the decks the Match Format admits as the Bot's deck (ADR 0153)", async () => {
+        const { getByRole, getByLabelText } = await renderLobby();
+        fireEvent.click(getByRole("button", { name: "Play vs Bot" }));
+        const picker = getByLabelText("AI Opponent Deck") as HTMLSelectElement;
+        expect([...picker.options].map((o) => o.text)).toEqual([
+            "Same as your deck (mirror)",
+            "Mono Red Burn",
+            "White Weenie",
+        ]);
     });
 
     it("Cancel closes the dialog without firing the mutation", async () => {
