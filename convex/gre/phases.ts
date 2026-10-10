@@ -3022,6 +3022,10 @@ const TURN_SCOPED_GLOBAL_FLAGS = [
     // activate non-mana abilities this turn" lock, same boundary as the cast
     // lock above.
     "cannotActivateAbilitiesThisTurn",
+    // CR 305.1 / 101.2 / 514.2 (issue #2145) — Turf Wound's per-player "can't
+    // play lands this turn" lock, same boundary as the locks above: it must
+    // survive END_OF_COMBAT into the postcombat main phase.
+    "cannotPlayLandsThisTurn",
     // CR 609.4b / 118.14 / 514.2 (issue #2890) — North Star's ONE-SHOT "for
     // one spell this turn, you may spend mana as though it were mana of any
     // type" grant. An UNSPENT grant is a "this turn" permission and must

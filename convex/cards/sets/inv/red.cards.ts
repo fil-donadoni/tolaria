@@ -1316,24 +1316,24 @@ export const scorchingLava = defineCard(() => ({
 }));
 
 // Turf Wound — {2}{R} Instant. "Target player can't play lands this turn.
-// Draw a card." The only existing land-play lock (`landPlayLockActive` /
-// `preventsLandPlayAndETB`) is GLOBAL (Worms of the Earth style), not scoped
-// to one player. Needs a new per-player `GameState` field (mirroring
-// `cannotActivateAbilitiesThisTurn`'s bare `string[]`) plus a
-// `restrictLandPlay`-style Op read at the single legality choke-point in
-// `gre/rules.ts`. Two traps recorded on the issue: it must NOT be modelled as
-// a land-drop allowance of zero (CR 101.2 — a later Exploration would
-// increment it back and silently unlock the player), and it must NOT gate
-// `canLandEnterBattlefield` (CR 305.4 — "put onto the battlefield" is not
-// "playing a land"; Worms gates both only because its own text says both).
-// tracked-by: #2145
-// export const turfWound: CardDefinition = {
-//     id: "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
-//     name: "Turf Wound",
-//     rarity: "common",
-//     manaCost: { X: 2, R: 1 },
-//     types: ["Instant"],
-// };
+// Draw a card." (CR 305.1 / 101.2 / 514.2, issue #2145.) `restrictLandPlay`
+// is a per-player flag read independently of the land-drop count — NOT an
+// allowance of zero (CR 101.2: a later Exploration would raise it back) — and
+// it gates PLAYING a land only, never a land entering the battlefield
+// (CR 305.4).
+export const turfWound = defineCard(() => ({
+    id: "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
+    name: "Turf Wound",
+    rarity: "common",
+    oracleText: "Target player can't play lands this turn.\nDraw a card.",
+    manaCost: { X: 2, R: 1 },
+    types: ["Instant"],
+    targetRequirement: { type: "player", count: 1 },
+    effects: [
+        { op: "restrictLandPlay", player: { target: 0 } },
+        { op: "draw", player: "controller", count: 1 },
+    ],
+}));
 
 // Bend or Break — {3}{R} Sorcery. "Each player separates all nontoken lands
 // they control into two piles. For each player, one of their piles is

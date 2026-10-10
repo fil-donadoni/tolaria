@@ -2132,6 +2132,12 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             // landing in state.cannotActivateAbilitiesThisTurn (asserted below).
             analysePlayer(op.player, req, false);
             return;
+        case "restrictLandPlay":
+            // CR 305.1 / 101.2 (issue #2145) — a turn-scoped land-play lock on
+            // a player; the deterministic outcome is the player id landing in
+            // state.cannotPlayLandsThisTurn (asserted below).
+            analysePlayer(op.player, req, false);
+            return;
         case "skipDrawStepThisTurn":
             // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot
             // draw-step-skip flag on a player; the deterministic outcome is
@@ -3070,6 +3076,25 @@ const OP_ASSERTORS: AssertorTable = {
                 const locked =
                     post.cannotActivateAbilitiesThisTurn?.includes(pid) ??
                     false;
+                return {
+                    ok: locked && !wasLocked,
+                    detail: `locked=${locked} (was ${wasLocked})`,
+                };
+            },
+        };
+    },
+    // `restrictLandPlay` (CR 305.1 / 101.2, issue #2145) — a deterministic
+    // same-resolution state change: the named player's id lands in
+    // state.cannotPlayLandsThisTurn. Asserted directly.
+    restrictLandPlay(rawOp, _scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "restrictLandPlay" }>;
+        const pid = assertionPlayerId(op.player);
+        const wasLocked = pre.cannotPlayLandsThisTurn?.includes(pid) ?? false;
+        return {
+            label: `restrictLandPlay locks player ${pid} out of playing lands this turn`,
+            check: (post) => {
+                const locked =
+                    post.cannotPlayLandsThisTurn?.includes(pid) ?? false;
                 return {
                     ok: locked && !wasLocked,
                     detail: `locked=${locked} (was ${wasLocked})`,

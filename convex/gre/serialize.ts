@@ -1365,6 +1365,7 @@ export const PERSISTED_OPTIONAL_KEYS = [
     "recipientPreventionShields",
     "cannotCastSpellsThisTurn",
     "cannotActivateAbilitiesThisTurn",
+    "cannotPlayLandsThisTurn",
     "combatDamageRedirectToPermanent",
     "gazeOfPainActiveThisTurn",
     "landManaReplacedToBlueThisTurn",

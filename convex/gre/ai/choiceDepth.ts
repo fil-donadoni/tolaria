@@ -170,6 +170,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     regenerate: false,
     replaceManaProductionColor: false,
     restrictActivation: false,
+    restrictLandPlay: false,
     restrictCasting: false,
     restrictCombat: false,
     returnExiledForSource: false,

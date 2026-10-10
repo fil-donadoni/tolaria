@@ -2755,6 +2755,12 @@ describe("optional field round-trip smoke tests", () => {
         ]);
     });
 
+    it("cannotPlayLandsThisTurn (Turf Wound, CR 305.1 / 514.2, issue #2145)", () => {
+        const state = freshState();
+        state.cannotPlayLandsThisTurn = ["p2"];
+        expect(roundTrip(state).cannotPlayLandsThisTurn).toEqual(["p2"]);
+    });
+
     it("skipDrawStepThisTurn (Elfhame Sanctuary, CR 504.1, issue #1097)", () => {
         const state = freshState();
         state.skipDrawStepThisTurn = ["p1"];

@@ -3248,6 +3248,45 @@ describe("Effect Script Op: restrictActivation (CR 602.1 / 605.1a, issue #1124)"
     });
 });
 
+// New Op (issue #2145 — Turf Wound) → full per-Op regime: interpreter coverage
+// of the player-slot combinations; the wire-format and legality assertions
+// live in `convex/gre/__tests__/landPlayRestriction.test.ts`.
+describe("Effect Script Op: restrictLandPlay (CR 305.1 / 101.2, issue #2145)", () => {
+    it("adds the opponent to state.cannotPlayLandsThisTurn", () => {
+        const id = registerScript("test-op-restrict-land-opp", [
+            { op: "restrictLandPlay", player: "opponent" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotPlayLandsThisTurn).toEqual(["p2"]);
+    });
+
+    it("locks the announced player target", () => {
+        const id = registerScript(
+            "test-op-restrict-land-target",
+            [{ op: "restrictLandPlay", player: { target: 0 } }],
+            { targetRequirement: { type: "player", count: 1 } }
+        );
+        const state = makeState();
+        pushSpell(state, id, "p1", [{ type: "player", id: "p1" }]);
+        resolveTopOfStack(state);
+        expect(state.cannotPlayLandsThisTurn).toEqual(["p1"]);
+    });
+
+    it("is idempotent — a second resolution does not duplicate the id", () => {
+        const id = registerScript("test-op-restrict-land-idem", [
+            { op: "restrictLandPlay", player: "controller" },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.cannotPlayLandsThisTurn).toEqual(["p1"]);
+    });
+});
+
 // New Op (issue #1097 — Elfhame Sanctuary) → full per-Op regime: interpreter
 // coverage of the construct combinations it participates in (controller /
 // announced player slot, idempotence), plus a wire-format assertion through

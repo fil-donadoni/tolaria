@@ -164,6 +164,7 @@ const SCRY_PER_CARD_VALUE = 10; // one card of scry-style selection
 const MILL_PER_CARD_VALUE = 6; // one milled card — a small library-resource shift
 const GRANT_GRAVEYARD_PLAY_VALUE = 80; // broad graveyard-replay permission (board-scaling)
 const RESTRICT_CASTING_VALUE = 20; // a turn-scoped "can't cast" denial
+const RESTRICT_LAND_PLAY_VALUE = 15; // a turn-scoped "can't play lands" denial
 const RESTRICT_ACTIVATION_VALUE = 15; // a turn-scoped "can't activate" denial
 const GRANT_CAST_TIMING_VALUE = 8; // a "cast as though flash" self-grant (tempo)
 const GRANT_SPELL_MANA_SUBSTITUTION_VALUE = 8; // one spell's colours fixed
@@ -2011,6 +2012,11 @@ const restrictActivation: Valuer<"restrictActivation"> = () => ({
     tags: ["disruption"],
 });
 
+const restrictLandPlay: Valuer<"restrictLandPlay"> = () => ({
+    points: RESTRICT_LAND_PLAY_VALUE,
+    tags: ["disruption"],
+});
+
 const restrictCasting: Valuer<"restrictCasting"> = () => ({
     points: RESTRICT_CASTING_VALUE,
     tags: ["disruption"],
@@ -2368,6 +2374,7 @@ export const OP_VALUERS: {
     lockDamage,
     suppressDamagePrevention,
     restrictActivation,
+    restrictLandPlay,
     restrictCasting,
     grantCastTiming,
     reduceSpellCostThisTurn,
@@ -2709,6 +2716,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     // an effect with no recipient belongs.
     suppressDamagePrevention: "neutral",
     restrictActivation: "harmful",
+    restrictLandPlay: "harmful",
     restrictCasting: "harmful",
     markAssignsNoCombatDamage: "harmful",
     skipNextUntap: "harmful",

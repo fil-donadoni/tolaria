@@ -42424,6 +42424,16 @@
         "source": "compiled"
     },
     {
+        "name": "Pardic Miner",
+        "scryfallId": "4a734abe-7bfd-4153-be2d-1c289fb60996",
+        "oracleId": "e1788b54-4cd9-459f-b2c9-06773e68e9e3",
+        "firstSet": "ody",
+        "firstPrintId": "4a734abe-7bfd-4153-be2d-1c289fb60996",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Pardic Swordsmith",
         "scryfallId": "44ac622c-db04-41bf-817e-4698843e6346",
         "oracleId": "946d770f-0a59-415b-b334-8f7353b96046",
@@ -63258,6 +63268,14 @@
         "firstPrintSet": "jud",
         "rarity": "uncommon",
         "source": "compiled"
+    },
+    {
+        "name": "Turf Wound",
+        "scryfallId": "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
+        "oracleId": "8dc48180-1482-40c4-8c5f-1724018e9c5b",
+        "firstSet": "inv",
+        "firstPrintId": "91392e9f-f96a-4ac5-b1f1-c73540cf249e",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Turntimber Ascetic",
