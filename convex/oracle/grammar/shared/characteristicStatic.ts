@@ -83,7 +83,7 @@ const ABILITY_LOSS_PT_SET =
  * Humility. CR 613.1f strips the abilities (layer 6) and CR 613.4b sets the
  * base P/T (sublayer 7b): one clause, two effects, one filter. The subject is
  * a plural set — "All creatures" — read by the shared descriptor, with a
- * leading "All " carrying no filtering meaning (CR 109.1).
+ * leading "All " carrying no filtering meaning.
  */
 export const abilityLossPtSetRule: Rule<CharacteristicStaticIR> = pattern(
     "ability loss and base P/T",
