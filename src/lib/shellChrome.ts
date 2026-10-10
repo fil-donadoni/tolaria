@@ -256,6 +256,11 @@ export const SHELL_ROUTE_RULES: readonly ShellRouteRule[] = [
         why: "The living token/component census — browsed, not edited.",
     },
     {
+        pattern: "/play/constructed",
+        mode: "browse",
+        why: "The Constructed setup flow (PRD #5334, issue #5340) — a lobby branch, reached from the lobby and left back to it; Start routes to /game.",
+    },
+    {
         pattern: "/settings",
         mode: "browse",
         why: "The per-user preferences page (density, motion, phase stops, preview default) — edited in place like the admin editors above, not a multi-step editing surface. Reached from AppHeaderProfile's Settings button (desktop header / bottom nav Me popover, issue #2595).",

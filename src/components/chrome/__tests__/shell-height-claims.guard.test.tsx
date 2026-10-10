@@ -736,6 +736,12 @@ const ROUTE_ROOTS: Record<
         routePath: "/settings",
         files: [{ rel: "routes/settings.route.tsx" }],
     },
+    MatchSetupRoute: {
+        // PRD #5334 / issue #5340: the Constructed setup flow. Same
+        // `min-h-full` claim as the lobby root it branches from.
+        routePath: "/play/constructed",
+        files: [{ rel: "routes/match-setup.route.tsx" }],
+    },
     NotFoundPage: {
         routePath: "/no-such-route",
         files: [{ rel: "components/ui/not-found-page.tsx" }],
