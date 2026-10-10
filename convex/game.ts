@@ -3401,8 +3401,15 @@ export const createSoloGame = mutation({
         const deck2 = args.deck2 ?? args.deck;
         // Match Format admission (ADR 0153): both seats, before any legality
         // work — a client that offered an inadmissible Bot deck is refused
-        // here, not trusted.
-        const matchFormat = args.matchFormat ?? toFormatId(args.deck.format);
+        // here, not trusted. An absent one is seat 1's Deck Format — except
+        // for an event-bound "Play vs the Table" playtest, whose Bot list
+        // rides as Freeform (`limited-vs-ai-panel.tsx` sends "freeform"
+        // explicitly; this keeps a tab on the pre-ADR-0153 bundle working).
+        const matchFormat =
+            args.matchFormat ??
+            (args.limitedEventId && args.deck2
+                ? "freeform"
+                : toFormatId(args.deck.format));
         assertDeckAdmitted(args.deck, matchFormat);
         assertDeckAdmitted(deck2, matchFormat);
         // Authoritative deck legality gate (ADR 0036): both seats' decks must be

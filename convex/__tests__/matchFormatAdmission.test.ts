@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
 import { createGame, createSoloGame, joinGame, joinGameByCode } from "../game";
+import { createManualGame, createManualSoloGame } from "../gameManual";
 import { getJoinInfo, listOpenGames } from "../gameReads";
 import {
     makeInMemoryDb,
@@ -243,5 +244,24 @@ describe("reads — an open table advertises Match Format and Games Format", () 
             matchFormat: string;
         }[];
         expect(row.matchFormat).toBe("premodern");
+    });
+});
+
+describe("Manual — Cockatrice fixes the Match Format to Manual (ADR 0153 § 4)", () => {
+    const MANUAL = {
+        ...FREEFORM,
+        format: "manual",
+        cards: [{ cardId: "c", cardName: "Card" }],
+    };
+
+    it("stores a Manual Match Format on both Manual creates", async () => {
+        for (const fn of [createManualGame, createManualSoloGame]) {
+            const db = makeInMemoryDb(
+                { users: users() },
+                { identitySubject: ALICE }
+            );
+            await run(fn, db.ctx, { name: "t", deck: MANUAL });
+            expect(db.tables.matches![0].matchFormat).toBe("manual");
+        }
     });
 });

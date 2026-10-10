@@ -262,6 +262,9 @@ export const listOpenGames = query({
                 void joinCode;
                 return {
                     ...row,
+                    // Kept beside `gamesFormat` for a lobby on the previous
+                    // bundle, which still reads it.
+                    bestOf: (match?.bestOf ?? 1) as 1 | 3,
                     matchFormat: waitingMatchFormat(match, g) ?? "freeform",
                     gamesFormat: gamesFormatForBestOf(match?.bestOf ?? 1),
                 };
