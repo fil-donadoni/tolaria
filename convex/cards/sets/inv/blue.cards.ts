@@ -37,8 +37,7 @@
 //                                  rider shipped with #2146)
 //
 //   SINGLE-CONSUMER GAPS, catalogue lines on #1332 (censused, not scheduled):
-//     Barrin's Unmaking, Essence Leak, Mana Maze, Psychic Battle,
-//     Temporal Distortion
+//     Essence Leak, Mana Maze, Psychic Battle, Temporal Distortion
 //
 //   SHIPPED by issue #2708: Teferi's Response is no longer a stub — both of
 //   its blockers landed as general pieces (`spellTargetsPermanentFilter`, the
@@ -730,20 +729,32 @@ export const factOrFiction = defineCard(() => ({
 // tranche (issue #1083). Not an invented Op, not a resolve() paper-over.
 // ─────────────────────────────────────────────────────────────────────────
 
-// Barrin's Unmaking — "Return target permanent to its owner's hand if that
-// permanent shares a color with the most common color among all permanents
-// or a color tied for most common." A ONE-SHOT spell's `if` predicate only
-// supports a boolean-binding test or a numeric comparison of two EffectValues
-// (no colour-census value member) — the continuous-CDA closure form that
-// covers Zanam Djinn above does not apply to a one-shot conditional.
-// tracked-by: #1332
-// export const barrinsUnmaking: CardDefinition = {
-//     id: "4d4cecb0-12b5-4678-b5e7-8cec8fc86cef",
-//     name: "Barrin's Unmaking",
-//     rarity: "common",
-//     manaCost: { X: 1, U: 1 },
-//     types: ["Instant"],
-// };
+// Barrin's Unmaking — {1}{U} Instant. "Return target permanent to its owner's
+// hand if that permanent shares a color with the most common color among all
+// permanents or a color tied for most common." (CR 400.7 zone move; CR 105.2
+// colour census at resolution, CR 608.2b — the `sharesMostCommonColor`
+// `if` predicate, issue #5409.)
+// hand-tail: "Return target permanent to its owner's hand if that permanent shares a color with the most common color among all permanents or a color tied for most common." (#4596)
+export const barrinsUnmaking = defineCard(() => ({
+    id: "4d4cecb0-12b5-4678-b5e7-8cec8fc86cef",
+    name: "Barrin's Unmaking",
+    rarity: "common",
+    oracleText:
+        "Return target permanent to its owner's hand if that permanent shares a color with the most common color among all permanents or a color tied for most common.",
+    manaCost: { X: 1, U: 1 },
+    types: ["Instant"],
+    targetRequirement: {
+        type: [...PERMANENT_TYPES],
+        count: 1,
+    },
+    effects: [
+        {
+            op: "if",
+            predicate: { sharesMostCommonColor: { target: 0 } },
+            then: [{ op: "moveZone", target: { target: 0 }, to: "hand" }],
+        },
+    ],
+}));
 
 // Blind Seer — {2}{U}{U} Legendary Creature — Human Wizard, 3/3. "{1}{U}:
 // Target spell or permanent becomes the color of your choice until end of
