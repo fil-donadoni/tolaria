@@ -76,8 +76,16 @@
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import {
+    abilityLossPtSetRule,
+    animateManaValueRule,
+    chosenTypePumpRule,
+    selfPtCdaGraveyardsRule,
+    type CharacteristicStaticIR,
+} from "./characteristicStatic";
+import {
     controlsRule,
     graveyardCountRule,
+    opponentControlsRule,
     type StaticConditionIR,
 } from "./condition";
 import { signedModifier, uncapitalise } from "./effectClause";
@@ -120,6 +128,8 @@ export const STATIC_CLAUSE = "static clause";
  * it" one answer instead of a parse that lowering later has to walk back.
  */
 export type StaticClauseIR =
+    /** CR 613 — the frames that SET a characteristic (`characteristicStatic.ts`). */
+    | CharacteristicStaticIR
     /** CR 613.4c layer 7c — an anthem or a tribal lord. */
     | {
           readonly kind: "pt-buff";
@@ -487,7 +497,9 @@ export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
             "you control "
         )
             ? controlsRule.run(tail, ctx)
-            : graveyardCountRule.run(tail, ctx);
+            : tail.startsWith("an opponent controls ")
+              ? opponentControlsRule.run(tail, ctx)
+              : graveyardCountRule.run(tail, ctx);
         if (!condition.ok) return condition;
         if (
             match[1] !== undefined &&
@@ -1872,6 +1884,10 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
         selfConditionalPumpRule,
+        abilityLossPtSetRule,
+        chosenTypePumpRule,
+        animateManaValueRule,
+        selfPtCdaGraveyardsRule,
         enchantedHostRule,
         youControlHostRule,
     ])
