@@ -154,6 +154,9 @@ export type CompiledStaticScope =
     | { readonly appliesTo: "host"; readonly filter?: never }
     /** CR 201.5 — "This creature gets …": the permanent itself. */
     | { readonly appliesTo: "self"; readonly filter?: never }
+    /** CR 607.2d — "All creatures of the chosen type": every creature with
+     *  the creature type the SOURCE chose as it entered (`chosenSubtypes[0]`). */
+    | { readonly appliesTo: "chosen-subtype"; readonly filter?: never }
     | CompiledKickedSelfScope;
 
 /**
@@ -195,7 +198,29 @@ export interface CompiledKickedSelfScope {
  */
 export type CompiledStaticCondition =
     | CompiledControlsCondition
-    | { readonly kind: "graveyard-count"; readonly atLeast: number };
+    | { readonly kind: "graveyard-count"; readonly atLeast: number }
+    /** CR 611.3a / 109.5 — "as long as an opponent controls a <descriptor>":
+     *  the `controls` count, over the permanents the SOURCE controller's
+     *  opponents control. */
+    | {
+          readonly kind: "opponent-controls";
+          readonly filter: PermanentFilter;
+          readonly atLeast: number;
+      };
+
+/**
+ * CR 604.3 — what a compiled characteristic-defining P/T counts. Each member
+ * is the whole quantity ("each equal to …": power and toughness read the same
+ * number), so a descriptor names it once.
+ */
+export type CompiledCdaCount =
+    /** "the number of <type> cards in all graveyards". */
+    | {
+          readonly kind: "graveyard-cards";
+          readonly types: readonly CardType[];
+      }
+    /** "its mana value" — the AFFECTED permanent's (CR 202.3). */
+    | { readonly kind: "mana-value" };
 
 /** The continuous static effects the compiler can emit (CR 611). Closed.
  *
@@ -216,6 +241,26 @@ export type CompiledStaticEffect =
            *  (`CompiledControlsCondition`), read here off the layer view. */
           readonly condition?: CompiledStaticCondition;
       } & CompiledStaticScope)
+    /** CR 613.4b sublayer 7b — "<filter> have base power and toughness N/N". */
+    | ({
+          readonly kind: "pt-set";
+          readonly power: number;
+          readonly toughness: number;
+      } & CompiledStaticScope)
+    /** CR 604.3 / 613.4a layer 7a — a characteristic-defining P/T equal to
+     *  `count` ("Terravore's power and toughness are each equal to …"). */
+    | ({
+          readonly kind: "pt-cda";
+          readonly count: CompiledCdaCount;
+      } & CompiledStaticScope)
+    /** CR 613.1d layer 4 — "<filter> is a creature in addition to its other
+     *  types". */
+    | ({
+          readonly kind: "type-add";
+          readonly types: readonly CardType[];
+      } & CompiledStaticScope)
+    /** CR 613.1f layer 6 — "<filter> lose all abilities". */
+    | ({ readonly kind: "ability-loss" } & CompiledStaticScope)
     /** CR 613.1f layer 6 — "<filter> have <keyword>" / "Enchanted creature
      *  has <keyword>". */
     | ({
@@ -409,6 +454,18 @@ function staticConditionHolds(
         );
         return (controller?.graveyard.length ?? 0) >= condition.atLeast;
     }
+    if (condition.kind === "opponent-controls") {
+        let matched = 0;
+        for (const player of state.players)
+            for (const permanent of player.battlefield) {
+                if (permanent.controllerId === source.controllerId) continue;
+                if (!filterMatches(condition.filter, permanent, source, ctx))
+                    continue;
+                matched += 1;
+                if (matched >= condition.atLeast) return true;
+            }
+        return false;
+    }
     return controlsHolds(condition, source, state, ctx);
 }
 
@@ -511,6 +568,15 @@ function scopePredicate(
     if (scope.appliesTo === "host") return AURA_AFFECTS_HOST;
     if (scope.appliesTo === "self")
         return (target, source) => target.id === source.id;
+    if (scope.appliesTo === "chosen-subtype")
+        return (target, source, ctx) => {
+            const chosen = source.chosenSubtypes?.[0];
+            return (
+                chosen !== undefined &&
+                ctx.isCreature(target) &&
+                ctx.hasSubtype(target, chosen)
+            );
+        };
     if (scope.appliesTo === "self-if-kicked") {
         const kickerId = scope.kickerId;
         return (target, source) =>
@@ -548,6 +614,47 @@ export function resolveCompiledStatic(
                     : {}),
             };
         }
+        case "pt-set":
+            return {
+                kind: "pt-set",
+                applies: scopePredicate(descriptor),
+                power: descriptor.power,
+                toughness: descriptor.toughness,
+            };
+        case "pt-cda": {
+            const count = descriptor.count;
+            return {
+                kind: "pt-cda",
+                applies: scopePredicate(descriptor),
+                compute: (_source, state, ctx, target) => {
+                    const n =
+                        count.kind === "mana-value"
+                            ? ctx.getManaValue(target)
+                            : state.players.reduce(
+                                  (sum, player) =>
+                                      sum +
+                                      player.graveyard.filter((card) =>
+                                          count.types.some((t) =>
+                                              card.types.includes(t)
+                                          )
+                                      ).length,
+                                  0
+                              );
+                    return { power: n, toughness: n };
+                },
+            };
+        }
+        case "type-add":
+            return {
+                kind: "type-add",
+                applies: scopePredicate(descriptor),
+                types: [...descriptor.types],
+            };
+        case "ability-loss":
+            return {
+                kind: "ability-loss",
+                applies: scopePredicate(descriptor),
+            };
         case "keyword-grant":
             return {
                 kind: "keyword-grant",

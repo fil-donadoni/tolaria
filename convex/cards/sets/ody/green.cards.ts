@@ -111,7 +111,6 @@ export const callOfTheHerd = defineCard(() => ({
 // identical on the wire — the mandatory wire-format test re-asserts it after
 // projection.
 //
-// hand-tail: Terravore's power and toughness are each equal to the number of land cards in all graveyards. (#4195)
 export const terravore = defineCard(() => ({
     id: "c39c412b-2f21-483a-b744-5d55bc007c0d",
     name: "Terravore",

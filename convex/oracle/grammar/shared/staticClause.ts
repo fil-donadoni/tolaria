@@ -45,11 +45,12 @@
  *
  * CONDITIONAL statics ("… as long as …", CR 611.3a) are refused whole, with
  * ONE exception: "<self> gets +N/+N as long as you control a <descriptor>"
- * (issue #4126). Its condition is not a second vocabulary — it IS the
- * `CompiledTriggerCondition` a trigger's intervening-if carries, read by the
- * shared `controlsRule`, and the descriptor rebuilds it into
- * `StaticPTBuff.condition`. Every other "as long as" tail ("an opponent
- * controls", "it's untapped", "you have …") still fails the line.
+ * (issue #4126), and its opponent twin "… as long as an opponent controls a
+ * <descriptor>" (issue #4565). The condition is not a second vocabulary — it
+ * IS the `controls` condition a trigger's intervening-if carries, read by the
+ * shared `controlsRule` / `opponentControlsRule`, and the descriptor rebuilds
+ * it into `StaticPTBuff.condition`. Every other "as long as" tail ("it's
+ * untapped", "you have …") still fails the line.
  *
  * ENCHANTED-scope statics are read by their own frames (issue #3833), now
  * that an Aura's "Enchant <filter>" line parses (issue #3825):
@@ -76,8 +77,16 @@
 import { readNumberWord } from "./quantity";
 import { isSelfPhrase } from "./cost";
 import {
+    abilityLossPtSetRule,
+    animateManaValueRule,
+    chosenTypePumpRule,
+    selfPtCdaGraveyardsRule,
+    type CharacteristicStaticIR,
+} from "./characteristicStatic";
+import {
     controlsRule,
     graveyardCountRule,
+    opponentControlsRule,
     type StaticConditionIR,
 } from "./condition";
 import { signedModifier, uncapitalise } from "./effectClause";
@@ -120,6 +129,8 @@ export const STATIC_CLAUSE = "static clause";
  * it" one answer instead of a parse that lowering later has to walk back.
  */
 export type StaticClauseIR =
+    /** CR 613 — the frames that SET a characteristic (`characteristicStatic.ts`). */
+    | CharacteristicStaticIR
     /** CR 613.4c layer 7c — an anthem or a tribal lord. */
     | {
           readonly kind: "pt-buff";
@@ -487,7 +498,9 @@ export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
             "you control "
         )
             ? controlsRule.run(tail, ctx)
-            : graveyardCountRule.run(tail, ctx);
+            : tail.startsWith("an opponent controls ")
+              ? opponentControlsRule.run(tail, ctx)
+              : graveyardCountRule.run(tail, ctx);
         if (!condition.ok) return condition;
         if (
             match[1] !== undefined &&
@@ -1872,6 +1885,10 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
         selfConditionalPumpRule,
+        abilityLossPtSetRule,
+        chosenTypePumpRule,
+        animateManaValueRule,
+        selfPtCdaGraveyardsRule,
         enchantedHostRule,
         youControlHostRule,
     ])

@@ -101,6 +101,12 @@ export interface LoweredStatic {
     /** CR 601.3a — the lowered clause reads the card's `chosenName`;
      *  `lower.ts` checks the card also declares the as-enters choice. */
     readonly readsChosenName?: true;
+    /** CR 607.2d — the lowered clause reads the card's `chosenSubtypes`;
+     *  `lower.ts` checks the card also declares the as-enters type choice. */
+    readonly readsChosenType?: true;
+    /** CR 604.3 / 208.2 — the clause is the card's `*` power and toughness
+     *  definition; `lower.ts` reads a printed star power and toughness as base 0 only then. */
+    readonly definesPowerToughness?: true;
     /**
      * CR 614.1c / 702.33e — kicker-counted entry counters, one `"kicker"`
      * entry per printed counter: `entersWith` SUMS same-type entries, and
@@ -270,7 +276,7 @@ export function lowerStaticClause(
                             power: clause.power,
                             toughness: clause.toughness,
                             condition: {
-                                kind: "controls",
+                                kind: condition.kind,
                                 filter: condition.filter,
                                 atLeast: condition.atLeast,
                             },
@@ -378,6 +384,72 @@ export function lowerStaticClause(
                     ...(clause.counters !== undefined
                         ? { entersWithCounters: clause.counters }
                         : {}),
+                },
+            };
+        case "ability-loss-pt-set":
+            // CR 613.1f + 613.4b — one clause, two layers, one scope.
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        { kind: "ability-loss", filter: clause.filter },
+                        {
+                            kind: "pt-set",
+                            filter: clause.filter,
+                            power: clause.power,
+                            toughness: clause.toughness,
+                        },
+                    ],
+                },
+            };
+        case "chosen-type-pt-buff":
+            return {
+                ok: true,
+                lowered: {
+                    readsChosenType: true,
+                    effects: [
+                        {
+                            kind: "pt-buff",
+                            appliesTo: "chosen-subtype",
+                            power: clause.power,
+                            toughness: clause.toughness,
+                        },
+                    ],
+                },
+            };
+        case "animate-mana-value-pt":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "type-add",
+                            filter: clause.filter,
+                            types: clause.addTypes,
+                        },
+                        {
+                            kind: "pt-cda",
+                            filter: clause.filter,
+                            count: { kind: "mana-value" },
+                        },
+                    ],
+                },
+            };
+        case "self-pt-cda-graveyards":
+            return {
+                ok: true,
+                lowered: {
+                    definesPowerToughness: true,
+                    effects: [
+                        {
+                            kind: "pt-cda",
+                            appliesTo: "self",
+                            count: {
+                                kind: "graveyard-cards",
+                                types: clause.cardTypes,
+                            },
+                        },
+                    ],
                 },
             };
         case "as-enters-choose-creature-type":

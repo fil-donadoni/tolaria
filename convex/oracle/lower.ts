@@ -87,6 +87,10 @@ interface Accumulator {
     asEntersCardNameLines: string[];
     /** CR 601.3a — lines that read the card's `chosenName`. */
     readsChosenNameLines: string[];
+    /** CR 607.2d — lines that read the card's `chosenSubtypes` ("the chosen type"). */
+    readsChosenTypeLines: string[];
+    /** CR 604.3 — lines that define the card's `*` power and toughness. */
+    definesPowerToughnessLines: string[];
     entersWithCounters: {
         type: string;
         count: number | "kicker" | { additionalCostPaid: string };
@@ -491,6 +495,10 @@ function lowerLine(
             }
             if (out.readsChosenName === true)
                 acc.readsChosenNameLines.push(parsed.line);
+            if (out.readsChosenType === true)
+                acc.readsChosenTypeLines.push(parsed.line);
+            if (out.definesPowerToughness === true)
+                acc.definesPowerToughnessLines.push(parsed.line);
             if (out.entersWithCounters !== undefined)
                 acc.entersWithCounters.push(out.entersWithCounters);
             if (out.kickerCounters !== undefined) {
@@ -683,13 +691,20 @@ function announcesX(
     );
 }
 
-/** CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700). */
+/**
+ * CR 208.1 — power/toughness are printed numbers; `*` is a CDA (#2700).
+ * CR 604.3 — a `*` is read as the base 0 the card's own defining ability
+ * (`definedByCda`) adds to, the convention `StaticPTCDA` documents; a `*` with
+ * no such ability on the card stays refused.
+ */
 function readPt(
     value: string | undefined,
-    what: string
+    what: string,
+    definedByCda = false
 ): number | { error: string } {
     if (value === undefined)
         return { error: `creature has no printed ${what}` };
+    if (value === "*" && definedByCda) return 0;
     if (!/^-?\d+$/.test(value))
         return { error: `non-numeric ${what} "${value}"` };
     return Number(value);
@@ -712,6 +727,8 @@ export function lowerCard(
         asEntersCreatureTypeLines: [],
         asEntersCardNameLines: [],
         readsChosenNameLines: [],
+        readsChosenTypeLines: [],
+        definesPowerToughnessLines: [],
         entersWithCounters: [],
         kickerRiders: [],
         plannedMechanics: [],
@@ -796,10 +813,11 @@ export function lowerCard(
     }
 
     if (typeLine.types.includes("Creature")) {
-        const power = readPt(card.power, "power");
+        const definedByCda = acc.definesPowerToughnessLines.length > 0;
+        const power = readPt(card.power, "power", definedByCda);
         if (typeof power !== "number")
             return { ok: false, reason: power.error, fragment: card.typeLine };
-        const toughness = readPt(card.toughness, "toughness");
+        const toughness = readPt(card.toughness, "toughness", definedByCda);
         if (typeof toughness !== "number")
             return {
                 ok: false,
@@ -884,6 +902,17 @@ export function lowerCard(
             ok: false,
             reason: '"the chosen name" on a card with no as-enters card-name choice',
             fragment: acc.readsChosenNameLines[0]!,
+        };
+    // CR 607.2d — "the chosen type" with no creature-type choice on the card
+    // names nothing (the predicate matches no creature): refuse, don't ship inert.
+    if (
+        acc.readsChosenTypeLines.length > 0 &&
+        acc.asEntersCreatureTypeLines.length === 0
+    )
+        return {
+            ok: false,
+            reason: '"the chosen type" on a card with no as-enters creature-type choice',
+            fragment: acc.readsChosenTypeLines[0]!,
         };
     if (
         acc.asEntersCardNameLines.length > 0 &&

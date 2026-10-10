@@ -248,7 +248,10 @@ import {
 //
 // Lowered 1346 -> 1332 by issue #4548 (sacrifice it unless you <payment>);
 // Stasis joins the thirteen — its untap-step line landed with issue #4561.
-const BASELINE_CEILING = 1329;
+//
+// Lowered 1329 -> 1327 by issue #4565 (characteristic-setting statics);
+// Opalescence and Water Wurm round-trip.
+const BASELINE_CEILING = 1327;
 
 /**
  * The number of cards that genuinely round-trip, as measured at the commit that

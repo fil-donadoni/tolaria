@@ -8352,6 +8352,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Cantivore",
+        "scryfallId": "b5243fc3-176b-44a3-9f1a-ab069a08757a",
+        "oracleId": "2ed5083e-1c58-48c0-8413-390971021d94",
+        "firstSet": "ody",
+        "firstPrintId": "b5243fc3-176b-44a3-9f1a-ab069a08757a",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Canyon Drake",
         "scryfallId": "22f84143-5912-43ca-a274-f26ed0dbadd0",
         "oracleId": "b5b46c99-1cc1-465a-a831-3fd6665ef560",
@@ -12067,6 +12077,16 @@
         "firstPrintId": "245aba23-2abb-4084-b4cb-d06e46de2108",
         "firstPrintSet": "ons",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cruel Somnophage // Can't Wake Up",
+        "scryfallId": "39b11ff0-9946-4337-86fb-42e967f3d2e4",
+        "oracleId": "997bdec5-f67b-4822-a3ba-c636e2685e8a",
+        "firstSet": "woe",
+        "firstPrintId": "39b11ff0-9946-4337-86fb-42e967f3d2e4",
+        "firstPrintSet": "woe",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -38288,6 +38308,16 @@
         "source": "compiled"
     },
     {
+        "name": "Mortivore",
+        "scryfallId": "fdc0d499-4a22-4f33-83c7-4e8cdbc3ebe6",
+        "oracleId": "2f554218-2072-4d9b-b4d4-34f161f1f2a9",
+        "firstSet": "ody",
+        "firstPrintId": "fdc0d499-4a22-4f33-83c7-4e8cdbc3ebe6",
+        "firstPrintSet": "ody",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Mortus Strider",
         "scryfallId": "d644eb6e-cc49-4834-bc2c-53f6a4ceb451",
         "oracleId": "15af3bd0-022b-472e-b21e-29b925b7692b",
@@ -45335,6 +45365,16 @@
         "firstPrintId": "2a11bdb2-a269-4038-85f3-69fbd02982e9",
         "firstPrintSet": "snc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Radiant Essence",
+        "scryfallId": "d9b1853c-d5b9-4361-8a2f-36946a62847b",
+        "oracleId": "48e2f2c3-9d99-4535-915f-551fbb59ade5",
+        "firstSet": "mir",
+        "firstPrintId": "d9b1853c-d5b9-4361-8a2f-36946a62847b",
+        "firstPrintSet": "mir",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -53856,6 +53896,16 @@
         "source": "compiled"
     },
     {
+        "name": "Skyshroud Elite",
+        "scryfallId": "f6a496a4-1b4c-4c5d-99e5-ec40601c759d",
+        "oracleId": "bd9f2c84-0589-4ffe-9bff-ea74be4f77a4",
+        "firstSet": "exo",
+        "firstPrintId": "f6a496a4-1b4c-4c5d-99e5-ec40601c759d",
+        "firstPrintSet": "exo",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Skyshroud Falcon",
         "scryfallId": "afb86621-1a6e-4d56-ab0e-531105775c56",
         "oracleId": "877ab494-da90-4c26-a184-c6ba64ec30b5",
@@ -53973,6 +54023,16 @@
         "firstPrintId": "91a20b6b-43e6-4feb-9792-909332e1a846",
         "firstPrintSet": "tor",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Slag Fiend",
+        "scryfallId": "c0d1ee33-e247-4ada-bb01-518611cd7d00",
+        "oracleId": "4c5e38ca-39d7-4e27-8bb7-687d86fd67c4",
+        "firstSet": "nph",
+        "firstPrintId": "c0d1ee33-e247-4ada-bb01-518611cd7d00",
+        "firstPrintSet": "nph",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -68733,6 +68793,16 @@
         "firstPrintId": "663df3e8-12e5-46cf-9da7-39961feaa7f9",
         "firstPrintSet": "m12",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Wu Admiral",
+        "scryfallId": "499ae191-80ac-42bf-b49d-db343803bd56",
+        "oracleId": "578c5b92-9f7e-4645-9624-f2c1a16b6aaf",
+        "firstSet": "ptk",
+        "firstPrintId": "499ae191-80ac-42bf-b49d-db343803bd56",
+        "firstPrintSet": "ptk",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {

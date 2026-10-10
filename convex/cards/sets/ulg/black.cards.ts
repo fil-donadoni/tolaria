@@ -55,8 +55,6 @@ export const unearth = defineCard(() => ({
 // `keyword-grant` family), so a creature of the chosen type that enters LATER
 // is buffed on arrival, and an effect that CHANGES a creature's types (layer 4,
 // applied before layer 7c) is seen by this predicate on the next read.
-// compiler-gap: As this enchantment enters, choose a creature type. (#2693)
-// compiler-gap: All creatures of the chosen type get -1/-1. (#2693)
 export const engineeredPlague = defineCard(() => ({
     id: "27e158d5-efb2-4f90-8898-60ede98f7d29",
     name: "Engineered Plague",

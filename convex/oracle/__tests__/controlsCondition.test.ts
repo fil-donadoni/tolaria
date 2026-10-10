@@ -207,14 +207,14 @@ describe("golden fixtures (CR 603.4, CR 608.2c, CR 611.3a)", () => {
 });
 
 describe("refused neighbours (fail-closed)", () => {
-    it('refuses an "as long as" whose condition is not "you control" (Water Wurm)', () => {
+    it('refuses an "as long as" whose condition is neither "you control" nor "an opponent controls"', () => {
         const outcome = compileCard(
             oracleCard({
                 name: "Water Wurm",
                 manaCost: "{U}",
                 typeLine: "Creature — Wurm",
                 oracleText:
-                    "This creature gets +0/+1 as long as an opponent controls an Island.",
+                    "This creature gets +0/+1 as long as an opponent has more life than you.",
                 power: "1",
                 toughness: "1",
             })

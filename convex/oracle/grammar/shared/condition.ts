@@ -141,8 +141,21 @@ export type GraveyardCountIR = {
     readonly atLeast: number;
 };
 
+/**
+ * CR 611.3a / 109.5 — "an opponent controls a nonbasic land": the `controls`
+ * count over the permanents the source controller's opponents control.
+ */
+export type OpponentControlsIR = {
+    readonly kind: "opponent-controls";
+    readonly filter: PermanentFilter;
+    readonly atLeast: number;
+};
+
 /** The conditions a static's "as long as" clause reads (CR 611.3a). */
-export type StaticConditionIR = ConditionIR | GraveyardCountIR;
+export type StaticConditionIR =
+    | ConditionIR
+    | GraveyardCountIR
+    | OpponentControlsIR;
 
 const GRAVEYARD_COUNT = /^there are (\S+) or more cards in your graveyard$/;
 
@@ -218,6 +231,37 @@ export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {
 });
 
 /**
+ * `"an opponent controls a nonbasic land"` — the static site's opponent half
+ * of the controls clause (CR 611.3a).
+ *
+ * Unlike the trigger-site {@link controlsRule}, a supertype clause is
+ * readable here: the static condition is evaluated off the layer view, whose
+ * `ctx.hasSupertype` answers CR 205.4a from the live definition — the very
+ * reason a static filter admits `supertypes` where an intervening "if" does
+ * not.
+ */
+export const opponentControlsRule: Rule<OpponentControlsIR> = rule(
+    "opponent controls",
+    (span, ctx) => {
+        const opener = "an opponent controls ";
+        if (!span.startsWith(opener))
+            return fail("not a condition this grammar knows", span);
+        const filter = singularControlledFilter(
+            span.slice(opener.length),
+            span,
+            ctx,
+            { supertypes: true }
+        );
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "opponent-controls" as const,
+            filter: filter.value,
+            atLeast: 1,
+        });
+    }
+);
+
+/**
  * `"a Goblin"` — the object of a controls clause, whoever the controller is:
  * an article, then a singular descriptor with no controller clause of its own.
  * The one reading behind {@link controlsRule} and the "an opponent controls"
@@ -227,7 +271,10 @@ export const controlsRule: Rule<ConditionIR> = rule("controls", (span, ctx) => {
 export function singularControlledFilter(
     rest: string,
     span: string,
-    ctx: RuleContext
+    ctx: RuleContext,
+    /** `supertypes: true` — the site reads live supertypes (a static's layer
+     *  view), so CR 205.4a's refusal below does not apply to it. */
+    allow: { readonly supertypes?: true } = {}
 ): RuleResult<PermanentFilter> {
     const article = ARTICLES.find((a) => rest.startsWith(a));
     if (article === undefined)
@@ -243,9 +290,14 @@ export function singularControlledFilter(
         colors: true,
     });
     if (!filter.ok) return filter;
-    const unevaluable = UNEVALUABLE_FILTER_KEYS.find(
-        (key) => filter.value[key] !== undefined
-    );
+    // The list holds only supertype clauses, so a site that reads live
+    // supertypes has nothing left to refuse.
+    const unevaluable =
+        allow.supertypes === true
+            ? undefined
+            : UNEVALUABLE_FILTER_KEYS.find(
+                  (key) => filter.value[key] !== undefined
+              );
     if (unevaluable !== undefined)
         return fail(
             `a "${unevaluable}" clause cannot be evaluated at trigger-check time (CR 205.4a)`,
