@@ -2012,8 +2012,17 @@ function declaredFaceDamage(
         // CR 510.1c / 615 — a SOURCE-scoped prevention shield (Farrel's
         // Mantle's "assigns no combat damage"; Falling Timber / Guard Dogs /
         // Radiant Kavu's "prevent all combat damage <X> would deal"). Source-
-        // only; the damage step skips it outright.
-        if (sourcePreventionShieldApplies(state, atk.id, true, unpreventable))
+        // only; the damage step skips it outright. The second call reads the
+        // recipient-KEYED half (issue #5410, Protective Sphere's "dealt to
+        // you by a source of your choice"): an unblocked attacker's damage
+        // lands on the defending player.
+        if (
+            sourcePreventionShieldApplies(state, atk.id, true, unpreventable) ||
+            sourcePreventionShieldApplies(state, atk.id, true, unpreventable, {
+                type: "player",
+                id: defender.id,
+            })
+        )
             continue;
         // CR 615 — Ebony Horse's shield prevents all combat damage BY the
         // shielded creature as well as to it.

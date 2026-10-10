@@ -66,6 +66,7 @@
 // `convex/cards/mechanicsRegistry.ts`; the interpreter-coverage guard test
 // keeps `OP_EXECUTORS` and that census in exact 1:1 correspondence.
 
+import { COLORED_MANA_COLORS } from "../manaColors";
 import type {
     Color,
     ControlChangeCondition,
@@ -1253,7 +1254,11 @@ function asFilterArray<T>(value: T | T[] | undefined): T[] | undefined {
  *  "matches nothing". That is the fail-CLOSED convention `manaValueAtMost`'s
  *  unresolvable dynamic ceiling uses; the fail-OPEN alternative (returning
  *  `undefined`, i.e. no constraint) would make Mind Extraction discard the
- *  target player's ENTIRE hand when it should discard nothing. */
+ *  target player's ENTIRE hand when it should discard nothing.
+ *
+ *  The `{ manaSpent: { read: "colors" } }` form (issue #5410) reads the
+ *  colours of the mana noted on the activation's payment
+ *  (`getNotedManaSpent`), under the same empty-set-on-nothing contract. */
 function resolveFilterColors(
     ctx: SpellContext,
     value: EffectCardFilter["color"]
@@ -1261,6 +1266,13 @@ function resolveFilterColors(
     if (value === undefined) return undefined;
     if (typeof value === "string") return [value];
     if (Array.isArray(value)) return value;
+    if ("manaSpent" in value) {
+        // CR 602.2b / 105.1 (issue #5410) — the colours of the mana noted on
+        // this activation's payment. {C} is not a colour, so a colourless-only
+        // payment reads as the empty set: fail-closed, matches nothing.
+        const spent = ctx.getNotedManaSpent();
+        return COLORED_MANA_COLORS.filter((c) => (spent[c] ?? 0) > 0);
+    }
     return ctx.getAdditionalSacrificeColors() ?? [];
 }
 
@@ -5102,9 +5114,19 @@ export const OP_EXECUTORS: {
             // would key a shield that never matches any damage source.
             const source = resolveObjectRef(ctx, op.source);
             if (!source || source.type === "player") return;
+            // CR 615.1a / 608.2 (issue #5410) — "dealt TO YOU": the recipient
+            // player is resolved once, here; a gone player skips the shield.
+            const recipientPlayerId =
+                op.to === undefined
+                    ? undefined
+                    : resolvePlayerRef(ctx, op.to.player);
+            if (op.to !== undefined && recipientPlayerId === undefined) return;
             ctx.preventAllDamageFromSources({
                 sourceIds: [source.id],
                 ...(op.combatOnly ? { combatOnly: true } : {}),
+                ...(recipientPlayerId === undefined
+                    ? {}
+                    : { recipientPlayerId }),
             });
             return;
         }

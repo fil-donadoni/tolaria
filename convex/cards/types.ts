@@ -3740,6 +3740,15 @@ export interface SourceDamagePreventionShield {
     };
     /** true → only combat damage is prevented (CR 510). */
     combatOnly?: boolean;
+    /** CR 615.1a (issue #5410) — only damage dealt TO this player is
+     *  prevented; the matched source's damage to any other recipient is not
+     *  ("prevent all damage that would be dealt to you this turn by a source
+     *  of your choice" — Protective Sphere). Read against the event's FINAL
+     *  recipient, after the CR 614 replacements, the same place the
+     *  recipient-scoped shields are read: a redirect off the player escapes
+     *  the shield and a redirect onto them is caught. Omitted = every
+     *  recipient, which is what every other producer of this list means. */
+    recipientPlayerId?: string;
     /** true → this entry is NOT a CR 615 prevention effect at all: it is the
      *  CR 510.1c combat-damage ASSIGNMENT restriction ("target creature
      *  assigns no combat damage this turn" — Farrel's Mantle, Farrel's
@@ -13413,7 +13422,11 @@ export interface EffectCardFilter {
      *  `handCardMatchesFilter` (which returns `true` for every field it does
      *  NOT read, issue #3837), has no resolving context at all and therefore
      *  refuses the dynamic form outright rather than matching every card. */
-    color?: Color | Color[] | EffectSacrificedColorsRef;
+    color?:
+        | Color
+        | Color[]
+        | EffectSacrificedColorsRef
+        | EffectManaSpentColorsRef;
     /** Negative of `color` (CR 105.2, issue #1287) — a card matches only if
      *  it has NONE of the listed colors. Mirrors `excludeType`/
      *  `excludeSupertype`'s negation shape exactly (ADR 0045 "generalize,
@@ -13840,6 +13853,30 @@ export type EffectSacrificedValue = {
  *  hand. */
 export type EffectSacrificedColorsRef = {
     sacrificed: { read: "colors" };
+};
+
+/** The COLOURS of the mana spent on the resolving ability's activation cost
+ *  (issue #5410, CR 602.2b / 105.2), read off the stack item's
+ *  `notedManaSpent` snapshot — the record `ActivatedAbility.noteManaSpent`
+ *  (or `CardDefinition.noteManaSpent` for a spell) asks the engine to take at
+ *  payment. Protective Sphere's "a source of your choice that shares a color
+ *  with the mana spent on this activation cost" is a `choice` whose filter is
+ *  `{ color: { manaSpent: { read: "colors" } } }`: CR 105.2 — an object
+ *  "shares a color" with the mana when it is any one of the mana's colours,
+ *  which is exactly `color`'s own OR-set reading.
+ *
+ *  The sibling of {@link EffectSacrificedColorsRef}: a SNAPSHOT read with no
+ *  `of` selector, because there is exactly one noted payment per stack item,
+ *  and the source is chosen at RESOLUTION (CR 609.7a), long after that
+ *  payment, so nothing live is left to look at.
+ *
+ *  Fails CLOSED: colourless mana {C} has no colour (CR 105.1 / 106.1b), so a
+ *  payment made only with it — or an ability that never asked for the note,
+ *  leaving the snapshot empty — reads as the EMPTY colour set and matches
+ *  nothing. Never "no constraint": that would let Protective Sphere paid with
+ *  {C} pick any source on the board. */
+export type EffectManaSpentColorsRef = {
+    manaSpent: { read: "colors" };
 };
 
 /** domain — the Domain ability word (CR 702 preamble, italic, no independent
@@ -17132,12 +17169,24 @@ export type EffectOp =
      *  narrows it to COMBAT damage (CR 510 — Falling Timber, Guard Dogs,
      *  Radiant Kavu); omit it for the all-damage form (Rith's Charm's third
      *  mode: "Prevent all damage a source of your choice would deal this
-     *  turn"). Skipped when the source is gone (CR 608.2b). */
+     *  turn"). `to` narrows it to the damage that source deals ONE player
+     *  (Protective Sphere — "dealt to you", issue #5410). Skipped when the
+     *  source is gone (CR 608.2b). */
     | {
           op: "preventDamage";
           mode: "all-from-source";
           source: EffectObjectSelector;
           combatOnly?: boolean;
+          /** CR 615.1a (issue #5410) — narrows the shield to damage dealt TO
+           *  this player: "Prevent all damage that would be dealt TO YOU this
+           *  turn by a source of your choice" (Protective Sphere). Resolved
+           *  ONCE as the effect is applied (CR 608.2 — "you" is the resolving
+           *  controller) and stored as
+           *  `SourceDamagePreventionShield.recipientPlayerId`; the same
+           *  source's damage to anything else is untouched. Omitted = every
+           *  recipient (Rith's Charm). Player recipients only: no shipped
+           *  card scopes a source shield to one permanent. */
+          to?: { player: EffectPlayerRef };
       }
     /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
      *  FILTER-scoped shield and no target named at all: prevent all damage

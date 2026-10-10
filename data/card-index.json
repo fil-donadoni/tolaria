@@ -44730,6 +44730,14 @@
         "source": "compiled"
     },
     {
+        "name": "Protective Sphere",
+        "scryfallId": "ef5ef13e-1cf0-42a9-95d0-30ade254d6a8",
+        "oracleId": "2037c4bf-bf0d-46ab-8b4b-61d9a50c431e",
+        "firstSet": "inv",
+        "firstPrintId": "ef5ef13e-1cf0-42a9-95d0-30ade254d6a8",
+        "firstPrintSet": "inv"
+    },
+    {
         "name": "Protector of Gondor",
         "scryfallId": "85708748-40ca-4066-a287-7a6a189ff3df",
         "oracleId": "cf6bb391-4fde-43c4-a0c5-990630d0ddcf",

@@ -1150,10 +1150,16 @@ export function consumePreventionIfAny(
 }
 
 /** CR 615 / 510.1c — true when a SOURCE-scoped prevention shield on `state`
- *  covers a damage event from `sourceInstanceId`. Recipient-agnostic by
- *  construction: the recipient is deliberately not a parameter, because
- *  "prevent all damage <source> would deal" prevents it to a player, a
- *  creature, a planeswalker and anything else alike.
+ *  covers a damage event from `sourceInstanceId`. Without `recipient` it reads
+ *  only the recipient-AGNOSTIC shields: "prevent all damage <source> would
+ *  deal" prevents it to a player, a creature, a planeswalker and anything
+ *  else alike, and that call sits before CR 614 in `runDamageReplacement`.
+ *
+ *  `recipient` (CR 615.1a, issue #5410) switches to the OTHER half of the
+ *  list: only the shields carrying `recipientPlayerId` ("dealt to you by a
+ *  source of your choice" — Protective Sphere), matched against the event's
+ *  FINAL recipient after CR 614, where the recipient-scoped shields are read.
+ *  The halves never overlap, so no shield is read twice.
  *
  *  `isCombat` gates the `combatOnly` entries (CR 510) — a Fog-on-one-creature
  *  shield (Falling Timber) must not stop that creature's activated-ability
@@ -1172,7 +1178,8 @@ export function sourcePreventionShieldApplies(
     state: SourcePreventionStateView,
     sourceInstanceId: string,
     isCombat: boolean,
-    unpreventable: boolean = false
+    unpreventable: boolean = false,
+    recipient?: Pick<TargetSelection, "type" | "id">
 ): boolean {
     const shields = state.sourcePreventionShields;
     if (!shields || shields.length === 0) return false;
@@ -1202,6 +1209,19 @@ export function sourcePreventionShieldApplies(
         // CR 615.12 to protect. The `assignsNone` discriminator is what tells
         // the two apart; entries that omit it are CR 615 shields.
         if (unpreventable && !shield.assignsNone) continue;
+        // CR 615.1a (issue #5410) — each shield is read at exactly ONE call
+        // site: a recipient-agnostic one by the recipient-less call (before
+        // CR 614), a recipient-keyed one only by a call naming the event's
+        // FINAL recipient, and only when that recipient is its player.
+        if (recipient === undefined) {
+            if (shield.recipientPlayerId !== undefined) continue;
+        } else if (
+            shield.recipientPlayerId === undefined ||
+            recipient.type !== "player" ||
+            recipient.id !== shield.recipientPlayerId
+        ) {
+            continue;
+        }
         if (shield.sourceIds?.includes(sourceInstanceId)) return true;
         const match = shield.match;
         if (!match) continue;
@@ -1234,6 +1254,7 @@ export function addSourcePreventionShield(
             JSON.stringify(s.match ?? null) ===
                 JSON.stringify(shield.match ?? null) &&
             (s.combatOnly ?? false) === (shield.combatOnly ?? false) &&
+            s.recipientPlayerId === shield.recipientPlayerId &&
             // CR 510.1c vs CR 615 — an assignment restriction and a prevention
             // shield on the SAME creature are different entries (they diverge
             // under CR 615.12 unpreventable damage), so they must not collapse
@@ -5367,6 +5388,13 @@ export function runDamageReplacement(
                 target,
                 isCombat,
                 unpreventable
+            ) ||
+            sourcePreventionShieldApplies(
+                state,
+                sourceInstanceId,
+                isCombat,
+                unpreventable,
+                target
             )
         )
             return null;
@@ -5412,12 +5440,22 @@ export function runDamageReplacement(
     // the CR 614-before-CR 615 order this funnel's header describes. The
     // source-scoped gate above is the mirror, and sits before CR 614 for the
     // documented CR 616.1 reason (#2054); this one has no such excuse to make.
+    // The recipient-KEYED source shields (issue #5410, Protective Sphere's
+    // "dealt to you by a source of your choice") are read here too, for the
+    // same reason: their recipient is the final one.
     if (
         recipientPreventionShieldApplies(
             state,
             transient.target,
             isCombat,
             unpreventable
+        ) ||
+        sourcePreventionShieldApplies(
+            state,
+            sourceInstanceId,
+            isCombat,
+            unpreventable,
+            transient.target
         )
     )
         return residuals === undefined
