@@ -657,11 +657,25 @@ function Lobby() {
                     thumb starts at the bottom of the column. */}
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(20rem,0.85fr)]">
                     <div className="flex flex-col gap-3">
-                        <PlayModeSelector
-                            value={playMode}
-                            onChange={handlePlayModeChange}
-                            disabled={isBusy}
-                        />
+                        <div className="flex flex-wrap items-end justify-between gap-2">
+                            <PlayModeSelector
+                                value={playMode}
+                                onChange={handlePlayModeChange}
+                                disabled={isBusy}
+                            />
+                            {/* Temporary entry to the Constructed setup flow
+                                (PRD #5334, issue #5340) until the lobby home
+                                replaces this dashboard. */}
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() =>
+                                    void navigate({ to: "/play/constructed" })
+                                }
+                            >
+                                Constructed setup (preview)
+                            </Button>
+                        </div>
                         <LobbyModeTiles
                             tiles={modeTiles}
                             selected={activeTile.key}
