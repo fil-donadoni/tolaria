@@ -1,6 +1,6 @@
 ---
 name: triage
-description: Move GitHub issues through the triage roles — categorise, verify, grill if needed, write the agent brief, label for the queue. Use when the owner says "triage", names an issue to evaluate, or asks what needs attention or what is ready for agents.
+description: Move GitHub issues through the triage roles — categorise, verify, grill, write the agent brief, label for the queue.
 disable-model-invocation: true
 ---
 

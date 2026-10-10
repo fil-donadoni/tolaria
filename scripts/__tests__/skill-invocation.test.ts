@@ -30,6 +30,7 @@ const USER_INVOKED_ONLY = [
     "new-set",
     "next-ticket",
     "retro",
+    "triage",
 ];
 
 /**
@@ -39,6 +40,7 @@ const USER_INVOKED_ONLY = [
 const INVOKES: Record<string, string[]> = {
     "new-set": ["grill", "cluster-gaps", "rules-check", "grammar-rule"],
     "audit-tracker": ["grill", "to-tickets", "rules-check", "create-ticket"],
+    triage: ["grill", "to-tickets", "create-ticket"],
     "next-ticket": ["bot-change", "new-op", "create-ticket"],
     "new-card": ["new-op", "grammar-rule"],
     "grammar-rule": ["new-op"],
