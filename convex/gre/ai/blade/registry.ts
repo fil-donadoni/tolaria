@@ -1988,6 +1988,71 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "life-dependent negative control (issue #2147): same board as charter scenario 4 (4 x Craw Wurm vs. lone Grizzly Bears), only `life.opp` raised from the default 20 to 40. 24 unblocked damage no longer kills, so blocking (which trades the 2/2 for nothing against a 6/4) is pure material loss with zero survival benefit — the bot must decline. Measured 5/5 seeds: blocks at life 20 (scenario 4), declines at life 40 (this entry). Proves the ScenarioSpec `life` field actually reaches the built board and changes the bot's decision, not just the definition.",
     },
     {
+        // RECIPIENT-KEYED SOURCE SHIELD (issue #5410) — charter scenario 4's
+        // board again (4 x Craw Wurm into a lone Grizzly Bears, bot at 20),
+        // plus a Protective Sphere the bot activated with {G} BEFORE the
+        // attack, choosing one Craw Wurm: "prevent all damage that would be
+        // dealt to you this turn by" it (CR 615.1a). Built through the real
+        // activation, resolution and choice (`setup`), never a hand-placed
+        // shield. That Wurm's 6 never reaches the bot, so the unblocked total
+        // is 18 into 20 — not lethal — and the 2/2 chump is pure material
+        // loss, exactly as in the life-40 control above.
+        //
+        // The shield carries `recipientPlayerId`, so only the recipient-KEYED
+        // call `declaredFaceDamage` makes for the defending player reads it;
+        // the recipient-agnostic call alone does not.
+        label: "recipient-keyed source shield: no chump-block when one attacker's damage to you is prevented (issue #5410)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "Protective Sphere's shield on one Craw Wurm",
+            },
+        },
+        spec: {
+            cards: [
+                {
+                    name: "Craw Wurm",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                    count: 4,
+                },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Protective Sphere",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            manaPool: { opp: { G: 1 } },
+            priority: "opp",
+        },
+        setup: [
+            { kind: "activate", card: "Protective Sphere", controller: "opp" },
+            { kind: "resolve-top" },
+            { kind: "choose", cards: ["Craw Wurm"] },
+            { kind: "declare-attackers" },
+        ],
+        bot: "opp",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "declare-blockers", card: "Grizzly Bears" }],
+        },
+        note: "Issue #5410: charter scenario 4's board plus a Protective Sphere shield (activated with {G}, one Craw Wurm chosen) — that Wurm's damage dealt to the bot is prevented (CR 615.1a), so 18 unblocked into 20 is not lethal and the chump-block is pure material loss. Guards the recipient-keyed `sourcePreventionShieldApplies` call in `declaredFaceDamage`. MEASURED at 400 iterations on all 5 seeds: declines with that call, chump-blocks 5/5 with it removed (the evaluator then counts the shielded Wurm's 6 as landing).",
+    },
+    {
         // DEEP LETHAL-BLOCK charter (issue #1505) — the LEAF companion to
         // charter scenario 4 above. Scenario 4's block-or-die decision sits at
         // the ROOT, where the `blockDeltaOf` tie-break (`search.ts`) fires; the

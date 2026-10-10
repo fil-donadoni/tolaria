@@ -1266,7 +1266,7 @@ function resolveFilterColors(
     if (typeof value === "string") return [value];
     if (Array.isArray(value)) return value;
     if ("manaSpent" in value) {
-        // CR 106.10 / 105.1 (issue #5410) — the colours of the mana noted on
+        // CR 602.2b / 105.1 (issue #5410) — the colours of the mana noted on
         // this activation's payment. {C} is not a colour, so a colourless-only
         // payment reads as the empty set: fail-closed, matches nothing.
         const spent = ctx.getNotedManaSpent();

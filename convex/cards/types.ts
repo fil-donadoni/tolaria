@@ -13856,7 +13856,7 @@ export type EffectSacrificedColorsRef = {
 };
 
 /** The COLOURS of the mana spent on the resolving ability's activation cost
- *  (issue #5410, CR 106.10 / 105.2), read off the stack item's
+ *  (issue #5410, CR 602.2b / 105.2), read off the stack item's
  *  `notedManaSpent` snapshot — the record `ActivatedAbility.noteManaSpent`
  *  (or `CardDefinition.noteManaSpent` for a spell) asks the engine to take at
  *  payment. Protective Sphere's "a source of your choice that shares a color

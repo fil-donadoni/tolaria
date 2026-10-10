@@ -1122,7 +1122,7 @@ export const glimmeringAngel = defineCard(() => ({
 // that shares a color with the mana spent on this activation cost."
 // (issue #5410)
 //
-// CR 106.10 — `noteManaSpent` snapshots the colours paid for THIS
+// CR 602.2b — `noteManaSpent` snapshots the colours paid for THIS
 // activation; CR 609.7a — the source is chosen on resolution ("when the
 // effect is created"), never targeted, so it cannot be keyed at announcement
 // (CR 602.2b orders targets before costs: the mana spent is not known yet).

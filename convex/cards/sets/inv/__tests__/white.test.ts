@@ -1411,7 +1411,7 @@ describe("Winnow (CR 608.2 resolution condition + CR 201.2 same name, issue #206
     });
 });
 
-// Protective Sphere (CR 106.10 / 609.7a / 615.1a, issue #5410) — driven through
+// Protective Sphere (CR 602.2b / 609.7a / 615.1a, issue #5410) — driven through
 // the REAL activation entry point, so the colours checked are the ones
 // `noteManaSpent` recorded off the actual pool payment, never a hand-set
 // snapshot.

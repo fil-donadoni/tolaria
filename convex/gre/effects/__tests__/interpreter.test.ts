@@ -11530,7 +11530,7 @@ describe("Effect Script Op: preventDamage source-scoped + divided modes (CR 615,
         expect(blocked(state, "srcB", false)).toBe(false);
     });
 
-    describe("choice filter color { manaSpent: { read: 'colors' } } (CR 106.10 / 105.2, issue #5410)", () => {
+    describe("choice filter color { manaSpent: { read: 'colors' } } (CR 602.2b / 105.2, issue #5410)", () => {
         /** srcA red, srcB green; p1 resolves "choose a source sharing a
          *  colour with the mana spent, prevent its damage to you". */
         function castWithNoted(noted: Record<string, number>): GameState {

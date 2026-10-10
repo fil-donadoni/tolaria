@@ -362,7 +362,7 @@ function isSacrificedColorsRef(value: unknown): boolean {
     );
 }
 
-/** CR 106.10 / 105.2 (issue #5410) — `EffectCardFilter.color`'s second dynamic
+/** CR 602.2b / 105.2 (issue #5410) — `EffectCardFilter.color`'s second dynamic
  *  shape, `{ manaSpent: { read: "colors" } }`: the colours of the mana noted on
  *  this activation's payment. Shape-only, like {@link isSacrificedColorsRef}. */
 function isManaSpentColorsRef(value: unknown): boolean {

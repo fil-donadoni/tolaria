@@ -364,6 +364,26 @@ describe("lethalUnblockedDelta — EXACTLY ZERO off-pattern (ADR 0070 §5)", () 
         expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
     });
 
+    it("skips an attacker whose damage to the DEFENDER is prevented by a recipient-keyed source shield (CR 615.1a, issue #5410)", () => {
+        const state = position({
+            attackers: Array.from({ length: 4 }, () => ({
+                power: 6,
+                toughness: 4,
+            })),
+            defenderLife: 20,
+        });
+        // Keyed to the defender: a0's 6 never lands → 18 into 20.
+        state.sourcePreventionShields = [
+            { sourceIds: ["a0"], recipientPlayerId: DEFENDER },
+        ];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(0);
+        // Keyed to someone else: a0's damage to the defender is untouched.
+        state.sourcePreventionShields = [
+            { sourceIds: ["a0"], recipientPlayerId: "somebody-else" },
+        ];
+        expect(lethalUnblockedDelta(state, DEFENDER)).toBe(-WIN_SCORE);
+    });
+
     it("skips attackers shielded by `combatDamageImmunity` (CR 615, Ebony Horse)", () => {
         const state = position({
             attackers: Array.from({ length: 4 }, () => ({
