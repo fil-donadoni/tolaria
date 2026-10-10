@@ -72,10 +72,12 @@ async function startVsBot(setup: MatchSetup) {
     }
     await run(createSoloGame, db.ctx, request.args);
     const match = db.tables.matches![0];
-    const seatCards = (seat: string) =>
-        db.tables
-            .matchDecks!.find((r) => r.playerId === `${ALICE}-${seat}`)!
-            .maindeck.map((c: { cardName: string }) => c.cardName);
+    const seatCards = (seat: string) => {
+        const row = db.tables.matchDecks!.find(
+            (r) => r.playerId === `${ALICE}-${seat}`
+        )!;
+        return (row.maindeck as { cardName: string }[]).map((c) => c.cardName);
+    };
     return { match, p1: seatCards("p1"), p2: seatCards("p2") };
 }
 
