@@ -5357,6 +5357,37 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── put an announced permanent on top of its owner's library ───────────
+    // CR 400.3 — "Put target creature you control on top of its owner's
+    // library": the same zone change as "Return … to", spelled with "on" and
+    // the library end in the destination phrase. Only the top-of-library
+    // spelling is read; the subject must be a single announced object.
+    if (span.startsWith("Put ")) {
+        const onAt = span.lastIndexOf(" on top of ");
+        if (onAt !== -1) {
+            const subject = subjectRule.run(
+                span.slice("Put ".length, onAt),
+                ctx
+            );
+            if (!subject.ok) return subject;
+            if (subject.value.kind !== "target")
+                return fail(
+                    "putting on top of a library reads one announced object",
+                    span
+                );
+            const zone = zoneRefRule.run(
+                `the top of ${span.slice(onAt + " on top of ".length)}`,
+                ctx
+            );
+            if (!zone.ok) return zone;
+            return ok({
+                kind: "move-zone" as const,
+                subject: subject.value,
+                to: zone.value,
+            } satisfies EffectSentenceIR);
+        }
+    }
+
     // ── play from your graveyard, exile what would go there (CR 601.3) ────
     if (span === GRAVEYARD_PLAY)
         return ok({
