@@ -12672,6 +12672,8 @@ export function buildSpellContext(
             if (!card || faces.length === 0) return false;
             // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
             if (landPlayLockActive(state)) return false;
+            // CR 305.1 / 101.2 — a per-player "can't play lands" restriction.
+            if (state.cannotPlayLandsThisTurn?.includes(playerId)) return false;
             // CR 305.2 — one land per turn, plus any extra-drop grants (e.g.
             // Fastbond) the controlled player has. Refuse if already spent
             // ("if able").
@@ -15107,6 +15109,17 @@ export function buildSpellContext(
             const list = state.cannotActivateAbilitiesThisTurn ?? [];
             if (!list.includes(playerId)) list.push(playerId);
             state.cannotActivateAbilitiesThisTurn = list;
+        },
+
+        restrictLandPlay(playerId: string): void {
+            // CR 305.1 / 101.2 — mark `playerId` unable to play lands for the
+            // rest of this turn (Turf Wound). A flag, NOT a land-drop
+            // allowance: it is read independently of the drop count so a
+            // later extra-drop effect cannot lift it (CR 101.2). Idempotent;
+            // cleared at CLEANUP (CR 514.2).
+            const list = state.cannotPlayLandsThisTurn ?? [];
+            if (!list.includes(playerId)) list.push(playerId);
+            state.cannotPlayLandsThisTurn = list;
         },
 
         skipDrawStepThisTurn(playerId: string): void {
@@ -17784,6 +17797,8 @@ export function buildSpellContext(
             if (state.activePlayerId !== playerId) return false;
             // CR 614 — a land-play lock (Worms of the Earth) blocks the play.
             if (landPlayLockActive(state)) return false;
+            // CR 305.1 / 101.2 — a per-player "can't play lands" restriction.
+            if (state.cannotPlayLandsThisTurn?.includes(playerId)) return false;
             // CR 305.2a/305.2b — a land played during the resolution of a spell
             // or ability counts against the per-turn drop, so it is playable
             // only while a drop remains (plus any extra-drop grants).

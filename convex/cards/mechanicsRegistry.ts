@@ -2923,6 +2923,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Impose a turn-scoped per-player \"can't activate abilities that aren't mana abilities\" restriction (CR 602.1 / 605.1a, issue #1124 — Abeyance: \"target player can't cast instant or sorcery spells, and that player can't activate abilities that aren't mana abilities\"). A thin declarative skin over the single SpellContext primitive `restrictAbilityActivation`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotActivateAbilitiesThisTurn`, enforced directly by the `activateAbility` mutation (`convex/game.ts`) — the ONLY mutation that handles non-mana (`useStack: true`) abilities (mana abilities go through the separate `tapUntap` mutation and are structurally exempt, so the restriction needs no explicit mana-ability carve-out) — and cleared unconditionally at CLEANUP (CR 514.2). Mirrored as a UI hint in `getStackAbilities` (`src/lib/card-utils.ts`) via the wire-projected `TriggerStateView.cannotActivateAbilitiesThisTurn`.",
     },
     {
+        op: "restrictLandPlay",
+        status: "implemented",
+        cr: "305.1",
+        binding: "SpellContext.restrictLandPlay",
+        note: 'Impose a turn-scoped per-player "can\'t play lands" restriction (CR 305.1 / 101.2 / 514.2, issue #2145 — Turf Wound: "target player can\'t play lands this turn"). A thin declarative skin over the single SpellContext primitive `restrictLandPlay`, one execution path (ADR 0045): `player` names whom to lock. Adds the player id to `state.cannotPlayLandsThisTurn`, read by `getLegalActions` as its own conjunct independent of the land-drop count (CR 101.2: the "can\'t" beats a later extra-drop allowance) and by the resolve-time land-play primitives; cleared at CLEANUP (CR 514.2), surviving END_OF_COMBAT. It does NOT stop lands entering the battlefield by other means (CR 305.4). No UI mirror: the client consumes the projected legal actions.',
+    },
+    {
         op: "skipDrawStepThisTurn",
         status: "implemented",
         cr: "504.1, 500.8",

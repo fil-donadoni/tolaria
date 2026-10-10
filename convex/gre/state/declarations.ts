@@ -4714,6 +4714,16 @@ export type GameState = {
      *  non-mana (`useStack: true`) activation, with no separate mana-ability
      *  branch to special-case. Cleared unconditionally at CLEANUP. */
     cannotActivateAbilitiesThisTurn?: string[];
+    /** CR 305.1 / 101.2 / 514.2 (issue #2145 — Turf Wound's "target player
+     *  can't play lands this turn"). Player ids under a turn-scoped "can't
+     *  play lands" restriction. Consulted INDEPENDENTLY of the land-drop count
+     *  (`LAND_DROPS_PER_TURN` + `extraLandDrops`): CR 101.2 makes the "can't"
+     *  beat any later allowance, so an Exploration resolving afterwards must
+     *  not unlock the player. It gates PLAYING a land only — never
+     *  `canLandEnterBattlefield` (CR 305.4: putting a land onto the
+     *  battlefield is not playing one). Cleared at CLEANUP (CR 514.2), not at
+     *  END_OF_COMBAT, so it survives into the postcombat main phase. */
+    cannotPlayLandsThisTurn?: string[];
     /** CR 504.1 (issue #1097 — Elfhame Sanctuary's "you skip your draw step
      *  this turn"). Player ids that skip their OWN draw step the next time
      *  it is reached this turn. Armed by `SpellContext.skipDrawStepThisTurn`

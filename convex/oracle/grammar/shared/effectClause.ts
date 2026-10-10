@@ -835,6 +835,11 @@ export type EffectSentenceIR =
      * cast or activate. `casting` is `"all"` (every spell) or the printed
      * card types the lock names; `activation` is the non-mana-ability half.
      */
+    /**
+     * CR 305.1 + CR 101.2 + CR 514.2 — "Target player can't play lands this
+     * turn": a turn-scoped per-player land-play lock, on the announced player.
+     */
+    | { readonly kind: "land-play-lock"; readonly player: "target" }
     | {
           readonly kind: "player-lock";
           readonly player: "opponents" | "target" | "defending";
@@ -3523,6 +3528,9 @@ const OPPONENTS_CANT_CAST = "Your opponents can't cast spells this turn";
  */
 const DEFENDING_PLAYER_CANT_CAST =
     "Defending player can't cast spells this turn";
+/** CR 305.1 + CR 101.2 — a targeted player's turn-scoped land-play lock, whole. */
+const TARGET_PLAYER_CANT_PLAY_LANDS =
+    "Target player can't play lands this turn";
 /**
  * CR 101.2 + CR 601.2 + CR 602.2 — a targeted player's cast lock (instants and
  * sorceries) AND activation lock (non-mana abilities), whole. Both clauses
@@ -5175,6 +5183,13 @@ function effectSentence(
             player: "target" as const,
             casting: ["Instant", "Sorcery"] as const,
             activation: true,
+        } satisfies EffectSentenceIR);
+
+    // ── land-play lock on a player (CR 305.1, CR 101.2) ────────────────────
+    if (span === TARGET_PLAYER_CANT_PLAY_LANDS)
+        return ok({
+            kind: "land-play-lock" as const,
+            player: "target" as const,
         } satisfies EffectSentenceIR);
 
     // ── regenerate (CR 701.19a) ────────────────────────────────────────────

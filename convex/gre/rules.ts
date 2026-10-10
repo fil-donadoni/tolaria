@@ -1098,6 +1098,11 @@ export function getLegalActions(
             const maxDrops = LAND_DROPS_PER_TURN + extraDrops;
             if (
                 !landPlayLockActive(state) &&
+                // CR 305.1 / 101.2 (issue #2145) — a per-player "can't play
+                // lands" restriction, its own conjunct: NOT folded into
+                // `maxDrops`, because an allowance a later Exploration can
+                // raise is not a "can't".
+                !state.cannotPlayLandsThisTurn?.includes(caster.id) &&
                 isSorceryTimingFor(state, caster.id) &&
                 landsPlayed < maxDrops
             ) {

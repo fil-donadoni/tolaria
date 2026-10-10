@@ -3084,6 +3084,14 @@ export const OP_EXECUTORS: {
         if (playerId === undefined) return;
         ctx.restrictAbilityActivation(playerId);
     },
+    // CR 305.1 / 101.2 (issue #2145) — impose a turn-scoped per-player "can't
+    // play lands" restriction (Turf Wound). Skipped when the player is gone
+    // (CR 608.2b).
+    restrictLandPlay(ctx, op) {
+        const playerId = resolvePlayerRef(ctx, op.player);
+        if (playerId === undefined) return;
+        ctx.restrictLandPlay(playerId);
+    },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — arm a one-shot "skip your
     // draw step this turn" flag on `player`, consumed the next time
     // `drawStep` (`gre/phases.ts`) reaches them. Skipped when the player is

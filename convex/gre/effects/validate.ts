@@ -3897,6 +3897,9 @@ const OP_SCHEMAS: OpSchemaTable = {
     // CR 602.1 / 605.1a (issue #1124) — a turn-scoped per-player "can't
     // activate non-mana abilities" lock (Abeyance). `player` names whom to lock.
     restrictActivation: { required: { player: isPlayerRef } },
+    // CR 305.1 / 101.2 (issue #2145) — a turn-scoped per-player "can't play
+    // lands" lock (Turf Wound). `player` names whom to lock.
+    restrictLandPlay: { required: { player: isPlayerRef } },
     // CR 504.1 (issue #1097 — Elfhame Sanctuary) — a one-shot per-player
     // "skip your draw step this turn" flag. `player` names whose draw step
     // to skip.

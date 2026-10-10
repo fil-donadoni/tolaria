@@ -2046,6 +2046,16 @@ function lowerSentenceBody(
                     : []),
             ]);
         }
+        case "land-play-lock": {
+            // CR 305.1 + CR 101.2 — "Target player can't play lands this turn".
+            const player = playerRef(
+                { kind: "target", opponent: false },
+                slots,
+                site
+            );
+            if (!player.ok) return player;
+            return lowered([{ op: "restrictLandPlay", player: player.value }]);
+        }
         // CR 613.1b — the effect's controller gains control of the announced
         // permanent; CR 611.2b's "for as long as you control <this>" is the
         // `while-you-control-source` condition, absent = indefinite.
