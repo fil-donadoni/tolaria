@@ -3639,12 +3639,13 @@ export const SURFACES: readonly Surface[] = [
     {
         id: "match-setup",
         entries: ["src/routes/match-setup.route.tsx"],
-        label: "Constructed setup (/play/constructed, Match Format step)",
-        // The Constructed setup flow (PRD #5334, issue #5340): the recap rail
-        // beside the active step. Walked to step 3 — Arena, Bot — because the
-        // Match Format step is the widest one (every playable Format with its
-        // deck count, plus the Games Format selector); a fresh context has no
-        // remembered setup, so the walk always starts from step 1.
+        label: "Constructed setup (/play/constructed, Bot deck step)",
+        // The Constructed setup flow (PRD #5334, issues #5340/#5341): the
+        // recap rail beside the active step. Walked to the LAST step of the
+        // Bot branch — Arena, Bot, Freeform, a deck — because step 5 is the
+        // widest one (difficulty, Mirror, the search row and the deck grid
+        // under the Match Format admitting every deck); every earlier step
+        // stays reachable from the rail it sits beside.
         asserts: [
             {
                 label: "page heading",
@@ -3657,21 +3658,26 @@ export const SURFACES: readonly Surface[] = [
                 check: "visible",
             },
             {
-                label: "Match Format options",
-                locator: { role: "group", name: "Match Format" },
+                label: "Bot difficulty",
+                locator: { role: "radiogroup", name: "Bot difficulty" },
                 check: "reachable",
             },
             {
-                label: "Games Format selector",
-                locator: { role: "radiogroup", name: "Games Format" },
+                // A selector, not role+name: the choice's accessible name
+                // carries its hint line too, and role names match exactly.
+                label: "Mirror",
+                locator: { selector: '[data-setup-choice="mirror"]' },
                 check: "reachable",
             },
             {
-                // `visible`, not `reachable`: Start is disabled until steps
-                // 4–5 land, and `reachable` proves a click would land.
+                label: "deck search",
+                locator: { role: "searchbox", name: "Search decks" },
+                check: "reachable",
+            },
+            {
                 label: "Start match",
                 locator: { role: "button", name: "Start match" },
-                check: "visible",
+                check: "reachable",
             },
         ],
         async walk(page, ctx) {
@@ -3682,21 +3688,40 @@ export const SURFACES: readonly Surface[] = [
                 );
             }
             // A retry inside the same viewport reuses the context, whose
-            // storage already remembers Arena → Bot: the flow then opens on
-            // step 3 and there is nothing to click.
-            const formatStep = "[role=group][aria-label='Match Format']";
-            if (!(await page.locator(formatStep).isVisible())) {
-                for (const choice of ["Arena", "Bot"]) {
+            // storage remembers how far the last attempt got: answer only
+            // the step the flow opens on, until it opens on step 5.
+            const current = page.locator(
+                "[data-setup-step][aria-current=step]"
+            );
+            const choose = (name: string) =>
+                page
+                    .getByRole("button", { name: new RegExp(`^${name}`) })
+                    .click({ timeout: STEP_TIMEOUT });
+            // Four answers at most; the slack absorbs a read that lands
+            // before the rail re-renders.
+            for (let i = 0; i < 8; i++) {
+                const step = await current
+                    .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
+                    .catch(() => null);
+                if (step === "opponentDeck") break;
+                if (step === "mode") await choose("Arena");
+                else if (step === "opponent") await choose("Bot");
+                else if (step === "format") await choose("Freeform");
+                else if (step === "myDeck") {
                     await page
-                        .getByRole("button", {
-                            name: new RegExp(`^${choice}`),
-                        })
+                        .locator("[data-deck-select]:not([disabled])")
+                        .first()
                         .click({ timeout: STEP_TIMEOUT });
+                } else {
+                    throw new Unreachable(
+                        `the setup flow opened on an unexpected step: ${step}`
+                    );
                 }
             }
-            if (!(await visible(page, formatStep, STEP_TIMEOUT))) {
+            const difficulty = "[role=radiogroup][aria-label='Bot difficulty']";
+            if (!(await visible(page, difficulty, STEP_TIMEOUT))) {
                 throw new Unreachable(
-                    "Arena → Bot did not open the Match Format step"
+                    "Arena → Bot → Freeform → a deck did not open the Bot deck step"
                 );
             }
             await settle(page);

@@ -9,12 +9,16 @@ export default function SetupChoice({
     hint,
     selected,
     disabled = false,
+    seam,
     onSelect,
 }: {
     title: string;
     hint?: string;
     selected: boolean;
     disabled?: boolean;
+    /** A stable `data-setup-choice` hook for the ui-gate walk and tests,
+     *  where the accessible name (title + hint) is not a literal. */
+    seam?: string;
     onSelect: () => void;
 }) {
     return (
@@ -22,6 +26,7 @@ export default function SetupChoice({
             type="button"
             aria-pressed={selected}
             disabled={disabled}
+            data-setup-choice={seam}
             onClick={onSelect}
             className={cn(
                 "flex min-h-[var(--control-h)] min-w-[9rem] flex-1 flex-col rounded-[var(--panel-radius)] border px-3 py-2 text-left transition",

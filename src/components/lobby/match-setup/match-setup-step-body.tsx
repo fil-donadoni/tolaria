@@ -4,6 +4,8 @@ import type { LobbyDeck } from "~/lib/deckTypes";
 import type { MatchSetup, StepKey } from "~/lib/matchSetup";
 import MatchFormatStep from "./match-format-step";
 import ModeStep from "./mode-step";
+import MyDeckStep from "./my-deck-step";
+import OpponentDeckStep from "./opponent-deck-step";
 import OpponentStep from "./opponent-step";
 import PendingStep from "./pending-step";
 
@@ -31,9 +33,19 @@ export default function MatchSetupStepBody({
                     onChange={onChange}
                 />
             );
-        case "table":
         case "myDeck":
+            return (
+                <MyDeckStep setup={setup} decks={decks} onChange={onChange} />
+            );
         case "opponentDeck":
+            return (
+                <OpponentDeckStep
+                    setup={setup}
+                    decks={decks}
+                    onChange={onChange}
+                />
+            );
+        case "table":
             return <PendingStep />;
     }
 }

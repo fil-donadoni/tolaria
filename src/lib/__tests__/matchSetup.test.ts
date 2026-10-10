@@ -116,6 +116,14 @@ describe("setupSteps / firstOpenStep — what the rail shows", () => {
         const steps = setupSteps({ ...READY_BOT, myDeckId: "gone" }, DECKS);
         expect(firstOpenStep(steps)).toBe(3);
     });
+
+    it("a remembered deck that became illegal is dropped, so Start is off", () => {
+        const decks = DECKS.map((d) =>
+            d.presetId === "burn" ? { ...d, isLegal: false } : d
+        );
+        expect(applyChange(READY_BOT, {}, decks).myDeckId).toBeNull();
+        expect(startRequest(READY_BOT, decks, "Alice")).toBeNull();
+    });
 });
 
 describe("applyChange — an upstream change clears what it invalidates", () => {
