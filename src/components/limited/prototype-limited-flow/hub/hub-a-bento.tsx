@@ -1,5 +1,4 @@
 // PROTOTYPE — throwaway. Variant A: bento grid, big hero tile for the first event.
-import { Fragment } from "react";
 import { getArtCropImageUrl } from "~/lib/images";
 import { cn } from "~/lib/utils";
 import {
@@ -24,14 +23,17 @@ import {
     type HistoryEvent,
 } from "./hub-shared";
 
-function Hero({ e, big }: { e: HubEvent; big?: boolean }) {
+type HeroSize = "big" | "wide" | "small";
+
+function Hero({ e, size }: { e: HubEvent; size: HeroSize }) {
+    const big = size !== "small";
     return (
         <div
             className={cn(
                 "relative isolate flex flex-col justify-end overflow-hidden rounded-[var(--panel-radius)] border border-accent/50 shadow-[0_0_0_1px_rgba(255,255,255,0.03)]",
-                big
-                    ? "min-h-[340px] lg:col-span-2 lg:row-span-2"
-                    : "min-h-[200px] lg:col-span-2"
+                size === "big" && "min-h-[340px] lg:col-span-2 lg:row-span-2",
+                size === "wide" && "min-h-[256px] sm:col-span-2",
+                size === "small" && "min-h-[240px] sm:col-span-2"
             )}
         >
             <Art feature={e.feature} className="absolute inset-0 -z-10" />
@@ -157,69 +159,117 @@ const LAST_SETUP = {
 };
 
 /** The New-event bento: a solid parchment tile, the one light surface on a
- *  page of artwork — it wins the eye by contrast, not by size alone. */
-function NewEventBento({ alone }: { alone?: boolean }) {
+ *  page of artwork — it wins the eye by contrast, not by size.
+ *  `tile`: last cell of Your events, same height as an event tile.
+ *  `side`: no event in progress — a third of the row, beside Join a table. */
+function NewEventBento({ layout }: { layout: "tile" | "side" }) {
+    const side = layout === "side";
     return (
         <div
             className={cn(
-                "flex flex-col justify-between gap-4 rounded-[var(--panel-radius)] bg-parchment p-5 text-surface-base shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)] sm:p-6",
-                alone
-                    ? "min-h-[280px] sm:col-span-2 lg:col-span-4 lg:flex-row lg:items-center"
-                    : "min-h-[200px] sm:col-span-2"
+                "flex h-full flex-col gap-4 rounded-[var(--panel-radius)] bg-parchment p-5 text-surface-base shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)]",
+                side ? "min-h-[300px]" : "min-h-[240px] sm:col-span-2"
             )}
         >
-            <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-60">
-                    {alone ? "No event in progress" : "New event"}
-                </span>
-                <span
-                    className={cn(
-                        "font-display leading-none",
-                        alone ? "text-4xl sm:text-5xl" : "text-3xl"
-                    )}
-                >
-                    {alone ? "Start an event" : "Start another"}
-                </span>
-                <span className="mt-1 text-sm opacity-70">
-                    Bots fill every empty seat — you can draft right now.
+            <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] opacity-60">
+                        {side ? "Nothing in progress" : "New event"}
+                    </span>
+                    <span
+                        className={cn(
+                            "font-display leading-none",
+                            side ? "text-4xl" : "text-3xl"
+                        )}
+                    >
+                        {side ? "Start an event" : "Start another"}
+                    </span>
+                </div>
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-base text-2xl leading-none text-parchment">
+                    +
                 </span>
             </div>
-            <div className={cn("flex flex-col gap-2", alone && "lg:w-[26rem]")}>
-                <button
-                    type="button"
-                    onClick={() => console.log("[proto] Quick start last")}
-                    className="group flex items-center gap-3 rounded-xl bg-surface-base p-2 pr-4 text-left text-parchment transition hover:scale-[1.02]"
-                >
-                    <img
-                        src={getArtCropImageUrl(artId(LAST_SETUP.feature))}
-                        alt=""
-                        className="size-14 shrink-0 rounded-lg object-cover"
-                    />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="text-[10px] uppercase tracking-widest text-text-muted">
-                            Your last event
+            {side && (
+                <span className="text-sm opacity-70">
+                    Bots fill every empty seat — you can draft right now.
+                </span>
+            )}
+            <div
+                className={cn("mt-auto flex flex-col gap-2", side && "flex-1")}
+            >
+                {side ? (
+                    <button
+                        type="button"
+                        onClick={() => console.log("[proto] Quick start last")}
+                        className="group relative isolate flex min-h-[170px] flex-1 flex-col justify-end overflow-hidden rounded-xl text-left text-parchment transition hover:scale-[1.01]"
+                    >
+                        <img
+                            src={getArtCropImageUrl(artId(LAST_SETUP.feature))}
+                            alt=""
+                            className="absolute inset-0 -z-10 h-full w-full object-cover"
+                        />
+                        <span className="absolute inset-0 -z-10 bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                        <span className="flex items-end justify-between gap-3 p-3">
+                            <span className="flex min-w-0 flex-col">
+                                <span className="text-[10px] uppercase tracking-widest text-parchment/75">
+                                    Again: your last event
+                                </span>
+                                <span className="truncate font-display text-xl leading-tight">
+                                    {LAST_SETUP.name}
+                                </span>
+                                <span className="truncate text-[11px] text-parchment/75">
+                                    {LAST_SETUP.meta}
+                                </span>
+                            </span>
+                            <span className="shrink-0 rounded-full bg-parchment px-4 py-1.5 text-sm font-bold text-surface-base">
+                                Start
+                            </span>
                         </span>
-                        <span className="truncate font-display text-lg leading-tight">
-                            {LAST_SETUP.name}
+                    </button>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => console.log("[proto] Quick start last")}
+                        className="group flex items-center gap-3 rounded-xl bg-surface-base p-2 pr-3 text-left text-parchment transition hover:scale-[1.02]"
+                    >
+                        <img
+                            src={getArtCropImageUrl(artId(LAST_SETUP.feature))}
+                            alt=""
+                            className="size-12 shrink-0 rounded-lg object-cover"
+                        />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                            <span className="text-[10px] uppercase tracking-widest text-text-muted">
+                                Again: your last event
+                            </span>
+                            <span className="truncate font-display text-base leading-tight">
+                                {LAST_SETUP.name}
+                            </span>
+                            <span className="truncate text-[11px] text-text-muted">
+                                {LAST_SETUP.meta}
+                            </span>
                         </span>
-                        <span className="truncate text-xs text-text-muted">
-                            {LAST_SETUP.meta}
+                        <span className="rounded-full bg-parchment px-3 py-1 text-sm font-bold text-surface-base">
+                            Start
                         </span>
-                    </span>
-                    <span className="font-display text-base font-semibold">
-                        Start ▸
-                    </span>
-                </button>
+                    </button>
+                )}
                 <button
                     type="button"
                     onClick={() => console.log("[proto] Customise")}
-                    className="rounded-xl border-2 border-surface-base/80 px-4 py-2.5 text-sm font-bold transition hover:bg-surface-base/10"
+                    className="rounded-xl border-2 border-surface-base/80 px-4 py-2 text-sm font-bold transition hover:bg-surface-base/10"
                 >
-                    + New event — choose format, seats, timers
+                    Choose format, seats, timers…
                 </button>
             </div>
         </div>
     );
+}
+
+/** One event: a wide half-row beside the bento. Two or more: the first is
+ *  the 2×2 lead, the rest stack beside it, the bento closes the grid. */
+function heroSize(i: number, n: number): HeroSize {
+    if (n === 1) return "wide";
+    return i === 0 ? "big" : "small";
 }
 
 export default function HubBento() {
@@ -249,34 +299,49 @@ export default function HubBento() {
             ) : (
                 <>
                     {myShown.length > 0 && (
-                        <SectionTitle aside={`${myShown.length} in progress`}>
-                            Your events
-                        </SectionTitle>
+                        <>
+                            <SectionTitle
+                                aside={`${myShown.length} in progress`}
+                            >
+                                Your events
+                            </SectionTitle>
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[256px]">
+                                {myShown.map((e, i) => (
+                                    <Hero
+                                        key={e.id}
+                                        e={e}
+                                        size={heroSize(i, myShown.length)}
+                                    />
+                                ))}
+                                {view === "all" && (
+                                    <NewEventBento layout="tile" />
+                                )}
+                            </div>
+                        </>
                     )}
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:auto-rows-[minmax(110px,auto)]">
-                        {count === 0 && view === "all" && (
-                            <NewEventBento alone />
-                        )}
-                        {myShown.map((e, i) => (
-                            <Fragment key={e.id}>
-                                <Hero e={e} big={i === 0} />
-                                {i === 0 && view === "all" && <NewEventBento />}
-                            </Fragment>
-                        ))}
-                        {myShown.length > 0 && myShown.length < 3 && (
-                            <div className="hidden" />
-                        )}
-                    </div>
                     <SectionTitle
                         aside={`${openShown.length} waiting for players`}
                     >
-                        Join a table
+                        {myShown.length === 0 && view === "all"
+                            ? "Start or join a table"
+                            : "Join a table"}
                     </SectionTitle>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        {openShown.map((e) => (
-                            <OpenTile key={e.id} e={e} />
-                        ))}
-                    </div>
+                    {myShown.length === 0 && view === "all" ? (
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+                            <NewEventBento layout="side" />
+                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:col-span-2">
+                                {openShown.map((e) => (
+                                    <OpenTile key={e.id} e={e} />
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                            {openShown.map((e) => (
+                                <OpenTile key={e.id} e={e} />
+                            ))}
+                        </div>
+                    )}
                     {view === "all" && (
                         <>
                             <SectionTitle
