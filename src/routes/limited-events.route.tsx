@@ -1,5 +1,6 @@
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import LimitedEventsPage from "~/components/limited/limited-events-page";
+import LimitedFlowPrototype from "~/components/limited/prototype-limited-flow/limited-flow-prototype";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 import type { LimitedEventStatusChip } from "~/lib/limitedEventStatus";
 
@@ -24,6 +25,12 @@ export default function LimitedEventsRoute() {
     // un-filters itself the moment the walk (or a human) touches Mine/status
     // would put the deployment's real events back in the measurement.
     const label = search.label;
+    // PROTOTYPE — throwaway: ?proto= mounts the Limited flow prototype.
+    if (
+        import.meta.env.DEV &&
+        new URLSearchParams(window.location.search).has("proto")
+    )
+        return <LimitedFlowPrototype />;
 
     const onMineChange = (nextMine: boolean) => {
         void navigate({
