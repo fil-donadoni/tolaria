@@ -104,7 +104,7 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../cards/types";
-import { legalTargetSlots } from "../../cards/types";
+import { legalTargetSlots, tallyMostCommonColors } from "../../cards/types";
 import type { LookDistributeDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
@@ -660,6 +660,28 @@ function evalPredicate(ctx: SpellContext, pred: EffectPredicate): boolean {
         const colorsB = ctx.getColors(b);
         if (colorsA.length !== colorsB.length) return false;
         return colorsA.every((c) => colorsB.includes(c));
+    }
+    // sharesMostCommonColor (issue #5409, CR 105.2) — true iff the
+    // referenced permanent has a colour among the most common colours of ALL
+    // permanents (ties count). The census is taken NOW, at resolution (CR
+    // 608.2b), over live layer-5 colours (`ctx.getColors`, CR 613.1e), through
+    // the same `tallyMostCommonColors` tie-break the continuous statics use.
+    // Missing / gone / non-permanent object, colourless object (CR 105.2c) and
+    // an empty census all read false.
+    if ("sharesMostCommonColor" in pred) {
+        const obj = resolveObjectRef(ctx, pred.sharesMostCommonColor);
+        if (!obj || obj.type !== "permanent") return false;
+        const ids = ctx.allPlayerIds.flatMap((pid) =>
+            ctx.getBattlefieldIds(pid)
+        );
+        const mostCommon = tallyMostCommonColors(
+            (color) =>
+                ids.filter((id) =>
+                    ctx.getColors({ type: "permanent", id }).includes(color)
+                ).length
+        );
+        const colors = ctx.getColors(obj);
+        return colors.some((c) => mostCommon.includes(c));
     }
     // hasCityBlessing (Ascend, CR 702.131b — issue #1460) — true iff the
     // resolved player holds the city's blessing designation. A pure

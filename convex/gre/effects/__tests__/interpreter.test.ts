@@ -11810,6 +11810,118 @@ describe("Effect Script predicate: sameColors (CR 105.2, issue #3806)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
+// `sharesMostCommonColor` predicate (CR 105.2, issue #5409) — Barrin's Unmaking
+// ─────────────────────────────────────────────────────────────────────────
+describe("Effect Script predicate: sharesMostCommonColor (CR 105.2, issue #5409)", () => {
+    /** One permanent per entry (`id` = `perm<i>`), colours via override; the
+     *  first is the one the predicate tests. */
+    function board(...colors: Color[][]): GameState {
+        const perms = colors.map((c, i) => {
+            const inst = makeInstance(BEAR_ID, {
+                controllerId: i % 2 === 0 ? "p1" : "p2",
+                id: `perm${i}`,
+            });
+            inst.colorOverride = c;
+            return inst;
+        });
+        return makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: perms.filter((_, i) => i % 2 === 0),
+                }),
+                makePlayer("p2", {
+                    battlefield: perms.filter((_, i) => i % 2 === 1),
+                }),
+            ],
+        });
+    }
+
+    const SCRIPT_ID = registerScript("test-pred-shares-most-common", [
+        {
+            op: "if",
+            predicate: { sharesMostCommonColor: { target: 0 } },
+            then: [{ op: "gainLife", player: "controller", amount: 1 }],
+        },
+    ]);
+
+    function holds(state: GameState, id = "perm0"): boolean {
+        const before = state.players[0].life;
+        pushSpell(state, SCRIPT_ID, "p1", [{ type: "permanent", id }]);
+        resolveTopOfStack(state);
+        return state.players[0].life > before;
+    }
+
+    it("is true when the target has the single most common colour", () => {
+        expect(holds(board(["U"], ["U"], ["R"]))).toBe(true);
+    });
+
+    it("is false when the target's colour is less common", () => {
+        expect(holds(board(["R"], ["U"], ["U"]))).toBe(false);
+    });
+
+    // "or a color tied for most common" — a tie counts for every tied colour.
+    it("is true for a colour tied for most common", () => {
+        expect(holds(board(["R"], ["U"]))).toBe(true);
+        expect(holds(board(["U"], ["R"]), "perm1")).toBe(true);
+    });
+
+    it("counts a multicoloured permanent toward each colour and matches on any shared one", () => {
+        // W:2 (perm0, perm1), U:1 (perm0), R:1 — the target is W/U and shares W.
+        expect(holds(board(["W", "U"], ["W"], ["R"]))).toBe(true);
+        // Target is U/R: U:1, R:1 against W:2 — shares nothing with the max.
+        expect(holds(board(["U", "R"], ["W"], ["W"]))).toBe(false);
+    });
+
+    it("counts permanents of BOTH players", () => {
+        // perm0 U (p1); perm1, perm3 R (p2) vs perm2 U (p1): U:2 R:2 tie.
+        expect(holds(board(["U"], ["R"], ["U"], ["R"]))).toBe(true);
+        // Three of p2's red permanents outweigh p1's blue ones.
+        expect(holds(board(["U"], ["R"], ["U"], ["R"], ["R"], ["R"]))).toBe(
+            false
+        );
+    });
+
+    // CR 105.2c — colourless shares nothing, whatever the census says.
+    it("is false for a colourless target, and when no permanent has a colour", () => {
+        expect(holds(board([], ["U"]))).toBe(false);
+        expect(holds(board([], []))).toBe(false);
+    });
+
+    it("reads colour through layer 5 (colorOverride), not the printed colour", () => {
+        // Bears are printed green: three of them make G the census winner.
+        const printed = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p1",
+                            id: "perm0",
+                        }),
+                        makeInstance(BEAR_ID, {
+                            controllerId: "p1",
+                            id: "perm1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2"),
+            ],
+        });
+        expect(holds(printed)).toBe(true);
+        // Painted blue/blue against one green: U leads, G does not.
+        const painted = board(["U"], ["U"], ["G"]);
+        expect(holds(painted)).toBe(true);
+        expect(holds(painted, "perm2")).toBe(false);
+    });
+
+    // CR 608.2b — a target that left the battlefield determines nothing.
+    it("is false when the target is gone (CR 608.2b)", () => {
+        const state = board(["U"]);
+        expect(() => holds(state, "ghost")).not.toThrow();
+        expect(state.players[0].life).toBe(20);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
 // `EffectCardFilter.color`'s dynamic cost-sacrificed read
 // (CR 105.2 / 608.2h, issue #3806) — Mind Extraction
 // ─────────────────────────────────────────────────────────────────────────

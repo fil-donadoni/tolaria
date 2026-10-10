@@ -18856,6 +18856,7 @@ export type EffectPredicate =
     | EffectObjectMatchesFilterPredicate
     | EffectSharesColorPredicate
     | EffectSameColorsPredicate
+    | EffectSharesMostCommonColorPredicate
     | EffectHasCityBlessingPredicate
     | EffectTargetMatchesGraveyardFilterPredicate;
 
@@ -18916,6 +18917,29 @@ export interface EffectSharesColorPredicate {
 export interface EffectSameColorsPredicate {
     sameColors: EffectObjectSelector;
     with: EffectObjectSelector;
+}
+
+/** Shares-a-most-common-colour predicate (issue #5409, CR 105.2): true
+ *  iff the referenced permanent has at least one colour that is among the
+ *  MOST COMMON colours of ALL permanents on the battlefield (both players',
+ *  every card type) — "if that permanent shares a color with the most common
+ *  color among all permanents or a color tied for most common" (Barrin's
+ *  Unmaking): `{ sharesMostCommonColor: { target: 0 } }`.
+ *
+ *  The census is taken at evaluation time, i.e. at RESOLUTION (CR 608.2b), over
+ *  the live layer-5 colours (`SpellContext.getColors`, CR 613.1e), with the
+ *  same tie-break core the continuous statics use (`tallyMostCommonColors`):
+ *  a multicoloured permanent counts toward EACH of its colours, a colourless
+ *  one toward none, and every colour tied for the maximum counts.
+ *
+ *  The single-selector sibling of {@link EffectSharesColorPredicate}: that one
+ *  compares two objects, this one compares an object against the board census
+ *  (so there is no `with`). Reads `false` when the object is missing, has left
+ *  the battlefield or is not a permanent (CR 608.2b), when it is colourless
+ *  (CR 105.2c — shares no colour with anything), and when NO permanent has a
+ *  colour (the census is empty, so no colour is "most common"). */
+export interface EffectSharesMostCommonColorPredicate {
+    sharesMostCommonColor: EffectObjectSelector;
 }
 
 /** Boolean-binding predicate: true iff the named boolean binding is true

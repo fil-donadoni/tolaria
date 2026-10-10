@@ -3174,6 +3174,13 @@ function isPredicate(value: unknown): boolean {
     ) {
         return isObjectSelector(obj.sameColors) && isObjectSelector(obj.with);
     }
+    // sharesMostCommonColor form (issue #5409, CR 105.2) — a single key holding
+    // one OBJECT SELECTOR compared against the board colour census (Barrin's
+    // Unmaking). Binding existence/family is checked by the ordered ref pass
+    // below, like every other selector-carrying predicate form.
+    if (keys.length === 1 && keys[0] === "sharesMostCommonColor") {
+        return isObjectSelector(obj.sharesMostCommonColor);
+    }
     // picksMatchFilter form (issue #1343) — a `choice` Op's picks binding
     // (bare picks ref, same shape as `picksNonEmpty`), plus `player` (whose
     // graveyard to resolve the picks against) and `filter` (the card shape
@@ -6613,6 +6620,9 @@ function collectRefUses(value: unknown, keyHint: string, out: RefUse[]): void {
                                 // set-equality twin, same two object-selector
                                 // positions, sharing the `with` row below.
                                 keyHint === "sameColors" ||
+                                // `sharesMostCommonColor` (issue #5409) — the one
+                                // object selector compared against the colour census.
+                                keyHint === "sharesMostCommonColor" ||
                                 keyHint === "with" ||
                                 // `targetMatchesGraveyardFilter` (issue #2385) — the
                                 // announced graveyard-zone target under test, an
@@ -6939,6 +6949,12 @@ function collectPredicateRefUses(predicate: unknown, out: RefUse[]): void {
     if ("sameColors" in p) {
         collectRefUses(p.sameColors, "sameColors", out);
         collectRefUses(p.with, "with", out);
+        return;
+    }
+    // sharesMostCommonColor (issue #5409) — ONE object selector, routed
+    // through the same shared object-position collector.
+    if ("sharesMostCommonColor" in p) {
+        collectRefUses(p.sharesMostCommonColor, "sharesMostCommonColor", out);
         return;
     }
     // Comparison: numeric refs on either side.
