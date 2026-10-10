@@ -146,6 +146,9 @@ describe("Terravore — graveyard-count characteristic-defining P/T (CR 604.3)",
                                     makeInstance(FOREST.id, {
                                         zone: "graveyard",
                                     }),
+                                    makeInstance(FOREST.id, {
+                                        zone: "graveyard",
+                                    }),
                                     makeInstance(TERRAVORE.id, {
                                         zone: "graveyard",
                                     }),
@@ -161,11 +164,11 @@ describe("Terravore — graveyard-count characteristic-defining P/T (CR 604.3)",
                             }),
                         ],
                     });
-                    expect(getEffectivePower(state, terravore)).toBe(2);
-                    expect(getEffectiveToughness(state, terravore)).toBe(2);
+                    expect(getEffectivePower(state, terravore)).toBe(3);
+                    expect(getEffectiveToughness(state, terravore)).toBe(3);
                     const projected = projectPublicState(state, 1, "p1");
                     const slim = projected.players[0]!.battlefield[0]!;
-                    expect(getEffectivePower(projected, slim)).toBe(2);
+                    expect(getEffectivePower(projected, slim)).toBe(3);
                 })
             )
         );
