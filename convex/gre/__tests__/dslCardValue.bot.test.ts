@@ -26,9 +26,14 @@ import {
     makeState,
     makeInstance,
 } from "../../cards/__tests__/setup.helper";
-import { cardValueById, dslLatentPieces, latentValue } from "../cardValue";
+import {
+    cardValueById,
+    dslLatentPieces,
+    latentValue,
+    standingAbilityValueById,
+} from "../cardValue";
 import { registeredDefinitions } from "../../cards";
-import { manaValue } from "../constants";
+import { isManaAbilityDefinition, manaValue } from "../constants";
 import { projectPublicState } from "../../gameProjections";
 import {
     dslSpellScriptValue,
@@ -456,6 +461,216 @@ describe("cardValue DSL precedence (PRD #1423, issue #1426)", () => {
                     "46adf48f-99d2-440e-9129-794584c1ea21"
                 );
                 expect(disk).toBeGreaterThan(weakstone);
+            });
+
+            // Issue #5155 — a LAND's non-mana standing abilities are read the
+            // same way; its mana abilities are the `mana` term's and never
+            // script worth.
+            describe("utility lands read their non-mana standing scripts (issue #5155)", () => {
+                const byName = (name: string) => {
+                    const def = [...registeredDefinitions()].find(
+                        (d) => d.name === name
+                    );
+                    expect(def, name).toBeDefined();
+                    return def!;
+                };
+                const UTILITY = [
+                    "Library of Alexandria",
+                    "Maze of Ith",
+                    "Mishra's Factory",
+                ];
+                const PLAIN = ["Island", "Tundra"];
+                const landFloor = latentValue({ ...base, manaValue: 0 });
+
+                it("Library of Alexandria, Maze of Ith and Mishra's Factory value above an Island in hand; an Island and a dual sit exactly at the land floor", () => {
+                    const island = cardValueById(byName("Island").id);
+                    expect(island).toBe(landFloor);
+                    for (const name of PLAIN) {
+                        expect(cardValueById(byName(name).id), name).toBe(
+                            landFloor
+                        );
+                        expect(
+                            dslStandingAbilityScriptValue(byName(name)),
+                            name
+                        ).toBeUndefined();
+                    }
+                    for (const name of UTILITY) {
+                        expect(
+                            cardValueById(byName(name).id),
+                            name
+                        ).toBeGreaterThan(island);
+                    }
+                });
+
+                it("on the battlefield the three price above an Island through permanentRealisedValue; an Island and a dual are exactly the presence and mana weights", () => {
+                    const perms = [...UTILITY, ...PLAIN].map((name) =>
+                        makeInstance(byName(name).id, {
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        })
+                    );
+                    const state = makeState({
+                        players: [
+                            makePlayer("p1", { battlefield: perms }),
+                            makePlayer("p2"),
+                        ],
+                    });
+                    const plainWorth =
+                        DEFAULT_EVAL_WEIGHTS.permanentWeight +
+                        DEFAULT_EVAL_WEIGHTS.manaWeight;
+                    const worth = new Map(
+                        [...UTILITY, ...PLAIN].map((name, i) => [
+                            name,
+                            permanentRealisedValue(state, perms[i]!),
+                        ])
+                    );
+                    for (const name of PLAIN) {
+                        expect(worth.get(name), name).toBe(plainWorth);
+                    }
+                    for (const name of UTILITY) {
+                        expect(worth.get(name), name).toBeGreaterThan(
+                            worth.get("Island")!
+                        );
+                    }
+                    // Maze of Ith has no mana ability: its worth is the
+                    // presence weight plus its script alone, so the script is
+                    // read BESIDE the mana term, never as a substitute.
+                    expect(worth.get("Maze of Ith")).toBeCloseTo(
+                        DEFAULT_EVAL_WEIGHTS.permanentWeight +
+                            standingAbilityValueById(byName("Maze of Ith").id),
+                        9
+                    );
+                });
+
+                it("the hand face and the board face of a utility land are one number above the land's floor and the mana term", () => {
+                    for (const name of UTILITY) {
+                        const def = byName(name);
+                        expect(cardValueById(def.id), name).toBe(
+                            Math.max(
+                                landFloor,
+                                standingAbilityValueById(def.id)
+                            )
+                        );
+                    }
+                });
+
+                it("a sacrifice-cost land ability stays out of standing worth on both faces (Strip Mine, issue #5145 by design)", () => {
+                    const strip = byName("Strip Mine");
+                    expect(
+                        dslStandingAbilityScriptValue(strip)
+                    ).toBeUndefined();
+                    expect(cardValueById(strip.id)).toBe(landFloor);
+                    expect(standingAbilityValueById(strip.id)).toBe(0);
+                });
+
+                it("a mana ability is never read as script worth, even one carrying a shadow script", () => {
+                    const land = (manaScript: EffectOp[] | undefined) =>
+                        ({
+                            id: "synthetic-utility-land",
+                            name: "synthetic-utility-land",
+                            rarity: "common",
+                            types: ["Land"],
+                            manaCost: {},
+                            activatedAbilities: [
+                                {
+                                    id: "mana",
+                                    oracleText: "{T}: Add {C}.",
+                                    cost: { tap: true },
+                                    useStack: false,
+                                    manaProduced: { C: 1 },
+                                    effect: () => {},
+                                    ...(manaScript
+                                        ? { aiEffects: manaScript }
+                                        : {}),
+                                },
+                                {
+                                    id: "draw",
+                                    oracleText: "{T}: Draw a card.",
+                                    cost: { tap: true },
+                                    useStack: true,
+                                    effects: [
+                                        {
+                                            op: "draw",
+                                            player: "controller",
+                                            count: 1,
+                                        },
+                                    ],
+                                },
+                            ],
+                        }) as unknown as CardDefinition;
+                    const bare = dslStandingAbilityScriptValue(land(undefined));
+                    expect(bare).toBeDefined();
+                    expect(bare!).toBeGreaterThan(0);
+                    expect(
+                        dslStandingAbilityScriptValue(
+                            land([
+                                { op: "draw", player: "controller", count: 3 },
+                            ])
+                        )
+                    ).toBe(bare);
+                });
+
+                it("a cycling land's hand-only ability is never battlefield worth (review #5155): Triome and channel lands sit at the floor on both faces", () => {
+                    const offBoard = [...registeredDefinitions()].filter(
+                        (d) =>
+                            d.types.includes("Land") &&
+                            !d.types.includes("Creature") &&
+                            (d.activatedAbilities ?? []).some(
+                                (a) =>
+                                    a.activateFromHand === true ||
+                                    a.cost?.discardThis === true
+                            )
+                    );
+                    expect(offBoard.length).toBeGreaterThan(10);
+                    for (const d of offBoard) {
+                        const rest = [
+                            ...(d.activatedAbilities ?? []).filter(
+                                (a) =>
+                                    !isManaAbilityDefinition(a) &&
+                                    a.activateFromHand !== true &&
+                                    a.cost?.discardThis !== true
+                            ),
+                            ...(d.triggeredAbilities ?? []),
+                        ];
+                        // Only a land whose EVERY non-mana ability is the
+                        // hand-only one is pinned at the floor: a cycling
+                        // land with a standing ability besides keeps that.
+                        if (rest.length > 0) continue;
+                        expect(
+                            dslStandingAbilityScriptValue(d),
+                            d.name
+                        ).toBeUndefined();
+                        expect(standingAbilityValueById(d.id), d.name).toBe(0);
+                        expect(cardValueById(d.id), d.name).toBe(landFloor);
+                    }
+                });
+
+                it("census: every catalogue land whose abilities are all mana abilities has no standing worth", () => {
+                    const lands = [...registeredDefinitions()].filter(
+                        (d) =>
+                            d.types.includes("Land") &&
+                            !d.types.includes("Creature")
+                    );
+                    const manaOnly = lands.filter(
+                        (d) =>
+                            (d.activatedAbilities ?? []).every((a) =>
+                                isManaAbilityDefinition(a)
+                            ) &&
+                            (d.triggeredAbilities ?? []).every(
+                                (t) => t.manaAbility === true
+                            )
+                    );
+                    // The class is the bulk of the catalogue (basics, duals,
+                    // fetch-free taplands): a thin census would prove nothing.
+                    expect(manaOnly.length).toBeGreaterThan(100);
+                    for (const d of manaOnly) {
+                        expect(
+                            dslStandingAbilityScriptValue(d),
+                            d.name
+                        ).toBeUndefined();
+                        expect(cardValueById(d.id), d.name).toBe(landFloor);
+                    }
+                });
             });
         });
 

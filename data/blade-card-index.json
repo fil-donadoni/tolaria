@@ -536,6 +536,13 @@
             "needsSetup": false
         }
     ],
+    "Strip Mine": [
+        {
+            "label": "removal: Strip Mine takes the Library of Alexandria, not the Island (issue #5155)",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Subtlety": [
         {
             "label": "free put: the caster puts a permanent in off its own Show and Tell",

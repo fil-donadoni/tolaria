@@ -28,12 +28,16 @@
         "name": "Energy Storm"
     },
     {
-        "cardId": "091dda35-59e5-456d-8804-61513a610aed",
-        "name": "Fertile Ground"
-    },
-    {
         "cardId": "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
         "name": "Fyndhorn Pollen"
+    },
+    {
+        "cardId": "3d23f800-7a6f-40e3-b242-9f5955e47a75",
+        "name": "Glacial Chasm"
+    },
+    {
+        "cardId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
+        "name": "Halls of Mist"
     },
     {
         "cardId": "691f4a1b-4706-41aa-82da-ae920739f036",
@@ -106,9 +110,5 @@
     {
         "cardId": "b6cef408-5b4b-49f6-9531-be544815b93f",
         "name": "Stasis"
-    },
-    {
-        "cardId": "fd896dfa-66c0-4327-8e5b-489bbe350c95",
-        "name": "Wild Growth"
     }
 ]

@@ -141,7 +141,12 @@ import { hasCastableInstantHint } from "./heldInteraction";
 import { newManaCensusMemo, type ManaCensusMemo } from "./manaCensusMemo";
 import { getEffectiveActivatedAbilities } from "./activatedAbilities";
 import { hasCardSelfFlashPermission } from "../cards/castRestrictions";
-import { isCreature, hasManaAbility, hasInstantSpeed } from "./constants";
+import {
+    isCreature,
+    hasManaAbility,
+    hasInstantSpeed,
+    isManaAbilityDefinition,
+} from "./constants";
 import { tryGetDefinition } from "../cards";
 import { spendableManaTotal } from "./state";
 // Choice-node spine (PRD #1423, issue #1425).
@@ -3796,8 +3801,7 @@ function isSorcerySpeedPermanentCast(
             !a.activatableByOpponentsOnly &&
             !a.activateFromHand &&
             !a.activateFromGraveyard &&
-            (a.useStack === true ||
-                !(a.manaProduced || a.manaChoices || a.manaColorSource))
+            !isManaAbilityDefinition(a)
     );
     if (!heldByController) return false;
     if (!hasCastableInstant(state, casterId)) return true;

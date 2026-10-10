@@ -32,6 +32,7 @@ import {
     announceableModeCombinations,
     type ModeSelectionFacts,
 } from "../modeSelection";
+import { isManaAbilityDefinition } from "../constants";
 import {
     contextFreeGrounding,
     withGraveyardSource,
@@ -553,14 +554,34 @@ function abilityScriptOpValue(
         event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         activateFromGraveyard?: boolean;
+        activateFromHand?: boolean;
         etbAbility?: boolean;
         targetRequirement?: TargetRequirement;
-        cost?: { sacrifice?: boolean; exileThis?: boolean };
+        cost?: {
+            sacrifice?: boolean;
+            exileThis?: boolean;
+            discardThis?: boolean;
+        };
+        /** CR 605.1a / 605.1b — a mana ability, on either shape: an activated
+         *  one classified by the engine's one predicate
+         *  (`isManaAbilityDefinition`), a triggered one by its own flag. */
+        manaAbility?: boolean;
     }[] = [
-        ...(def.activatedAbilities ?? []),
+        ...(def.activatedAbilities ?? []).map((a) => ({
+            ...a,
+            manaAbility: isManaAbilityDefinition(a),
+        })),
         ...(def.triggeredAbilities ?? []),
     ];
     for (const ability of abilities) {
+        // Issue #5155 — a MANA ability is never standing worth: the `mana`
+        // term (`evaluate.ts`) already scores every mana source, so reading
+        // its script here too would count a land's mana twice. This is what
+        // admits a LAND to the standing reading (`carriesStandingAbilityWorth`,
+        // `cardValue.ts`): a Library of Alexandria's draw, a Maze of Ith's
+        // untap, a Factory's animate are read exactly as an artifact's
+        // abilities are, while a basic or a dual still reads nothing.
+        if (selection === "standing" && ability.manaAbility === true) continue;
         // Issue #4758 — a spent ETB Ability is no part of a permanent's
         // realized worth. Only an explicit `true` counts as spent: an
         // unclassified trigger stays realized (fail-closed, the census in
@@ -573,10 +594,19 @@ function abilityScriptOpValue(
         // a loss — Seal of Cleansing worth 86 in play would never trade itself
         // for a 48-point artifact. Such a card keeps its `base + MV` worth; the
         // effect is priced where it is spent (the move that activates it).
+        // Issue #5155 (review) — the same class on its HAND side: an ability
+        // activated only from hand (`activateFromHand`) that discards the
+        // card as its cost (`cost.discardThis`) — cycling,
+        // CR 702.29a, "functions only while the card ... is in a player's
+        // hand"; channel takes the same shape — is no part of the permanent's
+        // standing worth either: a Triome on the battlefield is a tapped-in
+        // tri-land, not a cantrip.
         if (
             selection === "standing" &&
             (ability.cost?.sacrifice === true ||
-                ability.cost?.exileThis === true)
+                ability.cost?.exileThis === true ||
+                ability.cost?.discardThis === true ||
+                ability.activateFromHand === true)
         ) {
             continue;
         }
@@ -953,10 +983,12 @@ export function dslAbilityScriptValue(
  *  ability scripts (activated + triggered, real `effects[]` else `aiEffects`
  *  shadow), at `ABILITY_SCRIPT_DISCOUNT`: the "standing" reading is
  *  `"realized"` minus the delayed-trigger templates (`latentValue` adds those
- *  through its own field, so reading them here too would count them twice)
- *  and, like it, minus the ETB Abilities (spent on entering — a permanent that
+ *  through its own field, so reading them here too would count them twice),
+ *  minus the ETB Abilities (spent on entering — a permanent that
  *  is still valued on the battlefield by this same number must not keep
- *  charging for an effect that already happened). Signed: a symmetric or
+ *  charging for an effect that already happened), and minus every MANA
+ *  ability (issue #5155 — the `mana` term scores those, which is what lets a
+ *  utility land take this reading). Signed: a symmetric or
  *  self-harming ability (a tax, an upkeep cost) reads negative, which
  *  `latentValue` nets against the card's other scripts and then floors.
  *  `undefined` when the card carries no readable ability script. */
