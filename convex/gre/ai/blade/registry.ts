@@ -529,6 +529,13 @@ function abilityStaysAvailable(
 // Discriminant only, or its other half is no `moves` verdict. Every entry is
 // classified since issue #4797 (`RegistryBladeScenario`); one whose
 // Discriminant appears only once below, or inline, is conditional debt.
+/** The Discriminant of every `keywordBonusPair`: which of two identical
+ *  vanilla creatures holds the keyword. */
+const KEYWORD_CARRIER: Discriminant = {
+    kind: "other",
+    detail: "which of two otherwise identical 2/2s carries the keyword",
+};
+
 const DENSE_LIBRARY: Discriminant = {
     kind: "other",
     detail: "a library of twenty creatures where the anchor's holds twenty lands",
@@ -12119,7 +12126,104 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
+    ...keywordBonusPair("lifelink", "lifelink", "`lifelink: (p) => 6 * p`"),
+    ...keywordBonusPair(
+        "deathtouch",
+        "deathtouch",
+        "`deathtouch: (p) => 20 + 2 * p`"
+    ),
+    ...keywordBonusPair(
+        "protection from red",
+        "protection",
+        "the `/^protection from /` family row (flat 15)"
+    ),
 ];
+
+/** One Minimal Pair for a `KEYWORD_BONUS` row (CR 702, issue #5345): Terror in
+ *  hand against two vanilla 2/2s of the same mana value, a Continuous Effects
+ *  Registry entry granting `keyword` to ONE of them. The keyword is the only
+ *  difference between the creatures AND between the two halves, so the removal
+ *  target flips with the row and with nothing else. */
+function keywordBonusPair(
+    keyword: string,
+    family: string,
+    row: string
+): RegistryBladeScenario[] {
+    const bears = ["Runeclaw Bear", "Grizzly Bears"] as const;
+    const position = (carrier: (typeof bears)[number]) => ({
+        cards: [
+            ...Array.from({ length: 2 }, () => ({
+                name: "Swamp",
+                owner: "me" as const,
+                zone: "battlefield" as const,
+                tapped: false,
+            })),
+            { name: "Terror", owner: "me" as const, zone: "hand" as const },
+            ...bears.map((name) => ({
+                name,
+                owner: "opp" as const,
+                zone: "battlefield" as const,
+            })),
+        ],
+        continuousEffects: [
+            {
+                layer: 6 as const,
+                affected: { opp: [carrier] },
+                controller: "opp" as const,
+                payload: { kind: "keyword-grant" as const, keyword },
+            },
+        ],
+        phase: "PRECOMBAT_MAIN" as const,
+        turn: 8,
+        landCount: 0,
+        libraryCount: 20,
+    });
+    const anchorLabel = `keyword bonus (${family}): Terror takes the Runeclaw Bear that carries ${keyword}, not the identical Grizzly Bears (issue #5345)`;
+    const common = {
+        bot: "me" as const,
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must" as const,
+    };
+    return [
+        {
+            // DISCRIMINATING PAIR, HALF 1 of 2.
+            label: anchorLabel,
+            classification: {
+                kind: "conditional",
+                discriminant: KEYWORD_CARRIER,
+            },
+            spec: position("Runeclaw Bear"),
+            ...common,
+            expect: {
+                moves: [
+                    {
+                        kind: "cast-spell",
+                        card: "Terror",
+                        target: "Runeclaw Bear",
+                    },
+                ],
+            },
+            note: `Issue #5345 (follow-up of #5152). Guards ${row} in \`creatureBody.ts\`'s keyword bonus table. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both halves with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting.`,
+        },
+        {
+            // DISCRIMINATING PAIR, HALF 2 of 2 — the carrier swaps.
+            label: `keyword bonus (${family}): Terror takes the Grizzly Bears that carries ${keyword}, not the identical Runeclaw Bear (issue #5345)`,
+            pairOf: { anchor: anchorLabel, discriminant: KEYWORD_CARRIER },
+            spec: position("Grizzly Bears"),
+            ...common,
+            expect: {
+                moves: [
+                    {
+                        kind: "cast-spell",
+                        card: "Terror",
+                        target: "Grizzly Bears",
+                    },
+                ],
+            },
+        },
+    ];
+}
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
  *  server would accept, and the game moved on" (issue #2283).
