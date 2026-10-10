@@ -2,9 +2,8 @@
 //
 // Four layers:
 //
-//  1. GOLDEN fixtures — a real Oracle card compiled whole must produce exactly
-//     this Compiled Definition (Craven Giant bare; Rimrock Knight, a face of an
-//     adventure card; Kavu Aggressor beside a kicker line).
+//  1. GOLDEN fixture — a real Oracle card compiled whole must produce exactly
+//     this Compiled Definition (Craven Giant).
 //  2. REFUSALS — the neighbours of the sentence stay unparsed.
 //  3. LOWERING — one JSON-pure `block-restriction` descriptor, no scope field.
 //  4. BEHAVIOUR — the compiled definition, registered as-is, makes the creature
