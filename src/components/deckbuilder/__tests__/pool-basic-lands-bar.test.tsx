@@ -3,21 +3,29 @@
 // basics at all, yet the bar must still offer every subtype. Issue #1627
 // generalises the bar to both builders and adds the per-subtype Maindeck
 // counter, the shift-click/right-click/`−`-button remove gesture (floored at
-// zero, visibly unavailable), and the `+5` step.
+// zero, visibly unavailable). Issue #5398 turns each subtype into a tile
+// (art, mana symbol, count, − and +); the pill, `+5` and the shift/right-click
+// gestures are gone.
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, cleanup, fireEvent, screen } from "@testing-library/react";
 import PoolBasicLandsBar from "../pool-basic-lands-bar";
 import { TABLET_PORTRAIT_QUERY } from "../useCompactChromeFold";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "../basicLands";
+import { LEB_MOUNTAIN_PRINT, MOUNTAIN_ID } from "./basicLandPrintRows";
 import type { ViewportMode } from "~/hooks/useViewportMode";
 
 // The compact-fold seam under test (issue #2671 review M1), driven exactly
 // like `compact-chrome.test.tsx` drives it.
 let mode: ViewportMode = "desktop";
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -65,7 +73,7 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
     it("renders all five buttons even when every subtype resolves to null (never renders null)", () => {
         const onAdd = vi.fn();
         const onRemove = vi.fn();
-        const { container, getByText } = render(
+        const { container, getByLabelText } = render(
             <PoolBasicLandsBar
                 cardIdsBySubtype={idsFor({
                     Plains: null,
@@ -84,13 +92,13 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
         );
         expect(container.firstChild).not.toBeNull();
         for (const subtype of BASIC_LAND_SUBTYPES) {
-            expect(getByText(`+ ${subtype}`)).toBeTruthy();
+            expect(getByLabelText(`Add one ${subtype}`)).toBeTruthy();
         }
     });
 
     it("renders all five buttons for a fully-resolved (pool or catalogue) set and clicking calls onAdd with the resolved cardId and count 1", () => {
         const onAdd = vi.fn();
-        const { getByText } = render(
+        const { getByLabelText } = render(
             <PoolBasicLandsBar
                 cardIdsBySubtype={idsFor()}
                 counts={countsFor()}
@@ -102,15 +110,15 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
             />
         );
         for (const subtype of BASIC_LAND_SUBTYPES) {
-            expect(getByText(`+ ${subtype}`)).toBeTruthy();
+            expect(getByLabelText(`Add one ${subtype}`)).toBeTruthy();
         }
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(onAdd).toHaveBeenCalledWith("mountain-id", "Mountain", 1);
     });
 
-    it("disables the add pill and the +5 button for a subtype that resolved to null, but still renders them", () => {
+    it("disables the add button for a subtype that resolved to null, but still renders them", () => {
         const onAdd = vi.fn();
-        const { getByText, getByLabelText } = render(
+        const { getByLabelText } = render(
             <PoolBasicLandsBar
                 cardIdsBySubtype={idsFor({ Swamp: null })}
                 counts={countsFor()}
@@ -121,15 +129,12 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
                 disabled={false}
             />
         );
-        const swampButton = getByText("+ Swamp").closest(
+        const swampButton = getByLabelText("Add one Swamp").closest(
             "button"
         ) as HTMLButtonElement;
         expect(swampButton.disabled).toBe(true);
         fireEvent.click(swampButton);
         expect(onAdd).not.toHaveBeenCalled();
-
-        const swampFive = getByLabelText("Add five Swamp") as HTMLButtonElement;
-        expect(swampFive.disabled).toBe(true);
     });
 
     // The add controls need a resolved cardId (there is nothing to append
@@ -157,6 +162,61 @@ describe("PoolBasicLandsBar (issue #1576: always render all five basics)", () =>
     });
 });
 
+describe("PoolBasicLandsBar — tile content and art (issue #5398)", () => {
+    it("each tile shows the land's art, its mana symbol and the count", () => {
+        const { getByLabelText, getByTestId, container } = render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor()}
+                counts={countsFor({ Mountain: 4 })}
+                onAdd={vi.fn()}
+                onRemove={vi.fn()}
+                allowedSets={null}
+                onPickArt={vi.fn()}
+                disabled={false}
+            />
+        );
+        for (const [subtype, symbol] of [
+            ["Plains", "W"],
+            ["Island", "U"],
+            ["Swamp", "B"],
+            ["Mountain", "R"],
+            ["Forest", "G"],
+        ]) {
+            expect(getByLabelText(`Choose ${subtype} art`)).toBeTruthy();
+            expect(
+                container.querySelector(`img[alt="{${symbol}}"]`)
+            ).not.toBeNull();
+        }
+        expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
+    });
+
+    it("tapping the art opens the printing picker restricted to the Format, and a choice reaches onPickArt", () => {
+        const onPickArt = vi.fn();
+        const { getByLabelText } = render(
+            <PoolBasicLandsBar
+                cardIdsBySubtype={idsFor({ Mountain: MOUNTAIN_ID })}
+                counts={countsFor()}
+                onAdd={vi.fn()}
+                onRemove={vi.fn()}
+                allowedSets={["lea", "leb"]}
+                onPickArt={onPickArt}
+                disabled={false}
+            />
+        );
+        fireEvent.click(getByLabelText("Choose Mountain art"));
+        const tiles = [
+            ...document.querySelectorAll<HTMLElement>("button[data-print-id]"),
+        ];
+        // Alpha 40: the canonical LEA print + lea×1 + leb×3 rows of the stub.
+        expect(tiles).toHaveLength(5);
+        const leb = tiles.find(
+            (t) => t.dataset.printId === LEB_MOUNTAIN_PRINT
+        )!;
+        fireEvent.click(leb);
+        expect(onPickArt).toHaveBeenCalledWith("Mountain", LEB_MOUNTAIN_PRINT);
+    });
+});
+
 describe("PoolBasicLandsBar — per-subtype Maindeck counter (issue #1627)", () => {
     it("shows the passed-in count for each subtype", () => {
         const { getByTestId } = render(
@@ -177,9 +237,9 @@ describe("PoolBasicLandsBar — per-subtype Maindeck counter (issue #1627)", () 
 });
 
 describe("PoolBasicLandsBar — add (issue #1627)", () => {
-    it("a plain click on the pill adds exactly one copy", () => {
+    it("clicking + adds exactly one copy", () => {
         const onAdd = vi.fn();
-        const { getByText } = render(
+        const { getByLabelText } = render(
             <PoolBasicLandsBar
                 cardIdsBySubtype={idsFor()}
                 counts={countsFor({ Island: 2 })}
@@ -190,70 +250,13 @@ describe("PoolBasicLandsBar — add (issue #1627)", () => {
                 disabled={false}
             />
         );
-        fireEvent.click(getByText("+ Island"));
+        fireEvent.click(getByLabelText("Add one Island"));
         expect(onAdd).toHaveBeenCalledTimes(1);
         expect(onAdd).toHaveBeenCalledWith("island-id", "Island", 1);
-    });
-
-    it("the +5 button adds five copies in one action", () => {
-        const onAdd = vi.fn();
-        const { getByLabelText } = render(
-            <PoolBasicLandsBar
-                cardIdsBySubtype={idsFor()}
-                counts={countsFor()}
-                onAdd={onAdd}
-                onRemove={vi.fn()}
-                allowedSets={null}
-                onPickArt={vi.fn()}
-                disabled={false}
-            />
-        );
-        fireEvent.click(getByLabelText("Add five Mountain"));
-        expect(onAdd).toHaveBeenCalledTimes(1);
-        expect(onAdd).toHaveBeenCalledWith("mountain-id", "Mountain", 5);
     });
 });
 
 describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable (issue #1627)", () => {
-    it("shift-click on the pill removes one copy instead of adding", () => {
-        const onAdd = vi.fn();
-        const onRemove = vi.fn();
-        const { getByText } = render(
-            <PoolBasicLandsBar
-                cardIdsBySubtype={idsFor()}
-                counts={countsFor({ Swamp: 3 })}
-                onAdd={onAdd}
-                onRemove={onRemove}
-                allowedSets={null}
-                onPickArt={vi.fn()}
-                disabled={false}
-            />
-        );
-        fireEvent.click(getByText("+ Swamp"), { shiftKey: true });
-        expect(onRemove).toHaveBeenCalledWith("Swamp");
-        expect(onAdd).not.toHaveBeenCalled();
-    });
-
-    it("right-click (contextmenu) on the pill removes one copy and suppresses the native menu", () => {
-        const onRemove = vi.fn();
-        const { getByText } = render(
-            <PoolBasicLandsBar
-                cardIdsBySubtype={idsFor()}
-                counts={countsFor({ Forest: 2 })}
-                onAdd={vi.fn()}
-                onRemove={onRemove}
-                allowedSets={null}
-                onPickArt={vi.fn()}
-                disabled={false}
-            />
-        );
-        const event = fireEvent.contextMenu(getByText("+ Forest"));
-        expect(onRemove).toHaveBeenCalledWith("Forest");
-        // fireEvent returns `false` when the dispatched event's default was
-        // prevented — the native context menu must never appear.
-        expect(event).toBe(false);
-    });
-
     it("the dedicated − button removes one copy on click", () => {
         const onRemove = vi.fn();
         const { getByLabelText } = render(
@@ -289,32 +292,11 @@ describe("PoolBasicLandsBar — remove, floored at zero and visibly unavailable 
         fireEvent.click(minus);
         expect(onRemove).not.toHaveBeenCalled();
     });
-
-    it("at zero copies shift-click and right-click on the pill are also no-ops", () => {
-        const onAdd = vi.fn();
-        const onRemove = vi.fn();
-        const { getByText } = render(
-            <PoolBasicLandsBar
-                cardIdsBySubtype={idsFor()}
-                counts={countsFor({ Island: 0 })}
-                onAdd={onAdd}
-                onRemove={onRemove}
-                allowedSets={null}
-                onPickArt={vi.fn()}
-                disabled={false}
-            />
-        );
-        fireEvent.click(getByText("+ Island"), { shiftKey: true });
-        fireEvent.contextMenu(getByText("+ Island"));
-        expect(onRemove).not.toHaveBeenCalled();
-        // Neither gesture is a disguised add either.
-        expect(onAdd).not.toHaveBeenCalled();
-    });
 });
 
 describe("PoolBasicLandsBar — disabled while a save is in flight (project-wide in-flight-mutation rule)", () => {
     it("disables every add/remove control, including a subtype with copies already in the Maindeck", () => {
-        const { getByText, getByLabelText } = render(
+        const { getByLabelText } = render(
             <PoolBasicLandsBar
                 cardIdsBySubtype={idsFor()}
                 counts={countsFor({ Mountain: 3 })}
@@ -326,15 +308,19 @@ describe("PoolBasicLandsBar — disabled while a save is in flight (project-wide
             />
         );
         expect(
-            (getByText("+ Mountain").closest("button") as HTMLButtonElement)
-                .disabled
+            (
+                getByLabelText("Add one Mountain").closest(
+                    "button"
+                ) as HTMLButtonElement
+            ).disabled
         ).toBe(true);
         expect(
             (getByLabelText("Remove one Mountain") as HTMLButtonElement)
                 .disabled
         ).toBe(true);
         expect(
-            (getByLabelText("Add five Mountain") as HTMLButtonElement).disabled
+            (getByLabelText("Choose Mountain art") as HTMLButtonElement)
+                .disabled
         ).toBe(true);
     });
 });
@@ -357,31 +343,6 @@ describe("PoolBasicLandsBar — short-viewport chrome treatment (issue #2056)", 
         );
         const root = container.firstElementChild as HTMLElement;
         expect(root.className.split(/\s+/)).toContain("short-viewport:py-0.5");
-    });
-
-    // Issue #2056 defect 3 amplification: the bar's own padding alone
-    // (`short-viewport:py-0.5`, asserted above) wasn't enough — measured at
-    // ~35px against a ~28px target — because `size="sm"` buttons carry their
-    // OWN padding independent of the bar's. This pins that the pill button
-    // itself shrinks under short-viewport too.
-    it("shrinks the Add-Basic pill's own padding under short-viewport", () => {
-        const { getByText } = render(
-            <PoolBasicLandsBar
-                cardIdsBySubtype={idsFor()}
-                counts={countsFor()}
-                onAdd={vi.fn()}
-                onRemove={vi.fn()}
-                allowedSets={null}
-                onPickArt={vi.fn()}
-                disabled={false}
-            />
-        );
-        const button = getByText("+ Mountain").closest(
-            "button"
-        ) as HTMLButtonElement;
-        const classes = button.className.split(/\s+/);
-        expect(classes).toContain("short-viewport:px-1.5");
-        expect(classes).toContain("short-viewport:py-0");
     });
 });
 

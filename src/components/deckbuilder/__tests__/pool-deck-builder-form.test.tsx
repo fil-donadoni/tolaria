@@ -28,10 +28,15 @@ const useMutationMock = vi.fn();
 // `useMutation` call in this file returns the same stub).
 const setColumnMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -681,7 +686,7 @@ const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56"; // catalogue Mountai
 describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
     it("offers all five basics for a Pool with no basics at all (Vintage-Cube-style seat), adds to the Maindeck, and persists through the autosave path", async () => {
         setup();
-        const { getByText } = render(
+        const { getByText, getByLabelText } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
                 seatIndex={0}
@@ -707,11 +712,11 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
             "Mountain",
             "Forest",
         ]) {
-            expect(getByText(`+ ${subtype}`)).toBeTruthy();
+            expect(getByLabelText(`Add one ${subtype}`)).toBeTruthy();
         }
 
         expect(getByText(/^Maindeck 0/)).toBeTruthy();
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(getByText(/^Maindeck 1/)).toBeTruthy();
 
         // Unmount triggers the flush-on-unmount effect cleanup, driving the
@@ -1118,9 +1123,9 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
 // counter, a remove gesture floored at zero, and a `+5` step (issue #1627,
 // PRD #1617 § "basics bar ships in BOTH builders"). One mounted test covering
 // the whole quintet the acceptance criteria calls for — counter, add, remove,
-// floor, +5 — through the REAL Limited form, not a hand-built bar.
-describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (issue #1627)", () => {
-    it("counts, adds, removes, floors at zero, and adds five — all through the real Maindeck", () => {
+// floor, — through the REAL Limited form, not a hand-built bar.
+describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor (issue #1627)", () => {
+    it("counts, adds, removes, floors at zero — all through the real Maindeck", () => {
         setup();
         const { getByText, getByLabelText, getByTestId } = render(
             <PoolDeckBuilderForm
@@ -1145,7 +1150,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
         ).toBe(true);
 
         // Click adds one.
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
         expect(getByText(/^Maindeck 1/)).toBeTruthy();
         expect(
@@ -1153,17 +1158,17 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 .disabled
         ).toBe(false);
 
-        // +5 adds five more in one action.
-        fireEvent.click(getByLabelText("Add five Mountain"));
+        // Five more clicks add five more.
+        for (let i = 0; i < 5; i++) {
+            fireEvent.click(getByLabelText("Add one Mountain"));
+        }
         expect(getByTestId("basic-count-Mountain").textContent).toBe("6");
         expect(getByText(/^Maindeck 6/)).toBeTruthy();
 
-        // Shift-click on the pill removes one.
-        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        // − removes one.
+        fireEvent.click(getByLabelText("Remove one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("5");
-
-        // Right-click (contextmenu) on the pill also removes one.
-        fireEvent.contextMenu(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Remove one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
 
         // Drain the rest via the dedicated − button back to zero.
@@ -1181,14 +1186,13 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 .disabled
         ).toBe(true);
         fireEvent.click(getByLabelText("Remove one Mountain"));
-        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
         expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
         expect(getByText(/^Maindeck 0/)).toBeTruthy();
     });
 
     it("adding a basic never touches Pool membership — the Pool-sourced Sideboard count is unaffected", () => {
         setup();
-        const { getByText } = render(
+        const { getByText, getByLabelText } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
                 seatIndex={0}
@@ -1200,7 +1204,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
             />
         );
         expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
-        fireEvent.click(getByText("+ Forest"));
+        fireEvent.click(getByLabelText("Add one Forest"));
         // The Maindeck gained a card the Sideboard never held — this is not
         // a move, so the Sideboard's Pool-sourced count is untouched.
         expect(getByText(/^Pool \(Sideboard\) 2/)).toBeTruthy();
@@ -1209,7 +1213,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
 
     it("a basic added from the bar lands in the Lands column under EVERY Grouping that has one", () => {
         setup();
-        const { getByText, getByLabelText, container } = render(
+        const { getByLabelText, container } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
                 seatIndex={0}
@@ -1220,7 +1224,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 poolArrangement={[]}
             />
         );
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
 
         const main = () => paneOf(container, /^Maindeck /);
         expect(cardsIn(main(), "mv:lands")).toEqual(["Mountain"]);
@@ -1295,7 +1299,7 @@ describe("PoolDeckBuilderForm — the bar removes exactly what it counted (PR #2
 
     it("takes back its OWN copy, never a pinned Pool copy of the same basic (NB1)", () => {
         setup();
-        const { container, getByText, getByLabelText, getByTestId } = render(
+        const { container, getByLabelText, getByTestId } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
                 seatIndex={0}
@@ -1317,7 +1321,7 @@ describe("PoolDeckBuilderForm — the bar removes exactly what it counted (PR #2
         const main = () => paneOf(container, /^Maindeck/);
         expect(cardsIn(main(), "mv:6")).toEqual(["Mountain"]);
 
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("2");
         expect(cardsIn(main(), "mv:lands")).toEqual(["Mountain"]);
 
@@ -1345,7 +1349,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flig
             useMutationMock.mockReturnValue(
                 vi.fn().mockReturnValue(new Promise(() => {}))
             );
-            const { getByText, getByLabelText, getByTestId } = render(
+            const { getByLabelText, getByTestId } = render(
                 <PoolDeckBuilderForm
                     eventId={"event-1" as never}
                     seatIndex={0}
@@ -1357,13 +1361,13 @@ describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flig
                 />
             );
             const pill = () =>
-                getByText("+ Mountain").closest("button") as HTMLButtonElement;
+                getByLabelText("Add one Mountain") as HTMLButtonElement;
             const minus = () =>
                 getByLabelText("Remove one Mountain") as HTMLButtonElement;
-            const plusFive = () =>
-                getByLabelText("Add five Mountain") as HTMLButtonElement;
+            const artButton = () =>
+                getByLabelText("Choose Mountain art") as HTMLButtonElement;
 
-            fireEvent.click(getByText("+ Mountain"));
+            fireEvent.click(getByLabelText("Add one Mountain"));
             expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
             // Before the debounce trailing edge nothing is in flight yet.
             expect(pill().disabled).toBe(false);
@@ -1375,7 +1379,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flig
 
             expect(pill().disabled).toBe(true);
             expect(minus().disabled).toBe(true);
-            expect(plusFive().disabled).toBe(true);
+            expect(artButton().disabled).toBe(true);
         } finally {
             vi.useRealTimers();
         }
@@ -1395,7 +1399,7 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
 
     it("offers every printing, unfiltered (Limited: allowedSets null)", () => {
         setup();
-        const { getByLabelText, getAllByLabelText } = render(
+        const { getByLabelText } = render(
             <PoolDeckBuilderForm
                 eventId={"event-1" as never}
                 seatIndex={0}
@@ -1407,40 +1411,43 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
             />
         );
         fireEvent.click(getByLabelText("Choose Mountain art"));
-        expect(getAllByLabelText(/^Mountain — /)).toHaveLength(15);
+        expect(document.querySelectorAll("button[data-print-id]")).toHaveLength(
+            15
+        );
     });
 
     it("rewrites a Pool-sourced Sideboard Mountain AND a bar-added Maindeck one, without touching the Pool's own membership", async () => {
         setup();
-        const { getByText, getByLabelText, getAllByLabelText, unmount } =
-            render(
-                <PoolDeckBuilderForm
-                    eventId={"event-1" as never}
-                    seatIndex={0}
-                    pool={[
-                        {
-                            scryfallId: "m1",
-                            cardId: CANONICAL_MOUNTAIN_ID,
-                            cardName: "Mountain",
-                        },
-                        {
-                            scryfallId: "b1",
-                            cardId: BOLT_ID,
-                            cardName: "Lightning Bolt",
-                        },
-                    ]}
-                    existingDeck={null}
-                    eventType="sealed"
-                    packSlots={["lea"]}
-                    poolArrangement={[]}
-                />
-            );
+        const { getByLabelText, unmount } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={[
+                    {
+                        scryfallId: "m1",
+                        cardId: CANONICAL_MOUNTAIN_ID,
+                        cardName: "Mountain",
+                    },
+                    {
+                        scryfallId: "b1",
+                        cardId: BOLT_ID,
+                        cardName: "Lightning Bolt",
+                    },
+                ]}
+                existingDeck={null}
+                eventType="sealed"
+                packSlots={["lea"]}
+                poolArrangement={[]}
+            />
+        );
         // Sealed default: both Pool cards start in the Sideboard. Add one
         // Mountain from the bar so the Maindeck holds a copy too.
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
 
         fireEvent.click(getByLabelText("Choose Mountain art"));
-        const target = getAllByLabelText(/^Mountain — LEB/)[0];
+        const target = document.querySelector<HTMLElement>(
+            `button[data-print-id="${LEB_MOUNTAIN_PRINT_ID}"]`
+        )!;
         const chosenPrintId = target.getAttribute("data-print-id")!;
         fireEvent.click(target);
 

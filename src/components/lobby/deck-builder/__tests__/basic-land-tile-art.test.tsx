@@ -1,4 +1,5 @@
-// The basic-land art picker (issue #1629, ADR 0075 § "Basic-land art"):
+// The basic-land tile's art (issue #1629, ADR 0075 § "Basic-land art"; the
+// issue #4122 printing picker since issue #5398):
 // Format-filtered grid, retroactive rewrite of the OPEN deck's copies, and
 // silent fallback for a stale/illegal stored preference. Mounted on the REAL
 // `DeckBuilder` (Constructed) — the grid's set filter and the rewrite both
@@ -17,15 +18,21 @@ import { render, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { saveBasicLandPrintId } from "~/lib/deckViewPrefs";
 import type { LobbyDeck } from "~/lib/deckTypes";
 import type { StoredDeckColumnLayout } from "@convex/deckLayout";
+import { MOUNTAIN_PRINT_ROWS } from "~/components/deckbuilder/__tests__/basicLandPrintRows";
 import DeckBuilder from "../deck-builder";
 
 vi.mock("~/lib/useEarliestPrintFetcher", () => ({
     useEarliestPrintFetcher: () => async () => new Map(),
 }));
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -79,6 +86,19 @@ function deck(
     } as unknown as LobbyDeck;
 }
 
+/** The printing picker's tiles (a dialog portal, so queried off `document`). */
+function pickerTiles(): HTMLElement[] {
+    return [...document.querySelectorAll<HTMLElement>("button[data-print-id]")];
+}
+
+/** The stub's 4ED Mountain tiles. */
+function fourthEditionTiles(): HTMLElement[] {
+    const ids = new Set(
+        MOUNTAIN_PRINT_ROWS.filter((r) => r.set === "4ed").map((r) => r.printId)
+    );
+    return pickerTiles().filter((t) => ids.has(t.dataset.printId!));
+}
+
 function renderBuilder(initialDeck: LobbyDeck) {
     return render(
         <DeckBuilder
@@ -97,7 +117,7 @@ function renderBuilder(initialDeck: LobbyDeck) {
 // `useDeckSourceDock` mirrors that CSS variant's media query in JS, and
 // 1024x768 satisfies its `min-width: 1024px` / `min-height: 501px` /
 // landscape clauses). Unstubbed, every render here would fold the ADD BASIC
-// bar behind its dock trigger, and every `getByText("+ Mountain")` below
+// bar behind its dock trigger, and every `getByLabelText("Add one Mountain")` below
 // would miss. `dragHarness.ts`'s `installDndJsdomShims` already stubs
 // `matchMedia` to always report no match for the sibling drag-mounted
 // `DeckBuilder` harness (`deck-builder-zones.test.tsx`) — same fix, applied
@@ -122,38 +142,39 @@ afterEach(() => {
     window.localStorage.clear();
 });
 
-describe("BasicLandArtPicker grid — filtered to the deck's Format (issue #1629 AC3)", () => {
+describe("Basic-land tile art grid — filtered to the deck's Format (issue #1629 AC3)", () => {
     it("offers only the printings the Format's allowedSets allows (Alpha 40: lea + leb, 2+3 = 5)", () => {
         const rendered = renderBuilder(deck("alpha-40", [MOUNTAIN]));
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
 
-        const offered = rendered.getAllByLabelText(/^Mountain — /);
+        const allowed = new Set([
+            MOUNTAIN_ID,
+            ...MOUNTAIN_PRINT_ROWS.filter(
+                (r) => r.set === "lea" || r.set === "leb"
+            ).map((r) => r.printId),
+        ]);
+        const offered = pickerTiles().map((t) => t.dataset.printId!);
         expect(offered).toHaveLength(5);
-        for (const el of offered) {
-            const label = el.getAttribute("aria-label")!;
-            expect(
-                label === "Mountain — LEA" || label === "Mountain — LEB"
-            ).toBe(true);
-        }
+        for (const id of offered) expect(allowed.has(id)).toBe(true);
         // Every other printed set is absent from the grid.
-        expect(rendered.queryByLabelText("Mountain — ICE")).toBeNull();
-        expect(rendered.queryByLabelText("Mountain — 4ED")).toBeNull();
+        expect(offered).not.toContain(ICE_MOUNTAIN_PRINT);
+        expect(fourthEditionTiles()).toHaveLength(0);
     });
 
     it("offers every printing when the Format has no set restriction (Freeform: allowedSets null)", () => {
         const rendered = renderBuilder(deck("freeform", [MOUNTAIN]));
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        expect(rendered.getAllByLabelText(/^Mountain — /)).toHaveLength(15);
+        expect(pickerTiles()).toHaveLength(15);
     });
 });
 
-describe("BasicLandArtPicker — retroactive rewrite of the OPEN deck (issue #1629 AC5/AC9)", () => {
+describe("Basic-land tile art — retroactive rewrite of the OPEN deck (issue #1629 AC5/AC9)", () => {
     it("rewrites every copy of the subtype in BOTH Maindeck and Sideboard, leaving other cards and deck size untouched", async () => {
         const rendered = renderBuilder(
             deck("freeform", [MOUNTAIN, BOLT], [LEB_MOUNTAIN])
         );
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        const target = rendered.getAllByLabelText(/^Mountain — 4ED/)[0];
+        const target = fourthEditionTiles()[0];
         const chosenPrintId = target.getAttribute("data-print-id")!;
         fireEvent.click(target);
 
@@ -173,14 +194,12 @@ describe("BasicLandArtPicker — retroactive rewrite of the OPEN deck (issue #16
         expect(payload.sideboard).toHaveLength(1);
     });
 
-    it("picking a printing closes the popover (one click picks)", () => {
+    it("picking a printing closes the picker (one click picks)", () => {
         const rendered = renderBuilder(deck("freeform", [MOUNTAIN]));
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        expect(
-            rendered.getAllByLabelText(/^Mountain — /).length
-        ).toBeGreaterThan(0);
-        fireEvent.click(rendered.getAllByLabelText(/^Mountain — 4ED/)[0]);
-        expect(rendered.queryByLabelText(/^Mountain — /)).toBeNull();
+        expect(pickerTiles().length).toBeGreaterThan(0);
+        fireEvent.click(fourthEditionTiles()[0]);
+        expect(pickerTiles()).toHaveLength(0);
     });
 });
 
@@ -209,7 +228,7 @@ describe("Card Pin re-key wiring — full path through the real DeckBuilder (iss
             })
         );
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        const target = rendered.getAllByLabelText(/^Mountain — 4ED/)[0];
+        const target = fourthEditionTiles()[0];
         const chosenPrintId = target.getAttribute("data-print-id")!;
         fireEvent.click(target);
 
@@ -233,7 +252,7 @@ describe("Card Pin re-key wiring — full path through the real DeckBuilder (iss
             })
         );
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        const target = rendered.getAllByLabelText(/^Mountain — 4ED/)[0];
+        const target = fourthEditionTiles()[0];
         const chosenPrintId = target.getAttribute("data-print-id")!;
         fireEvent.click(target);
 
@@ -250,7 +269,7 @@ describe("Card Pin re-key wiring — full path through the real DeckBuilder (iss
     it("an art pick on a deck with no arrangement at all does NOT materialise an empty layout (note N3)", async () => {
         const rendered = renderBuilder(deck("freeform", [MOUNTAIN]));
         fireEvent.click(rendered.getByLabelText("Choose Mountain art"));
-        fireEvent.click(rendered.getAllByLabelText(/^Mountain — 4ED/)[0]);
+        fireEvent.click(fourthEditionTiles()[0]);
 
         rendered.unmount();
         await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());
@@ -260,11 +279,11 @@ describe("Card Pin re-key wiring — full path through the real DeckBuilder (iss
     });
 });
 
-describe("BasicLandArtPicker — a stale or illegal stored preference falls back silently (issue #1629 AC8)", () => {
+describe("Basic-land tile art — a stale or illegal stored preference falls back silently (issue #1629 AC8)", () => {
     it("a preference for a printing that no longer exists falls back to the catalogue default", () => {
         saveBasicLandPrintId("Mountain", "not-a-real-printing-anymore");
         const rendered = renderBuilder(deck("freeform", []));
-        fireEvent.click(rendered.getByText("+ Mountain"));
+        fireEvent.click(rendered.getByLabelText("Add one Mountain"));
         expect(sinks.user.update).not.toHaveBeenCalled(); // nothing async yet
         // The trigger renders (a resolved id exists) — the pathological
         // "no definition at all" case is the only one that disables it.
@@ -280,7 +299,7 @@ describe("BasicLandArtPicker — a stale or illegal stored preference falls back
     it("a preference illegal under the CURRENT Format (e.g. an ICE printing under Alpha 40) falls back — added copies use the base resolution, not the stale pick", async () => {
         saveBasicLandPrintId("Mountain", ICE_MOUNTAIN_PRINT);
         const rendered = renderBuilder(deck("alpha-40", []));
-        fireEvent.click(rendered.getByText("+ Mountain"));
+        fireEvent.click(rendered.getByLabelText("Add one Mountain"));
 
         rendered.unmount();
         await waitFor(() => expect(sinks.user.update).toHaveBeenCalled());

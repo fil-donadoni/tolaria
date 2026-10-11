@@ -26,10 +26,15 @@ import {
 vi.mock("~/lib/useEarliestPrintFetcher", () => ({
     useEarliestPrintFetcher: () => async () => new Map(),
 }));
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -629,12 +634,13 @@ describe("DeckBuilder — Grouping/Ordering persist per-user via the view-prefer
 // The Add-Basic bar, generalised from Limited-only to BOTH builders (issue
 // #1627, PRD #1617 § "basics bar ships in BOTH builders"). One mounted test
 // covering the whole quintet the acceptance criteria calls for — counter,
-// add, remove, floor, +5 — through the REAL Constructed builder, not a
+// add, remove, floor, — through the REAL Constructed builder, not a
 // hand-built bar.
-describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627)", () => {
-    it("counts, adds, removes, floors at zero, and adds five — all through the real Maindeck", () => {
-        const { container, getByText, getByLabelText, getByTestId } =
-            renderBuilder(deck([], []));
+describe("DeckBuilder — Add-Basic bar counter/add/remove/floor (issue #1627)", () => {
+    it("counts, adds, removes, floors at zero — all through the real Maindeck", () => {
+        const { container, getByLabelText, getByTestId } = renderBuilder(
+            deck([], [])
+        );
 
         // A brand-new deck has no Mountains — the remove control starts
         // disabled: the floor is visible before anything is ever added.
@@ -645,23 +651,25 @@ describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627
         ).toBe(true);
 
         // Click adds one.
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
         expect(
             (getByLabelText("Remove one Mountain") as HTMLButtonElement)
                 .disabled
         ).toBe(false);
 
-        // +5 adds five more in one action.
-        fireEvent.click(getByLabelText("Add five Mountain"));
+        // Five more clicks add five more.
+        for (let i = 0; i < 5; i++) {
+            fireEvent.click(getByLabelText("Add one Mountain"));
+        }
         expect(getByTestId("basic-count-Mountain").textContent).toBe("6");
         expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
             Array(6).fill("Mountain")
         );
 
-        // Shift-click and right-click on the pill each remove one.
-        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
-        fireEvent.contextMenu(getByText("+ Mountain"));
+        // Two clicks on − remove two.
+        fireEvent.click(getByLabelText("Remove one Mountain"));
+        fireEvent.click(getByLabelText("Remove one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("4");
 
         // Drain the rest via the dedicated − button back to zero.
@@ -677,7 +685,6 @@ describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627
                 .disabled
         ).toBe(true);
         fireEvent.click(getByLabelText("Remove one Mountain"));
-        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
         expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
     });
 
@@ -688,7 +695,7 @@ describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627
         const main = () => paneOf(container, /^Maindeck /);
         expect(cardsIn(main(), "mv:lands")).toEqual([]);
 
-        fireEvent.click(getByText("+ Forest"));
+        fireEvent.click(getByLabelText("Add one Forest"));
 
         expect(cardsIn(main(), "mv:lands")).toEqual(["Forest"]);
         expect(getByText(/^Maindeck 1$/)).toBeTruthy();
@@ -710,11 +717,13 @@ describe("DeckBuilder — Add-Basic bar counter/add/remove/floor/+5 (issue #1627
     // `minMain` (60), so the live `validateDeck` readout names the Maindeck
     // count — and a bar-added basic has to move it.
     it("a basic added from the bar counts toward Format legality exactly like any other card", () => {
-        const { getByText } = renderBuilder(deck([], [], "old-school"));
+        const { getByText, getByLabelText } = renderBuilder(
+            deck([], [], "old-school")
+        );
         expect(getByText("Illegal")).toBeTruthy();
         expect(getByText("Maindeck has 0 cards, minimum is 60.")).toBeTruthy();
 
-        fireEvent.click(getByText("+ Forest"));
+        fireEvent.click(getByLabelText("Add one Forest"));
 
         expect(getByText("Maindeck has 1 cards, minimum is 60.")).toBeTruthy();
     });
@@ -734,8 +743,9 @@ const MOUNTAIN_LEB_PRINT = {
 
 describe("DeckBuilder — the bar removes exactly what it counted (PR #2320 review B1)", () => {
     it("removes a Mountain added under a non-canonical PRINTING and a bar-added one interchangeably", () => {
-        const { container, getByText, getByLabelText, getByTestId } =
-            renderBuilder(deck([MOUNTAIN_LEB_PRINT], []));
+        const { container, getByLabelText, getByTestId } = renderBuilder(
+            deck([MOUNTAIN_LEB_PRINT], [])
+        );
 
         // The search grid's printing counts toward "Mountain" …
         expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
@@ -744,13 +754,13 @@ describe("DeckBuilder — the bar removes exactly what it counted (PR #2320 revi
         expect(minus().disabled).toBe(false);
 
         // … alongside the canonical printing the bar itself adds.
-        fireEvent.click(getByText("+ Mountain"));
+        fireEvent.click(getByLabelText("Add one Mountain"));
         expect(getByTestId("basic-count-Mountain").textContent).toBe("2");
 
         // Both must come off — an enabled control that silently does nothing
         // is the inverse of the floor the acceptance criteria asks for.
         fireEvent.click(minus());
-        fireEvent.click(getByText("+ Mountain"), { shiftKey: true });
+        fireEvent.click(minus());
         expect(getByTestId("basic-count-Mountain").textContent).toBe("0");
         expect(cardsIn(paneOf(container, /^Maindeck /), "mv:lands")).toEqual(
             []
@@ -772,17 +782,15 @@ describe("DeckBuilder — Add-Basic bar disabled while a save is in flight (issu
             // A write that never settles: `saving` stays true so the assertion
             // is not a race against the debounce.
             sinks.user.update.mockReturnValueOnce(new Promise(() => {}));
-            const { getByText, getByLabelText, getByTestId } = renderBuilder(
-                deck([], [])
-            );
+            const { getByLabelText, getByTestId } = renderBuilder(deck([], []));
             const pill = () =>
-                getByText("+ Mountain").closest("button") as HTMLButtonElement;
+                getByLabelText("Add one Mountain") as HTMLButtonElement;
             const minus = () =>
                 getByLabelText("Remove one Mountain") as HTMLButtonElement;
-            const plusFive = () =>
-                getByLabelText("Add five Mountain") as HTMLButtonElement;
+            const artButton = () =>
+                getByLabelText("Choose Mountain art") as HTMLButtonElement;
 
-            fireEvent.click(getByText("+ Mountain"));
+            fireEvent.click(getByLabelText("Add one Mountain"));
             expect(getByTestId("basic-count-Mountain").textContent).toBe("1");
             // Before the debounce trailing edge nothing is in flight yet.
             expect(pill().disabled).toBe(false);
@@ -795,7 +803,7 @@ describe("DeckBuilder — Add-Basic bar disabled while a save is in flight (issu
             expect(sinks.user.update).toHaveBeenCalledTimes(1);
             expect(pill().disabled).toBe(true);
             expect(minus().disabled).toBe(true);
-            expect(plusFive().disabled).toBe(true);
+            expect(artButton().disabled).toBe(true);
         } finally {
             vi.useRealTimers();
         }

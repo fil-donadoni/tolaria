@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "~/lib/utils";
@@ -53,12 +53,21 @@ export default function BottomSheet({
     marker,
     className,
 }: BottomSheetProps) {
+    const rootRef = useRef<HTMLDivElement>(null);
     // Escape closes, from anywhere — the sheet is modal, so the key belongs to
-    // it wherever focus happens to sit. Bound only while open.
+    // it wherever focus happens to sit. Bound only while open. Except from
+    // inside ANOTHER dialog opened over the sheet (the basics sheet's printing
+    // picker, issue #5398): that key closes the top dialog only.
     useEffect(() => {
         if (!open) return;
         const onKey = (e: KeyboardEvent) => {
-            if (e.key === "Escape") onClose();
+            if (e.key !== "Escape") return;
+            const top =
+                e.target instanceof Element
+                    ? e.target.closest('[role="dialog"]')
+                    : null;
+            if (top !== null && top !== rootRef.current) return;
+            onClose();
         };
         document.addEventListener("keydown", onKey);
         return () => document.removeEventListener("keydown", onKey);
@@ -67,6 +76,7 @@ export default function BottomSheet({
     if (!open) return null;
     return createPortal(
         <div
+            ref={rootRef}
             {...(marker ? { [marker]: "" } : {})}
             role="dialog"
             aria-modal="true"

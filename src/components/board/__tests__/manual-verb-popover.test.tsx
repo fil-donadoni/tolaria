@@ -10,7 +10,7 @@
 // `render()`'s bound queries default to `baseElement: document.body`, which
 // is exactly where base-ui portals the popup — so `rendered.getByText` etc.
 // reach it with no extra `within()` wiring, mirroring
-// `basic-land-art-picker.test.tsx`.
+// `basic-land-tile-art.test.tsx`.
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, renderHook, act } from "@testing-library/react";
 import ManualVerbPopover from "../manual-verb-popover";

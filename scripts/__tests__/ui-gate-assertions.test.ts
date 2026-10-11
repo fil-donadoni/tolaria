@@ -525,7 +525,7 @@ describe("check:ui surface table — Named Assertions", () => {
                 "reachable role=button name=Color R",
             ],
             "deck-builder-basics": [
-                "reachable role=button name=Add five Island",
+                "reachable role=button name=Add one Island",
             ],
             "deck-builder-stats": [
                 "visible role=dialog name=Deck Statistics",

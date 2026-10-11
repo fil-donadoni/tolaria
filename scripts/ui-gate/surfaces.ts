@@ -3027,14 +3027,14 @@ export const SURFACES: readonly Surface[] = [
         // the one promise that holds in all three regimes.
         asserts: [
             {
-                label: "basics stepper: Add five Island",
-                locator: { role: "button", name: "Add five Island" },
+                label: "basics stepper: Add one Island",
+                locator: { role: "button", name: "Add one Island" },
                 check: "reachable",
             },
         ],
         async walk(page, ctx) {
             await goto(page, ctx, "/decks/create");
-            const stepper = '[aria-label="Add five Island"]';
+            const stepper = '[aria-label="Add one Island"]';
             let opener: string | null = null;
             for (const name of ["Lands", "Add Basic"]) {
                 const count = await page

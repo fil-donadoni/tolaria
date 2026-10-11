@@ -420,7 +420,7 @@ describe("DeckBuilderShell — mounted drag (issue #1622)", () => {
 // tests staying green.
 //
 // happy-dom DOES evaluate `DECK_SOURCE_DOCK_QUERY` (proved by
-// `basic-land-art-picker.test.tsx`'s own `matchMedia` stub, whose ABSENCE
+// `basic-land-tile-art.test.tsx`'s own `matchMedia` stub, whose ABSENCE
 // reds all 9 of that file's tests), so the predicate is testable at this
 // layer: stub `matchMedia` to match ONLY `DECK_SOURCE_DOCK_QUERY` — every
 // other query (`useViewportMode`'s `PORTRAIT_QUERY` /
