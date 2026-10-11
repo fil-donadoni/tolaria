@@ -38,7 +38,10 @@ import {
     type LandFacts,
     type LockedCommandOptions,
     type HousekeepingOptions,
+    GAPS_SYNC_COMMIT_SUBJECT,
+    VERIFY_MERGED_TIP,
 } from "../land";
+import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import {
     admissionOrder,
     waiterSince,
@@ -575,7 +578,7 @@ describe("land.ts — the locked command", () => {
         // remote held when `land` started.
         expect(step).toContain(`$(git rev-parse ${ORIGIN_BASE})`);
         expect(cmd.indexOf(step)).toBeGreaterThan(
-            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}" | wc -l`)
+            cmd.indexOf(`git rev-list "$OLD_TIP..${ORIGIN_BASE}"`)
         );
         // In the PRIMARY checkout, where `.claude/telemetry/health/` lives.
         expect(step.startsWith("(cd '/repo' && ")).toBe(true);
@@ -743,7 +746,9 @@ describe("land.ts — the locked command", () => {
         );
         const mergeIdx = cmd.indexOf("pr-merge.ts");
         const refetchIdx = cmd.indexOf(`git fetch origin ${BASE_BRANCH} -q`);
-        const verifyIdx = cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}" | wc -l`);
+        const verifyIdx = cmd.indexOf(
+            `git rev-list "$OLD_TIP..${ORIGIN_BASE}"`
+        );
         const ffIdx = cmd.indexOf("merge --ff-only");
 
         expect(oldTipIdx).toBeGreaterThan(-1);
@@ -1393,6 +1398,77 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
     // synchronously, so vitest's timeout could not preempt it and
     // `bun run test` had to be force-stopped. That is the regression the
     // bound exists to convert into a failing assertion.
+});
+
+/**
+ * Issue #5457 — `gaps:sync` now pushes its allowlist commit from the hourly
+ * `housekeeping` cron, outside `land`'s mutex. The merged-tip verification
+ * must not count that ONE push (its subject and an allowlist-only diff), and
+ * must still count everything else. Real git, the fragment run as-is.
+ */
+describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (issue #5457, real git)", () => {
+    let repo: string;
+    const git = (...args: string[]) => {
+        const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+        if (r.status !== 0)
+            throw new Error(`git ${args.join(" ")}: ${r.stderr}`);
+        return r.stdout.trim();
+    };
+    const commit = (file: string, subject: string) => {
+        mkdirSync(join(repo, file, ".."), { recursive: true });
+        writeFileSync(join(repo, file), `${subject}\n`, { flag: "a" });
+        git("add", file);
+        git("commit", "-q", "-m", subject);
+    };
+    /** Exit status of the fragment, with `origin/<base>` at HEAD. */
+    const verify = (oldTip: string): number => {
+        git("update-ref", `refs/remotes/${ORIGIN_BASE}`, "HEAD");
+        return (
+            spawnSync("sh", ["-c", `OLD_TIP=${oldTip}; ${VERIFY_MERGED_TIP}`], {
+                cwd: repo,
+                encoding: "utf8",
+            }).status ?? -1
+        );
+    };
+
+    beforeEach(() => {
+        repo = mkdtempSync(join(tmpdir(), "tolaria-land-verify-"));
+        git("init", "-q", "-b", BASE_BRANCH);
+        git("config", "user.email", "test@example.com");
+        git("config", "user.name", "Test");
+        commit("a.txt", "base");
+    });
+    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+
+    it("passes on our squash alone, and on our squash beside gaps:sync's allowlist commit", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#1)");
+        expect(verify(old)).toBe(0);
+        commit("data/grammar-gaps.json", GAPS_SYNC_COMMIT_SUBJECT);
+        expect(verify(old)).toBe(0);
+    });
+
+    it("still refuses a foreign push, and a gaps:sync-titled commit touching anything else", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#1)");
+        commit("b.txt", "someone else's push");
+        expect(verify(old)).not.toBe(0);
+
+        const old2 = git("rev-parse", "HEAD");
+        commit("a.txt", "our squash (#2)");
+        commit("c.txt", GAPS_SYNC_COMMIT_SUBJECT);
+        expect(verify(old2)).not.toBe(0);
+    });
+
+    it("refuses when the squash itself is missing", () => {
+        const old = git("rev-parse", "HEAD");
+        commit("data/grammar-gaps.json", GAPS_SYNC_COMMIT_SUBJECT);
+        expect(verify(old)).not.toBe(0);
+    });
+
+    it("spells gaps:sync's commit subject exactly", () => {
+        expect(GAPS_SYNC_COMMIT_SUBJECT).toBe(ALLOWLIST_COMMIT_SUBJECT);
+    });
 });
 
 describe("land.ts — rebase conflict (real git, no remote/no lock)", () => {

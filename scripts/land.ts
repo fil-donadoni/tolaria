@@ -783,6 +783,11 @@ export function laneStep(
     );
 }
 
+/** `gaps-sync.ts`'s `ALLOWLIST_COMMIT_SUBJECT`, spelled here so `land` does
+ *  not import the filer; `land.test.ts` pins the two equal. */
+export const GAPS_SYNC_COMMIT_SUBJECT =
+    "gaps:sync — file per-gap issues, record them in the allowlist";
+
 /**
  * Shell fragment that fails the WHOLE locked command (before `green-sha` is
  * written) unless `origin/main` advanced by EXACTLY one commit — our squash
@@ -791,6 +796,14 @@ export function laneStep(
  * machine, or a human pushing straight to `main`, while this session held
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
+ *
+ * ONE push is not counted: `gaps:sync`'s own allowlist commit — its subject
+ * (`GAPS_SYNC_COMMIT_SUBJECT`) AND a diff of `data/grammar-gaps.json` alone.
+ * It is a computed `issue` number per row (ADR 0137's trust tier), and since
+ * issue #5457 it is pushed by the hourly `housekeeping` cron, outside this
+ * mutex and usually from the other machine: counted, it would fail a landing
+ * whose PR had merged — the failure that issue moved the sync out of `land`
+ * to remove. Anything else still refuses.
  *
  * Brace-grouped as ONE command (`{ TEST || BLOCK; }`), not spliced bare into
  * the surrounding `&&` chain (review round 3): `&&`/`||` are equal-precedence
@@ -801,9 +814,13 @@ export function laneStep(
  * of surfacing the real failure. `rebaseStep()` above hits the identical
  * hazard with its own `||` and groups with `(…)` for the same reason.
  */
-const VERIFY_MERGED_TIP =
+export const VERIFY_MERGED_TIP =
     "{ " +
-    `[ "$(git log --oneline "$OLD_TIP..${ORIGIN_BASE}" | wc -l | tr -d " ")" = "1" ] || ` +
+    `N=0; for C in $(git rev-list "$OLD_TIP..${ORIGIN_BASE}"); do ` +
+    `case "$(git log -1 --format=%s "$C")" in ${shQuote(GAPS_SYNC_COMMIT_SUBJECT)}) ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; esac; ` +
+    `N=$((N+1)); done; ` +
+    `[ "$N" = "1" ] || ` +
     `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +
     `git log --oneline "$OLD_TIP..${ORIGIN_BASE}" >&2; exit 1; }; ` +
     "}";

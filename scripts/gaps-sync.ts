@@ -583,6 +583,11 @@ export function listOpenIssueBodies(): { number: number; body: string }[] {
     return rows;
 }
 
+/** The subject of the one commit this script pushes straight to the base
+ *  branch — `land` tells it from a foreign push by it (issue #5457). */
+export const ALLOWLIST_COMMIT_SUBJECT =
+    "gaps:sync — file per-gap issues, record them in the allowlist";
+
 /** Commit + push the allowlist update straight to `origin/<base>`, from a
  *  clean primary checkout already on that branch. Never throws: `land`
  *  treats this whole script as non-gating — but it prints, so a human
@@ -601,7 +606,7 @@ export function commitAndPushAllowlist(root: string): void {
         "commit",
         "-q",
         "-m",
-        "gaps:sync — file per-gap issues, record them in the allowlist",
+        ALLOWLIST_COMMIT_SUBJECT,
         // Pathspec, never a bare `git commit`: this runs in the PRIMARY
         // checkout and pushes straight to the base branch, so anything else
         // staged there would ride along (review of PR #3978).

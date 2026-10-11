@@ -197,15 +197,25 @@ walks the PRs merged into the base branch since its watermark and runs what
 
 1. `git fetch` + fast-forward of the primary checkout — refused (nothing
    processed) when it is not on the base branch, since `gaps:sync` pushes its
-   allowlist write from there;
+   allowlist write from there. A local `gaps:sync` commit whose push lost a
+   race is dropped (`reset --keep`); the next sync re-derives it;
 2. `gaps:sync` once for the batch, `--band P0` when any PR of the batch closed
-   P0 work;
+   P0 work; if it fails, the steps below still run and every PR of the batch
+   is retried;
 3. per PR, oldest merge first, for a branch naming issue N:
-   `grammar:residue N --pr <PR#>`, the `in-progress` claim release on N,
+   `grammar:residue N --pr <PR#>` (holes it cannot file are logged for a
+   human, never retried), the `in-progress` claim release on N,
    `umbrella:detach N`;
 4. `umbrella:detach --sweep` once.
 
+Merged PRs are listed by last update, newest first, until one older than the
+watermark — a merge updates a PR, so none is missed however long it was open.
 Every step is idempotent, so a second run with nothing new merged is a no-op.
+
+`gaps:sync` now pushes to the base branch outside `land`'s mutex, often from
+the other machine. `land`'s merged-tip check (step 7 above) does not count
+that one commit — the `gaps:sync` subject on a diff of `data/grammar-gaps.json`
+alone — and still refuses any other foreign push.
 State and logs live in the primary checkout's
 `.claude/telemetry/housekeeping/`: `state.json` (the watermark, plus the PRs
 whose steps failed — retried each run, given up loudly after 24 attempts) and

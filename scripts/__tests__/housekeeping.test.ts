@@ -1,15 +1,18 @@
 import { describe, it, expect } from "vitest";
+import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
 import {
     FIRST_RUN_LOOKBACK_MS,
     MAX_ATTEMPTS,
     SWEEP_STEP,
     batchBand,
     gapsSyncStep,
+    needsNextPage,
     nextState,
     originBandForBranch,
     parseState,
     pendingPrs,
     prSteps,
+    strandedAllowlistOnly,
     type HousekeepingState,
     type MergedPr,
 } from "../housekeeping";
@@ -52,7 +55,7 @@ describe("housekeeping.ts — the watermark", () => {
     it("never moves the watermark backwards", () => {
         const state: HousekeepingState = {
             since: "2026-10-11T12:00:00.000Z",
-            retry: [{ ...older, attempts: 1 }],
+            retry: [{ ...older, attempts: 1, band: null }],
         };
         expect(nextState(state, [older], new Set()).state.since).toBe(
             state.since
@@ -70,7 +73,7 @@ describe("housekeeping.ts — the watermark", () => {
             new Set([older.number])
         );
         expect(state.since).toBe(newer.mergedAt);
-        expect(state.retry).toEqual([{ ...older, attempts: 1 }]);
+        expect(state.retry).toEqual([{ ...older, attempts: 1, band: null }]);
         expect(dropped).toEqual([]);
         // Not in the list any more: the retry entry carries the PR whole.
         expect(pendingPrs([], state)).toEqual([older]);
@@ -84,13 +87,15 @@ describe("housekeeping.ts — the watermark", () => {
                 new Set([older.number])
             ));
         expect(state.retry).toEqual([]);
-        expect(dropped).toEqual([{ ...older, attempts: MAX_ATTEMPTS }]);
+        expect(dropped).toEqual([
+            { ...older, attempts: MAX_ATTEMPTS, band: null },
+        ]);
     });
 
     it("processes each PR once, oldest merge first, when it is both new and up for retry", () => {
         const state: HousekeepingState = {
             since: "2026-10-11T10:00:00.000Z",
-            retry: [{ ...newer, attempts: 2 }],
+            retry: [{ ...newer, attempts: 2, band: null }],
         };
         expect(pendingPrs([newer, older], state)).toEqual([newer]);
         const mid = pr(5002, "2026-10-11T10:30:00Z");
@@ -99,6 +104,62 @@ describe("housekeeping.ts — the watermark", () => {
                 (p) => p.number
             )
         ).toEqual([5002, 5003]);
+    });
+
+    it("keeps the band a failed PR first ran with — its detach may have removed the parent edge since (issue #4158)", () => {
+        const start: HousekeepingState = {
+            since: "2026-10-11T08:00:00.000Z",
+            retry: [],
+        };
+        const { state } = nextState(
+            start,
+            [older],
+            new Set([older.number]),
+            new Map([[older.number, "P0" as const]])
+        );
+        expect(state.retry).toEqual([{ ...older, attempts: 1, band: "P0" }]);
+        // A state file written before the field existed reads as bandless.
+        expect(
+            parseState(
+                JSON.stringify({
+                    since: start.since,
+                    retry: [{ ...older, attempts: 1 }],
+                }),
+                Date.now()
+            ).retry
+        ).toEqual([{ ...older, attempts: 1, band: null }]);
+    });
+
+    it("pages the merged list until a PR last updated before the watermark — a merge updates a PR", () => {
+        const since = "2026-10-11T10:00:00.000Z";
+        const node = (updatedAt: string) => ({
+            ...older,
+            updatedAt,
+        });
+        const page = (updatedAts: string[], hasNextPage = true) => ({
+            nodes: updatedAts.map(node),
+            hasNextPage,
+        });
+        // The page's oldest update is still after the watermark: a PR merged
+        // after it may be on the next page.
+        expect(
+            needsNextPage(
+                page(["2026-10-11T12:00:00Z", "2026-10-11T10:30:00Z"]),
+                since
+            )
+        ).toBe(true);
+        // Reached a PR updated before the watermark: nothing merged after it
+        // can come later (updatedAt ≥ mergedAt).
+        expect(
+            needsNextPage(
+                page(["2026-10-11T12:00:00Z", "2026-10-11T09:59:00Z"]),
+                since
+            )
+        ).toBe(false);
+        expect(
+            needsNextPage(page(["2026-10-11T12:00:00Z"], false), since)
+        ).toBe(false);
+        expect(needsNextPage(page([]), since)).toBe(false);
     });
 
     it("a missing or corrupt state file is a first run, a day back", () => {
@@ -117,6 +178,39 @@ describe("housekeeping.ts — the watermark", () => {
 });
 
 describe("housekeeping.ts — the steps", () => {
+    it("drops a local divergence only when it is gaps:sync's own stranded allowlist commits", () => {
+        const sync = {
+            subject: ALLOWLIST_COMMIT_SUBJECT,
+            files: ["data/grammar-gaps.json"],
+        };
+        expect(strandedAllowlistOnly([sync])).toBe(true);
+        expect(strandedAllowlistOnly([sync, sync])).toBe(true);
+        expect(strandedAllowlistOnly([])).toBe(false);
+        expect(
+            strandedAllowlistOnly([sync, { subject: "wip", files: ["a.ts"] }])
+        ).toBe(false);
+        expect(
+            strandedAllowlistOnly([
+                { ...sync, files: ["data/grammar-gaps.json", "a.ts"] },
+            ])
+        ).toBe(false);
+        expect(
+            strandedAllowlistOnly([{ ...sync, subject: "gaps:sync — other" }])
+        ).toBe(false);
+    });
+
+    it("reads grammar:residue's holes exit as a finding, not a failure — every other step's non-zero is one", () => {
+        const steps = prSteps(
+            pr(5458, "2026-10-11T10:00:00Z", "feat/issue-5457"),
+            null
+        );
+        expect(steps.map((s) => s.holesExit === true)).toEqual([
+            true,
+            false,
+            false,
+        ]);
+    });
+
     it("runs gaps:sync once for the batch, P0 when any PR closed P0 work, never --no-file-bot (issues #4158, #5301)", () => {
         expect(batchBand([null, "P2", "P0"])).toBe("P0");
         expect(batchBand(["P1", null])).toBeNull();

@@ -5,11 +5,14 @@
  * Which cards did the ticket consider, which are still not `ready`, and does
  * every gap that still refuses them have an OPEN issue? A residual gap with
  * none is a HOLE: `gaps:sync` (the filer) runs once to close it, and a hole
- * that survives is reported and exits 1 — cards must never stay incomplete
- * without a ticket that will finish them.
+ * that survives is reported and exits `HOLES_EXIT` (3) — cards must never stay
+ * incomplete without a ticket that will finish them. 3, not 1, so the caller
+ * tells a reported finding (a human's to resolve, never retried) from a
+ * failed run (a `gh` error, retried).
  *
- * Runs from the PRIMARY checkout after `land`'s `gaps:sync` step (the claims
- * it reads are the ones `gaps:sync` just wrote). Non-gating inside `land`.
+ * Runs from the PRIMARY checkout after the `housekeeping` cron's `gaps:sync`
+ * step (the claims it reads are the ones `gaps:sync` just wrote; issue
+ * #5457 — before it, `land` ran both).
  *
  *   --pr <N>        the merged PR; "before" = its merge commit's parent
  *   --before <ref>  override "before" (replay)
@@ -25,6 +28,7 @@ import { resolve } from "node:path";
 import { ORIGIN_BASE, BASE_BRANCH } from "./lib/branches";
 import {
     buildResidue,
+    HOLES_EXIT,
     LEDGER_MARKER,
     parseClusterKeys,
     renderLedger,
@@ -243,7 +247,7 @@ function main(): void {
                 "\n\nFile each with /create-ticket (area:cards, `## Band` inherited via issue:inherit-band) " +
                 "and add its claim to data/grammar-gaps.json — a card must never stay incomplete untracked.\n"
         );
-        process.exit(1);
+        process.exit(HOLES_EXIT);
     }
 }
 
