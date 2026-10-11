@@ -69,6 +69,7 @@ const eventMock = vi.fn();
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useLimitedEvent: () => eventMock(),
+    usePackSources: () => [],
     useLimitedEventMutations: () => ({
         join: vi.fn(),
         leave: vi.fn(),

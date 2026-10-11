@@ -546,7 +546,7 @@ and leaves no seat, so the fixtures stay as every other Limited walk expects.
 | ---------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------- |
 | `limited-create-event`       | `/limited/new` (issue #5387)  | the `Pack Source` rail step     | the setup route's showcase — Create never pressed       |
 | `limited-table-ring`         | the `open` antechamber        | `View Table`                    | the Table Ring dialog                                   |
-| `limited-leave-seat-confirm` | the `open` antechamber        | `Leave Seat`                    | the `Leave this Seat?` confirm — never confirmed        |
+| `limited-leave-seat-confirm` | the `open` antechamber        | ⋯ menu → `Leave Seat`           | the `Leave this Seat?` confirm — never confirmed        |
 | `draft-pool-move-sheet`      | `draft-pool-peek`'s selection | `Move to…` (Peek Panel or menu) | the column-pin `[data-action-sheet]` — no column chosen |
 
 By hand, `Escape` closes the three dialogs and a tap on the scrim closes the
@@ -590,7 +590,7 @@ Since issue #2587 the pick screen is its OWN immersive route,
    `/limited/<eventId>/draft`. That redirect is **one-shot per event per tab**
    (`sessionStorage` key `tolaria:limited:draftRoom:<eventId>` — clear it to
    get the redirect back), so on a second visit the event page stays put and
-   offers `Enter the Draft Room →` instead. Either way you end up on the same
+   offers the hero's `Enter the Draft Room` instead. Either way you end up on the same
    route; you can also navigate to it directly.
 2. `snapshot`. The pack renders as buttons labelled
    `Draft pick: <card name>`, each `[data-draft-pick-tile]` and

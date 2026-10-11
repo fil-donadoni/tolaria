@@ -213,9 +213,8 @@ describe("check:ui surface table — Named Assertions", () => {
             "limited-antechamber": [
                 "reachable role=button name=← Back to Limited Events",
                 "reachable role=button name=View Table",
-                "reachable role=button name=Leave Seat",
-                "reachable role=button name=Start Event",
-                "reachable role=button name=Cancel Event",
+                "reachable role=button name=Event actions",
+                'reachable [data-hero-cta="start"]',
                 "contrast role=button name=View Table",
             ],
             "limited-build": [
