@@ -206,3 +206,26 @@ describe("LimitedSetupFlow (issue #5387)", () => {
         ).toBe(false);
     });
 });
+
+describe("LimitedSetupFlow — number fields (issue #5387 review)", () => {
+    it("lets the seat count be cleared and retyped without snapping mid-keystroke", () => {
+        render(<LimitedSetupFlow />);
+        fireEvent.click(railStep("table"));
+        const seats = screen.getByLabelText(/^Seats/) as HTMLInputElement;
+        fireEvent.change(seats, { target: { value: "" } });
+        expect(seats.value).toBe("");
+        fireEvent.change(seats, { target: { value: "5" } });
+        expect(seats.value).toBe("5");
+        expect(railStep("table").textContent).toContain("5 seats");
+    });
+
+    it("clamps an out-of-range seat count when leaving the field", () => {
+        render(<LimitedSetupFlow />);
+        fireEvent.click(railStep("table"));
+        const seats = screen.getByLabelText(/^Seats/) as HTMLInputElement;
+        fireEvent.change(seats, { target: { value: "26" } });
+        expect(seats.value).toBe("26");
+        fireEvent.blur(seats);
+        expect(seats.value).toBe("8");
+    });
+});

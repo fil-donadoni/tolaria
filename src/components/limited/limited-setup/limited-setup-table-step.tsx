@@ -13,8 +13,8 @@ import {
     seatLimit,
     type LimitedSetup,
 } from "~/lib/limited/limitedSetup";
-import { Input } from "~/components/ui/input";
 import SegmentedControl from "~/components/ui/segmented-control";
+import LimitedSetupNumberField from "./limited-setup-number-field";
 import LimitedSetupToggle from "./limited-setup-toggle";
 
 const FIELD_LABEL = "text-[11px] tracking-wide text-text-muted uppercase";
@@ -31,40 +31,28 @@ export default function LimitedSetupTableStep({
     const seatMax = seatLimit(setup, sources);
     return (
         <div className="flex flex-col gap-4">
-            <label className="flex max-w-40 flex-col gap-1">
-                <span className={FIELD_LABEL}>
-                    Seats ({MIN_SEATS}-{seatMax})
-                </span>
-                <Input
-                    type="number"
-                    min={MIN_SEATS}
-                    max={seatMax}
-                    value={setup.seats}
-                    onChange={(e) =>
-                        onChange({ seats: Number(e.currentTarget.value) })
-                    }
-                />
-                <span className="text-xs text-text-muted">
-                    {seatMax < MAX_SEATS
+            <LimitedSetupNumberField
+                label={`Seats (${MIN_SEATS}-${seatMax})`}
+                value={setup.seats}
+                min={MIN_SEATS}
+                max={seatMax}
+                hint={
+                    seatMax < MAX_SEATS
                         ? `The Vintage Cube deals one copy of each card, so the table is capped at ${seatMax} seats until the implemented pool grows.`
-                        : "Unfilled seats become bots when the event starts."}
-                </span>
-            </label>
+                        : "Unfilled seats become bots when the event starts."
+                }
+                onCommit={(seats) => onChange({ seats })}
+            />
 
             {setup.type === "sealed" && (
-                <label className="flex max-w-40 flex-col gap-1">
-                    <span className={FIELD_LABEL}>Boosters per Seat</span>
-                    <Input
-                        type="number"
-                        min={1}
-                        value={setup.boostersPerSeat}
-                        onChange={(e) =>
-                            onChange({
-                                boostersPerSeat: Number(e.currentTarget.value),
-                            })
-                        }
-                    />
-                </label>
+                <LimitedSetupNumberField
+                    label="Boosters per Seat"
+                    value={setup.boostersPerSeat}
+                    min={1}
+                    onCommit={(boostersPerSeat) =>
+                        onChange({ boostersPerSeat })
+                    }
+                />
             )}
 
             <div className="flex flex-col gap-1">
@@ -117,22 +105,15 @@ export default function LimitedSetupTableStep({
                 }
             />
             {setup.roundDeadlineMinutes !== null && (
-                <label className="flex max-w-40 flex-col gap-1">
-                    <span className={FIELD_LABEL}>Minutes per Round</span>
-                    <Input
-                        type="number"
-                        min={MIN_ROUND_DEADLINE_MINUTES}
-                        max={MAX_ROUND_DEADLINE_MINUTES}
-                        value={setup.roundDeadlineMinutes}
-                        onChange={(e) =>
-                            onChange({
-                                roundDeadlineMinutes: Number(
-                                    e.currentTarget.value
-                                ),
-                            })
-                        }
-                    />
-                </label>
+                <LimitedSetupNumberField
+                    label="Minutes per Round"
+                    value={setup.roundDeadlineMinutes}
+                    min={MIN_ROUND_DEADLINE_MINUTES}
+                    max={MAX_ROUND_DEADLINE_MINUTES}
+                    onCommit={(roundDeadlineMinutes) =>
+                        onChange({ roundDeadlineMinutes })
+                    }
+                />
             )}
 
             <LimitedSetupToggle

@@ -41,7 +41,9 @@ export default function LimitedSetupFlow() {
     const payload = createPayload(setup, sources);
 
     const update = (patch: Partial<LimitedSetup>) => {
-        const next = applyChange(setup, patch, sources);
+        // From the stored setup, not the reconciled view: the view clamps seats
+        // to the source in force, and saving that would shrink the table for good.
+        const next = applyChange(stored, patch, sources);
         setStored(next);
         saveSetup(next);
     };

@@ -216,9 +216,13 @@ export function applyChange(
         const fallback = firstSelectableSource(sources, next.type);
         if (fallback) next.packSource = fallback.key;
     }
+    // The seat limit follows the Pack Source, so it only bites on an explicit
+    // seat choice: a table of 8 survives a trip through Sealed and back.
+    const seatCeiling =
+        patch.seats === undefined ? MAX_SEATS : seatLimit(next, sources);
     next.seats = Math.max(
         MIN_SEATS,
-        Math.min(seatLimit(next, sources), Math.round(next.seats) || MIN_SEATS)
+        Math.min(seatCeiling, Math.round(next.seats) || MIN_SEATS)
     );
     next.boostersPerSeat = Math.max(
         1,
@@ -241,10 +245,13 @@ export function reconcileSetup(
 ): { setup: LimitedSetup; note: string | null } {
     if (sources.length === 0) return { setup, note: null };
     const stored = sources.find((s) => s.key === setup.packSource);
-    if (stored?.draftable) {
-        return { setup: applyChange(setup, {}, sources), note: null };
-    }
-    const repaired = applyChange(setup, {}, sources);
+    const fitted = applyChange(setup, {}, sources);
+    // Shown within the limit of the source in force, never stored there.
+    const repaired = {
+        ...fitted,
+        seats: Math.min(fitted.seats, seatLimit(fitted, sources)),
+    };
+    if (stored?.draftable) return { setup: repaired, note: null };
     const fallback = sources.find((s) => s.key === repaired.packSource);
     const was = stored?.name ?? setup.packSource;
     return {

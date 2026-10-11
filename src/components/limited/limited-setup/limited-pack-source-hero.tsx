@@ -37,6 +37,7 @@ export default function LimitedPackSourceHero({
                 <img
                     src={getArtCropImageUrl(imageId)}
                     alt=""
+                    data-card-face="art"
                     className="absolute inset-0 h-full w-full object-cover"
                 />
             )}
@@ -49,7 +50,7 @@ export default function LimitedPackSourceHero({
                 size="sm"
                 aria-label="Previous Pack Source"
                 onClick={onPrevious}
-                className="absolute top-2 left-2 md:top-1/2 md:-translate-y-1/2"
+                className="absolute top-2 left-2 z-10 md:top-1/2 md:-translate-y-1/2"
             >
                 <ChevronLeft />
             </Button>
@@ -58,7 +59,7 @@ export default function LimitedPackSourceHero({
                 size="sm"
                 aria-label="Next Pack Source"
                 onClick={onNext}
-                className="absolute top-2 right-2 md:top-1/2 md:-translate-y-1/2"
+                className="absolute top-2 right-2 z-10 md:top-1/2 md:-translate-y-1/2"
             >
                 <ChevronRight />
             </Button>

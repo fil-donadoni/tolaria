@@ -141,6 +141,23 @@ describe("table bounds", () => {
         expect(next.seats).toBe(limit);
     });
 
+    it("shows a cube table within its limit without shrinking the stored one", () => {
+        const small = source("vintage-cube", {
+            draftOnly: true,
+            set: { isCube: true, availableCardCount: 135, sheets: [] },
+        });
+        const stored = applyChange(DEFAULT_LIMITED_SETUP, {}, [small, LEA]);
+        expect(stored.seats).toBe(8);
+        const { setup } = reconcileSetup(stored, [small, LEA]);
+        expect(setup.seats).toBe(seatLimit(setup, [small, LEA]));
+        const sealedAndBack = applyChange(
+            applyChange(stored, { type: "sealed" }, [small, LEA]),
+            { type: "draft", packSource: "vintage-cube" },
+            [small, LEA]
+        );
+        expect(sealedAndBack.seats).toBe(8);
+    });
+
     it("keeps the full range for a set draft", () => {
         const setup = applyChange(
             DEFAULT_LIMITED_SETUP,

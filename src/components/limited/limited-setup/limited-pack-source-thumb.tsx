@@ -40,6 +40,7 @@ export default function LimitedPackSourceThumb({
                 <img
                     src={getArtCropImageUrl(imageId)}
                     alt=""
+                    data-card-face="art"
                     loading="lazy"
                     className="h-14 w-full object-cover"
                 />
