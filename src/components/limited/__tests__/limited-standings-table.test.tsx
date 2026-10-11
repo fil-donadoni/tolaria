@@ -153,4 +153,73 @@ describe("LimitedStandingsTable (issue #1643)", () => {
             "2",
         ]);
     });
+
+    it("renders each seat's deck colours as mana symbols, bots included (issue #5391)", () => {
+        const event = makeEvent({}, [
+            {
+                seatIndex: 0,
+                userId: "user-1",
+                nickname: "Alice",
+                deckSummary: {
+                    colors: ["W", "U"],
+                    maindeckCount: 40,
+                    sideboardCount: 0,
+                },
+            },
+            {
+                seatIndex: 1,
+                isBot: true,
+                nickname: "Bot 2",
+                deckSummary: {
+                    colors: ["R"],
+                    maindeckCount: 40,
+                    sideboardCount: 0,
+                },
+            },
+        ]);
+        const { container } = render(<LimitedStandingsTable event={event} />);
+        const symbols = (seat: number) =>
+            [
+                ...container.querySelectorAll(
+                    `[data-seat-index="${seat}"] [data-slot="deck-colors"] img`
+                ),
+            ].map((img) => img.getAttribute("alt"));
+        expect(symbols(0)).toEqual(["{W}", "{U}"]);
+        expect(symbols(1)).toEqual(["{R}"]);
+    });
+
+    it("renders no symbols and no placeholder for a seat with no deck yet (issue #5391)", () => {
+        const event = makeEvent({}, [
+            { seatIndex: 0, userId: "user-1", nickname: "Alice" },
+        ]);
+        const { container } = render(<LimitedStandingsTable event={event} />);
+        expect(container.querySelector('[data-slot="deck-colors"]')).toBeNull();
+        expect(container.querySelector("img")).toBeNull();
+    });
+
+    it("medals the top three ranks only, tags bots and draws the OMW% bar (issue #5391)", () => {
+        const seats = [0, 1, 2, 3].map((i) => ({
+            seatIndex: i,
+            nickname: `P${i}`,
+            isBot: i === 3,
+        }));
+        const event = makeEvent(
+            {
+                standings: [0, 1, 2, 3].map((i) => ({
+                    ...zeroRow(i),
+                    opponentMatchWinPct: 0.5,
+                })),
+            },
+            seats
+        );
+        const { container } = render(<LimitedStandingsTable event={event} />);
+        expect(container.querySelectorAll('[data-slot="medal"]')).toHaveLength(
+            3
+        );
+        const last = container.querySelector('[data-seat-index="3"]')!;
+        expect(last.querySelector('[data-slot="rank"]')!.textContent).toBe("4");
+        expect(last.textContent).toContain("Bot");
+        const bar = last.querySelector<HTMLElement>('[data-slot="omw-bar"]')!;
+        expect(bar.style.width).toBe("50%");
+    });
 });
