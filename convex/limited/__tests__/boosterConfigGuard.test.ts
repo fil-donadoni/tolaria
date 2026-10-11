@@ -16,6 +16,9 @@ import { describe, it, expect } from "vitest";
 import leaConfigJson from "../../../data/boosters/lea.json";
 import iceConfigJson from "../../../data/boosters/ice.json";
 import drkConfigJson from "../../../data/boosters/drk.json";
+import invConfigJson from "../../../data/boosters/inv.json";
+import plsConfigJson from "../../../data/boosters/pls.json";
+import apcConfigJson from "../../../data/boosters/apc.json";
 import { computeDraftability } from "../draftable";
 import type { BoosterConfig } from "../boosterTypes";
 
@@ -23,6 +26,9 @@ const CHECKED_IN_CONFIGS: { file: string; config: BoosterConfig }[] = [
     { file: "lea.json", config: leaConfigJson as BoosterConfig },
     { file: "ice.json", config: iceConfigJson as BoosterConfig },
     { file: "drk.json", config: drkConfigJson as BoosterConfig },
+    { file: "inv.json", config: invConfigJson as BoosterConfig },
+    { file: "pls.json", config: plsConfigJson as BoosterConfig },
+    { file: "apc.json", config: apcConfigJson as BoosterConfig },
 ];
 
 describe("Booster Config CI guard (ADR 0059)", () => {

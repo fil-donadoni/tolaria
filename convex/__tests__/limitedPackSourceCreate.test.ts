@@ -70,7 +70,7 @@ describe("createLimitedEvent — Pack Source key (issue #5385)", () => {
 
     it("rejects a key the catalogue does not hold", async () => {
         await expect(
-            create({ type: "draft", seatCount: 2, packSource: "inv" })
+            create({ type: "draft", seatCount: 2, packSource: "nope" })
         ).rejects.toThrow(/Unknown Pack Source/);
     });
 
