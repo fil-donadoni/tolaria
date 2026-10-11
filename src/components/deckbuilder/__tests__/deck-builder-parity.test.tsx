@@ -143,6 +143,7 @@ const limited: Wrapper = {
                     } as never
                 }
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
                 manager={manager}
             />

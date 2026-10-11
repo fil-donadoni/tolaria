@@ -82,6 +82,9 @@ deck ever reads.**
    the lobby's `Limited` Format filter whose options are the distinct keys among
    the user's own decks. Set codes are sorted and deduplicated in the key; the
    displayed label is derived from it. Pack counts are deliberately excluded.
+   _Amended by issue #5393:_ set codes keep PACK order (deduplicated), not
+   sorted — `draft:inv+pls+apc` — so the label reads in drafting order; the
+   cube's segment is `cube:vintage`.
 7. **A `limited` deck is edited only inside its Pool.** It opens in the pool
    deckbuilder over its Deck Pool rather than in the constructed builder, and
    `userDecks.update` rejects a patch introducing a card the Deck Pool does not

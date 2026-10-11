@@ -104,7 +104,7 @@ export function assertLimitedSeatOwnership(
     event: { seats: readonly SeatLookup[] } | null,
     seatIdRaw: string,
     userId: string
-): void {
+): asserts event is { seats: readonly SeatLookup[] } {
     if (!event) throw new Error("Limited Event not found.");
     const seatIndex = Number(seatIdRaw);
     if (

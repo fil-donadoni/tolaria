@@ -84,6 +84,40 @@ function setup() {
     useMutationMock.mockReturnValue(createMock);
 }
 
+describe("PoolDeckBuilderForm — default deck name from the Limited Origin (ADR 0106 §6, issue #5393)", () => {
+    it("names a new cube-draft deck 'Vintage Cube Draft'", () => {
+        setup();
+        const { getByDisplayValue } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="draft"
+                packSlots={["vintage-cube", "vintage-cube", "vintage-cube"]}
+                poolArrangement={[]}
+            />
+        );
+        expect(getByDisplayValue("Vintage Cube Draft")).toBeTruthy();
+    });
+
+    it("names a new Sealed deck after its set: 'Limited Edition Alpha Sealed'", () => {
+        setup();
+        const { getByDisplayValue } = render(
+            <PoolDeckBuilderForm
+                eventId={"event-1" as never}
+                seatIndex={0}
+                pool={POOL}
+                existingDeck={null}
+                eventType="sealed"
+                packSlots={["lea"]}
+                poolArrangement={[]}
+            />
+        );
+        expect(getByDisplayValue("Limited Edition Alpha Sealed")).toBeTruthy();
+    });
+});
+
 describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue #1247)", () => {
     it("Sealed (eventType 'sealed'): every Pool card still starts in the Sideboard — the pre-#1247 default, unchanged", () => {
         setup();
@@ -94,6 +128,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -110,6 +145,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -126,6 +162,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[{ poolIndex: 1, sideboard: true }]}
             />
         );
@@ -166,6 +203,7 @@ describe("PoolDeckBuilderForm — continuous draft→build seed (ADR 0060, issue
                     reasons: [],
                 }}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -188,6 +226,7 @@ describe("PoolDeckBuilderForm — draft column arrangement carry-over (issue #15
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[{ poolIndex: 0, column: 6 }]}
             />
         );
@@ -243,6 +282,7 @@ describe("PoolDeckBuilderForm — per-copy Pin identity survives a zone move (is
                 pool={THREE_BOLTS}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 // The THIRD Bolt (poolIndex 2) is pinned to MV 6.
                 poolArrangement={[{ poolIndex: 2, pins: { mv: "mv:6" } }]}
             />
@@ -272,6 +312,7 @@ describe("PoolDeckBuilderForm — per-copy Pin identity survives a zone move (is
                 pool={THREE_BOLTS}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 // The SECOND Bolt (poolIndex 1) is pinned to MV 6.
                 poolArrangement={[{ poolIndex: 1, pins: { mv: "mv:6" } }]}
             />
@@ -326,6 +367,7 @@ describe("PoolDeckBuilderForm — per-copy Pin identity survives a zone move (is
                     reasons: [],
                 }}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[{ poolIndex: 2, pins: { mv: "mv:6" } }]}
             />
         );
@@ -356,6 +398,7 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -384,6 +427,7 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -413,6 +457,7 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -461,6 +506,7 @@ describe("PoolDeckBuilderForm — per-zone Grouping/Ordering controls (issue #16
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -519,6 +565,7 @@ describe("PoolDeckBuilderForm — a column drag persists under EVERY Grouping (i
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
                 manager={manager}
             />
@@ -595,6 +642,7 @@ describe("PoolDeckBuilderForm — Grouping round-trip preserves the Pool Arrange
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[{ poolIndex: 0, column: 6 }]}
             />
         );
@@ -646,6 +694,7 @@ describe("PoolDeckBuilderForm — Add Basic bar (issue #1576)", () => {
                 ]}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -695,6 +744,7 @@ describe("PoolDeckBuilderForm — root surface height (issue #2056 defect 3)", (
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -744,6 +794,7 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -761,6 +812,7 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -805,6 +857,7 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -824,6 +877,7 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -849,6 +903,7 @@ describe("PoolDeckBuilderForm — short-viewport chrome treatment (issue #2056 d
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -886,6 +941,7 @@ describe("PoolDeckBuilderForm — Stats reflects the Maindeck only (issue #1631 
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -941,6 +997,7 @@ describe("PoolDeckBuilderForm — card-size floor (issue #2056, unchanged by #22
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1006,6 +1063,7 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
                     pool={POOL}
                     existingDeck={null}
                     eventType="sealed"
+                    packSlots={["lea"]}
                     poolArrangement={[]}
                 />
             );
@@ -1026,6 +1084,7 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1043,6 +1102,7 @@ describe("PoolDeckBuilderForm — SaveDeckBar stays reachable regardless of the 
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1069,6 +1129,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1134,6 +1195,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1154,6 +1216,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar counter/add/remove/floor/+5 (iss
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1210,6 +1273,7 @@ describe("PoolDeckBuilderForm — the bar removes exactly what it counted (PR #2
                 ]}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1244,6 +1308,7 @@ describe("PoolDeckBuilderForm — the bar removes exactly what it counted (PR #2
                 ]}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 // The Pool's own Mountain carries a Column Pin: it is the copy
                 // whose removal would strand a recorded arrangement.
                 poolArrangement={[{ poolIndex: 0, pins: { mv: "mv:6" } }]}
@@ -1287,6 +1352,7 @@ describe("PoolDeckBuilderForm — Add-Basic bar disabled while a save is in flig
                     pool={POOL}
                     existingDeck={null}
                     eventType="sealed"
+                    packSlots={["lea"]}
                     poolArrangement={[]}
                 />
             );
@@ -1336,6 +1402,7 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
                 pool={POOL}
                 existingDeck={null}
                 eventType="sealed"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -1364,6 +1431,7 @@ describe("PoolDeckBuilderForm — basic-land art picker (issue #1629)", () => {
                     ]}
                     existingDeck={null}
                     eventType="sealed"
+                    packSlots={["lea"]}
                     poolArrangement={[]}
                 />
             );

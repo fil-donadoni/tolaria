@@ -16,6 +16,11 @@ export const CUBE_SOURCE_KEY = "vintage-cube";
 /** Human-facing Pack Source label (all UI text is English, CLAUDE.md). */
 export const CUBE_DISPLAY_NAME = "Vintage Cube";
 
+/** The cube's segment in a Limited Origin key (`draft:cube:vintage`, ADR 0106
+ *  §6, issue #5393) — `cube:<slug>`, so a cube origin never reads as a set
+ *  code. */
+export const CUBE_ORIGIN_SEGMENT = "cube:vintage";
+
 /** Whether `setCode` names the cube source (case-insensitive, mirroring the
  *  set-code case handling in `registry.ts`'s `getBoosterConfig`). */
 export function isCubeSource(setCode: string): boolean {
