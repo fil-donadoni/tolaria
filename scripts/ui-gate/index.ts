@@ -63,7 +63,10 @@
  *                                                        # account in place and
  *                                                        # print its credentials
  *   bun run check:ui -- --scope-only                     # print the diff's
- *                                                        # scope, no browser
+ *                                                        # scope and whether a
+ *                                                        # walk is owed (`walk:
+ *                                                        # owed` / `not owed`
+ *                                                        # + the rule), no browser
  *   bun run check:ui -- --all                            # force the full scope
  *   bun run check:ui -- --parallel=1                     # override the count
  *                                                        # the machine sized
@@ -138,7 +141,7 @@ import {
     type InfraCell,
     type SurfaceWalk,
 } from "./receipt.ts";
-import { landingDiffScope } from "./verify-receipt.ts";
+import { landingDiffScope, landingWalkOwed } from "./verify-receipt.ts";
 import {
     assertLabelsBySurface,
     evaluateAssertions,
@@ -183,7 +186,12 @@ import {
     reachable,
     readEnvLocal,
 } from "../lib/convex-reachable.ts";
-import { renderUiScope, type UiScope } from "../lib/ui-scope.ts";
+import {
+    renderUiScope,
+    renderWalkOwed,
+    type UiScope,
+    type WalkOwed,
+} from "../lib/ui-scope.ts";
 import {
     acquireUiLane,
     admitUiMachine,
@@ -758,6 +766,21 @@ function computeRunScope(opts: Options): UiScope {
     return landingDiffScope(changed, REPO_ROOT);
 }
 
+/** Whether the diff owes a walk at all (issue #5459): `--all` always does; a
+ *  diff that cannot be read is owed, like `computeRunScope`'s fail-closed. */
+function computeWalkOwed(opts: Options): WalkOwed {
+    if (opts.all) return { owed: true, rule: "--all", path: "(every surface)" };
+    try {
+        return landingWalkOwed(changedSinceBase(opts.base), REPO_ROOT);
+    } catch (err) {
+        return {
+            owed: true,
+            rule: `diff unavailable: ${(err as Error).message}`,
+            path: "(unknown)",
+        };
+    }
+}
+
 async function main(): Promise<number> {
     const opts = parseArgs(process.argv.slice(2));
     if (opts.all && opts.surfaces) {
@@ -770,7 +793,10 @@ async function main(): Promise<number> {
     let loadAtStart = loadAverage();
     const scope = computeRunScope(opts);
     log(renderUiScope(scope, opts.base));
-    if (opts.scopeOnly) return 0;
+    if (opts.scopeOnly) {
+        log(renderWalkOwed(computeWalkOwed(opts)));
+        return 0;
+    }
 
     // A run the diff scoped walks exactly its scope and prints SCOPED; a
     // hand-picked `--surface=` subset never carries a diff scope, so it stays

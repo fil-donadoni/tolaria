@@ -400,9 +400,11 @@ You are in the Bot — read `/bot-change` first (full seam map + doctrine).
 shown it.** happy-dom has no layout: "the card is in the document" passes while
 the card sits in a 24px-tall container.
 
-**Applies to** any diff reaching a component, CSS, layout, responsive rule,
-overlay/z-index or scroll container. Not to engine/Convex/script/doc changes,
-nor a test-only `src/**` diff (ADR 0110 §4) — say so in one line, move on.
+**Owed only when the diff can move layout** (issue #5459; predicate in
+`src/CLAUDE.md`, whatever the lane): `bun run check:ui -- --scope-only` says
+`owed`/`not owed`; not owed → PR line `check:ui: no walk owed (<reason>)`
+replaces the receipt. Leaf components, copy, handlers, tests, non-`src/` diffs:
+say so in one line, move on.
 
 **Run `bun run check:ui`** (#2580): own Vite + headless Chrome, signs in, walks
 the runbook surfaces at all five viewports (ADR 0101), probes, runs axe; nine
@@ -414,10 +416,7 @@ block no longer fits a PR body (GitHub caps it at 65,536 characters): paste the
 three lines under `receipt digest` — banner, `verdict-sha256:`, coverage —
 which `land` accepts on the same terms (#4419). A no-flag run walks the diff's
 surfaces and prints `SCOPED` (ADR 0131), re-derived by `land`; `RECEIPT` covers
-any diff; never `DIAGNOSTIC`; never reflow a row. A specimen row of
-`/admin/design-system` is scoped by its section + mount, not the page's whole
-route closure; **the full walk (`--all`) is a batch-health step, never a PR's**
-(issue #4913, ADR 0131 amendment).
+any diff; never `DIAGNOSTIC`; never reflow a row. **the full walk (`--all`) is the full proof, a batch-health step, never a PR's** (issue #4913).
 
 **Unreached prints `UNWALKED`; a walk the machine cut short, `INFRA` (#3644)** —
 both red the run: unproven, not a pass.

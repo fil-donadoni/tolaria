@@ -44,7 +44,9 @@ import { createImportGraph } from "../lib/import-graph.ts";
 import {
     computeUiScope,
     SURFACES_FILE,
+    uiWalkOwed,
     type UiScope,
+    type WalkOwed,
 } from "../lib/ui-scope.ts";
 import {
     classifySurfaceEdits,
@@ -92,6 +94,21 @@ export function landingDiffScope(
         surfaceEdits: changed.includes(SURFACES_FILE)
             ? surfaceEditsSinceBase(root)
             : null,
+    });
+}
+
+/** `uiWalkOwed` over the tree at `root`: each changed file read as it stands
+ *  (issue #5459). `land` and `check:ui -- --scope-only` share this one call. */
+export function landingWalkOwed(
+    changed: readonly string[],
+    root: string
+): WalkOwed {
+    return uiWalkOwed(changed, (p) => {
+        try {
+            return fs.readFileSync(path.join(root, p), "utf8");
+        } catch {
+            return null;
+        }
     });
 }
 
