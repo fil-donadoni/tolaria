@@ -124,9 +124,14 @@ describe("fetch charter search convergence (issue #1499)", () => {
     // Monotone in budget: correct at the production budget (400) AND above it
     // (1600). The pre-fix bot converged AWAY as budget rose (0/8 at 3200) — a
     // mis-valued subtree; this asserts the residue is gone.
+    //
+    // One case per (budget, seed) (issue #5477): the whole seed loop in one
+    // `it` cost ~29s idle at 1600 and timed out at 83s under a contended
+    // health gate.
     for (const iterations of [400, 1600]) {
-        it(`cracks the Delta on every registry seed at ${iterations} iterations`, () => {
-            for (const seed of registrySeeds) {
+        it.each(registrySeeds)(
+            `cracks the Delta at ${iterations} iterations (registry seed %i)`,
+            (seed) => {
                 const state = buildBladeState(scenario);
                 const botId = seatPlayerId(state, scenario.bot);
                 const { move } = searchWithTrace(
@@ -140,6 +145,6 @@ describe("fetch charter search convergence (issue #1499)", () => {
                     `seed ${seed} at ${iterations} chose ${move?.kind ?? "[no move]"}`
                 ).toBe("activate-ability");
             }
-        });
+        );
     }
 });
