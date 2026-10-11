@@ -166,7 +166,7 @@ export function lineageOf(history: readonly Verdict[]): Lineage {
 /** The failing test files named in a vitest run's output — what a repair's
  *  lane must run (`land`'s repair proof). Sorted, unique. */
 export function failedTestFiles(output: string): string[] {
-    // biome-ignore lint: ANSI escape
+    // eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
     const plain = output.replace(/\u001b\[[0-9;]*m/g, "");
     const files = new Set<string>();
     const re =
