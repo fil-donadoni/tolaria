@@ -2082,10 +2082,13 @@ describe("land.ts — the teardown step, executed", () => {
  * the one gate.
  */
 describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
-    const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
-    const main = src.slice(src.indexOf("async function main("));
+    const landSource = () =>
+        readFileSync(resolve(__dirname, "../land.ts"), "utf8");
+    const mainOf = (src: string) =>
+        src.slice(src.indexOf("async function main("));
 
     it("has no preflight phase, no `--no-preflight` flag and no `check:lane --preflight` call", () => {
+        const src = landSource();
         expect(src).not.toMatch(/preflight/i);
         // The flag is gone from the usage line too: an unknown `--` flag is
         // ignored by parseArgs, so the usage is what tells a caller.
@@ -2095,6 +2098,7 @@ describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
     });
 
     it("goes from the refusal checks straight to the ONE heavy gate — the locked command is unchanged", () => {
+        const main = mainOf(landSource());
         const refuse = main.indexOf("if (reason) fail(");
         const heavy = main.indexOf('spawnSync("bun", [GATE, "heavy", command]');
         expect(refuse).toBeGreaterThan(-1);
@@ -2136,6 +2140,7 @@ describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
             30, 20, 10,
         ]);
         expect(waiterSince(lockedEnv({}), registeredAt)).toBe(registeredAt);
+        const main = mainOf(landSource());
         const issued = main.indexOf("const issuedAt = Date.now();");
         expect(issued).toBeGreaterThan(-1);
         expect(issued).toBeLessThan(main.indexOf("parseArgs(argv)"));
