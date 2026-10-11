@@ -882,6 +882,16 @@ export default function DeckZoneSurface({
                 surface's `check:ui` receipt (`scripts/ui-gate/floors.ts`) is
                 that measurement. */}
             <div
+                // The split grid's divider pill can overflow a narrow or empty
+                // Zone, making this a scroll port with nothing focusable in it
+                // (axe `scrollable-region-focusable`): give it a tab stop.
+                {...(pileLayout.kind === "split"
+                    ? {
+                          tabIndex: 0,
+                          role: "region",
+                          "aria-label": `${title} cards`,
+                      }
+                    : {})}
                 className={cn(
                     "flex overflow-auto md:snap-none",
                     // Issue #2665 — the DENSITY rung. `p-3 md:p-4` / `gap-3
