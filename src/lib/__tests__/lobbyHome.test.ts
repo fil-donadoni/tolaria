@@ -94,6 +94,21 @@ describe("lastMatchView — story 1–3", () => {
         ).toBeNull();
         // The remembered deck was deleted since.
         expect(lastMatchView(BOT, [elves])).toBeNull();
+        // The Bot's deck step is unanswered.
+        expect(
+            lastMatchView(
+                setup({
+                    ...BOT,
+                    opponentDeckId: null,
+                    opponentDeckChosen: false,
+                }),
+                DECKS
+            )
+        ).toBeNull();
+        // The Match Format no longer admits the remembered deck.
+        expect(
+            lastMatchView(setup({ ...BOT, matchFormat: "old-school" }), DECKS)
+        ).toBeNull();
     });
 });
 
