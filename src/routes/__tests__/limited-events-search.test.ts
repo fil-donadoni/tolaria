@@ -1,55 +1,60 @@
 import { describe, it, expect } from "vitest";
 import { router } from "~/router";
 
-// Issue #2590's `mine` filter, exercised through the REAL router
-// (`router.options.parseSearch` + the `/limited` route's own
-// `validateSearch`, `router.routesById["/limited"].options.validateSearch`)
-// rather than as a component prop. This is the seam the round-2 review
-// (PR #2651) found broken: TanStack's default `parseSearch` JSON-parses
-// every query-string value, so the literal, bookmarkable URL `?mine=1` (the
-// one named in the issue AC, the PR title, `limited-your-events.route.tsx`'s
-// doc comment, `docs/guides/ui-runbooks.md` and the redirect surface's label
-// in `scripts/ui-gate/surfaces.ts`) arrives at `validateSearch` as the
-// NUMBER `1`, not the string `"1"` — the old `search.mine === "1"` branch
-// was unreachable dead code, and every test
-// in `limited-events-page.test.tsx` passed `mine` as a prop, bypassing this
-// translation entirely and staying green over the bug.
+// The hub's `?status=` chips and the retired `?mine=` filter (issues #2590,
+// #5388), exercised through the REAL router (`router.options.parseSearch` +
+// the `/limited` route's own `validateSearch`,
+// `router.routesById["/limited"].options.validateSearch`) rather than as a
+// component prop: TanStack's default `parseSearch` JSON-parses every
+// query-string value, so a test that hands the page a prop bypasses this
+// translation entirely and stays green over a broken URL contract.
 //
 // `validateSearch` is not exported (it is inline in `createRoute`), so this
 // reaches it the same way `router-limited-precedence.test.ts` reaches route
 // matching: off the live `router` instance, never a hand-built replica.
 function validateLimitedSearch(queryString: string): {
-    mine?: true;
+    status?: string;
     label?: string;
 } {
     const parsed = router.options.parseSearch(queryString);
     const route = router.routesById["/limited"];
     const validateSearch = route.options.validateSearch as (
         search: Record<string, unknown>
-    ) => { mine?: true; label?: string };
+    ) => { status?: string; label?: string };
     return validateSearch(parsed);
 }
 
-describe("/limited route search: mine filter (issue #2590)", () => {
-    it("turns the filter on for the bookmarkable ?mine=1 URL (parses to the number 1)", () => {
-        expect(validateLimitedSearch("?mine=1")).toEqual({ mine: true });
+describe("/limited route search: status chips (issue #5388)", () => {
+    it.each(["waiting", "drafting", "building", "playing", "history"])(
+        "accepts the hub value ?status=%s",
+        (status) => {
+            expect(validateLimitedSearch(`?status=${status}`)).toEqual({
+                status,
+            });
+        }
+    );
+
+    it("maps the pre-hub open / done values onto waiting / history", () => {
+        expect(validateLimitedSearch("?status=open")).toEqual({
+            status: "waiting",
+        });
+        expect(validateLimitedSearch("?status=done")).toEqual({
+            status: "history",
+        });
     });
 
-    it("turns the filter on for the in-app redirect's ?mine=true URL", () => {
-        expect(validateLimitedSearch("?mine=true")).toEqual({ mine: true });
+    it("drops an unrecognized status", () => {
+        expect(validateLimitedSearch("?status=nope")).toEqual({});
     });
 
-    it("leaves the filter off when mine is absent", () => {
-        expect(validateLimitedSearch("")).toEqual({});
-    });
-
-    it("leaves the filter off for an unrelated truthy-looking value", () => {
-        expect(validateLimitedSearch("?mine=yes")).toEqual({});
+    it("no longer filters on ?mine= — an old link lands on the plain hub", () => {
+        expect(validateLimitedSearch("?mine=1")).toEqual({});
+        expect(validateLimitedSearch("?mine=true")).toEqual({});
     });
 });
 
 // The fixture-label filter (issue #2822) goes through the SAME JSON-parsing
-// seam as `mine` above, and it is what bounds the two `check:ui` list
+// seam as `status` above, and it is what bounds the two `check:ui` list
 // surfaces to the seeded fixture. Reached off the live router, never a
 // hand-built replica of `validateSearch`.
 describe("/limited route search: fixture label filter (issue #2822)", () => {
@@ -59,9 +64,11 @@ describe("/limited route search: fixture label filter (issue #2822)", () => {
         });
     });
 
-    it("keeps a full fixture label alongside the mine filter", () => {
-        expect(validateLimitedSearch("?mine=1&label=ui-gate/draft")).toEqual({
-            mine: true,
+    it("keeps a full fixture label alongside a status chip", () => {
+        expect(
+            validateLimitedSearch("?status=drafting&label=ui-gate/draft")
+        ).toEqual({
+            status: "drafting",
             label: "ui-gate/draft",
         });
     });

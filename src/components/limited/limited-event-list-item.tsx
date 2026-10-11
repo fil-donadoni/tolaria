@@ -1,18 +1,15 @@
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
-import {
-    formatLimitedMatchRecord,
-    limitedEventStatusHint,
-} from "~/lib/limitedEventStatus";
+import { filledSeatCount } from "~/lib/limited/limitedHub";
 import { OPEN_DECKLISTS_JOIN_WARNING } from "~/lib/openDecklists";
 import ActionButton from "~/components/board/action-button";
 import { Button } from "@/components/ui/button";
+import LimitedHubSeatDots from "./limited-hub/limited-hub-seat-dots";
 
-/** One row in the open-events lobby list (PRD #1107 story 7). Shows the
- *  event's type, filled/total seat count, and Pack Source, with a Join button
- *  when the viewer hasn't already taken a seat. An Open Decklists event says
- *  so on the row, and a seatless viewer reads the disclosure beside Join
- *  (issue #5386). */
+/** One table in the hub's "Join a table" section (PRD #1107 story 7, #5388):
+ *  the event's name, seat dots, free seats and a Join button, under the
+ *  "Waiting for players" badge. An Open Decklists event says so on the row,
+ *  and a seatless viewer reads the disclosure beside Join (issue #5386). */
 export default function LimitedEventListItem({
     event,
     viewerHasSeat,
@@ -30,19 +27,7 @@ export default function LimitedEventListItem({
     onOpen: () => void;
     joinPending?: boolean;
 }) {
-    const filledSeats = event.seats.filter(
-        (s) => s.userId !== undefined || s.isBot
-    ).length;
-    // The derived PHASE, never the raw `status` enum (ADR 0076): with the play
-    // phase the status union has four members, and the old
-    // `completed ? "completed" : status` would have reported a running event
-    // as "completed" (every seat has a deck by then, by construction) instead
-    // of "playing". `limitedEventStatusHint` is the one authority — the same
-    // one `LimitedStatusBadge` renders.
-    const statusLabel = limitedEventStatusHint(event);
-    // Blank (`null`) for an event that hasn't reached the play phase yet
-    // (issue #2357) — never rendered as a false "0-0".
-    const record = formatLimitedMatchRecord(event.viewerMatchRecord);
+    const freeSeats = event.seatCount - filledSeatCount(event);
 
     return (
         <div
@@ -61,9 +46,12 @@ export default function LimitedEventListItem({
                 <span className="text-sm font-medium text-text">
                     {limitedEventName(event)}
                 </span>
-                <span className="text-xs text-text-muted">
-                    {filledSeats}/{event.seatCount} seats filled · {statusLabel}
-                    {record && ` · ${record}`}
+                <span className="flex flex-wrap items-center gap-2 text-xs text-text-muted">
+                    <span className="rounded-sm border border-accent/40 bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
+                        Waiting for players
+                    </span>
+                    <LimitedHubSeatDots seats={event.seats} />
+                    {freeSeats} free {freeSeats === 1 ? "seat" : "seats"}
                     {event.openDecklists && " · Open Decklists"}
                 </span>
                 {event.openDecklists && !viewerHasSeat && onJoin && (

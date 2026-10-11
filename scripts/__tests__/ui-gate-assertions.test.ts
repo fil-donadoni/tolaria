@@ -201,8 +201,7 @@ describe("check:ui surface table — Named Assertions", () => {
             ],
             "limited-list": [
                 "visible role=group name=Filter by status",
-                "reachable role=button name=Mine",
-                "reachable role=button name=+ Create Event",
+                "reachable role=button name=Choose format, seats, timers…",
                 "visible [data-limited-event-label]",
                 "reachable role=button name=View",
                 "contrast role=button name=View",
@@ -210,7 +209,6 @@ describe("check:ui surface table — Named Assertions", () => {
             "limited-your-events": [
                 "visible [data-limited-event-label]",
                 "reachable role=button name=View",
-                "reachable role=button name=Mine",
             ],
             "limited-antechamber": [
                 "reachable role=button name=← Back to Limited Events",

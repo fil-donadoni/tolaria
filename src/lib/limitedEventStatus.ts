@@ -57,32 +57,33 @@ export function limitedEventStatusHint(
     return event.completed ? "ready to play" : "deckbuilding";
 }
 
-/** The FILTER-granularity phase (issue #2590): the merged `/limited` list's
- *  status chips (open / drafting / building / playing / done) — coarser than
- *  `LimitedEventStatusHint`'s six values, which stays the per-row display
- *  granularity (`LimitedEventListItem` still shows "deckbuilding" vs "ready
- *  to play" verbatim). The collapse is deliberate: `"ready to play"` folds
+/** The FILTER-granularity phase (issue #2590, renamed by issue #5388): the
+ *  hub's status chips (waiting / drafting / building / playing / history) —
+ *  coarser than `LimitedEventStatusHint`'s six values, which stays the per-row
+ *  display granularity. The collapse is deliberate: `"ready to play"` folds
  *  into `"building"` rather than `"playing"`, because at the DB level it is
  *  still `status: "started"` (`convex/limited/eventStatus.ts` —
  *  `areRoundsRunning` is false) — the event's rounds have not started, the
  *  seat is just done with its own deck. `"playing"` is reserved for the
- *  phase where `areRoundsRunning` is actually true. */
+ *  phase where `areRoundsRunning` is actually true. `"history"` is a
+ *  finished event (formerly `"done"`); `"waiting"` an event still filling
+ *  Seats (formerly `"open"`). */
 export type LimitedEventStatusChip =
-    | "open"
+    | "waiting"
     | "drafting"
     | "building"
     | "playing"
-    | "done";
+    | "history";
 
 /** Every chip, in filter-bar order — the source of the union for the type
  *  guard below (mirrors `LIMITED_EVENT_STATUSES`' array-as-source pattern in
  *  `convex/limited/eventStatus.ts`). */
 export const LIMITED_EVENT_STATUS_CHIPS = [
-    "open",
+    "waiting",
     "drafting",
     "building",
     "playing",
-    "done",
+    "history",
 ] as const satisfies readonly LimitedEventStatusChip[];
 
 /** Runtime guard for a value coming off the URL (`?status=`), which is an
@@ -96,6 +97,17 @@ export function isLimitedEventStatusChip(
     );
 }
 
+/** A `?status=` value as a chip: the current names, plus the two pre-hub
+ *  names (`open`, `done`) an old bookmark still carries, mapped to their
+ *  successors. Anything else is `undefined` (no narrowing). */
+export function parseLimitedStatusParam(
+    value: unknown
+): LimitedEventStatusChip | undefined {
+    if (value === "open") return "waiting";
+    if (value === "done") return "history";
+    return isLimitedEventStatusChip(value) ? value : undefined;
+}
+
 /** Collapses the six-value display hint down to the five-value filter chip —
  *  see the type doc above for where `"ready to play"` lands and why. */
 export function limitedEventStatusChip(
@@ -107,7 +119,7 @@ export function limitedEventStatusChip(
     const hint = limitedEventStatusHint(event);
     switch (hint) {
         case "open":
-            return "open";
+            return "waiting";
         case "drafting":
             return "drafting";
         case "deckbuilding":
@@ -116,7 +128,7 @@ export function limitedEventStatusChip(
         case "playing":
             return "playing";
         case "finished":
-            return "done";
+            return "history";
     }
 }
 
