@@ -1594,7 +1594,7 @@ session, 1.44 at three, 1.19 at four) measured the gates, not the machine, with
 Once the lane is scoped the mutex budget per PR is 3 min and the machine
 decides. **The four rows that prove or disprove the target after each phase**
 are in `bun run telemetry:latency`, read PER MACHINE: PR/h by the claim
-journal's `host` stamp (sessions with no stamp pool as `(unstamped)`), the
+journal's `host` stamp (the journal is per machine, so run it on each; sessions with no stamp, and the other machine's from here, pool as `(unstamped)`), the
 `land` heavy-mutex wait p50/p90 per day (`gate_lock`, the rebase row `land`
 queues behind), the minutes per day batch health held the mutex, and the
 `land` attempts-per-PR distribution (`gate_attempts`). The binding constraint
