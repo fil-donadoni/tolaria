@@ -1560,11 +1560,29 @@ the journal is a correction to it, and both records are read where their
 WRITERS put them (the journal under the session's project directory, the health
 marker under the primary checkout) rather than relative to the caller's cwd.
 
-**The derivation (ADR 0154 §8).** The cap is measured, per machine, from the
-PRs-per-hour-by-concurrency row of `bun run telemetry:latency`. The 2026-09
-reading set it at 3 — 0.59 PR/h at one session, 1.44 at three, 1.19 at four, a
-"knee" past which total throughput fell. The 2026-10-11 reading on the MacBook
-(2026-10-05 → 10-11, `telemetry:latency` § PRs landed per hour):
+**The derivation (ADR 0154 §8, issue #5460).** The cap is not a feeling and is
+not hand-set: it is `min(5, others + floor(reclaimable RAM ÷ sessionBudgetMb))`
+— the existing effective-cap formula (`effectiveCap`) stays the ceiling — with
+`sessionBudgetMb` re-derived from `bun run machine measure` of one
+`/next-ticket` session under the scoped lane, per machine. 2026-10-11, the
+16 GiB MacBook, load 4.4, kernel pressure normal:
+
+| Reading                                                          |       Value |
+| ---------------------------------------------------------------- | ----------: |
+| session process tree (`bun run machine`, this session, 3 min up) |      702 MB |
+| scoped light-tier vitest, 3 files (`machine measure`)            |     1134 MB |
+| **`sessionBudgetMb`** (702 + 1134 = 1836, rounded up)            | **1900 MB** |
+| reclaimable RAM with 2 other sessions live                       |     5757 MB |
+| `min(5, 2 + floor(5757 / 1900))`                                 |       **5** |
+
+The prior budget (2500) was 718 + 1800, the 55-file `convex/cards` run of
+2026-10-02; the lane now runs the tests reachable from the diff with at most
+two workers (ADR 0154 §2), and a wider reach is the ceiling's job — the cap
+falls with reclaimable RAM, it never overcommits it. The wall behind the old
+"knee at 3" was paging, not CPU: the 2026-09 reading (0.59 PR/h at one
+session, 1.44 at three, 1.19 at four) measured the gates, not the machine, with
+`land` holding the mutex 6.8 min per PR. The same row on the MacBook,
+2026-10-05 → 10-11 (`telemetry:latency` § PRs landed per hour):
 
 | Active sessions | Hours | PR/h measured | Reading                                         |
 | --------------: | ----: | ------------: | ----------------------------------------------- |
@@ -1573,18 +1591,19 @@ reading set it at 3 — 0.59 PR/h at one session, 1.44 at three, 1.19 at four, a
 |               5 |     8 |      **3.00** | the configured cap — the target is 5/h/machine  |
 |               6 |     5 |          2.40 | contention returns                              |
 
-The knee of 2026-09 was a property of the gates, not of the machine: with
-`land` holding the mutex 6.8 min per PR, the fourth session only queued. Once
-the lane is scoped (ADR 0154 §2) the mutex budget per PR is 3 min and the
-machine, not the mutex, decides; **`sessions.cap` is 5** (issue #5460), and
-the row that moves it is the same row — read PER MACHINE, since each machine
-runs its own sessions against its own mutex. The binding constraint behind
-the cap is the API budget, not the CPU: the same ticket ingests the LLM cost
-per session (≈ 12.8 M cache-read tokens for one `/next-ticket` session on
-2026-10-11) so a `rate-limit` stop is a measured risk, and `telemetry:latency`
-prints PR/h per machine and the land mutex p50/p90 — the acceptance numbers
-(mutex p50 ≤ 3 min and ≥ 4 PR/h after Phase 0; ≥ 5 PR/h per machine over 24 h
-after Phase 1).
+Once the lane is scoped the mutex budget per PR is 3 min and the machine
+decides. **The four rows that prove or disprove the target after each phase**
+are in `bun run telemetry:latency`, read PER MACHINE: PR/h by the claim
+journal's `host` stamp (sessions with no stamp pool as `(unstamped)`), the
+`land` heavy-mutex wait p50/p90 per day (`gate_lock`, the rebase row `land`
+queues behind), the minutes per day batch health held the mutex, and the
+`land` attempts-per-PR distribution (`gate_attempts`). The binding constraint
+behind the cap is the API budget: ingest prices every `llm` row from the model
+table in `telemetry-db.ts` (input, output, cache read, cache write; the 5.5
+ids included) and re-prices rows left at 0 on the next run, so
+`agent_runs.cost` is a number; a model with no price stays 0 and the ingest
+prints a counted warning naming it. Acceptance: mutex p50 ≤ 3 min and ≥ 4 PR/h
+after Phase 0; ≥ 5 PR/h per machine over 24 h after Phase 1.
 
 **The RED refusal.** The durable release-health marker
 (`.claude/telemetry/health/RED`, left by `health-main.ts`) means the full gate
@@ -1814,7 +1833,7 @@ walk AND PR #4985's lane both running. One walk is one row. If a gate's
 `machine busy` line under the hold ever coincides with a one-viewport walk,
 that is this term appearing, and the bound is re-derived from it.
 
-`sessionBudgetMb` = **2500**: a session at work is its process tree plus its
+`sessionBudgetMb` = **1900** (re-derived by issue #5460, § Session admission; it was 2500 on the 2026-10-02 reading below): a session at work is its process tree plus its
 targeted vitest. Measured 2026-10-02 — four live sessions at 383, 643, 642 and
 718 MB (`bun run machine`, each tree without the sessions it spawned), and a
 targeted run peaking at 1455 MB (two `convex/gre` files) and 1800 MB
