@@ -1061,6 +1061,8 @@ const PREVIEW_ANCHORED = "[data-card-preview-anchored]";
 /** The Engine View well (`card-preview-engine-view.tsx`, issue #2728), which
  *  issue #2704 fills with the tree. */
 const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
+/** The Split creatures preference (`src/lib/deckViewPrefs.ts`). */
+const SPLIT_CREATURES_KEY = "tolaria:deckViewPrefs:splitCreatures";
 /** The setup flow's remembered setup (`src/lib/matchSetup.ts`). */
 const MATCH_SETUP_KEY = "tolaria:matchSetup";
 /** The flow's Start, once every step is answered (`match-setup-rail.tsx`). */
@@ -4091,6 +4093,67 @@ export const SURFACES: readonly Surface[] = [
                     `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. ${FIXTURE_SEED_HINT}`
                 );
             }
+        },
+    },
+    {
+        id: "limited-build-split",
+        entries: [
+            "src/routes/limited-events.route.tsx",
+            "src/routes/limited-event-detail.route.tsx",
+            "src/routes/limited-draft-room.route.tsx",
+            "src/routes/limited-deck-builder.route.tsx",
+        ],
+        // Issue #5400. The same screen as `limited-build` with Split
+        // creatures ON: portrait cuts the Deck into a Creatures and a
+        // Non-creatures pane (three tabs), landscape draws two bands side by
+        // side. The promises are pane-agnostic on purpose — the Deck's pane id
+        // is `maindeck` in one arrangement and `maindeck-creatures` in the
+        // other — so only the tile and the save surface are named.
+        label: "Limited pool builder, Split creatures on (/limited/<id>/build)",
+        asserts: [
+            {
+                label: "pool card tile",
+                locator: { selector: "[data-card-tile]" },
+                check: "visible",
+            },
+            {
+                label: "deck name field",
+                locator: { role: "textbox", name: "Deck name" },
+                check: "reachable",
+            },
+            {
+                label: "primary action: Done",
+                locator: { role: "button", name: "Done" },
+                check: "reachable",
+            },
+            {
+                label: "Done contrast",
+                locator: { role: "button", name: "Done" },
+                check: "contrast",
+            },
+        ],
+        async walk(page, ctx) {
+            await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
+            const eventId = currentEventId(page);
+            await goto(page, ctx, `/limited/${eventId}/build`);
+            // Client state only — the preference is read on mount, so it is
+            // written first and the screen loaded again.
+            await page.evaluate(
+                (key) => localStorage.setItem(key, "true"),
+                SPLIT_CREATURES_KEY
+            );
+            await goto(page, ctx, `/limited/${eventId}/build`);
+            if (!(await visible(page, "[data-card-tile]", 10_000))) {
+                throw new Unreachable(
+                    `/limited/${eventId}/build rendered no card tile — the fixture seat's pool may be empty. ${FIXTURE_SEED_HINT}`
+                );
+            }
+        },
+        async cleanup(page) {
+            await page.evaluate(
+                (key) => localStorage.removeItem(key),
+                SPLIT_CREATURES_KEY
+            );
         },
     },
     {

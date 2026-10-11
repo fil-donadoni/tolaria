@@ -470,10 +470,10 @@ deployment to everyone, so both the row count of `/limited` and which seat the
 Draft Room walks measured used to be functions of the account's own data, and
 `budgets.json` rotted with no `src/` change.
 
-| Label                   | Shape                                                                           | Serves                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`, `limited-table-ring`, `limited-leave-seat-confirm`                    |
-| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`, `limited-build` |
+| Label                   | Shape                                                                           | Serves                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ui-gate/<runId>/open`  | Draft event, seating still OPEN, viewer at seat 0, no pools                     | `limited-antechamber`, `limited-table-ring`, `limited-leave-seat-confirm`                                           |
+| `ui-gate/<runId>/draft` | Draft event, `started`, viewer at seat 0 with a 15-card pack and a 24-card pool | `draft-pick`, `draft-pool-stop`, `draft-pool-peek`, `draft-pool-move-sheet`, `limited-build`, `limited-build-split` |
 
 The lane seeds both itself at bootstrap, for the run's own account and under
 the run's own id (issue #3626), and they go away with that account at
