@@ -1,5 +1,7 @@
 import { cn } from "~/lib/utils";
 
+export const EVENT_PANEL_ID = "event-page-panel";
+
 export type EventPageTab = "event" | "review";
 
 const TABS: { key: EventPageTab; label: string }[] = [
@@ -29,7 +31,19 @@ export default function LimitedReviewTabs({
                         key={t.key}
                         role="tab"
                         type="button"
+                        id={`event-tab-${t.key}`}
                         aria-selected={on}
+                        aria-controls={EVENT_PANEL_ID}
+                        tabIndex={on ? 0 : -1}
+                        onKeyDown={(e) => {
+                            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight")
+                                return;
+                            const next = TABS.find((o) => o.key !== t.key)!;
+                            onChange(next.key);
+                            document
+                                .getElementById(`event-tab-${next.key}`)
+                                ?.focus();
+                        }}
                         onClick={() => onChange(t.key)}
                         className={cn(
                             "-mb-px border-b-2 px-0.5 pb-2 text-sm font-semibold transition",

@@ -20,7 +20,10 @@ import LimitedYourDeckPanel from "./limited-your-deck-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
 import LimitedReviewPanel from "./limited-review-panel";
-import LimitedReviewTabs, { type EventPageTab } from "./limited-review-tabs";
+import LimitedReviewTabs, {
+    EVENT_PANEL_ID,
+    type EventPageTab,
+} from "./limited-review-tabs";
 import LimitedStandingsTable from "./limited-standings-table";
 import LimitedEventWinnerBanner from "./limited-event-winner-banner";
 import LimitedRoundPanel from "./limited-round-panel";
@@ -303,33 +306,42 @@ export default function LimitedEventDetail({
                 )}
             </PanelBody>
 
-            {reviewing ? (
-                <PanelBody className="mt-3">
-                    <LimitedReviewPanel event={event} />
-                </PanelBody>
-            ) : (
-                <PanelBody className="mt-3">
-                    {/* The table: the seat ring (issue #5390). The build-progress
+            <div
+                role={showReviewTab ? "tabpanel" : undefined}
+                id={showReviewTab ? EVENT_PANEL_ID : undefined}
+                aria-labelledby={
+                    showReviewTab ? `event-tab-${pageTab}` : undefined
+                }
+            >
+                {reviewing ? (
+                    <PanelBody className="mt-3">
+                        <LimitedReviewPanel event={event} />
+                    </PanelBody>
+                ) : (
+                    <PanelBody className="mt-3">
+                        {/* The table: the seat ring (issue #5390). The build-progress
                     bar is gated on `isPoolFinal` (issue #1580): a deck cannot exist before the Pool is final, so
                     the "N/seatCount decks in" counter would otherwise misread
                     as live progress while a Draft is still running. */}
-                    <div data-slot="event-table">
-                        <LimitedTablePanel
-                            event={event}
-                            showProgress={isPoolFinal}
-                        />
-                    </div>
+                        <div data-slot="event-table">
+                            <LimitedTablePanel
+                                event={event}
+                                showProgress={isPoolFinal}
+                            />
+                        </div>
 
-                    {draftInProgress && (
-                        <LimitedEventDraftProgress
-                            event={event}
-                            pickCount={
-                                viewerSeat ? (viewerSeat.poolCount ?? 0) : null
-                            }
-                        />
-                    )}
+                        {draftInProgress && (
+                            <LimitedEventDraftProgress
+                                event={event}
+                                pickCount={
+                                    viewerSeat
+                                        ? (viewerSeat.poolCount ?? 0)
+                                        : null
+                                }
+                            />
+                        )}
 
-                    {/* The viewer's deck + the builder entry point, in EVERY
+                        {/* The viewer's deck + the builder entry point, in EVERY
                     post-Pool state (never gated on `hasDeck`: that flag is
                     existence-only, so gating hid the builder from a player who
                     left it below the 40-card minimum and stranded them). The
@@ -337,15 +349,15 @@ export default function LimitedEventDetail({
                     builder shows the same cards and lets the player act on
                     them, and `useAutoOpenLimitedBuilder` has usually taken
                     them straight there already. */}
-                    {isPoolFinal && viewerSeat && (
-                        <LimitedYourDeckPanel
-                            eventId={eventId}
-                            seatIndex={viewerSeat.seatIndex}
-                            poolCount={viewerSeat.poolCount}
-                        />
-                    )}
+                        {isPoolFinal && viewerSeat && (
+                            <LimitedYourDeckPanel
+                                eventId={eventId}
+                                seatIndex={viewerSeat.seatIndex}
+                                poolCount={viewerSeat.poolCount}
+                            />
+                        )}
 
-                    {/* Free challenges and Play-vs-Bots are REPLACED while the
+                        {/* Free challenges and Play-vs-Bots are REPLACED while the
                     event's rounds are running (ADR 0076 consequences, PRD
                     #1628: "no free challenges while the event is live") — the
                     round panel below carries the one Match the viewer is
@@ -358,47 +370,50 @@ export default function LimitedEventDetail({
                     backs this up independently: `challengeLimitedSeat` and
                     `createSoloGame`'s event binding both reject while
                     `areRoundsRunning(event.status)` (`convex/game.ts`). */}
-                    {isPoolFinal && viewerSeat && !showRoundPanel && (
-                        <>
-                            {isEventConcluded(event.status) && (
-                                <Banner tone="info" className="mb-2">
-                                    Event finished — matches below are
-                                    unrecorded playtesting and do not count
-                                    toward standings.
-                                </Banner>
-                            )}
-                            <LimitedChallengePanel
-                                eventId={eventId}
-                                event={event}
-                                viewerSeatIndex={viewerSeat.seatIndex}
-                            />
-                            <LimitedVsAiPanel
-                                eventId={eventId}
-                                event={event}
-                                viewerSeatIndex={viewerSeat.seatIndex}
-                            />
-                        </>
-                    )}
+                        {isPoolFinal && viewerSeat && !showRoundPanel && (
+                            <>
+                                {isEventConcluded(event.status) && (
+                                    <Banner tone="info" className="mb-2">
+                                        Event finished — matches below are
+                                        unrecorded playtesting and do not count
+                                        toward standings.
+                                    </Banner>
+                                )}
+                                <LimitedChallengePanel
+                                    eventId={eventId}
+                                    event={event}
+                                    viewerSeatIndex={viewerSeat.seatIndex}
+                                />
+                                <LimitedVsAiPanel
+                                    eventId={eventId}
+                                    event={event}
+                                    viewerSeatIndex={viewerSeat.seatIndex}
+                                />
+                            </>
+                        )}
 
-                    {/* The round's Match action is hosted by the hero (it is the
+                        {/* The round's Match action is hosted by the hero (it is the
                     phase's one CTA), so the panel keeps the pairing line and
                     the other tables only. */}
-                    {showRoundPanel && (
-                        <LimitedRoundPanel
-                            eventId={eventId}
-                            event={event}
-                            hideAction={hero.cta.kind === "play"}
-                        />
-                    )}
+                        {showRoundPanel && (
+                            <LimitedRoundPanel
+                                eventId={eventId}
+                                event={event}
+                                hideAction={hero.cta.kind === "play"}
+                            />
+                        )}
 
-                    {/* The event's conclusion (PRD #1628 story 40, issue #1646) —
+                        {/* The event's conclusion (PRD #1628 story 40, issue #1646) —
                     sits ABOVE the standings it's read off, so a concluded
                     event states its outcome before the table backing it. */}
-                    <LimitedEventWinnerBanner event={event} />
+                        <LimitedEventWinnerBanner event={event} />
 
-                    {showStandings && <LimitedStandingsTable event={event} />}
-                </PanelBody>
-            )}
+                        {showStandings && (
+                            <LimitedStandingsTable event={event} />
+                        )}
+                    </PanelBody>
+                )}
+            </div>
 
             <GameDialog
                 open={confirmLeave}

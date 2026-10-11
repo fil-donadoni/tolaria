@@ -82,7 +82,7 @@ function projected(
         2,
         decks as never,
         new Set([0, 1])
-    );
+    ) as unknown as LimitedEventView;
 }
 
 const seatEl = (i: number) =>

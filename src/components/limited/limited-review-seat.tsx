@@ -67,12 +67,10 @@ export default function LimitedReviewSeat({
         () => (deck ? noCaption(deck.sideboard) : []),
         [deck]
     );
-    const poolCards = useMemo(
-        () => (isDraft ? pickOrderCards(pool, packCount) : noCaption(pool)),
-        // `pool` is a fresh `?? []` only when null; its identity is the wire's.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [seat.pool, isDraft, packCount]
-    );
+    const poolCards = useMemo(() => {
+        const cards = seat.pool ?? [];
+        return isDraft ? pickOrderCards(cards, packCount) : noCaption(cards);
+    }, [seat.pool, isDraft, packCount]);
 
     return (
         <section
