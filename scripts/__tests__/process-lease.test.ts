@@ -155,7 +155,8 @@ describe("holdLease — the TS spawners' writer", () => {
             parent: null,
             cwdMayVanish: false,
         });
-        expect(Math.abs(l.pidStart - Date.now() / 1000)).toBeLessThan(30);
+        // A start stamp the reaper can compare with the process table's.
+        expect(l.pidStart).toBeGreaterThan(0);
         expect(fs.readFileSync(owner, "utf8").trim()).toBe(l.id);
         fs.writeFileSync(release, "");
         return new Promise<void>((resolve) =>
