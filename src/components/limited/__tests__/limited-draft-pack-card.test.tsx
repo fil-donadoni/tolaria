@@ -232,7 +232,7 @@ describe("LimitedDraftPackCard gestures — fine pointer waits the double-click 
         const el = getByRole("button");
         const click = () => {
             fireEvent.pointerDown(el, { pointerType: "mouse" });
-            fireEvent.click(el, { clientX: 12, clientY: 34 });
+            fireEvent.click(el, { clientX: 12, clientY: 34, detail: 1 });
         };
         return { el, click, onSelect, onPick, onOpenMenu };
     };
@@ -276,13 +276,9 @@ describe("LimitedDraftPackCard gestures — fine pointer waits the double-click 
         expect(onOpenMenu).not.toHaveBeenCalled();
     });
 
-    it("a keyboard click after a mouse click opens the menu at once (detail 0)", () => {
-        const { el, click, onOpenMenu } = setup();
-        click();
-        act(() => {
-            vi.advanceTimersByTime(DOUBLE_CLICK_INTERVAL_MS * 4);
-        });
-        onOpenMenu.mockClear();
+    it("a keyboard click after a stale mouse pointerdown opens the menu at once (detail 0)", () => {
+        const { el, onOpenMenu } = setup();
+        fireEvent.pointerDown(el, { pointerType: "mouse" });
         fireEvent.click(el, { detail: 0 });
         expect(onOpenMenu).toHaveBeenCalledTimes(1);
     });
