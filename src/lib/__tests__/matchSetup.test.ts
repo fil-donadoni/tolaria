@@ -10,6 +10,7 @@ import {
     loadSetup,
     matchFormatOptions,
     parseSetup,
+    reconcileSetup,
     saveSetup,
     setupSteps,
     startRequest,
@@ -456,5 +457,30 @@ describe("Join and Cockatrice branches (issue #5342)", () => {
             { id: 2, mode: "manual" },
         ]);
         expect(tablesForMode(rows, null)).toEqual([]);
+    });
+});
+
+describe("reconcileSetup — a remembered setup made true of today", () => {
+    const JOIN = setup({
+        mode: "arena",
+        opponent: "join",
+        joinTableId: "table-1",
+        joinTableFormat: "premodern",
+        myDeckId: "burn",
+    });
+
+    it("keeps a table that is still open", () => {
+        expect(reconcileSetup(JOIN, DECKS, [{ _id: "table-1" }])).toEqual(JOIN);
+    });
+
+    it("drops a table that closed since, and the deck it admitted", () => {
+        const next = reconcileSetup(JOIN, DECKS, []);
+        expect(next.joinTableId).toBeNull();
+        expect(next.joinTableFormat).toBeNull();
+        expect(next.myDeckId).toBeNull();
+    });
+
+    it("drops a deck that was deleted", () => {
+        expect(reconcileSetup(READY_BOT, [atog], []).myDeckId).toBeNull();
     });
 });

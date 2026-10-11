@@ -321,6 +321,31 @@ export function applyChange(
     return next;
 }
 
+/**
+ * A remembered setup made true of today: a deck that was deleted or is no
+ * longer admitted is dropped (story 50), and so is a table that closed,
+ * filled or was cancelled since — the recap and the home's Last Match never
+ * offer a seat that is gone.
+ */
+export function reconcileSetup(
+    stored: MatchSetup,
+    decks: readonly LobbyDeck[],
+    openTables: readonly Pick<OpenTable, "_id">[]
+): MatchSetup {
+    const reconciled = applyChange(stored, {}, decks);
+    if (
+        reconciled.joinTableId === null ||
+        openTables.some((t) => t._id === reconciled.joinTableId)
+    ) {
+        return reconciled;
+    }
+    return applyChange(
+        reconciled,
+        { joinTableId: null, joinTableFormat: null },
+        decks
+    );
+}
+
 export interface MatchFormatOption {
     format: FormatId;
     label: string;
