@@ -431,7 +431,9 @@ const OVERLAY_NAME =
     /(?:dialog|modal|popover|overlay|portal|sheet|drawer|tooltip|dropdown|menu|toast)/i;
 const RESPONSIVE_NAME = /(?:viewport|responsive|breakpoint|media-?query)/i;
 const Z_INDEX_CONTENT =
-    /(?:^|[\s"'`{:])-?z-(?:\[|\d|auto\b)|\bz-index\b|\bzIndex\b/;
+    /(?:^|[\s"'`{:!])-?z-(?:\[|\(|\d|auto\b)|\bz-index\b|\bzIndex\b/;
+const POSITIONED_CONTENT =
+    /(?:^|[\s"'`{:!])(?:fixed|sticky)(?=[\s"'`])|\bposition\s*:\s*["']?(?:fixed|sticky)\b|\bcreatePortal\b/;
 const SCROLL_CONTAINER_CONTENT =
     /\boverflow(?:-[xy])?-(?:auto|scroll)\b|\boverflow(?:-?[xyXY])?\s*:\s*["']?(?:auto|scroll)\b|\bScrollArea\b/;
 const RESPONSIVE_CONTENT =
@@ -463,6 +465,9 @@ export function owedByPath(path: string): string | null {
 /** The rule the CONTENT of a changed file trips, or `null`. */
 export function owedByContent(source: string): string | null {
     if (Z_INDEX_CONTENT.test(source)) return "declares a z-index";
+    if (POSITIONED_CONTENT.test(source)) {
+        return "declares fixed / sticky positioning or a portal";
+    }
     if (SCROLL_CONTAINER_CONTENT.test(source))
         return "declares a scroll container";
     if (RESPONSIVE_CONTENT.test(source))
@@ -509,7 +514,8 @@ export function renderWalkOwed(result: WalkOwed): string {
 }
 
 /** The PR-body line that stands in for a receipt when no walk is owed. */
-const NO_WALK_OWED_LINE = /^check:ui: no walk owed \(\s*\S[^)]*\)\s*$/m;
+const NO_WALK_OWED_LINE =
+    /^check:ui: no walk owed \([ \t]*[^\s<)][^)\n]*\)[ \t]*$/m;
 export function hasNoWalkOwedLine(prBody: string): boolean {
     return NO_WALK_OWED_LINE.test(prBody);
 }

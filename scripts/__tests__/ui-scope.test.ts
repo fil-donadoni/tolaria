@@ -541,6 +541,17 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
         ["a viewport", "src/hooks/useViewportSize.ts", LEAF],
         ["z-index", "src/components/x/leaf.tsx", `<div className="z-[60]" />`],
         ["z-index", "src/components/x/leaf.tsx", `const s = { zIndex: 4 };`],
+        ["z-index", "src/components/x/leaf.tsx", `<div className="!z-50" />`],
+        [
+            "fixed",
+            "src/components/x/leaf.tsx",
+            `<div className="fixed inset-0" />`,
+        ],
+        [
+            "portal",
+            "src/components/x/leaf.tsx",
+            `createPortal(x, document.body)`,
+        ],
         [
             "scroll",
             "src/components/x/leaf.tsx",
@@ -614,6 +625,10 @@ describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue 
             hasNoWalkOwedLine("x\ncheck:ui: no walk owed (leaf copy)\n")
         ).toBe(true);
         expect(hasNoWalkOwedLine("check:ui: no walk owed ()")).toBe(false);
+        expect(hasNoWalkOwedLine("check:ui: no walk owed (<reason>)")).toBe(
+            false
+        );
+        expect(hasNoWalkOwedLine("check:ui: no walk owed (x\ny)")).toBe(false);
         expect(hasNoWalkOwedLine("check:ui: no walk owed")).toBe(false);
         expect(hasNoWalkOwedLine("see check:ui: no walk owed (x) here")).toBe(
             false
