@@ -58,6 +58,7 @@ import DeckStatsButton from "./deck-stats-button";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import {
     recordGroupingChange,
+    viewAfterGroupingChange,
     recordOrderingChange,
     seededColumnView,
 } from "./deckZoneColumnView";
@@ -454,11 +455,11 @@ export default function PoolDeckBuilderForm({
 
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("maindeck", grouping);
-        setMainView((v) => ({ ...v, grouping }));
+        setMainView((v) => viewAfterGroupingChange(v, grouping));
     }, []);
     const handleSideGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("sideboard", grouping);
-        setSideView((v) => ({ ...v, grouping }));
+        setSideView((v) => viewAfterGroupingChange(v, grouping));
     }, []);
     const handleMainOrderingChange = useCallback((ordering: OrderingKind) => {
         recordOrderingChange("maindeck", ordering);

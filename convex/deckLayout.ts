@@ -325,6 +325,25 @@ export function setGrouping(
     return { ...layout, grouping };
 }
 
+/** The Ordering that follows a Grouping change (issue #5402): grouped by Mana
+ *  Value reads best ordered by Colour and vice versa, so the two axes stay
+ *  complementary. Other Groupings have no coupling — `null` leaves the Ordering
+ *  as it is. A hand-picked Ordering is therefore kept until the Grouping next
+ *  changes to one of the coupled kinds. */
+export function orderingFollowingGrouping(
+    grouping: GroupingKind
+): OrderingKind | null {
+    switch (grouping) {
+        case "mv":
+            return "color";
+        case "color":
+            return "mv";
+        case "type":
+        case "none":
+            return null;
+    }
+}
+
 export function setOrdering(
     layout: ColumnLayout,
     ordering: OrderingKind

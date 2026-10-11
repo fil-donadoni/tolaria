@@ -38,6 +38,7 @@ import DeckBuilderShell from "~/components/deckbuilder/deck-builder-shell";
 import type { DeckBuilderViewSpec } from "~/components/deckbuilder/deckBuilderVariant";
 import {
     recordGroupingChange,
+    viewAfterGroupingChange,
     recordOrderingChange,
     seededColumnView,
 } from "~/components/deckbuilder/deckZoneColumnView";
@@ -323,11 +324,11 @@ export default function DeckBuilder({
     // the persisted half, which these never write.
     const handleMainGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("maindeck", grouping);
-        setMainView((v) => ({ ...v, grouping }));
+        setMainView((v) => viewAfterGroupingChange(v, grouping));
     }, []);
     const handleSideGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange("sideboard", grouping);
-        setSideView((v) => ({ ...v, grouping }));
+        setSideView((v) => viewAfterGroupingChange(v, grouping));
     }, []);
     const handleMainOrderingChange = useCallback((ordering: OrderingKind) => {
         recordOrderingChange("maindeck", ordering);

@@ -14,7 +14,12 @@
 // Grouping/Ordering pair feeding a `useMemo`'d Layout rebuilt from the live
 // Pool Arrangement). Mixing that concern in here would force one shape onto
 // both.
-import type { DeckZone, GroupingKind, OrderingKind } from "@convex/deckLayout";
+import {
+    orderingFollowingGrouping,
+    type DeckZone,
+    type GroupingKind,
+    type OrderingKind,
+} from "@convex/deckLayout";
 import {
     loadGrouping,
     loadOrdering,
@@ -63,14 +68,37 @@ export function seededColumnView(zone: ColumnViewZone): {
     return { grouping: loadGrouping(pz), ordering: loadOrdering(pz) };
 }
 
-/** Persists a Grouping change for `zone`. Callers still apply the change to
- *  their own Layout state separately (see module doc) — this only writes the
- *  per-user preference (issue #1620), it is not the whole state update. */
+/** A Zone's Grouping/Ordering pair — what the builders keep as view state. */
+export interface ColumnView {
+    grouping: GroupingKind;
+    ordering: OrderingKind;
+}
+
+/** The view after `grouping` is chosen: the Ordering follows the Grouping
+ *  (issue #5402, `orderingFollowingGrouping`), or stays as the user left it
+ *  for Groupings with no coupling. Pure. */
+export function viewAfterGroupingChange<V extends ColumnView>(
+    view: V,
+    grouping: GroupingKind
+): V {
+    return {
+        ...view,
+        grouping,
+        ordering: orderingFollowingGrouping(grouping) ?? view.ordering,
+    };
+}
+
+/** Persists a Grouping change for `zone`, and the Ordering that follows it.
+ *  Callers apply the same change to their own Layout state with
+ *  {@link viewAfterGroupingChange} — this only writes the per-user preference
+ *  (issue #1620), it is not the whole state update. */
 export function recordGroupingChange(
     zone: ColumnViewZone,
     grouping: GroupingKind
 ): void {
     saveGrouping(prefsZone(zone), grouping);
+    const ordering = orderingFollowingGrouping(grouping);
+    if (ordering) saveOrdering(prefsZone(zone), ordering);
 }
 
 /** Persists an Ordering change for `zone` — see {@link recordGroupingChange}. */
