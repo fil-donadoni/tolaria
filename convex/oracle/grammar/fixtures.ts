@@ -471,6 +471,87 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "player", count: 1 },
         },
     },
+    // CR 701.9b — "Draw three cards, then discard two cards": the CONTROLLER
+    // picks (`choice` kind `choose-hand-card`), then a `discard` Op consumes
+    // the picks binding. Exhibits the controller-side "discard consumes a
+    // choice binding" form the canned smoke scenario cannot answer (Mind Rot's
+    // fixture covers the announced-player side), so this fixture is the
+    // evidence the controller-side pair is emitted as `choose-hand-card` +
+    // `discard` ref, with the kicked branch reusing the Mind Rot shape.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "f8d227b6-1627-4ea1-b815-887094497abf",
+            name: "Probe",
+            manaCost: "{2}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nDraw three cards, then discard two cards. If this spell was kicked, target player discards two cards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Probe",
+            types: ["Sorcery"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Kicker {1}{B} (You may pay an additional {1}{B} as you cast this spell.)\nDraw three cards, then discard two cards. If this spell was kicked, target player discards two cards.",
+            kickers: [
+                {
+                    id: "kicker",
+                    description: "Kicker {1}{B}",
+                    mana: { X: 1, B: 1 },
+                },
+            ],
+            effects: [
+                { op: "draw", player: "controller", count: 3 },
+                {
+                    op: "choice",
+                    kind: "choose-hand-card",
+                    player: "controller",
+                    zone: "hand",
+                    count: 2,
+                    prompt: "Discard two cards.",
+                    bind: "$discard1",
+                },
+                {
+                    op: "discard",
+                    player: "controller",
+                    cards: { ref: "$discard1" },
+                },
+                {
+                    op: "if",
+                    predicate: {
+                        left: { kickerCount: true },
+                        op: "ge",
+                        right: 1,
+                    },
+                    then: [
+                        {
+                            op: "choice",
+                            kind: "discard-hand",
+                            player: { target: 0 },
+                            zone: "hand",
+                            count: 2,
+                            prompt: "Discard two cards.",
+                            bind: "$discard2",
+                        },
+                        {
+                            op: "discard",
+                            player: { target: 0 },
+                            cards: { ref: "$discard2" },
+                        },
+                    ],
+                },
+            ],
+            additionalTargetRequirements: [
+                {
+                    type: "player",
+                    count: 1,
+                    announcedOnlyIfKicked: true,
+                },
+            ],
+        },
+    },
     // CR 701.21a + CR 101.4 — "Each player sacrifices a creature of their
     // choice": every player picks in APNAP order inside a simultaneous
     // `forEach`, then the picks are sacrificed together. Exhibits the two
