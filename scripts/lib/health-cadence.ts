@@ -5,9 +5,9 @@
  * `land` pays the LANE gate and nothing else. The FULL gate — `health-main.ts`
  * — used to run once per release (ADR 0116), which left a red base tip
  * standing for the 1–2 days observed between releases while every new worktree
- * branched from it. It now runs per BATCH of landings: after the 10th landing
- * since the last GREEN, or 4 h after the first un-healthed one, whichever
- * comes first.
+ * branched from it. It now runs per BATCH of landings: after the 20th landing
+ * since the last GREEN, or 8 h after the first un-healthed one, whichever
+ * comes first (`LANDINGS_PER_BATCH` / `MAX_BATCH_AGE_MS`).
  *
  * This module owns the decision; `scripts/health-cadence.ts` owns the side
  * effects (the ledger file, the fetch, the detached gate). The scenarios the
@@ -68,7 +68,7 @@ export interface CadenceState {
     /** When that fire happened. The dedup EXPIRES: a run that never wrote a
      *  verdict — a reboot, a `gate:who` reclaim, a machine asleep — would
      *  otherwise wedge that tip's batch for ever, which is precisely the
-     *  exposure §6 bounds at "≤ 10 landings or 4 h". */
+     *  exposure §6 bounds at "≤ 20 landings or 8 h". */
     lastFiredAt: number | null;
     /**
      * The `detach` process that fired and has not yet reconciled — QUEUED on
@@ -98,10 +98,19 @@ export const EMPTY_CADENCE: CadenceState = {
     lastDecision: null,
 };
 
+/**
+ * The two thresholds (ADR 0154, issue #5458), derived from the 10 landings/h
+ * target over two machines: 20 landings is one full suite per ~2 h at that
+ * rate, and 8 h bounds a slow day's exposure at one working session. The old
+ * 10 / 4 h fired mostly by AGE, for batches of 1–4 landings, and held the
+ * mutex 1–4 h a day (14 days to 2026-10-11, `detach.log`) — health is a
+ * proof of the tree per batch, not per landing, and `land`'s lane already
+ * pays what each PR can break.
+ */
 /** Landings since the last GREEN after which the batch gate fires. */
-export const LANDINGS_PER_BATCH = 10;
+export const LANDINGS_PER_BATCH = 20;
 /** Age of the FIRST un-healthed landing after which it fires regardless. */
-export const MAX_BATCH_AGE_MS = 4 * 60 * 60 * 1000;
+export const MAX_BATCH_AGE_MS = 8 * 60 * 60 * 1000;
 /** How long a fire suppresses another on the same tip. The same 90 minutes
  *  `health-main.ts` gives its own `running` record, and for the same reason:
  *  past it, a run that left no verdict is assumed gone rather than slow. */

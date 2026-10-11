@@ -66,20 +66,13 @@
  * a step is long — and the per-sha log still receives the full child output.
  * `lib/health-step.ts` owns that.
  *
- * A batch whose diff touched the Bot's globs (`lib/bot-globs.ts`) also
- * re-measures the Bot Findings page (`lib/health-bot-refresh.ts`, ADR 0141 § 5,
- * issue #4181) AFTER the gates pass: `bot:reach`, then `seed:bot-findings`.
- * The blade robustness audit (issue #4875) is NOT a gate of this run (issue
- * #5079): a batch that owes it (`lib/health-robustness-trigger.ts`, issue
- * #5078) leaves a request beside `last.json` (`lib/health-robustness-audit.ts`)
- * and `health-cadence` runs it after the verdict, off the critical path. Its
- * only `wrong` — an entry failing its own seeds — is what `test:blade` already
- * reds in this run. Declared residual: only `health-cadence` starts it, so a
- * `release` or by-hand run leaves its request unclaimed (per-tip file, never
- * overwritten) and that batch's audit waits for a later cadence fire to be
- * re-requested by a triggering batch.
- * The two refresh steps NEVER fail the batch — a stale page is marked stale, not a
- * red tip — and neither `land` nor `check:pr` runs them.
+ * The Bot Findings refresh (`bot:reach`, `seed:bot-findings`, `gaps:sync`)
+ * and the blade robustness / held-out pick agreement audits are NOT part of
+ * this run (issue #5458): they keep a view of the Bot fresh and prove nothing
+ * about the tree, so `bun run health:nightly` (`scripts/health-nightly.ts`, a
+ * cron entry point) runs the refresh nightly and the audits weekly. Nor is
+ * `check:convex-heap`, a capacity report run by hand (`bun run maintenance`).
+ * The offline phase is `worktree:init`, `check:all`, the cheap guards, `test`.
  *
  * The MACHINE is asked before the gates start (issue #4966,
  * `lib/machine-admission.ts`): over a `machine.*` threshold the run waits,
@@ -91,38 +84,21 @@
  * Zero imports beyond node builtins, `lib/branches.ts`, `lib/health-step.ts`,
  * `lib/health-verdict.ts`, `lib/convex-reachable.ts`,
  * `lib/machine-admission.ts` (builtins and `lib/branches.ts`),
- * `lib/health-robustness-audit.ts` (builtins, `lib/health-robustness-drift.ts`
- * and `lib/health-robustness-trigger.ts`, so `lib/gh.ts` too),
- * `lib/health-robustness-trigger.ts` (builtins, `lib/bot-globs.ts`,
- * `lib/import-graph.ts`, `lib/blade-registry-entries.ts`) and
- * `lib/health-bot-refresh.ts` (builtins and the import-free
- * `lib/bot-globs.ts` only), and through `lib/health-verdict.ts` the
+ * `lib/health-robustness-audit.ts` and `lib/health-pick-agreement-audit.ts`
+ * (their records, for `--status`), and through `lib/health-verdict.ts` the
  * `ui-gate/infra-verdict.ts` (builtins and `lib/convex-reachable.ts`) — same constraint as
  * bootstrap-worktree.
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import {
-    batchTouchesBot,
-    botRefreshSteps,
-    FILING_STEP_NAME,
-    REFRESHED_ARTIFACT_NAME,
-} from "./lib/health-bot-refresh";
-import {
     describePickRecord,
     readPickRecord,
-    writePickRequest,
 } from "./lib/health-pick-agreement-audit";
 import {
     describeAuditRecord,
     readAuditRecord,
-    writeAuditRequest,
 } from "./lib/health-robustness-audit";
-import {
-    describeRobustnessMode,
-    robustnessModeFromGit,
-    robustnessOwed,
-} from "./lib/health-robustness-trigger";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -172,7 +148,6 @@ import {
     parseCadence,
 } from "./lib/health-cadence";
 import {
-    copyFileSync,
     existsSync,
     mkdirSync,
     readFileSync,
@@ -201,10 +176,6 @@ interface LastRun {
     /** Which walk this run owed (issues #5076, #5378): `describeWalkPlan`'s
      *  text, for `health:status`. */
     walk?: string;
-    /** Which blade robustness audit this run owed (issue #5078):
-     *  `describeRobustnessMode`'s text — mode and the first triggering path —
-     *  for `health:status`. */
-    robustness?: string;
     /** `running`, `phase: "walk"` only: the plan the walk phase executes. */
     walkPlan?: WalkPlan;
     /** `running` only: `walk` once the offline gates passed and the walk is
@@ -254,33 +225,6 @@ function readLast(dir: string): LastRun | null {
 
 function writeLast(dir: string, run: LastRun): void {
     writeFileSync(join(dir, "last.json"), JSON.stringify(run, null, 2));
-}
-
-/** The last GREEN tip, or `null` when none is recorded or readable. */
-function readGreenSha(root: string): string | null {
-    try {
-        const green = readFileSync(
-            join(root, ".claude/telemetry/green-sha"),
-            "utf8"
-        ).trim();
-        return green === "" ? null : green;
-    } catch {
-        return null;
-    }
-}
-
-/** Repo-relative paths that changed between the last GREEN tip and `tip` —
- *  the batch's diff. `null` when it cannot be taken: no green tip recorded, or
- *  it is no longer an ancestor-reachable object here. */
-function batchChangedFiles(root: string, tip: string): string[] | null {
-    const green = readGreenSha(root);
-    if (green === null) return null;
-    const r = spawnSync("git", ["diff", "--name-only", `${green}..${tip}`], {
-        encoding: "utf8",
-        cwd: root,
-    });
-    if (r.status !== 0) return null;
-    return r.stdout.split("\n").filter((line) => line !== "");
 }
 
 /** Worktrees whose checked-out branch is already merged into origin/main —
@@ -336,7 +280,7 @@ function status(root: string): never {
     // cut short says so instead of hiding inside the run's single status.
     if (last)
         console.log(
-            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"}${last.walk ? `\n  walk: ${last.walk}` : ""}${last.robustness ? `\n  blade: ${last.robustness}` : ""}`
+            `  offline: ${last.offline ?? "unrecorded"} · ui: ${last.ui ?? "unrecorded"}${last.walk ? `\n  walk: ${last.walk}` : ""}`
         );
     const audit = readAuditRecord(dir);
     if (audit)
@@ -396,17 +340,11 @@ interface RunCtx {
     previous: LastRun | null;
     /** The walk this run owes, once planned (issues #5076, #5378). */
     walkPlan?: WalkPlan;
-    /** The blade audit this run owed, as `describeRobustnessMode` words it
-     *  (issue #5078); carried into the walk phase from the offline record. */
-    robustness?: string;
 }
 
-/** The record fields that say which walk and which blade audit the run owed. */
-function walkFields(ctx: RunCtx): Pick<LastRun, "walk" | "robustness"> {
-    return {
-        ...(ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {}),
-        ...(ctx.robustness ? { robustness: ctx.robustness } : {}),
-    };
+/** The record field that says which walk the run owed. */
+function walkFields(ctx: RunCtx): Pick<LastRun, "walk"> {
+    return ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {};
 }
 
 function finishInfra(
@@ -639,7 +577,6 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             // its phases: an infra walk must keep a standing red record.
             previous: last.prior ?? null,
             walkPlan: plan,
-            robustness: last.robustness,
         },
         splitHealthGates(HEALTH_SCRIPTS).walk
     );
@@ -752,30 +689,6 @@ async function main(): Promise<void> {
     // is never inside it (issue #4962).
     const env = healthGateEnv(process.env, { keepHold: underLock });
 
-    const batch = batchChangedFiles(root, tip);
-    const greenBase = readGreenSha(root);
-    const refreshBot = batchTouchesBot(batch);
-    // A batch that can have moved the blade audit also owes it (issue
-    // #4875), after the rest — in full, or cut to the changed registry
-    // entries (issue #5078).
-    const robustness = robustnessModeFromGit({
-        root,
-        green: greenBase,
-        tip,
-        changed: batch,
-    });
-    console.log(`health-main: ${describeRobustnessMode(robustness)}`);
-    ctx.robustness = describeRobustnessMode(robustness);
-    // The audit is asked for here and run after the verdict (issue #5079).
-    writeAuditRequest(dir, tip, robustness, robustnessOwed(robustness));
-    // Held-out pick agreement (issue #3982) is owed by the same batches — a
-    // Bot hash input moved — and is likewise measured after the verdict.
-    writePickRequest(
-        dir,
-        tip,
-        describeRobustnessMode(robustness),
-        robustnessOwed(robustness)
-    );
     const scripts = HEALTH_SCRIPTS;
     const gates = scripts;
     const { offline, walk } = splitHealthGates(gates);
@@ -826,13 +739,6 @@ async function main(): Promise<void> {
         args: healthStepArgs(name),
     }));
 
-    const refreshSteps = refreshBot ? botRefreshSteps(steps.length, root) : [];
-    if (refreshBot) {
-        // The gates' own "[n/total]" lines must already count the refresh.
-        for (const step of steps)
-            step.total = steps.length + refreshSteps.length;
-    }
-
     let failedStep: string | undefined;
     let failedCause: InfraCause | null = null;
     try {
@@ -873,63 +779,6 @@ async function main(): Promise<void> {
             console.log(
                 `health-main: walk plan — ${describeWalkPlan(ctx.walkPlan)}`
             );
-        }
-        // Only a batch that passed re-measures, and a refresh that fails or
-        // is cut short leaves the page stale (marked so) instead of the tip
-        // red: the measurement is a view of the Bot, not a gate on it. It
-        // stays in this phase: `bot:reach` takes the heavy mutex.
-        if (failedStep === undefined) {
-            try {
-                let refreshed = refreshSteps.length > 0;
-                for (const step of refreshSteps) {
-                    // Filing commits and pushes the allowlist from the primary
-                    // checkout and reads ITS tree: only when that tree is the
-                    // measured tip (issue #4944). Otherwise the next batch files.
-                    if (
-                        step.name === FILING_STEP_NAME &&
-                        spawnSync("git", ["rev-parse", "HEAD"], {
-                            cwd: root,
-                            encoding: "utf8",
-                        }).stdout.trim() !== tip
-                    ) {
-                        console.error(
-                            `health-main: ${step.name} skipped — the primary checkout is not at the measured tip ${tip.slice(0, 12)}; Bot Gaps file next batch`
-                        );
-                        break;
-                    }
-                    const r = await runHealthStep(step, {
-                        cwd: step.cwd ?? wt,
-                        env,
-                        logPath,
-                    });
-                    if (!r.ok && step.name === FILING_STEP_NAME) {
-                        // Filing is the refresh's last act and no part of the
-                        // measurement: the page is fresh, the gaps file next run.
-                        console.error(
-                            `health-main: ${step.name} failed — Bot Gaps not filed this batch (${logPath})`
-                        );
-                        break;
-                    }
-                    if (!r.ok) {
-                        refreshed = false;
-                        console.error(
-                            `health-main: ${step.name} failed — Bot Findings stay stale (${logPath})`
-                        );
-                        break;
-                    }
-                }
-                // Kept beside `last.json`: the worktree is removed below, and
-                // the artifact is what a PR commits (`bun run bot:reach`).
-                const artifact = join(wt, "data/bot-reach-findings.json");
-                if (refreshed && existsSync(artifact))
-                    copyFileSync(artifact, join(dir, REFRESHED_ARTIFACT_NAME));
-            } catch (err) {
-                // A throw here (spawn error, full disk) must not skip the
-                // verdict record below: the gates passed, the tip is green.
-                console.error(
-                    `health-main: Bot Findings refresh threw — page stays stale: ${String(err)}`
-                );
-            }
         }
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
