@@ -62,19 +62,7 @@ const SOURCES = [CUBE, LEA, ICE];
 afterEach(() => localStorage.clear());
 
 describe("defaults (PRD #5383 stories 17-19)", () => {
-    it("opens on Draft · Vintage Cube · 8 seats · Bo3 · pick timer on · Open Decklists off", () => {
-        expect(DEFAULT_LIMITED_SETUP).toMatchObject({
-            type: "draft",
-            packSource: "vintage-cube",
-            seats: 8,
-            gamesFormat: 3,
-            pickTimer: true,
-            roundDeadlineMinutes: null,
-            openDecklists: false,
-        });
-    });
-
-    it("is creatable on arrival and sends the defaults", () => {
+    it("opens on Draft · Vintage Cube · 8 seats · Bo3 · pick timer on · Open Decklists off, creatable on arrival", () => {
         expect(createPayload(DEFAULT_LIMITED_SETUP, SOURCES)).toEqual({
             type: "draft",
             seatCount: 8,
