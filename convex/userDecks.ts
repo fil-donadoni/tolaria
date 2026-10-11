@@ -191,8 +191,10 @@ export const create = mutation({
             // Limited Origin (ADR 0106 §6, issue #5393): copied from the event
             // HERE, server-side, never taken from the client — and never
             // re-read through the event, so deleting it later leaves the
-            // deck classified.
-            limitedOrigin = limitedOriginKey(event);
+            // deck classified. Only a `limited` deck is classified by it.
+            if (args.format === "limited") {
+                limitedOrigin = limitedOriginKey(event);
+            }
         }
 
         const name = args.name.trim() || "Untitled deck";
@@ -396,9 +398,12 @@ export const migrateLimitedOrigins = internalMutation({
                 unchanged++;
                 continue;
             }
-            const event = row.limitedEventId
-                ? await ctx.db.get(row.limitedEventId as Id<"limitedEvents">)
+            // A dangling or malformed id is an unclassified deck, never an
+            // aborted migration.
+            const eventId = row.limitedEventId
+                ? ctx.db.normalizeId("limitedEvents", row.limitedEventId)
                 : null;
+            const event = eventId ? await ctx.db.get(eventId) : null;
             if (!event) {
                 unclassified++;
                 continue;

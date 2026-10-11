@@ -197,6 +197,18 @@ describe("derived deck legality on lobby decks (ADR 0036, issue #512)", () => {
         expect(deck.isLegal).toBe(true);
         expect(deck.reasons).toEqual([]);
     });
+
+    it("a limited user deck carries its Limited Origin through (issue #5393)", () => {
+        const deck = toUserLobbyDeck(
+            userDeck({
+                format: "limited",
+                limitedEventId: "event1",
+                limitedSeatId: "0",
+                limitedOrigin: "draft:cube:vintage",
+            })
+        );
+        expect(deck.limitedOrigin).toBe("draft:cube:vintage");
+    });
 });
 
 describe("Featured Card on lobby decks (PRD #589, issue #593)", () => {

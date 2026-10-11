@@ -59,6 +59,21 @@ describe("Limited Origin on a deck saved from an event (issue #5393)", () => {
         expect(deck.limitedOrigin).toBe("draft:cube:vintage");
     });
 
+    it("is derived from the event, never taken from the caller", async () => {
+        const { ctx, tables } = makeInMemoryDb(
+            {
+                users: [{ _id: ALICE, nickname: "Alice" }],
+                limitedEvents: [cubeDraftEvent("event-1")],
+            },
+            { identitySubject: `${ALICE}|session` }
+        );
+        await run(create, ctx, {
+            ...limitedDeck("event-1"),
+            limitedOrigin: "sealed:lea",
+        });
+        expect(tables.userDecks[0].limitedOrigin).toBe("draft:cube:vintage");
+    });
+
     it("is absent on a deck not saved from an event", async () => {
         const { ctx, tables } = makeInMemoryDb(
             { users: [{ _id: ALICE, nickname: "Alice" }] },
