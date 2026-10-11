@@ -1,5 +1,6 @@
 import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
 import { Banner } from "@/components/ui/banner";
+import { packSourceName } from "~/lib/limitedEventName";
 
 interface IncompletenessNoticeProps {
     /** The currently-selected Pack Source's live Draftability info (from
@@ -23,7 +24,7 @@ export default function IncompletenessNotice({
 
     return (
         <Banner tone="info" title="Incompleteness Notice" role="status">
-            {set.setCode.toUpperCase()} is missing {set.missingCardCount} card
+            {packSourceName(set.setCode)} is missing {set.missingCardCount} card
             {set.missingCardCount === 1 ? "" : "s"} with no implemented
             definition yet. They are dropped from the print run and every
             Booster Sheet's weights are renormalized, so no booster ever shows a

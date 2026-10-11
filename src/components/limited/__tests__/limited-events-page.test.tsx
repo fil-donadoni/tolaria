@@ -23,7 +23,7 @@ vi.mock("~/hooks/useCurrentUser", () => ({
 
 const openEventsMock = vi.fn();
 const myEventsMock = vi.fn();
-const draftableSetsMock = vi.fn();
+const packSourcesMock = vi.fn();
 
 // `useJoinLimitedEvent` is deliberately left as the REAL implementation
 // (`importOriginal`, issue #2648) rather than stubbed: it is plain React
@@ -38,7 +38,7 @@ vi.mock("~/hooks/useLimitedEvent", async (importOriginal) => {
         ...actual,
         useOpenLimitedEvents: () => openEventsMock(),
         useMyLimitedEvents: () => myEventsMock(),
-        useDraftableSets: () => draftableSetsMock(),
+        usePackSources: () => packSourcesMock(),
         useLimitedEventMutations: () => ({
             create: vi.fn(),
             join: vi.fn(),
@@ -49,7 +49,7 @@ vi.mock("~/hooks/useLimitedEvent", async (importOriginal) => {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    draftableSetsMock.mockReturnValue([]);
+    packSourcesMock.mockReturnValue([]);
 });
 
 afterEach(() => {

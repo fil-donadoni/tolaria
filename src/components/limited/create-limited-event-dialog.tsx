@@ -2,7 +2,7 @@ import { useState } from "react";
 import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import { Input } from "~/components/ui/input";
-import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
+import type { PackSourceInfo } from "~/hooks/useLimitedEvent";
 import {
     DEFAULT_SEALED_BOOSTER_COUNT,
     DRAFT_BOOSTER_COUNT,
@@ -21,23 +21,22 @@ import {
 import IncompletenessNotice from "./incompleteness-notice";
 import CubeAvailabilityNote from "./cube-availability-note";
 
-/** Human-facing Pack Source label — the Vintage Cube pool source (ADR 0062)
- *  shows a proper name, every real set shows its uppercased code. */
-function packSourceLabel(set: DraftableSetInfo): string {
-    return set.isCube ? "Vintage Cube" : set.setCode.toUpperCase();
-}
-
 /** Whether a Pack Source can be chosen for the given event type. The Vintage
  *  Cube is a DRAFT-only pool source (ADR 0062: the singleton pool-as-source
  *  path is wired into the draft engine, not the Sealed pool generator); every
- *  real Draftable Set works for both. */
+ *  source of real Draftable Sets works for both. */
 function isSourceSelectable(
-    set: DraftableSetInfo,
+    source: PackSourceInfo,
     type: LimitedEventType
 ): boolean {
-    if (!set.draftable) return false;
-    if (set.isCube) return type === "draft";
-    return true;
+    if (!source.draftable) return false;
+    return type === "draft" || !source.draftOnly;
+}
+
+/** Cards a non-Draftable source still lacks, summed over its sets — the
+ *  reason shown beside a disabled entry. */
+function missingCardCount(source: PackSourceInfo): number {
+    return source.sets.reduce((sum, set) => sum + set.missingCardCount, 0);
 }
 
 /** Keeps the typed round deadline inside the bounds `createLimitedEvent`
@@ -55,7 +54,9 @@ function clampRoundDeadline(value: number): number {
 export interface CreateLimitedEventPayload {
     type: LimitedEventType;
     seatCount: number;
-    packSlots: string[];
+    /** Pack Source catalogue key (issue #5385); the server resolves it into
+     *  the per-pack sets the event stores. */
+    packSource: string;
     sealedBoosterCount: number;
     /** Per-pick timer on/off (issue #1114, PRD #1107 story 5; ADR 0060 /
      *  issue #1243: a clear On/Off control, no seconds field — when on, each
@@ -77,10 +78,10 @@ export interface CreateLimitedEventPayload {
 interface CreateLimitedEventDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    /** Every checked-in Booster Config's live Draftability (PRD #1107 story
-     *  4) — a non-Draftable set is shown but disabled, with its missing-card
-     *  count as the reason. */
-    draftableSets: DraftableSetInfo[];
+    /** The Pack Source catalogue in display order, Vintage Cube first (issue
+     *  #5385) — a non-Draftable source is shown but disabled, with its
+     *  missing-card count as the reason. */
+    packSources: PackSourceInfo[];
     onCreate: (payload: CreateLimitedEventPayload) => void;
     /** Create mutation in-flight — disables every control (project rule:
      *  mutation buttons disable while pending). */
@@ -88,8 +89,8 @@ interface CreateLimitedEventDialogProps {
     error?: string | null;
 }
 
-/** Admin-only "Create Event" form (PRD #1107 stories 1-6, ADR 0054/0055):
- *  event type (Sealed/Draft), 2-8 Seats, a Pack Source (Draftable Set), and —
+/** "Create Event" form (PRD #1107 stories 1-6, ADR 0054/0055): event type
+ *  (Sealed/Draft), 2-8 Seats, a Pack Source by name (issue #5385), and —
  *  for Sealed only — an editable booster count (default 6, story 8). Draft's
  *  booster count is fixed at `DRAFT_BOOSTER_COUNT` (3, PRD #1241 story 7 /
  *  issue #1246) and never shown as an editable field — a classic Draft is
@@ -97,19 +98,25 @@ interface CreateLimitedEventDialogProps {
 export default function CreateLimitedEventDialog({
     open,
     onOpenChange,
-    draftableSets,
+    packSources,
     onCreate,
     pending = false,
     error,
 }: CreateLimitedEventDialogProps) {
-    const [type, setType] = useState<LimitedEventType>("sealed");
+    // Opens on Draft · first selectable source (Vintage Cube) · pick timer
+    // on (PRD #5383 stories 17-19).
+    const [type, setType] = useState<LimitedEventType>("draft");
     const [seatCount, setSeatCount] = useState(8);
-    const firstDraftable = draftableSets.find((s) => s.draftable)?.setCode;
-    const [setCode, setSetCode] = useState<string | undefined>(firstDraftable);
+    const firstSelectable = packSources.find((s) =>
+        isSourceSelectable(s, "draft")
+    )?.key;
+    const [sourceKey, setSourceKey] = useState<string | undefined>(
+        firstSelectable
+    );
     const [sealedBoosterCount, setSealedBoosterCount] = useState(
         DEFAULT_SEALED_BOOSTER_COUNT
     );
-    const [timerEnabled, setTimerEnabled] = useState(false);
+    const [timerEnabled, setTimerEnabled] = useState(true);
     // Games Format + round deadline (PRD #1628 stories 1-4). Bo3 is the
     // default (story 2); the deadline is OFF by default (story 4), held as an
     // enabled flag + a value so toggling it off doesn't lose what was typed.
@@ -120,29 +127,28 @@ export default function CreateLimitedEventDialog({
         DEFAULT_ROUND_DEADLINE_MINUTES
     );
 
-    const resolvedSetCode = setCode ?? firstDraftable;
-    const selectedSetInfo = draftableSets.find(
-        (s) => s.setCode === resolvedSetCode
-    );
+    const resolvedSourceKey = sourceKey ?? firstSelectable;
+    const selectedSource = packSources.find((s) => s.key === resolvedSourceKey);
     // The selected source must be usable for the current event type — the
     // Vintage Cube (ADR 0062) is Draft-only, so a cube selection carried over
     // into Sealed blocks submit rather than reaching the Sealed pool generator.
     const selectionUsable =
-        selectedSetInfo !== undefined &&
-        isSourceSelectable(selectedSetInfo, type);
+        selectedSource !== undefined &&
+        isSourceSelectable(selectedSource, type);
     // Vintage Cube singleton capacity cap (ADR 0062 rev): a cube deals one copy
     // of each card, so the table can be no larger than the implemented pool
     // fills singleton over the 3 boosters. Cap the seat control to match the
     // server guard (`createLimitedEvent`) so an oversized table can't even be
     // submitted. Non-cube sources keep the full 2–8 range.
-    const isCubeDraft = selectedSetInfo?.isCube === true && type === "draft";
+    const cubeSet = selectedSource?.sets.find((s) => s.isCube === true);
+    const isCubeDraft = cubeSet !== undefined && type === "draft";
     const seatMax = isCubeDraft
         ? Math.max(
               MIN_SEATS,
               Math.min(
                   MAX_SEATS,
                   maxCubeSeats(
-                      selectedSetInfo?.availableCardCount ?? 0,
+                      cubeSet.availableCardCount ?? 0,
                       CUBE_PACK_SIZE,
                       DRAFT_BOOSTER_COUNT
                   )
@@ -153,25 +159,11 @@ export default function CreateLimitedEventDialog({
     const canSubmit = !pending && selectionUsable;
 
     const handleSubmit = () => {
-        if (!canSubmit || !resolvedSetCode) return;
-        // Draft is a fixed 3-booster classic draft (PRD #1241 story 7, issue
-        // #1246) — packSlots is DRAFT_BOOSTER_COUNT copies of the chosen set,
-        // not a single element. `draftEngine.ts`'s `applyPick` completes the
-        // draft exactly when `packSlots.length` rounds have emptied, so a
-        // single-element list (the pre-fix bug) ended the draft after one
-        // booster. Sealed keeps its single-entry `packSlots`, cycled
-        // `sealedBoosterCount` times by `generateSealedPools`.
-        const packSlots =
-            type === "draft"
-                ? Array.from(
-                      { length: DRAFT_BOOSTER_COUNT },
-                      () => resolvedSetCode
-                  )
-                : [resolvedSetCode];
+        if (!canSubmit || !resolvedSourceKey) return;
         onCreate({
             type,
             seatCount: effectiveSeatCount,
-            packSlots,
+            packSource: resolvedSourceKey,
             sealedBoosterCount,
             timerEnabled: type === "draft" && timerEnabled,
             gamesFormat,
@@ -186,7 +178,7 @@ export default function CreateLimitedEventDialog({
             open={open}
             onOpenChange={onOpenChange}
             title="Create Limited Event"
-            subtitle="Set up a Sealed or Draft pod from a Draftable Set."
+            subtitle="Set up a Sealed or Draft pod from a Pack Source."
             footer={
                 <>
                     <ActionButton
@@ -275,16 +267,20 @@ export default function CreateLimitedEventDialog({
                         Pack Source
                     </span>
                     <div className="flex flex-col gap-1">
-                        {draftableSets.length === 0 && (
+                        {packSources.length === 0 && (
                             <p className="text-xs text-text-muted">
-                                No Draftable Sets available yet.
+                                No Pack Sources available yet.
                             </p>
                         )}
-                        {draftableSets.map((set) => {
-                            const selectable = isSourceSelectable(set, type);
+                        {packSources.map((source) => {
+                            const selectable = isSourceSelectable(source, type);
+                            const sourceCube = source.sets.find(
+                                (s) => s.isCube === true
+                            );
+                            const missing = missingCardCount(source);
                             return (
                                 <label
-                                    key={set.setCode}
+                                    key={source.key}
                                     className={
                                         "flex items-center justify-between rounded-sm border px-2 py-1.5 " +
                                         (selectable
@@ -298,24 +294,25 @@ export default function CreateLimitedEventDialog({
                                             name="limited-pack-source"
                                             disabled={!selectable || pending}
                                             checked={
-                                                resolvedSetCode === set.setCode
+                                                resolvedSourceKey === source.key
                                             }
                                             onChange={() =>
-                                                setSetCode(set.setCode)
+                                                setSourceKey(source.key)
                                             }
                                         />
-                                        <span
-                                            className={
-                                                set.isCube ? "" : "uppercase"
-                                            }
-                                        >
-                                            {packSourceLabel(set)}
+                                        <span className="flex flex-col">
+                                            <span>{source.name}</span>
+                                            <span className="text-xs text-text-muted">
+                                                {source.description}
+                                            </span>
                                         </span>
                                     </span>
-                                    {set.isCube ? (
-                                        <span className="text-xs text-text-muted">
-                                            {set.availableCardCount ?? 0} card
-                                            {(set.availableCardCount ?? 0) === 1
+                                    {sourceCube ? (
+                                        <span className="shrink-0 text-xs text-text-muted">
+                                            {sourceCube.availableCardCount ?? 0}{" "}
+                                            card
+                                            {(sourceCube.availableCardCount ??
+                                                0) === 1
                                                 ? ""
                                                 : "s"}{" "}
                                             {type === "draft"
@@ -323,12 +320,10 @@ export default function CreateLimitedEventDialog({
                                                 : "· Draft only"}
                                         </span>
                                     ) : (
-                                        !set.draftable && (
-                                            <span className="text-xs text-text-muted">
-                                                {set.missingCardCount} card
-                                                {set.missingCardCount === 1
-                                                    ? ""
-                                                    : "s"}{" "}
+                                        !source.draftable && (
+                                            <span className="shrink-0 text-xs text-text-muted">
+                                                {missing} card
+                                                {missing === 1 ? "" : "s"}{" "}
                                                 missing
                                             </span>
                                         )
@@ -337,8 +332,10 @@ export default function CreateLimitedEventDialog({
                             );
                         })}
                     </div>
-                    <IncompletenessNotice set={selectedSetInfo} />
-                    <CubeAvailabilityNote set={selectedSetInfo} />
+                    {selectedSource?.sets.map((set) => (
+                        <IncompletenessNotice key={set.setCode} set={set} />
+                    ))}
+                    <CubeAvailabilityNote set={cubeSet} />
                 </div>
 
                 {type === "sealed" && (

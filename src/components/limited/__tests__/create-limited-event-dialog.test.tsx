@@ -6,17 +6,37 @@
 // (not a hand-built view), per the project's frontend wiring discipline.
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
+import type { DraftableSetInfo, PackSourceInfo } from "~/hooks/useLimitedEvent";
 import CreateLimitedEventDialog from "../create-limited-event-dialog";
 
-const DRAFTABLE_SETS: DraftableSetInfo[] = [
-    {
-        setCode: "lea",
-        draftable: true,
-        missingCardCount: 0,
-        sheets: [{ sheetName: "common", coverage: 1, passes: true }],
-    },
-];
+const NAMES: Record<string, string> = {
+    lea: "Limited Edition Alpha",
+    ice: "Ice Age",
+    "vintage-cube": "Vintage Cube",
+};
+
+/** A single-set Pack Source over `set`, in the exact shape
+ *  `listLimitedPackSources` sends over the wire. */
+function packSource(set: DraftableSetInfo): PackSourceInfo {
+    return {
+        key: set.setCode,
+        name: NAMES[set.setCode] ?? set.setCode,
+        description: `About ${set.setCode}.`,
+        featureCardId: null,
+        draftOnly: set.isCube === true,
+        draftable: set.draftable,
+        sets: [set],
+    };
+}
+
+const LEA: DraftableSetInfo = {
+    setCode: "lea",
+    draftable: true,
+    missingCardCount: 0,
+    sheets: [{ sheetName: "common", coverage: 1, passes: true }],
+};
+
+const PACK_SOURCES: PackSourceInfo[] = [packSource(LEA)];
 
 function renderDialog(
     overrides: Partial<Parameters<typeof CreateLimitedEventDialog>[0]> = {}
@@ -24,7 +44,7 @@ function renderDialog(
     const props = {
         open: true,
         onOpenChange: vi.fn(),
-        draftableSets: DRAFTABLE_SETS,
+        packSources: PACK_SOURCES,
         onCreate: vi.fn(),
         pending: false,
         ...overrides,
@@ -32,17 +52,70 @@ function renderDialog(
     return { props, ...render(<CreateLimitedEventDialog {...props} />) };
 }
 
+describe("CreateLimitedEventDialog — opening defaults (issue #5385)", () => {
+    const CUBE_SET: DraftableSetInfo = {
+        setCode: "vintage-cube",
+        draftable: true,
+        missingCardCount: 0,
+        sheets: [],
+        isCube: true,
+        availableCardCount: 450,
+    };
+
+    it("opens on Draft · first Pack Source (Vintage Cube) · pick timer on", () => {
+        const onCreate = vi.fn();
+        renderDialog({
+            onCreate,
+            packSources: [packSource(CUBE_SET), packSource(LEA)],
+        });
+        expect(
+            screen
+                .getByRole("radio", { name: "Draft" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            (
+                screen.getByRole("radio", {
+                    name: /Vintage Cube/,
+                }) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+        expect(
+            screen
+                .getByRole("radio", { name: "On" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
+
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: "draft",
+                packSource: "vintage-cube",
+                timerEnabled: true,
+            })
+        );
+    });
+
+    it("names each Pack Source in full, never by set code", () => {
+        renderDialog({ packSources: [packSource(CUBE_SET), packSource(LEA)] });
+        expect(
+            screen.getByRole("radio", { name: /Limited Edition Alpha/ })
+        ).toBeTruthy();
+        expect(screen.queryByText(/^LEA$/i)).toBe(null);
+    });
+});
+
 describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () => {
-    it("never shows the Pick Timer control for a Sealed event (default type)", () => {
+    it("never shows the Pick Timer control for a Sealed event", () => {
         renderDialog();
+        fireEvent.click(screen.getByRole("radio", { name: "Sealed" }));
         expect(screen.queryByRole("radiogroup", { name: "Pick Timer" })).toBe(
             null
         );
     });
 
-    it("shows an On/Off Pick Timer control, defaulting to Off, once Draft is selected — no seconds field", () => {
+    it("shows an On/Off Pick Timer control, defaulting to On, for a Draft — no seconds field", () => {
         renderDialog();
-        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
 
         const timerGroup = screen.getByRole("radiogroup", {
             name: "Pick Timer",
@@ -50,8 +123,8 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
         expect(timerGroup).toBeTruthy();
         const off = screen.getByRole("radio", { name: "Off" });
         const on = screen.getByRole("radio", { name: "On" });
-        expect(off.getAttribute("aria-checked")).toBe("true");
-        expect(on.getAttribute("aria-checked")).toBe("false");
+        expect(off.getAttribute("aria-checked")).toBe("false");
+        expect(on.getAttribute("aria-checked")).toBe("true");
 
         // No seconds input anywhere — the control is on/off only.
         expect(screen.queryByText(/seconds per pick/i)).toBe(null);
@@ -78,10 +151,10 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
         );
     });
 
-    it("submits timerEnabled: false when the timer is left Off for a Draft", () => {
+    it("submits timerEnabled: false when the timer is switched Off for a Draft", () => {
         const onCreate = vi.fn();
         renderDialog({ onCreate });
-        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
+        fireEvent.click(screen.getByRole("radio", { name: "Off" }));
 
         fireEvent.click(screen.getByText("Create Event"));
         expect(onCreate).toHaveBeenCalledWith(
@@ -104,35 +177,28 @@ describe("CreateLimitedEventDialog — Pick Timer (ADR 0060, issue #1243)", () =
     });
 });
 
-// Draft 3-booster packSlots + fixed booster count (PRD #1241 story 7, issue
-// #1246): the create path was emitting a single-element `packSlots` for
-// EVERY event type, which made `applyPick` complete a Draft after just one
-// booster (the bug this issue fixes). Drives the SURFACE assertion through
-// the real `onCreate` payload the dialog submits — a hand-built payload
-// would mask the exact bug (a single-element array) this test exists to
-// catch.
-describe("CreateLimitedEventDialog — Draft 3-booster packSlots (issue #1246)", () => {
-    it("submits a 3-element packSlots (three copies of the chosen set) for a Draft", () => {
+// The dialog submits the chosen Pack Source's KEY (issue #5385); the server
+// resolves it into the per-pack sets (`resolvePackSlots`, registry.test.ts).
+// Booster count stays fixed for Draft (PRD #1241 story 7, issue #1246).
+describe("CreateLimitedEventDialog — Pack Source key + booster count", () => {
+    it("submits the chosen Pack Source key for a Draft", () => {
         const onCreate = vi.fn();
         renderDialog({ onCreate });
-        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         fireEvent.click(screen.getByText("Create Event"));
 
         expect(onCreate).toHaveBeenCalledWith(
-            expect.objectContaining({
-                type: "draft",
-                packSlots: ["lea", "lea", "lea"],
-            })
+            expect.objectContaining({ type: "draft", packSource: "lea" })
         );
     });
 
-    it("submits a single-element packSlots for Sealed (unchanged)", () => {
+    it("submits the same key for Sealed", () => {
         const onCreate = vi.fn();
         renderDialog({ onCreate });
+        fireEvent.click(screen.getByRole("radio", { name: "Sealed" }));
         fireEvent.click(screen.getByText("Create Event"));
 
         expect(onCreate).toHaveBeenCalledWith(
-            expect.objectContaining({ type: "sealed", packSlots: ["lea"] })
+            expect.objectContaining({ type: "sealed", packSource: "lea" })
         );
     });
 
@@ -148,40 +214,38 @@ describe("CreateLimitedEventDialog — Draft 3-booster packSlots (issue #1246)",
 
     it("still renders the editable Sealed Boosters per Seat field for Sealed", () => {
         renderDialog();
+        fireEvent.click(screen.getByRole("radio", { name: "Sealed" }));
         expect(screen.getByText(/Sealed Boosters per Seat/)).toBeTruthy();
     });
 
-    it("re-derives packSlots to 3× the newly-picked set when switching the Pack Source while Draft is selected", () => {
+    it("submits the newly-picked key after switching the Pack Source", () => {
         const onCreate = vi.fn();
         renderDialog({
             onCreate,
-            draftableSets: [
-                ...DRAFTABLE_SETS,
-                {
+            packSources: [
+                ...PACK_SOURCES,
+                packSource({
                     setCode: "ice",
                     draftable: true,
                     missingCardCount: 5,
                     sheets: [
                         { sheetName: "common", coverage: 0.9, passes: true },
                     ],
-                },
+                }),
             ],
         });
-        fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
-        fireEvent.click(screen.getByRole("radio", { name: /^ICE$/i }));
+        fireEvent.click(screen.getByRole("radio", { name: /Ice Age/ }));
         fireEvent.click(screen.getByText("Create Event"));
 
         expect(onCreate).toHaveBeenCalledWith(
-            expect.objectContaining({
-                type: "draft",
-                packSlots: ["ice", "ice", "ice"],
-            })
+            expect.objectContaining({ type: "draft", packSource: "ice" })
         );
     });
 });
 
 // Vintage Cube pool source (ADR 0062) driven through the REAL dialog render
 // with the exact `DraftableSetInfo` shape `listDraftableSets` emits for the
+// cube, wrapped in its Pack Source entry —
 // cube (`isCube: true`, `availableCardCount: N`, `missingCardCount: 0`). A
 // cube is Draft-only and shows an availability note, never the Incompleteness
 // "N missing" disable.
@@ -194,10 +258,10 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
         isCube: true,
         availableCardCount: 283,
     };
-    const withCube = [DRAFTABLE_SETS[0], CUBE];
+    const withCube = [packSource(LEA), packSource(CUBE)];
 
     it("lists the cube as 'Vintage Cube' with its available-card count", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         // The radio's accessible name is composed from the label text.
         expect(
             screen.getByRole("radio", { name: /Vintage Cube/ })
@@ -207,7 +271,7 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
     });
 
     it("makes the cube SELECTABLE for Draft (not disabled) and shows 'available'", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         const cubeRadio = screen.getByRole("radio", {
             name: /Vintage Cube/,
@@ -217,8 +281,8 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
     });
 
     it("disables the cube for Sealed (Draft-only pool source)", () => {
-        renderDialog({ draftableSets: withCube });
-        // Default type is Sealed.
+        renderDialog({ packSources: withCube });
+        fireEvent.click(screen.getByRole("radio", { name: "Sealed" }));
         const cubeRadio = screen.getByRole("radio", {
             name: /Vintage Cube/,
         }) as HTMLInputElement;
@@ -227,7 +291,7 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
     });
 
     it("shows the availability note (not the Incompleteness Notice) when the cube is selected", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         fireEvent.click(screen.getByRole("radio", { name: /Vintage Cube/ }));
 
@@ -237,9 +301,9 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
         expect(note.textContent).not.toMatch(/Incompleteness Notice/);
     });
 
-    it("submits a 3-element cube packSlots for a Draft", () => {
+    it("submits the cube key for a Draft", () => {
         const onCreate = vi.fn();
-        renderDialog({ draftableSets: withCube, onCreate });
+        renderDialog({ packSources: withCube, onCreate });
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         fireEvent.click(screen.getByRole("radio", { name: /Vintage Cube/ }));
         fireEvent.click(screen.getByText("Create Event"));
@@ -247,7 +311,7 @@ describe("CreateLimitedEventDialog — Vintage Cube pool source (ADR 0062)", () 
         expect(onCreate).toHaveBeenCalledWith(
             expect.objectContaining({
                 type: "draft",
-                packSlots: ["vintage-cube", "vintage-cube", "vintage-cube"],
+                packSource: "vintage-cube",
             })
         );
     });
@@ -267,7 +331,7 @@ describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", ()
         isCube: true,
         availableCardCount: 283,
     };
-    const withCube = [DRAFTABLE_SETS[0], CUBE];
+    const withCube = [packSource(LEA), packSource(CUBE)];
 
     function selectCubeDraft() {
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
@@ -275,7 +339,7 @@ describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", ()
     }
 
     it("clamps the Seats input max to the singleton capacity (6 at 283 cards)", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         selectCubeDraft();
         const seats = screen.getByRole("spinbutton") as HTMLInputElement;
         expect(seats.getAttribute("max")).toBe("6");
@@ -284,7 +348,7 @@ describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", ()
     });
 
     it("explains the cap under the Seats field while the cube is selected", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         selectCubeDraft();
         expect(
             screen.getByText(
@@ -295,7 +359,7 @@ describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", ()
 
     it("submits the clamped seat count (never an oversized cube table)", () => {
         const onCreate = vi.fn();
-        renderDialog({ draftableSets: withCube, onCreate });
+        renderDialog({ packSources: withCube, onCreate });
         selectCubeDraft();
         fireEvent.click(screen.getByText("Create Event"));
         expect(onCreate).toHaveBeenCalledWith(
@@ -304,7 +368,7 @@ describe("CreateLimitedEventDialog — Vintage Cube seat cap (ADR 0062 rev)", ()
     });
 
     it("keeps the full 2–8 range for a non-cube Draft source", () => {
-        renderDialog({ draftableSets: withCube });
+        renderDialog({ packSources: withCube });
         fireEvent.click(screen.getByRole("radio", { name: "Draft" }));
         // LEA (non-cube) is selected by default — no cap.
         const seats = screen.getByRole("spinbutton") as HTMLInputElement;
@@ -352,35 +416,43 @@ describe("CreateLimitedEventDialog — Incompleteness Notice (ADR 0059, PRD #124
     };
 
     it("shows the Notice, naming the set and its drop count, for the selected below-100% set", () => {
-        renderDialog({ draftableSets: [ICE_LIKE, LEA_COMPLETE] });
+        renderDialog({
+            packSources: [packSource(ICE_LIKE), packSource(LEA_COMPLETE)],
+        });
 
         // ICE_LIKE is first in the list, so it's the default selection.
         const notice = screen.getByRole("status");
         expect(notice.textContent).toMatch(/Incompleteness Notice/);
-        expect(notice.textContent).toMatch(/ICE/);
+        expect(notice.textContent).toMatch(/Ice Age is missing/);
         expect(notice.textContent).toMatch(/42 cards/);
     });
 
     it("shows no Notice once the selected set reaches 100% (missingCardCount 0)", () => {
-        renderDialog({ draftableSets: [LEA_COMPLETE, ICE_LIKE] });
+        renderDialog({
+            packSources: [packSource(LEA_COMPLETE), packSource(ICE_LIKE)],
+        });
 
         // LEA_COMPLETE is first, so it's the default selection — no Notice.
         expect(screen.queryByRole("status")).toBe(null);
     });
 
     it("toggles the Notice on/off as the admin switches the Pack Source selection", () => {
-        renderDialog({ draftableSets: [LEA_COMPLETE, ICE_LIKE] });
+        renderDialog({
+            packSources: [packSource(LEA_COMPLETE), packSource(ICE_LIKE)],
+        });
         expect(screen.queryByRole("status")).toBe(null);
 
-        fireEvent.click(screen.getByRole("radio", { name: /^ICE$/i }));
-        expect(screen.getByRole("status").textContent).toMatch(/ICE/);
+        fireEvent.click(screen.getByRole("radio", { name: /Ice Age/ }));
+        expect(screen.getByRole("status").textContent).toMatch(/Ice Age/);
 
-        fireEvent.click(screen.getByRole("radio", { name: /^LEA$/i }));
+        fireEvent.click(
+            screen.getByRole("radio", { name: /Limited Edition Alpha/ })
+        );
         expect(screen.queryByRole("status")).toBe(null);
     });
 
     it("renders no Notice at all when no set is below 100% (e.g. only LEA checked in)", () => {
-        renderDialog({ draftableSets: [LEA_COMPLETE] });
+        renderDialog({ packSources: [packSource(LEA_COMPLETE)] });
         expect(screen.queryByRole("status")).toBe(null);
     });
 });
