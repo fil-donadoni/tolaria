@@ -1036,6 +1036,19 @@ as the run's own throwaway account, walks the runbook surfaces at the five ADR
 0101 viewports, runs the occlusion probe plus axe-core, and holds nine Floors
 at zero (`scripts/ui-gate/floors.ts`, ADR 0132).
 
+**A PR owes a walk only when its diff can move a layout (ADR 0154 §7, issue
+#5459).** Measured over the 14 days to 2026-10-11: a scoped per-PR walk cost
+6.8 min and came back red 57 % of the time, mostly for a button or a label
+that no viewport could reflow. So the scope module gains an OWED predicate
+beside the scoper: a `src/**` diff owes a walk only if it touches a
+stylesheet, a layout, an overlay/portal, a z-index or a scroll-container file
+(a tested list, one fixture per glob and one negative in `ui-scope.test.ts`);
+otherwise the PR body says `no walk owed` and `land` accepts that line on the
+same terms as a receipt. What an OWED walk covers is ADR 0131's scoper,
+unchanged; `check:ui --all` stays a release step (issue #5378), run on the
+Huawei under topology B' and advisory there until a calibration run matches
+the MacBook's nine Floors cell by cell (issue #5465).
+
 **What the lane WALKS is itself gated, offline** (issue #3420). `check:ui`'s
 coverage was asserted only between hand-written lists, so a new screen or
 dialog entered no list and reddened nothing. `scripts/lib/ui-census.ts`
