@@ -11139,6 +11139,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         budget: { iterations: 400 },
         seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
+        classification: { kind: "absolute" },
         expect: {
             predicate: (move, state) =>
                 move !== null &&
