@@ -406,6 +406,11 @@
         },
         {
             "kind": "bot",
+            "key": "never-chosen › Creature › restrictLandPlay",
+            "issue": 5431
+        },
+        {
+            "kind": "bot",
             "key": "never-chosen › Creature › revealUntilMatch",
             "issue": 5299
         },
