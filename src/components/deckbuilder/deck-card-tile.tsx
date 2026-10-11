@@ -192,6 +192,9 @@ export default function DeckCardTile({
                       onKeyDown: handleKeyDown,
                   })}
             title={title}
+            /* The COPY this tile draws (issue #5395) — the handle the card fly
+               measures a move from and to (`deckCardFly.ts`). */
+            data-card-copy={dragData.pinKey ?? cardId}
             style={stacked ? { top: pileCardTop(stackIndex) } : undefined}
             className={cn(
                 // `touch-pan-x`, not `touch-none` (issue #1633 bundled finding

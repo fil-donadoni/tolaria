@@ -53,6 +53,7 @@ import {
     type BasicLandSubtype,
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
+import { flyDeckCard } from "./deckCardFly";
 import DeckStatsButton from "./deck-stats-button";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import {
@@ -361,6 +362,31 @@ export default function PoolDeckBuilderForm({
             });
         },
         [updateDeck]
+    );
+
+    // A CLICK flies the card to the zone it lands in (issue #5395); a drop
+    // does not — the card is already under the pointer. The fly is started
+    // BEFORE the move and never defers it (`cardFly.ts`). A Maindeck Basic is
+    // removed, not moved, so it has nowhere to fly.
+    const handleMainCardClick = useCallback(
+        (card: ZoneCard) => {
+            if (basicLandSubtypeOf(card.cardId, card) === null) {
+                flyDeckCard(
+                    "maindeck",
+                    "sideboard",
+                    card.pinKey ?? card.cardId
+                );
+            }
+            handleMainClick(card.cardId, card.pinKey);
+        },
+        [handleMainClick]
+    );
+    const handleSideCardClick = useCallback(
+        (card: ZoneCard) => {
+            flyDeckCard("sideboard", "maindeck", card.pinKey ?? card.cardId);
+            handleSideClick(card.cardId, card.pinKey);
+        },
+        [handleSideClick]
     );
 
     /** Adds `count` copies (1 for a plain click, 5 for the `+5` step, issue
@@ -685,10 +711,8 @@ export default function PoolDeckBuilderForm({
                 onPin: handlePin,
                 // The clicked ENTRY carries its own copy key (issue #1626),
                 // so a tap moves exactly the card that was tapped.
-                onMainCardClick: (card) =>
-                    handleMainClick(card.cardId, card.pinKey),
-                onSideCardClick: (card) =>
-                    handleSideClick(card.cardId, card.pinKey),
+                onMainCardClick: handleMainCardClick,
+                onSideCardClick: handleSideCardClick,
                 onMainGroupingChange: handleMainGroupingChange,
                 onSideGroupingChange: handleSideGroupingChange,
                 onMainOrderingChange: handleMainOrderingChange,
