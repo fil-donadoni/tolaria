@@ -11133,10 +11133,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             libraryCount: 20,
         },
         bot: "me",
-        // The Bot-play sweep's own position at four times its budget — a
+        // The Bot-play sweep's own position at eight times its budget — a
         // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
         // the reason the Nantuko Husk entry gives.
-        budget: { iterations: 200 },
+        budget: { iterations: 400 },
         seeds: [0xb07, 0x5eed, 1, 2, 3],
         tier: "must",
         expect: {
