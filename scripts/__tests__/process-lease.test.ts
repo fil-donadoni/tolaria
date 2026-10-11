@@ -161,6 +161,36 @@ describe("holdLease — the TS spawners' writer", () => {
         );
     });
 
+    it("inherits the licence for its cwd to vanish from a parent lease in the same cwd (land's inner gate)", () => {
+        fs.mkdirSync(leaseDir, { recursive: true });
+        const parent = lease({
+            id: "gate-run-land",
+            cwd: fs.realpathSync(tmp),
+            cwdMayVanish: true,
+        });
+        fs.writeFileSync(
+            path.join(leaseDir, "gate-run-land.json"),
+            JSON.stringify(parent)
+        );
+        const script = path.join(tmp, "inner.ts");
+        fs.writeFileSync(
+            script,
+            `import { holdLease, readLeases } from ${JSON.stringify(LEASE_LIB)};
+             const held = holdLease({ kind: "gate", ttlMs: 60_000 });
+             console.log(JSON.stringify(readLeases()!.find((l) => l.id === held!.id)));`
+        );
+        const r = spawnSync("bun", [script], {
+            cwd: tmp,
+            env: env({ TOLARIA_OWNER: "gate-run-land" }),
+            encoding: "utf8",
+        });
+        expect(JSON.parse(r.stdout)).toMatchObject({
+            parent: "gate-run-land",
+            cwdMayVanish: true,
+            expires: false,
+        });
+    });
+
     it("names the inherited tag as its parent, unless it is a root", () => {
         const run = (root: boolean) => {
             const script = path.join(tmp, `p-${root}.ts`);
@@ -168,7 +198,7 @@ describe("holdLease — the TS spawners' writer", () => {
                 script,
                 `import { holdLease, readLeases } from ${JSON.stringify(LEASE_LIB)};
                  holdLease({ kind: "probe", ttlMs: 60_000, root: ${root} });
-                 console.log(JSON.stringify(readLeases()[0]));`
+                 console.log(JSON.stringify(readLeases()![0]));`
             );
             const r = spawnSync("bun", [script], {
                 env: env({ TOLARIA_OWNER: "gate-run-x" }),
@@ -252,10 +282,26 @@ describe("the CLI — the shell spawners' writer", () => {
         expect(leases()).toEqual([]);
     });
 
-    it("never fails its caller: a bad id exits 0 and says why", () => {
+    it("exits non-zero on a failed write, so the caller withholds the tag", () => {
         const r = cli("put", "bad id!", "x", "1", "1");
-        expect(r.status).toBe(0);
+        expect(r.status).toBe(1);
         expect(r.stderr).toMatch(/bad lease id/);
+    });
+
+    it("--no-expiry writes a lease the clock cannot kill", () => {
+        cli(
+            "put",
+            "pass-1",
+            "loop-pass",
+            String(process.pid),
+            "0",
+            "--no-expiry"
+        );
+        const [l] = leases();
+        expect(l.expires).toBe(false);
+        expect(
+            judgeLease(l, l.pidStart, Date.now() + 10_000, () => true).alive
+        ).toBe(true);
     });
 });
 

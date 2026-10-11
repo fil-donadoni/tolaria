@@ -40,7 +40,8 @@ import {
     writeFileSync,
     renameSync,
 } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { readProcessCwds } from "./lib/machine-admission";
 import {
     cacheRoot,
     clearLease,
@@ -64,6 +65,9 @@ export interface ProcRow {
     ageS: number;
     command: string;
     owner: string | null;
+    /** The process's cwd, read only for pattern-net candidates; `null` when
+     *  unread. */
+    cwd?: string | null;
 }
 
 export interface SweepConfig {
@@ -101,7 +105,6 @@ export const TOOLING_PATTERNS: readonly { name: string; re: RegExp }[] = [
     { name: "vitest", re: /\bvitest\b/ },
     { name: "vite", re: /(^|[\s/])vite(\.js)?(\s|$)/ },
     { name: "playwright chromium", re: /ms-playwright\/.*chrom/i },
-    { name: "convex-local-backend", re: /convex-local-backend/ },
     {
         name: "bun scripts/*",
         re: /(^|\/)bun\s+(run\s+)?(\S*\/)?scripts\/\S+\.(ts|mjs|js|sh)\b/,
@@ -109,6 +112,10 @@ export const TOOLING_PATTERNS: readonly { name: string; re: RegExp }[] = [
     { name: "claude -p", re: /(^|\/)claude\s(.*\s)?-p(\s|$)/ },
 ];
 
+/** `convex-local-backend` is deliberately NOT a pattern: `convex:ensure`
+ *  leaves the local backend serving on purpose, sometimes with no parent
+ *  (`scripts/convex-ensure.ts`), and now tags the one it starts `unit:` — an
+ *  orphaned backend is a service, not a stray. */
 function patternOf(command: string): string | null {
     return TOOLING_PATTERNS.find((p) => p.re.test(command))?.name ?? null;
 }
@@ -117,6 +124,33 @@ function patternOf(command: string): string | null {
  *  session is re-parented to it, not to pid 1. */
 function isSubreaper(row: ProcRow | undefined): boolean {
     return row !== undefined && /(^|\/)systemd\s+--user\b/.test(row.command);
+}
+
+/** Whether a pattern-net candidate is this tooling's: its command path or
+ *  its cwd lies under a scope root. */
+export function inScope(r: ProcRow, roots: readonly string[]): boolean {
+    return roots.some(
+        (root) =>
+            root.length > 1 &&
+            (r.command.includes(root) ||
+                (r.cwd != null && r.cwd.startsWith(root)))
+    );
+}
+
+/** Pattern-net CANDIDATES before scope — the few rows whose cwd is worth a
+ *  probe. Same predicate as the net, minus the scope. */
+export function netCandidates(
+    rows: readonly ProcRow[],
+    config: SweepConfig
+): ProcRow[] {
+    const byPid = new Map(rows.map((r) => [r.pid, r]));
+    return rows.filter(
+        (r) =>
+            r.owner === null &&
+            r.ageS >= config.orphanMinAgeS &&
+            (r.ppid === 1 || isSubreaper(byPid.get(r.ppid))) &&
+            patternOf(r.command) !== null
+    );
 }
 
 const isUnitTag = (owner: string | null) =>
@@ -133,6 +167,11 @@ export function planSweep(input: {
     selfPid: number;
     uid: number;
     cwdExists: (p: string) => boolean;
+    /** The pattern net only takes a process whose cwd or command path lies
+     *  under one of these (the checkout and its sibling worktrees share the
+     *  checkout's path as a prefix): an orphaned vite of another project is
+     *  not this tooling's to end. */
+    scopeRoots: readonly string[];
     config?: SweepConfig;
 }): SweepPlan {
     const cfg = input.config ?? DEFAULT_CONFIG;
@@ -234,7 +273,11 @@ export function planSweep(input: {
                 );
         }
     }
-    for (const r of input.rows) {
+    // An EMPTY registry beside tagged processes reads as "every tag
+    // unregistered" — the shape of a registry looked for in the wrong place
+    // (another cache root), never of a machine with nothing running. Missing
+    // a stray there is safe; killing every gate is not.
+    for (const r of leases.size === 0 ? [] : input.rows) {
         if (r.owner === null || isUnitTag(r.owner) || leases.has(r.owner))
             continue;
         if (r.ageS >= cfg.unknownOwnerMinAgeS)
@@ -248,7 +291,7 @@ export function planSweep(input: {
         if (r.owner !== null || r.ageS < cfg.orphanMinAgeS) continue;
         if (r.ppid !== 1 && !isSubreaper(byPid.get(r.ppid))) continue;
         const name = patternOf(r.command);
-        if (name !== null)
+        if (name !== null && inScope(r, input.scopeRoots))
             take(
                 r,
                 null,
@@ -322,9 +365,31 @@ export function parseEnvTags(stdout: string): Map<number, string> {
     return out;
 }
 
+/** A process a systemd unit owns — the last cgroup component is a
+ *  `*.service` other than the user manager itself — reads as that unit's tag:
+ *  the unit's cgroup kill ends it, the reaper never does. */
+export function unitOfCgroup(cgroup: string): string | null {
+    const path = cgroup.trim().split("\n").pop()?.split(":").pop() ?? "";
+    const last = path.split("/").pop() ?? "";
+    return last.endsWith(".service") && !/^user@\d+\.service$/.test(last)
+        ? last
+        : null;
+}
+
 function readTagsLinux(pids: number[]): Map<number, string> {
     const out = new Map<number, string>();
     for (const pid of pids) {
+        try {
+            const unit = unitOfCgroup(
+                readFileSync(`/proc/${pid}/cgroup`, "utf8")
+            );
+            if (unit !== null) {
+                out.set(pid, `${UNIT_OWNER_PREFIX}${unit}`);
+                continue;
+            }
+        } catch {
+            /* gone */
+        }
         try {
             const env = readFileSync(`/proc/${pid}/environ`, "utf8");
             for (const kv of env.split("\0"))
@@ -365,6 +430,22 @@ export function readProcessTable(): ProcRow[] | null {
 }
 
 // ── the sweep ───────────────────────────────────────────────────────────────
+
+/** The pattern net's scope: the primary checkout (its sibling worktrees
+ *  share its path as a prefix) and the tooling cache. `TOLARIA_REAPER_SCOPE`
+ *  (colon-separated) replaces it. */
+function scopeRoots(): string[] {
+    const override = process.env.TOLARIA_REAPER_SCOPE;
+    if (override) return override.split(":").filter(Boolean);
+    const common = spawnSync(
+        "git",
+        ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+        { encoding: "utf8", timeout: 5000 }
+    );
+    const roots = [cacheRoot()];
+    if (common.status === 0) roots.push(dirname(common.stdout.trim()));
+    return roots;
+}
 
 export function reaperDir(env: NodeJS.ProcessEnv = process.env): string {
     return env.TOLARIA_REAPER_DIR || join(cacheRoot(env), "reaper");
@@ -481,11 +562,25 @@ export async function sweep(opts: {
         // Leases BEFORE the process table: a lease written after the snapshot
         // would read as "anchor gone" for a process the snapshot never saw.
         const leases = readLeases();
-        const rows = readProcessTable();
-        if (rows === null) {
+        if (leases === null) {
+            console.error(
+                "reaper: the lease registry is unreadable — nothing swept"
+            );
+            return 1;
+        }
+        const table = readProcessTable();
+        if (table === null) {
             console.error("reaper: ps failed — nothing swept");
             return 1;
         }
+        // The cwd of the few pattern-net candidates only: `lsof` per sweep
+        // over the whole table would cost seconds.
+        const probe = netCandidates(table, opts.config).map((r) => r.pid);
+        const cwds = probe.length > 0 ? readProcessCwds(probe) : null;
+        const rows = table.map((r) => ({
+            ...r,
+            cwd: cwds?.get(r.pid) ?? null,
+        }));
         const plan = planSweep({
             rows,
             leases,
@@ -493,6 +588,7 @@ export async function sweep(opts: {
             selfPid: process.pid,
             uid: process.getuid?.() ?? -1,
             cwdExists: existsSync,
+            scopeRoots: scopeRoots(),
             config: opts.config,
         });
         const iso = new Date().toISOString();
@@ -504,8 +600,16 @@ export async function sweep(opts: {
         for (const line of lines) console.log(`reaper: ${line}`);
         let survivors: number[] = [];
         if (!opts.dryRun) {
+            // A re-attach that renewed a lease (or a spawner that registered
+            // one) since the snapshot outranks the plan: its kills are dropped.
+            const before = new Map(leases.map((l) => [l.id, l.renewedAt]));
+            const kills = plan.kills.filter(
+                (k) =>
+                    k.lease === null ||
+                    readLease(k.lease)?.renewedAt === before.get(k.lease)
+            );
             survivors = await terminate(
-                plan.kills.map((k) => k.pid),
+                kills.map((k) => k.pid),
                 opts.graceMs
             );
             appendLog(join(dir, "reaped.log"), [
@@ -517,8 +621,15 @@ export async function sweep(opts: {
             ]);
             // A dead lease's record goes with its tree — unless a re-attach
             // renewed it since this sweep read it.
+            // Kept while one of its processes survived: an env-less survivor
+            // is found again only through the lease's group.
+            const heldBack = new Set(
+                plan.kills
+                    .filter((k) => survivors.includes(k.pid))
+                    .map((k) => k.lease)
+            );
             for (const { lease, verdict } of plan.verdicts) {
-                if (verdict.alive) continue;
+                if (verdict.alive || heldBack.has(lease.id)) continue;
                 if (readLease(lease.id)?.renewedAt !== lease.renewedAt)
                     continue;
                 try {

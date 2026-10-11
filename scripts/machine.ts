@@ -58,10 +58,16 @@ function leaseLine(l: ProcessLease, now: number): string {
 function leaseReport(): void {
     const now = Date.now();
     const leases = readLeases();
-    console.log(
-        `  process leases   ${leases.length} registered (${leaseDir()})`
-    );
-    for (const l of leases) console.log(`    ${leaseLine(l, now)}`);
+    if (leases === null)
+        console.log(
+            `  process leases   UNREADABLE (${leaseDir()}) — the reaper sweeps nothing`
+        );
+    else {
+        console.log(
+            `  process leases   ${leases.length} registered (${leaseDir()})`
+        );
+        for (const l of leases) console.log(`    ${leaseLine(l, now)}`);
+    }
     const last = readLastSweep();
     console.log(
         last === null

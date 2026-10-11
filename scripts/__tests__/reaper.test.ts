@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { ProcessLease } from "../lib/process-lease";
-import { parseEnvTags, parsePsRows, planSweep, type ProcRow } from "../reaper";
+import {
+    parseEnvTags,
+    parsePsRows,
+    planSweep,
+    unitOfCgroup,
+    type ProcRow,
+} from "../reaper";
 
 // The active reaper (issue #5470), judged on a FAKE process table: every rule
 // that decides a kill — and every rule that must spare — is a pure function
@@ -55,6 +61,7 @@ const plan = (
         selfPid: SELF,
         uid: UID,
         cwdExists,
+        scopeRoots: ["/repo"],
     });
 
 const killed = (p: ReturnType<typeof plan>) =>
@@ -197,10 +204,32 @@ describe("reaper — dead leases", () => {
             [
                 row({ pid: 600, owner: "Lnobody", ageS: 500 }),
                 row({ pid: 601, owner: "Lfresh", ageS: 3 }),
+                row({ pid: 602, owner: "Llive" }),
             ],
-            []
+            [lease({ id: "Llive", pid: 602 })]
         );
         expect(killed(p)).toEqual([600]);
+    });
+
+    it("an EMPTY registry beside tagged processes reaps none of them (a registry read in the wrong place)", () => {
+        const p = plan([row({ pid: 650, owner: "Lnobody", ageS: 5000 })], []);
+        expect(killed(p)).toEqual([]);
+    });
+
+    it("a self-renewing lease past its deadline is alive while its anchor runs (a blocked loop, a slept machine)", () => {
+        const p = plan(
+            [row({ pid: 660 }), row({ pid: 661, ppid: 1, owner: "Lself" })],
+            [
+                lease({
+                    id: "Lself",
+                    pid: 660,
+                    deadline: NOW - 3_600_000,
+                    expires: false,
+                }),
+            ]
+        );
+        expect(killed(p)).toEqual([]);
+        expect(p.verdicts[0].verdict.alive).toBe(true);
     });
 });
 
@@ -273,15 +302,18 @@ describe("reaper — what it spares", () => {
 });
 
 describe("reaper — the pattern net for untagged strays", () => {
-    it("an untagged orphan matching a tooling pattern past the age threshold is reaped", () => {
+    it("an untagged orphan of this checkout matching a tooling pattern past the age threshold is reaped", () => {
         const p = plan(
             [
+                // Scoped by its cwd (a sibling worktree shares the prefix).
                 row({
                     pid: 1000,
                     ppid: 1,
+                    cwd: "/repo-issue-12",
                     command:
                         "/Users/x/Library/Caches/ms-playwright/chromium-1140/chrome-mac/Chromium --headless",
                 }),
+                // Scoped by its command path.
                 row({
                     pid: 1001,
                     ppid: 1,
@@ -296,12 +328,8 @@ describe("reaper — the pattern net for untagged strays", () => {
                 row({
                     pid: 1003,
                     ppid: 1,
+                    cwd: "/repo",
                     command: "claude --session-id x -p /next-ticket 5",
-                }),
-                row({
-                    pid: 1004,
-                    ppid: 1,
-                    command: "/repo/.convex/convex-local-backend --port 3210",
                 }),
                 row({
                     pid: 1005,
@@ -311,17 +339,22 @@ describe("reaper — the pattern net for untagged strays", () => {
             ],
             []
         );
-        expect(killed(p)).toEqual([1000, 1001, 1002, 1003, 1004, 1005]);
+        expect(killed(p)).toEqual([1000, 1001, 1002, 1003, 1005]);
         expect(p.kills[0].reason).toMatch(
             /untagged orphan matching 'playwright chromium'/
         );
     });
 
-    it("spares a pattern match that is young, has a live parent, or matches nothing", () => {
+    it("spares a match that is young, has a live parent, is another project's, is a service, or matches nothing", () => {
         const p = plan(
             [
-                row({ pid: 1100, ppid: 1, ageS: 30, command: "node vitest" }),
-                row({ pid: 1101, ppid: 4242, command: "node vitest" }),
+                row({
+                    pid: 1100,
+                    ppid: 1,
+                    ageS: 30,
+                    command: "node /repo/vitest",
+                }),
+                row({ pid: 1101, ppid: 4242, command: "node /repo/vitest" }),
                 row({ pid: 4242, ppid: 4241, command: "-zsh" }),
                 row({
                     pid: 1102,
@@ -329,6 +362,26 @@ describe("reaper — the pattern net for untagged strays", () => {
                     command: "/Applications/Slack.app/Contents/MacOS/Slack",
                 }),
                 row({ pid: 1103, ppid: 1, command: "claude --resume" }),
+                // Another project's orphan: outside the scope.
+                row({
+                    pid: 1104,
+                    ppid: 1,
+                    cwd: "/other",
+                    command: "node /other/node_modules/.bin/vite",
+                }),
+                // The backend convex:ensure leaves serving on purpose.
+                row({
+                    pid: 1105,
+                    ppid: 1,
+                    command: "/repo/.convex/convex-local-backend --port 3210",
+                }),
+                // A unit's process: systemd or launchd ends it, never us.
+                row({
+                    pid: 1106,
+                    ppid: 1,
+                    owner: "unit:tolaria-health.service",
+                    command: "bun /repo/scripts/health-main.ts",
+                }),
             ],
             []
         );
@@ -346,6 +399,7 @@ describe("reaper — the pattern net for untagged strays", () => {
                 row({
                     pid: 1201,
                     ppid: 1200,
+                    cwd: "/repo",
                     command: "node vitest/dist/workers/forks.js",
                 }),
             ],
@@ -356,6 +410,22 @@ describe("reaper — the pattern net for untagged strays", () => {
 });
 
 describe("reaper — process table parsing", () => {
+    it("reads a systemd unit's ownership from its cgroup, never the user manager's", () => {
+        expect(
+            unitOfCgroup(
+                "0::/user.slice/user-1000.slice/user@1000.service/app.slice/tolaria-health.service\n"
+            )
+        ).toBe("tolaria-health.service");
+        expect(unitOfCgroup("0::/system.slice/tolaria-convex.service")).toBe(
+            "tolaria-convex.service"
+        );
+        expect(
+            unitOfCgroup("0::/user.slice/user-1000.slice/user@1000.service")
+        ).toBeNull();
+        expect(
+            unitOfCgroup("0::/user.slice/user-1000.slice/session-3.scope")
+        ).toBeNull();
+    });
     it("parses ps rows with day-long etime and keeps the full command", () => {
         expect(
             parsePsRows(

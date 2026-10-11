@@ -78,8 +78,15 @@ export interface ProcessLease {
     parent: string | null;
     startedAt: number;
     renewedAt: number;
-    /** Epoch ms past which, unrenewed, the lease is expired. */
+    /** Epoch ms past which, unrenewed, the lease is expired — when `expires`. */
     deadline: number;
+    /** Whether the deadline can kill the tree. `false` for a self-renewing
+     *  lease (`holdLease`) and a loop pass: their renewal stalls whenever the
+     *  event loop is blocked in a synchronous spawn or the machine sleeps,
+     *  while the anchor is fine — so such a lease dies on its anchor, cwd or
+     *  parent, never on the clock. `true` for a `gate:run` run, whose
+     *  deadline IS the "nobody re-attached" rule. Absent = `true`. */
+    expires?: boolean;
     /** Epoch ms until which the reaper takes NO action on this lease's tree
      *  — opened by a legitimate re-attach. `null` = none. */
     graceUntil: number | null;
@@ -150,16 +157,18 @@ function isLease(v: unknown): v is ProcessLease {
 }
 
 /** Every readable lease. A torn or foreign file is skipped, never fatal: the
- *  reaper must keep sweeping past one bad record. */
+ *  reaper must keep sweeping past one bad record. `null` when the registry
+ *  itself cannot be read (anything but "not created yet") — the reaper then
+ *  sweeps NOTHING, because every tagged process would read as unregistered. */
 export function readLeases(
     env: NodeJS.ProcessEnv = process.env
-): ProcessLease[] {
+): ProcessLease[] | null {
     const dir = leaseDir(env);
     let names: string[];
     try {
         names = readdirSync(dir);
-    } catch {
-        return [];
+    } catch (err) {
+        return (err as NodeJS.ErrnoException).code === "ENOENT" ? [] : null;
     }
     const out: ProcessLease[] = [];
     for (const name of names) {
@@ -224,7 +233,7 @@ export function judgeLease(
             why: `its anchor pid ${lease.pid} was recycled (started ${anchorStart}, lease says ${lease.pidStart})`,
             recycled: true,
         };
-    if (nowMs > lease.deadline)
+    if (lease.expires !== false && nowMs > lease.deadline)
         return {
             alive: false,
             why: `the lease expired ${Math.round((nowMs - lease.deadline) / 1000)}s ago`,
@@ -274,7 +283,16 @@ export function holdLease(opts: {
     const env = opts.env ?? process.env;
     const now = Date.now();
     const id = `${opts.kind.replace(/[^A-Za-z0-9._-]/g, "-")}-${process.pid}-${now}`;
-    const parent = opts.root ? null : env[OWNER_ENV] || null;
+    const inherited = opts.root ? null : env[OWNER_ENV] || null;
+    const parent =
+        inherited && !inherited.startsWith(UNIT_OWNER_PREFIX)
+            ? inherited
+            : null;
+    // A gate `land` or `docs:ship` runs inside the worktree they remove: a
+    // lease spawned in its parent's cwd inherits the parent's licence for
+    // that cwd to vanish.
+    const parentLease = parent === null ? null : readLease(parent, env);
+    const cwd = process.cwd();
     const lease: ProcessLease = {
         id,
         kind: opts.kind,
@@ -282,12 +300,15 @@ export function holdLease(opts: {
         pidStart: selfStart(),
         pgid: null,
         command: process.argv.slice(1).join(" ").slice(0, 400),
-        cwd: process.cwd(),
-        cwdMayVanish: opts.cwdMayVanish ?? false,
-        parent: parent && !parent.startsWith(UNIT_OWNER_PREFIX) ? parent : null,
+        cwd,
+        cwdMayVanish:
+            (opts.cwdMayVanish ?? false) ||
+            (parentLease?.cwdMayVanish === true && parentLease.cwd === cwd),
+        parent,
         startedAt: now,
         renewedAt: now,
         deadline: now + opts.ttlMs,
+        expires: false,
         graceUntil: null,
     };
     try {
@@ -329,12 +350,14 @@ export function holdLease(opts: {
 // ── CLI for the shell spawners ──────────────────────────────────────────────
 //
 //   bun scripts/lib/process-lease.ts put <id> <kind> <pid> <ttl-secs> \
-//       [--pgid N] [--cwd DIR] [--cwd-may-vanish] [--parent ID] [--command STR]
+//       [--pgid N] [--cwd DIR] [--cwd-may-vanish] [--no-expiry] [--parent ID]
+//       [--command STR]
 //   bun scripts/lib/process-lease.ts renew <id> <ttl-secs> [--grace SECS]
 //   bun scripts/lib/process-lease.ts clear <id>
 //
-// Always exits 0 — a lease write never fails a gate — printing the reason on
-// stderr when it could not write.
+// Exits 1 (with the reason on stderr) when it could not write: a caller exports
+// the tag ONLY on success, since a tag naming no registered lease is reaped.
+// Callers never fail a gate on it (`|| true`).
 
 function flag(args: string[], name: string): string | undefined {
     const i = args.indexOf(name);
@@ -388,6 +411,7 @@ function cli(argv: string[]): void {
             startedAt: now,
             renewedAt: now,
             deadline: now + Number(ttl) * 1000,
+            expires: !args.includes("--no-expiry"),
             graceUntil: null,
         });
     } else if (verb === "renew") {
@@ -413,5 +437,6 @@ if (import.meta.main) {
         cli(process.argv.slice(2));
     } catch (err) {
         console.error(`process-lease: ${(err as Error).message}`);
+        process.exit(1);
     }
 }

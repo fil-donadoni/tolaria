@@ -908,15 +908,18 @@ while :; do
             # resolved tier flag and of a user-supplied flag string, both
             # documented above.
             #
-            # TOLARIA_OWNER + the `sh -c … exec` wrapper: the pass's PROCESS
+            # The `sh -c … exec` wrapper: the pass's PROCESS
             # LEASE (issue #5470). The wrapper registers the lease on its own
             # pid and then BECOMES `claude` (exec keeps the pid), so the lease
             # is anchored on the pass itself — in the foreground, where Ctrl-C
             # still reaches it — and everything the pass spawns inherits the
             # tag. Once the pass ends, `bun run reaper` takes whatever it
             # left running (a detached `gate:run` run has its own lease).
-            TOLARIA_OWNER="$pass_lease" TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-                sh -c 'bun "$1" put "$2" loop-pass $$ 43200 --cwd "$PWD" --command "claude -p $3" >/dev/null || true; shift 3; exec "$@"' \
+            # The tag is exported only once the lease is written: a tag naming
+            # no registered lease is reaped. A pass dies on its anchor, never
+            # on the clock (`--no-expiry`).
+            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
+                sh -c 'if bun "$1" put "$2" loop-pass $$ 0 --no-expiry --cwd "$PWD" --command "claude -p $3" >/dev/null; then TOLARIA_OWNER=$2; export TOLARIA_OWNER; fi; shift 3; exec "$@"' \
                 lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" \
                 claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"

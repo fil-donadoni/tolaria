@@ -139,8 +139,9 @@ if [ "$KEEP_DAYS" -gt 0 ] && [ -d "$RUN_ROOT" ]; then
         -exec rm -rf {} + 2>/dev/null || true
 fi
 
-# A lease write never fails a gate: the CLI always exits 0 and says on stderr
-# why it could not write.
+# A lease write never fails a gate: a failed one is reported on stderr and
+# otherwise ignored (the CLI exits 1 so a caller CAN branch on it — the runner
+# below does, before it hands its tag down).
 lease() {
     bun "$LEASE_CLI" "$@" >/dev/null || true
 }
@@ -494,6 +495,13 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     printf '%s\n' "$*" >"$CMD_F"
     LEASE_ID="gate-run-$_safe-$_key-$(date +%s)"
     printf '%s\n' "$LEASE_ID" >"$LEASE_F"
+    # The deadline IS the reap rule: a fresh run is owed max(REAP, IDLE).
+    _ttl=$REAP_SECS
+    [ "$IDLE_SECS" -le "$_ttl" ] || _ttl=$IDLE_SECS
+    case " $SELF_REMOVING_SCRIPTS " in
+        *" $1 "*) _vanish=--cwd-may-vanish ;;
+        *) _vanish= ;;
+    esac
     # `set -m` puts the background job in its OWN process group, so a
     # group-directed signal aimed at the dying pass does not reach the gate;
     # `trap '' HUP` covers the hangup that reaches it anyway. Together they are
@@ -517,9 +525,19 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
         # (PR #3707).
         unset TOLARIA_GATE_RUN_KEY
         # Everything the gate starts belongs to THIS run's lease — not to the
-        # pass that started it, which this run is built to outlive.
-        TOLARIA_OWNER="$LEASE_ID"
-        export TOLARIA_OWNER
+        # pass that started it, which this run is built to outlive. The lease
+        # is written HERE, before the tag exists, and the tag is exported
+        # only once the lease is: a tag naming no registered lease is reaped.
+        # The runner's own pid: the parent of a process it execs. It leads
+        # its group (`set -m`), so it is also the pgid.
+        _self=$(exec sh -c 'echo $PPID')
+        # shellcheck disable=SC2086  # $_vanish is one optional flag, or nothing
+        if bun "$LEASE_CLI" put "$LEASE_ID" gate-run "$_self" "$_ttl" \
+            --pgid "$_self" --cwd "$(pwd)" --command "$*" $_vanish \
+            >/dev/null 2>"$RUN_DIR/lease.err"; then
+            TOLARIA_OWNER="$LEASE_ID"
+            export TOLARIA_OWNER
+        fi
         bun run "$@" >"$LOG" 2>&1
         _rc=$?
         # `green` outlives the `rc` file on purpose: `rc` is cleared the moment
@@ -542,16 +560,6 @@ if [ "$attached" -eq 0 ] && [ "$finished" -eq 0 ]; then
     set +m 2>/dev/null || true
     printf '%s\n' "$_pid" >"$PIDF"
     pid_ident "$_pid" >"$PIDSTART"
-    # The deadline IS the reap rule: a fresh run is owed max(REAP, IDLE).
-    _ttl=$REAP_SECS
-    [ "$IDLE_SECS" -le "$_ttl" ] || _ttl=$IDLE_SECS
-    case " $SELF_REMOVING_SCRIPTS " in
-        *" $1 "*) _vanish=--cwd-may-vanish ;;
-        *) _vanish= ;;
-    esac
-    # shellcheck disable=SC2086  # $_vanish is one optional flag, or nothing
-    lease put "$LEASE_ID" gate-run "$_pid" "$_ttl" --pgid "$_pid" \
-        --cwd "$(pwd)" --command "$*" $_vanish
     echo "gate-run: started \`bun run $*\` detached (pid $_pid, log: $LOG)." >&2
 elif [ "$attached" -eq 1 ]; then
     # A legitimate re-attach: the run is wanted for another IDLE_SECS, and the

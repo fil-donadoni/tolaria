@@ -240,6 +240,30 @@ describe("gate-run — no single call can be promoted past the tool cap", () => 
 });
 
 describe("gate-run — process lease (issue #5470)", () => {
+    it("withholds the tag when the lease cannot be written — a tag naming no lease is reaped", () => {
+        const release = path.join(tmp, "release");
+        const owner = path.join(tmp, "owner");
+        fixtureScript(
+            "slow",
+            `echo "[$TOLARIA_OWNER]" >"${owner}"\n${awaitRelease(release)}\nexit 0`
+        );
+        // A FILE where the registry's parent dir should be: every write fails.
+        const blocked = path.join(tmp, "not-a-dir");
+        fs.writeFileSync(blocked, "");
+        const r = run({
+            args: ["slow"],
+            env: {
+                TOLARIA_GATE_RUN_WAIT_SECS: "0",
+                TOLARIA_LEASE_DIR: path.join(blocked, "leases"),
+                TOLARIA_OWNER: "",
+            },
+        });
+        expect(r.status).toBe(75);
+        expect(waitForFile(owner)).toBe(true);
+        expect(fs.readFileSync(owner, "utf8").trim()).toBe("[]");
+        fs.writeFileSync(release, "");
+    });
+
     it("holds a lease anchored on the runner while the gate runs, tags the gate with it, and clears it with the verdict", () => {
         const release = path.join(tmp, "release");
         const owner = path.join(tmp, "owner");
@@ -294,12 +318,18 @@ describe("gate-run — process lease (issue #5470)", () => {
 
     it("marks a self-removing script's lease so a vanished cwd does not kill it", () => {
         const release = path.join(tmp, "release");
-        fixtureScript("slow", `${awaitRelease(release)}\nexit 0`);
+        const started = path.join(tmp, "started");
+        fixtureScript(
+            "slow",
+            `touch "${started}"\n${awaitRelease(release)}\nexit 0`
+        );
         const r = run({
             args: ["land"],
             env: { TOLARIA_GATE_RUN_WAIT_SECS: "0" },
         });
         expect(r.status).toBe(75);
+        // The runner writes its lease before it starts the gate.
+        expect(waitForFile(started)).toBe(true);
         const files = leaseFiles();
         expect(files).toHaveLength(1);
         expect(

@@ -244,6 +244,9 @@ function spawnDetached(root: string): number {
     // the one that is ending.
     delete env.TOLARIA_VITEST_WORKERS;
     delete env.TOLARIA_GATE_ROLE;
+    // The decision outlives `land`, whose lease tag would otherwise ride its
+    // synchronous children until `detach` holds its own (issue #5470).
+    delete env.TOLARIA_OWNER;
 
     const branch = flag("branch");
     // Test-only, same convention as `gate.ts`'s TOLARIA_GATE_* overrides: what
