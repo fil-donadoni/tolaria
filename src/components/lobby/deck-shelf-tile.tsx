@@ -52,7 +52,7 @@ export default function DeckShelfTile({
             data-selected={selected}
             className={cn(
                 "relative w-32 shrink-0 overflow-hidden rounded-[var(--panel-radius)] border bg-surface transition",
-                // Same control edge as the sibling `lobby-mode-tile.tsx`, and
+                // Same control edge as the home's art tiles (`home-art-card.tsx`), and
                 // for the same reason (#2847 round-3): this wrapper's border is
                 // the tile's only bound — the art stops at `aspect-[16/10]` and
                 // the name foot below it is `bg-surface` on a `surface` panel,

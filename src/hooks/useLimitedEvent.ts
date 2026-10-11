@@ -128,9 +128,9 @@ export function useLimitedEvent(
  *  navigate to the event it just seated the viewer in.
  *
  *  Shared by the Limited Events page's own Join row (`limited-events-
- *  page.tsx`, PRD #1107 story 7) and the lobby dashboard's inline Join
- *  affordance (`dashboard-limited-box.tsx`, wired from `lobby.tsx`) — the
- *  SECOND call site is what promotes this from a local closure to a shared
+ *  page.tsx`, PRD #1107 story 7) and, until the lobby home (issue #5344),
+ *  the lobby dashboard's inline Join — that second call site is what
+ *  promoted this from a local closure to a shared
  *  hook (CLAUDE.md: extract after the second) rather than growing a second,
  *  independently-drifting copy of the same pending/error/navigate dance.
  *

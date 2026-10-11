@@ -29,43 +29,39 @@ next tree without a second round trip — that is the difference between a
 The uids in this file are illustrative. Read them from your own snapshot; they
 are per-session.
 
-## Start a solo game from cold (2026-08-26)
+## Start a solo game from cold (2026-10-11)
 
 A solo game is one user driving both seats, the viewer following priority. It
 is the default for any gameplay check.
 
-The lobby is a game main menu since #2726 (ADR 0103 §6), so this takes three
-lobby clicks, not two: pick a **deck**, pick a **Mode Tile**, then press the
-one **primary action** the tile named. A Mode Tile never starts anything on its
-own.
+The lobby is a home since issue #5344 (PRD #5334): Last Match, Play, Your
+Tables, Decks. Every choice of a match lives in the **Constructed setup flow**
+(`/play/constructed`), a recap rail beside the active step.
 
 1. `navigate_page` → `http://localhost:5173`
-2. `snapshot`. Branch on what the lobby says:
+2. `snapshot`. Branch on what the home says:
     - "You have an active game in progress" → see [Blocked by an active
       game](#blocked-by-an-active-game-2026-08-26) below, then come back.
     - otherwise continue.
-3. Click a deck tile on the **Preset decks** shelf. The tile's own click IS
-   the select gesture — its accessible name is `Select <deck name>`, and
-   Open / Edit / Delete live behind the tile's `⋯` overflow. The **Loadout**
-   then names the deck instead of "No deck selected", and the ambient art
-   behind the menu swaps to the deck's Featured Card. An already-selected tile
-   and an illegal deck's tile are both `disabled`.
+3. Click the **Constructed** tile under Play (or `change setup` on Last
+   Match). The flow opens on the first unanswered step of the setup the
+   browser remembers (`tolaria:matchSetup`); a rail step re-opens an answered
+   one.
+4. Answer **Arena**, **Solo**, **Freeform**, then click a deck tile in the
+   **Presets** group. The second seat defaults to **Mirror**, so the setup is
+   then complete.
 
-    **The PRESET shelf, not the first tile you see** (issue #3493). "Your
-    decks" renders above it and holds whatever the account happens to hold —
+    **A preset, not the first tile you see** (issue #3493). "Your decks"
+    renders above it and holds whatever the account happens to hold —
     including the three-card rows the `deck-builder` walk leaves behind when it
     dies before its cleanup. A solo game on one of those is a DRAW by decking
     before the first priority, and the Game Over dialog's modal scrim then
     swallows every later click on the board: the symptom is a click timing out
     against `<div data-slot="dialog-overlay">`, not anything that names a deck.
 
-4. Click the **Solo game** Mode Tile. It takes `aria-pressed="true"` and the
-   Loadout's single ivory plate RENAMES itself to `Solo game`. Nothing has
-   started. Skipping this step leaves the cold-lobby default, `Play vs Bot`,
-   whose plate opens the vs-AI setup dialog instead of dealing a game — and
-   `Open a table` would host a seat and wait for a second player.
-5. Click the ivory plate now reading `Solo game`. The route changes to `/game`
-   and the coin-toss dialog opens.
+5. Click **Start match**. The route changes to `/game` and the coin-toss
+   dialog opens. (Next time, the home's Last Match **Play again** starts the
+   same setup in one click.)
 6. Click `Play` (or `Draw`). The toss is decided server-side; the dialog only
    asks the winner to choose.
 7. Mulligan prompt, **once per seat**. Click `Keep` for the first seat; the
@@ -81,47 +77,41 @@ own.
 8. `snapshot`. `YOUR GO` plus `Pass` / `Pass Turn` buttons means the board is
    live and priority is with the seat you are viewing.
 
-Do not set `tolaria:selectedDeckId` by hand to skip step 3. Preset decks are
-DB rows now (#770/#1455) and the old slugs (`mono-red-burn`, `le-deck`, …) no
-longer resolve — a stale id is silently cleared by the lobby and you land back
-on "No deck selected", having spent a navigation to learn it.
+**The home's entry points are Named Assertions** (ADR 0132 §3, issue #3649),
+so the gate reds when one of them goes missing rather than measuring whatever
+the home happened to paint. The `lobby` surface promises them by these labels,
+and each prints its own line on every receipt at every viewport:
 
-**These entry points are Named Assertions** (ADR 0132 §3, issue #3649), so the
-gate reds when one of them goes missing rather than measuring whatever the
-lobby happened to paint. The `lobby` surface promises them by these labels, and
-each prints its own line on every receipt at every viewport:
+| Label                      | What it addresses                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `play: Constructed`        | `[data-home-play="constructed"]`, reachable                                          |
+| `play: Limited`            | `[data-home-play="limited"]`, reachable                                              |
+| `Your Tables`              | `[data-home-section="tables"]`, visible                                              |
+| `decks: Format filter`     | the `Filter decks by format` select, reachable                                       |
+| `decks: search`            | the `Search decks or cards` field, reachable                                         |
+| `decks: New Deck`          | `+ New Deck`, reachable                                                              |
+| `decks: New Deck contrast` | the same button, axe `color-contrast`                                                |
+| `decks: first tile`        | `[data-home-deck]`, reachable                                                        |
+| `profile menu entry`       | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one |
 
-| Label                               | What it addresses                                                                                           |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `mode tile: Play vs Bot`            | `[data-mode-tile="bot"]`, reachable                                                                         |
-| `mode tile: Solo game`              | `[data-mode-tile="solo"]`, reachable                                                                        |
-| `mode tile: Open a table`           | `[data-mode-tile="table"]`, reachable                                                                       |
-| `mode tile: Limited`                | `[data-mode-tile="limited"]`, reachable                                                                     |
-| `Loadout primary action`            | `[data-lobby-primary]` — VISIBLE: it is disabled with no deck                                               |
-| `Limited re-entry contrast`         | the footer button's subtree, axe `color-contrast` — an ENABLED control, since the rule skips a disabled one |
-| `deck shelf: first selectable tile` | `[data-deck-tile] [data-deck-select]:not([disabled])`                                                       |
-| `Limited re-entry`                  | the footer's `Browse / Create Events`                                                                       |
-| `profile menu entry`                | `[data-profile-entry]` — header above a portrait phone, the bottom nav's `Me` on one                        |
+Last Match and a Your Tables tile are NOT promised: both depend on what the
+context remembers or is seated at, which earlier walks decide. The flow's own
+promises (`recap rail`, `Bot difficulty`, `Mirror`, `deck search`,
+`Start match`) belong to the `match-setup` surface; `Join by code` to
+`match-setup-join-by-code` (Arena → Join a table → Join by code).
 
-Change a step here and change that list in the same PR, the same way the walk
-itself is changed. The vs-AI dialog's own promises (`Bot difficulty selector`,
-`dialog primary: Play vs Bot`, `dialog Cancel`) belong to the `lobby-vs-ai`
-surface.
-
-The executable copy of this sequence is `ensureBoard` in
-`scripts/ui-gate/surfaces.ts`. It addresses steps 3-5 by ATTRIBUTE —
-`[data-deck-tile] [data-deck-select]`, `[data-mode-tile="solo"]`,
-`[data-lobby-primary]` — because neither the deck tile nor the primary action
-carries a stable string: the tile's visible text is the deck name (the "Select"
-is an `aria-label`, invisible to Playwright's `:has-text`), and the plate is
-named by whichever Mode Tile is selected. Change the walk and this section
-together.
+The executable copy of this sequence is `ensureBoard` →
+`startSoloThroughFlow` in `scripts/ui-gate/surfaces.ts`. It clears
+`tolaria:matchSetup` first (client state only) so the flow opens on its first
+step whatever an earlier walk in the same context remembered, then answers by
+role+name and picks a deck by `[data-deck-select]` inside the Presets group.
+Change the walk and this section together.
 
 ### Blocked by an active game (2026-08-26)
 
-One active game per user is a server guard (#155), so the Loadout's primary
-action and the open-table rows are disabled until the current one ends. The
-lobby offers `Resume` and `Concede Match`.
+One active game per user is a server guard (#155), so Start match and Play
+again are refused until the current one ends. The home's banner offers
+`Resume` and `Concede Match`; its Your Tables tile resumes too.
 
 - Want the game that is running? `Resume`.
 - Want a fresh one? `Concede Match` → a confirm dialog titled "Concede match?"
@@ -129,8 +119,7 @@ lobby offers `Resume` and `Concede Match`.
   cannot be undone**, so it is the user's call, not yours: ask before
   conceding a game you did not create in this session.
 
-After the dialog closes the lobby drops the banner and the Loadout's primary
-action re-enables (still needing a deck selected).
+After the dialog closes the home drops the banner and its Your Tables tile.
 
 **Already inside a game?** The debug sheet's `Reset Game` restarts the current
 position without routing back through the lobby. The old `Restart Solo` /
@@ -287,7 +276,7 @@ navigation:
 
 | Route           | Screen                                                                                                                                                                                  |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`             | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running                                                                                                   |
+| `/`             | Lobby home — Last Match, Play (Constructed · Limited), Your Tables, Decks; the active-game banner when one is running                                                                   |
 | `/decks/create` | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                      |
 | `/limited`      | Limited hub (issue #5388) — status chips (waiting/drafting/building/playing/history, with counts), "Your events" tiles with one CTA per phase and a New event tile last, "Join a table" |
 
@@ -738,15 +727,14 @@ numbers mean, are in [Browser verification](browser-verification.md#the-probe).
 `src/lib/session.ts` owns every key. Clearing `tolaria:gameId` +
 `tolaria:playerId` is what forces a return to the lobby.
 
-| Key                        | Holds                                            |
-| -------------------------- | ------------------------------------------------ |
-| `tolaria:gameId`           | active game id                                   |
-| `tolaria:playerId`         | session player handle                            |
-| `tolaria:selectedDeckId`   | lobby deck selection (a DB id — see the warning) |
-| `tolaria:aiDeckId`         | vs-AI opponent deck; unset = mirror the human    |
-| `tolaria:aiDifficulty`     | easy / medium / hard                             |
-| `tolaria:gamesFormat`      | `1` (Bo1) or `3` (Bo3)                           |
-| `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId     |
+| Key                        | Holds                                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| `tolaria:gameId`           | active game id                                                  |
+| `tolaria:playerId`         | session player handle                                           |
+| `tolaria:matchSetup`       | the Constructed setup flow's last setup (Last Match replays it) |
+| `tolaria:selectedDeckId`   | deck-detail's `Play` selection (a DB id)                        |
+| `tolaria:aiDifficulty`     | easy / medium / hard / expert                                   |
+| `tolaria:deckFormatFilter` | deck-list Format filter, `all` or a FormatId                    |
 
 There is no player-name key: the nickname comes from the authenticated user.
 
