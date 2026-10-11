@@ -545,7 +545,7 @@ and leaves no seat, so the fixtures stay as every other Limited walk expects.
 
 | Surface                      | From                          | Gesture                         | Layer measured                                          |
 | ---------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------- |
-| `limited-create-event`       | `/limited?label=…` (the list) | `+ Create Event`                | the create-event dialog — never submitted               |
+| `limited-create-event`       | `/limited/new` (issue #5387)  | the `Pack Source` rail step     | the setup route's showcase — Create never pressed       |
 | `limited-table-ring`         | the `open` antechamber        | `View Table`                    | the Table Ring dialog                                   |
 | `limited-leave-seat-confirm` | the `open` antechamber        | `Leave Seat`                    | the `Leave this Seat?` confirm — never confirmed        |
 | `draft-pool-move-sheet`      | `draft-pool-peek`'s selection | `Move to…` (Peek Panel or menu) | the column-pin `[data-action-sheet]` — no column chosen |
