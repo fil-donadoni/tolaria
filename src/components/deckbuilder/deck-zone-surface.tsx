@@ -21,7 +21,11 @@ import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
 import DeckMvRow from "./deck-mv-row";
 import DeckSplitGrid from "./deck-split-grid";
-import { layoutZonePiles, type ZoneViewportClass } from "./deckZoneSplit";
+import {
+    layoutZonePiles,
+    type ZoneBand,
+    type ZoneViewportClass,
+} from "./deckZoneSplit";
 import ZoneSplitCreaturesToggle from "./zone-split-creatures-toggle";
 import { collapseDuplicateTiles } from "./deckZoneRows";
 import type { DeckColumnChoice, DeckZoneSelection } from "./deckZoneSelection";
@@ -35,7 +39,12 @@ import {
     zoneFilterSummary,
     type ZoneFilter,
 } from "./deckZoneFilter";
-import { zoneColumnDropId, zonePaneDropId } from "./deckZoneDrag";
+import {
+    bandPaneDropId,
+    splitBelowDropId,
+    zoneColumnDropId,
+    zonePaneDropId,
+} from "./deckZoneDrag";
 import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import DeckColumnActions from "./deck-column-actions";
 import ZoneAddColumnControl from "./zone-add-column-control";
@@ -199,6 +208,18 @@ export interface DeckZoneSurfaceProps {
      *  this Zone is ever marked, which is every other `DeckZoneSurface`
      *  caller (unchanged). */
     isUnattended?: (card: ZoneCard, pinKey: string) => boolean;
+    /** The phone piles layout (issue #5400): portrait wraps the piles inside
+     *  the pane instead of drawing one sideways row per Column, landscape lays
+     *  the piles in one sideways row, and Split creatures applies on a phone
+     *  (two bands). Opt-in per host because the Constructed builder and the
+     *  Draft Room keep their rows; the Limited builder declares it. */
+    phonePiles?: boolean;
+    /** This instance draws ONE band of a Zone that Split creatures cut in two
+     *  (phone portrait, one pane per band — `deck-zones-surface.tsx`). The
+     *  Zone's cards still resolve into the same Columns; the band narrows
+     *  each Column's tiles, and the creature filter is hidden because the
+     *  panes already do its job. */
+    band?: ZoneBand;
 }
 
 /** One card of a Zone, carrying the key its Card Pin is recorded under. The
@@ -237,6 +258,8 @@ export default function DeckZoneSurface({
     onPin,
     readOnly = false,
     isUnattended,
+    phonePiles = false,
+    band,
 }: DeckZoneSurfaceProps) {
     // The Zone build-time filter (issue #1625, ADR 0075 § "Filter is
     // momentary") lives ONLY in this component's own state — never lifted to
@@ -513,7 +536,7 @@ export default function DeckZoneSurface({
     // mounted droppable, and a pane target competing with the Maindeck's own
     // Column targets is exactly the nesting ambiguity that model avoids.
     const { ref: paneRef, isDropTarget } = useDroppable({
-        id: zonePaneDropId(zone),
+        id: band ? bandPaneDropId(zone, band) : zonePaneDropId(zone),
         disabled: dropModel !== "pane" || readOnly,
     });
 
@@ -556,7 +579,8 @@ export default function DeckZoneSurface({
     // at a time, so `index.css`'s "keep the two in step" warning does not
     // apply here the way it does to `narrowWidth`.
     const viewportMode = useViewportMode();
-    const asRows = viewportMode === "portrait";
+    // The phone piles layout replaces the rows (issue #5400).
+    const asRows = viewportMode === "portrait" && !phonePiles;
 
     // Issue #2665: the landscape-phone rung. The gap/padding rungs used to be
     // `md:gap-6 md:p-4` — Tailwind's `md` is a 768px WIDTH breakpoint and a
@@ -578,21 +602,80 @@ export default function DeckZoneSurface({
     // Issue #5399: pile layout is a pure function of (columns, split on/off,
     // viewport class). Only the desktop class has a split grid so far.
     const [splitCreatures, setSplitCreatures] = useSplitCreatures();
-    const viewportClass: ZoneViewportClass = asRows
-        ? "phone-portrait"
-        : landscapeCompact
-          ? "phone-landscape"
-          : "desktop";
+    const viewportClass: ZoneViewportClass =
+        viewportMode === "portrait"
+            ? "phone-portrait"
+            : landscapeCompact
+              ? "phone-landscape"
+              : "desktop";
+    // The stored preference only reaches a phone through a host that opted
+    // into the phone layouts; a band instance IS the split by construction.
+    const splitApplies =
+        band !== undefined ||
+        (splitCreatures && (phonePiles || viewportClass === "desktop"));
     const pileLayout = layoutZonePiles(
         rendered.map((column) => ({
             ...column,
             actions: columnActions(column),
         })),
         {
-            split: splitCreatures,
+            split: splitApplies,
             viewport: viewportClass,
             isCreature: (cardId) => isCreatureCard(cardId, lookup),
         }
+    );
+
+    // One Column as a pile. A band instance's Maindeck columns are the second
+    // drop target of their column when they are the non-creature half
+    // (`splitBelowDropId`), exactly like the desktop split grid's lower half.
+    const pile = (
+        column: (typeof rendered)[number] & { actions: React.ReactNode },
+        half?: ZoneBand
+    ) => (
+        <DeckColumnPile
+            key={column.id}
+            label={column.label}
+            dropId={
+                half === "others"
+                    ? splitBelowDropId(column.dropId)
+                    : column.dropId
+            }
+            droppable={dropModel === "columns"}
+            dataColumn={column.id}
+            tiles={column.tiles}
+            hiddenWhenEmpty={column.hiddenWhenEmpty}
+            showHeader={!landscapeCompact}
+            /* A Column that is not a pin target is never
+                                 renameable and never deletable (ADR 0075 §2), so
+                                 it gets no controls at all rather than two
+                                 disabled ones. Renaming is offered for MANUAL
+                                 Columns only — a generated Column's label comes
+                                 from its Grouping.
+
+                                 …and a Column the pile is CSS-hiding below `md`
+                                 (`hiddenWhenEmpty`, issue #1633) gets none either
+                                 (issue #2511): the controls inside a
+                                 `display: none` pile are unreachable but still in
+                                 the document, which is 9 zero-size buttons on the
+                                 Limited Maindeck at 390x844 — dead tab stops the
+                                 browser probe counts and a reader cannot see.
+                                 `narrowWidth` is the JS twin of the pile's own
+                                 `hidden md:flex`, read from the SAME `md`
+                                 breakpoint number so the two cannot disagree.
+
+                                 The landscape-phone rung (issue #2665) is the
+                                 third such case and the same reasoning: there is
+                                 no header to render these INTO there. Unlike the
+                                 other two cases, this one needs no gate of its
+                                 own here — `showHeader={!landscapeCompact}` above
+                                 already unmounts the whole header row `actions`
+                                 would sit in (`{showHeader && (…)}` in
+                                 `deck-column-pile.tsx`), so whatever this prop
+                                 evaluates to on that rung is never rendered.
+                                 Rename/delete stay workbench gestures, as
+                                 `DeckMvRow` already decided for phone-portrait. */
+            actions={column.actions}
+        />
     );
 
     // The header's count text. The `countSuffix` branch exists because the
@@ -603,11 +686,17 @@ export default function DeckZoneSurface({
     // "shown"/"total" keeps the cap legible instead of visually merging with
     // the filtered count. `countSuffix` is unset on the Maindeck (it has no
     // cap), so that instance keeps the plain `"N of M"` form.
-    const countText = filterActive
-        ? countSuffix
-            ? `${visible.length} shown, ${cards.length}${countSuffix} total`
-            : `${visible.length} of ${cards.length}`
-        : `${cards.length}${countSuffix ?? ""}`;
+    const wrapped =
+        pileLayout.kind === "wrap" || (pileLayout.kind === "bands" && !!band);
+    const bandColumns =
+        band && pileLayout.kind === "bands" ? pileLayout[band] : null;
+    const countText = bandColumns
+        ? `${bandColumns.count}`
+        : filterActive
+          ? countSuffix
+              ? `${visible.length} shown, ${cards.length}${countSuffix} total`
+              : `${visible.length} of ${cards.length}`
+          : `${cards.length}${countSuffix ?? ""}`;
 
     return (
         <div
@@ -683,13 +772,18 @@ export default function DeckZoneSurface({
                     <CompactChromeDisclosure label="View">
                         {filterable && (
                             <>
-                                <ZoneCreatureFilterSelect
-                                    value={filter.creature}
-                                    onChange={(creature) =>
-                                        setFilter((f) => ({ ...f, creature }))
-                                    }
-                                    zoneLabel={title}
-                                />
+                                {band === undefined && (
+                                    <ZoneCreatureFilterSelect
+                                        value={filter.creature}
+                                        onChange={(creature) =>
+                                            setFilter((f) => ({
+                                                ...f,
+                                                creature,
+                                            }))
+                                        }
+                                        zoneLabel={title}
+                                    />
+                                )}
                                 <ZoneColorFilterToggles
                                     value={filter.colors}
                                     onToggle={(color: Color) =>
@@ -715,13 +809,14 @@ export default function DeckZoneSurface({
                                 zoneLabel={title}
                             />
                         )}
-                        {onGroupingChange && viewportClass === "desktop" && (
-                            <ZoneSplitCreaturesToggle
-                                on={splitCreatures}
-                                onChange={setSplitCreatures}
-                                zoneLabel={title}
-                            />
-                        )}
+                        {onGroupingChange &&
+                            (viewportClass === "desktop" || phonePiles) && (
+                                <ZoneSplitCreaturesToggle
+                                    on={splitCreatures}
+                                    onChange={setSplitCreatures}
+                                    zoneLabel={title}
+                                />
+                            )}
                         {onAddColumn && (
                             <ZoneAddColumnControl
                                 onAdd={onAddColumn}
@@ -735,6 +830,17 @@ export default function DeckZoneSurface({
             {cards.length === 0 && (
                 <div className="px-3 pt-2 md:px-4">
                     <EmptyState message={emptyMessage} />
+                </div>
+            )}
+            {bandColumns && cards.length > 0 && bandColumns.count === 0 && (
+                <div className="px-3 pt-2 md:px-4">
+                    <EmptyState
+                        message={
+                            band === "creatures"
+                                ? "No creatures here."
+                                : "No non-creatures here."
+                        }
+                    />
                 </div>
             )}
             {cards.length > 0 && visible.length === 0 && (
@@ -787,16 +893,21 @@ export default function DeckZoneSurface({
                     // dependency for a rule whose whole job is to BEAT `md:`.
                     // The branch emits one rung and never both.
                     landscapeCompact ? "gap-2 p-2" : "p-3 md:p-4",
-                    asRows
-                        ? // Issue #2584: rows stack DOWN the pane and the pane
-                          // itself is what scrolls vertically; each row owns its
-                          // own horizontal scroller with
-                          // `overscroll-behavior-x: contain`.
-                          "flex-col items-stretch gap-2 overscroll-y-contain"
-                        : cn(
-                              "flex-1 items-start snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none",
-                              !landscapeCompact && "gap-3 md:gap-6"
-                          )
+                    wrapped
+                        ? // Issue #5400: the piles wrap inside the pane and
+                          // the pane scrolls DOWN — no sideways scroll on a
+                          // phone held upright.
+                          "flex-wrap content-start items-start gap-x-2 gap-y-3 overscroll-y-contain"
+                        : asRows
+                          ? // Issue #2584: rows stack DOWN the pane and the pane
+                            // itself is what scrolls vertically; each row owns its
+                            // own horizontal scroller with
+                            // `overscroll-behavior-x: contain`.
+                            "flex-col items-stretch gap-2 overscroll-y-contain"
+                          : cn(
+                                "flex-1 items-start snap-x snap-mandatory compact-chrome:min-h-[calc(var(--card-h)+3.5rem)] compact-chrome:flex-none",
+                                !landscapeCompact && "gap-3 md:gap-6"
+                            )
                 )}
                 /* The freed gutter goes to the TILES (issue #2665 AC), as a
                    floor over the inherited width captured on the pane above —
@@ -834,49 +945,45 @@ export default function DeckZoneSurface({
                         otherCount={pileLayout.otherCount}
                         droppable={dropModel === "columns"}
                     />
+                ) : pileLayout.kind === "bands" ? (
+                    band ? (
+                        pileLayout[band].columns.map((column) =>
+                            pile(column, band)
+                        )
+                    ) : (
+                        <div className="grid min-w-0 flex-1 grid-cols-2 gap-3">
+                            {(["creatures", "others"] as const).map((half) => (
+                                <div
+                                    key={half}
+                                    data-split-band={half}
+                                    className={cn(
+                                        "flex min-w-0 flex-col gap-1",
+                                        half === "others"
+                                            ? "border-l border-border-subtle/40 pl-3"
+                                            : ""
+                                    )}
+                                >
+                                    <div className="flex items-baseline gap-2 text-xs font-semibold text-text-muted">
+                                        <span>
+                                            {half === "creatures"
+                                                ? "Creatures"
+                                                : "Non-creatures"}
+                                        </span>
+                                        <span className="text-text-disabled">
+                                            {pileLayout[half].count}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-start gap-2 overflow-x-auto overscroll-x-contain">
+                                        {pileLayout[half].columns.map(
+                                            (column) => pile(column, half)
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 ) : (
-                    pileLayout.columns.map((column) => (
-                        <DeckColumnPile
-                            key={column.id}
-                            label={column.label}
-                            dropId={column.dropId}
-                            droppable={dropModel === "columns"}
-                            dataColumn={column.id}
-                            tiles={column.tiles}
-                            hiddenWhenEmpty={column.hiddenWhenEmpty}
-                            showHeader={!landscapeCompact}
-                            /* A Column that is not a pin target is never
-                                 renameable and never deletable (ADR 0075 §2), so
-                                 it gets no controls at all rather than two
-                                 disabled ones. Renaming is offered for MANUAL
-                                 Columns only — a generated Column's label comes
-                                 from its Grouping.
-
-                                 …and a Column the pile is CSS-hiding below `md`
-                                 (`hiddenWhenEmpty`, issue #1633) gets none either
-                                 (issue #2511): the controls inside a
-                                 `display: none` pile are unreachable but still in
-                                 the document, which is 9 zero-size buttons on the
-                                 Limited Maindeck at 390x844 — dead tab stops the
-                                 browser probe counts and a reader cannot see.
-                                 `narrowWidth` is the JS twin of the pile's own
-                                 `hidden md:flex`, read from the SAME `md`
-                                 breakpoint number so the two cannot disagree.
-
-                                 The landscape-phone rung (issue #2665) is the
-                                 third such case and the same reasoning: there is
-                                 no header to render these INTO there. Unlike the
-                                 other two cases, this one needs no gate of its
-                                 own here — `showHeader={!landscapeCompact}` above
-                                 already unmounts the whole header row `actions`
-                                 would sit in (`{showHeader && (…)}` in
-                                 `deck-column-pile.tsx`), so whatever this prop
-                                 evaluates to on that rung is never rendered.
-                                 Rename/delete stay workbench gestures, as
-                                 `DeckMvRow` already decided for phone-portrait. */
-                            actions={column.actions}
-                        />
-                    ))
+                    pileLayout.columns.map((column) => pile(column))
                 )}
             </div>
         </div>

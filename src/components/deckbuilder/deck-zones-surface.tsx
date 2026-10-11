@@ -9,6 +9,7 @@ import type {
 import type { ZoneCard } from "~/types/game";
 import { cn } from "~/lib/utils";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import CardZoomSlider from "~/components/lobby/deck-builder/card-zoom-slider";
 import { useCardZoom } from "~/components/lobby/deck-builder/useCardZoom";
 import { useSplitRatio } from "~/components/lobby/deck-builder/useSplitRatio";
@@ -22,6 +23,8 @@ import DeckZoneSurface from "./deck-zone-surface";
 import DeckZonePeek from "./deck-zone-peek";
 import PoolSplitDivider from "./pool-split-divider";
 import type { DeckZoneSelection } from "./deckZoneSelection";
+import { maindeckBandPaneId } from "./deckPanes";
+import type { ZoneBand } from "./deckZoneSplit";
 
 /** One full-page snap pane of the phone pane strip (issue #2584). The bottom
  *  padding is the Peek Panel's sheet reserve, `0px` while nothing is selected
@@ -102,6 +105,10 @@ export interface DeckZonesSurfaceProps {
      *  and dragging onto the Sideboard can never diverge. */
     onMoveToSideboard: (cardId: string, pinKey?: string) => void;
     onMoveToMaindeck: (cardId: string, pinKey?: string) => void;
+    /** The same two moves with the whole selection in hand (issue #5400), for
+     *  a host that animates them. Take precedence over the pair above. */
+    onSelectionMoveToSideboard?: (selection: DeckZoneSelection) => void;
+    onSelectionMoveToMaindeck?: (selection: DeckZoneSelection) => void;
     /** Manual-Column management for the MAINDECK (ADR 0075 §2, issue #1626).
      *  Not offered on the Sideboard: its whole pane is one drop target, so a
      *  manual Column there could never receive a card. */
@@ -114,7 +121,17 @@ export interface DeckZonesSurfaceProps {
      *  instance only: the Sideboard is `dropModel: "pane"`, which has no
      *  Columns to pin into. */
     onPin?: (cardId: string, columnId: ColumnId, pinKey: string) => void;
+    /** The phone piles layout (issue #5400) — see
+     *  `DeckZoneSurfaceProps.phonePiles`. Besides the piles themselves it
+     *  stacks the Sideboard as a strip BELOW the Maindeck on a landscape phone
+     *  and, with Split creatures on, cuts the portrait Maindeck pane in two. */
+    phonePiles?: boolean;
 }
+
+const BAND_TITLES: Record<ZoneBand, string> = {
+    creatures: "Creatures",
+    others: "Non-creatures",
+};
 
 export default function DeckZonesSurface({
     mainCards,
@@ -147,10 +164,13 @@ export default function DeckZonesSurface({
     onSetFeatured,
     onMoveToSideboard,
     onMoveToMaindeck,
+    onSelectionMoveToSideboard,
+    onSelectionMoveToMaindeck,
     onAddColumn,
     onRenameColumn,
     onDeleteColumn,
     onPin,
+    phonePiles = false,
 }: DeckZonesSurfaceProps) {
     const mainZoom = useCardZoom({
         zone: mainZoomZone,
@@ -186,6 +206,12 @@ export default function DeckZonesSurface({
     const viewportMode = useViewportMode();
     const touch = viewportMode !== "desktop";
     const portrait = viewportMode === "portrait";
+    // Issue #5400. Landscape stacks the zones (Maindeck row over a Sideboard
+    // strip) instead of sitting them side by side; portrait with Split
+    // creatures on gives each half of the Maindeck its own pane (and tab).
+    const [splitCreatures] = useSplitCreatures();
+    const stacked = phonePiles && viewportMode === "landscape-compact";
+    const banded = phonePiles && portrait && splitCreatures;
 
     const [selection, setSelection] = useState<DeckZoneSelection | null>(null);
     // The INSPECTED card is a full selection record, not a bare card id: the
@@ -224,7 +250,11 @@ export default function DeckZonesSurface({
                       label: `→ ${sideTabLabel}`,
                       primary: true,
                       onSelect: () => {
-                          onMoveToSideboard(target.cardId, target.pinKey);
+                          if (onSelectionMoveToSideboard) {
+                              onSelectionMoveToSideboard(target);
+                          } else {
+                              onMoveToSideboard(target.cardId, target.pinKey);
+                          }
                           setSelection(null);
                       },
                   },
@@ -242,7 +272,11 @@ export default function DeckZonesSurface({
                       label: `→ ${mainTabLabel}`,
                       primary: true,
                       onSelect: () => {
-                          onMoveToMaindeck(target.cardId, target.pinKey);
+                          if (onSelectionMoveToMaindeck) {
+                              onSelectionMoveToMaindeck(target);
+                          } else {
+                              onMoveToMaindeck(target.cardId, target.pinKey);
+                          }
                           setSelection(null);
                       },
                   },
@@ -250,6 +284,42 @@ export default function DeckZonesSurface({
 
     const peekActions = selection ? actionsFor(selection) : [];
     const inspectActions = inspecting ? actionsFor(inspecting) : [];
+
+    const mainSurface = (band?: ZoneBand) => (
+        <DeckZoneSurface
+            zone="maindeck"
+            band={band}
+            phonePiles={phonePiles}
+            title={band ? BAND_TITLES[band] : mainTitle}
+            cards={mainCards}
+            layout={layout.maindeck}
+            onGroupingChange={onMainGroupingChange}
+            onOrderingChange={onMainOrderingChange}
+            lookup={lookup}
+            dropModel="columns"
+            onCardClick={onMainCardClick}
+            cardTitle={mainCardTitle}
+            emptyMessage={mainEmptyMessage}
+            featuredCardId={featuredCardId}
+            onCardSelect={touch ? setSelection : undefined}
+            selectedTileKey={
+                selection?.zone === "maindeck" ? selection.tileKey : null
+            }
+            onAddColumn={onAddColumn}
+            onRenameColumn={onRenameColumn}
+            onDeleteColumn={onDeleteColumn}
+            onPin={onPin}
+            headerRight={
+                <CardZoomSlider
+                    value={mainZoom.value}
+                    min={mainZoom.min}
+                    max={mainZoom.max}
+                    onChange={mainZoom.set}
+                    label="Maindeck card size"
+                />
+            }
+        />
+    );
 
     return (
         <div
@@ -271,7 +341,9 @@ export default function DeckZonesSurface({
                       // `display: contents` keeps the custom properties below
                       // inheriting — they are what size the tiles.
                       "contents"
-                    : "flex min-h-0 flex-1 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible md:flex-row"
+                    : stacked
+                      ? "flex flex-none basis-auto flex-col overflow-visible"
+                      : "flex min-h-0 flex-1 flex-col overflow-hidden compact-chrome:flex-none compact-chrome:basis-auto compact-chrome:overflow-visible md:flex-row"
             }
             style={
                 {
@@ -283,67 +355,56 @@ export default function DeckZonesSurface({
                 } as React.CSSProperties
             }
         >
-            <div
-                /* `max-md:` for the flex terms, `compact-chrome:` for the clip
-                   (issue #2511). The two halves are deliberately keyed
-                   differently: below `md` the pair stacks in a COLUMN, so
-                   `flex-none`/`basis-auto` is what gives this zone its content
-                   height — while at `md` and up (a landscape phone is 844px
-                   WIDE) the pair is a row and the same classes would collapse
-                   the zone's WIDTH and fight `md:basis-[var(--split-main)]`.
-                   Un-clipping is direction-free, so it takes the full
-                   phone-shaped predicate. */
-                data-deck-pane="maindeck"
-                className={cn(
-                    portrait
-                        ? PORTRAIT_PANE
-                        : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
-                )}
-                style={zoomVars(cardBase, mainZoom.value)}
-            >
-                <DeckZoneSurface
-                    zone="maindeck"
-                    title={mainTitle}
-                    cards={mainCards}
-                    layout={layout.maindeck}
-                    onGroupingChange={onMainGroupingChange}
-                    onOrderingChange={onMainOrderingChange}
-                    lookup={lookup}
-                    dropModel="columns"
-                    onCardClick={onMainCardClick}
-                    cardTitle={mainCardTitle}
-                    emptyMessage={mainEmptyMessage}
-                    featuredCardId={featuredCardId}
-                    onCardSelect={touch ? setSelection : undefined}
-                    selectedTileKey={
-                        selection?.zone === "maindeck"
-                            ? selection.tileKey
-                            : null
-                    }
-                    onAddColumn={onAddColumn}
-                    onRenameColumn={onRenameColumn}
-                    onDeleteColumn={onDeleteColumn}
-                    onPin={onPin}
-                    headerRight={
-                        <CardZoomSlider
-                            value={mainZoom.value}
-                            min={mainZoom.min}
-                            max={mainZoom.max}
-                            onChange={mainZoom.set}
-                            label="Maindeck card size"
-                        />
-                    }
-                />
-            </div>
+            {banded ? (
+                (["creatures", "others"] as const).map((band) => (
+                    <div
+                        key={band}
+                        data-deck-pane={maindeckBandPaneId(band)}
+                        className={PORTRAIT_PANE}
+                        style={zoomVars(cardBase, mainZoom.value)}
+                    >
+                        {mainSurface(band)}
+                    </div>
+                ))
+            ) : (
+                <div
+                    /* `max-md:` for the flex terms, `compact-chrome:` for the
+                       clip (issue #2511). The two halves are deliberately
+                       keyed differently: below `md` the pair stacks in a
+                       COLUMN, so `flex-none`/`basis-auto` is what gives this
+                       zone its content height — while at `md` and up (a
+                       landscape phone is 844px WIDE) the pair is a row and the
+                       same classes would collapse the zone's WIDTH and fight
+                       `md:basis-[var(--split-main)]`. Un-clipping is
+                       direction-free, so it takes the full phone-shaped
+                       predicate. The stacked landscape layout (issue #5400)
+                       is a column again, so it takes the column classes. */
+                    data-deck-pane="maindeck"
+                    className={cn(
+                        portrait
+                            ? PORTRAIT_PANE
+                            : stacked
+                              ? "min-w-0 flex-none overflow-visible"
+                              : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible md:flex-none md:shrink-0 md:grow-0 md:basis-[var(--split-main)]"
+                    )}
+                    style={zoomVars(cardBase, mainZoom.value)}
+                >
+                    {mainSurface()}
+                </div>
+            )}
             {/* No split to drag when the zones are separate panes. */}
-            {!portrait && <PoolSplitDivider {...splitDividerProps} />}
+            {!portrait && !stacked && (
+                <PoolSplitDivider {...splitDividerProps} />
+            )}
             <div
                 data-deck-pane="sideboard"
                 /* Same split as the Maindeck wrapper above (issue #2511). */
                 className={cn(
                     portrait
                         ? PORTRAIT_PANE
-                        : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible"
+                        : stacked
+                          ? "min-w-0 flex-none overflow-visible"
+                          : "min-h-0 min-w-0 flex-1 overflow-hidden max-md:flex-none max-md:basis-auto compact-chrome:overflow-visible"
                 )}
                 style={zoomVars(cardBase, sideZoom.value)}
             >
@@ -367,6 +428,7 @@ export default function DeckZonesSurface({
                     }
                     countSuffix={sideCountSuffix}
                     warning={sideWarning}
+                    phonePiles={phonePiles}
                     headerRight={
                         <CardZoomSlider
                             value={sideZoom.value}

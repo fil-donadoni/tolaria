@@ -97,6 +97,8 @@ function cloneForFlight(source: Element): HTMLElement {
 
 interface Landing {
     rect: DOMRect;
+    /** The stand-in the copy flew to, which pulses on arrival. */
+    standIn?: Element;
     /** The real destination (hidden while the copy is in flight), or `null`
      *  when flying to a stand-in that must stay visible. */
     element: HTMLElement | null;
@@ -117,7 +119,7 @@ function resolveLanding(target: CardFlyTarget, win: Window): Landing | null {
     const standIn = target.standIn?.() ?? null;
     if (standIn === null) return null;
     const rect = standIn.getBoundingClientRect();
-    return isOnScreen(rect, win) ? { rect, element: null } : null;
+    return isOnScreen(rect, win) ? { rect, element: null, standIn } : null;
 }
 
 function isOnScreen(rect: DOMRect, win: Window): boolean {
@@ -203,7 +205,24 @@ function launch(
     const land = () => {
         ghost.remove();
         if (hidden) hidden.style.visibility = previousVisibility;
+        if (landing.standIn) pulse(landing.standIn);
     };
     animation.onfinish = land;
     animation.oncancel = land;
+}
+
+const PULSE_DURATION_MS = 280;
+
+/** A short swell on the label a card flew into, so the arrival reads even
+ *  though the card itself is off screen. */
+function pulse(el: Element): void {
+    if (typeof el.animate !== "function") return;
+    el.animate(
+        [
+            { transform: "scale(1)" },
+            { transform: "scale(1.15)", offset: 0.4 },
+            { transform: "scale(1)" },
+        ],
+        { duration: PULSE_DURATION_MS, easing: "ease-out" }
+    );
 }

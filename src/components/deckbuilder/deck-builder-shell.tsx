@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import type { DragEndEvent } from "@dnd-kit/react";
 import type { DragDropManager } from "@dnd-kit/dom";
@@ -6,6 +6,7 @@ import type { CardLookup, DeckColumnLayout } from "@convex/deckLayout";
 import type { ZoneCard } from "~/types/game";
 import { cn } from "~/lib/utils";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import { useDeckSourceDock } from "~/hooks/useDeckSourceDock";
 import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
@@ -19,6 +20,7 @@ import DeckBottomBar from "./deck-bottom-bar";
 import DeckFeaturedSelect from "./deck-featured-select";
 import DeckBasicsSheet from "./deck-basics-sheet";
 import { deckPanes, type DeckPane } from "./deckPanes";
+import { isCreatureCard } from "./deckZoneFilter";
 import {
     applyDeckZoneDragAction,
     resolveDeckZoneDragAction,
@@ -142,7 +144,21 @@ export default function DeckBuilderShell({
     // The pane SET falls out of which slots this variant supplied — three for
     // a builder with a source panel, two for one whose zones are the only
     // source. No `kind` check anywhere (`deckPanes.ts`).
+    //
+    // Phone portrait with Split creatures on (issue #5400) cuts the Maindeck's
+    // pane in two, so the strip reads Creatures | Non-creatures | Sideboard.
+    const [splitCreatures] = useSplitCreatures();
+    const banded = Boolean(zones.phonePiles) && portrait && splitCreatures;
+    const creatureCount = banded
+        ? mainCards.filter((c) => isCreatureCard(c.cardId, lookup)).length
+        : 0;
     const panes = deckPanes({
+        mainBands: banded
+            ? {
+                  creatures: creatureCount,
+                  others: mainCards.length - creatureCount,
+              }
+            : undefined,
         source: sourcePanel
             ? { label: sourcePanel.label, count: sourcePanel.count }
             : undefined,
@@ -154,6 +170,26 @@ export default function DeckBuilderShell({
 
     const stripRef = useRef<HTMLDivElement | null>(null);
     const [activePaneId, setActivePaneId] = useState<string>(panes[0]!.id);
+
+    // Toggling the split swaps the Maindeck's pane for two, which moves the
+    // Sideboard's index: put the strip back on the pane the player was in
+    // (the first band when they were on the Maindeck) rather than letting the
+    // old scroll offset land it on a neighbour.
+    const bandedBefore = useRef(banded);
+    useEffect(() => {
+        if (bandedBefore.current === banded) return;
+        bandedBefore.current = banded;
+        const wasMain = activePaneId.startsWith("maindeck");
+        const next = wasMain
+            ? banded
+                ? "maindeck-creatures"
+                : "maindeck"
+            : activePaneId;
+        setActivePaneId(next);
+        document
+            .querySelector(`[data-deck-pane="${next}"]`)
+            ?.scrollIntoView?.({ inline: "start", block: "nearest" });
+    }, [banded, activePaneId]);
     const [basicsOpen, setBasicsOpen] = useState(false);
 
     // Tapping a tab scrolls its pane into view — a programmatic swipe in
@@ -429,10 +465,17 @@ export default function DeckBuilderShell({
                                 onSideCardClick={actions.onSideCardClick}
                                 onMoveToSideboard={actions.onMoveToSideboard}
                                 onMoveToMaindeck={actions.onMoveToMaindeck}
+                                onSelectionMoveToSideboard={
+                                    actions.onSelectionMoveToSideboard
+                                }
+                                onSelectionMoveToMaindeck={
+                                    actions.onSelectionMoveToMaindeck
+                                }
                                 mainCardTitle={deckCardTitle}
                                 sideCardTitle={deckCardTitle}
                                 featuredCardId={featured?.cardId}
                                 onSetFeatured={featured?.onSet}
+                                phonePiles={zones.phonePiles}
                             />
                         </div>
                     </div>
