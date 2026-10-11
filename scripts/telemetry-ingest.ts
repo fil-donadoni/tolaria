@@ -51,6 +51,7 @@ import {
     classifyRole,
     bucketCmd,
     costOf,
+    backfillCosts,
     dayHour,
     issueFromDescription,
     issueFromSessionCommand,
@@ -702,6 +703,40 @@ function backfillResponseIds(db: Sqlite): number {
  * paying it on a version bump costs nothing worth optimising.
  */
 const SPAN_CLASSIFIER_VERSION = 2;
+
+/**
+ * Prices the `llm` rows still at `cost = 0` (issue #5460) and returns how many
+ * it priced, with the models it has no price for. Runs before the
+ * `agent_runs` rebuild, which sums `llm.cost`.
+ */
+function repriceZeroCostRows(db: Sqlite): {
+    priced: number;
+    unpriced: Array<{ model: string; rows: number }>;
+} {
+    const rows = db
+        .query<
+            {
+                id: string;
+                model: string;
+                inTok: number;
+                outTok: number;
+                cacheRead: number;
+                cacheWrite: number;
+            },
+            []
+        >(
+            `SELECT uuid AS id, model, in_tok AS inTok, out_tok AS outTok,
+                    cache_read AS cacheRead, cache_write AS cacheWrite
+             FROM llm WHERE cost = 0 AND in_tok + out_tok + cache_read + cache_write > 0`
+        )
+        .all();
+    const { updates, unpriced } = backfillCosts(rows);
+    const set = db.prepare("UPDATE llm SET cost = ? WHERE uuid = ?");
+    db.transaction(() => {
+        for (const u of updates) set.run(u.cost, u.id);
+    })();
+    return { priced: updates.length, unpriced };
+}
 
 function reclassifySpans(db: Sqlite): number {
     const done = db
@@ -1791,6 +1826,15 @@ async function main(): Promise<void> {
     // Before the agent_runs rebuild, which reads straight off `llm`.
     const deduped = backfillResponseIds(db);
     const reclassified = reclassifySpans(db);
+    const repriced = repriceZeroCostRows(db);
+    if (repriced.unpriced.length > 0)
+        console.warn(
+            `telemetry:ingest: ${repriced.unpriced.reduce((n, u) => n + u.rows, 0)} rows ` +
+                `of ${repriced.unpriced.length} model(s) have no price, cost left 0: ` +
+                repriced.unpriced
+                    .map((u) => `${u.model} (${u.rows})`)
+                    .join(", ")
+        );
     const runs = rebuildAgentRuns(db);
     const attributed = attributeIssues(db);
     const fetched = refreshIssueMeta(db);
@@ -1818,6 +1862,9 @@ async function main(): Promise<void> {
             `(total ${totals.spans} spans, ${totals.llm} messages, ${runs} agent runs, ` +
             (deduped ? `${deduped} duplicate response rows collapsed, ` : "") +
             (reclassified ? `${reclassified} spans reclassified, ` : "") +
+            (repriced.priced
+                ? `${repriced.priced} zero-cost rows priced, `
+                : "") +
             `${attributed} issue-attributed, +${fetched} issue metas, ` +
             `+${fetchedPrs} PR metas, +${gateRuns} gate runs, ` +
             `+${healthRuns} health runs, +${detach} detach lines, +${lock} gate-lock rows` +
