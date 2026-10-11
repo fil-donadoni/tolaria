@@ -219,6 +219,7 @@ import {
     waitForSettledScreen,
 } from "./settle.ts";
 import { runSettleSelfCheck } from "./settle-selfcheck.ts";
+import { holdLease } from "../lib/process-lease.ts";
 import {
     cellTimingSuffix,
     emptyTimings,
@@ -412,7 +413,9 @@ function ensureCatalogue(): void {
     const ensured = spawnSync(
         "node",
         [path.join("scripts", "ensure-full-catalogue.mjs")],
-        { cwd: REPO_ROOT, encoding: "utf8" }
+        // Explicit: Bun's spawnSync hands down the environment the process
+        // STARTED with, not the lease's tag (`lib/process-lease.ts`).
+        { cwd: REPO_ROOT, encoding: "utf8", env: process.env }
     );
     if (ensured.status !== 0) {
         throw new FatalError(
@@ -783,6 +786,10 @@ function computeWalkOwed(opts: Options): WalkOwed {
 
 async function main(): Promise<number> {
     const opts = parseArgs(process.argv.slice(2));
+    // Before Vite and Chromium exist: both inherit the lease's tag, so a walk
+    // killed mid-run leaves nothing the reaper cannot attribute (issue #5470).
+    // Generous: a synchronous build blocks the renewal timer.
+    holdLease({ kind: "check:ui", ttlMs: 60 * 60 * 1000 });
     if (opts.all && opts.surfaces) {
         throw new FatalError(
             "--all and --surface= contradict each other: one forces every surface, the other picks a subset"

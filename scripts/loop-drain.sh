@@ -40,6 +40,7 @@ set -eu
 # caller's cwd happens to be, so it is the one thing in this script anchored
 # to the script's own location instead.
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+LEASE_CLI="$SCRIPT_DIR/lib/process-lease.ts"
 
 # ── flags / env fallbacks ───────────────────────────────────────────────────
 BUDGET="${TOLARIA_LOOP_TOKEN_BUDGET:-}"
@@ -872,6 +873,7 @@ while :; do
         claude_exit=0
     else
         rc_file=$(mktemp)
+        pass_lease="loop-pass-$$-$pass-$(date +%s)"
         # A pipeline's exit status in POSIX sh is the LAST command's (tee),
         # not claude's — capture claude's real exit code via the rc_file
         # rather than `$?` after the pipe (no PIPESTATUS in POSIX sh).
@@ -905,9 +907,21 @@ while :; do
             # shellcheck disable=SC2086  # intentional word-splitting of the
             # resolved tier flag and of a user-supplied flag string, both
             # documented above.
-            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
+            #
+            # TOLARIA_OWNER + the `sh -c … exec` wrapper: the pass's PROCESS
+            # LEASE (issue #5470). The wrapper registers the lease on its own
+            # pid and then BECOMES `claude` (exec keeps the pid), so the lease
+            # is anchored on the pass itself — in the foreground, where Ctrl-C
+            # still reaches it — and everything the pass spawns inherits the
+            # tag. Once the pass ends, `bun run reaper` takes whatever it
+            # left running (a detached `gate:run` run has its own lease).
+            TOLARIA_OWNER="$pass_lease" TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
+                sh -c 'bun "$1" put "$2" loop-pass $$ 43200 --cwd "$PWD" --command "claude -p $3" >/dev/null || true; shift 3; exec "$@"' \
+                lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" \
+                claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
             echo $? >"$rc_file"
         ) | tee "$pass_log"
+        bun "$LEASE_CLI" clear "$pass_lease" >/dev/null || true
         set -e
         claude_exit=$(cat "$rc_file" 2>/dev/null || echo "")
         rm -f "$rc_file"

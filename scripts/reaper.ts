@@ -74,9 +74,12 @@ export interface SweepConfig {
     unknownOwnerMinAgeS: number;
 }
 
+/** Both under the 2-minute sweep interval, so a stray is taken by the first
+ *  sweep after it is eligible — and over the few hundred milliseconds a
+ *  spawner needs between its fork and its lease write. */
 export const DEFAULT_CONFIG: SweepConfig = {
-    orphanMinAgeS: 300,
-    unknownOwnerMinAgeS: 120,
+    orphanMinAgeS: 60,
+    unknownOwnerMinAgeS: 60,
 };
 
 export interface Kill {

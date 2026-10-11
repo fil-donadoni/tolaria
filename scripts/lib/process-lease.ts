@@ -246,8 +246,13 @@ export interface HeldLease {
 
 /**
  * Register a lease for THIS process and tag everything it spawns from now on
- * (`process.env.TOLARIA_OWNER` — every `spawn` without an explicit `env`, and
- * every `{ ...process.env }` built after this call, inherits it). Renewed on
+ * through `process.env.TOLARIA_OWNER`: node's async `spawn` with no `env`, and
+ * every `env: process.env` / `{ ...process.env }` built after this call,
+ * inherits it. NOT Bun's `spawnSync` or `Bun.spawn` with no `env` — measured
+ * on Bun 1.3.9, both hand down the environment the process STARTED with, so
+ * a spawner passes `env: process.env` there explicitly. (A child spawned that
+ * way still carries its spawner's own inherited tag, and is still reached by
+ * the reaper's walk of the anchor's tree.) Renewed on
  * an unref'd timer (a busy event loop delays a renewal, so `ttlMs` is
  * generous, never tight); cleared on a normal exit. A signal death leaves
  * the lease behind with a dead anchor — which is exactly what tells the

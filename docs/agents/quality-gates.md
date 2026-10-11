@@ -1872,6 +1872,34 @@ instead of the real one: a suite run on a saturated machine neither waits on
 it nor passes because of it. A run under an injected probe writes no `run`
 row.
 
+### Process leases and the active reaper (issue #5470)
+
+Admission decides what may START; nothing above ended what should have
+stopped. Reaping was passive — `gate-run.sh` reaped a run only when somebody
+invoked it, `gate.ts` reclaimed a holder that stopped burning CPU — and
+vitest workers, Chromium, Vite, `convex-local-backend` and `claude -p` passes
+had no owner once their session or worktree was gone. The phantom pids that
+saturated the CPU went unnoticed because nothing was looking: the first
+dry-run sweep found four vitest workers orphaned for two hours from a worktree
+removed long before.
+
+So every spawner (`gate-run.sh`, `gate.ts`, `check:ui`, `health-main`, the
+health decision `land` detaches, the AFK driver's passes) registers a
+**process lease** (`scripts/lib/process-lease.ts`) and tags its whole tree
+with `TOLARIA_OWNER=<lease>`, and `bun run reaper` — a `launchd` agent and a
+`systemd` timer, every 2 minutes — ends every tree whose lease is dead.
+Ownership is by **tag, not by command pattern** (the owner's requirement on
+issue #5470): the tag survives re-parenting to pid 1, which is exactly where
+the process tree loses an orphan, and it is read whatever the binary is. The
+pattern net stays only for untagged strays, and only for orphans, so a dev
+server with a live terminal parent is never matched. On macOS a few platform
+binaries hide their environment from `ps -E` (`/bin/sleep` measured); the
+lease's process group and the anchor's tree catch those. Bun's `spawnSync`
+and `Bun.spawn` with no `env` hand down the environment the process started
+with, not `process.env` (Bun 1.3.9, measured): a spawner passes
+`env: process.env` there. Install, check, proof:
+`docs/guides/huawei-runner.md`.
+
 ## Worktree isolation, and the documentation lane
 
 Measured over the 30 days to 2026-08-17: **~40 documentation-only commits

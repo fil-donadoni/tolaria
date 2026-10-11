@@ -339,6 +339,11 @@ export const run = (opts: RunOpts = {}) =>
             // reads the AMBIENT value and stays green with the fix deleted,
             // precisely when the suite runs inside an AFK pass.
             CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "",
+            // Pass leases go to the scratch dir, never to the machine's
+            // registry the real reaper sweeps (issue #5470); and no pass
+            // inherits the lease of the run this suite runs under.
+            TOLARIA_LEASE_DIR: path.join(tmp, "leases"),
+            TOLARIA_OWNER: "",
             ...opts.env,
         },
     });
