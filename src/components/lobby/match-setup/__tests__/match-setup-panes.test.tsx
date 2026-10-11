@@ -12,6 +12,7 @@ function Harness({ initial }: { initial: MatchSetup }) {
     return (
         <MatchSetupPanes
             setup={setup}
+            tables={[]}
             decks={[]}
             onChange={(patch) => setSetup((s) => applyChange(s, patch, []))}
             canStart={false}

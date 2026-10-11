@@ -29,12 +29,16 @@ interface JoinByCodeDialogProps {
     /** Fires the join mutation. Rejects with the server's message, which is
      *  the ONLY thing that decides whether a code was any good. */
     onSubmit: (code: string) => Promise<void>;
+    /** The confirm button's label: the lobby joins on confirm, the setup flow
+     *  only keeps the code until Start. */
+    submitLabel?: string;
 }
 
 export default function JoinByCodeDialog({
     open,
     onOpenChange,
     onSubmit,
+    submitLabel = "Join table",
 }: JoinByCodeDialogProps) {
     const [raw, setRaw] = useState("");
     const [error, setError] = useState<string | null>(null);
@@ -91,7 +95,7 @@ export default function JoinByCodeDialog({
                     />
                     <ActionButton
                         onClick={() => void handleSubmit()}
-                        label={pending ? "Joining…" : "Join table"}
+                        label={pending ? "Joining…" : submitLabel}
                         tone="primary"
                         // Project rule: a button firing a mutation is inert
                         // while that mutation is in flight.

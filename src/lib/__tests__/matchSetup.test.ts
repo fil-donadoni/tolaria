@@ -14,6 +14,8 @@ import {
     setupSteps,
     startRequest,
     stepsFor,
+    tablesForMode,
+    effectiveMatchFormat,
     type MatchSetup,
 } from "../matchSetup";
 
@@ -244,10 +246,12 @@ describe("persistence — round-trip and tolerant load", () => {
         expect(parseSetup(JSON.stringify({ mode: "online" })).mode).toBe(null);
     });
 
-    it("a stored Join loads unanswered until the table step exists", () => {
-        expect(parseSetup(JSON.stringify({ opponent: "join" })).opponent).toBe(
-            null
+    it("a stored Join reopens on the table step; a join code is never kept", () => {
+        const loaded = parseSetup(
+            JSON.stringify({ opponent: "join", joinCode: "ABC123" })
         );
+        expect(loaded.opponent).toBe("join");
+        expect(loaded.joinCode).toBeNull();
     });
 });
 
@@ -349,5 +353,108 @@ describe("startRequest — the payload Start sends per opponent", () => {
             seat: "own",
             args: { gameId: "t1", deck: { id: "burn" } },
         });
+    });
+});
+
+describe("Join and Cockatrice branches (issue #5342)", () => {
+    const joined = setup({
+        mode: "arena",
+        opponent: "join",
+        joinTableId: "t1",
+        joinTableFormat: "premodern",
+    });
+
+    it("Join inherits the host's Match Format and asks no Match Format step", () => {
+        expect(effectiveMatchFormat(joined)).toBe("premodern");
+        expect(stepsFor(joined)).not.toContain("format");
+        expect(stepsFor(joined)).toContain("table");
+    });
+
+    it("step 4 is pre-filtered by the inherited Match Format", () => {
+        const next = applyChange(joined, { myDeckId: "atog" }, DECKS);
+        expect(next.myDeckId).toBeNull();
+        expect(applyChange(joined, { myDeckId: "burn" }, DECKS).myDeckId).toBe(
+            "burn"
+        );
+    });
+
+    it("Cockatrice drops step 3 and forces Manual", () => {
+        const cockatrice = setup({ mode: "cockatrice", opponent: "solo" });
+        expect(stepsFor(cockatrice)).not.toContain("format");
+        expect(effectiveMatchFormat(cockatrice)).toBe("manual");
+        expect(
+            applyChange(cockatrice, { myDeckId: "burn" }, DECKS).myDeckId
+        ).toBeNull();
+        expect(
+            applyChange(cockatrice, { myDeckId: "pile" }, DECKS).myDeckId
+        ).toBe("pile");
+    });
+
+    it("switching to Cockatrice with Bot chosen clears the opponent", () => {
+        const next = applyChange(READY_BOT, { mode: "cockatrice" }, DECKS);
+        expect(next.opponent).toBeNull();
+        expect(next.mode).toBe("cockatrice");
+    });
+
+    it("picking a table and typing a code replace each other", () => {
+        const coded = applyChange(joined, { joinCode: "ABC123" }, DECKS);
+        expect(coded.joinTableId).toBeNull();
+        expect(coded.joinTableFormat).toBeNull();
+        expect(effectiveMatchFormat(coded)).toBe("freeform");
+        const back = applyChange(
+            coded,
+            { joinTableId: "t2", joinTableFormat: "old-school" },
+            DECKS
+        );
+        expect(back.joinCode).toBeNull();
+        expect(effectiveMatchFormat(back)).toBe("old-school");
+    });
+
+    it("leaving Join or Arena drops the code", () => {
+        const coded = applyChange(joined, { joinCode: "ABC123" }, DECKS);
+        expect(
+            applyChange(coded, { opponent: "solo" }, DECKS).joinCode
+        ).toBeNull();
+    });
+
+    it("Join by code: joinGameByCode with the code and the joiner's deck", () => {
+        const req = startRequest(
+            setup({
+                mode: "arena",
+                opponent: "join",
+                joinCode: "ABC123",
+                myDeckId: "burn",
+            }),
+            DECKS,
+            "Filo"
+        );
+        expect(req).toMatchObject({
+            mutation: "joinGameByCode",
+            seat: "own",
+            args: { code: "ABC123", deck: { id: "burn" } },
+        });
+    });
+
+    it("Join in Cockatrice: joinManualGame", () => {
+        const req = startRequest(
+            setup({
+                mode: "cockatrice",
+                opponent: "join",
+                joinTableId: "t1",
+                myDeckId: "pile",
+            }),
+            DECKS,
+            "Filo"
+        );
+        expect(req).toMatchObject({ mutation: "joinManualGame" });
+    });
+
+    it("tablesForMode keeps one game mode's tables", () => {
+        const rows = [{ id: 1 }, { id: 2, mode: "manual" as const }];
+        expect(tablesForMode(rows, "arena")).toEqual([{ id: 1 }]);
+        expect(tablesForMode(rows, "cockatrice")).toEqual([
+            { id: 2, mode: "manual" },
+        ]);
+        expect(tablesForMode(rows, null)).toEqual([]);
     });
 });

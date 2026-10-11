@@ -28,6 +28,7 @@ export default function MatchSetupFlow() {
     const user = useCurrentUser();
     const userDecks = useUserDecks();
     const presetDecks = useQuery(api.decks.list, {});
+    const openGames = useQuery(api.gameReads.listOpenGames);
     const [stored, setStored] = useState<MatchSetup>(loadSetup);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function MatchSetupFlow() {
     );
     const joinGame = useMutation(api.game.joinGame);
     const joinManualGame = useMutation(api.gameManual.joinManualGame);
+    const joinGameByCode = useMutation(api.game.joinGameByCode);
 
     const decks = useMemo<LobbyDeck[]>(
         () => [
@@ -49,13 +51,29 @@ export default function MatchSetupFlow() {
         [userDecks, presetDecks]
     );
 
-    if (!user || userDecks === undefined || presetDecks === undefined) {
+    if (
+        !user ||
+        userDecks === undefined ||
+        presetDecks === undefined ||
+        openGames === undefined
+    ) {
         return <LoadingScreen />;
     }
 
     // A remembered deck that was deleted or is no longer admitted is dropped
     // before it is ever shown (story 50).
-    const setup = applyChange(stored, {}, decks);
+    const reconciled = applyChange(stored, {}, decks);
+    // A remembered table that closed since (or filled, or was cancelled) is
+    // dropped too, so the recap never offers a seat that is gone.
+    const setup =
+        reconciled.joinTableId !== null &&
+        !openGames.some((t) => t._id === reconciled.joinTableId)
+            ? applyChange(
+                  reconciled,
+                  { joinTableId: null, joinTableFormat: null },
+                  decks
+              )
+            : reconciled;
     const request = startRequest(setup, decks, user.nickname);
 
     const update = (patch: Partial<MatchSetup>) => {
@@ -80,6 +98,8 @@ export default function MatchSetupFlow() {
             case "joinManualGame":
                 await joinManualGame(req.args);
                 return req.args.gameId;
+            case "joinGameByCode":
+                return (await joinGameByCode(req.args)).gameId;
         }
     };
 
@@ -107,6 +127,7 @@ export default function MatchSetupFlow() {
         <MatchSetupPanes
             setup={setup}
             decks={decks}
+            tables={openGames}
             onChange={update}
             canStart={request !== null}
             busy={busy}

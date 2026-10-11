@@ -10,6 +10,7 @@ import {
     firstOpenStep,
     setupSteps,
     type MatchSetup,
+    type OpenTable,
     type StepKey,
 } from "~/lib/matchSetup";
 import { Panel, PanelBody, PanelHeader } from "~/components/ui/panel";
@@ -19,6 +20,7 @@ import MatchSetupStepBody from "./match-setup-step-body";
 export default function MatchSetupPanes({
     setup,
     decks,
+    tables,
     onChange,
     canStart,
     busy,
@@ -27,6 +29,7 @@ export default function MatchSetupPanes({
 }: {
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
+    tables: readonly OpenTable[];
     onChange: (patch: Partial<MatchSetup>) => void;
     canStart: boolean;
     busy: boolean;
@@ -59,6 +62,7 @@ export default function MatchSetupPanes({
                         step={current.key}
                         setup={setup}
                         decks={decks}
+                        tables={tables}
                         onChange={(patch) => {
                             onChange(patch);
                             setReopened(null);
