@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { ImagesIcon, SearchIcon } from "lucide-react";
 import type { CardPrinting } from "@convex/cards/catalogue";
 import GameDialog from "~/components/ui/game-dialog";
@@ -40,6 +40,10 @@ interface PrintingPickerProps {
     /** Fired when the picker opens — the Full Catalogue path's Scryfall
      *  editions load. */
     onOpen?: () => void;
+    /** Replaces the footer button with the caller's own trigger (issue
+     *  #5398: a basic land's art tile). `open` opens the dialog; the caller
+     *  owns the trigger's accessible name. */
+    renderTrigger?: (open: () => void) => ReactNode;
 }
 
 /**
@@ -59,6 +63,7 @@ export default function PrintingPicker({
     selected,
     onSelect,
     onOpen,
+    renderTrigger,
 }: PrintingPickerProps) {
     const [open, setOpen] = useState(false);
     const [setQuery, setSetQuery] = useState("");
@@ -111,21 +116,25 @@ export default function PrintingPicker({
 
     return (
         <>
-            <button
-                type="button"
-                onClick={(e) => {
-                    // The cell's own click adds the card; this one must not.
-                    e.stopPropagation();
-                    handleOpenChange(true);
-                }}
-                aria-label={`Choose printing of ${cardName}`}
-                aria-haspopup="dialog"
-                title={`Printing: ${nameOf(selected.setCode)}`}
-                className="flex w-full items-center justify-center gap-1 rounded-sm border border-border-subtle/40 bg-surface-elevated/40 py-0.5 text-[10px] uppercase tracking-wide text-text-muted transition hover:text-parchment"
-            >
-                <span className="truncate">{selected.setCode}</span>
-                <ImagesIcon className="size-3 shrink-0 opacity-60" />
-            </button>
+            {renderTrigger ? (
+                renderTrigger(() => handleOpenChange(true))
+            ) : (
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        // The cell's own click adds the card; this one must not.
+                        e.stopPropagation();
+                        handleOpenChange(true);
+                    }}
+                    aria-label={`Choose printing of ${cardName}`}
+                    aria-haspopup="dialog"
+                    title={`Printing: ${nameOf(selected.setCode)}`}
+                    className="flex w-full items-center justify-center gap-1 rounded-sm border border-border-subtle/40 bg-surface-elevated/40 py-0.5 text-[10px] uppercase tracking-wide text-text-muted transition hover:text-parchment"
+                >
+                    <span className="truncate">{selected.setCode}</span>
+                    <ImagesIcon className="size-3 shrink-0 opacity-60" />
+                </button>
+            )}
             <GameDialog
                 open={open}
                 onOpenChange={handleOpenChange}

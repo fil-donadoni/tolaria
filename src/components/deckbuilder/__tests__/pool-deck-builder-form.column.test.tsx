@@ -25,10 +25,15 @@ const setColumnMock = vi.fn().mockResolvedValue(null);
 const createMock = vi.fn().mockResolvedValue("deck-1");
 const updateMock = vi.fn().mockResolvedValue(undefined);
 
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (

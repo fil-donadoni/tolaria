@@ -53,10 +53,15 @@ const setPoolArrangementEntryMock = vi.hoisted(() =>
 const submitPickMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 const selectDraftPickMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (

@@ -198,8 +198,8 @@ export function findBasicLandRemovalIndex(
 // (`src/lib/editions.ts`, since replaced by the visual `PrintingPicker`,
 // issue #4122) was unusable here — a bare `LEB
 // #3` tells the player nothing about what they're picking. The functions
-// below are the pure half of the picker; the popover/grid UI lives in
-// `basic-land-art-picker.tsx`, and the two builders own the React state that
+// below are the pure half of the picker; the tile UI lives in
+// `basic-land-tile.tsx`, and the two builders own the React state that
 // seeds from and writes through `recordBasicLandArtChoice`/
 // `seededBasicLandArt` (mirrors `deckZoneColumnView.ts`'s
 // `seededColumnView`/`recordGroupingChange` split for Grouping/Ordering).

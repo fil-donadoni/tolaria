@@ -1,16 +1,12 @@
 // `cardPrints` rows of Mountain (issue #5106) and the two hooks that read them
-// (`useBasicLandPrintings`, `useBasicLandPreferenceRows`), stubbed for the dom
+// (`useCardPrintings`, `useBasicLandPreferenceRows`), stubbed for the dom
 // tests that mount a builder: those tests mock the hooks, not `convex/react`,
-// so the picker grid and the stored-preference check run the REAL pure core
+// so the printing picker grid and the stored-preference check run the REAL pure core
 // (`legalBasicLandPrintings`, `applyBasicLandArtPreference`) over table rows.
 // The table never holds a definition's own printing, so the 14 rows below plus
 // the canonical LEA Mountain are the 15 the art grid shows:
 // `lea×2, leb×3, ice×1, 2ed×3, 3ed×3, 4ed×3`.
-import {
-    legalBasicLandPrintings,
-    type BasicLandPrintRow,
-    type BasicLandSubtype,
-} from "~/components/deckbuilder/basicLands";
+import { type BasicLandPrintRow } from "~/components/deckbuilder/basicLands";
 
 export const MOUNTAIN_ID = "eace2c85-976c-425e-9800-5a6ccbd91b56";
 export const LEB_MOUNTAIN_PRINT = "7af9c715-8d72-4eae-b412-fc89138ff588";
@@ -45,21 +41,31 @@ export const MOUNTAIN_PRINT_ROWS: BasicLandPrintRow[] = SETS.map((set, i) => ({
     set,
 }));
 
-/** Stands in for `useBasicLandPrintings`: the Mountain rows, only while the
- *  popover is open, narrowed by the Format's allowed Sets like the query. */
-export function useBasicLandPrintingsStub(
-    subtype: BasicLandSubtype,
-    allowedSets: string[] | null,
+/** Stands in for `useCardPrintings` (the printing picker's query, issue
+ *  #4122/#5398): the Mountain rows, only while the picker is open, narrowed
+ *  by the Sets the picker passes like the query does. */
+export function useCardPrintingsStub(
+    cardId: string | null,
+    sets: string[] | null,
     open: boolean
 ) {
-    const rows = subtype === "Mountain" ? MOUNTAIN_PRINT_ROWS : [];
+    const rows = cardId === MOUNTAIN_ID ? MOUNTAIN_PRINT_ROWS : [];
     return {
         printings: open
-            ? legalBasicLandPrintings(subtype, rows, allowedSets)
+            ? rows
+                  .filter((row) => sets === null || sets.includes(row.set))
+                  .map((row) => ({ printId: row.printId, setCode: row.set }))
             : [],
+        loading: false,
         canLoadMore: false,
         loadMore: () => undefined,
     };
+}
+
+/** Stands in for `useScryfallSetNames`: no network, the picker falls back to
+ *  upper-cased Set codes. */
+export function useScryfallSetNamesStub(): ReadonlyMap<string, string> {
+    return new Map();
 }
 
 /** Stands in for `useBasicLandPreferenceRows`: the rows of the stored ids,

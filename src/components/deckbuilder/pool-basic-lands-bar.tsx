@@ -1,5 +1,4 @@
-import { Button } from "@/components/ui/button";
-import BasicLandArtPicker from "./basic-land-art-picker";
+import BasicLandTile from "./basic-land-tile";
 import CompactChromeDisclosure from "./compact-chrome-disclosure";
 import { useCompactChromeFold } from "./useCompactChromeFold";
 import { BASIC_LAND_SUBTYPES, type BasicLandSubtype } from "./basicLands";
@@ -17,8 +16,7 @@ interface PoolBasicLandsBarProps {
      *  `countBasicLandCopies`) — drives the visible counter and the remove
      *  affordance's floor-at-zero disabled state. */
     counts: Record<BasicLandSubtype, number>;
-    /** Adds `count` copies of the subtype's resolved cardId to the Maindeck —
-     *  1 for a plain click, 5 for the `+5` step. */
+    /** Adds `count` copies of the subtype's resolved cardId to the Maindeck. */
     onAdd: (cardId: string, cardName: string, count: number) => void;
     /** Removes exactly one copy of the SUBTYPE — deliberately not of a cardId
      *  (PR #2320 review B1). `counts` is computed per subtype, so a remover
@@ -31,7 +29,7 @@ interface PoolBasicLandsBarProps {
      *  never has to re-check the floor. */
     onRemove: (subtype: BasicLandSubtype) => void;
     /** The deck Format's allowed sets (issue #1629 AC3) — threaded straight
-     *  to each subtype's `BasicLandArtPicker`, `null` offers every printing. */
+     *  to each subtype's printing picker, `null` offers every printing. */
     allowedSets: string[] | null;
     /** A printing was picked from a subtype's art grid (issue #1629) — the
      *  caller persists the preference AND rewrites the open deck's copies;
@@ -51,14 +49,9 @@ interface PoolBasicLandsBarProps {
  *  to open (a Vintage Cube Pool has none) or that Constructed has no Pool at
  *  all — so this bar must never render `null`.
  *
- *  Each subtype is four controls (issue #1627, #1629):
- *   - a `−` button, disabled at zero copies — the visible, discoverable floor;
- *   - the pill itself: a plain click adds one, a shift-click or right-click
- *     removes one (the modifier gesture the acceptance criteria calls for,
- *     alongside the dedicated `−` button above);
- *   - a `+5` button for building a full mana base in a handful of clicks;
- *   - a `BasicLandArtPicker` thumbnail (issue #1629) showing the printing
- *     currently in effect and opening a Format-filtered art grid on click. */
+ *  Each subtype is a `BasicLandTile` (issue #5398): the printing in effect as
+ *  art that opens the Format-filtered printing picker, its mana symbol, the
+ *  Maindeck count, and `−` (disabled at zero copies) / `+`. */
 export default function PoolBasicLandsBar({
     cardIdsBySubtype,
     counts,
@@ -89,96 +82,19 @@ export default function PoolBasicLandsBar({
                 `CompactChromeDisclosure` renders the steppers verbatim on a
                 desktop-shaped one, so the bar above `md` is unchanged. */}
             <CompactChromeDisclosure label="Add Basic">
-                {BASIC_LAND_SUBTYPES.map((subtype) => {
-                    const cardId = cardIdsBySubtype[subtype];
-                    const count = counts[subtype];
-                    const addDisabled = disabled || cardId === null;
-                    // Removing needs no resolved cardId: the copies are already in
-                    // the Maindeck and are identified by subtype (review B1). The
-                    // count IS the floor, and the only one.
-                    const removeDisabled = disabled || count === 0;
-
-                    const addOne = () => {
-                        if (cardId !== null) onAdd(cardId, subtype, 1);
-                    };
-                    const addFive = () => {
-                        if (cardId !== null) onAdd(cardId, subtype, 5);
-                    };
-                    const removeOne = () => {
-                        if (count > 0) onRemove(subtype);
-                    };
-
-                    return (
-                        <div
-                            key={subtype}
-                            className="flex items-center gap-1 short-viewport:gap-0.5"
-                        >
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-xs"
-                                aria-label={`Remove one ${subtype}`}
-                                title={`Remove one ${subtype}`}
-                                disabled={removeDisabled}
-                                onClick={removeOne}
-                            >
-                                −
-                            </Button>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                // short-viewport (issue #2056 defect 3 amplification):
-                                // `size="sm"` alone (px-3 py-1.5) measured this bar at
-                                // ~35px; these overrides shrink the button chrome
-                                // itself (not just the bar's own padding) toward the
-                                // ~28px target.
-                                className="short-viewport:px-1.5 short-viewport:py-0 short-viewport:text-[10px]"
-                                disabled={addDisabled}
-                                title={`Click to add one ${subtype}; shift-click or right-click to remove one`}
-                                onClick={(e) => {
-                                    if (e.shiftKey) {
-                                        removeOne();
-                                        return;
-                                    }
-                                    addOne();
-                                }}
-                                onContextMenu={(e) => {
-                                    e.preventDefault();
-                                    removeOne();
-                                }}
-                            >
-                                + {subtype}
-                            </Button>
-                            <span
-                                className="min-w-[1.5ch] text-center text-xs tabular-nums text-text-muted"
-                                data-testid={`basic-count-${subtype}`}
-                            >
-                                {count}
-                            </span>
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="xs"
-                                aria-label={`Add five ${subtype}`}
-                                title={`Add five ${subtype}`}
-                                disabled={addDisabled}
-                                onClick={addFive}
-                            >
-                                +5
-                            </Button>
-                            <BasicLandArtPicker
-                                subtype={subtype}
-                                currentPrintId={cardId}
-                                allowedSets={allowedSets}
-                                onSelect={(printId) =>
-                                    onPickArt(subtype, printId)
-                                }
-                                disabled={disabled}
-                            />
-                        </div>
-                    );
-                })}
+                {BASIC_LAND_SUBTYPES.map((subtype) => (
+                    <BasicLandTile
+                        key={subtype}
+                        subtype={subtype}
+                        cardId={cardIdsBySubtype[subtype]}
+                        count={counts[subtype]}
+                        allowedSets={allowedSets}
+                        onAdd={onAdd}
+                        onRemove={onRemove}
+                        onPickArt={onPickArt}
+                        disabled={disabled}
+                    />
+                ))}
             </CompactChromeDisclosure>
         </div>
     );
