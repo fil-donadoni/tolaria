@@ -508,16 +508,18 @@ card list, which grows every time a card ships.
 The event detail page (issue #2590): a compact avatar row (who is sitting
 where) plus the actions the event's phase makes actionable — Join / Leave /
 Start / Cancel-or-Close, and the Share/Copy link. The full per-seat detail
-(pool counts, pack-passing direction) is no longer inline — it opens as the
-Table Ring dialog.
+(queued packs, pass direction, deck colours, records) is the seat ring: inline
+in the table tile from `md` up, and below `md` behind the tile's `View Table`
+button, as the Table Ring dialog (issue #5390).
 
 1. `navigate_page` → `http://localhost:5173/limited?label=ui-gate/<runId>/open`
 2. Click `View` inside `[data-limited-event-label="ui-gate/<runId>/open"]`. The route
    becomes `/limited/<eventId>`. (Any event row works by hand; the LANE walks
    the fixture, for the reasons in the section above.)
-3. `snapshot`. The avatar row sits above a `View Table` button — click it to
-   open the Ring dialog (`title="The Table"`), then close it (`Escape` or the
-   `✕`) to confirm the antechamber underneath is unaffected.
+3. `snapshot`. At `md` and up the ring of seats is on the page, viewer at the
+   bottom. Below `md` an avatar row + summary sits beside a `View Table`
+   button — click it to open the Ring dialog (`title="The Table"`), then close
+   it (`Escape` or the `✕`) to confirm the antechamber underneath is unaffected.
 
 A seated Draft event redirects here straight past to the Draft Room while a
 Pick is pending (`useDraftRoomRedirect`, see below), and a seat whose pool is
@@ -534,7 +536,7 @@ and leaves no seat, so the fixtures stay as every other Limited walk expects.
 | Surface                      | From                          | Gesture                         | Layer measured                                          |
 | ---------------------------- | ----------------------------- | ------------------------------- | ------------------------------------------------------- |
 | `limited-create-event`       | `/limited/new` (issue #5387)  | the `Pack Source` rail step     | the setup route's showcase — Create never pressed       |
-| `limited-table-ring`         | the `open` antechamber        | `View Table`                    | the Table Ring dialog                                   |
+| `limited-table-ring`         | the `open` antechamber        | `View Table` (below `md`)       | the Table Ring dialog; inline ring from `md` up         |
 | `limited-leave-seat-confirm` | the `open` antechamber        | ⋯ menu → `Leave Seat`           | the `Leave this Seat?` confirm — never confirmed        |
 | `draft-pool-move-sheet`      | `draft-pool-peek`'s selection | `Move to…` (Peek Panel or menu) | the column-pin `[data-action-sheet]` — no column chosen |
 

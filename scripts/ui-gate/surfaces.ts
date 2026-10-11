@@ -3809,9 +3809,12 @@ export const SURFACES: readonly Surface[] = [
                 check: "reachable",
             },
             {
-                label: "Table Ring entry",
-                locator: { role: "button", name: "View Table" },
-                check: "reachable",
+                // From `md` up the ring is INLINE in this tile; below it the
+                // tile holds `View Table` (issue #5390) — so the promise that
+                // holds at all five viewports is the tile itself.
+                label: "The table tile",
+                locator: { selector: '[data-slot="event-table"]' },
+                check: "visible",
             },
             {
                 label: "Event actions menu",
@@ -3824,8 +3827,8 @@ export const SURFACES: readonly Surface[] = [
                 check: "reachable",
             },
             {
-                label: "Table Ring entry contrast",
-                locator: { role: "button", name: "View Table" },
+                label: "hero CTA contrast",
+                locator: { selector: '[data-hero-cta="start"]' },
                 check: "contrast",
             },
         ],
@@ -3844,7 +3847,7 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-events.route.tsx",
             "src/routes/limited-event-detail.route.tsx",
         ],
-        label: "Table Ring dialog (/limited/<id> \u2192 View Table)",
+        label: "Table ring (/limited/<id>: inline md+, \u2192 View Table dialog below)",
         /**
          * The dialog by its title and the viewer's own seat row — the
          * `ui-gate/<runId>/open` fixture seats the lane at seat 0 (see
@@ -3853,30 +3856,42 @@ export const SURFACES: readonly Surface[] = [
          */
         asserts: [
             {
-                label: "dialog: The Table",
-                locator: { role: "dialog", name: "The Table" },
+                label: "table ring",
+                locator: { selector: "[data-slot=table-ring]:visible" },
                 check: "visible",
             },
             {
-                label: "viewer's seat row",
+                label: "viewer's seat",
                 locator: {
-                    selector: '[data-slot=table-ring] [data-is-viewer="true"]',
+                    selector:
+                        '[data-slot=table-ring] [data-is-viewer="true"]:visible',
                 },
                 check: "visible",
             },
         ],
         async walk(page, ctx) {
             await reachFixtureAntechamber(page, ctx);
-            if (!(await clickIfVisible(page, LIMITED_VIEW_TABLE))) {
-                throw new Unreachable(
-                    "the antechamber offered no `View Table` button"
-                );
-            }
-            if (
-                !(await visible(page, "[role=dialog] [data-slot=table-ring]"))
+            // `md` up: the ring is inline in the table tile, already on
+            // screen. Below it: `View Table` opens it in a dialog.
+            if (await clickIfVisible(page, LIMITED_VIEW_TABLE)) {
+                if (
+                    !(await visible(
+                        page,
+                        "[role=dialog] [data-slot=table-ring]"
+                    ))
+                ) {
+                    throw new Unreachable(
+                        "`View Table` did not open the Table Ring dialog (no `[data-slot=table-ring]` in a dialog)"
+                    );
+                }
+            } else if (
+                !(await visible(
+                    page,
+                    "[data-slot=table-inline] [data-slot=table-ring]"
+                ))
             ) {
                 throw new Unreachable(
-                    "`View Table` did not open the Table Ring dialog (no `[data-slot=table-ring]` in a dialog)"
+                    "the antechamber offered neither `View Table` nor the inline ring"
                 );
             }
             await settle(page);
