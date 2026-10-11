@@ -72,7 +72,7 @@ export default function DeckSplitGrid<C extends DeckSplitGridColumn>({
                 className="relative col-span-full row-start-3 my-2 flex h-6 items-center"
             >
                 <span className="absolute inset-x-0 top-1/2 h-px bg-border-strong" />
-                <span className="sticky left-0 z-10 flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border-strong bg-surface-base px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
+                <span className="relative z-10 flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-border-strong bg-surface-base px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">
                     <span>▲ Creatures {creatureCount}</span>
                     <span className="text-text-disabled">·</span>
                     <span>▼ Non-creatures {otherCount}</span>
