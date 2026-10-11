@@ -185,8 +185,8 @@ says no review.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR.
-- PR body: what changed, tests + proof-of-failure line, UI receipt only if
-  the diff can reach the DOM (`bun run check:ui`).
+- PR body: what changed, tests + proof-of-failure line; UI: `check:ui` walk
+  `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
 - **`## Preset scenario`** heading over a `json` fence holding
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the

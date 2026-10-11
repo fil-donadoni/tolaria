@@ -16,26 +16,31 @@ resident indexes are `.claude/rules/frontend-components.md` and
 
 - Import types from `convex/` (source of truth) — never define local game types
 - Import constants/helpers from `convex/gre/constants.ts` — no local copies
-- Frontend MAY import pure engine modules from `convex/gre/` and `convex/limited/` — the client-side Brain and the Draft Lab both do, and sharing the module is what keeps client and server from drifting. What the frontend never has is **authority**: no client-side engine run produces persisted or trusted state. Every real move goes through a public mutation in `convex/game.ts` and is re-validated server-side (ADR 0074)
+- Frontend MAY import pure engine modules from `convex/gre/` and `convex/limited/` (client Brain, Draft Lab) — no **authority**: no client-side engine run yields persisted or trusted state; every real move goes through a public `convex/game.ts` mutation, re-validated server-side (ADR 0074)
 
 ## After changes
 
 - Targeted `bunx vitest run <paths touched>` (`dom` is outside the light gate); no pre-PR `check:all` — `land`'s `check:lane` pays lint + type-check (ADR 0136)
-- **Run `bun run check:ui`** when the diff can reach the DOM — five viewports (desktop, phone/tablet portrait+landscape), probe + axe, Floors at zero; receipt in the PR (§ Browser verification below)
+- **`bun run check:ui`** when a walk is OWED (§ below)
 
 ## Browser verification
 
 **A change that can alter what a user SEES is not done until a real browser
-has shown it.** happy-dom has no layout engine — no viewport, no paint, no
-stacking contexts, `getBoundingClientRect()` returns zeroes — so "the card is
-in the document" passes on a screen where the card sits in a 24px-tall
-container. Measured 2026-08-17 with the whole `dom` project green, at 390x844:
-both deck-builder routes render **card zones 24-66px tall around 101-158px
-card tiles**, plus 25 of 95 images occluded outright on the Limited pool.
+has shown it.** happy-dom has no layout engine (no viewport, paint or stacking;
+`getBoundingClientRect()` is zeroes), so "the card is in the document" passes
+with the card in a 24px-tall container.
 
-**Applies to** any diff reaching a component, CSS, layout, responsive rule,
-overlay/z-index or scroll container. Not to engine/Convex/script/doc changes —
-say so in one line and move on.
+**OWED predicate** (issue #5459, `uiWalkOwed`, `scripts/lib/ui-scope.ts`;
+`bun run check:ui -- --scope-only` prints `walk: owed — <path>: <rule>` /
+`walk: not owed — <reason>`). Owed iff the diff touches a stylesheet,
+`index.html`, public asset or design tokens; the shell / `components/chrome/`;
+a `*layout*` component; `components/ui/`; a dialog/modal/popover/overlay/
+portal/sheet/drawer/tooltip/dropdown/menu/toast component; a viewport/
+responsive module; or a file declaring a `z-index`, scroll container or
+`@media`/`matchMedia`/`useViewport*`. Leaf
+components, copy, handlers, tests: not. Not owed → PR line
+`check:ui: no walk owed (<reason>)` replaces the receipt; owed + no receipt →
+`land` refuses. `--all` (release walk) stays the full proof.
 
 **Run `bun run check:ui` first** (#2580). It owns its own Vite + headless
 Chrome, signs in, walks the runbook surfaces at all five viewports, probes and
