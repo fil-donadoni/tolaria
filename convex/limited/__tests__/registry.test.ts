@@ -177,9 +177,13 @@ describe("Pack Source catalogue (issue #5385)", () => {
     });
 
     describe("Feature Card fallback — the highest-Pick-Rating rare", () => {
+        // Card ids of LEA's implemented rares, through the same Print ID →
+        // Card ID mapping the resolver applies.
         const LEA_RARES = Object.keys(
             getBoosterConfig("lea")!.sheets.rare.cards
-        );
+        )
+            .map((printId) => getSheetPrintCardId(printId) ?? printId)
+            .filter((cardId) => tryGetDefinition(cardId) !== null);
         const LEA_UNCOMMON = Object.keys(
             getBoosterConfig("lea")!.sheets.uncommon.cards
         )[0];

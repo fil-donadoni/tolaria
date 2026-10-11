@@ -135,6 +135,15 @@ export default function CreateLimitedEventDialog({
     const selectionUsable =
         selectedSource !== undefined &&
         isSourceSelectable(selectedSource, type);
+    // Switching type never strands a selection the new type can't use (the
+    // default Vintage Cube is Draft-only): fall back to the first source that
+    // fits, so Create stays live.
+    const changeType = (next: LimitedEventType) => {
+        setType(next);
+        if (selectedSource && isSourceSelectable(selectedSource, next)) return;
+        const fallback = packSources.find((s) => isSourceSelectable(s, next));
+        if (fallback) setSourceKey(fallback.key);
+    };
     // Vintage Cube singleton capacity cap (ADR 0062 rev): a cube deals one copy
     // of each card, so the table can be no larger than the implemented pool
     // fills singleton over the 3 boosters. Cap the seat control to match the
@@ -218,7 +227,7 @@ export default function CreateLimitedEventDialog({
                                 role="radio"
                                 aria-checked={type === opt.value}
                                 disabled={pending}
-                                onClick={() => setType(opt.value)}
+                                onClick={() => changeType(opt.value)}
                                 className={
                                     "px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 " +
                                     (type === opt.value

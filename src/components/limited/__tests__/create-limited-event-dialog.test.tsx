@@ -96,6 +96,27 @@ describe("CreateLimitedEventDialog — opening defaults (issue #5385)", () => {
         );
     });
 
+    it("switching to Sealed moves the Draft-only cube selection to the first Sealed-capable source", () => {
+        const onCreate = vi.fn();
+        renderDialog({
+            onCreate,
+            packSources: [packSource(CUBE_SET), packSource(LEA)],
+        });
+        fireEvent.click(screen.getByRole("radio", { name: "Sealed" }));
+        expect(
+            (
+                screen.getByRole("radio", {
+                    name: /Limited Edition Alpha/,
+                }) as HTMLInputElement
+            ).checked
+        ).toBe(true);
+
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ type: "sealed", packSource: "lea" })
+        );
+    });
+
     it("names each Pack Source in full, never by set code", () => {
         renderDialog({ packSources: [packSource(CUBE_SET), packSource(LEA)] });
         expect(
