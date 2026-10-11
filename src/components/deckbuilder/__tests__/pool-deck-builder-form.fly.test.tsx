@@ -11,10 +11,15 @@ import PoolDeckBuilderForm from "../pool-deck-builder-form";
 
 const useMutationMock = vi.fn();
 
-vi.mock("~/lib/useBasicLandPrintings", async () => ({
-    useBasicLandPrintings: (
+vi.mock("~/lib/useCardPrintings", async () => ({
+    useCardPrintings: (
         await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
-    ).useBasicLandPrintingsStub,
+    ).useCardPrintingsStub,
+}));
+vi.mock("~/lib/useScryfallSetNames", async () => ({
+    useScryfallSetNames: (
+        await import("~/components/deckbuilder/__tests__/basicLandPrintRows")
+    ).useScryfallSetNamesStub,
 }));
 vi.mock("~/lib/useBasicLandPreferenceRows", async () => ({
     useBasicLandPreferenceRows: (
@@ -101,6 +106,7 @@ function renderSealed() {
             existingDeck={null}
             eventType="sealed"
             poolArrangement={[]}
+            packSlots={["lea"]}
         />
     );
 }
