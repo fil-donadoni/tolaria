@@ -179,6 +179,8 @@ export default function DeckBuilderShell({
     useEffect(() => {
         if (bandedBefore.current === banded) return;
         bandedBefore.current = banded;
+        // Only the portrait strip scrolls between panes.
+        if (!portrait) return;
         const wasMain = activePaneId.startsWith("maindeck");
         const next = wasMain
             ? banded
@@ -189,7 +191,7 @@ export default function DeckBuilderShell({
         document
             .querySelector(`[data-deck-pane="${next}"]`)
             ?.scrollIntoView?.({ inline: "start", block: "nearest" });
-    }, [banded, activePaneId]);
+    }, [banded, activePaneId, portrait]);
     const [basicsOpen, setBasicsOpen] = useState(false);
 
     // Tapping a tab scrolls its pane into view — a programmatic swipe in

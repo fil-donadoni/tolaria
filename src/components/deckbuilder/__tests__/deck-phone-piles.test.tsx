@@ -144,6 +144,10 @@ describe("phone portrait", () => {
         mount(false);
         expect(tabs()).toEqual(["Deck2", "Pool1"]);
         expect(document.querySelector("[data-deck-row]")).not.toBeNull();
+        // ...and the rows' scroller is not turned into a wrapping one.
+        expect(
+            document.querySelector("[data-deck-row]")!.parentElement!.className
+        ).not.toContain("flex-wrap");
     });
 });
 

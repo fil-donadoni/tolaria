@@ -686,8 +686,10 @@ export default function DeckZoneSurface({
     // "shown"/"total" keeps the cap legible instead of visually merging with
     // the filtered count. `countSuffix` is unset on the Maindeck (it has no
     // cap), so that instance keeps the plain `"N of M"` form.
+    // Not under the legacy rows: only a phonePiles host wraps (issue #5400).
     const wrapped =
-        pileLayout.kind === "wrap" || (pileLayout.kind === "bands" && !!band);
+        !asRows &&
+        (pileLayout.kind === "wrap" || (pileLayout.kind === "bands" && !!band));
     const bandColumns =
         band && pileLayout.kind === "bands" ? pileLayout[band] : null;
     const countText = bandColumns
