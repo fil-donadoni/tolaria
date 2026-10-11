@@ -851,6 +851,63 @@ async function selectDraftPoolTile(
 }
 
 /**
+ * Issue #5401: the Selected Card ring and the card image it outlines share one
+ * box and one corner. The ring is an overlay sibling of the image's clipping
+ * slot, each carrying its own percentage radius, so a tile whose box drifted
+ * from the image's — or a radius resolved against a different box — would
+ * show a ring rounder (or squarer) than the card. happy-dom has no layout, so
+ * this is measured here, at every viewport the lane walks.
+ */
+async function assertPackRingMatchesImage(page: Page): Promise<void> {
+    const m = (await page.evaluate(`(() => {
+        const ring = document.querySelector("[data-testid=selection-ring]");
+        if (!ring) return null;
+        const tile = ring.closest("[data-draft-pick-tile]");
+        const img = tile && tile.querySelector("img[data-card-face=printed]");
+        if (!img) return null;
+        const slot = img.parentElement;
+        const box = (e) => {
+            const r = e.getBoundingClientRect();
+            return { x: r.left, y: r.top, w: r.width, h: r.height };
+        };
+        const corner = (e, pseudo) => {
+            const cs = getComputedStyle(e, pseudo);
+            const r = box(e);
+            const parts = cs.borderTopLeftRadius.split(" ");
+            const px = (v, of) => v.endsWith("%") ? parseFloat(v) / 100 * of : parseFloat(v);
+            return { rx: px(parts[0], r.w), ry: px(parts[1] || parts[0], r.h) };
+        };
+        return {
+            img: box(img), ring: box(ring), slot: box(slot),
+            slotCorner: corner(slot), ringCorner: corner(ring),
+            ringAfterCorner: corner(ring, "::after"),
+        };
+    })()`)) as {
+        img: { x: number; y: number; w: number; h: number };
+        ring: { x: number; y: number; w: number; h: number };
+        slot: { x: number; y: number; w: number; h: number };
+        slotCorner: { rx: number; ry: number };
+        ringCorner: { rx: number; ry: number };
+        ringAfterCorner: { rx: number; ry: number };
+    } | null;
+    if (m === null) return;
+    const drift = (a: number, b: number) => Math.abs(a - b) > 1;
+    const boxDrift =
+        drift(m.ring.x, m.img.x) ||
+        drift(m.ring.y, m.img.y) ||
+        drift(m.ring.w, m.img.w) ||
+        drift(m.ring.h, m.img.h);
+    const cornerDrift = [m.ringCorner, m.ringAfterCorner].some(
+        (c) => drift(c.rx, m.slotCorner.rx) || drift(c.ry, m.slotCorner.ry)
+    );
+    if (boxDrift || cornerDrift) {
+        throw new Unreachable(
+            `the Draft Room's Selected Card ring does not coincide with the card image it outlines — ring box ${JSON.stringify(m.ring)} vs image ${JSON.stringify(m.img)}; ring corner ${JSON.stringify(m.ringCorner)} / ::after ${JSON.stringify(m.ringAfterCorner)} vs image slot ${JSON.stringify(m.slotCorner)} (issue #5401)`
+        );
+    }
+}
+
+/**
  * Issue #2588 AC 1/2: on a phone the room is ONE scroller with
  * `scroll-snap-type: y mandatory` holding two 85% panes, so exactly two
  * offsets rest — `0` and the scroller's own maximum. Nothing in between is a
@@ -4125,6 +4182,7 @@ export const SURFACES: readonly Surface[] = [
             // reachable") is a LAYOUT claim, and happy-dom cannot make it.
             // This is the only place it is asserted against a real scroller.
             await assertTwoSnapStops(page);
+            await assertPackRingMatchesImage(page);
         },
     },
     {
