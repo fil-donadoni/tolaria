@@ -145,12 +145,20 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
         return move?.kind === "cast-spell" && move.targets[0]?.id === "ogre";
     };
 
-    it("the hard preset survives the lethal attack on more seeds than easy", () => {
-        const hardHits = SEEDS.filter((s) => survives(HARD, s)).length;
+    // Hard reads the forced response every time; easy misses it often. Split
+    // per seed (issue #5477) so no single case carries the whole seed loop:
+    // hard survives on EVERY seed, and easy misses on at least one — together
+    // exactly the old `hardHits === SEEDS.length && hardHits > easyHits`.
+    it.each(SEEDS)(
+        "the hard preset survives the lethal attack (seed %i)",
+        (seed) => {
+            expect(survives(HARD, seed)).toBe(true);
+        }
+    );
+
+    it("the easy preset misses the lethal attack on some seed", () => {
         const easyHits = SEEDS.filter((s) => survives(EASY, s)).length;
-        // Hard reads the forced response every time; easy misses it often.
-        expect(hardHits).toBe(SEEDS.length);
-        expect(hardHits).toBeGreaterThan(easyHits);
+        expect(easyHits).toBeLessThan(SEEDS.length);
     });
 
     // issue #2790, PRD #2787's explicit risk: `expert`'s per-iteration cost is
@@ -161,9 +169,21 @@ describe("difficulty — a higher preset plays measurably better (issue #114)", 
     // pure iteration count, `expert` must never be weaker than `hard` on this
     // same forced-tactic position — the gradient the other levels already
     // assert, extended to the new top of the ladder.
-    it("the expert preset is not weaker than hard on the same forced tactic", () => {
-        const hardHits = SEEDS.filter((s) => survives(HARD, s)).length;
-        const expertHits = SEEDS.filter((s) => survives(EXPERT, s)).length;
-        expect(expertHits).toBeGreaterThanOrEqual(hardHits);
-    });
+    //
+    // One case per seed (issue #5477): the whole seed loop in one `it` cost
+    // ~24s idle and timed out at 73s under a contended health gate. Per seed,
+    // "hard survives ⇒ expert survives" is the old `expertHits >= hardHits`
+    // made pointwise — and since hard survives every seed (asserted above),
+    // the two claims coincide.
+    it.each(SEEDS)(
+        "the expert preset is not weaker than hard on the same forced tactic (seed %i)",
+        (seed) => {
+            const hard = survives(HARD, seed);
+            const expert = survives(EXPERT, seed);
+            expect(
+                expert || !hard,
+                `seed ${seed}: hard survives, expert does not`
+            ).toBe(true);
+        }
+    );
 });
