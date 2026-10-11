@@ -119,7 +119,7 @@ import {
     owesScenario,
     scenarioRefusal,
 } from "./lib/scenario-block";
-import { changedPaths, classifyLane, type Lane } from "./check-lane";
+import { changedPaths, type Lane } from "./check-lane";
 import {
     landingDiffScope,
     landingWalkOwed,
@@ -129,7 +129,6 @@ import {
 import {
     hasNoWalkOwedLine,
     isNonDomPath,
-    uiWalkOwed,
     type UiScope,
     type WalkOwed,
 } from "./lib/ui-scope.ts";
