@@ -102,6 +102,10 @@ export default function LimitedDraftPackCard({
         menuTimer.current = null;
     };
     useEffect(() => clearMenuTimer, []);
+    // A pending Pick or a drag start voids the armed menu.
+    useEffect(() => {
+        if (pending || isDragging) clearMenuTimer();
+    }, [pending, isDragging]);
     const commitPick = () => {
         clearMenuTimer();
         const now = Date.now();
@@ -141,8 +145,12 @@ export default function LimitedDraftPackCard({
                 onSelect(card.pickId);
                 if (!onOpenMenu) return;
                 const now = Date.now();
+                // A keyboard-synthesised click (`detail` 0) has no pointer,
+                // whatever the last pointerdown on this tile was.
+                const kind = e.detail === 0 ? undefined : pointerKind.current;
+                pointerKind.current = undefined;
                 const intent = decideClick(
-                    pointerKind.current,
+                    kind,
                     lastClickAt.current === null
                         ? null
                         : now - lastClickAt.current

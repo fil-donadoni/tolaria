@@ -276,6 +276,17 @@ describe("LimitedDraftPackCard gestures — fine pointer waits the double-click 
         expect(onOpenMenu).not.toHaveBeenCalled();
     });
 
+    it("a keyboard click after a mouse click opens the menu at once (detail 0)", () => {
+        const { el, click, onOpenMenu } = setup();
+        click();
+        act(() => {
+            vi.advanceTimersByTime(DOUBLE_CLICK_INTERVAL_MS * 4);
+        });
+        onOpenMenu.mockClear();
+        fireEvent.click(el, { detail: 0 });
+        expect(onOpenMenu).toHaveBeenCalledTimes(1);
+    });
+
     it("a touch pointer opens the menu at once", () => {
         vi.useFakeTimers();
         const onOpenMenu = vi.fn();
