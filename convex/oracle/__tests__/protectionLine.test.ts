@@ -51,6 +51,19 @@ describe("Protection line — golden fixtures (CR 702.16a)", () => {
         // Knights of Thorn — a run with another keyword
         ["Protection from red; banding", ["protection from red", "banding"]],
         ["Protection from instants", ["protection from instants"]],
+        // Shoreline Raider — a creature SUBTYPE (CR 702.16a, issue #2765)
+        ["Protection from Kavu", ["protection from kavu"]],
+        // Plural subtype
+        ["Protection from Goblins", ["protection from goblins"]],
+        // Subtype comma list (CR 702.16g)
+        [
+            "Protection from Vampires, from Werewolves, and from Zombies",
+            [
+                "protection from vampires",
+                "protection from werewolves",
+                "protection from zombies",
+            ],
+        ],
     ])("%s", (line, expected) => {
         expect(staticAbilitiesOf(line)).toEqual(expected);
     });
@@ -68,10 +81,10 @@ describe("Protection line — agrees with the engine parser", () => {
 
 describe("Protection line — refusals (fail-closed)", () => {
     it.each([
-        "Protection from Goblins", // subtype: the engine cannot name it
+        "Protection from Gobblins", // not a CR 205.3m creature type
         "Protection from monocolored",
         "Protection from non-Spirit creatures",
-        "Protection from Vampires, from Werewolves, and from Zombies",
+        "Protection from Vampires, from Werewolves, and from Zombyes",
         "Protection from",
         "Protection from red and from",
         "Protection from red, from blue", // bare comma list is not printed
