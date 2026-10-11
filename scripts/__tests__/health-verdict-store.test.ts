@@ -306,6 +306,61 @@ describe("the commit-status description (140 characters)", () => {
     });
 });
 
+describe("review fixes — AMBER must be reachable on the github backend", () => {
+    it("a long LOCAL log path never crowds the failing test out of the description", () => {
+        const d = encodeDescription(
+            v(T1, "red", {
+                step: "test:app",
+                machine: "huawei-matebook",
+                log: "/home/fil/code/mtg/tolaria/.claude/telemetry/health/3ca4a4a0a1b2.log",
+                tests: ["scripts/__tests__/health-verdict-store.test.ts"],
+            })
+        );
+        expect(d.length).toBeLessThanOrEqual(DESCRIPTION_MAX);
+        expect(
+            decodeStatus({
+                sha: T1,
+                state: "failure",
+                description: d,
+                targetUrl: null,
+                createdAt: null,
+            })?.tests
+        ).toEqual(["scripts/__tests__/health-verdict-store.test.ts"]);
+    });
+
+    it("infra never overwrites an AMBER — a saturated confirming run must not bring the RED back", () => {
+        const store = ghStore();
+        store.write(v(T2, "red", { step: "test:app" }));
+        store.write(v(T3, "amber", { repairOf: T2 }));
+        expect(store.write(v(T3, "infra")).written).toBe(false);
+        expect(store.lineage().kind).toBe("amber");
+    });
+
+    it("the repair proof runs *.test.* files only — a blade *.spec.ts is not the default config's", () => {
+        const lineage = lineageOf([
+            v(T2, "red", {
+                tests: ["convex/gre/ai/blade/__tests__/x.spec.ts"],
+            }),
+        ]);
+        expect(repairProofOf(lineage, "repair")).toBeUndefined();
+    });
+
+    it("reads the RED's tests from the prior of a running record (file backend, health re-gating)", () => {
+        const lineage = {
+            kind: "red" as const,
+            verdict: {
+                sha: T3,
+                status: "running",
+                prior: { sha: T2, status: "red", tests: ["a/b.test.ts"] },
+            } as unknown as Verdict,
+        };
+        expect(repairProofOf(lineage, "repair")).toEqual({
+            redSha: T2,
+            tests: ["a/b.test.ts"],
+        });
+    });
+});
+
 describe("AMBER — a proved repair resumes picks and landings (issue #5462)", () => {
     it("RED blocks; AMBER on the repair's tip does not; the next GREEN clears it", () => {
         const store = ghStore();

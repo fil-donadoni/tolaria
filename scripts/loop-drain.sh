@@ -751,6 +751,10 @@ while :; do
     # is a warning, never a stop: a GitHub 502 must not end the night.
     _health_json=$(bun run --silent health:status --json 2>/dev/null) || true
     _lineage=$(_health_field lineage)
+    # An unreadable store answers `none` WITH an error: name it, never as a
+    # clean read.
+    _h_error=$(_health_field error)
+    [ -n "$_h_error" ] && _lineage="unreadable"
     _h_sha=$(_health_field sha)
     _h_step=$(_health_field step)
     _h_machine=$(_health_field machine)
@@ -779,7 +783,6 @@ while :; do
             ;;
         green | amber | none) ;;
         *)
-            _h_error=$(_health_field error)
             echo "loop-drain[warn]: the health verdict could not be read (${_h_error:-'bun run health:status --json' gave no lineage}) — running the pass; 'bun run health:status' says more" >&2
             ;;
     esac

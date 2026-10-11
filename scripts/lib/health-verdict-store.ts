@@ -131,13 +131,19 @@ export function verdictAgeMs(v: Verdict | null, now: number): number | null {
     return Number.isFinite(at) ? Math.max(0, now - at) : null;
 }
 
-/** Last writer wins, except that `infra` never replaces a GREEN or RED. */
+/** Last writer wins, except that `infra` never replaces a GREEN, a RED or
+ *  an AMBER: the lineage skips infra, so an infra over AMBER would bring the
+ *  repaired RED back (a saturated confirming run, review of issue #5462). */
 export function mayOverwrite(
     existing: Verdict | null,
     incoming: Verdict
 ): boolean {
     if (incoming.status !== "infra" || existing === null) return true;
-    return existing.status !== "green" && existing.status !== "red";
+    return (
+        existing.status !== "green" &&
+        existing.status !== "red" &&
+        existing.status !== "amber"
+    );
 }
 
 /**
@@ -202,6 +208,19 @@ export function parseVerdictBackend(
 
 export function readVerdictBackend(path = CONFIG_PATH): VerdictBackend {
     return parseVerdictBackend(readFileSync(path, "utf8"), path);
+}
+
+/** The configured backend, or `file` — loudly — when the config cannot say:
+ *  a torn or mistyped key must never disable the local RED refusal. */
+function configuredBackend(): VerdictBackend {
+    try {
+        return readVerdictBackend();
+    } catch (e) {
+        console.error(
+            `health verdict store: ${(e as Error).message} — reading the file backend`
+        );
+        return "file";
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -391,20 +410,20 @@ const STATUS_OF: Record<string, VerdictStatus> = {
 const SEP = " · ";
 
 /** The commit-status description: `STATUS · step · machine`, then the
- *  optional fields while they fit in `DESCRIPTION_MAX` — whole, never cut. */
+ *  optional fields while they fit in `DESCRIPTION_MAX` — whole, never cut.
+ *  The failing tests come BEFORE a local log path: they are what a repair
+ *  proof runs, and a ~70-character path read first left no room for one. */
 export function encodeDescription(v: Verdict): string {
     let out = [
         (v.status as string).toUpperCase(),
         v.step ?? "-",
         v.machine ?? "-",
     ].join(SEP);
-    const extras: string[] = [];
-    if (v.repairOf) extras.push(`repair-of: ${v.repairOf}`);
-    if (v.log && !isUrl(v.log)) extras.push(`log: ${v.log}`);
-    for (const extra of extras)
+    const fit = (extra: string) => {
         if (out.length + SEP.length + extra.length <= DESCRIPTION_MAX)
             out += SEP + extra;
-    // Tests last, as many whole paths as fit: a repair proof runs those.
+    };
+    if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
     const tests: string[] = [];
     for (const t of v.tests ?? []) {
         const next = `tests: ${[...tests, t].join(",")}`;
@@ -412,6 +431,7 @@ export function encodeDescription(v: Verdict): string {
         tests.push(t);
     }
     if (tests.length > 0) out += `${SEP}tests: ${tests.join(",")}`;
+    if (v.log && !isUrl(v.log)) fit(`log: ${v.log}`);
     return out;
 }
 
@@ -629,7 +649,7 @@ export function verdictStore(
     const env = process.env.TOLARIA_VERDICT_STORE;
     const backend =
         opts.backend ??
-        (env === "file" || env === "github" ? env : readVerdictBackend());
+        (env === "file" || env === "github" ? env : configuredBackend());
     if (backend === "github")
         return githubVerdictStore({
             repo: originRepo(root),

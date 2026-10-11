@@ -114,6 +114,7 @@ import {
     readVerdictLineage,
     verdictStore,
     type Lineage,
+    type Verdict,
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import {
@@ -1250,10 +1251,15 @@ export function postMergeHousekeepingSteps(
 export function buildHousekeepingCommand(opts: HousekeepingOptions): string {
     return [
         UNSET_GITHUB_TOKEN,
+        CLEAR_REPAIR_PROVED,
         `git fetch origin ${BASE_BRANCH} -q`,
         ...postMergeHousekeepingSteps(opts),
     ].join(" && ");
 }
+
+/** Only THIS command's proof may set it: never one inherited from the
+ *  environment, and never on the recovery path, which runs no proof. */
+export const CLEAR_REPAIR_PROVED = "unset REPAIR_PROVED";
 
 /**
  * The repair proof (issue #5462): the test files the RED verdict names as
@@ -1284,6 +1290,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
     // `main` green under concurrency anyway: ADR 0110 §3.
     const steps: string[] = [
         UNSET_GITHUB_TOKEN,
+        CLEAR_REPAIR_PROVED,
         rebaseStep(),
         resolveGeneratedArtifactsStep(),
         refreshGeneratedApiStep(),
@@ -1416,11 +1423,20 @@ export function repairProofOf(
     lineage: Lineage,
     landingKind: LandingKind | undefined
 ): RepairProof | undefined {
-    const v = lineage.verdict;
+    // A health run re-gating the tip leaves a `running` record; the RED it
+    // replaced, with its tests, is that record's `prior` (file backend).
+    const raw = lineage.verdict;
+    const v =
+        raw?.status === "running"
+            ? ((raw as { prior?: Verdict }).prior ?? null)
+            : raw;
     if (landingKind !== "repair" || !lineageBlocks(lineage.kind) || !v)
         return undefined;
+    // `*.test.*` only: a blade `*.spec.ts` belongs to `vitest.blade.config.ts`
+    // and the default config would answer "No test files found" — refusing
+    // the repair. A blade RED stands until health, as before AMBER.
     const tests = (v.tests ?? []).filter((t) =>
-        /\.(test|spec)\.[cm]?[jt]sx?$/.test(t)
+        /\.test\.[cm]?[jt]sx?$/.test(t)
     );
     if (tests.length === 0 || !FULL_SHA.test(v.sha)) return undefined;
     return { tests, redSha: v.sha };
