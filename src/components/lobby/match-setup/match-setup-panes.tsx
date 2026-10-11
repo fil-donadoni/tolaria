@@ -30,7 +30,7 @@ export default function MatchSetupPanes({
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
     tables: readonly OpenTable[];
-    onChange: (patch: Partial<MatchSetup>) => void;
+    onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
     canStart: boolean;
     busy: boolean;
     error: string | null;
@@ -63,8 +63,8 @@ export default function MatchSetupPanes({
                         setup={setup}
                         decks={decks}
                         tables={tables}
-                        onChange={(patch) => {
-                            onChange(patch);
+                        onChange={(patch, imported) => {
+                            onChange(patch, imported);
                             setReopened(null);
                         }}
                     />

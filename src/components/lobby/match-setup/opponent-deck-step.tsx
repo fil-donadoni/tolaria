@@ -13,7 +13,7 @@ export default function OpponentDeckStep({
 }: {
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
-    onChange: (patch: Partial<MatchSetup>) => void;
+    onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
 }) {
     const matchFormat = effectiveMatchFormat(setup);
     if (matchFormat === null) return null;
@@ -34,6 +34,15 @@ export default function OpponentDeckStep({
                 }
                 onSelect={(opponentDeckId) =>
                     onChange({ opponentDeckId, opponentDeckChosen: true })
+                }
+                onImported={(deck) =>
+                    onChange(
+                        {
+                            opponentDeckId: deck.presetId,
+                            opponentDeckChosen: true,
+                        },
+                        deck
+                    )
                 }
                 mirror={{
                     selected: mirror,

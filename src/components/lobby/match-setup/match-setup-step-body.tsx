@@ -20,7 +20,7 @@ export default function MatchSetupStepBody({
     setup: MatchSetup;
     decks: readonly LobbyDeck[];
     tables: readonly OpenTable[];
-    onChange: (patch: Partial<MatchSetup>) => void;
+    onChange: (patch: Partial<MatchSetup>, imported?: LobbyDeck) => void;
 }) {
     switch (step) {
         case "mode":
