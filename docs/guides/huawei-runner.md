@@ -2,8 +2,8 @@
 
 How to install, check and remove the [reaper](#g-reaper) on both machines of
 topology B' (ADR 0154): a `launchd` agent on the MacBook, a `systemd` user
-timer on the Huawei. Built by issue #5470. The unit files live beside this
-guide, in [`runner-units/`](../../scripts/runner-units/).
+timer on the Huawei. Built by issue #5470. The unit files live beside the
+scripts they run, in [`scripts/runner-units/`](../../scripts/runner-units/).
 
 ## What it does
 
