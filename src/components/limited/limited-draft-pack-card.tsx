@@ -1,8 +1,14 @@
+import { useEffect, useRef } from "react";
 import { useDraggable } from "@dnd-kit/react";
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cn } from "~/lib/utils";
 import CardImage from "~/components/cards/card-image";
 import type { BoosterDragData } from "./limitedDraftDrag";
+import {
+    DOUBLE_CLICK_INTERVAL_MS,
+    decideClick,
+    type DraftPointerKind,
+} from "./draft-room/draftClickIntent";
 
 type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
 
@@ -13,9 +19,9 @@ type DraftPackCard = NonNullable<LimitedEventSeatView["currentPack"]>[number];
  *
  *  - single click → always SELECTS (`onSelect`) — never commits a Pick by
  *    itself. The Selected Card is what a timer expiry Auto-Picks (issue
- *    #1249). Desktop additionally opens the pack menu right there
- *    (`onOpenMenu`, no delay — it runs alongside double-click rather than
- *    arbitrating against it, see below).
+ *    #1249). Desktop additionally opens the pack menu (`onOpenMenu`): on a
+ *    fine pointer only after the double-click interval with no second click
+ *    (issue #5396, `draftClickIntent.ts`), at once for touch / keyboard.
  *  - double click → commits the Pick (`onPick`) into the card's Mana-Value
  *    column by default, on BOTH phone and desktop (issue #2894) — desktop's
  *    menu ("Pick"/"→ Side"/"Inspect") and drag-and-drop stay available too,
@@ -85,6 +91,29 @@ export default function LimitedDraftPackCard({
         data,
         disabled: pending,
     });
+    // Issue #5396: the pointer that last went down on this tile, the previous
+    // click's timestamp, and the armed "open the menu" timer.
+    const pointerKind = useRef<DraftPointerKind>(undefined);
+    const lastClickAt = useRef<number | null>(null);
+    const lastPickAt = useRef<number | null>(null);
+    const menuTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const clearMenuTimer = () => {
+        if (menuTimer.current !== null) clearTimeout(menuTimer.current);
+        menuTimer.current = null;
+    };
+    useEffect(() => clearMenuTimer, []);
+    const commitPick = () => {
+        clearMenuTimer();
+        const now = Date.now();
+        // The click-path pick and the native `dblclick` are the same gesture.
+        if (
+            lastPickAt.current !== null &&
+            now - lastPickAt.current <= DOUBLE_CLICK_INTERVAL_MS
+        )
+            return;
+        lastPickAt.current = now;
+        onPick?.(card.pickId);
+    };
 
     return (
         <div
@@ -104,16 +133,39 @@ export default function LimitedDraftPackCard({
             data-draft-pick-tile=""
             title={card.cardName}
             aria-label={`Draft pick: ${card.cardName}${selected ? " (selected)" : ""}`}
+            onPointerDown={(e) => {
+                pointerKind.current = e.pointerType;
+            }}
             onClick={(e) => {
                 if (pending) return;
                 onSelect(card.pickId);
-                onOpenMenu?.(card.pickId, e.clientX, e.clientY);
+                if (!onOpenMenu) return;
+                const now = Date.now();
+                const intent = decideClick(
+                    pointerKind.current,
+                    lastClickAt.current === null
+                        ? null
+                        : now - lastClickAt.current
+                );
+                lastClickAt.current = now;
+                const { clientX, clientY } = e;
+                if (intent === "open-menu") {
+                    onOpenMenu(card.pickId, clientX, clientY);
+                } else if (intent === "pick" && onPick) {
+                    commitPick();
+                } else {
+                    clearMenuTimer();
+                    menuTimer.current = setTimeout(() => {
+                        menuTimer.current = null;
+                        onOpenMenu(card.pickId, clientX, clientY);
+                    }, DOUBLE_CLICK_INTERVAL_MS);
+                }
             }}
             onDoubleClick={
                 onPick
                     ? () => {
                           if (pending) return;
-                          onPick(card.pickId);
+                          commitPick();
                       }
                     : undefined
             }
