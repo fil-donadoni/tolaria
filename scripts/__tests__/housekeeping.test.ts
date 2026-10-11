@@ -263,7 +263,10 @@ describe("housekeeping.ts — the steps", () => {
 
     it("has no per-PR step for a branch naming no issue; the sweep runs once per batch (issue #5081)", () => {
         expect(
-            prSteps(pr(5459, "2026-10-11T10:00:00Z", "docs/adr-0154"), null)
+            prSteps(
+                pr(5459, "2026-10-11T10:00:00Z", "chore/no-issue-branch"),
+                null
+            )
         ).toEqual([]);
         expect(SWEEP_STEP.argv).toEqual([
             "bun",
