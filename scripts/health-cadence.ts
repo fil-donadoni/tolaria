@@ -103,6 +103,7 @@ import { HEALTH_ROLE } from "./lib/gate-liveness";
 import { recordMachineSaturated } from "./lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { holdLease } from "./lib/process-lease";
 import { kpiReport } from "./workflow-kpi";
 
 const SELF = resolve(__dirname, "health-cadence.ts");
@@ -243,6 +244,9 @@ function spawnDetached(root: string): number {
     // the one that is ending.
     delete env.TOLARIA_VITEST_WORKERS;
     delete env.TOLARIA_GATE_ROLE;
+    // The decision outlives `land`, whose lease tag would otherwise ride its
+    // synchronous children until `detach` holds its own (issue #5470).
+    delete env.TOLARIA_OWNER;
 
     const branch = flag("branch");
     // Test-only, same convention as `gate.ts`'s TOLARIA_GATE_* overrides: what
@@ -471,6 +475,15 @@ function main(): void {
             process.exit(spawnDetached(root));
             break;
         case "detach":
+            // A ROOT lease: the decision is built to outlive the `land` that
+            // spawned it, so its life is its own, not its spawner's
+            // (issue #5470). Synchronous runs block renewal — the TTL only
+            // bounds a hang.
+            holdLease({
+                kind: "health-cadence",
+                ttlMs: 8 * 60 * 60 * 1000,
+                root: true,
+            });
             process.exit(detach(root));
             break;
         case "status":

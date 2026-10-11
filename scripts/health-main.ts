@@ -155,6 +155,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { holdLease } from "./lib/process-lease";
 
 const HEALTH_DIR = ".claude/telemetry/health";
 const STALE_RUNNING_MS = 90 * 60 * 1000;
@@ -583,6 +584,10 @@ async function walkPhase(root: string, dir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+    // Every step runs synchronously, which blocks the renewal timer for the
+    // whole step: the lease lives by its anchor, the TTL only bounds a hang
+    // (issue #5470).
+    holdLease({ kind: "health-main", ttlMs: 6 * 60 * 60 * 1000 });
     const cwd = process.cwd();
     const primary = primaryCheckout(cwd);
     const root = primary ?? cwd;

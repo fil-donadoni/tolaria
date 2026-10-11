@@ -50,6 +50,10 @@ import {
     reachable,
     readEnvLocal,
 } from "./lib/convex-reachable.ts";
+import { OWNER_ENV, UNIT_OWNER_PREFIX } from "./lib/process-lease.ts";
+
+/** The owner tag of the local backend this script starts and leaves running. */
+const CONVEX_UNIT_OWNER = `${UNIT_OWNER_PREFIX}convex-local`;
 
 export interface EnsureOptions {
     url: string;
@@ -593,6 +597,9 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
         );
         const child = spawn(o.startCommand[0], o.startCommand.slice(1), {
             cwd: o.root,
+            // A long-lived service this script starts ON PURPOSE, outliving
+            // it: a unit's tag, which the reaper never reaps on (issue #5470).
+            env: { ...process.env, [OWNER_ENV]: CONVEX_UNIT_OWNER },
             detached: true,
             stdio: ["ignore", out, out],
         });
