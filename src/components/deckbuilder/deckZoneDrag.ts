@@ -47,6 +47,15 @@ export function zoneColumnDropId(zone: DeckZone, columnId: ColumnId): string {
     return `${DROP_PREFIX}${zone}:${columnId}`;
 }
 
+/** Suffix of the SECOND drop target of a column in the split grid (issue
+ *  #5399): a column's creature and non-creature halves are not adjacent in the
+ *  DOM, so each registers its own droppable, and both resolve to the column. */
+const SPLIT_BELOW_SUFFIX = "~below";
+
+export function splitBelowDropId(columnDropId: string): string {
+    return `${columnDropId}${SPLIT_BELOW_SUFFIX}`;
+}
+
 /** Drop-target id for a whole Zone — the pane itself, with no Column named.
  *  The Sideboard is one such target (a drop anywhere in it means "move this
  *  card out of the deck", exactly as before #1622). */
@@ -83,7 +92,10 @@ export function parseDeckZoneDropId(
     const at = rest.indexOf(":");
     const zone = at < 0 ? rest : rest.slice(0, at);
     if (!isDeckZone(zone)) return null;
-    const columnId = at < 0 ? null : rest.slice(at + 1);
+    const rawColumnId = at < 0 ? null : rest.slice(at + 1);
+    const columnId = rawColumnId?.endsWith(SPLIT_BELOW_SUFFIX)
+        ? rawColumnId.slice(0, -SPLIT_BELOW_SUFFIX.length)
+        : rawColumnId;
     return { zone, columnId: columnId === "" ? null : columnId };
 }
 

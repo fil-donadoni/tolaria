@@ -218,3 +218,24 @@ export function clearBasicLandPrintId(
 ): void {
     removePref(storage, BASIC_LAND_ART_KEY_PREFIX + subtype);
 }
+
+const SPLIT_CREATURES_KEY = KEY_PREFIX + "splitCreatures";
+
+function isBoolean(value: unknown): value is boolean {
+    return typeof value === "boolean";
+}
+
+/** "Split creatures" layout toggle (PRD #5384, issue #5399): ONE preference for
+ *  every Zone and builder, off unless the user turned it on. */
+export function loadSplitCreatures(
+    storage: Storage = window.localStorage
+): boolean {
+    return readPref(storage, SPLIT_CREATURES_KEY, isBoolean, false);
+}
+
+export function saveSplitCreatures(
+    split: boolean,
+    storage: Storage = window.localStorage
+): void {
+    writePref(storage, SPLIT_CREATURES_KEY, split);
+}
