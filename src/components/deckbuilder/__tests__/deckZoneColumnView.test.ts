@@ -3,9 +3,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { orderingFollowingGrouping } from "@convex/deckLayout";
 import type { GroupingKind, OrderingKind } from "@convex/deckLayout";
-import { loadGrouping, loadOrdering, saveOrdering } from "~/lib/deckViewPrefs";
+import { saveOrdering } from "~/lib/deckViewPrefs";
 import {
     recordGroupingChange,
+    seededColumnView,
     viewAfterGroupingChange,
 } from "../deckZoneColumnView";
 
@@ -59,16 +60,16 @@ describe("recordGroupingChange persistence", () => {
 
     it("persists the coupled Ordering beside the Grouping", () => {
         recordGroupingChange("maindeck", "mv");
-        expect(loadGrouping("maindeck")).toBe("mv");
-        expect(loadOrdering("maindeck")).toBe("color");
+        expect(seededColumnView("maindeck").grouping).toBe("mv");
+        expect(seededColumnView("maindeck").ordering).toBe("color");
         recordGroupingChange("maindeck", "color");
-        expect(loadOrdering("maindeck")).toBe("mv");
+        expect(seededColumnView("maindeck").ordering).toBe("mv");
     });
 
     it("leaves the stored Ordering alone for uncoupled Groupings", () => {
-        saveOrdering("maindeck", "rarity");
+        saveOrdering("main", "rarity");
         recordGroupingChange("maindeck", "type");
-        expect(loadGrouping("maindeck")).toBe("type");
-        expect(loadOrdering("maindeck")).toBe("rarity");
+        expect(seededColumnView("maindeck").grouping).toBe("type");
+        expect(seededColumnView("maindeck").ordering).toBe("rarity");
     });
 });
