@@ -1439,7 +1439,14 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         git("config", "user.name", "Test");
         commit("a.txt", "base");
     });
-    afterEach(() => rmSync(repo, { recursive: true, force: true }));
+    afterEach(() =>
+        rmSync(repo, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        })
+    );
 
     it("passes on our squash alone, and on our squash beside gaps:sync's allowlist commit", () => {
         const old = git("rev-parse", "HEAD");
