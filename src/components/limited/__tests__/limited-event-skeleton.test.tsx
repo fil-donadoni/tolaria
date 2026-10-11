@@ -220,3 +220,34 @@ describe("LimitedEventDetail skeleton — one primary CTA per phase", () => {
         expect(tile.textContent).toContain("Your picks");
     });
 });
+
+describe("LimitedEventDetail — Review the table tab (issue #5392)", () => {
+    for (const phase of ["waiting", "draft", "deckbuilding"] as const) {
+        it(`${phase}: no tab bar`, () => {
+            eventMock.mockReturnValue(makeEvent(phase, "seated"));
+            render(<LimitedEventDetail eventId={"event-1" as never} />);
+            expect(
+                screen.queryByRole("tab", { name: "Review the table" })
+            ).toBeNull();
+        });
+    }
+
+    for (const phase of ["games", "done"] as const) {
+        it(`${phase}: tab present and switches to the review`, () => {
+            eventMock.mockReturnValue(makeEvent(phase, "seated"));
+            render(<LimitedEventDetail eventId={"event-1" as never} />);
+            expect(
+                document.querySelector("[data-slot=event-table]")
+            ).not.toBeNull();
+            fireEvent.click(
+                screen.getByRole("tab", { name: "Review the table" })
+            );
+            expect(
+                document.querySelector("[data-slot=review-panel]")
+            ).not.toBeNull();
+            expect(
+                document.querySelector("[data-slot=event-table]")
+            ).toBeNull();
+        });
+    }
+});

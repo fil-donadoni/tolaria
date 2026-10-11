@@ -1,21 +1,19 @@
-// Review panel tests (PRD #1107 story 26, issue #1116; admin-gated + compact
-// redesign issue #1583; card piles issue #3167): drives `LimitedReviewPanel`
-// through the `event` prop shape the WIRE-FORMAT query (`getLimitedEvent`)
-// actually returns — `completed`/`pool`/`humanDeck`/`autoBuiltDeck`/
-// `deckSummary` per the server projection — so a dropped field on the server
-// side would surface here too (mirrors `limited-vs-ai-panel.test.tsx`'s
-// discipline: never a hand-built GameState-shaped view). The server already
-// strips another seat's pool/deck for a non-admin, so these tests fix the
-// CLIENT half: a non-admin sees only the compact summary, an admin can expand
-// the detail.
-//
-// Every card assertion below reads the REAL rendered pile DOM — the Column
-// Layout engine's `[data-column]` elements and the tiles' own `title` — never
-// a name list and never a hand-built view. That is what makes "the disclosure
-// renders card images, grouped" an assertion about the surface issue #3167
-// mounted rather than about a fixture.
+// "Review the table" (PRD #1107 story 26; issue #5392). Every lock/reveal
+// assertion runs on the output of the REAL `projectLimitedEvent` — the seam a
+// client actually receives — never a hand-built view: whether a seat is locked
+// is the projection's verdict, so the test must be able to see it change.
 import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup, fireEvent } from "@testing-library/react";
+import {
+    render,
+    cleanup,
+    fireEvent,
+    screen,
+    within,
+} from "@testing-library/react";
+import {
+    projectLimitedEvent,
+    type LimitedEventRow,
+} from "@convex/limited/eventProjection";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedReviewPanel from "../limited-review-panel";
 
@@ -23,496 +21,202 @@ afterEach(() => {
     cleanup();
 });
 
-// Real registry ids — the Column Layout engine resolves each card through the
-// card registry, so a made-up id would bucket everything into the Catch-All
-// and no grouping assertion below would mean anything.
+// Real registry ids — `groupDeckCards` resolves each through the card registry.
 const BOLT = {
     cardId: "d573ef03-4730-45aa-93dd-e45ac1dbaf4a",
     cardName: "Lightning Bolt",
-}; // MV 1, red
-const SERRA = {
-    cardId: "f8ac5006-91bd-4803-93da-f87cf196dd2f",
-    cardName: "Serra Angel",
-}; // MV 5, white
+};
+const BEARS = {
+    cardId: "ce2d603a-3231-4a8c-bf39-1617586ea870",
+    cardName: "Grizzly Bears",
+};
+const MOUNTAIN = {
+    cardId: "eace2c85-976c-425e-9800-5a6ccbd91b56",
+    cardName: "Mountain",
+};
 
-/** Every card FACE rendered inside a Column, by the tile's own `title`. */
-function tileTitles(root: ParentNode): string[] {
-    return [...root.querySelectorAll("[data-column] [title]")].map(
-        (el) => el.getAttribute("title") ?? ""
-    );
-}
+const withScry = (cards: { cardId: string; cardName: string }[]) =>
+    cards.map((c, i) => ({ scryfallId: `s${i}`, ...c }));
 
-/** One block's Column labels, in render order. */
-function columnLabels(block: Element): string[] {
-    return [...block.querySelectorAll("[data-column]")].map(
-        (el) => el.querySelector("span")?.textContent ?? ""
-    );
-}
-
-function blockOf(container: HTMLElement, slot: string): HTMLElement {
-    const block = container.querySelector<HTMLElement>(`[data-slot="${slot}"]`);
-    expect(block, `no ${slot} block rendered`).toBeTruthy();
-    return block!;
-}
-
-function makeEvent(
-    overrides: Partial<LimitedEventView>,
-    seatsOverride: Partial<LimitedEventView["seats"][number]>[]
+function projected(
+    overrides: Partial<LimitedEventRow>,
+    humanDecks: "own" | "both" = "own"
 ): LimitedEventView {
-    const base = {
-        userId: undefined,
-        nickname: undefined,
-        isBot: false,
-        isViewer: false,
-        poolCount: null,
-        pool: null,
-        humanDeck: null,
-        deckSummary: null,
-        currentPack: null,
-        packQueueCount: null,
-        pickDeadline: null,
-        autoBuiltDeck: null,
-    };
-    return {
-        _id: "event-1",
-        createdBy: "admin-1",
-        type: "sealed",
-        status: "started",
-        seatCount: seatsOverride.length,
-        packSlots: ["lea"],
+    const row: LimitedEventRow = {
+        _id: "event1",
+        createdBy: "admin1",
+        type: "draft",
+        status: "playing",
+        seatCount: 2,
+        packSlots: ["lea", "lea"],
         sealedBoosterCount: 6,
-        openDecklists: false,
-        completed: false,
-        seatsWithDeck: 0,
-        seats: seatsOverride.map((s, i) => ({
-            ...base,
-            seatIndex: i,
-            ...s,
-        })),
+        seats: [
+            {
+                seatIndex: 0,
+                userId: "user1",
+                nickname: "Alice",
+                pool: withScry([BOLT, BEARS, MOUNTAIN, MOUNTAIN]),
+            },
+            {
+                seatIndex: 1,
+                userId: "user2",
+                nickname: "Bob",
+                pool: withScry([BEARS]),
+            },
+        ],
         createdAt: 0,
         updatedAt: 0,
         ...overrides,
-    } as unknown as LimitedEventView;
+    };
+    const deck = (cards: { cardId: string; cardName: string }[]) => ({
+        cards,
+        sideboard: [BOLT],
+        colors: ["R"],
+    });
+    const decks = new Map([[0, deck([BOLT, BEARS, MOUNTAIN, MOUNTAIN])]]);
+    if (humanDecks === "both") decks.set(1, deck([BEARS]));
+    return projectLimitedEvent(
+        row,
+        "user1",
+        true,
+        2,
+        decks as never,
+        new Set([0, 1])
+    ) as unknown as LimitedEventView;
 }
 
-describe("LimitedReviewPanel (issue #1116 / #1583)", () => {
-    it("renders nothing while the event is not completed", () => {
-        const event = makeEvent({ completed: false, seatsWithDeck: 1 }, [
-            { seatIndex: 0, userId: "user-1", isViewer: true, pool: [] },
-            { seatIndex: 1, isBot: true },
-        ]);
-        const { container } = render(<LimitedReviewPanel event={event} />);
-        expect(container.firstChild).toBeNull();
-    });
+const seatEl = (i: number) =>
+    document.querySelector<HTMLElement>(`[data-seat-index="${i}"]`)!;
 
-    it("shows every seat's compact summary (colors + counts) for a NON-admin, without any card list", () => {
-        // A non-admin at a completed event: the server sent no other seat's
-        // pool/humanDeck (both null here), only the ungated `deckSummary`.
-        const event = makeEvent({ completed: true, seatsWithDeck: 2 }, [
-            {
-                seatIndex: 0,
-                userId: "user-1",
-                nickname: "Alice",
-                isViewer: false,
-                pool: null,
-                humanDeck: null,
-                deckSummary: {
-                    colors: ["R"],
-                    maindeckCount: 40,
-                    sideboardCount: 3,
-                },
-            },
-            {
-                seatIndex: 1,
-                isBot: true,
-                nickname: "Bot 2",
-                pool: null,
-                // autoBuiltDeck stays on the wire (vs-AI hookup) — must NOT be
-                // rendered as a deck for a non-admin.
-                autoBuiltDeck: {
-                    cards: [SERRA],
-                    sideboard: [],
-                    colors: ["R", "G"],
-                },
-                deckSummary: {
-                    colors: ["R", "G"],
-                    maindeckCount: 40,
-                    sideboardCount: 5,
-                },
-            },
-        ]);
-        const { container } = render(<LimitedReviewPanel event={event} />);
-        // Summaries render for every seat.
-        expect(container.textContent).toContain("40 maindeck / 3 sideboard");
-        expect(container.textContent).toContain("R/G");
-        // No detail at all: no disclosure, no piles, no bot autoBuiltDeck.
-        expect(container.querySelector("details")).toBeNull();
-        expect(tileTitles(container)).toEqual([]);
-    });
-
-    it("lets a non-admin expand ONLY their own seat's detail", () => {
-        const event = makeEvent({ completed: true, seatsWithDeck: 2 }, [
-            {
-                seatIndex: 0,
-                userId: "user-1",
-                nickname: "Alice",
-                isViewer: true, // the viewer's own seat
-                pool: [{ scryfallId: "s1", ...BOLT }],
-                humanDeck: { cards: [BOLT], sideboard: [], colors: ["R"] },
-                deckSummary: {
-                    colors: ["R"],
-                    maindeckCount: 1,
-                    sideboardCount: 0,
-                },
-            },
-            {
-                seatIndex: 1,
-                userId: "user-2",
-                nickname: "Bob",
-                isViewer: false,
-                pool: null,
-                humanDeck: null,
-                deckSummary: {
-                    colors: ["U"],
-                    maindeckCount: 40,
-                    sideboardCount: 2,
-                },
-            },
-        ]);
-        const { container } = render(<LimitedReviewPanel event={event} />);
-        // Exactly one disclosure — the viewer's own seat.
-        expect(container.querySelectorAll("details").length).toBe(1);
-        expect(tileTitles(blockOf(container, "review-maindeck"))).toEqual([
-            "Lightning Bolt",
-        ]);
-    });
-
-    it("at a FINISHED event, any viewer can expand every seat to see the built deck and the Pool (issue #5386)", () => {
-        const event = makeEvent(
-            { status: "finished", completed: true, seatsWithDeck: 2 },
-            [
-                {
-                    seatIndex: 0,
-                    userId: "user-1",
-                    nickname: "Alice",
-                    isViewer: false, // NOT the viewer's own seat — finished reveals it
-                    pool: [{ scryfallId: "s1", ...BOLT }],
-                    humanDeck: { cards: [BOLT], sideboard: [], colors: ["R"] },
-                    deckSummary: {
-                        colors: ["R"],
-                        maindeckCount: 1,
-                        sideboardCount: 0,
-                    },
-                },
-                {
-                    seatIndex: 1,
-                    isBot: true,
-                    nickname: "Bot 2",
-                    pool: [{ scryfallId: "s2", ...SERRA }],
-                    autoBuiltDeck: {
-                        cards: [SERRA],
-                        sideboard: [],
-                        colors: ["R", "G"],
-                    },
-                    deckSummary: {
-                        colors: ["R", "G"],
-                        maindeckCount: 1,
-                        sideboardCount: 0,
-                    },
-                },
-            ]
-        );
-        const { container } = render(<LimitedReviewPanel event={event} />);
-        // One disclosure per seat, each drawing its own deck AND its own Pool.
-        expect(container.querySelectorAll("details").length).toBe(2);
-        expect(tileTitles(container)).toEqual([
-            "Lightning Bolt", // seat 0 maindeck
-            "Lightning Bolt", // seat 0 Pool
-            "Serra Angel", // seat 1 maindeck
-            "Serra Angel", // seat 1 Pool
-        ]);
-    });
-
-    it("shows 'No deck submitted' in a revealed seat's detail for a human seat with no humanDeck", () => {
-        const event = makeEvent(
-            { status: "finished", completed: true, seatsWithDeck: 1 },
-            [
-                {
-                    seatIndex: 0,
-                    userId: "user-1",
-                    nickname: "Alice",
-                    isViewer: false,
-                    pool: [],
-                    humanDeck: null,
-                    deckSummary: null,
-                },
-            ]
-        );
-        const { getByText } = render(<LimitedReviewPanel event={event} />);
-        expect(getByText("No deck submitted.")).toBeTruthy();
-        // A seat with an empty Pool keeps its own empty state too.
-        expect(getByText("No Pool.")).toBeTruthy();
-    });
-});
-
-describe("LimitedReviewSeat card piles (issue #3167)", () => {
-    function sealedSeat(seat: Partial<LimitedEventView["seats"][number]> = {}) {
-        return makeEvent(
-            { status: "finished", completed: true, seatsWithDeck: 1 },
-            [
-                {
-                    seatIndex: 0,
-                    userId: "user-1",
-                    nickname: "Alice",
-                    isViewer: false,
-                    pool: [
-                        { scryfallId: "s1", ...BOLT },
-                        { scryfallId: "s2", ...SERRA },
-                    ],
-                    humanDeck: {
-                        cards: [BOLT, SERRA],
-                        sideboard: [SERRA],
-                        colors: ["R", "W"],
-                    },
-                    deckSummary: {
-                        colors: ["R", "W"],
-                        maindeckCount: 2,
-                        sideboardCount: 1,
-                    },
-                    ...seat,
-                },
-            ]
-        );
-    }
-
-    it("draws the built deck as card images in Columns, grouped by Mana Value by default", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const main = blockOf(container, "review-maindeck");
-        // Bucketed by MV, not listed by name: Lightning Bolt (MV 1) and Serra
-        // Angel (MV 5) land in two different Columns.
-        expect(columnLabels(main)).toEqual(["MV 1", "MV 5"]);
-        expect(tileTitles(main)).toEqual(["Lightning Bolt", "Serra Angel"]);
-        // Every face is a real card image, not a text row.
-        expect(main.querySelectorAll("[data-column] img").length).toBe(2);
+describe("LimitedReviewPanel — locked vs revealed follows the projection", () => {
+    it("Play Phase, no Open Decklists: own seat open, the other locked with its note, no banner", () => {
+        render(<LimitedReviewPanel event={projected({})} />);
+        expect(seatEl(0).getAttribute("data-locked")).toBe("false");
         expect(
-            container.querySelector<HTMLSelectElement>(
-                '[aria-label="Built Deck grouping"]'
-            )!.value
-        ).toBe("mv");
-    });
-
-    it("re-buckets the maindeck when the Grouping select changes", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const select = container.querySelector<HTMLSelectElement>(
-            '[aria-label="Built Deck grouping"]'
-        )!;
-        fireEvent.change(select, { target: { value: "color" } });
-        expect(columnLabels(blockOf(container, "review-maindeck"))).toEqual([
-            "White",
-            "Red",
-        ]);
-        // The Pool's own Grouping is independent state — untouched.
-        expect(columnLabels(blockOf(container, "review-pool"))).toEqual([
-            "MV 1",
-            "MV 5",
-        ]);
-    });
-
-    it("draws the sideboard as ONE Column with no Grouping select", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const side = blockOf(container, "review-sideboard");
-        expect(side.querySelectorAll("[data-column]").length).toBe(1);
-        expect(tileTitles(side)).toEqual(["Serra Angel"]);
-        expect(
-            container.querySelector('[aria-label="Sideboard grouping"]')
-        ).toBeNull();
-    });
-
-    it("draws a SEALED seat's Pool as grouped card images, with no pick numbers", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const pool = blockOf(container, "review-pool");
-        expect(tileTitles(pool)).toEqual(["Lightning Bolt", "Serra Angel"]);
-        expect(
-            container.querySelector('[aria-label="Pool grouping"]')
-        ).toBeTruthy();
-        expect(container.querySelector("[data-pick-number]")).toBeNull();
-        expect(
-            container.querySelector('[data-slot="review-pick-order"]')
-        ).toBeNull();
-    });
-
-    it("draws a DRAFT seat's pick order as card images in pick sequence, each numbered from 1", () => {
-        const event = makeEvent(
-            {
-                type: "draft",
-                status: "finished",
-                completed: true,
-                seatsWithDeck: 1,
-            },
-            [
-                {
-                    seatIndex: 0,
-                    userId: "user-1",
-                    nickname: "Alice",
-                    isViewer: false,
-                    // Pick 1 is Serra Angel: the block must follow the array,
-                    // not re-sort by name or by Mana Value.
-                    pool: [
-                        { scryfallId: "p1", ...SERRA },
-                        { scryfallId: "p2", ...BOLT },
-                    ],
-                    humanDeck: null,
-                    deckSummary: {
-                        colors: [],
-                        maindeckCount: 0,
-                        sideboardCount: 0,
-                    },
-                },
-            ]
-        );
-        const { container } = render(<LimitedReviewPanel event={event} />);
-        const picks = [
-            ...blockOf(container, "review-pick-order").querySelectorAll("li"),
-        ];
-        expect(picks.map((li) => li.getAttribute("title"))).toEqual([
-            "Pick 1 — Serra Angel",
-            "Pick 2 — Lightning Bolt",
-        ]);
-        expect(
-            picks.map(
-                (li) => li.querySelector("[data-pick-number]")!.textContent
-            )
-        ).toEqual(["1", "2"]);
-        // Card FACES, in an ordered list — the order carries the meaning.
-        expect(picks.every((li) => li.querySelector("img") !== null)).toBe(
-            true
-        );
-        expect(
-            blockOf(container, "review-pick-order").querySelector("ol")
+            seatEl(0).querySelector("[data-slot=review-seat-detail]")
         ).not.toBeNull();
-        // A Draft seat has no grouped Pool block.
-        expect(container.querySelector('[data-slot="review-pool"]')).toBeNull();
-    });
-
-    it("pairs the Maindeck and the Sideboard in ONE row, with the Pool below it (issue #3180)", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const pair = blockOf(container, "review-deck-pair");
-        // Both zones are children of the SAME row, in Maindeck-then-Sideboard
-        // order — that is what makes them two columns of one row rather than
-        // two stacked sections.
+        expect(seatEl(1).getAttribute("data-locked")).toBe("true");
+        expect(seatEl(1).textContent).toContain("Revealed when the event ends");
+        expect(seatEl(1).querySelector("button")).toBeNull();
         expect(
-            [...pair.children].map((el) => el.getAttribute("data-slot"))
-        ).toEqual(["review-maindeck", "review-sideboard"]);
-        // The Pool / pick order stays OUTSIDE the pair, full-width below it.
-        expect(pair.querySelector('[data-slot="review-pool"]')).toBeNull();
-        expect(blockOf(container, "review-pool")).toBeTruthy();
-        // happy-dom has no layout engine, so the BREAKPOINT itself can only be
-        // asserted as the class contract here — `bun run check:ui` is what
-        // measures the two columns actually sitting side by side. The pair
-        // stacks below `md` and becomes a row at it, the same breakpoint
-        // `deck-zones-surface.tsx` uses for the deckbuilder's own zone pair.
-        expect(pair.className).toContain("flex-col");
-        expect(pair.className).toContain("md:flex-row");
-    });
-
-    it("exposes NO editing affordance: no tile gesture, no pin, no column management", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={sealedSeat()} />
-        );
-        const detail = blockOf(container, "review-seat-detail");
-        // The tile's `role="button"` + keyboard grid handle are what a click,
-        // an Enter and an arrow-nav all hang off — a read-only tile binds none
-        // of them, so it advertises none of them either.
-        expect(detail.querySelectorAll('[role="button"]').length).toBe(0);
-        expect(detail.querySelectorAll("[data-card-tile]").length).toBe(0);
-        expect(detail.querySelectorAll("[tabindex]").length).toBe(0);
-        // No column add / rename / delete, and no Ordering control.
-        expect(
-            container.querySelector('[aria-label*="Add column"]')
-        ).toBeNull();
-        expect(
-            container.querySelector('[aria-label="Built Deck ordering"]')
-        ).toBeNull();
-    });
-});
-
-describe("LimitedReviewPanel — Open Decklists revelation (issue #5386)", () => {
-    /** A completed two-seat table as the projection sends it to seat 0: the
-     *  other seat's lists present only when `revealed`. */
-    function table(
-        overrides: Partial<LimitedEventView>,
-        revealed: boolean
-    ): LimitedEventView {
-        return makeEvent({ completed: true, seatsWithDeck: 2, ...overrides }, [
-            {
-                seatIndex: 0,
-                userId: "user-1",
-                nickname: "Alice",
-                isViewer: true,
-                pool: [{ scryfallId: "s1", ...BOLT }],
-                humanDeck: { cards: [BOLT], sideboard: [], colors: ["R"] },
-            },
-            {
-                seatIndex: 1,
-                userId: "user-2",
-                nickname: "Bob",
-                pool: revealed ? [{ scryfallId: "s2", ...SERRA }] : null,
-                humanDeck: revealed
-                    ? { cards: [SERRA], sideboard: [], colors: ["W"] }
-                    : null,
-            },
-        ]);
-    }
-
-    it("Games phase without Open Decklists: the other seat is locked with its reveal note, no banner", () => {
-        const { container } = render(
-            <LimitedReviewPanel event={table({ status: "playing" }, false)} />
-        );
-        expect(container.querySelectorAll("details").length).toBe(1);
-        expect(
-            container.querySelector('[data-slot="review-seat-locked"]')!
-                .textContent
-        ).toBe("Revealed when the event ends");
-        expect(
-            container.querySelector('[data-slot="open-decklists-notice"]')
+            document.querySelector("[data-slot=open-decklists-notice]")
         ).toBeNull();
     });
 
-    it("Games phase with Open Decklists: every seat expands and the banner states it", () => {
-        const { container } = render(
+    it("Play Phase with Open Decklists: both seats revealed, banner shown", () => {
+        render(
             <LimitedReviewPanel
-                event={table({ status: "playing", openDecklists: true }, true)}
+                event={projected({ openDecklists: true }, "both")}
             />
         );
-        expect(container.querySelectorAll("details").length).toBe(2);
+        expect(seatEl(1).getAttribute("data-locked")).toBe("false");
         expect(
-            container.querySelector('[data-slot="review-seat-locked"]')
-        ).toBeNull();
-        expect(
-            container.querySelector('[data-slot="open-decklists-notice"]')!
+            document.querySelector("[data-slot=open-decklists-notice]")!
                 .textContent
         ).toContain("Open Decklists is on");
     });
 
-    it("deckbuild phase with Open Decklists: still locked — never revealed before the Games phase", () => {
-        const { container } = render(
+    it("finished: every seat revealed, no Open Decklists banner", () => {
+        render(
             <LimitedReviewPanel
-                event={table({ status: "started", openDecklists: true }, false)}
+                event={projected({ status: "finished" }, "both")}
             />
         );
-        expect(container.querySelectorAll("details").length).toBe(1);
+        expect(seatEl(1).getAttribute("data-locked")).toBe("false");
         expect(
-            container.querySelector('[data-slot="open-decklists-notice"]')
+            document.querySelector("[data-slot=open-decklists-notice]")
         ).toBeNull();
+    });
+
+    it("never reveals a bot's auto-built deck the projection did not reveal", () => {
+        const event = projected({});
+        event.seats[1] = {
+            ...event.seats[1],
+            isBot: true,
+            autoBuiltDeck: { cards: [BEARS], sideboard: [], colors: ["G"] },
+        };
+        render(<LimitedReviewPanel event={event} />);
+        expect(seatEl(1).getAttribute("data-locked")).toBe("true");
+        expect(seatEl(1).querySelector("img")).toBeNull();
+    });
+});
+
+describe("LimitedReviewPanel — a seat's Deck / Pick order tabs and zoom", () => {
+    it("Deck tab: creatures / spells / lands, basics collapsed to ×N, then the sideboard", () => {
+        render(<LimitedReviewPanel event={projected({})} />);
+        const deck = seatEl(0).querySelector("[data-slot=review-deck]")!;
+        const groups = [...deck.querySelectorAll("[data-group]")].map((g) =>
+            g.getAttribute("data-group")
+        );
+        expect(groups).toEqual(["creatures", "spells", "lands", "sideboard"]);
+        const lands = deck.querySelector("[data-group=lands]")!;
+        expect(lands.querySelectorAll("li")).toHaveLength(1);
+        expect(lands.querySelector("[data-slot=card-count]")!.textContent).toBe(
+            "×2"
+        );
+        expect(lands.querySelector("h4")!.textContent).toBe("Lands · 2");
+    });
+
+    it("Pick order tab: faces captioned P1p1… in pool order, 2 packs of 2", () => {
+        render(<LimitedReviewPanel event={projected({})} />);
+        fireEvent.click(screen.getByRole("radio", { name: /Pick order/ }));
+        const order = seatEl(0).querySelector("[data-slot=review-pick-order]")!;
+        expect(
+            [...order.querySelectorAll("li")].map((li) =>
+                li.getAttribute("title")
+            )
+        ).toEqual([
+            "P1p1 — Lightning Bolt",
+            "P1p2 — Grizzly Bears",
+            "P2p1 — Mountain",
+            "P2p2 — Mountain",
+        ]);
+    });
+
+    it("tab choice is per seat; opening one seat closes the other", () => {
+        render(
+            <LimitedReviewPanel
+                event={projected({ openDecklists: true }, "both")}
+            />
+        );
+        fireEvent.click(seatEl(1).querySelector("button")!);
+        expect(
+            seatEl(0).querySelector("[data-slot=review-seat-detail]")
+        ).toBeNull();
+        fireEvent.click(
+            within(seatEl(1)).getByRole("radio", { name: /Pick order/ })
+        );
+        fireEvent.click(seatEl(0).querySelector("button")!);
+        expect(
+            seatEl(0).querySelector("[data-slot=review-deck]")
+        ).not.toBeNull();
+        fireEvent.click(seatEl(1).querySelector("button")!);
+        expect(seatEl(1).querySelector("[data-slot=review-deck]")).toBeNull();
+        expect(
+            seatEl(1).querySelector("[data-slot=review-pick-order]")
+        ).not.toBeNull();
+    });
+
+    it("zoom slider resizes the cards; chevron trigger collapses the seat", () => {
+        render(<LimitedReviewPanel event={projected({})} />);
+        const slider = screen.getByLabelText("Card size") as HTMLInputElement;
+        fireEvent.change(slider, { target: { value: "200" } });
+        expect(
+            seatEl(0)
+                .querySelector<HTMLElement>("ul")!
+                .style.getPropertyValue("--card-w")
+        ).toBe("200px");
+        fireEvent.click(seatEl(0).querySelector("button")!);
+        expect(
+            seatEl(0).querySelector("[data-slot=review-seat-detail]")
+        ).toBeNull();
+    });
+
+    it("a Sealed seat's second tab is its Pool, unnumbered", () => {
+        render(<LimitedReviewPanel event={projected({ type: "sealed" })} />);
+        fireEvent.click(screen.getByRole("radio", { name: /Pool/ }));
+        const pool = seatEl(0).querySelector("[data-slot=review-pool]")!;
+        expect(pool.querySelector("[data-slot=card-caption]")).toBeNull();
+        expect(pool.querySelectorAll("li")).toHaveLength(4);
     });
 });
