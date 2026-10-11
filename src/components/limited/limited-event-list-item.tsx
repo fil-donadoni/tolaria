@@ -4,12 +4,15 @@ import {
     formatLimitedMatchRecord,
     limitedEventStatusHint,
 } from "~/lib/limitedEventStatus";
+import { OPEN_DECKLISTS_JOIN_WARNING } from "~/lib/openDecklists";
 import ActionButton from "~/components/board/action-button";
 import { Button } from "@/components/ui/button";
 
 /** One row in the open-events lobby list (PRD #1107 story 7). Shows the
  *  event's type, filled/total seat count, and Pack Source, with a Join button
- *  when the viewer hasn't already taken a seat. */
+ *  when the viewer hasn't already taken a seat. An Open Decklists event says
+ *  so on the row, and a seatless viewer reads the disclosure beside Join
+ *  (issue #5386). */
 export default function LimitedEventListItem({
     event,
     viewerHasSeat,
@@ -61,7 +64,16 @@ export default function LimitedEventListItem({
                 <span className="text-xs text-text-muted">
                     {filledSeats}/{event.seatCount} seats filled · {statusLabel}
                     {record && ` · ${record}`}
+                    {event.openDecklists && " · Open Decklists"}
                 </span>
+                {event.openDecklists && !viewerHasSeat && onJoin && (
+                    <span
+                        className="text-xs text-text-muted"
+                        data-slot="open-decklists-join-warning"
+                    >
+                        {OPEN_DECKLISTS_JOIN_WARNING}
+                    </span>
+                )}
             </div>
             <div className="flex items-center gap-2">
                 <Button variant="secondary" size="sm" onClick={onOpen}>

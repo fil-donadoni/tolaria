@@ -527,6 +527,9 @@ export const limitedEventSummaryValidator = v.object({
     packSlots: v.array(v.string()),
     draftCompletedAt: v.optional(v.number()),
     gamesFormat: gamesFormatValidator,
+    // Open Decklists (issue #5386) — definite, so the list row's warning
+    // before Join never re-implements the legacy default.
+    openDecklists: v.boolean(),
     completed: v.boolean(),
     seatsWithDeck: v.number(),
     seats: v.array(limitedEventSummarySeatValidator),
@@ -1367,6 +1370,7 @@ export async function projectEventSummary(
         packSlots: event.packSlots,
         draftCompletedAt: event.draftCompletedAt,
         gamesFormat: resolveEventGamesFormat(event),
+        openDecklists: event.openDecklists ?? false,
         completed: completion.completed,
         seatsWithDeck: completion.seatsWithDeck,
         createdAt: event.createdAt,

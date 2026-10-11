@@ -624,3 +624,39 @@ describe("CreateLimitedEventDialog — Round Deadline (PRD #1628 stories 3-4)", 
         expect(payload.roundDeadlineMinutes).toBeUndefined();
     });
 });
+
+describe("CreateLimitedEventDialog — Open Decklists (issue #5386)", () => {
+    it("is Off by default, says what Off means, and submits openDecklists: false", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        expect(
+            screen
+                .getByRole("radio", { name: "Open Decklists Off" })
+                .getAttribute("aria-checked")
+        ).toBe("true");
+        expect(
+            document.querySelector('[data-slot="open-decklists-consequence"]')!
+                .textContent
+        ).toMatch(/^Off — /);
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ openDecklists: false })
+        );
+    });
+
+    it("turned On, states the consequence beside the toggle and submits openDecklists: true", () => {
+        const onCreate = vi.fn();
+        renderDialog({ onCreate });
+        fireEvent.click(
+            screen.getByRole("radio", { name: "Open Decklists On" })
+        );
+        expect(
+            document.querySelector('[data-slot="open-decklists-consequence"]')!
+                .textContent
+        ).toContain("visible to the whole table from the Games phase");
+        fireEvent.click(screen.getByText("Create Event"));
+        expect(onCreate).toHaveBeenCalledWith(
+            expect.objectContaining({ openDecklists: true })
+        );
+    });
+});

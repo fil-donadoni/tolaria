@@ -65,6 +65,7 @@ function makeOpenEvent(
         type: "sealed",
         status: "open",
         gamesFormat: "bo3",
+        openDecklists: false,
         completed: false,
         seatCount: 2,
         seatsWithDeck: 0,

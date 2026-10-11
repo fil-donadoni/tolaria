@@ -109,3 +109,37 @@ describe("LimitedEventListItem — fixture label handle (issue #2822)", () => {
         ).toBeNull();
     });
 });
+
+describe("LimitedEventListItem — Open Decklists (issue #5386)", () => {
+    it("marks the row and warns beside Join for a seatless viewer", () => {
+        const { container } = render(
+            <LimitedEventListItem
+                event={makeEvent({ status: "open", openDecklists: true })}
+                viewerHasSeat={false}
+                onJoin={vi.fn()}
+                onOpen={vi.fn()}
+            />
+        );
+        expect(screen.getByText(/· Open Decklists/)).toBeTruthy();
+        expect(
+            container.querySelector(
+                '[data-slot="open-decklists-join-warning"]'
+            )!.textContent
+        ).toContain("your deck and pick order will be visible");
+    });
+
+    it("shows neither on an event without it", () => {
+        const { container } = render(
+            <LimitedEventListItem
+                event={makeEvent({ status: "open", openDecklists: false })}
+                viewerHasSeat={false}
+                onJoin={vi.fn()}
+                onOpen={vi.fn()}
+            />
+        );
+        expect(screen.queryByText(/Open Decklists/)).toBeNull();
+        expect(
+            container.querySelector('[data-slot="open-decklists-join-warning"]')
+        ).toBeNull();
+    });
+});
