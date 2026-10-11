@@ -10,6 +10,8 @@
 // itself only reacts to whether `onPick` is passed at all — the phone/
 // desktop split lives entirely in the caller (`limited-draft-table.tsx`).
 import { describe, it, expect, vi, afterEach } from "vitest";
+import { act } from "@testing-library/react";
+import { DOUBLE_CLICK_INTERVAL_MS } from "../draft-room/draftClickIntent";
 import { render, fireEvent, cleanup } from "@testing-library/react";
 import LimitedDraftPackCard from "../limited-draft-pack-card";
 
@@ -22,7 +24,10 @@ const card = {
     pickId: "r0-p0-c0",
 };
 
-afterEach(() => cleanup());
+afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+});
 
 describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMenu, unchanged)", () => {
     it("a single click SELECTS the card and NEVER calls onPick", () => {
@@ -111,7 +116,7 @@ describe("LimitedDraftPackCard gestures — phone regime (onPick/onOpenContextMe
 });
 
 describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2861)", () => {
-    it("a single click SELECTS the card AND opens the pack menu right there, no delay", () => {
+    it("a touch / keyboard click SELECTS the card AND opens the pack menu right there, no delay", () => {
         const onSelect = vi.fn();
         const onOpenMenu = vi.fn();
         const { getByRole } = render(
@@ -204,6 +209,96 @@ describe("LimitedDraftPackCard gestures — desktop regime (onOpenMenu, issue #2
         fireEvent.doubleClick(el);
         expect(onSelect).not.toHaveBeenCalled();
         expect(onOpenMenu).not.toHaveBeenCalled();
+    });
+});
+
+describe("LimitedDraftPackCard gestures — fine pointer waits the double-click interval (issue #5396)", () => {
+    const setup = () => {
+        vi.useFakeTimers();
+        const onSelect = vi.fn();
+        const onPick = vi.fn();
+        const onOpenMenu = vi.fn();
+        const { getByRole } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                isDefault={false}
+                onSelect={onSelect}
+                onPick={onPick}
+                onOpenMenu={onOpenMenu}
+                pending={false}
+            />
+        );
+        const el = getByRole("button");
+        const click = () => {
+            fireEvent.pointerDown(el, { pointerType: "mouse" });
+            fireEvent.click(el, { clientX: 12, clientY: 34, detail: 1 });
+        };
+        return { el, click, onSelect, onPick, onOpenMenu };
+    };
+
+    it("a single click opens the menu only after the interval", () => {
+        const { click, onSelect, onOpenMenu } = setup();
+        click();
+        expect(onSelect).toHaveBeenCalledWith("r0-p0-c0");
+        expect(onOpenMenu).not.toHaveBeenCalled();
+        act(() => {
+            vi.advanceTimersByTime(DOUBLE_CLICK_INTERVAL_MS - 1);
+        });
+        expect(onOpenMenu).not.toHaveBeenCalled();
+        act(() => {
+            vi.advanceTimersByTime(1);
+        });
+        expect(onOpenMenu).toHaveBeenCalledWith("r0-p0-c0", 12, 34);
+    });
+
+    it("a double click picks once and the menu never opens", () => {
+        const { el, click, onPick, onOpenMenu } = setup();
+        click();
+        click();
+        fireEvent.doubleClick(el);
+        act(() => {
+            vi.advanceTimersByTime(DOUBLE_CLICK_INTERVAL_MS * 4);
+        });
+        expect(onPick).toHaveBeenCalledTimes(1);
+        expect(onPick).toHaveBeenCalledWith("r0-p0-c0");
+        expect(onOpenMenu).not.toHaveBeenCalled();
+    });
+
+    it("a native dblclick alone cancels the armed menu", () => {
+        const { el, click, onPick, onOpenMenu } = setup();
+        click();
+        fireEvent.doubleClick(el);
+        act(() => {
+            vi.advanceTimersByTime(DOUBLE_CLICK_INTERVAL_MS * 4);
+        });
+        expect(onPick).toHaveBeenCalledTimes(1);
+        expect(onOpenMenu).not.toHaveBeenCalled();
+    });
+
+    it("a keyboard click after a stale mouse pointerdown opens the menu at once (detail 0)", () => {
+        const { el, onOpenMenu } = setup();
+        fireEvent.pointerDown(el, { pointerType: "mouse" });
+        fireEvent.click(el, { detail: 0 });
+        expect(onOpenMenu).toHaveBeenCalledTimes(1);
+    });
+
+    it("a touch pointer opens the menu at once", () => {
+        vi.useFakeTimers();
+        const onOpenMenu = vi.fn();
+        const { getByRole } = render(
+            <LimitedDraftPackCard
+                card={card}
+                selected={false}
+                isDefault={false}
+                onSelect={vi.fn()}
+                onOpenMenu={onOpenMenu}
+                pending={false}
+            />
+        );
+        fireEvent.pointerDown(getByRole("button"), { pointerType: "touch" });
+        fireEvent.click(getByRole("button"), { clientX: 1, clientY: 2 });
+        expect(onOpenMenu).toHaveBeenCalledWith("r0-p0-c0", 1, 2);
     });
 });
 
