@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
-    useDraftableSets,
+    usePackSources,
     useJoinLimitedEvent,
     useLimitedEventMutations,
     useMyLimitedEvents,
@@ -60,7 +60,7 @@ export default function LimitedEventsPage({
     const user = useCurrentUser();
     const openEvents = useOpenLimitedEvents();
     const myEvents = useMyLimitedEvents();
-    const draftableSets = useDraftableSets();
+    const packSources = usePackSources();
     const { create, join } = useLimitedEventMutations();
 
     const [createOpen, setCreateOpen] = useState(false);
@@ -131,7 +131,7 @@ export default function LimitedEventsPage({
     if (
         openEvents === undefined ||
         myEvents === undefined ||
-        draftableSets === undefined ||
+        packSources === undefined ||
         user === undefined
     ) {
         return <LoadingScreen />;
@@ -209,7 +209,7 @@ export default function LimitedEventsPage({
             <CreateLimitedEventDialog
                 open={createOpen}
                 onOpenChange={setCreateOpen}
-                draftableSets={draftableSets}
+                packSources={packSources}
                 onCreate={(payload) => void handleCreate(payload)}
                 pending={createPending}
                 error={createError}

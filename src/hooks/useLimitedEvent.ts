@@ -16,6 +16,10 @@ export type DraftableSetInfo = FunctionReturnType<
     typeof api.limitedEvents.listLimitedDraftableSets
 >[number];
 
+export type PackSourceInfo = FunctionReturnType<
+    typeof api.limitedEvents.listLimitedPackSources
+>[number];
+
 // The FULL event view — every seat's Pool/pack/arrangement, as far as the
 // viewer is allowed to see them. Sourced from `getLimitedEvent`, stripped of
 // its `| null` (issue #1579: that query returns null for an event cancelled
@@ -42,6 +46,12 @@ export type LimitedEventSeatView = LimitedEventView["seats"][number];
  *  #1107 story 4) — feeds the admin create-event Pack Source picker. */
 export function useDraftableSets(): DraftableSetInfo[] | undefined {
     return useQuery(api.limitedEvents.listLimitedDraftableSets);
+}
+
+/** The Pack Source catalogue in display order, Vintage Cube first (issue
+ *  #5385) — feeds the create-event Pack Source picker. */
+export function usePackSources(): PackSourceInfo[] | undefined {
+    return useQuery(api.limitedEvents.listLimitedPackSources);
 }
 
 // Both list queries below are gated on tab visibility, mirroring the lobby's

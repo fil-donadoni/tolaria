@@ -115,6 +115,7 @@ import {
 } from "./limited/eventProjection";
 import type {
     LimitedEventSeat,
+    LimitedEventType,
     LimitedPairing,
     LimitedRound,
 } from "./limited/eventTypes";
@@ -152,8 +153,11 @@ import { upsertPoolArrangementEntry } from "./limited/poolArrangement";
 import {
     getBoosterConfig,
     getRuntimeBoosterConfig,
+    getPackSource,
     isDraftableSet,
     listDraftableSets,
+    listPackSources,
+    resolvePackSlots,
 } from "./limited/registry";
 import {
     isCubeSource,
@@ -550,6 +554,18 @@ const draftableSetInfoValidator = v.object({
     // Vintage Cube pool source (ADR 0062) — present only on the cube entry.
     isCube: v.optional(v.boolean()),
     availableCardCount: v.optional(v.number()),
+});
+
+// One Pack Source catalogue entry (issue #5385) — `PackSourceInfo` in
+// `convex/limited/registry.ts`.
+const packSourceInfoValidator = v.object({
+    key: v.string(),
+    name: v.string(),
+    description: v.string(),
+    featureCardId: v.union(v.string(), v.null()),
+    draftOnly: v.boolean(),
+    draftable: v.boolean(),
+    sets: v.array(draftableSetInfoValidator),
 });
 
 // Bound on the full-table scan `myLimitedEvents` does (no index can select
@@ -1468,6 +1484,18 @@ export const listLimitedDraftableSets = query({
     },
 });
 
+/** The Pack Source catalogue in display order, Vintage Cube first (PRD #5383,
+ *  issue #5385) — names, descriptions, Feature Cards and each source's live
+ *  Draftability, for the create-event picker. */
+export const listLimitedPackSources = query({
+    args: {},
+    returns: v.array(packSourceInfoValidator),
+    handler: async (ctx) => {
+        await getCurrentUserId(ctx);
+        return listPackSources();
+    },
+});
+
 /** Open events (still accepting Seats) — the lobby list (PRD #1107 story 7).
  *  Projected with no viewer identity: an open event has no Pools yet, so
  *  there is nothing to strip. */
@@ -1578,6 +1606,25 @@ export const getLimitedEvent = query({
 
 // --- Mutations ---------------------------------------------------------------
 
+/** The `packSlots` a create request stands for: its Pack Source key resolved
+ *  through the catalogue (issue #5385), or the raw slots of an older client.
+ *  Both or neither is a malformed request. */
+function resolveCreatePackSlots(args: {
+    type: LimitedEventType;
+    packSource?: string;
+    packSlots?: string[];
+}): string[] {
+    if ((args.packSource === undefined) === (args.packSlots === undefined)) {
+        throw new Error("Send exactly one of packSource or packSlots.");
+    }
+    if (args.packSlots !== undefined) return args.packSlots;
+    const source = getPackSource(args.packSource!);
+    if (!source) {
+        throw new Error(`Unknown Pack Source "${args.packSource}".`);
+    }
+    return resolvePackSlots(source, args.type);
+}
+
 /** Any authenticated user creates an event with `seatCount` empty Seats (PRD
  *  #1107 story 1-6; the original admin gate was lifted — hosting a table is a
  *  normal player action, and the creator already owns it via `createdBy` for
@@ -1589,7 +1636,11 @@ export const createLimitedEvent = mutation({
     args: {
         type: eventTypeValidator,
         seatCount: v.number(),
-        packSlots: v.array(v.string()),
+        // Exactly one of `packSource` (a Pack Source catalogue key, issue
+        // #5385 — resolved server-side into the per-pack sets below) or the
+        // raw `packSlots` it resolves to.
+        packSource: v.optional(v.string()),
+        packSlots: v.optional(v.array(v.string())),
         sealedBoosterCount: v.optional(v.number()),
         // Per-pick timer on/off (issue #1114, PRD #1107 story 5: "configure
         // the per-pick timer, or disable it"; ADR 0060 / issue #1243
@@ -1622,7 +1673,8 @@ export const createLimitedEvent = mutation({
             );
         }
 
-        if (args.packSlots.length === 0) {
+        const packSlots = resolveCreatePackSlots(args);
+        if (packSlots.length === 0) {
             throw new Error(
                 "At least one Pack Source (Draftable Set) is required."
             );
@@ -1632,7 +1684,7 @@ export const createLimitedEvent = mutation({
         // multi-set block draft (INV/PLS/APC) repeats none of them anyway;
         // deduping just avoids redundant registry lookups for the homogeneous
         // case without changing which lists are accepted.
-        for (const setCode of new Set(args.packSlots)) {
+        for (const setCode of new Set(packSlots)) {
             if (isCubeSource(setCode)) {
                 // The Vintage Cube is a curated POOL, Draft-only (ADR 0062 §4):
                 // it deliberately bypasses the per-set Draftability gate, but
@@ -1651,7 +1703,7 @@ export const createLimitedEvent = mutation({
                 // reject an oversized config at creation. `roundCount` is the
                 // pack count (`packSlots.length`, DRAFT_BOOSTER_COUNT copies of
                 // the cube key). The cap lifts automatically as cube cards land.
-                const roundCount = args.packSlots.length;
+                const roundCount = packSlots.length;
                 const poolSize = cubePoolSize();
                 const maxSeats = maxCubeSeats(
                     poolSize,
@@ -1685,7 +1737,7 @@ export const createLimitedEvent = mutation({
             type: args.type,
             status: "open",
             seatCount: args.seatCount,
-            packSlots: args.packSlots,
+            packSlots,
             sealedBoosterCount:
                 args.sealedBoosterCount ?? DEFAULT_SEALED_BOOSTER_COUNT,
             timerEnabled: args.timerEnabled,
