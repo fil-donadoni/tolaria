@@ -279,6 +279,32 @@ export function firstOpenStep(steps: readonly StepInfo[]): number {
 }
 
 /**
+ * The Bot's default deck for `myDeckId` (issue #5394, ADR 0153): under
+ * Limited, another admitted deck of the player's own Limited Origin — the
+ * origin guides the default, admission is unchanged, a cross-origin choice
+ * stays open. `null` = today's default (Mirror): no origin, no match, or the
+ * player's deck is the only one of its origin.
+ */
+export function defaultBotDeckId(
+    s: MatchSetup,
+    decks: readonly LobbyDeck[]
+): string | null {
+    if (s.opponent !== "bot" || effectiveMatchFormat(s) !== "limited") {
+        return null;
+    }
+    const mine = admittedDeck(s, s.myDeckId, decks);
+    if (!mine?.limitedOrigin) return null;
+    const sameOrigin = decks.find(
+        (d) =>
+            d.kind === "user" &&
+            d.presetId !== mine.presetId &&
+            d.limitedOrigin === mine.limitedOrigin &&
+            admittedDeck(s, d.presetId, decks) !== null
+    );
+    return sameOrigin?.presetId ?? null;
+}
+
+/**
  * Apply one choice and clear what it invalidates (story 51): a mode with no
  * Bot drops the Bot, leaving Join drops its table, and any deck the effective
  * Match Format no longer admits — or that no longer exists — is dropped
@@ -317,6 +343,27 @@ export function applyChange(
     ) {
         next.opponentDeckId = null;
         next.opponentDeckChosen = false;
+    }
+    // A new deck of the player's re-defaults the Bot's deck, but only when
+    // the Bot's deck is still a default (Mirror, unanswered, or the previous
+    // default) — a deck the player picked by hand is never overridden.
+    if (patch.myDeckId !== undefined && patch.myDeckId !== s.myDeckId) {
+        const previousDefault = defaultBotDeckId(s, decks);
+        const isDefault =
+            !next.opponentDeckChosen ||
+            next.opponentDeckId === null ||
+            next.opponentDeckId === previousDefault;
+        const fresh = defaultBotDeckId(next, decks);
+        if (isDefault && fresh !== null) {
+            next.opponentDeckId = fresh;
+            next.opponentDeckChosen = true;
+        } else if (
+            previousDefault !== null &&
+            next.opponentDeckId === previousDefault
+        ) {
+            next.opponentDeckId = null;
+            next.opponentDeckChosen = true;
+        }
     }
     return next;
 }

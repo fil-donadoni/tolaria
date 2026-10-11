@@ -36,14 +36,20 @@ const DECKS = [
     } as Partial<LobbyDeck>),
 ];
 
-function Harness({ initial }: { initial: MatchSetup }) {
+function Harness({
+    initial,
+    decks = DECKS,
+}: {
+    initial: MatchSetup;
+    decks?: LobbyDeck[];
+}) {
     const [setup, setSetup] = useState(initial);
     return (
         <MatchSetupPanes
             setup={setup}
-            decks={DECKS}
+            decks={decks}
             tables={[]}
-            onChange={(patch) => setSetup((s) => applyChange(s, patch, DECKS))}
+            onChange={(patch) => setSetup((s) => applyChange(s, patch, decks))}
             canStart={false}
             busy={false}
             error={null}
@@ -128,5 +134,53 @@ describe("step 5 — the Bot's deck", () => {
         expect(
             screen.queryByRole("radiogroup", { name: "Bot difficulty" })
         ).toBeNull();
+    });
+});
+
+describe("Limited Origin (issue #5394)", () => {
+    const limited = (id: string, limitedOrigin?: string) =>
+        deck({
+            kind: "user",
+            presetId: id,
+            name: id,
+            format: "limited",
+            limitedOrigin,
+        });
+    const LIMITED = [
+        limited("cube-a", "draft:cube:vintage"),
+        limited("cube-b", "draft:cube:vintage"),
+        limited("alpha", "sealed:lea"),
+        limited("legacy"),
+    ];
+    const limitedSetup = firstVisit({ matchFormat: "limited" });
+    const headings = () =>
+        [...document.querySelectorAll("h3")].map((h) => h.textContent);
+
+    it("groups the player's decks by origin, unclassified last", () => {
+        render(<Harness initial={limitedSetup} decks={LIMITED} />);
+        expect(headings()).toEqual([
+            "Limited Edition Alpha Sealed · 1",
+            "Vintage Cube Draft · 2",
+            "Unclassified · 1",
+        ]);
+    });
+
+    it("the origin select narrows the grid to one origin", () => {
+        render(<Harness initial={limitedSetup} decks={LIMITED} />);
+        fireEvent.change(screen.getByLabelText("Limited Origin"), {
+            target: { value: "draft:cube:vintage" },
+        });
+        expect(gridDecks()).toEqual(["cube-a", "cube-b"]);
+    });
+
+    it("step 5 preselects a same-origin deck instead of Mirror", () => {
+        render(<Harness initial={limitedSetup} decks={LIMITED} />);
+        fireEvent.click(tileButton("cube-a"));
+        expect(mirror().getAttribute("aria-pressed")).toBe("false");
+        expect(
+            document
+                .querySelector('[data-grid-deck="cube-b"] [data-deck-tile]')
+                ?.getAttribute("data-selected")
+        ).toBe("true");
     });
 });
