@@ -114,6 +114,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the `.claude/telemetry/health/` path is the RUNTIME verdict directory and docs/notes.md is a synthetic file committed into a scratch repo; it reads no repo document",
     "scripts/__tests__/health-fix.test.ts":
         "the `.claude/telemetry/health/` path is the RUNTIME verdict directory health-main.ts writes, gitignored and machine-local; it reads no repo document",
+    "scripts/__tests__/health-verdict-store.test.ts":
+        "the `.claude/telemetry/health/` path is the RUNTIME verdict directory the file verdict store writes into a scratch root, gitignored and machine-local; it reads no repo document",
     "scripts/__tests__/identity-only-card-tests.test.ts":
         "cites `.claude/rules/gre-development.md` in a header comment and in an assertion MESSAGE as the prose it mechanises; it scans convex/ card tests and reads no document",
     "scripts/__tests__/live-activity.test.ts":
