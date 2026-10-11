@@ -11097,6 +11097,61 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Bot Gap `never-chosen › Sorcery target:player › choice+discard` (2 cards). Issue #4278.",
     },
     {
+        // SACRIFICE-FOR-DENIAL reachability (CR 701.21a, CR 305.1, issue
+        // #5431). The sweep's own position for a creature whose only ability
+        // is "Sacrifice this creature: Target player can't play lands this
+        // turn": Pardic Miner in hand, five Mountains, a spare body on each
+        // side.
+        //
+        // Before the fix the cast edge read WORSE than `pass` at 800
+        // iterations on every seed while the same body without the ability
+        // was cast: below the cast the rollout drew "sacrifice, aim the denial
+        // at the opponent" at random and the tree opened it at the node after
+        // the cast, and those subtrees dragged the cast edge's mean margin
+        // under `pass`'s. Fixed by class, not by card:
+        // `isDenialExchangeSacrifice` (`search.ts`).
+        label: "Sacrifice-for-denial outlet: casts the creature",
+        spec: {
+            cards: [
+                { name: "Pardic Miner", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "battlefield" },
+                { name: "Ornithopter", owner: "me", zone: "battlefield" },
+                { name: "Castle", owner: "me", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "me", zone: "graveyard" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+                { name: "Ornithopter", owner: "opp", zone: "battlefield" },
+                { name: "Castle", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "graveyard" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        // The Bot-play sweep's own position at eight times its budget — a
+        // REACHABILITY claim, so a PREDICATE, kept out of the weight fit for
+        // the reason the Nantuko Husk entry gives.
+        budget: { iterations: 400 },
+        seeds: [0xb07, 0x5eed, 1, 2, 3],
+        tier: "must",
+        classification: { kind: "absolute" },
+        expect: {
+            predicate: (move, state) =>
+                move !== null &&
+                move.kind === "cast-spell" &&
+                instanceIdsForName(state, "Pardic Miner").has(
+                    move.cardInstanceId
+                ),
+            describe: "casts Pardic Miner",
+        },
+        note: "Bot Gap `never-chosen › Creature › restrictLandPlay` (1 card). Issue #5431.",
+    },
+    {
         // A BOON is not self-harm (issue #4273). Unnatural Speed grants haste
         // until end of turn to the creature it targets: the bot's main phase,
         // two Mountains, a summoning-sick Grizzly Bears beside a ready one, and
