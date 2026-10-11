@@ -579,8 +579,8 @@ describe("parseLaneForcingPath (issue #4376)", () => {
         renderPlan(classifyLane(files), "abc1234def56");
 
     it("names the first path outside every lane rule", () => {
-        const log = receipt([".claude/hooks/deny-guard.sh", "src/App.tsx"]);
-        expect(parseLaneForcingPath(log)).toBe(".claude/hooks/deny-guard.sh");
+        const log = receipt([".agents/hooks/guard.sh", "src/App.tsx"]);
+        expect(parseLaneForcingPath(log)).toBe(".agents/hooks/guard.sh");
     });
 
     it("returns null for the MIXED full diff — full by design, not by fallback", () => {
@@ -621,15 +621,15 @@ describe("parseLaneForcingPath (issue #4376)", () => {
      * skill edit that used to be a fallback is now a docs lane with no
      * forcing path, and the hook edit still is one.
      */
-    it("a SKILL.md no longer forces the full gate; a hook still does", () => {
+    it("a SKILL.md no longer forces the full gate; an unplaced path still does", () => {
         expect(
             parseLaneForcingPath(
                 receipt([".claude/skills/next-ticket/SKILL.md"])
             )
         ).toBeNull();
         expect(
-            parseLaneForcingPath(receipt([".claude/skills/next-ticket/run.sh"]))
-        ).toBe(".claude/skills/next-ticket/run.sh");
+            parseLaneForcingPath(receipt([".agents/skills/next-ticket/run.sh"]))
+        ).toBe(".agents/skills/next-ticket/run.sh");
     });
 });
 
