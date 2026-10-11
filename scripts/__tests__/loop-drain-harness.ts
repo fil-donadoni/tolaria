@@ -49,6 +49,9 @@ export const DRIVER = path.join(REPO_ROOT, "scripts", "loop-drain.sh");
  * break the `claims-held` tests, which deliberately let `claims_held_check`
  * reach the real `bun -e`.
  */
+/** The health verdict reader the `bun` stub runs for real (issue #5462). */
+export const HEALTH_MAIN = path.resolve(__dirname, "..", "health-main.ts");
+
 export const REAL_BUN = spawnSync("sh", ["-c", "command -v bun"], {
     encoding: "utf8",
 }).stdout.trim();
@@ -253,6 +256,9 @@ export const planBranch = (number = 101, model = "sonnet"): string =>
         // the REAL bun even in stubs that otherwise answer one script and fail
         // everything else, or the read comes back empty and the run stops.
         `if [ "$1" = "-e" ] && [ -x "${REAL_BUN}" ]; then exec "${REAL_BUN}" "$@"; fi`,
+        // The health verdict (issue #5462) is the REAL reader over the run's
+        // directory: the file backend, unless a test selects another.
+        `if [ "$1" = "run" ] && [ "$3" = "health:status" ] && [ -x "${REAL_BUN}" ]; then shift 3; exec "${REAL_BUN}" "${HEALTH_MAIN}" --status "$@"; fi`,
     ].join("\n");
 
 /** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the

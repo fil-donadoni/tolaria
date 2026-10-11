@@ -100,7 +100,16 @@ import {
     type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
-import { recordMachineSaturated } from "./lib/health-verdict";
+import {
+    INFRA_REMEDY,
+    PREFLIGHT_MACHINE_STEP,
+    recordMachineSaturated,
+} from "./lib/health-verdict";
+import {
+    machineName,
+    readVerdictLineage,
+    verdictStore,
+} from "./lib/health-verdict-store";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { holdLease } from "./lib/process-lease";
@@ -186,12 +195,59 @@ function record(root: string): number {
         return 2;
     }
     const kind: LandingKind | undefined = rawKind ?? undefined;
+    const amberOf = flag("amber-of");
+    if (
+        amberOf !== null &&
+        (kind !== "repair" || !/^[0-9a-f]{40}$/.test(amberOf))
+    ) {
+        console.error(
+            `health-cadence: record --amber-of needs --kind=repair and a 40-hex RED sha, got ${JSON.stringify(amberOf)}`
+        );
+        return 2;
+    }
     const state = recordLanding(readCadence(root), sha, Date.now(), kind);
     writeCadence(root, state);
     console.log(
         `health-cadence: ${state.landings.length} landing(s) since the last GREEN (latest ${sha.slice(0, 8)}${kind ? `, ${kind}` : ""})`
     );
+    if (amberOf !== null) markAmber(root, sha, amberOf);
     return 0;
+}
+
+/**
+ * A PROVED repair landed (issue #5462): its lane ran the failing tests the
+ * RED verdict names, and they passed. The lineage turns AMBER at the tip the
+ * repair created — picks and landings resume now, the health run the repair
+ * fires confirms (GREEN clears it) or refutes (the SECOND RED). Non-gating
+ * like the rest of the record: the PR is merged whatever happens here.
+ */
+function markAmber(root: string, sha: string, repairOf: string): void {
+    try {
+        const out = verdictStore(root).write({
+            sha,
+            status: "amber",
+            repairOf,
+            machine: machineName(),
+            at: new Date().toISOString(),
+        });
+        console.log(
+            out.written
+                ? `health-cadence: lineage AMBER @ ${sha.slice(0, 8)} — repair of RED @ ${repairOf.slice(0, 8)} proved; picks and landings resume, health confirms`
+                : `health-cadence: AMBER not written — ${out.reason}`
+        );
+    } catch (err) {
+        console.error(
+            `health-cadence: AMBER not written — the verdict store failed: ${String(err)}`
+        );
+    }
+}
+
+/** Whether the lineage still waits on a health run: RED, or an AMBER the
+ *  next run must confirm. Under it the thresholds count from the last fire
+ *  and a declared repair fires at once (`healthTrigger`). */
+function lineageUnconfirmed(root: string): boolean {
+    const kind = readVerdictLineage(() => verdictStore(root)).kind;
+    return kind === "red" || kind === "second-red" || kind === "amber";
 }
 
 /** `/health-fix` § 3: the issue it opened for the standing RED, so `land`
@@ -314,7 +370,7 @@ function decideAndRun(root: string, branch: string): Round {
         state,
         tip,
         now: firedAt,
-        red: existsSync(join(root, HEALTH_DIR, "RED")),
+        red: lineageUnconfirmed(root),
         pending: pendingHealthRun(state, readLast(root), firedAt, processAlive),
     });
     const decision = {
@@ -382,7 +438,7 @@ function decideAndRun(root: string, branch: string): Round {
     // otherwise `health:status` shows the previous verdict for a tip nothing
     // gated. INFRA: no marker, and the reconcile below leaves the ledger so
     // the next landing re-fires.
-    if (offline.status === MACHINE_SATURATED_EXIT)
+    if (offline.status === MACHINE_SATURATED_EXIT) {
         recordMachineSaturated({
             dir: join(root, HEALTH_DIR),
             sha: tip,
@@ -390,6 +446,22 @@ function decideAndRun(root: string, branch: string): Round {
             previous: readLast(root),
             redMarkerStanding: existsSync(join(root, HEALTH_DIR, "RED")),
         });
+        try {
+            // Never over a GREEN or RED for this sha — the store's rule.
+            verdictStore(root, { branch }).write({
+                sha: tip,
+                status: "infra",
+                step: PREFLIGHT_MACHINE_STEP,
+                reason: INFRA_REMEDY["machine-saturated"],
+                machine: machineName(),
+                at: new Date().toISOString(),
+            });
+        } catch (err) {
+            console.error(
+                `health-cadence: the INFRA verdict was not published — ${String(err)}`
+            );
+        }
+    }
     // The hold is released. The walk runs only when THIS fire's offline
     // phase left it owed — a no-op offline exit ("already green", "already
     // being gated") must not re-enter a walk some other run owns.
@@ -491,7 +563,7 @@ function main(): void {
             break;
         default:
             console.error(
-                "usage: bun scripts/health-cadence.ts <record --sha=<tip> [--kind=repair|red-ok]|repair-issue --issue=<N>|spawn [--branch=<name>]|detach [--branch=<name>]|status>"
+                "usage: bun scripts/health-cadence.ts <record --sha=<tip> [--kind=repair|red-ok] [--amber-of=<red sha>]|repair-issue --issue=<N>|spawn [--branch=<name>]|detach [--branch=<name>]|status>"
             );
             process.exit(2);
     }

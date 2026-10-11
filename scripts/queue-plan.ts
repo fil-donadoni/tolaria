@@ -33,7 +33,6 @@
 // resolve). Selection cost scales with the batch, not the queue.
 
 import {
-    existsSync,
     mkdirSync,
     readdirSync,
     readFileSync,
@@ -72,6 +71,12 @@ import {
 import { ORIGIN_BASE, sessionCap } from "./lib/branches";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { infraNotice, type InfraRecord } from "./lib/health-verdict";
+import {
+    lineageBlocks,
+    readVerdictLineage,
+    verdictStore,
+    type VerdictStore,
+} from "./lib/health-verdict-store";
 import { claimClassifications, claimLedgerPath } from "./loop-doctor";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
@@ -615,60 +620,51 @@ function writePlanArtefact(
 // I/O and the two root resolutions, which differ on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
-
 /**
- * The release-health verdict, read where `health-main.ts` writes it and
- * `land.ts` reads it — under the PRIMARY checkout, never the worktree this
- * may be invoked from. `null` means "no RED marker", which is the only thing
- * the decision needs; `last.json` only supplies the sha and the failed step
- * the MESSAGE names, so a missing or torn record still refuses, just with
- * less to say.
+ * The release-health verdict, read through the verdict store (issue #5462) —
+ * the `RED` marker under the PRIMARY checkout on the file backend, the
+ * base branch's `health` commit statuses on the github one, so a RED found on
+ * the other machine refuses here too. `null` means "no RED stands", which is
+ * the only thing the decision needs; the verdict only supplies the sha and
+ * the failed step the MESSAGE names, so a torn record still refuses, just
+ * with less to say. An AMBER lineage (a proved repair landed) is not RED.
  *
- * Exported for direct testing.
+ * Total: a store that cannot be read refuses nothing — a GitHub 502 must not
+ * stop every pick — and says so on stderr.
+ *
+ * Exported for direct testing; `store` is injectable for the same reason.
  */
-export function readHealthMarker(root: string): HealthMarker | null {
-    const dir = join(root, HEALTH_DIR_REL);
-    if (!existsSync(join(dir, "RED"))) return null;
-    try {
-        const last = JSON.parse(
-            readFileSync(join(dir, "last.json"), "utf8")
-        ) as Partial<HealthMarker> | undefined;
-        return {
-            sha: typeof last?.sha === "string" ? last.sha : undefined,
-            failedStep:
-                typeof last?.failedStep === "string"
-                    ? last.failedStep
-                    : undefined,
-            log: typeof last?.log === "string" ? last.log : undefined,
-        };
-    } catch {
-        // The marker is the verdict; the record is only its explanation.
-        return {};
-    }
+export function readHealthMarker(
+    root: string,
+    store: () => VerdictStore = () => verdictStore(root)
+): HealthMarker | null {
+    const lineage = readVerdictLineage(store);
+    if (lineage.error)
+        console.error(
+            `queue:plan: the health verdict store could not be read (${lineage.error}) — no RED refuses this pick`
+        );
+    if (!lineageBlocks(lineage.kind)) return null;
+    const v = lineage.verdict;
+    return { sha: v?.sha, failedStep: v?.step, log: v?.log };
 }
 
 /**
- * The last health run's INFRA record (issue #4943), or null when the last run
- * was anything else. Not a refusal — an infra tip is unproven, not red — only
- * the reason the planner prints, so a session (or the AFK loop) that sees a
- * stale verdict knows the machine, not the tree, is what to fix. Total like
- * `readHealthMarker`: a torn record reads as null.
+ * The last health run's INFRA record (issue #4943), or null when the newest
+ * verdict is anything else. Not a refusal — an infra tip is unproven, not
+ * red — only the reason the planner prints, so a session (or the AFK loop)
+ * that sees a stale verdict knows the machine, not the tree, is what to fix.
+ * Total like `readHealthMarker`: a torn record reads as null.
  *
  * Exported for direct testing.
  */
-export function readHealthInfra(root: string): InfraRecord | null {
+export function readHealthInfra(
+    root: string,
+    store: () => VerdictStore = () => verdictStore(root)
+): InfraRecord | null {
     try {
-        const last = JSON.parse(
-            readFileSync(join(root, HEALTH_DIR_REL, "last.json"), "utf8")
-        ) as Record<string, unknown> | null;
-        if (last?.status !== "infra") return null;
-        const str = (v: unknown) => (typeof v === "string" ? v : undefined);
-        return {
-            sha: str(last.sha),
-            failedStep: str(last.failedStep),
-            reason: str(last.reason),
-        };
+        const v = store().latest();
+        if (v?.status !== "infra") return null;
+        return { sha: v.sha, failedStep: v.step, reason: v.reason };
     } catch {
         return null;
     }

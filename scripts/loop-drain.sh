@@ -59,11 +59,9 @@ MAX_PCT=100
 WINDOW_HOURS=5
 MAX_PASSES=0
 STOP_FILE=".claude/telemetry/loop-stop"
-# The post-merge health verdict (ADR 0110). `health-main.ts` writes this
-# marker iff the last completed full gate on the merged tip was RED, and
-# removes it on green. Relative to the caller's cwd like STOP_FILE and
-# GREEN_SHA_FILE, deliberately — see the header on why every path here is.
-HEALTH_RED_FILE=".claude/telemetry/health/RED"
+# The health verdict is read through `bun run health:status --json` (issue
+# #5462) — the verdict store, never the marker file: on the github backend a
+# RED from the other machine has no local marker at all.
 CLAUDE_ARGS=""
 # The prompt each pass runs. Default = drain the queue one issue per pass, the
 # issue chosen by board priority — see `resolve_head`, which appends the
@@ -161,10 +159,6 @@ while [ $# -gt 0 ]; do
         --prompt)
             PASS_PROMPT="$2"
             PROMPT_OVERRIDDEN=1
-            shift 2
-            ;;
-        --health-red-file)
-            HEALTH_RED_FILE="$2"
             shift 2
             ;;
         --max-consecutive-errors)
@@ -684,6 +678,26 @@ spent="0"
 no_progress_streak=0
 error_streak=0
 claims_held_streak=0
+# One string field of `health:status --json`'s flat one-line JSON (issue
+# #5462) — values carry no quotes, `health-main` strips them.
+_health_field() {
+    printf '%s' "$_health_json" | sed -n "s/.*\"$1\":\"\([^\"]*\)\".*/\1/p" | head -n 1
+}
+
+# Tell the owner something stopped the loop that a human must look at (the
+# SECOND RED, issue #5462). `TOLARIA_NOTIFY_CMD` (run with the message as
+# `$1`) wins; else the desktop's own notifier where there is one. Never
+# fatal: a notification that cannot be shown leaves the log line.
+notify_owner() {
+    if [ -n "${TOLARIA_NOTIFY_CMD:-}" ]; then
+        sh -c "$TOLARIA_NOTIFY_CMD" notify "$1" || true
+    elif command -v osascript >/dev/null 2>&1; then
+        osascript -e "display notification \"$1\" with title \"loop-drain\"" >/dev/null 2>&1 || true
+    elif command -v notify-send >/dev/null 2>&1; then
+        notify-send -u critical "loop-drain" "$1" >/dev/null 2>&1 || true
+    fi
+}
+
 stop_reason=""
 pct="n/a"
 first_queue_count=""
@@ -718,33 +732,57 @@ while :; do
         break
     fi
 
-    # 2b. health RED — the post-merge full gate failed on the merged tip and
-    # nobody has fixed it. ADR 0110's green-main invariant: "A RED marker
-    # means fix-forward FIRST — never stack unrelated work on a red tip."
-    # `land` already WARNS on this, which is the right strength for a human
-    # who can read the warning and judge; unattended there is nobody to read
-    # it, so the driver stops instead. Checked BEFORE the budget read (which
-    # forks `bun`) and before the orphan sweep, because a red tip means no
-    # pass should happen at all — and reported as its own reason rather than
-    # folded into `no-progress`, so the morning's log says what to fix.
-    if [ -f "$HEALTH_RED_FILE" ]; then
-        stop_reason="health-red"
-        echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Marker:" >&2
-        cat "$HEALTH_RED_FILE" >&2 || true
-        break
-    fi
-
-    # 2c. health INFRA (issue #4943) — the last run proved nothing about the
-    # tip (the machine slept, or the Convex backend did not answer). Not a
-    # stop: the tip is unproven, not red, and the next health run re-gates
-    # it. Printed so the morning's log names the machine, not the tree, with
-    # the remedy `health-main` recorded beside the verdict (`reason`).
-    _health_last="$(dirname "$HEALTH_RED_FILE")/last.json"
-    if [ -f "$_health_last" ] && grep -q '"status": "infra"' "$_health_last"; then
-        _infra_at=$(sed -n 's/^ *"failedStep": "\(.*\)",\{0,1\}$/\1/p' "$_health_last" | head -n 1)
-        _infra_why=$(sed -n 's/^ *"reason": "\(.*\)",\{0,1\}$/\1/p' "$_health_last" | head -n 1)
-        echo "loop-drain[warn]: release health is INFRA (at ${_infra_at:-unknown step}) — the tip is unproven, not red: ${_infra_why:-re-run 'bun run health'}" >&2
-    fi
+    # 2b. health RED — the batch full gate failed on the base tip and nobody
+    # has fixed it. ADR 0110's green-main invariant: "A RED marker means
+    # fix-forward FIRST — never stack unrelated work on a red tip." `land`
+    # already refuses a non-repair PR, which is the right strength for a
+    # human who can state `--red-ok`; unattended there is nobody to state it,
+    # so the driver stops instead. Checked BEFORE the budget read and before
+    # the orphan sweep, because a red tip means no pass should happen at all
+    # — and reported as its own reason rather than folded into `no-progress`,
+    # so the morning's log says what to fix.
+    #
+    # Read through the verdict store (issue #5462), via `health:status
+    # --json`: the RED marker on the file backend, the base branch's `health`
+    # commit statuses on the github one — a RED found on the OTHER machine
+    # stops this loop too. An AMBER lineage (a proved repair landed) runs.
+    # The SECOND RED — a red on an AMBER lineage, the repair did not hold —
+    # stops with its own reason and notifies the owner. An unreadable store
+    # is a warning, never a stop: a GitHub 502 must not end the night.
+    _health_json=$(bun run --silent health:status --json 2>/dev/null) || true
+    _lineage=$(_health_field lineage)
+    _h_sha=$(_health_field sha)
+    _h_step=$(_health_field step)
+    _h_machine=$(_health_field machine)
+    _h_log=$(_health_field log)
+    _h_short=$(printf '%.8s' "$_h_sha")
+    _h_detail="${_h_short} red at ${_h_step:-unknown step}${_h_machine:+ on ${_h_machine}}${_h_log:+ — log: ${_h_log}}"
+    case "$_lineage" in
+        second-red)
+            stop_reason="health-second-red"
+            echo "loop-drain[error]: SECOND RED on this lineage — a repair landed (AMBER) and the next health run found the base RED again: ${_h_detail}. Stopping; a broken repair must not loop unattended. Run 'bun run health:status'." >&2
+            notify_owner "Tolaria: second RED on the base (${_h_short}, ${_h_step:-unknown step}) — loop stopped"
+            break
+            ;;
+        red)
+            stop_reason="health-red"
+            echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Verdict:" >&2
+            echo "  ${_h_detail}" >&2
+            break
+            ;;
+        infra)
+            # 2c. health INFRA (issue #4943) — the last run proved nothing
+            # about the tip (the machine slept, or the Convex backend did not
+            # answer). Not a stop: the tip is unproven, not red.
+            _h_reason=$(_health_field reason)
+            echo "loop-drain[warn]: release health is INFRA (at ${_h_step:-unknown step}) — the tip is unproven, not red: ${_h_reason:-re-run 'bun run health'}" >&2
+            ;;
+        green | amber | none) ;;
+        *)
+            _h_error=$(_health_field error)
+            echo "loop-drain[warn]: the health verdict could not be read (${_h_error:-'bun run health:status --json' gave no lineage}) — running the pass; 'bun run health:status' says more" >&2
+            ;;
+    esac
 
     # 3. budget — a local proxy for relative burn, not a real quota reading
     # (see ADR 0097 and scripts/lib/usage-window.ts). FAILS CLOSED: a

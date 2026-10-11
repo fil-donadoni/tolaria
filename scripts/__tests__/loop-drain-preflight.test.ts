@@ -273,6 +273,16 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
     const writeRed = (): void => {
         fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
         fs.writeFileSync(redMarker(), "main @ deadbeef red at test:app\n");
+        // The loop reads the verdict through the store (issue #5462), whose
+        // file backend explains the marker with `last.json`.
+        fs.writeFileSync(
+            path.join(path.dirname(redMarker()), "last.json"),
+            JSON.stringify({
+                sha: "deadbeef",
+                status: "red",
+                failedStep: "test:app",
+            })
+        );
     };
 
     it("stops before running any pass when the marker exists", () => {

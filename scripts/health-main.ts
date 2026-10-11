@@ -122,6 +122,14 @@ import {
     type UiWalkState,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import {
+    failedTestFiles,
+    machineName,
+    readVerdictLineage,
+    verdictAgeMs,
+    verdictStore,
+    type Verdict,
+} from "./lib/health-verdict-store";
 import { waitForWalkWindow } from "./lib/health-walk-wait";
 import {
     describeWalkPlan,
@@ -151,7 +159,6 @@ import {
     existsSync,
     mkdirSync,
     readFileSync,
-    rmSync,
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -167,6 +174,9 @@ interface LastRun {
     finishedAt?: string;
     failedStep?: string;
     log?: string;
+    /** `red` only: the failing test files (`failedTestFiles`) — what a
+     *  repair's lane must run before the lineage turns AMBER (issue #5462). */
+    tests?: string[];
     /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
     infraCause?: InfraCause;
     reason?: string;
@@ -262,11 +272,43 @@ function staleWorktrees(cwd: string): string[] {
     return stale;
 }
 
+/**
+ * `health:status --json` (issue #5462): the store's lineage as ONE line of
+ * flat JSON, for `loop-drain.sh` to read with `sed`. Exit 0 whenever the
+ * store answered — the verdict is in `lineage`, not in the exit code — and 2
+ * when it could not be read (`error`), which the loop reports and survives.
+ */
+function statusJson(root: string): never {
+    const lineage = readVerdictLineage(() => verdictStore(root));
+    const v = lineage.verdict;
+    const line: Record<string, string | number | null> = {
+        lineage: lineage.kind,
+        sha: v?.sha ?? null,
+        status: v?.status ?? null,
+        step: v?.step ?? null,
+        machine: v?.machine ?? null,
+        log: v?.log ?? null,
+        reason: v?.reason ?? null,
+        ageMs: verdictAgeMs(v, Date.now()),
+        error: lineage.error ?? null,
+    };
+    // One line, flat, quotes stripped from values: `sed` reads it.
+    for (const [k, val] of Object.entries(line))
+        if (typeof val === "string") line[k] = val.replace(/["\\\n]/g, " ");
+    console.log(JSON.stringify(line));
+    process.exit(lineage.error ? 2 : 0);
+}
+
 function status(root: string): never {
+    if (process.argv.includes("--json")) statusJson(root);
     const dir = join(root, HEALTH_DIR);
     const last = readLast(dir);
-    const red = existsSync(join(dir, "RED"));
+    const lineage = readVerdictLineage(() => verdictStore(root));
+    const red = lineage.kind === "red" || lineage.kind === "second-red";
     console.log("health:status —", root);
+    console.log(
+        `  verdict store: ${lineage.error ? `UNREADABLE — ${lineage.error}` : `${lineage.kind.toUpperCase()}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}${lineage.verdict.machine ? ` (${lineage.verdict.machine})` : ""}` : ""}`}`
+    );
     if (!last) console.log("  no health run recorded yet");
     else
         console.log(
@@ -348,6 +390,34 @@ function walkFields(ctx: RunCtx): Pick<LastRun, "walk"> {
     return ctx.walkPlan ? { walk: describeWalkPlan(ctx.walkPlan) } : {};
 }
 
+/**
+ * The verdict, through the store `tolaria.config.json` selects (issue
+ * #5462): the `RED` / `AMBER` markers on the file backend, a commit status on
+ * the github one. `last.json` above stays this run's own record either way.
+ * Never fatal: the local record is already written, and a store GitHub could
+ * not take is reported, not allowed to turn a verdict into a crash.
+ */
+function publishVerdict(
+    ctx: RunCtx,
+    verdict: Omit<Verdict, "machine" | "at">
+): void {
+    try {
+        const out = verdictStore(ctx.root, { branch: ctx.branch }).write({
+            ...verdict,
+            machine: machineName(),
+            at: new Date().toISOString(),
+        });
+        if (!out.written)
+            console.error(
+                `health-main: verdict store kept its record — ${out.reason}`
+            );
+    } catch (err) {
+        console.error(
+            `health-main: the verdict store could not be written — ${String(err)}`
+        );
+    }
+}
+
 function finishInfra(
     ctx: RunCtx,
     cause: InfraCause,
@@ -372,6 +442,13 @@ function finishInfra(
         previous: ctx.previous,
         redMarkerStanding: existsSync(join(ctx.dir, "RED")),
     });
+    publishVerdict(ctx, {
+        sha: ctx.tip,
+        status: "infra",
+        step: failedStep,
+        reason: INFRA_REMEDY[cause],
+        ...(log ? { log } : {}),
+    });
     console.error(
         `health-main: INFRA @ ${ctx.tip.slice(0, 8)} at ${failedStep} — ${INFRA_REMEDY[cause]}${log ? ` — ${log}` : ""}`
     );
@@ -381,7 +458,8 @@ function finishInfra(
 function finishRed(
     ctx: RunCtx,
     failedStep: string,
-    halves: Pick<LastRun, "offline" | "ui">
+    halves: Pick<LastRun, "offline" | "ui">,
+    tests: string[] = []
 ): never {
     writeLast(ctx.dir, {
         sha: ctx.tip,
@@ -390,13 +468,24 @@ function finishRed(
         finishedAt: new Date().toISOString(),
         failedStep,
         log: ctx.logPath,
+        ...(tests.length > 0 ? { tests } : {}),
         ...halves,
         ...walkFields(ctx),
     });
-    writeFileSync(
-        join(ctx.dir, "RED"),
-        `${ctx.branch} @ ${ctx.tip} red at ${failedStep} — log: ${ctx.logPath}\n`
+    publishVerdict(ctx, {
+        sha: ctx.tip,
+        status: "red",
+        step: failedStep,
+        log: ctx.logPath,
+        ...(tests.length > 0 ? { tests } : {}),
+    });
+    const lineage = readVerdictLineage(() =>
+        verdictStore(ctx.root, { branch: ctx.branch })
     );
+    if (lineage.kind === "second-red")
+        console.error(
+            "health-main: SECOND RED on this lineage — the repair did not hold (the loop stops and notifies)"
+        );
     console.error(
         `health-main: RED @ ${ctx.tip.slice(0, 8)} (${failedStep}) — ${ctx.logPath}`
     );
@@ -414,7 +503,7 @@ function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
         ui,
         ...walkFields(ctx),
     });
-    rmSync(join(ctx.dir, "RED"), { force: true });
+    publishVerdict(ctx, { sha: ctx.tip, status: "green", log: ctx.logPath });
     // The health gate IS the authoritative green record now (ADR 0110).
     writeFileSync(
         join(ctx.root, ".claude/telemetry/green-sha"),
@@ -589,10 +678,19 @@ async function main(): Promise<void> {
     // (issue #5470).
     holdLease({ kind: "health-main", ttlMs: 6 * 60 * 60 * 1000 });
     const cwd = process.cwd();
+    // A status read outside a checkout reads `cwd` (the loop driver's tests
+    // run it in a bare directory); everything else needs the repository.
+    if (process.argv.includes("--status")) {
+        let statusRoot = cwd;
+        try {
+            statusRoot = primaryCheckout(cwd) ?? cwd;
+        } catch {
+            // not a git checkout — `cwd` is the root
+        }
+        status(statusRoot);
+    }
     const primary = primaryCheckout(cwd);
     const root = primary ?? cwd;
-
-    if (process.argv.includes("--status")) status(root);
 
     if (primary !== null) {
         console.error(
@@ -745,6 +843,7 @@ async function main(): Promise<void> {
     }));
 
     let failedStep: string | undefined;
+    let failedTests: string[] = [];
     let failedCause: InfraCause | null = null;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
@@ -774,6 +873,7 @@ async function main(): Promise<void> {
                 )
                     failedCause = null;
                 failedStep = step.name;
+                failedTests = failedTestFiles(r.output);
                 break;
             }
         }
@@ -795,7 +895,12 @@ async function main(): Promise<void> {
             ui: "not run",
         });
     if (failedStep)
-        finishRed(ctx, failedStep, { offline: "red", ui: "not run" });
+        finishRed(
+            ctx,
+            failedStep,
+            { offline: "red", ui: "not run" },
+            failedTests
+        );
 
     if (walk.length === 0) {
         finishGreen(ctx, "not run");
