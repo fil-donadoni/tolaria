@@ -38,7 +38,6 @@ import {
     type LandFacts,
     type LockedCommandOptions,
     type HousekeepingOptions,
-    GAPS_SYNC_COMMIT_SUBJECT,
     VERIFY_MERGED_TIP,
 } from "../land";
 import { ALLOWLIST_COMMIT_SUBJECT } from "../gaps-sync";
@@ -1404,7 +1403,9 @@ describe("land.ts — nested heavy gate inside the locked command", () => {
  * Issue #5457 — `gaps:sync` now pushes its allowlist commit from the hourly
  * `housekeeping` cron, outside `land`'s mutex. The merged-tip verification
  * must not count that ONE push (its subject and an allowlist-only diff), and
- * must still count everything else. Real git, the fragment run as-is.
+ * must still count everything else. Real git, the fragment run as-is; the
+ * commits carry `gaps-sync.ts`'s OWN subject constant, so `land`'s spelling
+ * of it drifting reds the first block.
  */
 describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (issue #5457, real git)", () => {
     let repo: string;
@@ -1444,7 +1445,7 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
         const old = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#1)");
         expect(verify(old)).toBe(0);
-        commit("data/grammar-gaps.json", GAPS_SYNC_COMMIT_SUBJECT);
+        commit("data/grammar-gaps.json", ALLOWLIST_COMMIT_SUBJECT);
         expect(verify(old)).toBe(0);
     });
 
@@ -1456,18 +1457,14 @@ describe("land.ts — VERIFY_MERGED_TIP tolerates gaps:sync's allowlist push (is
 
         const old2 = git("rev-parse", "HEAD");
         commit("a.txt", "our squash (#2)");
-        commit("c.txt", GAPS_SYNC_COMMIT_SUBJECT);
+        commit("c.txt", ALLOWLIST_COMMIT_SUBJECT);
         expect(verify(old2)).not.toBe(0);
     });
 
     it("refuses when the squash itself is missing", () => {
         const old = git("rev-parse", "HEAD");
-        commit("data/grammar-gaps.json", GAPS_SYNC_COMMIT_SUBJECT);
+        commit("data/grammar-gaps.json", ALLOWLIST_COMMIT_SUBJECT);
         expect(verify(old)).not.toBe(0);
-    });
-
-    it("spells gaps:sync's commit subject exactly", () => {
-        expect(GAPS_SYNC_COMMIT_SUBJECT).toBe(ALLOWLIST_COMMIT_SUBJECT);
     });
 });
 
