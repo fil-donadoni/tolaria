@@ -1,9 +1,13 @@
 // Issue #5402 — the Ordering follows the Grouping (Mana Value ↔ Colour) until
 // the player picks one by hand.
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { orderingFollowingGrouping } from "@convex/deckLayout";
 import type { GroupingKind, OrderingKind } from "@convex/deckLayout";
-import { viewAfterGroupingChange } from "../deckZoneColumnView";
+import { loadGrouping, loadOrdering, saveOrdering } from "~/lib/deckViewPrefs";
+import {
+    recordGroupingChange,
+    viewAfterGroupingChange,
+} from "../deckZoneColumnView";
 
 const view = (grouping: GroupingKind, ordering: OrderingKind) => ({
     grouping,
@@ -47,5 +51,24 @@ describe("viewAfterGroupingChange", () => {
         expect(viewAfterGroupingChange(view("mv", "name"), "none")).toEqual(
             view("none", "name")
         );
+    });
+});
+
+describe("recordGroupingChange persistence", () => {
+    beforeEach(() => localStorage.clear());
+
+    it("persists the coupled Ordering beside the Grouping", () => {
+        recordGroupingChange("maindeck", "mv");
+        expect(loadGrouping("maindeck")).toBe("mv");
+        expect(loadOrdering("maindeck")).toBe("color");
+        recordGroupingChange("maindeck", "color");
+        expect(loadOrdering("maindeck")).toBe("mv");
+    });
+
+    it("leaves the stored Ordering alone for uncoupled Groupings", () => {
+        saveOrdering("maindeck", "rarity");
+        recordGroupingChange("maindeck", "type");
+        expect(loadGrouping("maindeck")).toBe("type");
+        expect(loadOrdering("maindeck")).toBe("rarity");
     });
 });
