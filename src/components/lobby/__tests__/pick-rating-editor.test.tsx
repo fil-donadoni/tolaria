@@ -6,7 +6,7 @@
 // mutation-testing-pattern unit tests in `cardRatings.test.ts` — this file
 // covers the FRONTEND side of the same wire shape) — run here against the
 // REAL checked-in LEA Booster Config / card registry, not a hand-built view.
-// Prior art: `create-limited-event-dialog.test.tsx` (dumb, props-driven
+// Prior art: the Limited setup tests (dumb, props-driven
 // component; real `DraftableSetInfo[]` shape fed in as props).
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";

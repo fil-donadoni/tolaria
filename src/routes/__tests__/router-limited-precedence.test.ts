@@ -43,4 +43,10 @@ describe("router: /limited/events vs /limited/$eventId precedence (issue #2357)"
         const result = router.getMatchedRoutes("/limited");
         expect(result.foundRoute?.id).toBe("/limited");
     });
+
+    it("routes /limited/new to the static setup route, not $eventId (issue #5387)", () => {
+        const result = router.getMatchedRoutes("/limited/new");
+        expect(result.foundRoute?.id).toBe("/limited/new");
+        expect(result.routeParams).not.toHaveProperty("eventId");
+    });
 });

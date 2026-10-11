@@ -24,6 +24,7 @@ import {
     selectPreset,
     type LobbyDeck,
 } from "./deckTypes";
+import type { RecapStep } from "./recapRail";
 import type { GamesFormat } from "./session";
 
 export type GameMode = "arena" | "cockatrice";
@@ -196,12 +197,7 @@ function admittedDeck(
     return filterDecksAdmittedBy([deck], mf).length > 0 ? deck : null;
 }
 
-export interface StepInfo {
-    key: StepKey;
-    title: string;
-    /** The answer as the recap rail shows it; `null` while unanswered. */
-    answer: string | null;
-}
+export type StepInfo = RecapStep<StepKey>;
 
 /** One step's title and current answer, as the recap rail renders it. */
 export function stepInfo(

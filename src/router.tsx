@@ -207,6 +207,14 @@ const limitedYourEventsRoute = createRoute({
     ),
 });
 
+// Limited event setup (PRD #5383, issue #5387): a static sibling of the
+// dynamic `/limited/$eventId` below, like `/limited/events` above.
+const limitedNewRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/limited/new",
+    component: lazyRouteComponent(() => import("./routes/limited-new.route")),
+});
+
 const limitedEventDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/limited/$eventId",
@@ -376,6 +384,7 @@ const routeTree = rootRoute.addChildren([
     joinRoute,
     limitedEventsRoute,
     limitedYourEventsRoute,
+    limitedNewRoute,
     limitedEventDetailRoute,
     limitedDraftRoomRoute,
     limitedDeckBuilderRoute,

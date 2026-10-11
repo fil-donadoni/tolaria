@@ -8,7 +8,7 @@ interface PickRatingEditorProps {
      *  shape `listScopeCardRatings` returns. `undefined` while the query is
      *  still loading. Passed in by the caller (mirrors
      *  `limited-events-page.tsx` handing `draftableSets` down to
-     *  `CreateLimitedEventDialog`) so this component stays a pure
+     *  the Limited setup route) so this component stays a pure
      *  presentational renderer, directly unit-testable with the real query's
      *  wire shape and no Convex client. */
     cards: ScopeCardRating[] | undefined;

@@ -742,6 +742,12 @@ const ROUTE_ROOTS: Record<
         routePath: "/play/constructed",
         files: [{ rel: "routes/match-setup.route.tsx" }],
     },
+    LimitedNewRoute: {
+        // PRD #5383 / issue #5387: the Limited setup flow. Same `min-h-full`
+        // claim as the Constructed setup route it is shaped like.
+        routePath: "/limited/new",
+        files: [{ rel: "routes/limited-new.route.tsx" }],
+    },
     NotFoundPage: {
         routePath: "/no-such-route",
         files: [{ rel: "components/ui/not-found-page.tsx" }],

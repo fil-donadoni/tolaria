@@ -2,7 +2,7 @@ import type { DraftableSetInfo } from "~/hooks/useLimitedEvent";
 import EmptyState from "~/components/ui/empty-state";
 
 /** Human-facing scope label — mirrors
- *  `create-limited-event-dialog.tsx`'s `packSourceLabel`: the Vintage Cube
+ *  `limited-setup-source-step.tsx`'s `packSourceLabel`: the Vintage Cube
  *  pool source (ADR 0062) shows a proper name, every real set shows its
  *  uppercased code. */
 function scopeLabel(set: DraftableSetInfo): string {
@@ -31,7 +31,7 @@ interface LimitedScopePickerProps {
  *  enumeration, so they pick a scope with ONE component rather than two
  *  copies that could drift apart on which scopes are selectable or how the
  *  Vintage Cube is labelled. Same interaction shape as
- *  `create-limited-event-dialog.tsx`'s Pack Source picker, so an admin
+ *  `limited-setup-source-step.tsx`'s Pack Source picker, so an admin
  *  already familiar with that control recognizes this one immediately. */
 export default function LimitedScopePicker({
     scopes,

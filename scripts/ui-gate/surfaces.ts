@@ -747,7 +747,7 @@ async function reachFixtureAntechamber(
     }
 }
 
-/** The list's and the antechamber's openers for the Limited overlays
+/** The antechamber's openers for the Limited overlays
  *  (issue #4422), by each button's own visible text. `Leave Seat` is an
  *  `ActionButton`, which wraps its label in a `<span>` — and `:text-is`
  *  matches the SMALLEST element carrying the text, i.e. that span, never
@@ -755,7 +755,6 @@ async function reachFixtureAntechamber(
  *  `limited-antechamber` promised the same button PASS). `:has-text` is
  *  the form that reaches through the wrapper; no other button on the
  *  antechamber contains the phrase. */
-const LIMITED_CREATE_EVENT = 'button:text-is("+ Create Event")';
 const LIMITED_VIEW_TABLE = 'button:text-is("View Table")';
 const LIMITED_LEAVE_SEAT = 'button:has-text("Leave Seat")';
 
@@ -3829,62 +3828,75 @@ export const SURFACES: readonly Surface[] = [
         },
     },
     {
-        // Issue #4422 — the create-event form, the largest Limited overlay
-        // and the first one a would-be host meets. The walk OPENS it and
-        // measures it; it never presses `Create Event`, so the lane creates
-        // no event it would then have to clean up (the NON-DESTRUCTIVE rule
-        // every Limited walk here keeps: the only events the lane touches
-        // are the fixtures it seeded, and they go away with its account).
+        // Issue #5387 (PRD #5383) — the Limited setup route that replaced the
+        // create-event dialog (issue #4422's surface). Walked to the Pack
+        // Source step, the showcase and the widest step; the walk never
+        // presses `Create Event`, so the lane creates no event it would then
+        // have to clean up (the NON-DESTRUCTIVE rule every Limited walk here
+        // keeps: the only events the lane touches are the fixtures it seeded,
+        // and they go away with its account).
         id: "limited-create-event",
-        mounts: ["src/components/limited/create-limited-event-dialog.tsx"],
-        entries: ["src/routes/limited-events.route.tsx"],
-        label: "Create Limited Event dialog (/limited \u2192 + Create Event)",
+        entries: ["src/routes/limited-new.route.tsx"],
+        label: "Limited setup (/limited/new, Pack Source step)",
         /**
-         * The dialog's own name, the Event Type selector that makes it the
-         * RIGHT dialog, and its two footer plates. `Create Event` is promised
-         * `visible`, not `reachable`: it stays disabled until the Draftable
-         * Set query answers with a usable selection (`canSubmit`), and a
-         * disabled plate fails Playwright's trial click by design — the
-         * promise is that the plate is laid out, not that the deployment's
-         * set list has loaded by the time the screen settles.
+         * The recap rail beside the step, the showcase's hero and its
+         * previous/next controls, the thumbnail strip, and Create — live on
+         * arrival because every step has a default, so it is promised
+         * `reachable`.
          */
         asserts: [
             {
-                label: "dialog: Create Limited Event",
-                locator: { role: "dialog", name: "Create Limited Event" },
+                label: "page heading",
+                locator: { role: "heading", name: "New Limited Event" },
                 check: "visible",
             },
             {
-                label: "Event Type selector",
-                locator: { role: "radiogroup", name: "Event Type" },
+                label: "recap rail",
+                locator: { role: "navigation", name: "Setup steps" },
                 check: "visible",
             },
             {
-                label: "dialog primary: Create Event",
+                label: "Pack Source hero",
+                locator: { selector: "[data-pack-source-hero]" },
+                check: "visible",
+            },
+            {
+                label: "hero: Next Pack Source",
+                locator: { role: "button", name: "Next Pack Source" },
+                check: "reachable",
+            },
+            {
+                label: "Pack Source strip",
+                locator: { role: "group", name: "Pack Source" },
+                check: "visible",
+            },
+            {
+                label: "Create Event",
                 locator: { role: "button", name: "Create Event" },
-                check: "visible",
-            },
-            {
-                label: "dialog Cancel",
-                locator: { role: "button", name: "Cancel" },
                 check: "reachable",
             },
         ],
         async walk(page, ctx) {
-            await reachFixtureList(page, ctx);
-            if (!(await clickIfVisible(page, LIMITED_CREATE_EVENT))) {
-                throw new Unreachable(
-                    "the fixture-filtered /limited list offered no `+ Create Event` button"
-                );
-            }
+            await goto(page, ctx, "/limited/new");
             if (
                 !(await visible(
                     page,
-                    '[role=dialog] [role=radiogroup][aria-label="Event Type"]'
+                    "h1:has-text('New Limited Event')",
+                    10_000
                 ))
             ) {
                 throw new Unreachable(
-                    "`+ Create Event` did not open the create-event dialog (no Event Type selector in a dialog)"
+                    "/limited/new did not render its heading"
+                );
+            }
+            await page
+                .locator("[data-setup-step=packSource]")
+                .click({ timeout: STEP_TIMEOUT });
+            if (
+                !(await visible(page, "[data-pack-source-hero]", STEP_TIMEOUT))
+            ) {
+                throw new Unreachable(
+                    "the Pack Source rail step did not open the showcase"
                 );
             }
             await settle(page);
