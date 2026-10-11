@@ -1,7 +1,7 @@
 // Strict Import deck on steps 4 and 5 (PRD #5334 stories 41–48, issue #5343):
 // a refused paste lists its problems and saves nothing; an accepted one saves
 // a normal user deck that the grid shows and the originating step selects.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { getAllCardNames } from "@convex/cards";
@@ -39,7 +39,9 @@ vi.mock("~/lib/useEarliestPrintFetcher", () => ({
 function Harness({ initial }: { initial: MatchSetup }) {
     const [setup, setSetup] = useState(initial);
     const [decks, setDecks] = useState<LobbyDeck[]>([]);
-    addDeck = (d) => setDecks((cur) => [...cur, d]);
+    useEffect(() => {
+        addDeck = (d) => setDecks((cur) => [...cur, d]);
+    }, []);
     return (
         <MatchSetupPanes
             setup={setup}
