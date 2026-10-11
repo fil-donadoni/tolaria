@@ -96,3 +96,27 @@ describe("flyCard — landing resolution (issue #5395)", () => {
         expect(animate).not.toHaveBeenCalled();
     });
 });
+
+describe("flyCard — patience for an asynchronous landing (issue #5397)", () => {
+    it("re-queries the destination every frame and flies once it renders", () => {
+        const source = boxed(ON_SCREEN);
+        let dest: HTMLElement | null = null;
+        flyCard(source, { destination: () => dest, patienceMs: 5000 });
+        flushFrames();
+        flushFrames();
+        expect(ghosts()).toHaveLength(0);
+        dest = boxed(new DOMRect(300, 300, 100, 140));
+        flushFrames();
+        expect(ghosts()).toHaveLength(1);
+        expect(animate).toHaveBeenCalledTimes(1);
+    });
+
+    it("without patience the destination is read on the next frame only", () => {
+        const source = boxed(ON_SCREEN);
+        flyCard(source, { destination: () => null });
+        flushFrames();
+        flushFrames();
+        expect(ghosts()).toHaveLength(0);
+        expect(frames).toHaveLength(0);
+    });
+});

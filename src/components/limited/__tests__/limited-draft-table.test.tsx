@@ -45,6 +45,11 @@ import {
 import { paneOf } from "~/components/deckbuilder/__tests__/zoneQueries";
 import LimitedDraftTable from "../limited-draft-table";
 
+const flyDraftPickMock = vi.hoisted(() => vi.fn());
+vi.mock("../draft-room/draftPickFly", () => ({
+    flyDraftPick: flyDraftPickMock,
+}));
+
 // A real dnd-kit drag (`dragOnto`, driven through the REAL droppable
 // registry rather than synthetic pointer coordinates — jsdom has no layout)
 // needs a few browser APIs jsdom does not implement. Installed once: it only
@@ -1121,5 +1126,39 @@ describe("LimitedDraftTable keyboard picking (issue #2587)", () => {
 
         expect(selectDraftPickMock).not.toHaveBeenCalled();
         expect(submitPickMock).not.toHaveBeenCalled();
+    });
+});
+
+describe("LimitedDraftTable pick fly (issue #5397)", () => {
+    it("the pick is submitted at once, with the flight started beforehand and never gating it", async () => {
+        const { getAllByRole } = renderTable({ poolLength: 3 });
+        const tile = getAllByRole("button", { name: /Draft pick/ })[0];
+        expect(tile.getAttribute("data-pick-id")).toBe("r0-p0-c0");
+        fireEvent.doubleClick(tile);
+        expect(flyDraftPickMock).toHaveBeenCalledWith(
+            "r0-p0-c0",
+            "maindeck",
+            3
+        );
+        await waitFor(() =>
+            expect(submitPickMock).toHaveBeenCalledWith({
+                eventId: "event-1",
+                pickId: "r0-p0-c0",
+            })
+        );
+    });
+
+    it('"→ Side" flies to the Sideboard, a distinct destination from the Pool', async () => {
+        const { getAllByRole } = renderTable({ poolLength: 3 });
+        fireEvent.click(getAllByRole("button", { name: /Draft pick/ })[0]);
+        fireEvent.click(menuItems().find((el) => el.textContent === "→ Side")!);
+        expect(flyDraftPickMock).toHaveBeenCalledWith(
+            "r0-p0-c0",
+            "sideboard",
+            3
+        );
+        await waitFor(() =>
+            expect(setPoolArrangementEntryMock).toHaveBeenCalled()
+        );
     });
 });
