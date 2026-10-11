@@ -15,6 +15,7 @@ import {
     findSeatPool,
     resolveLimitedDeckLegality,
 } from "./limited/poolResolution";
+import { limitedOriginKey } from "./limited/limitedOrigin";
 import { hydrateSeat } from "./limitedSeatStore";
 
 const deckCardValidator = v.object({
@@ -164,6 +165,7 @@ export const create = mutation({
     },
     handler: async (ctx, args) => {
         const userId = await getCurrentUserId(ctx);
+        let limitedOrigin: string | undefined;
 
         // Limited Event + Seat reference (issue #1111 AC: "a user builds
         // only in their OWN seat — server-derive userId, never trust client
@@ -186,6 +188,11 @@ export const create = mutation({
                 args.limitedEventId as Id<"limitedEvents">
             );
             assertLimitedSeatOwnership(event, args.limitedSeatId, userId);
+            // Limited Origin (ADR 0106 §6, issue #5393): copied from the event
+            // HERE, server-side, never taken from the client — and never
+            // re-read through the event, so deleting it later leaves the
+            // deck classified.
+            limitedOrigin = limitedOriginKey(event);
         }
 
         const name = args.name.trim() || "Untitled deck";
@@ -202,6 +209,7 @@ export const create = mutation({
             featuredCardId: args.featuredCardId,
             limitedEventId: args.limitedEventId,
             limitedSeatId: args.limitedSeatId,
+            limitedOrigin,
             layout: args.layout,
         });
 
@@ -360,5 +368,46 @@ export const migrateDefinitionIds = internalMutation({
             migrated++;
         }
         return { migrated, unchanged };
+    },
+});
+
+/**
+ * One-shot migration (ADR 0106 §6, issue #5393): give every `limited` deck
+ * saved before Limited Origin existed its origin, derived ONCE from its event
+ * while that event still exists. A deck whose event is gone stays
+ * unclassified — no error, no deletion. Idempotent — a row already carrying
+ * an origin is left untouched. Run once via the Convex dashboard / `mcp run`
+ * after this slice deploys, same as `migrateLegacyFormats` above.
+ */
+export const migrateLimitedOrigins = internalMutation({
+    args: {},
+    returns: v.object({
+        migrated: v.number(),
+        unclassified: v.number(),
+        unchanged: v.number(),
+    }),
+    handler: async (ctx) => {
+        const rows = await ctx.db.query("userDecks").collect();
+        let migrated = 0;
+        let unclassified = 0;
+        let unchanged = 0;
+        for (const row of rows) {
+            if (row.format !== "limited" || row.limitedOrigin !== undefined) {
+                unchanged++;
+                continue;
+            }
+            const event = row.limitedEventId
+                ? await ctx.db.get(row.limitedEventId as Id<"limitedEvents">)
+                : null;
+            if (!event) {
+                unclassified++;
+                continue;
+            }
+            await ctx.db.patch(row._id, {
+                limitedOrigin: limitedOriginKey(event),
+            });
+            migrated++;
+        }
+        return { migrated, unclassified, unchanged };
     },
 });

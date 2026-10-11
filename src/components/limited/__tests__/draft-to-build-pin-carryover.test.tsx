@@ -156,6 +156,7 @@ function renderBuild(poolArrangement: PoolArrangementEntry[]) {
             pool={POOL}
             existingDeck={null}
             eventType="draft"
+            packSlots={["lea"]}
             poolArrangement={poolArrangement}
         />
     );

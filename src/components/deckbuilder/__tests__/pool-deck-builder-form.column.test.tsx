@@ -210,6 +210,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -237,6 +238,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -263,6 +265,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -291,6 +294,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                     pool={POOL}
                     existingDeck={null}
                     eventType="draft"
+                    packSlots={["lea"]}
                     poolArrangement={[]}
                 />
             );
@@ -315,6 +319,7 @@ describe("PoolDeckBuilderForm — column persist wiring (issue #1575)", () => {
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );
@@ -340,6 +345,7 @@ describe("PoolDeckBuilderForm — the save sink strips the per-copy pinKey (revi
                 pool={POOL}
                 existingDeck={null}
                 eventType="draft"
+                packSlots={["lea"]}
                 poolArrangement={[]}
             />
         );

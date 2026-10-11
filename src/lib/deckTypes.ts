@@ -41,6 +41,10 @@ export interface LobbyDeckBase {
     // Absent on every other deck.
     limitedEventId?: string;
     limitedSeatId?: string;
+    // Limited Origin key (ADR 0106 §6, issue #5393) — what a `limited` user
+    // deck was built from; its label derives via `limitedOriginLabel`. Absent
+    // on presets, non-limited decks and unclassified legacy decks.
+    limitedOrigin?: string;
     // Persisted Column Layout (ADR 0075 §4, PRD #1617, issue #1626) — the
     // deckbuilder workspace the player built ON THIS DECK: manual Columns,
     // deleted Columns and Card Pins. Absent for a deck saved before this
@@ -156,6 +160,7 @@ export function toUserLobbyDeck(
         reasons: legality.reasons,
         limitedEventId: d.limitedEventId,
         limitedSeatId: d.limitedSeatId,
+        limitedOrigin: d.limitedOrigin,
         // Persisted Column Layout (ADR 0075 §4, issue #1626). Passed through
         // verbatim — the Column Layout engine is its only interpreter, and a
         // row saved before this slice simply has none.

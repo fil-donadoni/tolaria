@@ -89,6 +89,7 @@ export default function PoolDeckBuilder({
                 // falls back to the pre-#1247 "everything starts in the Sideboard"
                 // default. `eventType` drives that seed choice.
                 eventType={event.type}
+                packSlots={event.packSlots}
                 // The LIVE seat Pool Arrangement (issue #1575): the Maindeck⇄
                 // Sideboard seed AND the per-card manual column overrides, read
                 // reactively so a column drag persisted via setPoolArrangementEntry

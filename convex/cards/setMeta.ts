@@ -16,6 +16,8 @@ const SET_NAMES: Record<string, string> = {
     fem: "Fallen Empires",
     ice: "Ice Age",
     inv: "Invasion",
+    pls: "Planeshift",
+    apc: "Apocalypse",
     c19: "Commander 2019",
     all: "Alliances",
     pcy: "Prophecy",

@@ -29,6 +29,7 @@ import {
     type OrderingKind,
 } from "@convex/deckLayout";
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
+import { limitedEventName } from "~/lib/limitedEventName";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import type { DeckCard, ZoneCard } from "~/types/game";
@@ -88,9 +89,12 @@ const VIEW: DeckBuilderViewSpec = {
  *  never builds a Pool Arrangement (no draft phase to arrange during), so
  *  this is the one path with no continuous-draft carry-over to seed from
  *  instead (see `continuousWorkingDeck` below). */
-function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
+function defaultWorkingDeck(
+    pool: readonly LimitedPoolCard[],
+    name: string
+): WorkingDeck {
     return {
-        name: "Sealed Pool Deck",
+        name,
         format: "limited",
         cards: [],
         sideboard: toZoneCards(
@@ -111,11 +115,12 @@ function defaultWorkingDeck(pool: readonly LimitedPoolCard[]): WorkingDeck {
  *  unlike Sealed's all-Sideboard start above. */
 function continuousWorkingDeck(
     pool: readonly LimitedPoolCard[],
-    arrangement: readonly PoolArrangementEntry[]
+    arrangement: readonly PoolArrangementEntry[],
+    name: string
 ): WorkingDeck {
     const split = splitPoolByArrangement(pool, arrangement);
     return {
-        name: "Draft Pool Deck",
+        name,
         format: "limited",
         cards: toZoneCards(split.cards),
         sideboard: toZoneCards(split.sideboard),
@@ -170,6 +175,10 @@ interface PoolDeckBuilderFormProps {
      *  draft phase so every card starts in the Sideboard (`defaultWorkingDeck`,
      *  pre-#1247 default). Ignored once `existingDeck` is set. */
     eventType: "draft" | "sealed";
+    /** The event's per-pack sets — with `eventType`, the Limited Origin a new
+     *  deck is named after by default ("Vintage Cube Draft", ADR 0106 §6,
+     *  issue #5393). Ignored once `existingDeck` is set. */
+    packSlots: readonly string[];
     /** The seat's LIVE Pool Arrangement (ADR 0060, issue #1247/#1575) — the
      *  Maindeck⇄Sideboard split seed AND the per-card manual column overrides.
      *  Read live (not just at seed time) so a column drag persisted via
@@ -209,6 +218,7 @@ export default function PoolDeckBuilderForm({
     pool,
     existingDeck,
     eventType,
+    packSlots,
     poolArrangement,
     manager,
 }: PoolDeckBuilderFormProps) {
@@ -271,9 +281,12 @@ export default function PoolDeckBuilderForm({
             if (existingDeck) {
                 return savedWorkingDeck(existingDeck, pool, poolArrangement);
             }
+            // A new deck is named after its Limited Origin (ADR 0106 §6,
+            // issue #5393) — the same derivation the server stores the key by.
+            const name = limitedEventName({ type: eventType, packSlots });
             return eventType === "draft"
-                ? continuousWorkingDeck(pool, poolArrangement)
-                : defaultWorkingDeck(pool);
+                ? continuousWorkingDeck(pool, poolArrangement, name)
+                : defaultWorkingDeck(pool, name);
         },
     });
 

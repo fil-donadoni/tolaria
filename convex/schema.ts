@@ -237,6 +237,14 @@ export default defineSchema({
         // `ResolvePool`); absent on every non-limited deck.
         limitedEventId: v.optional(v.string()),
         limitedSeatId: v.optional(v.string()),
+        // Limited Origin (ADR 0106 §6, issue #5393): the canonical key of what
+        // the deck was built from (`draft:cube:vintage`, `sealed:lea`,
+        // `draft:inv+pls+apc`, `convex/limited/limitedOrigin.ts`). COPIED from
+        // the event by `userDecks.create`, never resolved through it, so it
+        // outlives the event. Classifies, never constrains (ADR 0153). Absent
+        // on every non-limited deck, and on a legacy limited deck whose event
+        // was gone before `migrateLimitedOrigins` ran (unclassified).
+        limitedOrigin: v.optional(v.string()),
         // Column Layout (ADR 0075 §4, PRD #1617, issue #1626) — the DECK half
         // of the deckbuilder workspace: the manual Columns the player added,
         // the Columns they deleted, and their Card Pins. Deck data, so it
