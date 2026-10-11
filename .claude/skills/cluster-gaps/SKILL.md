@@ -158,8 +158,9 @@ one key or no `reason`) rather than silently matching nothing.
 
 Comment on it naming which cluster (or Standalone Gap) each listed single
 landed under, then close it: its job — deciding what belongs together — is
-done. **Do not close the singles themselves.** `land` runs `gaps:sync` live
-after merging this PR (`docs/agents/issue-tracker.md`), and that run is what
+done. **Do not close the singles themselves.** The hourly `housekeeping` cron
+runs `gaps:sync` after this PR merges (`docs/guides/land-and-release.md`), and
+that run is what
 absorbs each listed single into its new cluster, closing it with an
 `absorbed into issue #N` comment — `/cluster-gaps` only ever writes the
 signature that makes the next run's absorption possible.

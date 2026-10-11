@@ -290,9 +290,9 @@ export interface GateWaiter {
 /**
  * A waiter's queue-entry time when it is NOT the moment it registered — epoch
  * ms, set by the caller. `land` passes the time it was ISSUED (issue #4988):
- * its preflight runs before it registers, and a place that dated from the end
- * of the preflight ordered a land behind every land issued after it that
- * reached the queue first. Also the injected clock of the ageing tests.
+ * its refusal checks run before it registers (a preflight did too, until
+ * issue #5457), and a place that dated from their end ordered a land behind
+ * every land issued after it that reached the queue first. Also the injected clock of the ageing tests.
  */
 export const WAITER_SINCE_ENV = "TOLARIA_GATE_WAITER_SINCE";
 

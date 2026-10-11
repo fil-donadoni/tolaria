@@ -7,8 +7,6 @@ import {
     writeFileSync,
     existsSync,
     readFileSync,
-    readdirSync,
-    statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { issueWorktree } from "../lib/issue-worktree";
@@ -25,12 +23,7 @@ import {
     primaryBranchFastForwardStep,
     issueOfBranch,
     landingTarget,
-    releaseClaimStep,
-    umbrellaDetachStep,
     recordLandingStep,
-    gapsSyncStep,
-    grammarResidueStep,
-    originBandForBranch,
     healthDetachStep,
     telemetryIngestStep,
     lockedEnv,
@@ -45,16 +38,12 @@ import {
     type LandFacts,
     type LockedCommandOptions,
     type HousekeepingOptions,
-    preflightGate,
-    admitPreflight,
 } from "../land";
 import {
     admissionOrder,
     waiterSince,
     type GateWaiter,
 } from "../lib/gate-liveness";
-import type { MachineSample } from "../lib/machine-admission";
-import { heavyQueueIdle, readGateWaiters } from "../lib/ui-admission";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
 import {
@@ -228,8 +217,7 @@ describe("land.ts — refusal matrix", () => {
         // tore it down before crashing), so the only checkout left to invoke
         // it from is the primary, on the base branch. Refusing there made
         // #4159's recovery unreachable in exactly the case it was written
-        // for, silently: the claim release, `gaps:sync --band`, the umbrella
-        // detach and the health cadence never ran.
+        // for, silently: the ref cleanup and the health cadence never ran.
         it("no longer refuses from the base branch, nor on a head-branch mismatch", () => {
             expect(
                 refusalReason({ ...merged, branch: BASE_BRANCH })
@@ -595,160 +583,6 @@ describe("land.ts — the locked command", () => {
         expect(step.endsWith("; true)")).toBe(true);
     });
 
-    it("traces the landed cluster's residual gaps AFTER gaps:sync, non-gating (issue #5222)", () => {
-        const cmd = buildLockedCommand(base);
-        const step = grammarResidueStep("/repo", 2517, "feat/issue-4543");
-        expect(step).toContain("grammar:residue 4543 --pr 2517");
-        expect(step!.startsWith("(cd '/repo' && ")).toBe(true);
-        expect(step!.endsWith("; true)")).toBe(true);
-        // The claims it reads are the ones gaps:sync just wrote.
-        expect(cmd.indexOf("grammar:residue")).toBeGreaterThan(
-            cmd.indexOf("gaps-sync.ts")
-        );
-        // The origin band rides along to the gaps:sync re-run (issue #4158).
-        expect(
-            grammarResidueStep("/repo", 2517, "feat/issue-4543", "P0")
-        ).toContain("--pr 2517 --band P0 ||");
-        expect(step).not.toContain("--band");
-        // A branch naming no issue has no cluster to trace.
-        expect(grammarResidueStep("/repo", 1, "main")).toBeNull();
-    });
-
-    it("syncs Grammar/Bot Gap issues post-merge, beside the preset-scenario seeding, non-gating (ADR 0137, issue #3829)", () => {
-        const cmd = buildLockedCommand(base);
-        const step = gapsSyncStep("/repo");
-        expect(cmd).toContain(step);
-        expect(step).toMatch(/bun '[^']*gaps-sync\.ts'/);
-        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
-        // Non-gating: a `gh` outage must never turn a merged PR into a
-        // reported failure.
-        expect(step.endsWith("; true)")).toBe(true);
-        expect(step).toContain(
-            'echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2'
-        );
-        // Beside the preset-scenario seeding — AFTER it, same as the issue
-        // body says ("beside the preset-scenario seeding it already does").
-        const seedIdx = cmd.indexOf("seed-scenario.ts");
-        const gapsIdx = cmd.indexOf("gaps-sync.ts");
-        expect(gapsIdx).toBeGreaterThan(seedIdx);
-        // Past the merged-tip verification too, like the rest of the housekeeping.
-        expect(gapsIdx).toBeGreaterThan(
-            cmd.indexOf(`$OLD_TIP..${ORIGIN_BASE}`)
-        );
-    });
-
-    it("files Bot Gaps at landing time: gaps:sync runs without --no-file-bot, band or not (issue #5301)", () => {
-        for (const step of [
-            gapsSyncStep("/repo"),
-            gapsSyncStep("/repo", null),
-            gapsSyncStep("/repo", "P0"),
-        ]) {
-            expect(step).toMatch(/gaps-sync\.ts'( --band P0)? \|\|/);
-            expect(step).not.toContain("--no-file-bot");
-        }
-        expect(buildLockedCommand(base)).not.toContain("--no-file-bot");
-    });
-
-    it("passes the origin band to gaps:sync when the landed issue's band is known (issue #4158)", () => {
-        const cmd = buildLockedCommand({ ...base, originBand: "P0" });
-        const step = gapsSyncStep("/repo", "P0");
-        expect(cmd).toContain(step);
-        expect(step).toMatch(/gaps-sync\.ts' --band P0 \|\|/);
-        // Still non-gating, still in the primary checkout.
-        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
-        expect(step.endsWith("; true)")).toBe(true);
-    });
-
-    it("passes no --band when it could not be determined: gaps:sync keeps its computed band (issue #4158)", () => {
-        expect(gapsSyncStep("/repo")).not.toContain("--band");
-        expect(gapsSyncStep("/repo", null)).not.toContain("--band");
-        expect(buildLockedCommand({ ...base, originBand: null })).not.toContain(
-            "--band"
-        );
-        expect(buildLockedCommand(base)).not.toContain("--band");
-    });
-
-    it("originBandForBranch: the band of the issue the branch names, by queue:plan's own rule (issue #4158)", () => {
-        const board = { 4099: "P0", 4200: "P2", 4300: "P3" } as const;
-        const deps = (
-            parents: Record<number, number | null>,
-            parentState: "OPEN" | "CLOSED" = "OPEN"
-        ) => ({
-            readParent: (n: number) => {
-                const parent = parents[n];
-                return parent == null
-                    ? null
-                    : { number: parent, state: parentState };
-            },
-            readBoard: () => ({ ...board }),
-        });
-        // Own priority.
-        expect(
-            originBandForBranch("feat/issue-4200", deps({ 4200: null })).band
-        ).toBe("P2");
-        // Inherited from the parent PRD — the grammar-rule shape: the issue
-        // carries no Priority of its own, its umbrella is P0.
-        expect(
-            originBandForBranch("feat/issue-4128", deps({ 4128: 4099 })).band
-        ).toBe("P0");
-        // The parent governs, in both directions (issue #4371): a P2 child of
-        // a P0 umbrella rises, and a P0 child of a P3 umbrella falls. The
-        // second case is what keeps `gaps:sync --band` honest — a gap born of
-        // work the maintainer filed under a P3 epic is P3 work, whatever the
-        // slice was hand-marked at filing time.
-        expect(
-            originBandForBranch("fix/issue-4200", deps({ 4200: 4099 })).band
-        ).toBe("P0");
-        expect(
-            originBandForBranch("fix/issue-4099", deps({ 4099: 4300 })).band
-        ).toBe("P3");
-        // A CLOSED umbrella governs nothing (issue #4105): the band degrades
-        // to the issue's own value, so a landing under a dead P0 epic does not
-        // file its gaps into that epic's band.
-        expect(
-            originBandForBranch(
-                "fix/issue-4200",
-                deps({ 4200: 4099 }, "CLOSED")
-            ).band
-        ).toBe("P2");
-    });
-
-    it("originBandForBranch: never throws — a branch naming no issue, an unprioritised issue and an unreadable board are a null band plus a reason (issue #4158)", () => {
-        const ok = { readParent: () => null, readBoard: () => ({}) };
-        const noIssue = originBandForBranch("main", ok);
-        expect(noIssue.band).toBeNull();
-        expect(noIssue.reason).toMatch(/names no issue/);
-        const unranked = originBandForBranch("feat/issue-1", ok);
-        expect(unranked.band).toBeNull();
-        expect(unranked.reason).toMatch(/carry no board Priority/);
-        const boardDown = originBandForBranch("feat/issue-1", {
-            readParent: () => null,
-            readBoard: () => {
-                throw new Error("rate limited");
-            },
-        });
-        expect(boardDown.band).toBeNull();
-        expect(boardDown.reason).toMatch(/board Priority \(rate limited\)/);
-        const parentDown = originBandForBranch("feat/issue-1", {
-            readParent: () => {
-                throw new Error("gh exploded");
-            },
-            readBoard: () => ({}),
-        });
-        expect(parentDown.band).toBeNull();
-        expect(parentDown.reason).toMatch(/parent of issue #1 \(gh exploded\)/);
-    });
-
-    it("does not sync gaps without a merge (--no-merge gates and pushes only)", () => {
-        const cmd = buildLockedCommand({ ...base, merge: false });
-        expect(cmd).not.toContain("gaps-sync.ts");
-    });
-
-    it("syncs gaps even under --keep — teardown is about the worktree, not the sync", () => {
-        const cmd = buildLockedCommand({ ...base, teardown: false });
-        expect(cmd).toContain("gaps-sync.ts");
-    });
-
     it("ingests the telemetry after every merge, from the primary checkout, before the health decision (issue #4968)", () => {
         const cmd = buildLockedCommand(base);
         const step = telemetryIngestStep("/repo");
@@ -868,67 +702,11 @@ describe("land.ts — the locked command", () => {
         expect(cmd).not.toContain("merge --ff-only");
     });
 
-    it("releases the in-progress claim on the issue the branch names, past the merge, non-gating (issue #3130)", () => {
-        // The claim is added at pick time; before this step nothing removed
-        // it on the success path (claim-sweep runs at SessionEnd and leaves a
-        // claim whose PR is open; loop:doctor sweeps OPEN issues only), so an
-        // issue closed by its PR kept `in-progress` forever — 56 of them.
-        const cmd = buildLockedCommand(base);
-        const step = releaseClaimStep("fix/issue-2517");
-        expect(step).not.toBeNull();
-        expect(cmd).toContain(step!);
-        expect(step).toContain("gh issue edit 2517 --remove-label in-progress");
-        expect(cmd.indexOf(step!)).toBeGreaterThan(cmd.indexOf("pr-merge.ts"));
-        // Non-gating: wrapped so a failed label edit cannot fail the landing.
-        expect(step!.endsWith("; true)")).toBe(true);
-        // And never without a merge — the claim is still live then.
-        expect(buildLockedCommand({ ...base, merge: false })).not.toContain(
-            "--remove-label in-progress"
-        );
-    });
-
-    it("detaches the landed issue from its band umbrella, AFTER gaps:sync and the claim release, non-gating (issue #4235)", () => {
-        // The step needs the issue CLOSED, which the merge does a second or
-        // two after `mergedAt`; running past `gaps:sync`'s network work is what
-        // makes that true, and it is the last thing before the teardown.
-        const cmd = buildLockedCommand(base);
-        const step = umbrellaDetachStep("/repo", "fix/issue-2517");
-        expect(cmd).toContain(step);
-        // The landed issue first, then every other closed child (issue #5081).
-        expect(step).toMatch(
-            /bun '[^']*umbrella-detach\.ts' 2517 --sweep \|\|/
-        );
-        expect(step.startsWith("(cd '/repo' && ")).toBe(true);
-        expect(step.endsWith("; true)")).toBe(true);
-        expect(cmd.indexOf(step)).toBeGreaterThan(cmd.indexOf("gaps-sync.ts"));
-        expect(cmd.indexOf(step)).toBeGreaterThan(
-            cmd.indexOf(releaseClaimStep("fix/issue-2517")!)
-        );
-        // The teardown removes the worktree the command runs from: last.
-        expect(cmd.indexOf(step)).toBeLessThan(cmd.indexOf("worktree remove"));
-        // Never without a merge — the issue is still open then.
-        expect(buildLockedCommand({ ...base, merge: false })).not.toContain(
-            "umbrella-detach.ts"
-        );
-    });
-
-    it("sweeps alone for a branch outside the issue-N convention (issue #5081)", () => {
-        const step = umbrellaDetachStep("/repo", "docs/adr-0116");
-        expect(step).toMatch(/bun '[^']*umbrella-detach\.ts' --sweep \|\|/);
-        expect(
-            buildLockedCommand({ ...base, branch: "docs/adr-0116" })
-        ).toContain(step);
-    });
-
-    it("names no issue for a branch outside the issue-N convention, and adds no step", () => {
+    it("names no issue for a branch outside the issue-N convention", () => {
         expect(issueOfBranch("feat/issue-3130")).toBe(3130);
         expect(issueOfBranch("fix/issue-7")).toBe(7);
         expect(issueOfBranch("docs/adr-0116")).toBeNull();
         expect(issueOfBranch("issue-12-and-more")).toBeNull();
-        expect(releaseClaimStep("docs/adr-0116")).toBeNull();
-        expect(
-            buildLockedCommand({ ...base, branch: "docs/adr-0116" })
-        ).not.toContain("--remove-label in-progress");
     });
 
     it("--keep leaves the REMOTE branch alone too, not just the worktree (#2536)", () => {
@@ -1123,21 +901,38 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
         ).toBe(true);
     });
 
-    it("carries gaps:sync's origin band into the recovery path too (issue #4158 × #4159)", () => {
-        // `gapsSyncStep` takes the band of the issue the branch closes, so a
-        // gap born of P0 work files under its family's P0 umbrella. The
-        // recovery path runs the SAME sync, so dropping the band here would
-        // file the same gap under a different umbrella depending on which
-        // entry point happened to run it — a silent, invisible difference.
-        const banded = { ...housekeeping, originBand: "P0" as const };
-        expect(buildHousekeepingCommand(banded)).toContain("--band P0");
-        expect(buildLockedCommand({ ...locked, ...banded })).toContain(
-            "--band P0"
-        );
-        // Absent band: no flag at all, in both paths — `gaps:sync` keeps its
-        // own computed band, exactly as before #4158.
-        expect(buildHousekeepingCommand(housekeeping)).not.toContain("--band");
-        expect(buildLockedCommand(locked)).not.toContain("--band");
+    /**
+     * ADR 0154 §5, issue #5457 — the post-merge list is what nobody in the
+     * session can do without, and only that: the landing record, the primary
+     * fast-forward, the scenario seed, telemetry ingest, the health detach
+     * (then the teardown). The GitHub-bound steps live in the hourly
+     * `housekeeping` cron (`scripts/housekeeping.ts`).
+     */
+    it("pins the post-merge list at FIVE steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
+        const steps = postMergeHousekeepingSteps({
+            ...housekeeping,
+            teardown: false,
+        });
+        expect(steps).toEqual([
+            recordLandingStep("/repo"),
+            primaryBranchFastForwardStep("/repo"),
+            seedScenarioStep("/repo", 4159),
+            telemetryIngestStep("/repo"),
+            healthDetachStep("/repo"),
+        ]);
+        for (const cmd of [
+            buildLockedCommand(locked),
+            buildHousekeepingCommand(housekeeping),
+        ]) {
+            for (const moved of [
+                "gaps-sync",
+                "grammar:residue",
+                "--remove-label in-progress",
+                "umbrella-detach",
+                "--band",
+            ])
+                expect(cmd, moved).not.toContain(moved);
+        }
     });
 
     it("the recovery path neither rebases, nor gates the lane, nor merges", () => {
@@ -1174,8 +969,7 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
         expect(cmd).toContain("health-cadence.ts' record"); // the landing ledger
         expect(cmd).toContain("merge --ff-only"); // primary checkout catches up
         expect(cmd).toContain(seedScenarioStep("/repo", 4159)); // ADR 0044
-        expect(cmd).toContain("gaps-sync.ts"); // ADR 0137
-        expect(cmd).toContain("--remove-label in-progress"); // the claim
+        expect(cmd).toContain("telemetry-ingest.ts"); // issue #4968
         expect(cmd).toContain("health-cadence.ts' spawn"); // the batch decision
         expect(cmd).toContain("worktree remove --force"); // teardown
     });
@@ -1220,10 +1014,6 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
     // the shared spread — the drift shape every earlier test missed, since
     // `toContain` still matched. "ends the recovery command too" went red.
     // Reverted.
-    //
-    // Proof-of-failure (rebase onto issue #4158): made the shared list pass
-    // `gapsSyncStep(opts.primaryCheckout, null)` — "carries gaps:sync's origin
-    // band into the recovery path too" went red. Reverted.
     //
     // Proof-of-failure (review round 1, finding 1, in the refusal matrix
     // above): forced the wrong-base refusal back to one message for both
@@ -2144,9 +1934,8 @@ describe("land.ts — housekeeping steps against a MISSING worktree", () => {
         // worktree removal is still in the command.
         const cmd = buildHousekeepingCommand({ ...merged, worktree: null });
         expect(cmd).toContain("health-cadence.ts' record");
-        expect(cmd).toContain("gaps-sync.ts");
-        expect(cmd).toContain("--remove-label in-progress");
-        expect(cmd).toContain("umbrella-detach.ts");
+        expect(cmd).toContain("seed-scenario.ts");
+        expect(cmd).toContain("telemetry-ingest.ts");
         expect(cmd).toContain("health-cadence.ts' spawn");
         expect(cmd).not.toContain("worktree remove");
     });
@@ -2288,448 +2077,40 @@ describe("land.ts — the teardown step, executed", () => {
 });
 
 /**
- * Issue #4967 — `land` runs the static half of the lane on the PR's own head
- * BEFORE it queues for the machine mutex, so a deterministic failure is
- * refused without waiting in the queue or holding the lock.
+ * ADR 0154 §5, issue #5457 — `land` has no preflight. Every run in the
+ * fortnight before printed `preflight skipped`; the lane under the mutex is
+ * the one gate.
  */
-describe("land.ts — preflight before queuing (issue #4967)", () => {
-    const calls: string[] = [];
-    const deps = (status: number | null, admitted = true) => ({
-        // Something holds or waits on the mutex: the preflight's own case.
-        queueIdle: () => false,
-        admit: async () => {
-            calls.push("admit");
-            return admitted;
-        },
-        run: () => {
-            calls.push("run");
-            return { status, ms: 1234 };
-        },
-    });
-    beforeEach(() => {
-        calls.length = 0;
-    });
+describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
+    const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
+    const main = src.slice(src.indexOf("async function main("));
 
-    it("refuses a red preflight, naming it, and says nothing was queued", async () => {
-        const out = await preflightGate({
-            mode: "full",
-            enabled: true,
-            ...deps(1),
-        });
-        expect(out.kind).toBe("refuse");
-        if (out.kind !== "refuse") return;
-        expect(out.reason).toMatch(/preflight is red on the PR's own head/);
-        expect(out.reason).toMatch(/Nothing was queued/);
-        expect(calls).toEqual(["admit", "run"]);
-    });
-
-    it("refuses ANY non-zero preflight, a signal included — only exit 0 passes", async () => {
-        for (const status of [2, 77, null]) {
-            const out = await preflightGate({
-                mode: "full",
-                enabled: true,
-                ...deps(status),
-            });
-            expect(out.kind, String(status)).toBe("refuse");
-        }
-    });
-
-    it("passes a green preflight with its wall-clock", async () => {
-        expect(
-            await preflightGate({ mode: "full", enabled: true, ...deps(0) })
-        ).toEqual({ kind: "pass", ms: 1234 });
-    });
-
-    it("asks the machine FIRST, and runs nothing on a saturated one (issue #4966)", async () => {
-        expect(
-            await preflightGate({
-                mode: "full",
-                enabled: true,
-                ...deps(0, false),
-            })
-        ).toEqual({ kind: "saturated" });
-        expect(calls).toEqual(["admit"]);
-    });
-
-    it("a run that reached no verdict (failed fetch, timeout) is skipped as INFRA, never a refusal", async () => {
-        const out = await preflightGate({
-            mode: "full",
-            enabled: true,
-            queueIdle: () => false,
-            admit: async () => true,
-            run: () => ({ infra: "`git fetch origin x` failed" }),
-        });
-        expect(out).toEqual({
-            kind: "skipped",
-            why: "`git fetch origin x` failed",
-        });
-    });
-
-    it("--no-preflight and the housekeeping mode run nothing and ask nothing", async () => {
-        for (const [mode, enabled] of [
-            ["full", false],
-            ["housekeeping", true],
-        ] as const) {
-            const out = await preflightGate({ mode, enabled, ...deps(1) });
-            expect(out.kind).toBe("skipped");
-        }
-        expect(calls).toEqual([]);
-    });
-
-    /**
-     * Issue #4988 — the preflight asks the machine with NO hold, beside
-     * whoever has the mutex, and a running heavy gate keeps the load over
-     * `machine.loadMax` for its whole run. Waiting on that load is waiting
-     * for the holder to finish, which the bound was never derived to outlast.
-     */
-    describe("beside a live heavy holder (issue #4988)", () => {
-        const T0 = 10_000_000;
-        const T = { loadMax: 8, sessionBudgetMb: 2500, waitMaxS: 900 };
-        const busy: MachineSample = {
-            load1: 12.1,
-            swapUsedMb: 5711,
-            pressure: 1,
-            reclaimableMb: 6400,
-        };
-        let lockRoot: string;
-        beforeEach(() => {
-            lockRoot = mkdtempSync(join(tmpdir(), "tolaria-land-preflight-"));
-        });
-        afterEach(() =>
-            rmSync(lockRoot, {
-                recursive: true,
-                force: true,
-                maxRetries: 10,
-                retryDelay: 100,
-            })
+    it("has no preflight phase, no `--no-preflight` flag and no `check:lane --preflight` call", () => {
+        expect(src).not.toMatch(/preflight/i);
+        // The flag is gone from the usage line too: an unknown `--` flag is
+        // ignored by parseArgs, so the usage is what tells a caller.
+        expect(src).toMatch(
+            /usage: bun run land <PR#> \[--no-merge\] \[--keep\] \[--repair \| --red-ok\]"/
         );
+    });
 
-        /** The heavy mutex as `gate.ts` leaves it once its command runs.
-         *  The pid is this process: alive, as a real holder is. */
-        const hold = (at: number, over: object = {}) => {
-            mkdirSync(join(lockRoot, "gate.lock"), { recursive: true });
-            writeFileSync(
-                join(lockRoot, "gate.lock", "owner.json"),
-                JSON.stringify({
-                    pid: process.pid,
-                    label: "bun scripts/health-main.ts --phase=offline",
-                    cwd: "/repo",
-                    ts: at,
-                    acquiredAt: T0,
-                    childPid: process.pid,
-                    ...over,
-                })
-            );
-        };
-
-        /** `preflightGate` over the REAL `admitPreflight`, a fixed probe and
-         *  a counted clock: `sleep` is the clock, so "longer than the bound"
-         *  costs no wall time and races nothing. */
-        const land = async (
-            sample: MachineSample,
-            holder: object | null,
-            env: NodeJS.ProcessEnv = {}
-        ) => {
-            let clock = T0;
-            const lines: string[] = [];
-            if (holder !== null) hold(clock, holder);
-            // A land queued ahead, so the queue is never empty and the
-            // preflight is due whatever the holder (issue #4992).
-            mkdirSync(join(lockRoot, "gate.waiters"), { recursive: true });
-            writeFileSync(
-                join(lockRoot, "gate.waiters", `${process.pid}.json`),
-                JSON.stringify({
-                    pid: process.pid,
-                    role: "land",
-                    label: "",
-                    cwd: "/repo",
-                    since: clock,
-                    seen: clock,
-                })
-            );
-            const out = await preflightGate({
-                mode: "full",
-                enabled: true,
-                queueIdle: () => heavyQueueIdle(lockRoot, env, clock),
-                admit: () =>
-                    admitPreflight({
-                        lockRoot,
-                        thresholds: T,
-                        announce: (l) => lines.push(l),
-                        env,
-                        probe: () => sample,
-                        now: () => clock,
-                        sleep: async (ms) => {
-                            clock += ms;
-                            // The holder heartbeats for as long as it runs.
-                            if (holder !== null) hold(clock, holder);
-                        },
-                    }),
-                run: deps(0).run,
-            });
-            return { out, lines, waitedS: (clock - T0) / 1000 };
-        };
-
-        it("a running holder's load never ends the preflight `saturated`: it runs at once, beside it", async () => {
-            // The load never drops — behind a 35-minute health hold it does
-            // not, and the bound is 15.
-            const { out, lines, waitedS } = await land(busy, {});
-            expect(out).toEqual({ kind: "pass", ms: 1234 });
-            expect(calls).toEqual(["run"]);
-            expect(waitedS).toBe(0);
-            expect(lines).toEqual([
-                `land: preflight machine busy — load 12.1, swap 5711 MB — beside a running heavy gate (pid ${process.pid} · bun scripts/health-main.ts --phase=offline): its load is not waited on`,
-            ]);
-        });
-
-        it("with NO live holder the same load still waits its whole bound and ends `saturated` (exit 77)", async () => {
-            const { out, lines, waitedS } = await land(busy, null);
-            expect(out).toEqual({ kind: "saturated" });
-            expect(calls).toEqual([]);
-            expect(waitedS).toBe(900);
-            expect(lines.at(-1)).toMatch(/INFRA \(machine-saturated\)/);
-        });
-
-        it("memory pressure past normal still waits, holder or not", async () => {
-            const pressed = { ...busy, pressure: 2 };
-            for (const holder of [{}, null]) {
-                const { out, waitedS } = await land(pressed, holder);
-                expect(out, String(holder)).toEqual({ kind: "saturated" });
-                expect(waitedS).toBe(900);
-            }
-            expect(calls).toEqual([]);
-        });
-
-        it("a holder that runs nothing explains no load: still waiting for the machine, or the hold this process is under", async () => {
-            // `childPid` is stamped at the spawn — absent, the holder is
-            // itself waiting for the calm a preflight would hold up.
-            expect((await land(busy, { childPid: undefined })).out).toEqual({
-                kind: "saturated",
-            });
-            expect(
-                (await land(busy, {}, { TOLARIA_GATE_HELD: "1" })).out
-            ).toEqual({ kind: "saturated" });
-            expect(calls).toEqual([]);
-        });
+    it("goes from the refusal checks straight to the ONE heavy gate — the locked command is unchanged", () => {
+        const refuse = main.indexOf("if (reason) fail(");
+        const heavy = main.indexOf('spawnSync("bun", [GATE, "heavy", command]');
+        expect(refuse).toBeGreaterThan(-1);
+        expect(heavy).toBeGreaterThan(refuse);
+        expect(main.match(/spawnSync\(/g)).toHaveLength(1);
     });
 
     /**
-     * Issue #4992 — with the mutex free and nobody queued there is no queue
-     * to keep a failure out of: the preflight only delays the land, and the
-     * lane runs the same checks again on the rebased tip.
+     * Issue #4988 — the waiter entry dates from when the land was ISSUED,
+     * not from when it reached the gate. Still true with no preflight: the
+     * refusal checks (`gh pr view`, the receipt and scenario diffs) run
+     * before the entry exists.
      */
-    describe("a free mutex and an empty queue (issue #4992)", () => {
-        it("skips the preflight, naming why, and asks neither the machine nor the run", async () => {
-            const out = await preflightGate({
-                mode: "full",
-                enabled: true,
-                ...deps(1),
-                queueIdle: () => {
-                    calls.push("idle");
-                    return true;
-                },
-            });
-            expect(out).toEqual({
-                kind: "skipped",
-                why: expect.stringMatching(
-                    /heavy mutex is free and nobody is queued/
-                ),
-            });
-            expect(calls).toEqual(["idle"]);
-        });
-
-        it("a busy queue runs the preflight exactly as before: machine, then run", async () => {
-            expect(
-                await preflightGate({ mode: "full", enabled: true, ...deps(0) })
-            ).toEqual({ kind: "pass", ms: 1234 });
-            expect(calls).toEqual(["admit", "run"]);
-        });
-
-        it("--no-preflight and housekeeping are decided before the queue is read", async () => {
-            for (const [mode, enabled, why] of [
-                ["full", false, "--no-preflight"],
-                ["housekeeping", true, "housekeeping gates nothing"],
-            ] as const) {
-                const out = await preflightGate({
-                    mode,
-                    enabled,
-                    ...deps(1),
-                    queueIdle: () => {
-                        calls.push("idle");
-                        return true;
-                    },
-                });
-                expect(out.kind).toBe("skipped");
-                if (out.kind === "skipped") expect(out.why).toContain(why);
-            }
-            expect(calls).toEqual([]);
-        });
-
-        describe("heavyQueueIdle — what the gate calls live", () => {
-            const NOW = 90_000_000;
-            const HOLDER = 4001;
-            const WAITER = 4002;
-            let root: string;
-            let alive: Set<number>;
-            const isAlive = (pid: number) => alive.has(pid);
-            beforeEach(() => {
-                root = mkdtempSync(join(tmpdir(), "tolaria-land-idle-"));
-                alive = new Set([HOLDER, WAITER]);
-            });
-            afterEach(() =>
-                rmSync(root, {
-                    recursive: true,
-                    force: true,
-                    maxRetries: 10,
-                    retryDelay: 100,
-                })
-            );
-
-            const hold = (over: object = {}) => {
-                mkdirSync(join(root, "gate.lock"), { recursive: true });
-                writeFileSync(
-                    join(root, "gate.lock", "owner.json"),
-                    JSON.stringify({
-                        pid: HOLDER,
-                        label: "land 1",
-                        cwd: "/repo",
-                        ts: NOW - 1000,
-                        acquiredAt: NOW - 60_000,
-                        childPid: HOLDER + 100,
-                        ...over,
-                    })
-                );
-            };
-            const queue = (name: string, over: object = {}) => {
-                mkdirSync(join(root, "gate.waiters"), { recursive: true });
-                writeFileSync(
-                    join(root, "gate.waiters", name),
-                    JSON.stringify({
-                        pid: WAITER,
-                        role: "land",
-                        tier: "heavy",
-                        label: "land 2",
-                        cwd: "/repo",
-                        since: NOW - 300_000,
-                        seen: NOW - 2_000,
-                        ...over,
-                    })
-                );
-            };
-            const idle = (env: NodeJS.ProcessEnv = {}) =>
-                heavyQueueIdle(root, env, NOW, isAlive);
-
-            it("no lock and no registry: idle", () => {
-                expect(idle()).toBe(true);
-            });
-
-            it("a live holder is busy — running, or still waiting for the machine under its hold", () => {
-                hold();
-                expect(idle()).toBe(false);
-                hold({ childPid: undefined });
-                expect(idle()).toBe(false);
-            });
-
-            it("a lock not yet stamped with its owner is a gate mid-acquire: busy, until the grace makes it an orphan", () => {
-                mkdirSync(join(root, "gate.lock"));
-                const born = statSync(join(root, "gate.lock")).mtimeMs;
-                expect(heavyQueueIdle(root, {}, born + 1000, isAlive)).toBe(
-                    false
-                );
-                expect(heavyQueueIdle(root, {}, born + 6000, isAlive)).toBe(
-                    true
-                );
-                expect(
-                    heavyQueueIdle(
-                        root,
-                        { TOLARIA_GATE_OWNERLESS_GRACE_MS: "500" },
-                        born + 1000,
-                        isAlive
-                    )
-                ).toBe(true);
-            });
-
-            it("a free mutex with one live waiter is busy", () => {
-                queue(`${WAITER}.json`);
-                expect(idle()).toBe(false);
-            });
-
-            it("a dead holder, a silent one and a stalled one hold nothing: idle", () => {
-                alive.delete(HOLDER);
-                hold();
-                expect(idle(), "dead").toBe(true);
-                alive.add(HOLDER);
-                hold({ ts: NOW - 46 * 60_000 });
-                expect(idle(), "silent past 45 min").toBe(true);
-                hold({ stalledAt: NOW - 6 * 60_000 });
-                expect(idle(), "stalled past the short reclaim").toBe(true);
-                // The gate's own threshold overrides apply here too.
-                hold({ ts: NOW - 10_000 });
-                expect(idle({ TOLARIA_GATE_STALE_MS: "5000" })).toBe(true);
-                hold({ stalledAt: NOW - 2_000 });
-                expect(idle(), "stalled 2 s ago still holds").toBe(false);
-                expect(idle({ TOLARIA_GATE_STALLED_RECLAIM_MS: "1000" })).toBe(
-                    true
-                );
-            });
-
-            it("a stale waiter entry is not a waiter: dead pid, or silent past the waiter threshold", () => {
-                queue(`${WAITER}.json`, { seen: NOW - 61_000 });
-                expect(idle(), "silent").toBe(true);
-                queue(`${WAITER}.json`);
-                alive.delete(WAITER);
-                expect(idle(), "dead pid").toBe(true);
-                alive.add(WAITER);
-                expect(
-                    idle({ TOLARIA_GATE_WAITER_STALE_MS: "1000" }),
-                    "the gate's override"
-                ).toBe(true);
-            });
-
-            it("reading the registry leaves every entry in place, stale ones included", () => {
-                queue(`${WAITER}.json`, { seen: NOW - 10 * 60_000 });
-                alive.delete(WAITER);
-                queue("4003.json", { pid: 4003, seen: NOW - 10 * 60_000 });
-                // What a gate killed mid-write leaves — the gate prunes it.
-                queue("4004.json.4004.tmp", { pid: 4004 });
-                writeFileSync(join(root, "gate.waiters", "junk.json"), "{");
-                const dir = join(root, "gate.waiters");
-                const before = readdirSync(dir)
-                    .sort()
-                    .map((n) => [n, readFileSync(join(dir, n), "utf8")]);
-                expect(idle()).toBe(true);
-                expect(
-                    readGateWaiters(root)
-                        .map((w) => w.pid)
-                        .sort()
-                ).toEqual([WAITER, 4003]);
-                expect(
-                    readdirSync(dir)
-                        .sort()
-                        .map((n) => [n, readFileSync(join(dir, n), "utf8")])
-                ).toEqual(before);
-            });
-        });
-
-        it("main() asks the real lock root, once, inside the preflight decision", () => {
-            const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
-            const body = src.slice(src.indexOf("async function main("));
-            expect(body).toMatch(
-                /queueIdle: \(\) => heavyQueueIdle\(gateLockRoot\(\)\)/
-            );
-        });
-    });
-
-    /**
-     * Issue #4988 — the waiter entry is written only after the preflight, so
-     * a place dated from the entry put a land behind every land issued after
-     * it that reached the queue first. `land` hands the gate the time it was
-     * ISSUED; the real-process half is `gate.test.ts`.
-     */
-    it("a land that spent its preflight beside a holder queues by when it was ISSUED — ahead of a health waiter and of a land issued after it", () => {
+    it("queues by when it was ISSUED — ahead of a health waiter and of a land issued after it", () => {
         const issuedAt = 50_000_000;
-        // The preflight ran ~2 min; this is when the entry is finally written.
-        const registeredAt = issuedAt + 115_000;
+        const registeredAt = issuedAt + 15_000;
         const waiter = (over: Partial<GateWaiter>): GateWaiter => ({
             pid: 1,
             role: "land",
@@ -2741,45 +2122,23 @@ describe("land.ts — preflight before queuing (issue #4967)", () => {
         });
         const env = lockedEnv({}, issuedAt);
         const queue = [
-            // Queued while the preflight ran: a health gate, and a land
-            // issued a minute AFTER ours whose preflight was skipped.
             waiter({
                 pid: 10,
                 role: "health",
                 tier: "yield",
                 since: issuedAt + 5_000,
             }),
-            waiter({ pid: 20, since: issuedAt + 60_000 }),
+            waiter({ pid: 20, since: issuedAt + 10_000 }),
             waiter({ pid: 30, since: waiterSince(env, registeredAt) }),
         ];
         expect(queue[2].since).toBe(issuedAt);
         expect(admissionOrder(queue, registeredAt).map((w) => w.pid)).toEqual([
             30, 20, 10,
         ]);
-        // Without an issue time the entry dates from its own writing.
         expect(waiterSince(lockedEnv({}), registeredAt)).toBe(registeredAt);
-        // main() is where the two meet: the time is read first, and handed
-        // to the gate it spawns.
-        const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
-        const body = src.slice(src.indexOf("async function main("));
-        const issued = body.indexOf("const issuedAt = Date.now();");
+        const issued = main.indexOf("const issuedAt = Date.now();");
         expect(issued).toBeGreaterThan(-1);
-        expect(issued).toBeLessThan(body.indexOf("await preflightGate("));
-        expect(body).toMatch(/lockedEnv\(process\.env, issuedAt\)/);
-    });
-
-    it("main() settles the preflight before it spawns the heavy gate — a refusal never registers a waiter", () => {
-        const src = readFileSync(resolve(__dirname, "../land.ts"), "utf8");
-        const body = src.slice(src.indexOf("async function main("));
-        const pre = body.indexOf("await preflightGate(");
-        const refuse = body.indexOf('if (pre.kind === "refuse") fail(');
-        const heavy = body.indexOf('spawnSync("bun", [GATE, "heavy"');
-        expect(pre).toBeGreaterThan(-1);
-        expect(refuse).toBeGreaterThan(pre);
-        expect(heavy).toBeGreaterThan(refuse);
-        // The preflight is `check:lane --preflight`, the lane's own plan
-        // filtered — never a hand-kept list of commands in land.ts.
-        expect(src).toMatch(/\[CHECK_LANE, "--preflight"\]/);
-        expect(src).toMatch(/--no-preflight/);
+        expect(issued).toBeLessThan(main.indexOf("parseArgs(argv)"));
+        expect(main).toMatch(/lockedEnv\(process\.env, issuedAt\)/);
     });
 });

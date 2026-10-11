@@ -160,7 +160,9 @@ describe("pr-merge.ts — followUpNotice", () => {
         // The four steps whose silent absence is the bug, by the names a
         // reader can grep for.
         expect(text).toMatch(/preset-scenario seed/);
-        expect(text).toMatch(/gaps:sync/);
+        expect(text).toMatch(/health detach/);
+        // gaps:sync left land for the hourly housekeeping cron (issue #5457).
+        expect(text).not.toMatch(/gaps:sync/);
         expect(text).toMatch(/fast-forward/);
         expect(text).toMatch(/landing record/);
         // The follow-up is `land` itself — which, on an already-MERGED PR,

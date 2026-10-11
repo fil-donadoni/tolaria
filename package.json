@@ -66,6 +66,7 @@
         "ladder": "bun scripts/ladder.ts",
         "smoke:tier1": "bun scripts/tier1-smoke.ts",
         "land": "bun scripts/land.ts",
+        "housekeeping": "bun scripts/housekeeping.ts",
         "release": "bun scripts/release.ts",
         "lint": "eslint . --cache --cache-location node_modules/.cache/eslint.json --cache-strategy content",
         "lint:fix": "eslint . --fix --cache --cache-location node_modules/.cache/eslint.json --cache-strategy content",

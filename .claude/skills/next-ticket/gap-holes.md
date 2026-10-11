@@ -4,7 +4,10 @@ Read when: the ticket refused a member, left a key live, or filed a Grammar,
 Op/mechanic or Bot Gap (any `/next-ticket` on a gap issue).
 
 A ticket is not reported done until each such hole is **checked, never
-assumed from `gaps:sync`'s log**:
+assumed from `gaps:sync`'s log**. `land` no longer files gaps: the hourly
+`housekeeping` cron does (issue #5457). To file this PR's holes before the
+report, run `bun run gaps:sync` from the primary checkout, on the base branch,
+after the merge — never from the worktree, which would push the branch.
 
 1. an open issue exists for it (`gh issue list --search "<key or card>"`, or
    its row in `data/grammar-gaps.json`);

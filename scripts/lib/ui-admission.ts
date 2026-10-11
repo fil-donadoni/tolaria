@@ -32,24 +32,10 @@
  * `process.exit` reaches the `exit` release. A SIGKILL leaves a dead pid, which
  * the next waiter reclaims.
  */
-import {
-    existsSync,
-    mkdirSync,
-    readdirSync,
-    readFileSync,
-    rmSync,
-    statSync,
-    writeFileSync,
-} from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import {
-    reclaimVerdict,
-    STALLED_RECLAIM_MS,
-    waiterLive,
-    WAITER_STALE_MS,
-    type GateWaiter,
-} from "./gate-liveness";
+import { reclaimVerdict, STALLED_RECLAIM_MS } from "./gate-liveness";
 import {
     waitForMachine,
     type MachineThresholds,
@@ -222,7 +208,7 @@ export function heavyHolderLive(
 /**
  * The live heavy holder whose COMMAND IS RUNNING, or null (issue #4988) — the
  * one a 1-minute load over `machine.loadMax` is accounted to by a caller that
- * asks the machine with no hold on the mutex (`land`'s preflight, `check:ui`).
+ * asks the machine with no hold on the mutex (`check:ui`, `health-main`).
  *
  * Narrower than `heavyHolderLive` on purpose. A holder still waiting for the
  * machine under its hold has spawned nothing (`gate.ts` stamps `childPid` at
@@ -246,90 +232,9 @@ export function heavyHolderRunning(
         : null;
 }
 
-/** `gate.ts`'s default grace for a lock not yet stamped with its owner. */
-const OWNERLESS_GRACE_MS = 5000;
-
-/** Age of a `gate.lock` that carries no owner stamp; Infinity when there is
- *  no lock, or it has its owner (that case is `heavyHolderLive`'s). */
-function ownerlessLockAgeMs(root: string, now: number): number {
-    const dir = join(root, "gate.lock");
-    if (existsSync(join(dir, OWNER_NAME))) return Infinity;
-    try {
-        return now - statSync(dir).mtimeMs;
-    } catch {
-        return Infinity;
-    }
-}
-
 /** The heavy mutex's queue: one file per process waiting on `gate.lock`,
  *  beside it (`gate.ts` § waiter registry). */
 export const GATE_WAITERS_DIR = "gate.waiters";
-
-/**
- * Every entry of the waiter registry that parses — READ ONLY (issue #4992).
- * `gate.ts`'s own reader prunes what it finds dead as it reads, which is its
- * business as a member of the queue; a caller OUTSIDE the queue (`land`
- * deciding whether there is a queue at all) must leave it exactly as it
- * found it. A temp file mid-rename and a foreign file are not entries.
- */
-export function readGateWaiters(root: string): GateWaiter[] {
-    const dir = join(root, GATE_WAITERS_DIR);
-    let names: string[];
-    try {
-        names = readdirSync(dir);
-    } catch {
-        return [];
-    }
-    const out: GateWaiter[] = [];
-    for (const name of names) {
-        if (!name.endsWith(".json")) continue;
-        try {
-            const entry = JSON.parse(
-                readFileSync(join(dir, name), "utf8")
-            ) as GateWaiter;
-            if (typeof entry.pid === "number") out.push(entry);
-        } catch {
-            /* foreign or half-written — never a verdict */
-        }
-    }
-    return out;
-}
-
-/**
- * Whether the heavy mutex is FREE and NOBODY IS QUEUED on it (issue #4992) —
- * the one moment `land`'s preflight keeps nothing out of anything.
- *
- * "Live" is what the gate means by it, under the gate's own thresholds: a
- * holder that is dead or reclaimable holds nothing (`heavyHolderLive`), while
- * one still waiting for the machine under its hold does; an entry is a waiter
- * only while `waiterLive` says it stands for a queued process. Reads only.
- */
-export function heavyQueueIdle(
-    root: string,
-    env: NodeJS.ProcessEnv = process.env,
-    now: number = Date.now(),
-    isAlive: (pid: number) => boolean = pidAlive
-): boolean {
-    const staleMs = Number(env.TOLARIA_GATE_STALE_MS ?? HEAVY_STALE_MS);
-    const stalledMs = Number(
-        env.TOLARIA_GATE_STALLED_RECLAIM_MS ?? STALLED_RECLAIM_MS
-    );
-    if (heavyHolderLive(root, env, now, isAlive, staleMs, stalledMs) !== null)
-        return false;
-    // A lock with no owner stamp yet is a gate between its `mkdir` and its
-    // stamp — a holder, as the gate reads it, until it is old enough to be
-    // an orphan (`OWNERLESS_GRACE_MS` there).
-    const graceMs = Number(
-        env.TOLARIA_GATE_OWNERLESS_GRACE_MS ?? OWNERLESS_GRACE_MS
-    );
-    if (ownerlessLockAgeMs(root, now) < graceMs) return false;
-    const waiterStaleMs = Number(
-        env.TOLARIA_GATE_WAITER_STALE_MS ?? WAITER_STALE_MS
-    );
-    return !readGateWaiters(root).some((w) =>
-        waiterLive(w, isAlive(w.pid), now, waiterStaleMs)
-    );
-}
 
 /** The holder, as a machine-wait line names it. */
 export function heavyHolderLine(owner: HeavyGateOwner): string {

@@ -251,20 +251,21 @@ issue #4371) and runs `gaps:sync --band <band>`; a
 Grammar Rule under a P0 umbrella therefore files the Grammar, Bot and
 mechanic gaps it creates under the family's **P0** umbrella, not the P1 its
 Target computes (issue #4158). Nothing to pass or fix by hand after `land`;
-when the band could not be read `land` prints `gaps:sync gets no --band (…)`
-and the gaps file by their computed band — say so in the §6 report, and move
-them by hand. Run by hand from a P0 session (primary checkout only), pass
+the hourly `housekeeping` cron runs the sync after the merge (issue #5457),
+and when the band could not be read it logs `no --band (…)` and the gaps file
+by their computed band. Run by hand from a P0 session (primary checkout only), pass
 `--band P0` yourself.
 
 **Never run `bun run gaps:sync` from the worktree.** It commits the allowlist
 and pushes `HEAD:<base>` from its cwd — from a feature branch that pushes the
-branch onto the base. `land` runs it post-merge from the primary checkout;
-quote its `gaps:sync:` line from `land`'s log in the §6 report. (Until
+branch onto the base. The `housekeeping` cron runs it post-merge from the
+primary checkout (`.claude/telemetry/housekeeping/housekeeping.log`). (Until
 issue #3869 it files the Op-census rows only; a fragment gap closed by this
 rule is closed by the PR's own `Closes #N`.)
 
-**Residue ledger** — `land` runs `grammar:residue` after `gaps:sync` by itself
-(holes, long tail: `residue.md`; read it when `land` prints a hole warning).
+**Residue ledger** — the `housekeeping` cron runs `grammar:residue` after
+`gaps:sync` by itself (holes, long tail: `residue.md`; read it when its log
+names a hole).
 
 ## 10. The PR body
 
