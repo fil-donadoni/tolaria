@@ -187,7 +187,7 @@ describe("LimitedEventDetail — deck submitted", () => {
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
         expect(screen.queryByText("Your Pool is ready")).toBe(null);
-        expect(screen.getByText("Table")).toBeTruthy();
+        expect(screen.getByText("The table")).toBeTruthy();
         expect(screen.getByText("1/2 decks in")).toBeTruthy();
         const bar = screen.getByRole("progressbar");
         expect(bar.getAttribute("aria-valuenow")).toBe("1");

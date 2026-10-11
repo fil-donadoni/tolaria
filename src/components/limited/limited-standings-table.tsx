@@ -20,7 +20,7 @@ function formatPct(value: number): string {
  *  blank") rather than hiding until the first result lands; the caller
  *  decides WHEN the panel is shown at all (`LimitedEventDetail` gates it on
  *  the play phase having started). The viewer's own seat is highlighted
- *  (`seat.isViewer`, the same per-seat wire flag `LimitedSeatTile` already
+ *  (`seat.isViewer`, the same per-seat wire flag the table ring already
  *  uses) — same accent-tint convention, not a re-derived lookup. */
 export default function LimitedStandingsTable({
     event,

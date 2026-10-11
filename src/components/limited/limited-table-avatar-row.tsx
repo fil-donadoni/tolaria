@@ -1,11 +1,10 @@
 import type { LimitedEventSeatView } from "~/hooks/useLimitedEvent";
 import { cn } from "~/lib/utils";
 
-/** The table at a glance, as a row of small avatar chips (issue #2590) —
- *  replaces the full seat-tile grid (`LimitedEventSeatList`) as the
- *  antechamber's DEFAULT view. The full detail (who is passing to whom, pool
- *  counts) lives one click away in `LimitedTableRing`'s dialog; this row is
- *  only "who is sitting here", which is what the page needs at rest. */
+/** The table at a glance, as a row of small avatar chips (issue #2590) — the
+ *  phone-sized tile's seat summary (issue #5390). The full ring (who is
+ *  passing to whom, queued packs, records) lives one tap away in
+ *  `LimitedTableRing`'s dialog; this row is only "who is sitting here". */
 export default function LimitedTableAvatarRow({
     seats,
 }: {

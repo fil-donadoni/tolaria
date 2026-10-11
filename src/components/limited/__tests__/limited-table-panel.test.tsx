@@ -65,13 +65,21 @@ function makeEvent(
 }
 
 describe("LimitedTablePanel — compact avatar row + Table Ring dialog (issue #2590)", () => {
-    it("renders one avatar per seat, and never the old full seat-tile grid text", () => {
-        render(<LimitedTablePanel event={makeEvent()} showProgress={false} />);
+    it("renders the inline ring (md+) AND the compact tile (phones), both swapped by CSS (issue #5390)", () => {
+        const { container } = render(
+            <LimitedTablePanel event={makeEvent()} showProgress={false} />
+        );
 
-        expect(screen.getByLabelText("Table seats")).toBeTruthy();
-        // The old grid rendered "Open seat" as visible row text; the compact
-        // row only carries it in the `title` attribute.
-        expect(screen.queryByText("Open seat")).toBeNull();
+        const inline = container.querySelector("[data-slot=table-inline]")!;
+        expect(inline.className).toContain("hidden md:block");
+        expect(inline.querySelector("[data-slot=table-ring]")).toBeTruthy();
+        // Open seats read "Open seat" in the ring.
+        expect(inline.textContent).toContain("Open seat");
+
+        const tile = container.querySelector("[data-slot=table-tile]")!;
+        expect(tile.className).toContain("md:hidden");
+        expect(tile.querySelector("[aria-label='Table seats']")).toBeTruthy();
+        expect(tile.textContent).toContain("2 seats · 1 human · 1 open");
     });
 
     it("does not render the Ring dialog content until View Table is clicked", () => {
@@ -90,7 +98,7 @@ describe("LimitedTablePanel — compact avatar row + Table Ring dialog (issue #2
         // (Alice appears twice: her own row, and as the "passes to" target
         // of the other seat with only two at the table).
         expect(screen.getAllByText(/Alice/).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/Seat 2/).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/Open seat/).length).toBeGreaterThan(0);
     });
 
     // Round-2 review finding: before issue #2590 the Ring was mounted only
