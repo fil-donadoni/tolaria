@@ -200,17 +200,47 @@ describe("projectLimitedEvent — Draft privacy (issue #1112, PRD #1107 story 15
         expect(own.packQueueCount).toBe(1);
     });
 
-    it("strips every OTHER seat's currentPack contents and packQueueCount", () => {
+    it("strips every OTHER seat's currentPack contents", () => {
         const view = projectLimitedEvent(draftRow(), "user1");
         const other = view.seats.find((s) => s.seatIndex === 1)!;
         expect(other.currentPack).toBeNull();
-        expect(other.packQueueCount).toBeNull();
+    });
+
+    it("exposes every seat's queued-pack COUNT during the Draft, never a queued pack's contents (issue #5390)", () => {
+        const view = projectLimitedEvent(draftRow(), "user1");
+        expect(view.seats.map((s) => s.packQueueCount)).toEqual([1, 0]);
+        const serialized = JSON.stringify(
+            projectLimitedEvent(draftRow(), "user2").seats[0]
+        );
+        // Seat 0's queued pack holds "Card Three" - seat 1 must see the count only.
+        expect(serialized).not.toContain("Card Three");
+        expect(
+            projectLimitedEvent(draftRow(), "user2").seats[0].packQueueCount
+        ).toBe(1);
+    });
+
+    it("keeps another seat's packQueueCount null outside a live Draft (issue #5390)", () => {
+        const done = projectLimitedEvent(
+            draftRow({ draftCompletedAt: 12345 }),
+            "user1"
+        );
+        expect(
+            done.seats.find((s) => s.seatIndex === 1)!.packQueueCount
+        ).toBeNull();
+        const playing = projectLimitedEvent(
+            draftRow({ status: "playing" }),
+            "user1"
+        );
+        expect(
+            playing.seats.find((s) => s.seatIndex === 1)!.packQueueCount
+        ).toBeNull();
     });
 
     it("an outsider (no seat) sees every currentPack stripped", () => {
         const view = projectLimitedEvent(draftRow(), "outsider");
         expect(view.seats.every((s) => s.currentPack === null)).toBe(true);
-        expect(view.seats.every((s) => s.packQueueCount === null)).toBe(true);
+        // Counts only (issue #5390): the queue length is public mid-Draft.
+        expect(view.seats.map((s) => s.packQueueCount)).toEqual([1, 0]);
     });
 
     it("carries draftRound/draftPacksRemaining/draftCompletedAt through unchanged", () => {
