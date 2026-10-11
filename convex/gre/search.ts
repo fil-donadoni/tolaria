@@ -188,6 +188,7 @@ import {
 } from "./ai/deferral";
 import { abilityBenefitIsConfinedToSource } from "./ai/sourceConfinedBenefit";
 import { abilityIsDiscardExchange } from "./ai/discardExchange";
+import { abilityIsDenialExchange } from "./ai/denialExchange";
 import { abilityIsDrainExchange } from "./ai/drainExchange";
 import { abilityIsDrawExchange } from "./ai/drawExchange";
 import { abilityIsRemovalExchange } from "./ai/removalExchange";
@@ -1507,7 +1508,8 @@ export function rollout(
                     !isRemovalExchangeSacrifice(state, pid, botId, m) &&
                     !isDiscardExchangeSacrifice(state, pid, botId, m) &&
                     !isDrainExchangeSacrifice(state, pid, botId, m) &&
-                    !isDrawExchangeSacrifice(state, pid, botId, m)
+                    !isDrawExchangeSacrifice(state, pid, botId, m) &&
+                    !isDenialExchangeSacrifice(state, pid, botId, m)
             );
             const pool = drawn.length > 0 ? drawn : moves;
             chosen = pool[Math.floor(rng() * pool.length)];
@@ -2555,6 +2557,34 @@ export function isDrawExchangeSacrifice(
     );
 }
 
+/** Whether `move` is the BOT's own sacrifice of a standing permanent to
+ *  restrict a target player for the turn and nothing else
+ *  (`abilityIsDenialExchange`), in ANY window (issue #5431).
+ *
+ *  The sibling of `isDrawExchangeSacrifice`, on the same terms: the variants
+ *  (a victim × target grid) outnumber `pass` in the rollout's random draw and
+ *  open as tree children at the node after the cast, dragging the cast edge
+ *  under `pass`'s — a creature whose only ability is a sacrifice-for-denial
+ *  outlet was `never-chosen` while the same body without it was cast. The
+ *  bot's own moves only and never at the root, so a denial the bot could take
+ *  NOW stays a scored option and the opponent's stays in the tree.
+ *
+ *  Per-card-agnostic, never a card name (ADR 0102). */
+export function isDenialExchangeSacrifice(
+    state: GameState,
+    pid: string,
+    botId: string,
+    move: Move
+): boolean {
+    if (pid !== botId) return false;
+    return isSacrificeConversionWhere(
+        state,
+        pid,
+        move,
+        (ability) => ability.useStack && abilityIsDenialExchange(ability)
+    );
+}
+
 function isSacrificeConversionWhere(
     state: GameState,
     pid: string,
@@ -2890,7 +2920,18 @@ function iterate(
                                 botId,
                                 k.move
                             ) ||
-                            isDrawExchangeSacrifice(world, pid, botId, k.move))
+                            isDrawExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ) ||
+                            isDenialExchangeSacrifice(
+                                world,
+                                pid,
+                                botId,
+                                k.move
+                            ))
                     )
             );
             if (kept.length > 0) keyed = kept;

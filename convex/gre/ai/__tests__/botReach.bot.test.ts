@@ -1629,6 +1629,16 @@ describe("Bot-play sweep (ADR 0105 § 7.2)", () => {
             });
     });
 
+    // Issue #5431: a creature whose only ability sacrifices a permanent to
+    // restrict a target player for the turn is played — the exchange children
+    // below its own cast edge are pruned (`isDenialExchangeSacrifice`).
+    it("played — a creature that sacrifices a permanent to deny a player", () => {
+        expect(playBotReachSeats(getCardByName("Pardic Miner"))).toEqual([
+            { holderId: "p1", verdict: { outcome: "played" } },
+            { holderId: "p2", verdict: { outcome: "played" } },
+        ]);
+    }, 600_000);
+
     it("a draw spell's holder finds spells on top of the library, and only that holder", () => {
         const topOfLibrary = (def: CardDefinition, seat: 0 | 1): unknown => {
             const { state, holderId } = buildBotReachState(def, seat);
