@@ -45,6 +45,7 @@ import { splitPoolByArrangement } from "@convex/limited/poolArrangement";
 import DraftLandscapePanes from "./draft-room/draft-landscape-panes";
 import DraftPackDensityToggle from "./draft-room/draft-pack-density-toggle";
 import DraftPortraitPanes from "./draft-room/draft-portrait-panes";
+import { flyDraftPick } from "./draft-room/draftPickFly";
 import {
     draftPackColumns,
     nextDraftPackDensity,
@@ -250,6 +251,8 @@ export default function LimitedDraftTable({
 
     const handlePick = async (pickId: string) => {
         if (pending) return;
+        // The card flies to the Pool (issue #5397); the pick is not held back.
+        flyDraftPick(pickId, "maindeck", pool.length);
         setPending(true);
         setError(null);
         try {
@@ -350,9 +353,18 @@ export default function LimitedDraftTable({
     const handlePickTo = async (
         pickId: string,
         sideboard: boolean,
-        columnId: ColumnId | null
+        columnId: ColumnId | null,
+        fly = false
     ) => {
         if (pending) return;
+        // Click / menu / key picks fly; a drop does not — the card is already
+        // under the pointer (issue #5397).
+        if (fly)
+            flyDraftPick(
+                pickId,
+                sideboard ? "sideboard" : "maindeck",
+                pool.length
+            );
         setPending(true);
         setError(null);
         const poolIndex = pool.length;
@@ -377,7 +389,7 @@ export default function LimitedDraftTable({
     };
 
     const handlePickToSideboard = (pickId: string) =>
-        handlePickTo(pickId, true, null);
+        handlePickTo(pickId, true, null, true);
 
     // Reorganises an ALREADY-picked Pool card (Pool ⇄ Sideboard, or between
     // Columns) — a Pool-card drag. The SAME `setPoolArrangementEntry` write

@@ -18,12 +18,19 @@ import { SLOT_SPRING } from "./board-motion";
  * horizontal scroller that scroller is brought round to it; when it is not
  * rendered or not on screen, `standIn()` names what to fly to instead (a tab
  * label, a strip header). Neither resolving → no flight.
+ *
+ * A move that lands only after a server round trip (a Draft Room pick) sets
+ * `patienceMs`: the destination is then re-queried every frame for that long
+ * before the helper gives up on it and falls back to the stand-in.
  */
 export interface CardFlyTarget {
     /** The landed element, queried once the move has committed. */
     destination: () => Element | null;
     /** What to fly to when the destination is unrendered or off screen. */
     standIn?: () => Element | null;
+    /** How long to keep waiting for `destination()` to render, for a move that
+     *  commits asynchronously. Absent → resolved on the next frame only. */
+    patienceMs?: number;
 }
 
 /** Attribute the flying copy carries — the handle tests and styles query. */
@@ -59,11 +66,17 @@ export function flyCard(
     const from = source.getBoundingClientRect();
     if (from.width === 0 || from.height === 0) return;
     const ghost = cloneForFlight(source);
-    win.requestAnimationFrame(() => {
+    const giveUpAt = win.performance.now() + (target.patienceMs ?? 0);
+    const attempt = () => {
+        if (target.destination() === null && win.performance.now() < giveUpAt) {
+            win.requestAnimationFrame(attempt);
+            return;
+        }
         const landing = resolveLanding(target, win);
         if (landing === null) return;
         launch(ghost, from, landing, win);
-    });
+    };
+    win.requestAnimationFrame(attempt);
 }
 
 function cloneForFlight(source: Element): HTMLElement {

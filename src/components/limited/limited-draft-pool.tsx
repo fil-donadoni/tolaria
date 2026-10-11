@@ -236,7 +236,10 @@ export default function LimitedDraftPool({
                 arrange === "column" && "flex-col"
             )}
         >
-            <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
+            <div
+                data-deck-pane="maindeck"
+                className="min-h-0 min-w-0 flex-1 overflow-hidden"
+            >
                 <DeckZoneSurface
                     zone="maindeck"
                     title="Pool"
@@ -268,6 +271,7 @@ export default function LimitedDraftPool({
                 />
             </div>
             <div
+                data-deck-pane="sideboard"
                 className={cn(
                     "shrink-0 overflow-y-auto border-border-subtle/30",
                     arrange === "column"

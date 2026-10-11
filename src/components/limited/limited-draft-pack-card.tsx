@@ -135,6 +135,8 @@ export default function LimitedDraftPackCard({
             // strip's CTA row and desktop's card menu are each half a regime
             // (issue #2861).
             data-draft-pick-tile=""
+            // The tile a pick flies from (`draftPickFly.ts`, issue #5397).
+            data-pick-id={card.pickId}
             title={card.cardName}
             aria-label={`Draft pick: ${card.cardName}${selected ? " (selected)" : ""}`}
             onPointerDown={(e) => {
