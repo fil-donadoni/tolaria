@@ -978,3 +978,261 @@ export function formatAdr0136Rows(
 
     return out.join("\n");
 }
+
+// ─── Issue #5460: the rows that prove or disprove the throughput target ──────
+
+/** Host stamp of a session whose claim predates `host` in `claims.jsonl`. */
+export const UNSTAMPED_HOST = "(unstamped)";
+
+/** Local calendar day of an epoch-seconds instant, `YYYY-MM-DD`. */
+export function isoDayOf(epochS: number): string {
+    const d = new Date(epochS * 1000);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+        d.getDate()
+    ).padStart(2, "0")}`;
+}
+
+/** `session → host` from the claim journal's `claim` rows; the first stamp wins. */
+export function hostBySessionFromClaims(jsonl: string): Map<string, string> {
+    const out = new Map<string, string>();
+    for (const line of jsonl.split("\n")) {
+        if (!line.trim()) continue;
+        try {
+            const r = JSON.parse(line) as {
+                session?: string;
+                event?: string;
+                host?: string;
+            };
+            if (
+                r.event === "claim" &&
+                r.session &&
+                r.host &&
+                !out.has(r.session)
+            )
+                out.set(r.session, r.host);
+        } catch {
+            /* a torn line is not a claim */
+        }
+    }
+    return out;
+}
+
+export interface MachineThroughputRow {
+    host: string;
+    /** PRs merged by sessions that claimed on this host. */
+    prs: number;
+    /** Local hours in which one of this host's sessions had a main-thread turn. */
+    activeHours: number;
+    prsPerHour: number;
+}
+
+/**
+ * PRs landed per active hour, per machine. A session's machine is the `host`
+ * its `claim` row in `claims.jsonl` stamped (`hostBySession`); a session with
+ * no stamp (a claim older than the stamp, or none at all) pools under
+ * {@link UNSTAMPED_HOST} rather than being credited to the wrong machine.
+ * A PR belongs to the machine of the session whose `prs` names it.
+ */
+export function machineThroughput(
+    turns: LatencyTurn[],
+    merges: MergedPr[],
+    sessions: SessionMeta[],
+    hostBySession: ReadonlyMap<string, string>
+): MachineThroughputRow[] {
+    const hostOf = (s: string) => hostBySession.get(s) ?? UNSTAMPED_HOST;
+    const hostByPr = new Map<number, string>();
+    for (const m of sessions)
+        for (const pr of m.prs) hostByPr.set(pr, hostOf(m.session));
+    const hosts = new Set<string>([
+        ...turns.map((t) => hostOf(t.session)),
+        ...hostByPr.values(),
+    ]);
+    return [...hosts]
+        .sort()
+        .map((host) => {
+            const buckets = hourlyThroughput(
+                turns.filter((t) => hostOf(t.session) === host),
+                merges.filter((m) => hostByPr.get(m.number) === host)
+            );
+            const prs = buckets.reduce((n, b) => n + b.prsLanded, 0);
+            const activeHours = buckets.filter(
+                (b) => b.activeSessions > 0
+            ).length;
+            return {
+                host,
+                prs,
+                activeHours,
+                prsPerHour: activeHours > 0 ? prs / activeHours : 0,
+            };
+        })
+        .filter((r) => r.prs > 0 || r.activeHours > 0);
+}
+
+/** One `gate-lock.jsonl` row, as `gate_lock` stores it. */
+export interface GateLockRow {
+    ts: number;
+    tier: string | null;
+    event: string | null;
+    cmd: string | null;
+    waitedMs: number | null;
+    durationMs: number | null;
+}
+
+/** `land` takes the heavy mutex for its rebase → lane → push → merge. */
+export function isLandMutexRow(r: GateLockRow): boolean {
+    return (
+        r.tier === "heavy" &&
+        r.event === "acquired" &&
+        /\bgit rebase origin\//.test(r.cmd ?? "")
+    );
+}
+
+/** Batch health holds the mutex at the `yield` tier. */
+export function isHealthMutexRow(r: GateLockRow): boolean {
+    return (
+        r.tier === "yield" &&
+        r.event === "run" &&
+        /scripts\/health-main\.ts/.test(r.cmd ?? "")
+    );
+}
+
+export interface LandMutexDay {
+    day: string;
+    acquisitions: number;
+    p50S: number;
+    p90S: number;
+}
+
+/** Wait for the heavy mutex that `land` queued behind, p50 / p90 per day. */
+export function landMutexByDay(rows: GateLockRow[]): LandMutexDay[] {
+    const byDay = new Map<string, number[]>();
+    for (const r of rows.filter(isLandMutexRow)) {
+        const day = isoDayOf(r.ts);
+        const waits = byDay.get(day) ?? [];
+        waits.push((r.waitedMs ?? 0) / 1000);
+        byDay.set(day, waits);
+    }
+    return [...byDay.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, waits]) => ({
+            day,
+            acquisitions: waits.length,
+            p50S: quantile(waits, 0.5),
+            p90S: quantile(waits, 0.9),
+        }));
+}
+
+export interface HealthMutexDay {
+    day: string;
+    runs: number;
+    minutes: number;
+}
+
+/** Minutes per day the mutex was held by batch health. */
+export function healthMutexByDay(rows: GateLockRow[]): HealthMutexDay[] {
+    const byDay = new Map<string, { runs: number; ms: number }>();
+    for (const r of rows.filter(isHealthMutexRow)) {
+        const day = isoDayOf(r.ts);
+        const cur = byDay.get(day) ?? { runs: 0, ms: 0 };
+        cur.runs += 1;
+        cur.ms += r.durationMs ?? 0;
+        byDay.set(day, cur);
+    }
+    return [...byDay.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([day, { runs, ms }]) => ({ day, runs, minutes: ms / 60000 }));
+}
+
+export interface LandAttemptsRow {
+    /** Attempts one PR took to merge; the last row pools `attempts` and above. */
+    attempts: number;
+    prs: number;
+}
+
+/** Cap of the histogram: a PR needing this many `land` runs or more pools. */
+export const LAND_ATTEMPTS_CAP = 4;
+
+/**
+ * How many `land` runs each PR needed (`gate_attempts`, one row per run): the
+ * distribution behind the failed-lands KPI, per PR instead of per attempt.
+ */
+export function landAttemptsPerPr(
+    attempts: Array<{ cmd: string }>
+): LandAttemptsRow[] {
+    const perPr = new Map<number, number>();
+    for (const a of attempts) {
+        const pr = landPrOfCommand(a.cmd);
+        if (pr !== null) perPr.set(pr, (perPr.get(pr) ?? 0) + 1);
+    }
+    const hist = new Map<number, number>();
+    for (const n of perPr.values()) {
+        const k = Math.min(n, LAND_ATTEMPTS_CAP);
+        hist.set(k, (hist.get(k) ?? 0) + 1);
+    }
+    return [...hist.entries()]
+        .sort((a, b) => a[0] - b[0])
+        .map(([attempts, prs]) => ({ attempts, prs }));
+}
+
+/** The four rows, as the plain-text block `telemetry:latency` prints. */
+export function formatThroughputRows(rows: {
+    machines: MachineThroughputRow[];
+    landMutex: LandMutexDay[];
+    healthMutex: HealthMutexDay[];
+    landAttempts: LandAttemptsRow[];
+}): string {
+    const out: string[] = [];
+    out.push("");
+    out.push("  PRs landed per active hour, per machine (claim host stamp)");
+    out.push(
+        `  ${pad("host", 30, false)} ${pad("PRs", 6)} ${pad("hours", 7)} ${pad("PR/h", 7)}`
+    );
+    for (const r of rows.machines)
+        out.push(
+            `  ${pad(r.host, 30, false)} ${pad(String(r.prs), 6)} ${pad(
+                String(r.activeHours),
+                7
+            )} ${pad(r.prsPerHour.toFixed(2), 7)}`
+        );
+
+    out.push("");
+    out.push("  `land` heavy-mutex wait per day");
+    out.push(
+        `  ${pad("day", 12, false)} ${pad("lands", 6)} ${pad("p50", 9)} ${pad("p90", 9)}`
+    );
+    for (const r of rows.landMutex)
+        out.push(
+            `  ${pad(r.day, 12, false)} ${pad(String(r.acquisitions), 6)} ${pad(
+                mins(r.p50S),
+                9
+            )} ${pad(mins(r.p90S), 9)}`
+        );
+
+    out.push("");
+    out.push("  batch-health mutex hold per day");
+    out.push(
+        `  ${pad("day", 12, false)} ${pad("runs", 6)} ${pad("minutes", 9)}`
+    );
+    for (const r of rows.healthMutex)
+        out.push(
+            `  ${pad(r.day, 12, false)} ${pad(String(r.runs), 6)} ${pad(
+                r.minutes.toFixed(1),
+                9
+            )}`
+        );
+
+    out.push("");
+    out.push("  `land` attempts per PR");
+    out.push(`  ${pad("attempts", 10, false)} ${pad("PRs", 6)}`);
+    for (const r of rows.landAttempts)
+        out.push(
+            `  ${pad(
+                r.attempts === LAND_ATTEMPTS_CAP
+                    ? `${r.attempts}+`
+                    : String(r.attempts),
+                10,
+                false
+            )} ${pad(String(r.prs), 6)}`
+        );
+    return out.join("\n");
+}

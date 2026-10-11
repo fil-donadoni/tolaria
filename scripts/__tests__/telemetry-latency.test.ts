@@ -4,6 +4,15 @@ import {
     blockingFindingRate,
     estimateGenerationSeconds,
     formatAdr0136Rows,
+    formatThroughputRows,
+    healthMutexByDay,
+    hostBySessionFromClaims,
+    isoDayOf,
+    landAttemptsPerPr,
+    landMutexByDay,
+    machineThroughput,
+    UNSTAMPED_HOST,
+    type GateLockRow,
     formatReport,
     hourlyThroughput,
     isGateSpan,
@@ -772,5 +781,169 @@ describe("parseHealthLogRed", () => {
             return Number(exits[exits.length - 1][1]) !== 0;
         };
         expect(lastOnly(log)).toBe(false); // the bug this test guards against
+    });
+});
+
+/**
+ * Issue #5460 — the four rows that prove or disprove the throughput target.
+ * Hours are built from local-time epoch seconds so the day buckets agree with
+ * `isoDayOf` in any timezone.
+ */
+describe("throughput target rows (issue #5460)", () => {
+    const at = (day: string, hh: number, mm = 0) =>
+        Math.floor(new Date(`${day}T00:00:00`).getTime() / 1000) +
+        hh * 3600 +
+        mm * 60;
+
+    it("hostBySessionFromClaims keeps the first claim stamp and skips torn lines", () => {
+        const jsonl = [
+            '{"session":"s1","event":"claim","host":"mac"}',
+            '{"session":"s1","event":"released"}',
+            '{"session":"s2","event":"claim"}',
+            "{not json",
+            '{"session":"s3","event":"claim","host":"huawei"}',
+            '{"session":"s1","event":"claim","host":"other"}',
+        ].join("\n");
+        expect([...hostBySessionFromClaims(jsonl)]).toEqual([
+            ["s1", "mac"],
+            ["s3", "huawei"],
+        ]);
+    });
+
+    it("machineThroughput: PRs per active hour by the session's claim host", () => {
+        const d = "2026-10-05";
+        const turns = [
+            { session: "a", ts: at(d, 10, 5), outTok: 1, ctx: 1 },
+            { session: "a", ts: at(d, 11, 5), outTok: 1, ctx: 1 },
+            { session: "b", ts: at(d, 10, 7), outTok: 1, ctx: 1 },
+            { session: "c", ts: at(d, 10, 9), outTok: 1, ctx: 1 },
+        ];
+        const sessions = [
+            { session: "a", cmd: null, prs: [1, 2] },
+            { session: "b", cmd: null, prs: [3] },
+            { session: "c", cmd: null, prs: [] },
+        ];
+        const merges = [
+            { number: 1, mergedAtS: at(d, 10, 30) },
+            { number: 2, mergedAtS: at(d, 11, 30) },
+            { number: 3, mergedAtS: at(d, 10, 40) },
+        ];
+        const rows = machineThroughput(
+            turns,
+            merges,
+            sessions,
+            new Map([
+                ["a", "mac"],
+                ["b", "huawei"],
+            ])
+        );
+        expect(rows).toEqual([
+            { host: UNSTAMPED_HOST, prs: 0, activeHours: 1, prsPerHour: 0 },
+            { host: "huawei", prs: 1, activeHours: 1, prsPerHour: 1 },
+            { host: "mac", prs: 2, activeHours: 2, prsPerHour: 1 },
+        ]);
+    });
+
+    const lock = (over: Partial<GateLockRow>): GateLockRow => ({
+        ts: at("2026-10-05", 12),
+        tier: "heavy",
+        event: "acquired",
+        cmd: "unset GITHUB_TOKEN && git fetch origin staging && git rebase origin/staging",
+        waitedMs: 0,
+        durationMs: null,
+        ...over,
+    });
+
+    it("landMutexByDay: p50 / p90 of the land waits, per day, ignoring other lock rows", () => {
+        const d1 = "2026-10-05";
+        const d2 = "2026-10-06";
+        const waits = [60, 120, 180, 240, 600].map((s, i) =>
+            lock({ ts: at(d1, 9 + i), waitedMs: s * 1000 })
+        );
+        const rows = [
+            ...waits,
+            lock({ ts: at(d2, 9), waitedMs: 30_000 }),
+            lock({
+                ts: at(d1, 9),
+                waitedMs: 9_999_000,
+                cmd: "bun run test:app",
+            }),
+            lock({ ts: at(d1, 9), waitedMs: 9_999_000, tier: "light" }),
+            lock({ ts: at(d1, 9), waitedMs: 9_999_000, event: "run" }),
+        ];
+        expect(landMutexByDay(rows)).toEqual([
+            { day: d1, acquisitions: 5, p50S: 180, p90S: 600 },
+            { day: d2, acquisitions: 1, p50S: 30, p90S: 30 },
+        ]);
+    });
+
+    it("healthMutexByDay: minutes the yield tier held the mutex for health-main", () => {
+        const d = "2026-10-05";
+        const health = (ts: number, ms: number) =>
+            lock({
+                ts,
+                tier: "yield",
+                event: "run",
+                cmd: 'bun "/x/scripts/health-main.ts" --branch=staging',
+                durationMs: ms,
+            });
+        const rows = [
+            health(at(d, 3), 20 * 60000),
+            health(at(d, 15), 10 * 60000),
+            lock({
+                ts: at(d, 15),
+                tier: "yield",
+                event: "run",
+                cmd: 'bun "/x/scripts/health-robustness-audit.ts"',
+                durationMs: 999999,
+            }),
+        ];
+        expect(healthMutexByDay(rows)).toEqual([
+            { day: d, runs: 2, minutes: 30 },
+        ]);
+    });
+
+    it("landAttemptsPerPr: runs per PR, 4+ pooled, non-land commands ignored", () => {
+        const cmds = [
+            "land 1",
+            "land 2",
+            "land 2",
+            "land 3",
+            "land 3",
+            "land 3",
+            "land 4",
+            "land 4",
+            "land 4",
+            "land 4",
+            "land 5",
+            "land 5",
+            "land 5",
+            "land 5",
+            "land 5",
+            "docs:ship x",
+        ].map((cmd) => ({ cmd }));
+        expect(landAttemptsPerPr(cmds)).toEqual([
+            { attempts: 1, prs: 1 },
+            { attempts: 2, prs: 1 },
+            { attempts: 3, prs: 1 },
+            { attempts: 4, prs: 2 },
+        ]);
+    });
+
+    it("isoDayOf agrees with the local-day buckets and formatThroughputRows prints all four", () => {
+        expect(isoDayOf(at("2026-10-05", 23, 59))).toBe("2026-10-05");
+        const out = formatThroughputRows({
+            machines: [{ host: "mac", prs: 4, activeHours: 2, prsPerHour: 2 }],
+            landMutex: [
+                { day: "2026-10-05", acquisitions: 3, p50S: 120, p90S: 300 },
+            ],
+            healthMutex: [{ day: "2026-10-05", runs: 2, minutes: 30 }],
+            landAttempts: [{ attempts: 4, prs: 2 }],
+        });
+        expect(out).toContain("per machine");
+        expect(out).toMatch(/mac\s+4\s+2\s+2\.00/);
+        expect(out).toMatch(/2026-10-05\s+3\s+2\.0m\s+5\.0m/);
+        expect(out).toMatch(/2026-10-05\s+2\s+30\.0/);
+        expect(out).toMatch(/4\+\s+2/);
     });
 });

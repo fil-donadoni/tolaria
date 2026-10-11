@@ -276,16 +276,20 @@ type ModelPrice = {
 
 const PRICES: Record<string, ModelPrice> = {
     "claude-fable-5": { in: 10, out: 50 },
+    "claude-fable-5-1": { in: 10, out: 50 },
     "claude-mythos-5": { in: 10, out: 50 },
     "claude-opus-5": { in: 5, out: 25 },
+    "claude-opus-5-5": { in: 5, out: 25 },
     "claude-opus-4-8": { in: 5, out: 25 },
     "claude-opus-4-7": { in: 5, out: 25 },
     "claude-opus-4-6": { in: 5, out: 25 },
     "claude-opus-4-5": { in: 5, out: 25 },
     "claude-sonnet-5": { in: 3, out: 15 },
+    "claude-sonnet-5-5": { in: 3, out: 15 },
     "claude-sonnet-4-6": { in: 3, out: 15 },
     "claude-sonnet-4-5": { in: 3, out: 15 },
     "claude-haiku-4-5": { in: 1, out: 5 },
+    "claude-haiku-5-5": { in: 1, out: 5 },
     // DeepSeek (off-peak): input = cache-miss rate, output = full rate.
     "deepseek-v4-pro": {
         in: 0.66,
@@ -324,6 +328,63 @@ export function normalizeModel(raw: string): string {
     if (m === "haiku") return "claude-haiku-4-5";
     if (m === "fable") return "claude-fable-5";
     return m;
+}
+
+/** Whether {@link costOf} has a price for this model. */
+export function isPricedModel(model: string): boolean {
+    return normalizeModel(model) in PRICES;
+}
+
+/** A model with rows but no price: its row count, for the ingest's warning. */
+export interface UnpricedModel {
+    model: string;
+    rows: number;
+}
+
+/** One `llm` row the cost backfill looks at. */
+export interface CostRow {
+    id: string;
+    model: string;
+    inTok: number;
+    outTok: number;
+    cacheRead: number;
+    cacheWrite: number;
+}
+
+/**
+ * Prices rows whose `cost` is still 0 (issue #5460): a model that gained a
+ * price after its rows were ingested, or a row ingested before the table knew
+ * it. A row of an unpriced model stays 0 and is COUNTED per model, never
+ * dropped silently — `<synthetic>` (the harness's own zero-token placeholder)
+ * is not a model and is not counted.
+ */
+export function backfillCosts(rows: CostRow[]): {
+    updates: Array<{ id: string; cost: number }>;
+    unpriced: UnpricedModel[];
+} {
+    const updates: Array<{ id: string; cost: number }> = [];
+    const unknown = new Map<string, number>();
+    for (const r of rows) {
+        if (r.model === "<synthetic>") continue;
+        if (!isPricedModel(r.model)) {
+            unknown.set(r.model, (unknown.get(r.model) ?? 0) + 1);
+            continue;
+        }
+        const cost = costOf(
+            r.model,
+            r.inTok,
+            r.outTok,
+            r.cacheRead,
+            r.cacheWrite
+        );
+        if (cost > 0) updates.push({ id: r.id, cost });
+    }
+    return {
+        updates,
+        unpriced: [...unknown.entries()]
+            .map(([model, rows]) => ({ model, rows }))
+            .sort((a, b) => b.rows - a.rows),
+    };
 }
 
 export function costOf(

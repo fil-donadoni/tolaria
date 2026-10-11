@@ -22,13 +22,20 @@
  * not importable there.
  */
 
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { Database as Sqlite } from "bun:sqlite";
 import { primaryCheckout } from "./lib/primary-checkout.ts";
 import {
     allSessionLatencies,
     formatAdr0136Rows,
+    formatThroughputRows,
+    healthMutexByDay,
+    hostBySessionFromClaims,
+    landAttemptsPerPr,
+    landMutexByDay,
+    machineThroughput,
+    type GateLockRow,
     formatReport,
     isIssueClosing,
     isNextIssue,
@@ -218,7 +225,34 @@ const healthRows = db
     red: number;
 }>;
 
+// ─── Issue #5460: the four throughput-target rows ──────────────────────────
+
+const gateLockRows = db
+    .query(
+        `SELECT ts, tier, event, cmd, waited_ms AS waitedMs, duration_ms AS durationMs
+         FROM gate_lock WHERE ts BETWEEN ? AND ?`
+    )
+    .all(
+        Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000),
+        Math.floor(new Date(`${to}T23:59:59`).getTime() / 1000)
+    ) as GateLockRow[];
+
+const landAttemptRows = db
+    .query(
+        `SELECT cmd FROM gate_attempts
+         WHERE started BETWEEN ? AND ? AND cmd LIKE 'land %'`
+    )
+    .all(
+        Math.floor(new Date(`${from}T00:00:00`).getTime() / 1000),
+        Math.floor(new Date(`${to}T23:59:59`).getTime() / 1000)
+    ) as Array<{ cmd: string }>;
+
 db.close();
+
+const claimsPath = join(dirname(dbPath), "claims.jsonl");
+const hostBySession = hostBySessionFromClaims(
+    existsSync(claimsPath) ? readFileSync(claimsPath, "utf8") : ""
+);
 
 if (turns.length === 0) {
     console.error(`No main-thread turns between ${from} and ${to}.`);
@@ -243,6 +277,12 @@ const merges: MergedPr[] = prMetaRows
         return day >= from && day <= to;
     });
 const concurrency = throughputByConcurrency(hourlyThroughput(turns, merges));
+const throughput = {
+    machines: machineThroughput(turns, merges, meta, hostBySession),
+    landMutex: landMutexByDay(gateLockRows),
+    healthMutex: healthMutexByDay(gateLockRows),
+    landAttempts: landAttemptsPerPr(landAttemptRows),
+};
 
 // Row 2 — blocking-finding rate per reviewer model. A session's merge time
 // caps how late a commit can still count as "fixed after review" — the
@@ -347,6 +387,7 @@ if (asJson) {
                 cohorts,
                 sessions: rows.slice(0, showSessions),
                 adr0136: { concurrency, reviewers, redOnRed, lanes, fallback },
+                throughput,
             },
             null,
             2
@@ -358,6 +399,7 @@ if (asJson) {
     console.log(
         formatAdr0136Rows(concurrency, reviewers, redOnRed, lanes, fallback)
     );
+    console.log(formatThroughputRows(throughput));
     if (showSessions > 0) {
         console.log("");
         console.log(`  slowest ${showSessions} sessions`);
