@@ -315,6 +315,47 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         expect(r.stderr).toMatch(/red at test:app/);
     });
 
+    it("stops as health-second-red and notifies the owner when a RED stands on an AMBER lineage (issue #5462)", () => {
+        stubGhCountingFrom(5);
+        stubClaudeProgress();
+        writeRed();
+        fs.writeFileSync(
+            path.join(path.dirname(redMarker()), "AMBER"),
+            JSON.stringify({ sha: "cafebabe", repairOf: "deadbeef" })
+        );
+        const notified = path.join(tmp, "notified");
+        const r = run({
+            args: ["--claude-args", "x"],
+            env: {
+                TOLARIA_VERDICT_STORE: "file",
+                TOLARIA_NOTIFY_CMD: `printf '%s' "$1" > "${notified}"`,
+            },
+        });
+        expect(r.stdout).toMatch(/reason=health-second-red/);
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/SECOND RED/);
+        expect(passLogCount()).toBe(0);
+        expect(fs.readFileSync(notified, "utf8")).toMatch(
+            /second RED .*deadbeef.*test:app.*loop stopped/
+        );
+    });
+
+    it("runs the pass on an AMBER lineage — a proved repair landed (issue #5462)", () => {
+        stubGhCountingFrom(1);
+        stubClaudeProgress();
+        fs.mkdirSync(path.dirname(redMarker()), { recursive: true });
+        fs.writeFileSync(
+            path.join(path.dirname(redMarker()), "AMBER"),
+            JSON.stringify({ sha: "cafebabe", repairOf: "deadbeef" })
+        );
+        const r = run({
+            args: ["--claude-args", "x"],
+            env: { TOLARIA_VERDICT_STORE: "file" },
+        });
+        expect(r.stdout).not.toMatch(/reason=health-/);
+        expect(passLogCount()).toBe(1);
+    });
+
     it("runs normally when the marker is absent (proof the check is the marker, not the directory)", () => {
         stubGhCountingFrom(1);
         stubClaudeProgress();
