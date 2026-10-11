@@ -57,7 +57,7 @@ export default function LimitedTableRing({
             subtitle={subtitle}
             showCloseButton
         >
-            <LimitedTableRingView event={event} round={round} />
+            <LimitedTableRingView event={event} round={round} focusable />
         </GameDialog>
     );
 }

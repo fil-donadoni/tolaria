@@ -79,6 +79,22 @@ export default function LimitedTableRingSeat({
                     <span className="ml-1 text-accent-strong">(you)</span>
                 )}
             </span>
+            {facts.showQueued && seat.poolCount !== null && (
+                <span
+                    data-slot="picked"
+                    className="text-[10px] tabular-nums text-text-muted"
+                >
+                    {seat.poolCount} picked
+                </span>
+            )}
+            {facts.hint === "deckbuilding" && kind !== "open" && (
+                <span
+                    data-slot="deck-ready"
+                    className="text-[10px] text-text-muted"
+                >
+                    {seat.hasDeck ? "Deck ready" : "Building"}
+                </span>
+            )}
             {facts.showQueued && seat.packQueueCount !== null && (
                 <span
                     data-slot="queued-packs"

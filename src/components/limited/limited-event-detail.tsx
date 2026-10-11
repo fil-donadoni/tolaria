@@ -292,8 +292,8 @@ export default function LimitedEventDetail({
             </PanelBody>
 
             <PanelBody className="mt-3">
-                {/* The table: the seat ring (issue #5390). The build-progress bar is gated on `isPoolFinal` (issue
-                    #1580): a deck cannot exist before the Pool is final, so
+                {/* The table: the seat ring (issue #5390). The build-progress
+                    bar is gated on `isPoolFinal` (issue #1580): a deck cannot exist before the Pool is final, so
                     the "N/seatCount decks in" counter would otherwise misread
                     as live progress while a Draft is still running. */}
                 <div data-slot="event-table">

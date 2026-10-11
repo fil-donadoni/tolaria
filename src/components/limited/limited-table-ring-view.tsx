@@ -17,9 +17,13 @@ import LimitedTableRingSeat from "./limited-table-ring-seat";
 export default function LimitedTableRingView({
     event,
     round,
+    focusable = false,
 }: {
     event: LimitedEventView;
     round: number;
+    /** A tab stop for a scrolling dialog body (axe
+     *  `scrollable-region-focusable`, issue #4422) — not for the inline ring. */
+    focusable?: boolean;
 }) {
     const facts = ringPhaseFacts(event);
     const viewerSeat = event.seats.find((s) => s.isViewer);
@@ -34,7 +38,7 @@ export default function LimitedTableRingView({
             data-slot="table-ring"
             role="list"
             aria-label="Draft table"
-            tabIndex={0}
+            tabIndex={focusable ? 0 : undefined}
             className="relative mx-auto aspect-[4/3] min-h-64 w-full max-w-xl"
         >
             {arrows.map((arrow) => (

@@ -120,4 +120,14 @@ describe("LimitedTableRing (issues #2587, #5390)", () => {
         expect(kind("1")).toBe("human");
         expect(kind("0")).toBe("bot");
     });
+
+    it("keeps each seat's picks made while drafting", () => {
+        const seats = mountRing(0);
+        const picked = (i: string) =>
+            seats
+                .find((el) => el.dataset.seatIndex === i)!
+                .querySelector("[data-slot=picked]")?.textContent;
+        expect(picked("2")).toBe("2 picked");
+        expect(picked("1")).toBe("3 picked");
+    });
 });
