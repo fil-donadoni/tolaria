@@ -27,6 +27,7 @@ import {
     HEALTH_ONLY_GUARDS,
     HEALTH_SCRIPTS,
     LANE_COST_BUDGET_S,
+    MAINTENANCE_SCRIPTS,
 } from "../lib/health-step";
 
 /**
@@ -2064,15 +2065,35 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
             (n) => n.startsWith("check:") && n !== "check:lane"
         );
 
-    it("every check:* script is in a lane or in HEALTH_ONLY_GUARDS", () => {
+    it("every check:* script is in a lane, in HEALTH_ONLY_GUARDS or in MAINTENANCE_SCRIPTS", () => {
         const reach = laneReachable();
         const orphans = checks().filter(
-            (n) => !reach.has(n) && !(n in HEALTH_ONLY_GUARDS)
+            (n) =>
+                !reach.has(n) &&
+                !(n in HEALTH_ONLY_GUARDS) &&
+                !(n in MAINTENANCE_SCRIPTS)
         );
         expect(
             orphans,
-            "a check:* script in no lane must be listed in HEALTH_ONLY_GUARDS (scripts/lib/health-step.ts) with its measured cost — over 10 s, or it belongs in check:lane"
+            "a check:* script in no lane must be listed in HEALTH_ONLY_GUARDS (scripts/lib/health-step.ts) with its measured cost — over 10 s, or it belongs in check:lane — or, if no gate should ever wait for it, in MAINTENANCE_SCRIPTS"
         ).toEqual([]);
+    });
+
+    it("a maintenance script is never gated: in no lane, not health-only, not a health step (issue #5458)", () => {
+        const reach = laneReachable();
+        for (const [name, { measured, why }] of Object.entries(
+            MAINTENANCE_SCRIPTS
+        )) {
+            expect(pkg.scripts, name).toHaveProperty(name);
+            expect(reach.has(name), `${name} is in a lane`).toBe(false);
+            expect(name in HEALTH_ONLY_GUARDS, name).toBe(false);
+            expect(
+                HEALTH_SCRIPTS.map((e) => e.split(/\s+/)[0]),
+                name
+            ).not.toContain(name);
+            expect(measured.length, name).toBeGreaterThan(10);
+            expect(why.length, name).toBeGreaterThan(10);
+        }
     });
 
     it("a health-only guard is one the lane does not run, and costs more than the budget", () => {

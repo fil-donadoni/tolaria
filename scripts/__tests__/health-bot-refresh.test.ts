@@ -1,10 +1,16 @@
-// The Bot Findings refresh a health batch owes (ADR 0141 § 5, issue #4181):
-// it runs when — and only when — the batch's diff touched the Bot globs, it
-// runs in the health batch, and it runs neither in `check:pr` nor in `land`.
+// The Bot Findings refresh (ADR 0141 § 5, issue #4181) and the weekly Bot
+// audits: they run when — and only when — the base moved the Bot globs (the
+// audits: on the weekly night), from `health:nightly` (issue #5458), and
+// neither in health, `check:pr` nor `land`.
 import { describe, it, expect } from "vitest";
 import * as fs from "fs";
 import * as path from "path";
-import { batchTouchesBot, botRefreshSteps } from "../lib/health-bot-refresh";
+import {
+    AUDIT_WEEKDAY,
+    auditsDue,
+    batchTouchesBot,
+    botRefreshSteps,
+} from "../lib/health-bot-refresh";
 import { HEALTH_SCRIPTS } from "../lib/health-step";
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
@@ -72,15 +78,29 @@ describe("where the refresh runs", () => {
             expect(script).not.toMatch(REFRESH);
     });
 
-    it("is wired into the health batch, after the gates and only on a Bot-touching diff", () => {
-        const src = read("scripts/health-main.ts");
-        expect(src).toContain("batchChangedFiles(root, tip)");
-        expect(src).toContain("batchTouchesBot(batch)");
-        expect(src).toContain("botRefreshSteps(steps.length, root)");
-        // A failed gate skips the refresh: the loop sits under `failedStep === undefined`.
-        expect(src).toMatch(
-            /if \(failedStep === undefined\) \{[\s\S]*?for \(const step of refreshSteps\)/
+    it("is wired into health:nightly, only on a Bot-touching diff since the last refresh (issue #5458)", () => {
+        const pkg = JSON.parse(read("package.json")) as {
+            scripts: Record<string, string>;
+        };
+        expect(pkg.scripts["health:nightly"]).toBe(
+            "bun scripts/health-nightly.ts"
         );
+        const src = read("scripts/health-nightly.ts");
+        expect(src).toContain("batchTouchesBot(changed)");
+        expect(src).toContain("botRefreshSteps(1, root)");
+        expect(src).toContain("auditsDue({");
+    });
+
+    it("is no longer wired into the health batch (issue #5458)", () => {
+        for (const file of [
+            "scripts/health-main.ts",
+            "scripts/health-cadence.ts",
+        ]) {
+            const src = read(file);
+            expect(src, file).not.toContain("botRefreshSteps(");
+            expect(src, file).not.toContain("batchTouchesBot(");
+            expect(src, file).not.toContain("health-bot-refresh");
+        }
     });
 
     it("is neither in check:pr nor in land", () => {
@@ -96,5 +116,56 @@ describe("where the refresh runs", () => {
         ])
             expect(pkg.scripts[name] ?? "").not.toMatch(REFRESH);
         expect(read("scripts/land.ts")).not.toMatch(REFRESH);
+    });
+});
+
+describe("auditsDue — the weekly audits (issue #5458)", () => {
+    const DAY = 24 * 60 * 60 * 1000;
+    /** A local-time date on the given weekday, at 03:00. */
+    function on(weekday: number): Date {
+        const d = new Date(2026, 9, 11, 3, 0, 0); // a Sunday
+        d.setDate(d.getDate() + ((weekday - d.getDay() + 7) % 7));
+        return d;
+    }
+    const audit = AUDIT_WEEKDAY;
+    const other = (AUDIT_WEEKDAY + 3) % 7;
+
+    it("is due on the weekly night", () => {
+        const now = on(audit);
+        expect(
+            auditsDue({ now, lastAuditAt: now.getTime() - 7 * DAY }).due
+        ).toBe(true);
+        expect(auditsDue({ now, lastAuditAt: null }).due).toBe(true);
+    });
+
+    it("is not due on another night within the week", () => {
+        const now = on(other);
+        expect(
+            auditsDue({ now, lastAuditAt: now.getTime() - 3 * DAY })
+        ).toEqual({ due: false, reason: "not the weekly audit night" });
+        expect(auditsDue({ now, lastAuditAt: null }).due).toBe(false);
+    });
+
+    it("does not re-run on the weekly night once it ran within the day", () => {
+        const now = on(audit);
+        expect(
+            auditsDue({ now, lastAuditAt: now.getTime() - 2 * 60 * 60 * 1000 })
+                .due
+        ).toBe(false);
+    });
+
+    it("catches up on any night once the weekly night was missed", () => {
+        const now = on(other);
+        const v = auditsDue({ now, lastAuditAt: now.getTime() - 9 * DAY });
+        expect(v.due).toBe(true);
+        expect(v.reason).toMatch(/missed/);
+    });
+
+    it("runs whatever the day when asked", () => {
+        const now = on(other);
+        expect(
+            auditsDue({ now, lastAuditAt: now.getTime() - DAY, force: true })
+                .due
+        ).toBe(true);
     });
 });

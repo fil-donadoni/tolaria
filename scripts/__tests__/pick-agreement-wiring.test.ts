@@ -38,20 +38,26 @@ describe("held-out pick agreement wiring (issue #3982)", () => {
         expect(body).toContain("verdict-search.spec.ts");
     });
 
-    it("is not a health gate; the trigger asks, the cadence runs it after the verdict", () => {
+    it("is not a health gate nor asked for by health: the nightly runs it weekly (issue #5458)", () => {
         expect(HEALTH_SCRIPTS).not.toContain(PICK_AGREEMENT_STEP);
         const { offline, walk } = splitHealthGates(HEALTH_SCRIPTS);
         expect([...offline, ...walk]).not.toContain(PICK_AGREEMENT_STEP);
-        const main = readFileSync(join(ROOT, "scripts/health-main.ts"), "utf8");
-        expect(main).toContain("writePickRequest(");
-        const cadence = readFileSync(
-            join(ROOT, "scripts/health-cadence.ts"),
+        for (const file of [
+            "scripts/health-main.ts",
+            "scripts/health-cadence.ts",
+        ]) {
+            const src = readFileSync(join(ROOT, file), "utf8");
+            expect(src, file).not.toContain("writePickRequest(");
+            expect(src, file).not.toContain('"health-pick-agreement-audit.ts"');
+        }
+        const nightly = readFileSync(
+            join(ROOT, "scripts/health-nightly.ts"),
             "utf8"
         );
-        // After the verdict is on disk, never before it.
-        expect(
-            cadence.indexOf("spawnPickAgreementAudit(root);")
-        ).toBeGreaterThan(cadence.indexOf("writeCadence(root, action.state);"));
+        expect(nightly).toContain(
+            "writePickRequest(dir, sha, mode.reason, true)"
+        );
+        expect(nightly).toContain('"health-pick-agreement-audit.ts"');
     });
 
     it("no other package script invokes it", () => {

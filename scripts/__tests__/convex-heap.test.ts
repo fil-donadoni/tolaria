@@ -8,7 +8,11 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { HEALTH_ONLY_GUARDS, HEALTH_SCRIPTS } from "../lib/health-step";
+import {
+    HEALTH_ONLY_GUARDS,
+    HEALTH_SCRIPTS,
+    MAINTENANCE_SCRIPTS,
+} from "../lib/health-step";
 import {
     HEAP_BUDGET_CATALOGUE_BYTES,
     HEAP_BUDGET_NO_CATALOGUE_BYTES,
@@ -170,15 +174,17 @@ describe("check:convex-heap — the wiring (issue #4853)", () => {
         readFileSync(resolve(__dirname, "../../package.json"), "utf8")
     ) as { scripts: Record<string, string> };
 
-    it("is a package script, run by health", () => {
+    it("is a package script, run by `bun run maintenance`, never by health (issue #5458)", () => {
         expect(pkg.scripts["check:convex-heap"]).toBe(
             "bun scripts/check-convex-heap.ts"
         );
-        expect(HEALTH_SCRIPTS).toContain("check:convex-heap");
+        expect(pkg.scripts.maintenance).toBe("bun scripts/maintenance.ts");
+        expect(MAINTENANCE_SCRIPTS).toHaveProperty("check:convex-heap");
+        expect(HEALTH_SCRIPTS).not.toContain("check:convex-heap");
     });
 
-    it("is health-only: no lane gate composes it", () => {
-        expect(HEALTH_ONLY_GUARDS).toHaveProperty("check:convex-heap");
+    it("is never gated: no lane gate composes it, nor health", () => {
+        expect(HEALTH_ONLY_GUARDS).not.toHaveProperty("check:convex-heap");
         for (const name of ["check:pr", "check:all", "check:all:inner"]) {
             expect(pkg.scripts[name]).not.toContain("check:convex-heap");
         }

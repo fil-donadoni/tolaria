@@ -6,6 +6,10 @@ import {
     fmtElapsed,
     healthGateEnv,
     runHealthStep,
+    splitHealthGates,
+    HEALTH_ONLY_GUARDS,
+    HEALTH_SCRIPTS,
+    MAINTENANCE_SCRIPTS,
     type HealthStep,
 } from "../lib/health-step";
 
@@ -233,5 +237,36 @@ describe("healthGateEnv — who holds the mutex for a health run", () => {
         // The guard-cache bypass is NOT part of the exception: a full gate
         // that trusts a cached PASS is not a full gate (issue #3646).
         expect(env.TOLARIA_GUARD_CACHE).toBe("off");
+    });
+});
+
+describe("HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458)", () => {
+    it("is worktree:init, check:all, the cheap guards and test offline, then the walk", () => {
+        expect(splitHealthGates(HEALTH_SCRIPTS)).toEqual({
+            offline: [
+                "worktree:init",
+                "check:all",
+                "check:gaps",
+                "check:targets",
+                "check:test-hygiene",
+                "test",
+            ],
+            walk: ["check:ui --all"],
+        });
+    });
+
+    it("leaves check:convex-heap to the maintenance tier, never gated", () => {
+        expect(HEALTH_SCRIPTS).not.toContain("check:convex-heap");
+        expect(HEALTH_ONLY_GUARDS).not.toHaveProperty("check:convex-heap");
+        expect(MAINTENANCE_SCRIPTS).toHaveProperty("check:convex-heap");
+    });
+
+    it("never runs a maintenance script, nor a health-only guard as maintenance", () => {
+        for (const name of Object.keys(MAINTENANCE_SCRIPTS)) {
+            expect(HEALTH_SCRIPTS.map((e) => e.split(/\s+/)[0])).not.toContain(
+                name
+            );
+            expect(HEALTH_ONLY_GUARDS).not.toHaveProperty(name);
+        }
     });
 });

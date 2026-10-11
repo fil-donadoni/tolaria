@@ -79,10 +79,10 @@ describe("health cadence — the batch trigger (ADR 0136 §6)", () => {
         });
     });
 
-    it("fires 4 h after the FIRST un-healthed landing even with one landing", () => {
+    it("fires 8 h after the FIRST un-healthed landing even with one landing", () => {
         // The count threshold alone would leave a lone landing un-gated
         // indefinitely on a quiet afternoon — the exposure window ADR 0136 §6
-        // bounds at "≤ 10 landings or 4 h".
+        // bounds at "≤ 20 landings or 8 h" (ADR 0154, issue #5458).
         const v = healthTrigger({
             state: state({ landings: landings(1) }),
             tip: "tip1",
@@ -265,7 +265,7 @@ describe("health cadence — the fire dedup expires (issue #3780 review, finding
         // A reboot, a `gate:who` reclaim, a machine asleep: the run never
         // wrote a verdict, so nothing clears the stamp. Without an expiry that
         // batch is never gated at all — the exposure ADR 0136 §6 bounds at
-        // "≤ 10 landings or 4 h" becomes unbounded.
+        // "≤ 20 landings or 8 h" becomes unbounded.
         expect(
             healthTrigger({
                 state: fired(),
@@ -868,6 +868,9 @@ const RED_WINDOW: [string, number][] = [
 const WINDOW_REPAIRS = new Set(["ab6e7250", "aa785cf0"]);
 /** Index of 7b9ed220, whose run opened the RED window. */
 const FIRST_RED = 3;
+/** The cadence thresholds of the replayed window (before issue #5458). */
+const REPLAY_LANDINGS_PER_BATCH = 10;
+const REPLAY_MAX_BATCH_AGE_MS = 4 * 60 * MIN;
 
 /**
  * Drive the trigger over the window. `rules: "old"` is the pre-#4964 cadence:
@@ -904,6 +907,10 @@ function replayRedWindow(opts: {
             now,
             red: opts.rules === "new",
             pending: busy ? "a run is queued or running" : null,
+            // The thresholds the window ran under and the replay was
+            // calibrated at — not today's (issue #5458 retuned them).
+            landingsPerBatch: REPLAY_LANDINGS_PER_BATCH,
+            maxAgeMs: REPLAY_MAX_BATCH_AGE_MS,
         });
         if (v.kind === "fire") {
             fires++;
