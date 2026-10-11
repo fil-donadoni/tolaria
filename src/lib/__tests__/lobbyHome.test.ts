@@ -119,6 +119,7 @@ const activeMatch = (
     status: "playing" as const,
     solo: false,
     vsAi: false,
+    mode: null,
     ...patch,
 });
 
@@ -143,6 +144,11 @@ describe("yourTables — stories 6–8", () => {
         });
         const [solo] = yourTables(activeMatch({ solo: true }), []);
         expect(solo.line).toBe("Solo");
+        const [manual] = yourTables(
+            activeMatch({ solo: true, mode: "manual" }),
+            []
+        );
+        expect(manual.title).toBe("Cockatrice");
         const [human] = yourTables(activeMatch({ status: "waiting" }), []);
         expect(human).toMatchObject({
             line: "vs Human",

@@ -3166,7 +3166,8 @@ export const SURFACES: readonly Surface[] = [
          * states: it reads "Play" and is enabled until this deck is the
          * lobby's active one, then reads "Selected" and is `disabled`. Which
          * state this walk finds depends on what an EARLIER surface in the same
-         * context stored as `tolaria:selectedDeckId`), so a role+name promise would name an element that exists only
+         * context left in `tolaria:selectedDeckId` (the walks no longer
+         * select a deck, but a context can still carry one), so a role+name promise would name an element that exists only
          * half the time and an actionability check would assert the opposite
          * of a legitimate state. `data-deck-detail-play` holds across both.
          *

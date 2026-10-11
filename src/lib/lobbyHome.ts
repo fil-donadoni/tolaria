@@ -91,6 +91,7 @@ export interface ActiveMatchSlice {
     status: ActiveGameStatus;
     solo: boolean;
     vsAi: boolean;
+    mode: "manual" | null;
 }
 
 export type TableRow =
@@ -144,7 +145,7 @@ export function yourTables(
         rows.push({
             kind: "match",
             key: activeMatch.gameId,
-            title: "Constructed",
+            title: activeMatch.mode === "manual" ? "Cockatrice" : "Constructed",
             line: matchOpponent(activeMatch),
             phase: matchPhase(activeMatch.status),
             gameId: activeMatch.gameId,

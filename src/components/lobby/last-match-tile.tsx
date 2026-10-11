@@ -10,6 +10,8 @@ interface LastMatchTileProps {
     onPlayAgain: () => void;
     onChangeSetup: () => void;
     busy: boolean;
+    /** One active game per user (#155): the server refuses a second. */
+    blocked: boolean;
     className?: string;
 }
 
@@ -18,6 +20,7 @@ export default function LastMatchTile({
     onPlayAgain,
     onChangeSetup,
     busy,
+    blocked,
     className,
 }: LastMatchTileProps) {
     return (
@@ -38,7 +41,12 @@ export default function LastMatchTile({
                     type="button"
                     data-home-play-again
                     onClick={onPlayAgain}
-                    disabled={busy}
+                    disabled={busy || blocked}
+                    title={
+                        blocked
+                            ? "Finish or leave your active game first"
+                            : undefined
+                    }
                     className="rounded-sm bg-parchment px-3 py-1.5 text-sm font-semibold text-surface-base transition hover:bg-parchment/90 disabled:opacity-60"
                 >
                     {busy ? "Starting…" : "Play again →"}

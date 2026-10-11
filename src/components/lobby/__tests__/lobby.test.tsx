@@ -187,6 +187,28 @@ describe("Lobby home — Last Match (stories 1–4)", () => {
         expect(localStorage.getItem("tolaria:playerId")).toBe("user-1-p1");
     });
 
+    it("Play again is refused while a game is active (#155)", () => {
+        localStorage.setItem(
+            MATCH_SETUP_STORAGE_KEY,
+            JSON.stringify(BOT_SETUP)
+        );
+        queries["gameReads.myActiveGame"] = {
+            gameId: "game-7",
+            matchId: "match-7",
+            name: "Tester vs Bot",
+            status: "playing",
+            matchStatus: "active",
+            solo: true,
+            vsAi: true,
+            mode: null,
+        };
+        const { getByRole } = render(<Lobby />);
+        const button = getByRole("button", { name: "Play again →" });
+        expect((button as HTMLButtonElement).disabled).toBe(true);
+        fireEvent.click(button);
+        expect(createSoloGame).not.toHaveBeenCalled();
+    });
+
     it("change setup opens the flow", () => {
         localStorage.setItem(
             MATCH_SETUP_STORAGE_KEY,

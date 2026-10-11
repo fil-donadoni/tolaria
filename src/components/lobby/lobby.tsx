@@ -134,6 +134,7 @@ function Lobby() {
                             onPlayAgain={playAgain}
                             onChangeSetup={openFlow}
                             busy={busy}
+                            blocked={!!activeGame}
                             className="col-span-2 h-[240px] md:row-span-2 md:h-auto"
                         />
                     )}

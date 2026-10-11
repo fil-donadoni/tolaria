@@ -61,7 +61,7 @@ export default function YourTablesSection({
                     className={cn(
                         "grid grid-cols-2 gap-3 md:grid-cols-4",
                         !showAll &&
-                            "[&>*:nth-child(n+3)]:hidden md:[&>*:nth-child(n+3)]:flex md:[&>*:nth-child(n+5)]:hidden"
+                            "[&>*:nth-child(n+3)]:hidden md:[&>*:nth-child(n+3):nth-child(-n+4)]:flex"
                     )}
                 >
                     {rows.map((row, i) => (
