@@ -1,11 +1,7 @@
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
-import { cn } from "~/lib/utils";
-
-const COLUMNS = "minmax(0,1fr) 3rem 5rem 4.5rem 3.5rem 3.5rem";
-
-function formatPct(value: number): string {
-    return `${Math.round(value * 100)}%`;
-}
+import LimitedStandingsRow, {
+    STANDINGS_COLUMNS,
+} from "./limited-standings-row";
 
 /** The standings table (PRD #1628 stories 22-24/47, issue #1643) — one row
  *  per seat, DERIVED at read time from the event's recorded rounds
@@ -36,66 +32,26 @@ export default function LimitedStandingsTable({
             </h3>
             <div className="overflow-x-auto rounded-sm border border-border-subtle/40">
                 <div
-                    className="grid min-w-[32rem] items-center gap-x-2 border-b border-border-subtle/40 bg-surface-elevated px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted"
-                    style={{ gridTemplateColumns: COLUMNS }}
+                    className="hidden min-w-[34rem] items-center gap-x-2 border-b border-border-subtle/40 bg-surface-elevated px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted sm:grid"
+                    style={{ gridTemplateColumns: STANDINGS_COLUMNS }}
                 >
-                    <span>Seat</span>
+                    <span className="text-center">#</span>
+                    <span>Player</span>
                     <span className="text-right">Pts</span>
                     <span className="text-right">Record</span>
-                    <span className="text-right">Games</span>
                     <span className="text-right">GW%</span>
-                    <span className="text-right">OMW%</span>
+                    <span>OMW%</span>
                 </div>
-                {event.standings.map((row) => {
-                    const seat = event.seats.find(
-                        (s) => s.seatIndex === row.seatIndex
-                    );
-                    const label = seat
-                        ? seat.isBot
-                            ? (seat.nickname ?? "Bot Drafter")
-                            : (seat.nickname ?? "Open seat")
-                        : `Seat ${row.seatIndex + 1}`;
-                    return (
-                        <div
-                            key={row.seatIndex}
-                            data-testid="standings-row"
-                            data-seat-index={row.seatIndex}
-                            data-is-viewer={seat?.isViewer ?? false}
-                            className={cn(
-                                "grid min-w-[32rem] items-center gap-x-2 border-b border-border-subtle/20 px-2 py-1.5 text-xs last:border-b-0",
-                                seat?.isViewer && "bg-accent/5"
-                            )}
-                            style={{ gridTemplateColumns: COLUMNS }}
-                        >
-                            <span
-                                className={cn(
-                                    "min-w-0 truncate",
-                                    seat?.isViewer
-                                        ? "font-semibold text-accent-strong"
-                                        : "text-text"
-                                )}
-                            >
-                                {label}
-                            </span>
-                            <span className="text-right font-semibold tabular-nums text-text">
-                                {row.points}
-                            </span>
-                            <span className="text-right tabular-nums text-text-muted">
-                                {row.matchWins}-{row.matchLosses}
-                                {row.matchDraws > 0 ? `-${row.matchDraws}` : ""}
-                            </span>
-                            <span className="text-right tabular-nums text-text-muted">
-                                {row.gameWins}-{row.gameLosses}
-                            </span>
-                            <span className="text-right tabular-nums text-text-muted">
-                                {formatPct(row.gameWinPct)}
-                            </span>
-                            <span className="text-right tabular-nums text-text-muted">
-                                {formatPct(row.opponentMatchWinPct)}
-                            </span>
-                        </div>
-                    );
-                })}
+                {event.standings.map((row, index) => (
+                    <LimitedStandingsRow
+                        key={row.seatIndex}
+                        row={row}
+                        rank={index + 1}
+                        seat={event.seats.find(
+                            (s) => s.seatIndex === row.seatIndex
+                        )}
+                    />
+                ))}
             </div>
         </div>
     );
