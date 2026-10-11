@@ -3744,7 +3744,7 @@ export const SURFACES: readonly Surface[] = [
             },
             {
                 label: "refusal listed",
-                locator: { selector: '[role="dialog"] [role=alert]' },
+                locator: { selector: "[data-import-refusal]" },
                 check: "visible",
             },
             {
@@ -3765,13 +3765,7 @@ export const SURFACES: readonly Surface[] = [
                 .locator('[role="dialog"]')
                 .getByRole("button", { name: "Import", exact: true })
                 .click({ timeout: STEP_TIMEOUT });
-            if (
-                !(await visible(
-                    page,
-                    '[role="dialog"] [role=alert]',
-                    STEP_TIMEOUT
-                ))
-            ) {
+            if (!(await visible(page, "[data-import-refusal]", STEP_TIMEOUT))) {
                 throw new Unreachable("a refused paste listed no problem");
             }
             await settle(page);

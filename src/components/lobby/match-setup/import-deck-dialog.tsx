@@ -148,7 +148,7 @@ export default function ImportDeckDialog({
                     className="input-field w-full resize-y px-3 py-2 font-mono text-xs"
                 />
                 {errors.length > 0 && (
-                    <Banner tone="danger" role="alert">
+                    <Banner tone="danger" role="alert" data-import-refusal>
                         <p className="text-label">Import refused:</p>
                         <ul className="mt-1 max-h-32 select-text overflow-auto font-mono text-xs text-text-muted">
                             {errors.map((line, i) => (
