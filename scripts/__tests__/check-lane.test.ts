@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
     classifyPath,
+    packageJsonClass,
     classifyLane,
     renderPlan,
     renderJson,
@@ -114,9 +115,9 @@ describe("check-lane — path classification (issue #2740)", () => {
         ).toBe("engine");
     });
 
-    it("classifies shared tooling inputs as full", () => {
+    it("classifies build/test/type/lint configuration and lockfiles as full", () => {
         for (const p of [
-            "package.json",
+            "package.json", // path-only default; content decides (packageJsonClass)
             "bun.lock",
             "vitest.config.ts",
             "vitest.blade.config.ts",
@@ -127,10 +128,82 @@ describe("check-lane — path classification (issue #2740)", () => {
             "convex/tsconfig.json",
             "eslint.config.js",
             ".prettierrc",
-            ".claude/hooks/deny-guard.sh",
         ]) {
             expect(classifyPath(p), p).toBe("full");
         }
+    });
+
+    // Issue #5456: one row per path class that left `full`.
+    it("classifies tooling configuration as engine, with node-tooling admitted", () => {
+        for (const p of [
+            ".claude/hooks/deny-guard.sh",
+            ".claude/settings.json",
+            "tolaria.config.json",
+            ".nvmrc",
+            ".prettierignore",
+            ".gitattributes",
+        ]) {
+            expect(classifyPath(p), p).toBe("engine");
+            const plan = classifyLane([p]);
+            expect(plan.lane, p).toBe("engine");
+        }
+        const hook = classifyLane([".claude/hooks/deny-guard.sh"]);
+        expect(hook.run.map((c) => c.id)).toContain("node-tooling");
+        for (const p of ["tolaria.config.json", ".nvmrc", ".gitattributes"])
+            expect(
+                classifyLane([p]).run.map((c) => c.id),
+                p
+            ).toContain("node-tooling");
+    });
+
+    describe("package.json is classified by content (issue #5456)", () => {
+        const pkg = (o: object) => JSON.stringify(o);
+        const base = {
+            scripts: { a: "x" },
+            dependencies: { react: "1" },
+            devDependencies: { vite: "1" },
+            engines: { node: ">=20" },
+            packageManager: "bun@1",
+        };
+        it("a scripts-only edit is engine", () => {
+            expect(
+                packageJsonClass(
+                    pkg(base),
+                    pkg({ ...base, scripts: { a: "y", b: "z" } })
+                )
+            ).toBe("engine");
+        });
+        it.each([
+            ["dependencies", { react: "2" }],
+            ["devDependencies", { vite: "2" }],
+            ["engines", { node: ">=22" }],
+            ["packageManager", "bun@2"],
+        ])("a %s change is full", (key, value) => {
+            expect(
+                packageJsonClass(pkg(base), pkg({ ...base, [key]: value }))
+            ).toBe("full");
+        });
+        it("an unlisted key (type, imports) is full", () => {
+            expect(
+                packageJsonClass(pkg(base), pkg({ ...base, type: "module" }))
+            ).toBe("full");
+        });
+        it("added, deleted or unparsable is full", () => {
+            expect(packageJsonClass(null, pkg(base))).toBe("full");
+            expect(packageJsonClass(pkg(base), null)).toBe("full");
+            expect(packageJsonClass(pkg(base), "{")).toBe("full");
+        });
+        it("classifyLane honours the content override; absent it, full", () => {
+            const o = new Map<string, "engine">([["package.json", "engine"]]);
+            const plan = classifyLane(
+                ["package.json"],
+                ["package.json"],
+                undefined,
+                o
+            );
+            expect(plan.lane).toBe("engine");
+            expect(classifyLane(["package.json"]).lane).toBe("full");
+        });
     });
 
     /**
@@ -157,7 +230,7 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(
             classifyPath(".agents/skills/convex-quickstart/assets/icon.svg")
         ).toBe("full");
-        expect(classifyPath(".claude/hooks/theme.css")).toBe("full");
+        expect(classifyPath(".agents/hooks/theme.css")).toBe("full");
     });
 
     it("FAILS CLOSED: a path matching no rule is full, never skin", () => {
@@ -232,8 +305,8 @@ describe("check-lane — path classification (issue #2740)", () => {
         expect(classifyPath("src/CLAUDE.md.ts")).toBe("skin");
         expect(classifyPath("convex/gre/NOTES.md")).toBe("engine");
         // `.claude/CLAUDE.md` is neither a skill nor a rule index, so the
-        // `.claude/**` carve-out does not reach it and FULL_PATTERNS does.
-        expect(classifyPath(".claude/CLAUDE.md")).toBe("full");
+        // `.claude/**` carve-out does not reach it: engine config (#5456).
+        expect(classifyPath(".claude/CLAUDE.md")).toBe("engine");
     });
 
     /**
@@ -293,30 +366,32 @@ describe("check-lane — `.claude/**` is split: prose is docs, programs are full
      * DIRECTORY must never promote a non-prose file into the prose lane. A
      * skill that ships a script is the sharp case — the script runs.
      */
-    it("a non-prose file under a skill stays full", () => {
+    it("a non-prose file under a skill is engine, never docs", () => {
         expect(classifyPath(".claude/skills/next-ticket/lib/plan.ts")).toBe(
-            "full"
+            "engine"
         );
         expect(classifyPath(".claude/skills/new-set/bin/compile.sh")).toBe(
-            "full"
+            "engine"
         );
         expect(classifyPath(".claude/skills/to-prd/fixtures/x.json")).toBe(
-            "full"
+            "engine"
         );
     });
 
-    it("hooks, settings and anything else under .claude/ stay full", () => {
-        expect(classifyPath(".claude/hooks/deny-guard.sh")).toBe("full");
+    it("hooks, settings and anything else under .claude/ are engine", () => {
+        expect(classifyPath(".claude/hooks/deny-guard.sh")).toBe("engine");
         expect(classifyPath(".claude/hooks/lib/join-continued-lines.awk")).toBe(
-            "full"
+            "engine"
         );
-        expect(classifyPath(".claude/settings.json")).toBe("full");
-        expect(classifyPath(".claude/settings.local.json")).toBe("full");
+        expect(classifyPath(".claude/settings.json")).toBe("engine");
+        expect(classifyPath(".claude/settings.local.json")).toBe("engine");
         // Neither a skill nor a rule index: nothing enumerates what reads
-        // these, so they keep the fail-closed default.
-        expect(classifyPath(".claude/CLAUDE.md")).toBe("full");
-        expect(classifyPath(".claude/agents/cavecrew-builder.md")).toBe("full");
-        expect(classifyPath(".claude/rules/nested/deeper.md")).toBe("full");
+        // these, so they are engine configuration (#5456).
+        expect(classifyPath(".claude/CLAUDE.md")).toBe("engine");
+        expect(classifyPath(".claude/agents/cavecrew-builder.md")).toBe(
+            "engine"
+        );
+        expect(classifyPath(".claude/rules/nested/deeper.md")).toBe("engine");
     });
 
     // The three acceptance cases of issue #4376, as lanes rather than paths.
@@ -326,13 +401,13 @@ describe("check-lane — `.claude/**` is split: prose is docs, programs are full
         expect(plan.run.map((c) => c.id)).toEqual(["check:docs"]);
     });
 
-    it("a SKILL.md plus a hook ⇒ full — the program decides", () => {
+    it("a SKILL.md plus a hook ⇒ engine — the program decides", () => {
         expect(
             classifyLane([
                 ".claude/skills/next-ticket/SKILL.md",
                 ".claude/hooks/deny-guard.sh",
             ]).lane
-        ).toBe("full");
+        ).toBe("engine");
     });
 
     it("a rule index plus a src/** file ⇒ skin, with node[docs] appended", () => {
@@ -2081,7 +2156,7 @@ describe("check-lane.ts — preflightPlan (issue #4967)", () => {
         const hooks = preflightPlan(
             classifyLane([".claude/hooks/deny-guard.sh"])
         );
-        expect(hooks.lane).toBe("full");
+        expect(hooks.lane).toBe("engine");
         expect(ids(hooks)).toContain("node-tooling");
     });
 

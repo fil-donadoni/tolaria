@@ -128,13 +128,13 @@ export type PathClass = Lane | "data";
  * them explicitly, and matching them FIRST, means a future widening of the
  * skin/engine rules cannot quietly swallow one.
  *
- * `^\.claude/` STAYS HERE, and it is the broad rule: a hook is a program, a
- * settings file reconfigures the harness, and a `.ts`/`.sh`/`.json` under a
- * skill directory is a script the skill runs — any of them can change
- * anything, so none of them is ever narrowed. The ONE carve-out is
- * `CLAUDE_PROSE_PATTERNS` below, which `classifyPath` tests BEFORE this list;
- * it is anchored to `.md` inside two named directories and can therefore
- * promote nothing else out of `full`.
+ * FULL IS A PLACEMENT, NOT A FALLBACK (issue #5456). `telemetry:latency`
+ * reported 22 of 157 landings (14%) paying `check:pr` whole for a
+ * configuration path that has a real lane, so only what changes what EVERY
+ * lane means stays here: the dependency set (`package.json` is content-
+ * classified, see `packageJsonClass`; the lockfiles are always `full`) and
+ * the build/test/type/lint configuration. The rest of the old list moved to
+ * `ENGINE_CONFIG_PATTERNS`.
  */
 const FULL_PATTERNS: RegExp[] = [
     /^package\.json$/,
@@ -144,9 +144,60 @@ const FULL_PATTERNS: RegExp[] = [
     /(^|\/)vitest[\w.]*\.config\.[cm]?[jt]s$/,
     /^vitest\.setup\.ts$/,
     /(^|\/)eslint\.config\.[cm]?[jt]s$/,
-    /(^|\/)\.prettier(rc|rc\..*|ignore)$/,
-    /^\.claude\//,
+    /(^|\/)\.prettierrc(\..*)?$/,
 ];
+
+/**
+ * Configuration that is tooling, not a lane definition (issue #5456) — each
+ * row with the reason it is `engine` and not `full`:
+ *
+ * - `.claude/**` non-prose (hooks, `settings.json`, skill scripts): a program
+ *   or harness configuration read by `scripts/__tests__` drift guards, all in
+ *   `node-tooling`, which an `.claude/` path admits (see `classifyLane`).
+ *   The prose half is `CLAUDE_PROSE_PATTERNS`, tested before this.
+ * - `tolaria.config.json`: branch names and session caps, read through
+ *   `scripts/lib/**` and proven by its tests.
+ * - `.nvmrc`, `.gitattributes`, `.prettierignore`: repository plumbing; the
+ *   format and drift checks of the engine lane exercise them.
+ */
+const ENGINE_CONFIG_PATTERNS: RegExp[] = [
+    /^\.claude\//,
+    /^tolaria\.config\.json$/,
+    /^\.nvmrc$/,
+    /^\.gitattributes$/,
+    /^\.prettierignore$/,
+];
+
+/**
+ * `package.json` is classified by CONTENT (issue #5456): `engine` only when
+ * nothing but `scripts` (or version/description) moved, else `full` — an
+ * allow-list, so `type`, `imports`, `engines`, dependencies and any unknown
+ * key stay `full`.
+ * Anything unparsable, added or deleted is `full` — fail-closed. Pure over the
+ * two file texts; the git plumbing that fetches them is `packageJsonClasses`.
+ */
+/** Keys whose change cannot move any lane's meaning: allow-list, fail-closed. */
+const PACKAGE_JSON_ENGINE_KEYS = new Set(["scripts", "version", "description"]);
+
+export function packageJsonClass(
+    before: string | null,
+    after: string | null
+): PathClass {
+    if (before === null || after === null) return "full";
+    try {
+        const a = JSON.parse(before) as Record<string, unknown>;
+        const b = JSON.parse(after) as Record<string, unknown>;
+        const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+        const moved = [...keys].some(
+            (k) =>
+                !PACKAGE_JSON_ENGINE_KEYS.has(k) &&
+                JSON.stringify(a[k]) !== JSON.stringify(b[k])
+        );
+        return moved ? "full" : "engine";
+    } catch {
+        return "full";
+    }
+}
 
 /**
  * The prose half of `.claude/**` (issue #4376) — the ONE carve-out ahead of
@@ -299,6 +350,9 @@ export function classifyPath(path: string): PathClass {
     // next line.
     if (CLAUDE_PROSE_PATTERNS.some((re) => re.test(path))) return "docs";
     if (FULL_PATTERNS.some((re) => re.test(path))) return "full";
+    // BEFORE `DOCS_PATTERNS`: `.claude/CLAUDE.md` matches the nested
+    // `CLAUDE.md` rule but is not a skill or a rule index (issue #5456).
+    if (ENGINE_CONFIG_PATTERNS.some((re) => re.test(path))) return "engine";
     if (DOCS_PATTERNS.some((re) => re.test(path))) return "docs";
     if (SKIN_PATTERNS.some((re) => re.test(path))) return "skin";
     if (CARDS_PATTERNS.some((re) => re.test(path))) return "cards";
@@ -409,10 +463,15 @@ export function classifyLane(
      * currently returns. Read ONLY in the `skin` branch, and lazily, so no
      * other lane pays the walk.
      */
-    subjects: () => BotSubjects = defaultBotSubjects
+    subjects: () => BotSubjects = defaultBotSubjects,
+    /**
+     * Content-decided classes (issue #5456): `package.json` only, from
+     * `packageJsonClass`. Absent ⇒ the path-only class, which is `full`.
+     */
+    overrides: ReadonlyMap<string, PathClass> = new Map()
 ): LanePlan {
     const files = [...changedPaths];
-    const lane = laneFor(files.map(classifyPath));
+    const lane = laneFor(files.map((p) => overrides.get(p) ?? classifyPath(p)));
 
     if (lane === "full") {
         return {
@@ -667,7 +726,9 @@ export function classifyLane(
     // `node-tooling` is admitted by the diff, whole or not at all — the
     // ADR 0104 admission rule, never a slice: a `scripts/**` edit can red a
     // tooling test, a `convex/**` or `data/**` edit cannot reach one.
-    if (files.some((p) => p.startsWith("scripts/"))) {
+    // `.claude/**` too (issue #5456): the hook and skill drift guards live in
+    // `node-tooling`.
+    if (files.some((p) => PREFLIGHT_TOOLING_PATHS.test(p))) {
         run.push({
             id: "node-tooling",
             command: "bunx vitest run --project node-tooling",
@@ -675,7 +736,7 @@ export function classifyLane(
     } else {
         skip.push({
             id: "node-tooling",
-            reason: "no changed code under scripts/** — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
+            reason: "no changed code under scripts/** or tooling config — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
         });
     }
     appendCheapGuards(files, run, skip);
@@ -776,7 +837,8 @@ const PREFLIGHT_STATIC_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /** Where the drift-guard census lives: hooks, skills, the gate scripts. */
-const PREFLIGHT_TOOLING_PATHS = /^(scripts|\.claude)\//;
+const PREFLIGHT_TOOLING_PATHS =
+    /^((scripts|\.claude)\/|tolaria\.config\.json$|\.nvmrc$|\.gitattributes$|\.prettierignore$|package\.json$)/;
 
 const PREFLIGHT_SKIP_REASON =
     "needs the rebased tip — runs inside the mutex, in the lane proper";
@@ -877,7 +939,10 @@ function skinRationale(files: string[]): string {
 }
 
 function engineRationale(files: string[]): string {
-    return codeLaneRationale(files, "convex/**, scripts/** or data/**");
+    return codeLaneRationale(
+        files,
+        "convex/**, scripts/**, data/**, .claude/** or a tooling config file"
+    );
 }
 
 function cardsRationale(files: string[]): string {
@@ -1219,6 +1284,38 @@ export function changedPaths(
         .filter((p) => p.length > 0);
 }
 
+/** A file's text at a ref, or null when it does not exist there. */
+function showAt(ref: string, path: string, cwd: string): string | null {
+    const r = spawnSync("git", ["show", `${ref}:${path}`], {
+        encoding: "utf8",
+        cwd,
+    });
+    return r.status === 0 ? r.stdout : null;
+}
+
+/**
+ * The content-decided classes (issue #5456): `package.json` against the
+ * merge base, when it is in the diff. Thin plumbing; `packageJsonClass`
+ * decides.
+ */
+export function contentClasses(
+    paths: string[],
+    base: string,
+    cwd: string
+): Map<string, PathClass> {
+    const out = new Map<string, PathClass>();
+    if (!paths.includes("package.json")) return out;
+    const mergeBase = git(["merge-base", base, "HEAD"], cwd).trim();
+    out.set(
+        "package.json",
+        packageJsonClass(
+            showAt(mergeBase, "package.json", cwd),
+            showAt("HEAD", "package.json", cwd)
+        )
+    );
+    return out;
+}
+
 /** One instant of the working tree. Thin plumbing; `treeMoved` decides. */
 function snapshotTree(cwd: string): TreeSnapshot {
     return {
@@ -1408,7 +1505,13 @@ function main(): void {
     // of commands, and never render the JSON form by hand next to
     // renderJson (#2748 review, finding 1).
     const present = changedPaths(base, cwd, false);
-    const lanePlan = classifyLane(changedPaths(base, cwd, true), present);
+    const all = changedPaths(base, cwd, true);
+    const lanePlan = classifyLane(
+        all,
+        present,
+        defaultBotSubjects,
+        contentClasses(all, base, cwd)
+    );
     // Still ONE plan: the preflight is derived from the lane plan, never
     // classified a second time (issue #4967).
     const plan = preflight ? preflightPlan(lanePlan, present) : lanePlan;
