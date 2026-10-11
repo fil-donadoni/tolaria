@@ -19,6 +19,11 @@ import type { CardRow, Lockfile } from "./oracle-lockfile";
 import { gapIndex, type ClaimRow, type ClusterRow } from "./targets";
 import { signatureMatches } from "./gap-issues";
 
+/** `grammar:residue`'s exit when a hole survives the filer: a finding for a
+ *  human, which the `housekeeping` cron reports and never retries (issue
+ *  #5457). Any other non-zero exit is a failed run. */
+export const HOLES_EXIT = 3;
+
 /** Marker making the ledger comment idempotent (one per cluster issue). */
 export const LEDGER_MARKER = "<!-- grammar:residue ledger -->";
 

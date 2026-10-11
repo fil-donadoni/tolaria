@@ -100,7 +100,10 @@
  */
 import { spawnSync } from "node:child_process";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
-import { issueWorktree } from "./lib/issue-worktree";
+import { issueOfBranch, issueWorktree } from "./lib/issue-worktree";
+
+// Re-exported: `land.test.ts` pins it beside the landing target it decides.
+export { issueOfBranch };
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -109,23 +112,8 @@ import { primaryCheckout } from "./lib/primary-checkout";
 import {
     GATE_OVERRIDE_ENV,
     MACHINE_SATURATED_EXIT,
-    readMachineConfig,
-    waitForMachine,
-    type WaitForMachineInput,
 } from "./lib/machine-admission";
 import { WAITER_SINCE_ENV } from "./lib/gate-liveness";
-import {
-    gateLockRoot,
-    heavyQueueIdle,
-    runningHolderLine,
-} from "./lib/ui-admission";
-import {
-    LIVE_ORIGIN_BAND_DEPS,
-    originBandOfIssue,
-    type OriginBand,
-    type OriginBandDeps,
-} from "./lib/origin-band";
-import type { BoardPriority } from "./lib/board-priority";
 import {
     classifyScenarioSection,
     owesScenario,
@@ -336,15 +324,12 @@ const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
 const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
 const REFRESH_GENERATED_API = resolve(__dirname, "refresh-generated-api.ts");
-const GAPS_SYNC = resolve(__dirname, "gaps-sync.ts");
-const UMBRELLA_DETACH = resolve(__dirname, "umbrella-detach.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
 // would throw when this module is imported under vitest for its pure
 // functions).
 const GATE = resolve(__dirname, "gate.ts");
-const CHECK_LANE = resolve(__dirname, "check-lane.ts");
 
 // ─────────────────────────────────────────────────────────────────────────
 // git plumbing — thin and untested, per repo convention (docs-lane.ts,
@@ -612,8 +597,7 @@ export interface HousekeepingOptions {
      * path the two are the same (`refusalReason` refuses when they differ);
      * in housekeeping mode the caller is typically standing on the base
      * branch, and every step that takes a branch here would otherwise be
-     * handed `staging`: the claim release and the umbrella detach would find
-     * no issue in it, and the ref cleanup would try to delete the BASE
+     * handed `staging`: the ref cleanup would try to delete the BASE
      * BRANCH, locally and on the remote.
      */
     branch: string;
@@ -631,16 +615,6 @@ export interface HousekeepingOptions {
     worktree: string | null;
     /** false for `--keep`: skip worktree teardown after a successful merge. */
     teardown: boolean;
-    /**
-     * The priority band of the issue this branch closes (issue #4158), passed
-     * to `gaps:sync --band`. Omitted / null when it could not be determined.
-     *
-     * Housekeeping, not gating (issue #4159): `gapsSyncStep` is in the shared
-     * post-merge list, so the recovery path needs this as much as the landing
-     * path does — a gap filed by a recovery run must land under the same
-     * umbrella it would have under `land`.
-     */
-    originBand?: BoardPriority | null;
     /**
      * How this landing declared itself under RED (issue #4964) — recorded in
      * the health ledger, where a `repair` fires the batch gate at once and a
@@ -809,6 +783,11 @@ export function laneStep(
     );
 }
 
+/** `gaps-sync.ts`'s `ALLOWLIST_COMMIT_SUBJECT`, spelled here so `land` does
+ *  not import the filer; `land.test.ts` pins the two equal. */
+export const GAPS_SYNC_COMMIT_SUBJECT =
+    "gaps:sync — file per-gap issues, record them in the allowlist";
+
 /**
  * Shell fragment that fails the WHOLE locked command (before `green-sha` is
  * written) unless `origin/main` advanced by EXACTLY one commit — our squash
@@ -817,6 +796,14 @@ export function laneStep(
  * machine, or a human pushing straight to `main`, while this session held
  * the lock. Re-derives the log rather than caching it so the message on
  * failure shows exactly what landed.
+ *
+ * ONE push is not counted: `gaps:sync`'s own allowlist commit — its subject
+ * (`GAPS_SYNC_COMMIT_SUBJECT`) AND a diff of `data/grammar-gaps.json` alone.
+ * It is a computed `issue` number per row (ADR 0137's trust tier), and since
+ * issue #5457 it is pushed by the hourly `housekeeping` cron, outside this
+ * mutex and usually from the other machine: counted, it would fail a landing
+ * whose PR had merged — the failure that issue moved the sync out of `land`
+ * to remove. Anything else still refuses.
  *
  * Brace-grouped as ONE command (`{ TEST || BLOCK; }`), not spliced bare into
  * the surrounding `&&` chain (review round 3): `&&`/`||` are equal-precedence
@@ -827,9 +814,13 @@ export function laneStep(
  * of surfacing the real failure. `rebaseStep()` above hits the identical
  * hazard with its own `||` and groups with `(…)` for the same reason.
  */
-const VERIFY_MERGED_TIP =
+export const VERIFY_MERGED_TIP =
     "{ " +
-    `[ "$(git log --oneline "$OLD_TIP..${ORIGIN_BASE}" | wc -l | tr -d " ")" = "1" ] || ` +
+    `N=0; for C in $(git rev-list "$OLD_TIP..${ORIGIN_BASE}"); do ` +
+    `case "$(git log -1 --format=%s "$C")" in ${shQuote(GAPS_SYNC_COMMIT_SUBJECT)}) ` +
+    `[ "$(git diff-tree --no-commit-id --name-only -r "$C")" = "data/grammar-gaps.json" ] && continue;; esac; ` +
+    `N=$((N+1)); done; ` +
+    `[ "$N" = "1" ] || ` +
     `{ echo "land: ${ORIGIN_BASE} advanced by more than our squash between fetch and merge — refusing post-merge housekeeping" >&2; ` +
     `git log --oneline "$OLD_TIP..${ORIGIN_BASE}" >&2; exit 1; }; ` +
     "}";
@@ -915,15 +906,6 @@ export function primaryBranchFastForwardStep(
 }
 
 /**
- * The issue a branch claims, by the `feat|fix|<kind>/issue-N` naming every
- * worktree here is built with (`wt:new`), or null for any other branch.
- */
-export function issueOfBranch(branch: string): number | null {
-    const m = /(?:^|\/)issue-(\d+)$/.exec(branch);
-    return m ? Number(m[1]) : null;
-}
-
-/**
  * What this landing is ABOUT: the branch every housekeeping step takes, and
  * the worktree the teardown removes (issue #4378).
  *
@@ -934,11 +916,8 @@ export function issueOfBranch(branch: string): number | null {
  * wrong twice over, because that path exists for a PR whose worktree is
  * already gone and is therefore invoked from the primary checkout:
  *
- *  - the branch would be the BASE branch, so `releaseClaimStep` would find no
- *    issue in it and silently return null, `umbrellaDetachStep` would skip the
- *    landed issue and sweep only,
- *    and the ref cleanup would ask git to delete `staging` — locally and on
- *    the remote;
+ *  - the branch would be the BASE branch, so the ref cleanup would ask git
+ *    to delete `staging` — locally and on the remote;
  *  - the worktree would be the PRIMARY CHECKOUT, so the teardown would ask
  *    git to remove the main working tree (refused, swallowed by `|| true`)
  *    and leave the real worktree, if any, standing.
@@ -966,131 +945,6 @@ export function landingTarget(
                       branch.startsWith("fix/") ? "fix" : "feat"
                   ).worktree,
     };
-}
-
-/**
- * The origin band `gaps:sync --band` is told for `branch` (issue #4158): the
- * band of the issue the branch names, by the rule `queue:plan` orders by. A
- * branch naming no issue, or a band that cannot be read, is a null band and a
- * reason — never a throw: the sync is post-merge housekeeping. `deps` is the
- * test seam; the real reads are the default.
- */
-export function originBandForBranch(
-    branch: string,
-    deps: OriginBandDeps = LIVE_ORIGIN_BAND_DEPS
-): OriginBand {
-    const issue = issueOfBranch(branch);
-    if (issue === null)
-        return { band: null, reason: `branch ${branch} names no issue` };
-    return originBandOfIssue(issue, deps);
-}
-
-/**
- * Release the `in-progress` claim on the issue the landed branch names
- * (issue #3130). The claim is added at pick time and, before this, nothing
- * removed it on the success path: `claim-sweep.sh` runs at SessionEnd and
- * deliberately leaves a claim whose PR is open, `loop:doctor` sweeps OPEN
- * issues only, so an issue closed by its PR kept the label forever — 56 of
- * them on 2026-09-07. Non-gating like the rest of the housekeeping: a label
- * edit that fails must never turn a merged PR into a reported failure.
- * Returns null for a branch that names no issue.
- */
-export function releaseClaimStep(branch: string): string | null {
-    const issue = issueOfBranch(branch);
-    if (issue === null) return null;
-    return `(gh issue edit ${issue} --remove-label in-progress --remove-assignee @me >/dev/null 2>&1 || echo "land: could not release the in-progress claim on issue #${issue}" >&2; true)`;
-}
-
-/**
- * Detach the landed issue from its band umbrella once it is closed (issue
- * #4235) — `bun run umbrella:detach <issue>`, whose header carries the rule.
- * The umbrella lists the OPEN work of its band, and the merge is the moment a
- * child stops being that.
- *
- * Runs in the PRIMARY checkout for the reason `gapsSyncStep` does, AFTER it:
- * the gap sync does its network work first, which is what gives the merge's
- * `Closes #N` time to close the issue (measured 1-2 s after `mergedAt`) — the
- * step never detaches one that is still open, and says so loudly. Non-gating: an outage leaves the closed child listed
- * until the next landing's sweep.
- *
- * `--sweep` (issue #5081) also detaches every OTHER closed child of every
- * censused umbrella — `gaps:sync` closures, cluster absorption and hand
- * closes never name a branch. A branch that names no issue runs the sweep
- * alone.
- */
-export function umbrellaDetachStep(
-    primaryCheckout: string,
-    branch: string
-): string {
-    const issue = issueOfBranch(branch);
-    const target = issue === null ? "" : `${issue} `;
-    return (
-        `(cd ${shQuote(primaryCheckout)} && bun ${shQuote(UMBRELLA_DETACH)} ${target}--sweep || ` +
-        `echo "land: umbrella:detach failed — closed children may still be listed under their umbrella" >&2; true)`
-    );
-}
-
-/**
- * `gaps:sync` post-merge (ADR 0137, issue #3829) — files or reconciles one
- * issue per Grammar/Bot Gap allowlist row, "beside the preset-scenario
- * seeding [`land`] already does" (issue #3829). Runs in the PRIMARY
- * checkout, same as `SEED_SCENARIO` above and for the same reason: it must
- * see the merged tree, and `__dirname` still resolves into this worktree at
- * this point in the pipeline (before teardown — step ORDER, see
- * `HEALTH_CADENCE_REL`'s comment for the failure mode that happens when a
- * step like this one runs AFTER it instead).
- *
- * Non-gating like the rest of the post-merge housekeeping: a `gh` outage, a
- * rate limit or a network blip must never turn a merged PR into a reported
- * failure — the allowlist just stays stale until the next landing retries it.
- *
- * Bot Gaps are FILED here like every other kind (issue #5301, reversing
- * issue #4944 (a)): a gap a landing's sweep found is work owed now, not held
- * for the next batch health run. Filing still adopts through the Cluster
- * Signatures (ADR 0146), so one family still gets one issue; the batch health
- * refresh files too, idempotently.
- */
-export function gapsSyncStep(
-    primaryCheckout: string,
-    originBand: BoardPriority | null = null
-): string {
-    const p = shQuote(primaryCheckout);
-    // The ORIGIN band of the work just merged (issue #4158): a gap born of P0
-    // work files under its family's P0 umbrella, which nothing computed can
-    // reach. Derived by `originBandOfIssue` before the lock, from the issue the
-    // branch names; absent when it could not be read — `gaps:sync` then keeps
-    // its computed band, exactly as before.
-    const band = originBand === null ? "" : ` --band ${originBand}`;
-    return (
-        `(cd ${p} && bun ${shQuote(GAPS_SYNC)}${band} || ` +
-        `echo "land: gaps:sync failed — Grammar/Bot Gap issues may be stale" >&2; true)`
-    );
-}
-
-/**
- * The residue ledger of a landed Grammar Cluster (issue #5222) —
- * `bun run grammar:residue <issue> --pr <PR>`, whose header carries the rule:
- * the cards the ticket considered that are still not `ready`, and an OPEN
- * issue for every gap still refusing them (a hole runs `gaps:sync` once more
- * and, if it survives, is reported loudly). Runs in the PRIMARY checkout AFTER
- * `gapsSyncStep`, whose claims it reads. A branch naming no issue, or an issue
- * that is not a Grammar Cluster, is a no-op. Non-gating like the rest of the
- * housekeeping: a hole is a loud warning, never a failed landing of a merged PR.
- */
-export function grammarResidueStep(
-    primaryCheckout: string,
-    pr: number,
-    branch: string,
-    originBand: BoardPriority | null = null
-): string | null {
-    const issue = issueOfBranch(branch);
-    if (issue === null) return null;
-    const p = shQuote(primaryCheckout);
-    const band = originBand === null ? "" : ` --band ${originBand}`;
-    return (
-        `(cd ${p} && bun run --silent grammar:residue ${issue} --pr ${pr}${band} || ` +
-        `echo "land: grammar:residue found residual gaps with NO open issue (or failed) — cards may stay incomplete untracked; see its output above" >&2; true)`
-    );
 }
 
 /**
@@ -1209,7 +1063,7 @@ export function seedScenarioStep(primaryCheckout: string, pr: number): string {
  * in silence (10 of the 14 specs in 80 PRs never reached the deployment).
  * Observed on PR #4153 (2026-09-19): stale `CONFLICTING` right after `land`'s
  * own force-push, `pr-merge` retried alone, and the fast-forward, the seed and
- * `gaps:sync` never ran.
+ * `gaps:sync` (then still a land step) never ran.
  *
  * RE-ENTRY IS SAFE, by construction rather than by hope — which is what lets
  * `land` run this list against an already-MERGED PR:
@@ -1218,9 +1072,9 @@ export function seedScenarioStep(primaryCheckout: string, pr: number): string {
  *  - the fast-forward is `--ff-only` and guarded on the primary checkout being
  *    on the base branch;
  *  - the seed is upsert-by-label (`lib/seed-scenario-run.ts` constraint 2);
- *  - `gaps:sync` reconciles rather than appends;
- *  - the claim release, the ref cleanup and the teardown are all `|| true` and
- *    already no-ops once they have run.
+ *  - telemetry ingest and the health detach re-read their inputs;
+ *  - the ref cleanup and the teardown are all `|| true` and already no-ops
+ *    once they have run.
  *
  * ORDER IS LOAD-BEARING and is asserted by the step-order tests, not by this
  * comment: fast-forward BEFORE the seed (issue #3253 — the seed resolves card
@@ -1254,25 +1108,14 @@ export function postMergeHousekeepingSteps(
         // dev` watcher that may be seconds behind or not running at all.
         primaryBranchFastForwardStep(opts.primaryCheckout),
         seedScenarioStep(opts.primaryCheckout, opts.pr),
-        // File/reconcile Grammar and Bot Gap issues (ADR 0137, issue #3829) —
-        // beside the preset-scenario seeding just above, non-gating for the
-        // same reason.
-        gapsSyncStep(opts.primaryCheckout, opts.originBand ?? null),
     ];
-    // AFTER `gaps:sync`: it reads the claims that step just wrote (issue #5222).
-    const residue = grammarResidueStep(
-        opts.primaryCheckout,
-        opts.pr,
-        opts.branch,
-        opts.originBand ?? null
-    );
-    if (residue !== null) steps.push(residue);
-    // The claim outlives nothing: the PR is merged, the issue is closing.
-    const release = releaseClaimStep(opts.branch);
-    if (release !== null) steps.push(release);
-    // AFTER `gaps:sync` above, whose network work is what gives the merge's
-    // `Closes #N` time to close the issue this step requires (issue #4235).
-    steps.push(umbrellaDetachStep(opts.primaryCheckout, opts.branch));
+    // The GitHub-bound steps — `gaps:sync`, grammar residue, the claim
+    // release, the umbrella detach — are NOT here (ADR 0154 §5, issue #5457):
+    // nobody in the session waits for them, and a GitHub 502 inside the
+    // mutex cost the session a failed-looking landing. The hourly
+    // `bun run housekeeping` (`scripts/housekeeping.ts`) walks the PRs merged
+    // since its watermark and runs them there.
+    //
     // BEFORE the teardown below, which removes the worktree this command
     // runs from. `spawn` is synchronous and creates nothing but a process
     // — the health worktree is created minutes later, by the detached
@@ -1345,8 +1188,8 @@ export function postMergeHousekeepingSteps(
  * landing's is worse than stopping.
  *
  * `UNSET_GITHUB_TOKEN` leads for the same reason it leads `buildLockedCommand`
- * — see the CREDENTIALS header comment; the `gh` call in the claim release is
- * downstream of it.
+ * — see the CREDENTIALS header comment; the `gh` calls downstream (the
+ * scenario seed's) must authenticate as the developer.
  */
 export function buildHousekeepingCommand(opts: HousekeepingOptions): string {
     return [
@@ -1405,160 +1248,6 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// PREFLIGHT (issue #4967) — the deterministic failures, found before queuing.
-// ─────────────────────────────────────────────────────────────────────────
-
-/** One preflight run: an exit code, or the reason it reached no verdict. */
-export type PreflightRun =
-    | { status: number | null; ms: number }
-    | { infra: string };
-
-/** A hung `tsc` or vitest before the queue blocks `land` with nothing in
- *  `gate:who` to name it — so the run is bounded, and the bound is INFRA. */
-const PREFLIGHT_TIMEOUT_MS = 15 * 60_000;
-const PREFLIGHT_FETCH_TIMEOUT_MS = 120_000;
-
-export type PreflightOutcome =
-    | { kind: "skipped"; why: string }
-    | { kind: "pass"; ms: number }
-    | { kind: "refuse"; reason: string }
-    | { kind: "saturated" };
-
-/**
- * Run the static half of the lane on the PR's UN-REBASED head, BEFORE `land`
- * registers as a waiter on the machine mutex (issue #4967). Measured over
- * 14 days: 79 of 276 lands failed, and ~60 of those failures (a test that
- * needed a code change, a stale Oracle lockfile or card index, a type, lint
- * or format error) were decidable on the PR's own tree — each one first
- * waited the median 5.5 min (p90 13) in the queue and then held the mutex to
- * find out. 7.8 h of mutex time in 14 days went to failed runs.
- *
- * What runs is `check:lane --preflight` (`preflightPlan`): the same plan
- * the lane builds, filtered — never a second list. It runs at the LIGHT tier
- * (no lock), so it is admitted by the machine first (issue #4966): a light
- * gate does not ask on its own, and a saturated machine is waited out here —
- * except on the load of a heavy gate that is running (`admitPreflight`).
- *
- * It PROVES NOTHING ABOUT THE REBASED TIP AND SKIPS NOTHING: the lane inside
- * the mutex is unchanged. Only the full landing path runs it — the
- * housekeeping mode gates nothing — and `--no-preflight` drops it for the
- * retry after a merge-only failure, whose tree already passed.
- *
- * Nor does it run when the heavy mutex is FREE and NOBODY IS QUEUED (issue
- * #4992): there is no queue to stay out of, the land could take the mutex at
- * once, and the lane would run the same checks again on the rebased tip —
- * PR #4987 paid 180 s for that with nothing ahead of it. Decided ONCE, here:
- * a holder or a waiter that shows up after it is no reason to go back, and
- * the land queues as `--no-preflight` would. The accepted cost: a lane that
- * reds on what the preflight would have caught holds the mutex for that run,
- * and a land issued DURING it waits behind a failed run.
- *
- * `queueIdle`, `admit` and `run` are injected so the DECISION — what runs, in
- * what order, what a red or a saturated machine means — is testable without
- * a lock root, a machine probe or a subprocess, per this file's convention.
- */
-export async function preflightGate(opts: {
-    mode: LandMode;
-    enabled: boolean;
-    /** No live heavy holder and no live waiter (`heavyQueueIdle`). */
-    queueIdle: () => boolean;
-    admit: () => Promise<boolean>;
-    run: () => PreflightRun;
-}): Promise<PreflightOutcome> {
-    if (opts.mode === "housekeeping")
-        return {
-            kind: "skipped",
-            why: "the PR is already MERGED — housekeeping gates nothing",
-        };
-    if (!opts.enabled) return { kind: "skipped", why: "--no-preflight" };
-    if (opts.queueIdle())
-        return {
-            kind: "skipped",
-            why: "the heavy mutex is free and nobody is queued — no queue to keep a failure out of; the lane gates the tree",
-        };
-    if (!(await opts.admit())) return { kind: "saturated" };
-    const ran = opts.run();
-    // The preflight could not give a verdict on the tree (a failed fetch, a
-    // hung check): INFRA, never a red — the lane in the mutex still runs.
-    if ("infra" in ran) return { kind: "skipped", why: ran.infra };
-    const { status, ms } = ran;
-    if (status === 0) return { kind: "pass", ms };
-    return {
-        kind: "refuse",
-        reason: `preflight is red on the PR's own head (\`check:lane --preflight\`, exit ${status ?? "signal"}) — a failure the lane would have found after the queue and inside the mutex. Fix it on the branch, push, re-run \`land\`. Nothing was queued.`,
-    };
-}
-
-/**
- * The machine admission the preflight waits on — the heavy tier's own
- * `waitForMachine`, since the light tier does not ask.
- *
- * It asks with NO hold, beside whoever has the mutex, and a running heavy
- * gate keeps the 1-minute load over `machine.loadMax` for its whole run. So
- * that gate's load is not waited on (issue #4988): the first landing made
- * with a preflight waited 492 s of the 900 s bound beside a 12-minute lane,
- * and behind a 35-minute health hold it would have ended INFRA having run
- * nothing. The preflight is the light tier — two workers on top of whatever
- * is there — which is the cost the light tier already has beside a holder.
- * Memory pressure, and load no running holder explains, wait as before.
- *
- * Everything is injectable so the decision is tested against a temp lock
- * root, a fixed probe and a counted clock.
- */
-export async function admitPreflight(
-    deps: {
-        lockRoot?: string;
-        thresholds?: WaitForMachineInput["thresholds"];
-        announce?: WaitForMachineInput["announce"];
-    } & Pick<WaitForMachineInput, "env" | "probe" | "now" | "sleep"> = {}
-): Promise<boolean> {
-    const env = deps.env ?? process.env;
-    const now = deps.now ?? Date.now;
-    const lockRoot = deps.lockRoot ?? gateLockRoot(env);
-    const machine = await waitForMachine({
-        thresholds: deps.thresholds ?? readMachineConfig(),
-        tag: "land: preflight",
-        announce: deps.announce ?? ((line) => console.error(line)),
-        env,
-        probe: deps.probe,
-        now,
-        sleep: deps.sleep,
-        heavyHolder: () => runningHolderLine(lockRoot, env, now()),
-    });
-    return machine.admitted;
-}
-
-/** Fetch the base so the merge-base diff is the PR's own, then run the
- *  preflight plan at the light tier. Thin plumbing; `preflightGate` decides. */
-function runPreflight(cwd: string): PreflightRun {
-    const t0 = Date.now();
-    const env = netEnv(process.env);
-    // A stale `origin/<base>` moves the merge-base back and the plan would
-    // cover other PRs' files — a false red on code that is not this PR's.
-    const fetch = spawnSync("git", ["fetch", "origin", BASE_BRANCH, "-q"], {
-        cwd,
-        env,
-        stdio: "inherit",
-        timeout: PREFLIGHT_FETCH_TIMEOUT_MS,
-    });
-    if (fetch.status !== 0)
-        return {
-            infra: `\`git fetch origin ${BASE_BRANCH}\` failed — the diff base would be stale`,
-        };
-    const r = spawnSync("bun", [CHECK_LANE, "--preflight"], {
-        cwd,
-        env,
-        stdio: "inherit",
-        timeout: PREFLIGHT_TIMEOUT_MS,
-    });
-    if (r.error || (r.status === null && r.signal === "SIGTERM"))
-        return {
-            infra: `\`check:lane --preflight\` reached no verdict (${r.error?.message ?? `killed after ${PREFLIGHT_TIMEOUT_MS / 60_000} min`})`,
-        };
-    return { status: r.status, ms: Date.now() - t0 };
-}
-
-// ─────────────────────────────────────────────────────────────────────────
 // The locked child's environment — pure function of a base env so a test can
 // assert on it without touching real `process.env`.
 // ─────────────────────────────────────────────────────────────────────────
@@ -1585,9 +1274,9 @@ export function lockedEnv(
         // queued land is only recognisable as one because of this.
         TOLARIA_GATE_ROLE: "land",
         // WHEN it joined that order (issue #4988): the moment it was issued.
-        // The preflight runs before the waiter entry exists, and a place
-        // dated from its end put this land behind every land issued after it
-        // that reached the queue first.
+        // The refusal checks run before the waiter entry exists, and a place
+        // dated from their end put this land behind every land issued after
+        // it that reached the queue first.
         ...(issuedAt === undefined
             ? {}
             : { [WAITER_SINCE_ENV]: String(issuedAt) }),
@@ -1604,13 +1293,12 @@ function parseArgs(argv: string[]): {
     teardown: boolean;
     repair: boolean;
     redOk: boolean;
-    preflight: boolean;
 } {
     const positional = argv.filter((a) => !a.startsWith("--"));
     const pr = Number((positional[0] ?? "").replace(/^#/, ""));
     if (!Number.isInteger(pr) || pr <= 0) {
         fail(
-            "usage: bun run land <PR#> [--no-merge] [--keep] [--repair | --red-ok] [--no-preflight]"
+            "usage: bun run land <PR#> [--no-merge] [--keep] [--repair | --red-ok]"
         );
     }
     return {
@@ -1619,7 +1307,6 @@ function parseArgs(argv: string[]): {
         teardown: !argv.includes("--keep"),
         repair: argv.includes("--repair"),
         redOk: argv.includes("--red-ok"),
-        preflight: !argv.includes("--no-preflight"),
     };
 }
 
@@ -1643,7 +1330,7 @@ async function main(): Promise<void> {
     const issuedAt = Date.now();
     const cwd = process.cwd();
     const [, , ...argv] = process.argv;
-    const { pr, merge, teardown, repair, redOk, preflight } = parseArgs(argv);
+    const { pr, merge, teardown, repair, redOk } = parseArgs(argv);
 
     const branch = git(["rev-parse", "--abbrev-ref", "HEAD"], cwd);
     const dirty = git(["status", "--porcelain"], cwd) !== "";
@@ -1746,29 +1433,6 @@ async function main(): Promise<void> {
     // serialise against another session's `land`.
     const mode = landMode(prState);
 
-    // BEFORE the waiter entry (issue #4967): a red here exits having never
-    // queued, so `gate:who` never shows this PR. The entry, once written, is
-    // dated `issuedAt` — the preflight does not cost the land its place.
-    const pre = await preflightGate({
-        mode,
-        enabled: preflight,
-        queueIdle: () => heavyQueueIdle(gateLockRoot()),
-        admit: admitPreflight,
-        run: () => runPreflight(cwd),
-    });
-    if (pre.kind === "saturated") {
-        console.error(
-            `land: NOT landed, and NOT failed — the machine stayed saturated past the bound before the preflight, so nothing ran and PR #${pr} is untouched. Re-issue the same command once \`bun run machine\` reads calm.`
-        );
-        process.exit(MACHINE_SATURATED_EXIT);
-    }
-    if (pre.kind === "refuse") fail(`refusing — ${pre.reason}`);
-    console.log(
-        pre.kind === "pass"
-            ? `land: preflight PASS in ${(pre.ms / 1000).toFixed(1)}s — queuing for the mutex`
-            : `land: preflight skipped (${pre.why})`
-    );
-
     // The branch every step below is ABOUT, and the worktree the teardown
     // removes — from the PR's head ref, never from `cwd` (issue #4378). See
     // `landingTarget` for what reading either off `cwd` does to the recovery
@@ -1779,23 +1443,6 @@ async function main(): Promise<void> {
         prHeadRefName
     );
 
-    // Read BEFORE the lock and the merge, while the issue is still open and the
-    // board still shows it; non-gating — an unreadable band is a warning and a
-    // `gaps:sync` that keeps its computed band (issue #4158).
-    //
-    // The condition is "will the sync run?", not "will we merge?" (issue
-    // #4159): `--no-merge` never reaches the sync, but the housekeeping mode
-    // ALWAYS does — it exists to run exactly that list on a PR that merged
-    // elsewhere — so keying this on `merge` alone would hand the recovery path
-    // a null band and file its gaps under a different umbrella than the
-    // landing path would have.
-    const origin: OriginBand =
-        mode === "housekeeping" || merge
-            ? originBandForBranch(landingBranch)
-            : { band: null };
-    if (origin.reason !== undefined)
-        console.warn(`land: gaps:sync gets no --band (${origin.reason})`);
-
     const runRoot = gateRunRoot(process.env);
     const housekeeping: HousekeepingOptions = {
         branch: landingBranch,
@@ -1803,7 +1450,6 @@ async function main(): Promise<void> {
         primaryCheckout: primary,
         worktree: landingWorktree,
         teardown,
-        originBand: origin.band,
         landingKind,
     };
     const command =
@@ -1841,7 +1487,7 @@ async function main(): Promise<void> {
     // class of surprise this issue is about.
     if (mode === "housekeeping" && !merge) {
         console.warn(
-            `land: --no-merge has no effect on an already-MERGED PR — the housekeeping below still runs and still writes (landing ledger, local ${BASE_BRANCH}, scenario seed, gaps:sync, claim, teardown). Ctrl-C now if that is not what you wanted.`
+            `land: --no-merge has no effect on an already-MERGED PR — the housekeeping below still runs and still writes (landing ledger, local ${BASE_BRANCH}, scenario seed, telemetry, teardown). Ctrl-C now if that is not what you wanted.`
         );
     }
     const result = spawnSync("bun", [GATE, "heavy", command], {

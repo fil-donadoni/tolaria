@@ -7,13 +7,13 @@
  *
  * `bun run umbrella:detach --sweep` — the same rule over every child of every
  * censused umbrella (issue #5081): `gaps:sync` closures, cluster absorption
- * and hand closes never pass through a single-issue run. `land` runs
- * `<issue#> --sweep` after every merge (the sweep alone for a branch that
- * names no issue).
+ * and hand closes never pass through a single-issue run. The hourly
+ * `housekeeping` cron runs `<issue#>` for every merged PR, then `--sweep`
+ * once (issue #5457; `land` ran it after every merge until then).
  *
  * Idempotent: an issue with no parent, or under a parent that is not a band
  * umbrella, or still open, is left alone and says why. Always exits 0 on a
- * readable outcome — this is housekeeping, and `land` runs it non-gating.
+ * readable outcome — this is housekeeping, never a gate.
  */
 
 import {

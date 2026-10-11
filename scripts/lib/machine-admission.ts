@@ -58,9 +58,9 @@
  *
  * THE HOLDER'S LOAD IS NOT WAITED ON BY WHAT RUNS BESIDE IT (issue #4988).
  * The heavy tier asks UNDER its hold, where the load it reads is the previous
- * holder's and decays in a minute or two. Three callers ask with no hold,
- * BESIDE whoever has the mutex: `land`'s preflight (light tier), `check:ui`
- * (its own lane, one viewport beside a holder) and `health-main` outside a
+ * holder's and decays in a minute or two. Two callers ask with no hold,
+ * BESIDE whoever has the mutex (a third, `land`'s preflight, was retired by
+ * issue #5457): `check:ui` (its own lane, one viewport beside a holder) and `health-main` outside a
  * hold (its steps queue for the mutex themselves). For them the same paragraph above
  * applies in full — the running gate holds the average past `loadMax` for its
  * whole run, 9 to 35 minutes — so a wait on it is a wait for the holder to

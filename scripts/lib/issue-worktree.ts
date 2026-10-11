@@ -43,3 +43,14 @@ export function pickResumeBranch(
         if (remote.includes(branch)) return { branch, from: "remote" };
     return null;
 }
+
+/**
+ * The issue a branch claims, by the `feat|fix|<kind>/issue-N` naming every
+ * worktree here is built with (`wt:new`), or null for any other branch.
+ * Shared by `land` (the worktree it tears down) and `housekeeping` (the
+ * issue whose claim it releases, issue #5457).
+ */
+export function issueOfBranch(branch: string): number | null {
+    const m = /(?:^|\/)issue-(\d+)$/.exec(branch);
+    return m ? Number(m[1]) : null;
+}

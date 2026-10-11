@@ -145,8 +145,9 @@ export function mergeArgs(pr: number): string[] {
  *
  * This script is the raw primitive: it merges, and that is all it has ever
  * done. `land` wraps it in a post-merge step list — record the landing,
- * fast-forward the primary checkout, seed the PR's preset scenario, `gaps:sync`,
- * release the claim, tear the worktree down — and CLAUDE.md § Merging sends a
+ * fast-forward the primary checkout, seed the PR's preset scenario, ingest
+ * telemetry, start the health decision, tear the worktree down (the
+ * GitHub-bound steps are the hourly `housekeeping` cron's, issue #5457) — and CLAUDE.md § Merging sends a
  * session HERE when only the merge failed, precisely so the (expensive) lane
  * gate is not re-paid. The cost of that advice was silence: the PR landed and
  * every one of those steps was skipped with nothing said, which is a
@@ -165,7 +166,7 @@ export function followUpNotice(pr: number, fromLand: boolean): string[] {
     if (fromLand) return [];
     return [
         `pr-merge: merged ONLY — the post-merge housekeeping has NOT run ` +
-            `(landing record, primary-checkout fast-forward, preset-scenario seed, gaps:sync, claim release, worktree teardown).`,
+            `(landing record, primary-checkout fast-forward, preset-scenario seed, telemetry ingest, health detach, worktree teardown).`,
         `pr-merge: run it from the PR's worktree — it costs no rebase and no lane gate on an already-merged PR:`,
         `pr-merge:     TOLARIA_GATE_RUN_KEY=land-${pr} bun run gate:run land ${pr}`,
     ];

@@ -123,10 +123,11 @@ whenever the roster shifts, and children inherit it (issue #3212).
   of one. What can: `gaps:sync --band P0`, the ORIGIN band of the run. A gap
   that run CREATES (or finds homeless) files under its family's P0 umbrella,
   because a gap born of P0 work is P0 work (an umbrella closes only when its
-  last child does, issue #3212). `land` derives the band from the issue the
-  landed branch names — its parent PRD's board `Priority` when the parent
-  carries one, else its own, the rule `queue:plan` orders by (issue #4371) —
-  and passes it; nobody types it after a landing. A P0 session running
+  last child does, issue #3212). The hourly `housekeeping` cron (issue #5457;
+  `land` until then) derives the band from the issue each merged branch
+  names — its parent PRD's board `Priority` when the parent carries one, else
+  its own, the rule `queue:plan` orders by (issue #4371) — and passes `P0`
+  when any PR of its batch is P0; nobody types it after a landing. A P0 session running
   `gaps:sync` by hand passes `--band P0`. Only `P0` acts; any other value
   leaves the computed band in charge, and an existing issue is never pulled
   up.

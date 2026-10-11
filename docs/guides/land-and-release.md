@@ -107,8 +107,10 @@ Refuses, named, before taking any lock:
 - a card/engine diff with no preset scenario; a lockfile row retired without
   its PR naming the card.
 
-Then, under the machine-wide [heavy mutex](#g-heavy-mutex), as ONE shell
-command so the tree that lands is the tree that was gated:
+No preflight runs before the queue (retired by ADR 0154 §5, issue #5457:
+every run printed `preflight skipped`, and the lane under the mutex is the one
+gate). Then, under the machine-wide [heavy mutex](#g-heavy-mutex), as ONE
+shell command so the tree that lands is the tree that was gated:
 
 1. `unset GITHUB_TOKEN` — the bug-report PAT `.env.local` carries cannot merge.
 2. `git fetch origin <base> && git rebase origin/<base>` — on conflict: prints
@@ -128,11 +130,11 @@ command so the tree that lands is the tree that was gated:
 7. Verifies `origin/<base>` advanced by exactly one commit — ours. Anything
    else means someone pushed to the base branch from outside the lock, and the
    housekeeping below is skipped rather than run on a tip nobody gated.
-8. Housekeeping, none of it gating: seeds the PR's preset scenario into the
-   local Convex deployment; fast-forwards the primary checkout's local base
-   branch if it is the one checked out; releases the `in-progress` claim on
-   issue N; deletes the remote and local branch and removes the worktree
-   (`--keep` keeps all three; `--no-merge` stops after step 5).
+8. Housekeeping, none of it gating: fast-forwards the primary checkout's local
+   base branch if it is the one checked out; seeds the PR's preset scenario
+   into the local Convex deployment; ingests telemetry; deletes the remote and
+   local branch and removes the worktree (`--keep` keeps all three;
+   `--no-merge` stops after step 5).
 
 9. Records the landing in `.claude/telemetry/health/cadence.json` and starts
    the [batch health gate](#g-batch-health)'s decision —
@@ -141,6 +143,11 @@ command so the tree that lands is the tree that was gated:
    `nohup … &`: the locked command's `sh` leads a process group that the gate
    SIGKILLs on its way out, issue #3821, so anything merely backgrounded here
    dies with it.)
+
+**Nothing GitHub-bound after the merge.** `gaps:sync`, the grammar residue,
+the `in-progress` claim release and the umbrella detach are the hourly
+[`housekeeping` cron](#the-housekeeping-cron--the-github-bound-post-merge-steps)'s,
+so a GitHub 502 costs the cron a retry, never the session.
 
 **No health gate per landing**, and none held by the landing's own lock. A
 landing costs the mutex 3–5 minutes; a landing whose lane is skipped costs only
@@ -157,8 +164,9 @@ per-command hatch for a real recovery.
 `land` on a **MERGED** PR runs steps 8–9 and nothing else — no rebase, no lane
 gate, no merge. It says so on its first line, `land: mode=housekeeping — …`.
 That is the mode a `pr-merge.ts` retry leaves owing, and a hand-typed merge
-too: the seed, the fast-forward, `gaps:sync --band`, the claim release, the
-umbrella detach and the health cadence all still have to happen.
+too: the seed, the fast-forward, telemetry and the health cadence all still
+have to happen. (The GitHub-bound steps need nothing: the cron below finds
+every merged PR, however it merged.)
 
 **Run it from anywhere, the primary checkout included** (issue #4378):
 
@@ -180,6 +188,51 @@ starts, marked `(absent — skipped)` when there is nothing there to remove.
 The refusals that **stay** in housekeeping mode are the structural ones: a
 dirty tree (the teardown would discard it) and a PR merged into some base other
 than this one (its housekeeping is not the base branch's to run).
+
+### The `housekeeping` cron — the GitHub-bound post-merge steps
+
+`bun run housekeeping` (`scripts/housekeeping.ts`, ADR 0154 §5, issue #5457)
+walks the PRs merged into the base branch since its watermark and runs what
+`land` used to run after the merge:
+
+1. `git fetch` + fast-forward of the primary checkout — refused (nothing
+   processed) when it is not on the base branch, since `gaps:sync` pushes its
+   allowlist write from there. A local `gaps:sync` commit whose push lost a
+   race is dropped (`reset --keep`); the next sync re-derives it;
+2. `gaps:sync` once for the batch, `--band P0` when any PR of the batch closed
+   P0 work; if it fails, the steps below still run and every PR of the batch
+   is retried;
+3. per PR, oldest merge first, for a branch naming issue N:
+   `grammar:residue N --pr <PR#>` (holes it cannot file are logged for a
+   human, never retried), the `in-progress` claim release on N,
+   `umbrella:detach N`;
+4. `umbrella:detach --sweep` once.
+
+Merged PRs are listed by last update, newest first, until one older than the
+watermark — a merge updates a PR, so none is missed however long it was open.
+Every step is idempotent, so a second run with nothing new merged is a no-op.
+
+`gaps:sync` now pushes to the base branch outside `land`'s mutex, often from
+the other machine. `land`'s merged-tip check (step 7 above) does not count
+that one commit — the `gaps:sync` subject on a diff of `data/grammar-gaps.json`
+alone — and still refuses any other foreign push.
+State and logs live in the primary checkout's
+`.claude/telemetry/housekeeping/`: `state.json` (the watermark, plus the PRs
+whose steps failed — retried each run, given up loudly after 24 attempts) and
+`housekeeping.log` (every child's output). A missing state file looks back
+24 h; `--since <ISO>` moves the watermark back for a backfill, `--dry-run`
+prints the plan and writes nothing. Exit 0 = nothing to do or all done, 1 =
+something left to retry.
+
+It runs on the crons machine (Huawei, topology B'), from its primary
+checkout, hourly:
+
+```cron
+0 * * * * cd ~/code/mtg/tolaria && bun run housekeeping >/dev/null 2>&1
+```
+
+Until a PR's steps have run, its issue may still carry `in-progress`: that is
+harmless, since the session cap counts OPEN claimed issues only.
 
 ### The batch health gate — every 10 landings, or every 4 h
 

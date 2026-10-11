@@ -1,4 +1,4 @@
-// The priority band of the work a `land` is closing (issue #4158) — what
+// The priority band of the work a merged PR closed (issue #4158) — what
 // `gaps:sync --band` is told, so a gap born of P0 work files under its
 // family's P0 umbrella instead of the umbrella its computed band names.
 //
@@ -9,10 +9,10 @@
 // of "which band is this issue in" is how the partition and the queue would
 // come to disagree about what P0 work is.
 //
-// NON-GATING by contract, like every other post-merge step of `land`: an
-// unreadable board or parent is a `null` band plus a reason the caller prints,
-// never a throw. `land` then runs `gaps:sync` without `--band`, which is
-// exactly today's behaviour — the computed band stays the authority.
+// NON-GATING by contract, like every other post-merge step: an unreadable
+// board or parent is a `null` band plus a reason the caller prints, never a
+// throw. The `housekeeping` cron (issue #5457) then runs `gaps:sync` without
+// `--band` — the computed band stays the authority.
 
 import { gh } from "./gh";
 import { fetchBoardPriority, type BoardPriority } from "./board-priority";

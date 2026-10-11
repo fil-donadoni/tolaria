@@ -97,7 +97,7 @@
  * is saturated for every waiter, and the queue's order is kept. A nested call
  * runs inside a hold that already asked, and the light tier adds two workers
  * to whatever is there — neither asks. The callers that ask with NO hold
- * (`land`'s preflight, `check:ui`, a `health-main` run outside one) do not
+ * (`check:ui`, a `health-main` run outside one) do not
  * wait on the load of a holder whose command is running — `childPid` on the
  * owner stamp is how they tell it from one still waiting here (issue #4988).
  * Every run, of every tier, records the

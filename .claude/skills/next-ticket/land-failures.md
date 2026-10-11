@@ -44,11 +44,6 @@ MERGED PR it only does housekeeping.
 - **`could not fast-forward local <base>`.** That line is the whole handover:
   say so in § 6. Never do the catch-up by hand — `land` owns pulling a
   checked-out local base branch and deleting the local branch.
-- **`gaps:sync gets no --band (…)`.** `land` normally files the computed Gap
-  issues under the band of the issue you closed (issue #4158); this line means
-  the band could not be read. Say so in § 6 and move the new gaps yourself
-  (`gh issue edit <gap> --parent <P0 umbrella>`; umbrellas in
-  `docs/agents/issue-tracker.md`).
 
 **Done when:** `land` exited 0 with the PR merged — or § 6 reports the
 failure, naming the exit code and the line that carried it.
