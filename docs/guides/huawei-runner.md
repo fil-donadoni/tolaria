@@ -19,8 +19,18 @@ terminates (TERM, 5 s, KILL):
 - every process whose [owner tag](#g-tag) names no registered
   [lease](#g-lease), past a 1-minute margin;
 - the [pattern net](#g-net): an untagged orphan (parent pid 1, or a
-  `systemd --user`) matching vitest, vite, Chromium under the Playwright cache,
-  `convex-local-backend`, `bun scripts/*` or `claude -p`, older than a minute.
+  `systemd --user`) of THIS checkout — its cwd or command path under the
+  primary checkout's path (sibling worktrees share it as a prefix) or the
+  tooling cache — matching vitest, vite, Chromium under the Playwright cache,
+  `bun scripts/*` or `claude -p`, older than a minute. The local
+  `convex-local-backend` is not a pattern: `convex:ensure` leaves it serving on
+  purpose and tags the one it starts with a [unit tag](#g-unit).
+
+A [lease](#g-lease) that renews itself (a gate, `check:ui`, `health-main`, a
+pass) never dies on the clock — its renewal stalls whenever the machine sleeps
+or a synchronous step blocks it — only on its [anchor](#g-anchor), cwd or
+parent. An unreadable [lease](#g-lease) registry sweeps nothing, and an empty
+one never condemns a tagged process.
 
 It never touches a live [lease](#g-lease)'s tree, a tree inside its
 [grace window](#g-grace), anything carrying a [unit tag](#g-unit), another
@@ -110,7 +120,9 @@ On each machine, with the agent installed. Two strays — an untagged orphan the
 bash -c 'exec -a "node vitest/dist/workers/forks.js" sleep 100000 &' ; sleep 1
 pgrep -fl 'vitest/dist/workers/forks.js'
 
-# 2. A tagged python under a lease whose anchor we then kill.
+# 2. A tagged python under a lease whose anchor we then kill. Homebrew's
+#    python3 on macOS: Apple's own binaries (/usr/bin/*) hide their
+#    environment from `ps -E`, so a tag on them cannot be read.
 sh -c 'echo $$ > /tmp/anchor; exec sleep 100000' & sleep 1
 bun scripts/lib/process-lease.ts put proof-1 proof "$(cat /tmp/anchor)" 3600
 TOLARIA_OWNER=proof-1 sh -c "python3 -c 'import time; time.sleep(1e6)' &"
