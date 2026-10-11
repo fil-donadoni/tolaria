@@ -3811,6 +3811,52 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 615.1a — "Prevent all combat damage that would be dealt to and dealt
+    // by this creature this turn": a two-way shield on the ability's own
+    // source, exhibiting the "preventDamage acts on $source" card-dependent
+    // form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "12a8c546-d0d1-4c3d-bfca-c1e59cef349a",
+            name: "Moonlight Geist",
+            manaCost: "{2}{W}",
+            typeLine: "Creature — Spirit",
+            oracleText:
+                "Flying\n{3}{W}: Prevent all combat damage that would be dealt to and dealt by this creature this turn.",
+            power: "2",
+            toughness: "1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Moonlight Geist",
+            types: ["Creature"],
+            subtypes: ["Spirit"],
+            manaCost: { X: 2, W: 1 },
+            power: 2,
+            toughness: 1,
+            oracleText:
+                "Flying\n{3}{W}: Prevent all combat damage that would be dealt to and dealt by this creature this turn.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "moonlight-geist-ability",
+                    oracleText:
+                        "{3}{W}: Prevent all combat damage that would be dealt to and dealt by this creature this turn.",
+                    cost: { mana: { X: 3, W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "preventDamage",
+                            mode: "combat-to-and-by",
+                            target: { ref: "$source" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 120.3 + CR 615.7 — the same two-set union under "prevent the next N
     // damage that would be dealt to <recipient> this turn": `preventDamage`'s
     // `to` mirrors `dealDamage`'s, so the same fan-out applies, this time

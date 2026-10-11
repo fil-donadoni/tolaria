@@ -1778,6 +1778,22 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 615.1a — the two-way combat shield on the ability's own source.
+        // Only `this creature` is read: a printed announced target would need
+        // a slot this clause has no fixture for.
+        case "prevent-combat-damage-to-and-by":
+            if (sentence.subject.kind !== "self")
+                return unlowerable(
+                    "a two-way combat prevention shield is read for the ability's own source only (CR 615.1a)"
+                );
+            return lowered([
+                {
+                    op: "preventDamage",
+                    mode: "combat-to-and-by",
+                    target: { ref: "$source" },
+                    duration: durationSpec(sentence.duration),
+                },
+            ]);
         case "redirect-next-damage": {
             // CR 614.9 / 601.2c — the printed form is TWO instances of the
             // word "target", the second marked "another". The engine announces
