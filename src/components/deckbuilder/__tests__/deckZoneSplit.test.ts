@@ -8,9 +8,12 @@ import {
 import { isCreatureCard } from "../deckZoneFilter";
 import { layoutZonePiles } from "../deckZoneSplit";
 import {
+    bandPaneDropId,
     parseDeckZoneDropId,
     splitBelowDropId,
     zoneColumnDropId,
+    zonePaneDropId,
+    zoneTabDropId,
 } from "../deckZoneDrag";
 
 const BOLT = "d573ef03-4730-45aa-93dd-e45ac1dbaf4a"; // MV 1 instant, red
@@ -89,11 +92,76 @@ describe("layoutZonePiles", () => {
         expect(out.creatureCount).toBe(1);
     });
 
-    it("phone viewports ignore the toggle", () => {
-        const cols = resolve("mv", [BOLT, SERRA]);
-        for (const viewport of ["phone-portrait", "phone-landscape"] as const) {
-            const out = layoutZonePiles(cols, { ...desktop(true), viewport });
-            expect(out.kind).toBe("piles");
+    const phone = (
+        split: boolean,
+        viewport: "phone-portrait" | "phone-landscape"
+    ) => ({ ...desktop(split), viewport });
+
+    for (const grouping of ["mv", "color"] as const) {
+        it(`phone portrait, split off: the same columns, wrapping (${grouping})`, () => {
+            const cols = resolve(grouping, [BOLT, SERRA, MOX]);
+            expect(
+                layoutZonePiles(cols, phone(false, "phone-portrait"))
+            ).toEqual({ kind: "wrap", columns: cols });
+        });
+
+        it(`phone landscape, split off: the same columns, one sideways row (${grouping})`, () => {
+            const cols = resolve(grouping, [BOLT, SERRA, MOX]);
+            expect(
+                layoutZonePiles(cols, phone(false, "phone-landscape"))
+            ).toEqual({ kind: "row", columns: cols });
+        });
+    }
+
+    it("phone, split on: two bands holding each card exactly once", () => {
+        const cols = resolve("mv", [BOLT, SERRA, MOX]);
+        for (const [viewport, arrangement] of [
+            ["phone-portrait", "tabs"],
+            ["phone-landscape", "side-by-side"],
+        ] as const) {
+            const out = layoutZonePiles(cols, phone(true, viewport));
+            if (out.kind !== "bands") throw new Error("expected bands");
+            expect(out.arrangement).toBe(arrangement);
+            const ids = (b: typeof out.creatures) =>
+                b.columns.flatMap((c) => c.tiles.map((t) => t.cardId));
+            expect(ids(out.creatures)).toEqual([SERRA]);
+            expect(ids(out.others).sort()).toEqual([BOLT, MOX].sort());
+            expect(out.creatures.count).toBe(1);
+            expect(out.others.count).toBe(2);
+        }
+    });
+
+    it("phone bands keep only columns that hold a card of that band, in column order", () => {
+        const cols = resolve("mv", [BOLT, SERRA, MOX]);
+        const out = layoutZonePiles(cols, phone(true, "phone-portrait"));
+        if (out.kind !== "bands") throw new Error("expected bands");
+        expect(out.creatures.columns.map((c) => c.id)).toEqual(
+            cols
+                .filter((c) => c.tiles.some((t) => t.cardId === SERRA))
+                .map((c) => c.id)
+        );
+        for (const band of [out.creatures, out.others]) {
+            expect(band.columns.every((c) => c.tiles.length > 0)).toBe(true);
+        }
+    });
+});
+
+describe("band drop ids", () => {
+    it("a band's tab and pane ids resolve to the whole Maindeck, each id distinct", () => {
+        const ids = [
+            zoneTabDropId("maindeck"),
+            zoneTabDropId("maindeck", "creatures"),
+            zoneTabDropId("maindeck", "others"),
+            bandPaneDropId("maindeck", "creatures"),
+            bandPaneDropId("maindeck", "others"),
+            zonePaneDropId("maindeck"),
+        ];
+        expect(new Set(ids).size).toBe(ids.length);
+        for (const id of ids) {
+            expect(parseDeckZoneDropId(id)).toEqual({
+                zone: "maindeck",
+                columnId: null,
+            });
         }
     });
 });

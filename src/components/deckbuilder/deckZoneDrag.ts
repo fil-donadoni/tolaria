@@ -11,6 +11,7 @@
 // pointer-driven drag can never resolve a drop target there.
 import type { ColumnId, DeckZone } from "@convex/deckLayout";
 import type { DragSourceKind } from "~/components/lobby/deck-builder/dnd-types";
+import type { ZoneBand } from "./deckZoneSplit";
 
 const DROP_PREFIX = "deck-zone:";
 
@@ -28,9 +29,21 @@ const TAB_PREFIX = "deck-tab:";
  *  used to remove it (a tap now opens the Peek Panel instead). */
 export const SOURCE_TAB_DROP_ID = `${TAB_PREFIX}source`;
 
-/** Drop-target id for the Pane Tab of one Zone (issue #2584). */
-export function zoneTabDropId(zone: DeckZone): string {
-    return `${TAB_PREFIX}${zone}`;
+/** Drop-target id for the Pane Tab of one Zone (issue #2584). With a `band`
+ *  (issue #5400, phone portrait with Split creatures on) the Maindeck has one
+ *  tab per band; each is its own droppable and means the whole Maindeck. */
+export function zoneTabDropId(zone: DeckZone, band?: ZoneBand): string {
+    return `${TAB_PREFIX}${zone}${band ? `${BAND_SEP}${band}` : ""}`;
+}
+
+/** Separates a Zone from the band of a phone-portrait pane that names only
+ *  half of it. Every id carrying it resolves to the Zone alone. */
+const BAND_SEP = "~";
+
+/** The whole-pane drop id of a band's pane (issue #5400): the Maindeck's two
+ *  band panes each register one, so the second cannot reuse the first's id. */
+export function bandPaneDropId(zone: DeckZone, band: ZoneBand): string {
+    return `${zonePaneDropId(zone)}${BAND_SEP}${band}`;
 }
 
 /** True for the Source pane's tab id — the one drop target that names no
@@ -90,7 +103,8 @@ export function parseDeckZoneDropId(
     if (!prefix) return null;
     const rest = id.slice(prefix.length);
     const at = rest.indexOf(":");
-    const zone = at < 0 ? rest : rest.slice(0, at);
+    const zoneAndBand = at < 0 ? rest : rest.slice(0, at);
+    const zone = zoneAndBand.split(BAND_SEP)[0]!;
     if (!isDeckZone(zone)) return null;
     const rawColumnId = at < 0 ? null : rest.slice(at + 1);
     const columnId = rawColumnId?.endsWith(SPLIT_BELOW_SUFFIX)

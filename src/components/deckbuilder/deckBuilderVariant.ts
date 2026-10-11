@@ -42,6 +42,7 @@ import type {
 } from "@convex/deckLayout";
 import type { DeckCard, ZoneCard } from "~/types/game";
 import type { DeckZoneDragHandlers } from "./deckZoneDrag";
+import type { DeckZoneSelection } from "./deckZoneSelection";
 
 /**
  * The deck a variant is editing, in the ONE shape both the shared workspace
@@ -119,6 +120,11 @@ export interface DeckZonePresentation {
     sideCountSuffix?: string;
     /** Soft-limit warning shown beside the Sideboard count. */
     sideWarning?: string | null;
+    /** Draw the zones with the phone piles layout and let Split creatures
+     *  apply on a phone (issue #5400): wrapping piles in portrait, one
+     *  sideways row over a Sideboard strip in landscape. Absent = the
+     *  pre-#5400 phone rows. */
+    phonePiles?: boolean;
 }
 
 /**
@@ -136,6 +142,12 @@ export interface DeckZoneActions extends DeckZoneDragHandlers {
      *  player actually tapped (issue #1626). */
     onMainCardClick: (card: ZoneCard) => void;
     onSideCardClick: (card: ZoneCard) => void;
+    /** The same two moves raised by the Peek Panel's "→" CTA (issue #5400) —
+     *  the phone's move path. Optional: a host that animates a click-move
+     *  animates this one, with the selected copy's identity in hand. Absent →
+     *  the plain `onMoveTo*` handlers above. */
+    onSelectionMoveToSideboard?: (selection: DeckZoneSelection) => void;
+    onSelectionMoveToMaindeck?: (selection: DeckZoneSelection) => void;
     /** Per-zone Grouping/Ordering control callbacks (PRD #1617, issue #1624).
      *  Every variant supplies all four — unlike `onAdd*` above, there is no
      *  variant whose zones lack these controls. */

@@ -24,9 +24,30 @@
  */
 import type { DeckZone } from "@convex/deckLayout";
 import { SOURCE_TAB_DROP_ID, zoneTabDropId } from "./deckZoneDrag";
+import type { ZoneBand } from "./deckZoneSplit";
 
-/** The identity of a pane. `"source"` is the only one that is not a Zone. */
-export type DeckPaneId = "source" | DeckZone;
+/** The identity of a pane. `"source"` is the only one that is not a Zone; the
+ *  two band ids exist only while Split creatures cuts the Maindeck in two on a
+ *  phone held upright (issue #5400). */
+export type DeckPaneId = "source" | DeckZone | MaindeckBandPaneId;
+
+export type MaindeckBandPaneId = `maindeck-${ZoneBand}`;
+
+/** The pane id of one Maindeck band. */
+export function maindeckBandPaneId(band: ZoneBand): MaindeckBandPaneId {
+    return `maindeck-${band}`;
+}
+
+/** The pane id a Maindeck card lands in: its band's while the Maindeck is
+ *  cut in two, the Maindeck's own otherwise. */
+export function maindeckPaneIdFor(
+    isCreature: boolean,
+    banded: boolean
+): DeckPaneId {
+    return banded
+        ? maindeckBandPaneId(isCreature ? "creatures" : "others")
+        : "maindeck";
+}
 
 /** One pane of the strip, and the tab that reaches it. */
 export interface DeckPane {
@@ -46,6 +67,9 @@ export interface DeckPaneInput {
     mainCount: number;
     sideLabel: string;
     sideCount: number;
+    /** Present while the Maindeck is cut in two (issue #5400): its single pane
+     *  becomes a Creatures pane and a Non-creatures pane, in that order. */
+    mainBands?: { creatures: number; others: number };
 }
 
 /** The ordered pane strip. Source first (where cards come FROM), then the two
@@ -60,12 +84,29 @@ export function deckPanes(input: DeckPaneInput): DeckPane[] {
             dropId: SOURCE_TAB_DROP_ID,
         });
     }
-    panes.push({
-        id: "maindeck",
-        label: input.mainLabel,
-        count: input.mainCount,
-        dropId: zoneTabDropId("maindeck"),
-    });
+    if (input.mainBands) {
+        panes.push(
+            {
+                id: maindeckBandPaneId("creatures"),
+                label: "Creatures",
+                count: input.mainBands.creatures,
+                dropId: zoneTabDropId("maindeck", "creatures"),
+            },
+            {
+                id: maindeckBandPaneId("others"),
+                label: "Non-creatures",
+                count: input.mainBands.others,
+                dropId: zoneTabDropId("maindeck", "others"),
+            }
+        );
+    } else {
+        panes.push({
+            id: "maindeck",
+            label: input.mainLabel,
+            count: input.mainCount,
+            dropId: zoneTabDropId("maindeck"),
+        });
+    }
     panes.push({
         id: "sideboard",
         label: input.sideLabel,
@@ -73,4 +114,19 @@ export function deckPanes(input: DeckPaneInput): DeckPane[] {
         dropId: zoneTabDropId("sideboard"),
     });
     return panes;
+}
+
+/** The pane the strip is on, given the one last picked: that pane while it
+ *  still exists, else its counterpart across the Maindeck's cut in two (the
+ *  first band, or the whole Maindeck), else the first pane. */
+export function resolveActivePaneId(
+    panes: readonly DeckPane[],
+    pickedId: string
+): string {
+    if (panes.some((p) => p.id === pickedId)) return pickedId;
+    if (pickedId.startsWith("maindeck")) {
+        const main = panes.find((p) => p.id.startsWith("maindeck"));
+        if (main) return main.id;
+    }
+    return panes[0]!.id;
 }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import type { DragEndEvent } from "@dnd-kit/react";
 import type { DragDropManager } from "@dnd-kit/dom";
@@ -6,6 +6,7 @@ import type { CardLookup, DeckColumnLayout } from "@convex/deckLayout";
 import type { ZoneCard } from "~/types/game";
 import { cn } from "~/lib/utils";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import { useDeckSourceDock } from "~/hooks/useDeckSourceDock";
 import { Button } from "~/components/ui/button";
 import CardImage from "~/components/cards/card-image";
@@ -18,7 +19,8 @@ import DeckPaneTabs from "./deck-pane-tabs";
 import DeckBottomBar from "./deck-bottom-bar";
 import DeckFeaturedSelect from "./deck-featured-select";
 import DeckBasicsSheet from "./deck-basics-sheet";
-import { deckPanes, type DeckPane } from "./deckPanes";
+import { deckPanes, resolveActivePaneId, type DeckPane } from "./deckPanes";
+import { isCreatureCard } from "./deckZoneFilter";
 import {
     applyDeckZoneDragAction,
     resolveDeckZoneDragAction,
@@ -142,7 +144,21 @@ export default function DeckBuilderShell({
     // The pane SET falls out of which slots this variant supplied — three for
     // a builder with a source panel, two for one whose zones are the only
     // source. No `kind` check anywhere (`deckPanes.ts`).
+    //
+    // Phone portrait with Split creatures on (issue #5400) cuts the Maindeck's
+    // pane in two, so the strip reads Creatures | Non-creatures | Sideboard.
+    const [splitCreatures] = useSplitCreatures();
+    const banded = Boolean(zones.phonePiles) && portrait && splitCreatures;
+    const creatureCount = banded
+        ? mainCards.filter((c) => isCreatureCard(c.cardId, lookup)).length
+        : 0;
     const panes = deckPanes({
+        mainBands: banded
+            ? {
+                  creatures: creatureCount,
+                  others: mainCards.length - creatureCount,
+              }
+            : undefined,
         source: sourcePanel
             ? { label: sourcePanel.label, count: sourcePanel.count }
             : undefined,
@@ -153,7 +169,27 @@ export default function DeckBuilderShell({
     });
 
     const stripRef = useRef<HTMLDivElement | null>(null);
-    const [activePaneId, setActivePaneId] = useState<string>(panes[0]!.id);
+    const [pickedPaneId, setPickedPaneId] = useState<string>(
+        () => panes[0]!.id
+    );
+
+    // Toggling the split swaps the Maindeck's pane for two: a picked id that
+    // no longer exists maps to its counterpart (the first band when the player
+    // was on the Maindeck), derived here rather than stored.
+    const activePaneId = resolveActivePaneId(panes, pickedPaneId);
+
+    // ...and the strip's old scroll offset would land on a neighbour (the
+    // Sideboard's index moved), so put it back on the active pane.
+    const bandedBefore = useRef(banded);
+    useEffect(() => {
+        if (bandedBefore.current === banded) return;
+        bandedBefore.current = banded;
+        // Only the portrait strip scrolls between panes.
+        if (!portrait) return;
+        document
+            .querySelector(`[data-deck-pane="${activePaneId}"]`)
+            ?.scrollIntoView?.({ inline: "start", block: "nearest" });
+    }, [banded, activePaneId, portrait]);
     const [basicsOpen, setBasicsOpen] = useState(false);
 
     // Tapping a tab scrolls its pane into view — a programmatic swipe in
@@ -162,7 +198,7 @@ export default function DeckBuilderShell({
     // rather than held as refs because the panes are rendered by three
     // different components, one of which (`DeckZonesSurface`) owns two of them.
     const handleSelectPane = useCallback((pane: DeckPane) => {
-        setActivePaneId(pane.id);
+        setPickedPaneId(pane.id);
         document
             .querySelector(`[data-deck-pane="${pane.id}"]`)
             ?.scrollIntoView({ inline: "start", block: "nearest" });
@@ -175,7 +211,7 @@ export default function DeckBuilderShell({
         if (!strip || strip.clientWidth === 0) return;
         const index = Math.round(strip.scrollLeft / strip.clientWidth);
         const pane = panes[Math.min(Math.max(index, 0), panes.length - 1)];
-        if (pane) setActivePaneId(pane.id);
+        if (pane) setPickedPaneId(pane.id);
     }, [panes]);
 
     const handleDragEnd = useCallback(
@@ -429,10 +465,17 @@ export default function DeckBuilderShell({
                                 onSideCardClick={actions.onSideCardClick}
                                 onMoveToSideboard={actions.onMoveToSideboard}
                                 onMoveToMaindeck={actions.onMoveToMaindeck}
+                                onSelectionMoveToSideboard={
+                                    actions.onSelectionMoveToSideboard
+                                }
+                                onSelectionMoveToMaindeck={
+                                    actions.onSelectionMoveToMaindeck
+                                }
                                 mainCardTitle={deckCardTitle}
                                 sideCardTitle={deckCardTitle}
                                 featuredCardId={featured?.cardId}
                                 onSetFeatured={featured?.onSet}
+                                phonePiles={zones.phonePiles}
                             />
                         </div>
                     </div>

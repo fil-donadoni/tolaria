@@ -225,6 +225,12 @@ describe("check:ui surface table — Named Assertions", () => {
                 "reachable role=button name=Done",
                 "contrast role=button name=Done",
             ],
+            "limited-build-split": [
+                "visible [data-card-tile]",
+                "reachable role=textbox name=Deck name",
+                "reachable role=button name=Done",
+                "contrast role=button name=Done",
+            ],
             "draft-pick": [
                 "visible [data-slot=draft-room-bar]",
                 "reachable [data-draft-pick-tile]",

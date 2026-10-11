@@ -28,6 +28,7 @@ import {
     type GroupingKind,
     type OrderingKind,
 } from "@convex/deckLayout";
+import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import { useLimitedEventMutations } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
@@ -44,6 +45,7 @@ import { cardBase } from "~/lib/cardSizing";
 import {
     applyBasicLandArtPreference,
     basicLandSubtypeOf,
+    type BasicLandIdentity,
     countBasicLandCopies,
     findBasicLandRemovalIndex,
     recordBasicLandArtChoice,
@@ -54,6 +56,9 @@ import {
 } from "./basicLands";
 import DeckBuilderShell from "./deck-builder-shell";
 import { flyDeckCard } from "./deckCardFly";
+import { maindeckPaneIdFor } from "./deckPanes";
+import type { DeckZoneSelection } from "./deckZoneSelection";
+import { isCreatureCard } from "./deckZoneFilter";
 import DeckStatsButton from "./deck-stats-button";
 import type { DeckBuilderViewSpec, WorkingDeck } from "./deckBuilderVariant";
 import {
@@ -369,25 +374,54 @@ export default function PoolDeckBuilderForm({
     // does not — the card is already under the pointer. The fly is started
     // BEFORE the move and never defers it (`cardFly.ts`). A Maindeck Basic is
     // removed, not moved, so it has nowhere to fly.
-    const handleMainCardClick = useCallback(
-        (card: ZoneCard) => {
-            if (basicLandSubtypeOf(card.cardId, card) === null) {
-                flyDeckCard(
-                    "maindeck",
-                    "sideboard",
-                    card.pinKey ?? card.cardId
-                );
+    const moveMainToSideboard = useCallback(
+        (cardId: string, hint: BasicLandIdentity, pinKey?: string) => {
+            if (basicLandSubtypeOf(cardId, hint) === null) {
+                flyDeckCard("maindeck", "sideboard", pinKey ?? cardId);
             }
-            handleMainClick(card.cardId, card.pinKey);
+            handleMainClick(cardId, pinKey);
         },
         [handleMainClick]
     );
-    const handleSideCardClick = useCallback(
-        (card: ZoneCard) => {
-            flyDeckCard("sideboard", "maindeck", card.pinKey ?? card.cardId);
-            handleSideClick(card.cardId, card.pinKey);
+    // With Split creatures on, the Maindeck has a Creatures and a
+    // Non-creatures pane (phone portrait): a card landing in a pane that is
+    // not on screen flies to ITS tab (issue #5400).
+    const [splitCreatures] = useSplitCreatures();
+    const moveSideToMaindeck = useCallback(
+        (cardId: string, pinKey?: string) => {
+            flyDeckCard(
+                "sideboard",
+                "maindeck",
+                pinKey ?? cardId,
+                maindeckPaneIdFor(isCreatureCard(cardId), splitCreatures)
+            );
+            handleSideClick(cardId, pinKey);
         },
-        [handleSideClick]
+        [handleSideClick, splitCreatures]
+    );
+    const handleMainCardClick = useCallback(
+        (card: ZoneCard) => moveMainToSideboard(card.cardId, card, card.pinKey),
+        [moveMainToSideboard]
+    );
+    const handleSideCardClick = useCallback(
+        (card: ZoneCard) => moveSideToMaindeck(card.cardId, card.pinKey),
+        [moveSideToMaindeck]
+    );
+    // The Peek Panel's "→" CTA is the phone's move path (a tap selects), so it
+    // flies the card too; a drop, which resolves to the plain handlers, does not.
+    const handleSelectionToSideboard = useCallback(
+        (selection: DeckZoneSelection) =>
+            moveMainToSideboard(
+                selection.cardId,
+                { cardName: selection.cardName },
+                selection.pinKey
+            ),
+        [moveMainToSideboard]
+    );
+    const handleSelectionToMaindeck = useCallback(
+        (selection: DeckZoneSelection) =>
+            moveSideToMaindeck(selection.cardId, selection.pinKey),
+        [moveSideToMaindeck]
     );
 
     /** Adds `count` copies (1 for a plain click, 5 for the `+5` step, issue
@@ -701,6 +735,7 @@ export default function PoolDeckBuilderForm({
                 // because that is what the zone is here.
                 sideTabLabel: "Pool",
                 mainTabLabel: "Deck",
+                phonePiles: true,
                 mainEmptyMessage:
                     "Move Pool cards here (or add Basics above) to build your deck.",
                 sideEmptyMessage:
@@ -709,6 +744,8 @@ export default function PoolDeckBuilderForm({
             actions={{
                 onMoveToSideboard: handleMainClick,
                 onMoveToMaindeck: handleSideClick,
+                onSelectionMoveToSideboard: handleSelectionToSideboard,
+                onSelectionMoveToMaindeck: handleSelectionToMaindeck,
                 onPin: handlePin,
                 // The clicked ENTRY carries its own copy key (issue #1626),
                 // so a tap moves exactly the card that was tapped.
