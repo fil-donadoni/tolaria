@@ -901,6 +901,24 @@ in-flight PRs land; a second RED on the same lineage stops the loop and
 notifies the owner; a stale verdict (no verdict on any tip gated within
 `MAX_PENDING_MS`) makes the MacBook run one local health and notify.
 
+The backend is `tolaria.config.json` → `health.verdictStore`: `file`
+(default — the `RED` / `AMBER` markers beside `last.json`) or `github`
+(commit status `context=health`: success / failure / error / pending for
+GREEN / RED / infra / AMBER; description `STATUS · step · machine` plus the
+failing test files while they fit 140 characters; target URL the log when it
+is one). `scripts/lib/health-verdict-store.ts` is the only reader of the key;
+`TOLARIA_VERDICT_STORE=file|github` overrides it for one process. `bun run
+health:status --json` prints the lineage as one line — what `loop-drain`
+reads. **AMBER**: a repair landing (`--repair`, or a PR closing the
+`/health-fix` issue) runs, after its lane, the failing test files the RED
+verdict names (`land`'s repair proof — red refuses the landing); green there
+turns the lineage AMBER at the merged tip, and picks and non-repair landings
+resume without waiting for the confirming health run. The next GREEN clears
+it; a RED on an AMBER lineage is the SECOND RED (`loop-drain` stops as
+`health-second-red` and notifies — `TOLARIA_NOTIFY_CMD`, else the desktop
+notifier). A RED verdict that names no test file earns no AMBER: the RED
+stands until health, as before.
+
 **The mutex queues health LAST.** Health holds the lock ~10 min and a landing
 ~4, and the tip health is about does not get staler while a land runs — the
 land only adds a commit the next run covers anyway. So the batch gate queues
