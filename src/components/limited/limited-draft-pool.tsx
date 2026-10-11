@@ -22,6 +22,7 @@ import DeckZoneSurface from "~/components/deckbuilder/deck-zone-surface";
 import {
     DRAFT_POOL_VIEW_ZONE,
     recordGroupingChange,
+    viewAfterGroupingChange,
     recordOrderingChange,
     seededColumnView,
 } from "~/components/deckbuilder/deckZoneColumnView";
@@ -213,7 +214,7 @@ export default function LimitedDraftPool({
 
     const handleGroupingChange = useCallback((grouping: GroupingKind) => {
         recordGroupingChange(DRAFT_POOL_VIEW_ZONE, grouping);
-        setView((v) => ({ ...v, grouping }));
+        setView((v) => viewAfterGroupingChange(v, grouping));
     }, []);
     const handleOrderingChange = useCallback((ordering: OrderingKind) => {
         recordOrderingChange(DRAFT_POOL_VIEW_ZONE, ordering);
