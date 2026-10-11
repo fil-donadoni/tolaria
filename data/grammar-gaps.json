@@ -926,11 +926,6 @@
         },
         {
             "kind": "grammar",
-            "key": "activated › effect clause › Target creature blocks this creature this turn if able",
-            "issue": 4580
-        },
-        {
-            "kind": "grammar",
             "key": "activated › effect clause › Target creature you control fights target creature an opponent controls",
             "issue": 4572
         },
