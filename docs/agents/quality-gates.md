@@ -853,6 +853,38 @@ robustness / pick-agreement audits run weekly, on the same machine. A failed
 vitest project is re-run once before RED (issue #5461): 11 % of health reds
 were flaky.
 
+**What a health run is, after the diet (issue #5458).** Only the steps that
+prove the tree. Step costs are the MacBook's `detach.log` over the same 14
+days (green runs, range):
+
+| Step                 | Measured               | Where now                                       |
+| -------------------- | ---------------------- | ----------------------------------------------- |
+| `worktree:init`      | 1–2 s                  | health, offline                                 |
+| `check:all`          | 1 m 40 s – 2 m 08 s    | health, offline                                 |
+| `check:gaps`         | < 1 s                  | health, offline (and the lane)                  |
+| `check:targets`      | ~1 s                   | health, offline (and the lane)                  |
+| `check:test-hygiene` | 2–3 s                  | health, offline (and the lane)                  |
+| `test`               | 6 m 19 s – 18 m 47 s   | health, offline                                 |
+| `check:ui --all`     | 14 m 39 s green        | `release` only (`--ui-all`, issue #5378)        |
+| `check:convex-heap`  | 4 m 45 s – 17 m 45 s   | `bun run maintenance`, by hand — never gated    |
+| `bot:reach`          | 3 m 10 s – 4 m 40 s    | `bun run health:nightly`, when the Bot moved    |
+| `seed:bot-findings`  | ~1 s                   | `bun run health:nightly`, after `bot:reach`     |
+| `gaps:sync`          | 1 m 27 s – 3 m 57 s    | `bun run health:nightly`, primary at the tip    |
+| robustness audit     | 13 m 30 s – 18 m 51 s  | `bun run health:nightly`, weekly (Sunday night) |
+| pick agreement audit | (not separately timed) | `bun run health:nightly`, weekly                |
+
+The offline phase is ~10–15 min. `check:convex-heap` is the first member of a
+third guard tier, `MAINTENANCE_SCRIPTS` (`scripts/lib/health-step.ts`): a
+diagnostic report no gate waits for — a capacity analysis at 35k cards is a
+planning input, not a broken tip. `check-lane.test.ts`'s census places every
+`check:*` script in a lane, in `HEALTH_ONLY_GUARDS` (by measured cost), or
+there. `health:nightly` refreshes the Bot Findings only when `origin/<base>`
+moved the Bot's globs since its last refresh (`nightly.json` beside
+`last.json`), and runs the audits on the weekly night — or on any night once
+the last audit is over eight days old — on the tip the last GREEN or RED
+verdict is about. Neither can red a tip. The cron wiring is the Huawei's
+(issues #5467, #5468).
+
 **The verdict is shared state (issue #5462).** A health verdict on one machine
 was a local file (`.claude/telemetry/health/last.json`, the `RED` marker), so
 the other machine's `queue:plan` kept picking from a tip it could not know was

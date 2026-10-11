@@ -1013,5 +1013,15 @@
         "file": "scripts/__tests__/ui-gate-surface-entries.test.ts",
         "test": "check:ui surface table — specimen rows (issue #4913) > the table declares specimen rows",
         "reason": "Census guard: the it.each over specimen rows would pass vacuously on an empty table (issue #4913)."
+    },
+    {
+        "file": "scripts/__tests__/health-step.test.ts",
+        "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > leaves check:convex-heap to the maintenance tier, never gated",
+        "reason": "Partition check across three independently declared tiers (HEALTH_SCRIPTS, HEALTH_ONLY_GUARDS, MAINTENANCE_SCRIPTS): the member lives in exactly one."
+    },
+    {
+        "file": "scripts/__tests__/health-step.test.ts",
+        "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > never runs a maintenance script, nor a health-only guard as maintenance",
+        "reason": "Disjointness census over MAINTENANCE_SCRIPTS vs HEALTH_SCRIPTS and HEALTH_ONLY_GUARDS, for every member, not a literal."
     }
 ]

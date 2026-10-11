@@ -5,8 +5,9 @@
  * heap per context. A FAILURE (exit 1) when a budget is exceeded (issue #4862,
  * PRD #4849; ADR 0113 Amendment IV): one call to `game.ts` ≤ 34 MiB, a module
  * that reads no Card Definition ≤ 4 MiB, the client catalogue ≤ 15 MiB in the
- * main thread and in the Bot worker, each measured separately. Runs in
- * `health` only (`HEALTH_ONLY_GUARDS`), never in `check:pr` or `land`.
+ * main thread and in the Bot worker, each measured separately. Never gated
+ * (issue #5458): `bun run maintenance` runs it by hand (`MAINTENANCE_SCRIPTS`)
+ * — a capacity analysis at target scale, not a proof of the tree as it is.
  *
  * Server figures are Node V8 heap deltas read as isolate bytes through
  * `NODE_TO_ISOLATE_RATIO` = 0.65 — the highest of the 0.56–0.65 the cloud

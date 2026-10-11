@@ -117,7 +117,6 @@ export const HEALTH_SCRIPTS: readonly string[] = [
     "check:gaps",
     "check:targets",
     "check:test-hygiene",
-    "check:convex-heap",
     "test",
     "check:ui --all",
 ];
@@ -145,13 +144,33 @@ export const HEALTH_ONLY_GUARDS: Readonly<
         measured:
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
     },
+};
+
+/**
+ * The third tier: `check:*` scripts that are NEVER GATED (issue #5458) — a
+ * diagnostic report whose verdict no tip waits for. `bun run maintenance`
+ * runs them by hand (`scripts/maintenance.ts`) and prints each report; no
+ * lane, no health run and no `release` composes them. `check-lane.test.ts`'s
+ * census accepts a `check:*` script here as placed, and reds on one that is
+ * also in a lane or in `HEALTH_ONLY_GUARDS`.
+ *
+ * Membership is a JUDGMENT, not a cost: the report measures a capacity the
+ * tree is not yet asked to hold, so a red one is a planning input, not a
+ * broken tip. A guard that protects the tree as it is belongs in a lane or in
+ * health, whatever it costs.
+ */
+export const MAINTENANCE_SCRIPTS: Readonly<
+    Record<string, { measuredCostS: number; measured: string; why: string }>
+> = {
     // The heap of one call per isolate module, today and at 35k cards (issue
     // #4853), armed by issue #4862: ~480 bundles + node probes, exit 1 on a
-    // module over budget at target scale, the client catalogue included.
+    // module over budget at TARGET scale, the client catalogue included. It
+    // was 9–17 min of every health run (issue #5458).
     "check:convex-heap": {
         measuredCostS: 753,
         measured:
             "`bun run check:convex-heap` full walk, 478 modules: 753 s, load ~2-4 (2026-10-04)",
+        why: "a 35k-card capacity analysis: over budget at target scale is a plan, not a red tip",
     },
 };
 
