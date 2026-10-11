@@ -63,3 +63,11 @@ describe("importFormat", () => {
         expect(importFormat("freeform", "old-school")).toBe("old-school");
     });
 });
+
+describe("IMPORT_FORMAT_CHOICES", () => {
+    it("omits Formats a pasted list cannot be (Limited, Tabletop)", () => {
+        expect(IMPORT_FORMAT_CHOICES).not.toContain("limited");
+        expect(IMPORT_FORMAT_CHOICES).not.toContain("manual");
+        expect(IMPORT_FORMAT_CHOICES).toContain("freeform");
+    });
+});

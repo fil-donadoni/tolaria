@@ -87,7 +87,10 @@ export default function ImportDeckDialog({
     return (
         <GameDialog
             open={open}
-            onOpenChange={onOpenChange}
+            onOpenChange={(next) => {
+                // Closing mid-save would still save and select the deck.
+                if (!busy) onOpenChange(next);
+            }}
             title="Import deck"
             subtitle="Paste a list — it is saved to your decks."
             showCloseButton
@@ -160,6 +163,7 @@ export default function ImportDeckDialog({
                         variant="ghost"
                         size="sm"
                         onClick={() => onOpenChange(false)}
+                        disabled={busy}
                     >
                         Cancel
                     </Button>

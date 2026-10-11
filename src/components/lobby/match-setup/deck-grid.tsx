@@ -11,6 +11,7 @@ import {
     freeformFormatOptions,
     type DeckGridFormat,
 } from "~/lib/matchSetupDeckGrid";
+import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupDeckImport";
 import DeckGridSection from "./deck-grid-section";
 import ImportDeckAction from "./import-deck-action";
 import SetupChoice from "./setup-choice";
@@ -86,10 +87,12 @@ export default function DeckGrid({
                     placeholder="Search deck or card name"
                     className="input-field min-w-0 flex-1 px-3 py-1.5 text-sm"
                 />
-                <ImportDeckAction
-                    matchFormat={matchFormat}
-                    onImported={onImported}
-                />
+                {!IMPORT_EXCLUDED_FORMATS.includes(matchFormat) && (
+                    <ImportDeckAction
+                        matchFormat={matchFormat}
+                        onImported={onImported}
+                    />
+                )}
             </div>
             <DeckGridSection
                 title="Your decks"

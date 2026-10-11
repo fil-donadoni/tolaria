@@ -26,10 +26,17 @@ export type StrictImportResult =
     | { ok: true; payload: ImportedDeckPayload }
     | { ok: false; errors: string[] };
 
-/** The Formats a Freeform Match Format lets the player import into: every
- *  Format a hand-pasted list can be (a Limited deck is bound to an Event). */
+/** Formats a pasted list cannot be: Limited is bound to an Event, and Tabletop
+ *  (`manual`) resolves names through the Full Catalogue, which this strict
+ *  import does not load — it would refuse every card the GRE lacks. */
+export const IMPORT_EXCLUDED_FORMATS: readonly FormatId[] = [
+    "limited",
+    "manual",
+];
+
+/** The Formats a Freeform Match Format lets the player import into. */
 export const IMPORT_FORMAT_CHOICES: readonly FormatId[] = FORMAT_IDS.filter(
-    (f) => f !== "limited"
+    (f) => !IMPORT_EXCLUDED_FORMATS.includes(f)
 );
 
 /** The imported deck's Format: the Match Format itself, except under Freeform,
