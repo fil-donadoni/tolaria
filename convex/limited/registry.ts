@@ -8,6 +8,9 @@
 import leaConfigJson from "../../data/boosters/lea.json";
 import iceConfigJson from "../../data/boosters/ice.json";
 import drkConfigJson from "../../data/boosters/drk.json";
+import invConfigJson from "../../data/boosters/inv.json";
+import plsConfigJson from "../../data/boosters/pls.json";
+import apcConfigJson from "../../data/boosters/apc.json";
 import { computeDraftability, dropUnimplementedCards } from "./draftable";
 import {
     CUBE_DISPLAY_NAME,
@@ -27,6 +30,9 @@ const CHECKED_IN_BOOSTER_CONFIGS: Record<string, BoosterConfig> = {
     lea: leaConfigJson as BoosterConfig,
     ice: iceConfigJson as BoosterConfig,
     drk: drkConfigJson as BoosterConfig,
+    inv: invConfigJson as BoosterConfig,
+    pls: plsConfigJson as BoosterConfig,
+    apc: apcConfigJson as BoosterConfig,
 };
 
 /** Resolves a lowercase set code to its checked-in `BoosterConfig`, or `null`
@@ -177,11 +183,9 @@ function threeOf(source: string): readonly string[] {
     return Array.from({ length: DRAFT_BOOSTER_COUNT }, () => source);
 }
 
-/** The catalogue, in display order. Invasion (INV×3, Fact or Fiction) and
- *  Invasion Block (INV → PLS → APC, Dromar, the Banisher) join once their
- *  Booster Configs are checked in — a `packs` set with no config would never
- *  be draftable (`listPackSources`), so an entry ahead of its config is
- *  dead weight. */
+/** The catalogue, in display order. An entry whose `packs` set has no
+ *  checked-in Booster Config would never be draftable (`listPackSources`), so
+ *  an entry ahead of its config is dead weight. */
 const PACK_SOURCES: readonly PackSourceEntry[] = [
     {
         key: CUBE_SOURCE_KEY,
@@ -218,6 +222,24 @@ const PACK_SOURCES: readonly PackSourceEntry[] = [
         packs: threeOf("drk"),
         // Maze of Ith
         featureCardId: "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
+    },
+    {
+        key: "inv",
+        name: setName("inv"),
+        description:
+            "Multicolour gold cards and kicker: the 2000 expansion that started the Invasion block.",
+        packs: threeOf("inv"),
+        // Fact or Fiction
+        featureCardId: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
+    },
+    {
+        key: "invasion-block",
+        name: "Invasion Block",
+        description:
+            "Invasion, Planeshift and Apocalypse, one set per pack: the whole block in a single draft.",
+        packs: ["inv", "pls", "apc"],
+        // Dromar, the Banisher
+        featureCardId: "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
     },
 ];
 

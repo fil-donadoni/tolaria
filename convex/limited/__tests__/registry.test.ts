@@ -28,7 +28,7 @@ describe("registry (ADR 0056/0059)", () => {
     });
 
     it("returns null for a set with no checked-in config", () => {
-        expect(getBoosterConfig("inv")).toBeNull();
+        expect(getBoosterConfig("arn")).toBeNull();
     });
 
     it("LEA is Draftable", () => {
@@ -36,7 +36,7 @@ describe("registry (ADR 0056/0059)", () => {
     });
 
     it("an unregistered set is not Draftable", () => {
-        expect(isDraftableSet("inv")).toBe(false);
+        expect(isDraftableSet("arn")).toBe(false);
     });
 
     it("ICE and DRK are checked in and Draftable under the per-sheet ≥80% gate (ADR 0059, PRD #1242)", () => {
@@ -79,7 +79,7 @@ describe("registry (ADR 0056/0059)", () => {
 
     describe("getRuntimeBoosterConfig (ADR 0059)", () => {
         it("returns null when there is no checked-in config", () => {
-            expect(getRuntimeBoosterConfig("inv")).toBeNull();
+            expect(getRuntimeBoosterConfig("arn")).toBeNull();
         });
 
         it("drops every unimplemented Scryfall id from every sheet, read against the LIVE registry (never baked into checked-in JSON)", () => {
@@ -153,6 +153,16 @@ describe("Pack Source catalogue (issue #5385)", () => {
                 name: "The Dark",
                 featureCardId: "42dcceee-2a47-4eaa-a6a3-2931b3d50244",
             },
+            {
+                key: "inv",
+                name: "Invasion",
+                featureCardId: "7fd4d018-dcf3-4439-8445-02d66e44f7d3",
+            },
+            {
+                key: "invasion-block",
+                name: "Invasion Block",
+                featureCardId: "cfcc3c72-fff5-454c-814c-eb952fd23ba9",
+            },
         ]);
         for (const source of sources) {
             expect(source.description.length).toBeGreaterThan(0);
@@ -173,7 +183,26 @@ describe("Pack Source catalogue (issue #5385)", () => {
 
     it("looks a source up by key, case-insensitively, and returns null for an unknown key", () => {
         expect(getPackSource("LEA")?.key).toBe("lea");
-        expect(getPackSource("inv")).toBeNull();
+        expect(getPackSource("INV")?.key).toBe("inv");
+        expect(getPackSource("nope")).toBeNull();
+    });
+
+    it("the Invasion Block entry resolves to INV, PLS, APC in pack order, each a Draftable Set", () => {
+        const block = getPackSource("invasion-block")!;
+        expect(resolvePackSlots(block, "draft")).toEqual(["inv", "pls", "apc"]);
+        expect(
+            listPackSources()
+                .find((s) => s.key === "invasion-block")!
+                .sets.map((s) => s.setCode)
+        ).toEqual(["inv", "pls", "apc"]);
+        for (const code of ["inv", "pls", "apc"]) {
+            expect(isDraftableSet(code)).toBe(true);
+        }
+        expect(resolvePackSlots(getPackSource("inv")!, "draft")).toEqual([
+            "inv",
+            "inv",
+            "inv",
+        ]);
     });
 
     describe("Feature Card fallback — the highest-Pick-Rating rare", () => {
