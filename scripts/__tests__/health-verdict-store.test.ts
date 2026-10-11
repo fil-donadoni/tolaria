@@ -435,7 +435,12 @@ function withRoot(fn: (root: string, dir: string) => void): void {
     try {
         fn(root, dir);
     } finally {
-        fs.rmSync(root, { recursive: true, force: true });
+        fs.rmSync(root, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     }
 }
 
