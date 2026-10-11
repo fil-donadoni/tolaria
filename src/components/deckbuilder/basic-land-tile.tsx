@@ -47,6 +47,8 @@ export default function BasicLandTile({
     // Removing needs no resolved cardId: the copies are in the Maindeck and
     // are identified by subtype (PR #2320 review B1); the count is the floor.
     const removeDisabled = disabled || count === 0;
+    // `setCode` is known only for the definition's own printing; the picker's
+    // custom trigger renders none, and the selection ring keys on `printId`.
     const selected = {
         printId: cardId ?? "",
         setCode: basePrintings.find((p) => p.printId === cardId)?.setCode ?? "",

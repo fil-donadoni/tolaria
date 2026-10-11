@@ -80,6 +80,27 @@ describe("BottomSheet (ADR 0103 §5)", () => {
         expect(onClose).toHaveBeenCalledTimes(2);
     });
 
+    it("ignores Escape pressed inside another dialog opened over the sheet (issue #5398)", () => {
+        const onClose = vi.fn();
+        render(
+            <>
+                <BottomSheet open onClose={onClose} title="Sheet">
+                    body
+                </BottomSheet>
+                <div role="dialog" aria-label="Picker">
+                    <button type="button">Picker button</button>
+                </div>
+            </>
+        );
+        fireEvent.keyDown(screen.getByText("Picker button"), {
+            key: "Escape",
+        });
+        expect(onClose).not.toHaveBeenCalled();
+        // From inside the sheet itself it still closes.
+        fireEvent.keyDown(screen.getByText("body"), { key: "Escape" });
+        expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
     it("renders an optional footer outside the scrolling body", () => {
         render(
             <BottomSheet
