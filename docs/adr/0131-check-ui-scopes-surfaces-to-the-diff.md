@@ -12,7 +12,12 @@ the full walk moves to batch health — § Amendment below. **Amended
 of scope. **Amended (issue #5076)**: batch
 health walks the batch's scope, never `--all`; the full walk is `release`'s.
 **Amended 2026-10-10 (issue #5378)**: batch health walks nothing; the full
-walk is a release step, and the walk's probation is retired.
+walk is a release step, and the walk's probation is retired. **Amended by ADR
+0154 (2026-10-11, issue #5459)**: a PR owes a walk only when its diff touches
+a layout, stylesheet, overlay/portal, z-index or scroll-container file;
+otherwise the PR says `no walk owed` and `land` accepts it. The scoper below
+decides WHAT an owed walk covers, unchanged. ADR 0104 §2, which this record
+amended for `check:ui` alone, is overturned by ADR 0154 for every lane.
 
 ## Context
 

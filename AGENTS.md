@@ -215,67 +215,71 @@ not invariants.
 
 ### Quality gates (mandatory, no exceptions)
 
-Rationale, lanes, measurements: `docs/agents/quality-gates.md`.
+Rationale, lanes, measurements: `docs/agents/quality-gates.md`. **A PR owes at
+`land` only what it can break and what costs seconds** (ADR 0154: 10 issues/h
+over two machines); the rest is batch health's.
 
 - **Iterating**: targeted only, `bunx vitest run <path>`; formatting automatic.
 - **Pre-PR**: `bunx vitest run <paths touched>` + review — **no lane gate** (ADR 0136).
 - **Merge**: `bun run land <PR#>` — rebase, **`check:lane`**, merge into base,
-  under the mutex (ADR 0136).
-- **Release**: **`bun run release`** — full gate on base tip, then fast-forward
-  release branch (ADR 0116).
-- **`check:lane` paid ONCE, by `land`, on the rebased tip** (ADR 0136; skipped
-  if tip and base already gated green). Lanes: `skin` (`src/**`) / `engine`
-  (`convex/**`, `scripts/**`, `data/**`) / `cards` / `docs` (prose,
-  `check:docs`, incl. `.claude/skills/**/*.md`, `.claude/rules/*.md`) /
-  `full`; prose beside code adds `node[docs]`; unplaceable (`src/**` +
-  `convex/**`, `package.json`, lockfile, rest of `.claude/**`: hooks,
-  settings, skill scripts) = `check:pr` **verbatim**. **No lane scopes a
-  project's tests to the diff**: whole or not at all (ADR 0104).
+  under the mutex (ADR 0136). **Release**: **`bun run release`** — full gate
+  on base tip, then fast-forward release branch (ADR 0116).
+- **`check:lane` paid ONCE, by `land`, on the rebased tip** (skipped if tip
+  and base already gated green). Lanes: `skin` (`src/**`) / `engine`
+  (`convex/**`, `scripts/**`, `data/**`, `.claude/**` tooling, repo config,
+  scripts-only `package.json`) / `cards` / `docs` (prose, `check:docs`, incl.
+  `.claude/skills/**/*.md`, `.claude/rules/*.md`) / `full` (`src/**` +
+  `convex/**`, dependency changes, lockfile) = `check:pr` **verbatim**; prose
+  beside code adds `node[docs]`. **The lane runs the tests reachable from the
+  diff through the import graph** (`vitest --changed`) + `tsc`, diff format /
+  lint, `cr:lint`, drift and cheap guards; an unreachable test is health's
+  (ADR 0154 overturns ADR 0104).
 - **Never hand-pick a subset of `check:pr`.**
-- **Guard tier = measured cost, not phase** (issue #4963): ≤ 10 s → lane
-  (admitted by diff, e.g. `check:gaps`/`check:targets`/`check:test-hygiene`);
-  health-only above, in `HEALTH_ONLY_GUARDS` with its cost. A new guard's PR
-  states its measured cost.
+- **Guard tier = measured cost** (issue #4963): ≤ 10 s → lane (admitted by
+  diff: `check:gaps`/`check:targets`/`check:test-hygiene`); above →
+  `HEALTH_ONLY_GUARDS` with its cost (`check:ui --all`, bot byte-identity pins,
+  `check:bundle`/`check:convex-bundle`). A new guard's PR states its cost.
 - **`check:all` VERIFIES formatting**, never repairs: drift → `bun run format`,
   re-run (#1807).
 - **`bun run test` = `test:app` → `test:bot` → `test:blade`.** **New bot/AI
   test → `*.bot.test.ts`** (`bot-suite-boundary.test.ts`). Wall-clock
   asserts → `*.perf.test.ts` (`test:perf`, 4th suite, never gated, #3123).
-- **Cover `src/` changes with targeted runs** (dom project outside light gate).
-- **No CI: local gates are the only gates.** Full gate **per batch**
-  (`health:main`, detached by `land` at 10th landing since GREEN or 4 h after
-  first un-healthed, ADR 0136 §6) and at release (by hand `bun run health`).
+- **No CI: local gates are the only gates.** Full suite **per batch**: health
+  fires at the 20th landing since GREEN or 8 h after the first un-healthed
+  (ADR 0154); a failed vitest project is re-run once before RED. **Topology
+  B'**: MacBook = sessions + `land` + `release`; Huawei = batch health, crons,
+  audits, release walk. **The verdict is shared**
+  (commit status on the gated sha, read through the verdict store by
+  `queue:plan`, `land`, the loop, on both machines); `release` re-proves the
+  tip here.
 - **CPU admission** (`scripts/gate.ts`, shared machine): **heavy** =
   `bun run test`, `test:app`, `test:bot`, `check:all` → machine-wide mutex,
   `min(ncpu - 1, 4)` workers (RAM-capped); **light** = `bunx vitest run`,
   `check:pr`, `check:ts`, `lint`, `format` → no lock, vitest ≤2 workers
   (`TOLARIA_VITEST_WORKERS`). Queued heavy gate ≠ hang: **`bun run gate:who`**
-  names holder; one no longer burning CPU is reclaimed (#2999). **Full gate
-  blocked in issue worktrees** (`feat/issue-N`/`fix/issue-N` → exit 1);
-  `TOLARIA_ALLOW_FULL_SUITE=1` is `land`'s own hatch.
-- **Session admission** (ADR 0136 §6-7): `queue:plan` refuses a pick while
-  live `in-progress` claims hit `sessions.cap` (3 = measured PR/h knee; config,
-  not literal; `--no-cap` = announced escape) or a health `RED` marker stands.
-  Under RED `land` refuses a non-repair PR
-  without `--red-ok` (#4964).
+  names holder (#2999). **Full gate blocked in issue worktrees** (exit 1).
+- **Session admission** (ADR 0136 §7, ADR 0154 §8): `queue:plan` refuses a
+  pick while THIS machine's live `in-progress` claims hit `sessions.cap` (5 =
+  measured PR/h per machine; config, not literal; `--no-cap` = announced
+  escape) or a `RED` stands on the latest gated tip. Under RED `land` refuses
+  a non-repair PR without `--red-ok` (#4964); a second RED on one lineage
+  stops the loop.
 - **Machine admission** (issue #4966, `lib/machine-admission.ts`): a heavy
   gate, `check:ui` and `health-main` WAIT while load > `machine.loadMax` or
-  the kernel reports memory pressure (off the mutex — `land`'s preflight,
-  `check:ui` — a RUNNING heavy holder's load is not waited on, issue #4988);
-  past `machine.waitMaxS` → **exit 77 =
-  INFRA, nothing ran, never a red lane** (re-issue). `queue:claim`, `wt:new`
-  are refused past the effective cap (`sessions.cap` ∧ RAM); a conversation's
+  the kernel reports memory pressure (beside a RUNNING heavy holder its load
+  is not waited on, #4988); past `machine.waitMaxS` → **exit 77 = INFRA,
+  nothing ran, never a red lane** (re-issue). `queue:claim`, `wt:new` are
+  refused past the effective cap (`sessions.cap` ∧ RAM); a conversation's
   prompt never is (issue #5137). **`bun run machine`** shows it; hatches
-  (logged): `TOLARIA_OVER_CAP=1` (claim/worktree),
-  `TOLARIA_GATE_SATURATED_OK=1` (gate).
+  logged: `TOLARIA_OVER_CAP=1`, `TOLARIA_GATE_SATURATED_OK=1`.
 
 **Worktree isolation — shared checkout is read-only.** Every authored file →
 worktree, **even one markdown line** (unfinished ADR there reds `check:all` for
-all sessions). Docs-only: `bun run wt:docs <slug>` →
-write → `bun run docs:ship` (seconds, no lock); else `bun run wt:new <N>`
-(`quality-gates.md` § Worktree isolation). **Fresh worktree needs
-`bun run worktree:init`** — `216 files failed, 0 tests failed` = missing
-bootstrap, not red baseline.
+all sessions). Docs-only: `bun run wt:docs <slug>` → write →
+`bun run docs:ship` (`check:docs` in seconds; its MERGE queues on the heavy
+mutex until issue #5469); else `bun run wt:new <N>` (`quality-gates.md`
+§ Worktree isolation). **Fresh worktree needs `bun run worktree:init`** —
+`216 files failed, 0 tests failed` = missing bootstrap, not red baseline.
 
 **Branches are configuration** (ADR 0116): `tolaria.config.json` names
 **base** (PRs target it, `land` merges into it) and **release** (production);
@@ -286,9 +290,7 @@ only `lib/branches.ts`, `deny-guard.sh`, `gate-run.sh` read it; an
 any directory on it; base/release refused). `land` holds the gate mutex across
 rebase → `check:lane` → push → merge (tree landed = tree gated), refuses a PR
 not based on base; no health per landing (appends tip, detaches batch
-decision). If only the MERGE failed, retry
-`bun scripts/pr-merge.ts <PR#>` (second `land` re-pays the gate), **then
-re-run `land`** — on a MERGED PR it only does housekeeping (#4159).
+decision). Merge-only failure: `/next-ticket`'s `land-failures.md` (#4159).
 
 **Green-at-release (ADR 0116): release branch moves only to a health-proven
 base tip.** `land` proves the lane, batch health the rest, `release` re-proves
