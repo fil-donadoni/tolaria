@@ -32,6 +32,7 @@ import {
     mkdirSync,
     readFileSync,
     renameSync,
+    rmSync,
     writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
@@ -47,8 +48,14 @@ import {
     REFRESHED_ARTIFACT_NAME,
     type NightlyRecord,
 } from "./lib/health-bot-refresh";
-import { writePickRequest } from "./lib/health-pick-agreement-audit";
-import { writeAuditRequest } from "./lib/health-robustness-audit";
+import {
+    pickRequestFile,
+    writePickRequest,
+} from "./lib/health-pick-agreement-audit";
+import {
+    auditRequestFile,
+    writeAuditRequest,
+} from "./lib/health-robustness-audit";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -108,16 +115,17 @@ function changedSince(
     return r.stdout.split("\n").filter((line) => line !== "");
 }
 
-/** The Bot Findings refresh on `tip`: true when the page was re-measured
- *  (filing may still have been skipped or failed — it is no part of it). */
+/** The Bot Findings measurement on `tip` (`bot:reach`, `seed:bot-findings`):
+ *  true when the page was re-measured. Filing is `file()`, its own phase. */
 async function refresh(root: string, dir: string, tip: string) {
     const wt = join(root, "..", `tolaria-nightly-${process.pid}`);
     const logPath = join(dir, `${tip.slice(0, 12)}.nightly.log`);
     const env = healthGateEnv(process.env);
-    let refreshed = false;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
-        const steps = botRefreshSteps(1, root);
+        const steps = botRefreshSteps(1, root).filter(
+            (step) => step.name !== FILING_STEP_NAME
+        );
         const boot = await runHealthStep(
             {
                 ordinal: 1,
@@ -135,42 +143,56 @@ async function refresh(root: string, dir: string, tip: string) {
             return false;
         }
         for (const step of steps) {
-            if (step.name === FILING_STEP_NAME) {
-                // The page is measured: whatever filing does, it is fresh.
-                refreshed = true;
-                // Filing commits and pushes the allowlist from the primary
-                // checkout and reads ITS tree: only when that tree is the
-                // measured tip (issue #4944). Otherwise the next night files.
-                if (git(["rev-parse", "HEAD"], root) !== tip) {
-                    console.error(
-                        `health-nightly: ${step.name} skipped — the primary checkout is not at the measured tip ${tip.slice(0, 12)}; Bot Gaps file next night`
-                    );
-                    break;
-                }
-            }
-            const r = await runHealthStep(step, {
-                cwd: step.cwd ?? wt,
-                env,
-                logPath,
-            });
+            const r = await runHealthStep(step, { cwd: wt, env, logPath });
             if (!r.ok) {
                 console.error(
-                    step.name === FILING_STEP_NAME
-                        ? `health-nightly: ${step.name} failed — Bot Gaps not filed tonight (${logPath})`
-                        : `health-nightly: ${step.name} failed — Bot Findings stay stale (${logPath})`
+                    `health-nightly: ${step.name} failed — Bot Findings stay stale (${logPath})`
                 );
-                break;
+                return false;
             }
         }
         // Kept beside `last.json`: the worktree is removed below, and the
         // artifact is what a PR commits (`bun run bot:reach`).
         const artifact = join(wt, "data/bot-reach-findings.json");
-        if (refreshed && existsSync(artifact))
+        if (existsSync(artifact))
             copyFileSync(artifact, join(dir, REFRESHED_ARTIFACT_NAME));
+        return true;
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
     }
-    return refreshed;
+}
+
+/**
+ * File the Bot Gaps for the measured tip (`gaps:sync`, issue #4944): it
+ * commits and pushes the allowlist from the PRIMARY checkout and reads ITS
+ * tree, so it runs only when that tree is the measured tip. Tracked apart
+ * from the measurement (`filedSha`): a night whose primary lagged files on a
+ * later night, without waiting for the Bot to move again.
+ */
+async function file(
+    root: string,
+    dir: string,
+    tip: string
+): Promise<"filed" | "skipped" | "failed"> {
+    if (git(["rev-parse", "HEAD"], root) !== tip) {
+        console.error(
+            `health-nightly: ${FILING_STEP_NAME} skipped — the primary checkout is not at the measured tip ${tip.slice(0, 12)}; Bot Gaps file on a later night`
+        );
+        return "skipped";
+    }
+    const step = botRefreshSteps(0, root).find(
+        (s) => s.name === FILING_STEP_NAME
+    )!;
+    const logPath = join(dir, `${tip.slice(0, 12)}.nightly.log`);
+    const r = await runHealthStep(
+        { ...step, ordinal: 1, total: 1 },
+        { cwd: root, env: healthGateEnv(process.env), logPath }
+    );
+    if (r.ok) return "filed";
+    console.error(
+        `health-nightly: ${FILING_STEP_NAME} failed — Bot Gaps not filed tonight (${logPath})`
+    );
+    return "failed";
 }
 
 /** The two audits, in full, on the tip the last verdict is about — each in
@@ -202,6 +224,7 @@ function audits(
     delete env.TOLARIA_VITEST_WORKERS;
     env.TOLARIA_GATE_ROLE = HEALTH_ROLE;
     let ok = true;
+    const requests = [auditRequestFile(sha), pickRequestFile(sha)];
     for (const script of [ROBUSTNESS_AUDIT, PICK_AGREEMENT_AUDIT]) {
         console.log(
             `health-nightly: ${script.split("/").pop()} on ${sha.slice(0, 12)} (${reason})`
@@ -213,7 +236,16 @@ function audits(
         );
         if (r.status !== 0) ok = false;
     }
-    return { ran: true, ok };
+    // Each audit CLAIMS its request (deletes it) once it runs. One left on
+    // disk was not claimed — a health run flipped `last.json` to `running`
+    // meanwhile — so that audit did not run, and is owed on a later night.
+    const unclaimed = requests.filter((f) => existsSync(join(dir, f)));
+    for (const f of unclaimed) rmSync(join(dir, f), { force: true });
+    if (unclaimed.length > 0)
+        console.error(
+            `health-nightly: ${unclaimed.join(", ")} not claimed — the verdict moved under the audits; owed on a later night`
+        );
+    return { ran: unclaimed.length === 0, ok };
 }
 
 async function main(): Promise<number> {
@@ -223,23 +255,38 @@ async function main(): Promise<number> {
     const record = readRecord(dir);
     let code = 0;
 
-    git(["fetch", "origin", BASE_BRANCH, "-q"], root);
-    const tip = git(["rev-parse", ORIGIN_BASE], root);
-    const changed = changedSince(root, record.refreshedSha, tip);
-    if (record.refreshedSha === tip) {
-        console.log(
-            `health-nightly: Bot Findings already measured at ${tip.slice(0, 12)}`
-        );
-    } else if (!batchTouchesBot(changed)) {
-        console.log(
-            `health-nightly: the base left the Bot alone since ${record.refreshedSha?.slice(0, 12)} — no refresh`
-        );
-        record.refreshedSha = tip;
-        writeRecord(dir, record);
-    } else if (await refresh(root, dir, tip)) {
-        record.refreshedSha = tip;
-        writeRecord(dir, record);
-    } else {
+    // A throw here (fetch, worktree) fails the refresh, never the audits.
+    try {
+        git(["fetch", "origin", BASE_BRANCH, "-q"], root);
+        const tip = git(["rev-parse", ORIGIN_BASE], root);
+        const changed = changedSince(root, record.refreshedSha, tip);
+        if (record.refreshedSha === tip) {
+            console.log(
+                `health-nightly: Bot Findings already measured at ${tip.slice(0, 12)}`
+            );
+        } else if (!batchTouchesBot(changed)) {
+            console.log(
+                `health-nightly: the base left the Bot alone since ${record.refreshedSha?.slice(0, 12)} — no refresh`
+            );
+            record.refreshedSha = tip;
+            writeRecord(dir, record);
+        } else if (await refresh(root, dir, tip)) {
+            record.refreshedSha = tip;
+            writeRecord(dir, record);
+        } else {
+            code = 1;
+        }
+        // Filing follows the last MEASURED tip, once per tip.
+        const measured = record.refreshedSha;
+        if (measured !== null && record.filedSha !== measured) {
+            const filed = await file(root, dir, measured);
+            if (filed === "filed") {
+                record.filedSha = measured;
+                writeRecord(dir, record);
+            } else if (filed === "failed") code = 1;
+        }
+    } catch (err) {
+        console.error(`health-nightly: Bot refresh threw — ${String(err)}`);
         code = 1;
     }
 

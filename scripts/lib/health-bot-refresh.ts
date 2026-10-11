@@ -28,12 +28,15 @@ export const NIGHTLY_RECORD_FILE = "nightly.json";
 export interface NightlyRecord {
     /** The base tip the last SUCCESSFUL refresh measured. */
     refreshedSha: string | null;
+    /** The measured tip whose Bot Gaps `gaps:sync` last filed. */
+    filedSha: string | null;
     /** Epoch ms of the last audit run the nightly started. */
     auditedAt: number | null;
 }
 
 export const EMPTY_NIGHTLY: NightlyRecord = {
     refreshedSha: null,
+    filedSha: null,
     auditedAt: null,
 };
 
