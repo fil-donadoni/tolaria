@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 
 import type { MutationCtx } from "../_generated/server";
 import { createGame, createSoloGame, joinGame, joinGameByCode } from "../game";
+import { assertDeckAdmitted } from "../gameSeats";
 import { createManualGame, createManualSoloGame } from "../gameManual";
 import { getJoinInfo, listOpenGames } from "../gameReads";
 import {
@@ -175,6 +176,15 @@ describe("create — the Match stores its Match Format and admits every seat", (
             );
             expect(db.tables.matches ?? []).toHaveLength(0);
         }
+    });
+});
+
+describe("Limited Origin never narrows admission (issue #5394, ADR 0153)", () => {
+    it("two Limited decks of different origins sit at one Limited Match", () => {
+        const cube = { format: "limited", limitedOrigin: "draft:cube:vintage" };
+        const alpha = { format: "limited", limitedOrigin: "sealed:lea" };
+        expect(() => assertDeckAdmitted(cube, "limited")).not.toThrow();
+        expect(() => assertDeckAdmitted(alpha, "limited")).not.toThrow();
     });
 });
 

@@ -2,14 +2,18 @@
 // by step 4 (your deck) and step 5 (the Bot's or second seat's deck): the
 // decks the Match Format admits, searchable by deck or card name, grouped
 // Your decks / Presets. Under Freeform a Format select narrows "every deck".
-// Step 5 passes `mirror`, an always-admitted choice above the grid.
+// Under Limited the player's decks group by Limited Origin, filterable by one
+// (issue #5394). Step 5 passes `mirror`, an always-admitted choice above the grid.
 import { useState } from "react";
 import { FORMAT_LABELS, type FormatId } from "@convex/formats";
 import type { LobbyDeck, UserLobbyDeck } from "~/lib/deckTypes";
 import {
     deckGrid,
     freeformFormatOptions,
+    groupByLimitedOrigin,
+    limitedOriginOptions,
     type DeckGridFormat,
+    type DeckGridOrigin,
 } from "~/lib/matchSetupDeckGrid";
 import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupDeckImport";
 import DeckGridSection from "./deck-grid-section";
@@ -35,7 +39,16 @@ export default function DeckGrid({
 }) {
     const [query, setQuery] = useState("");
     const [chosenFormat, setFormat] = useState<DeckGridFormat>("all");
+    const [chosenOrigin, setOrigin] = useState<DeckGridOrigin>("all");
     const freeform = matchFormat === "freeform";
+    const limited = matchFormat === "limited";
+    const originOptions = limitedOriginOptions(decks);
+    // Same fall-back as the Format select: a vanished origin reads as "all".
+    const origin =
+        chosenOrigin !== "all" &&
+        originOptions.some((o) => o.key === chosenOrigin)
+            ? chosenOrigin
+            : "all";
     const formatOptions = freeformFormatOptions(decks);
     // A Format whose last deck went away falls back to every Format rather
     // than leaving the select on an option it no longer lists.
@@ -45,7 +58,7 @@ export default function DeckGrid({
             : "all";
     const admitted = deckGrid(decks, matchFormat, "");
     const empty = admitted.mine.length + admitted.presets.length === 0;
-    const grid = deckGrid(decks, matchFormat, query, format);
+    const grid = deckGrid(decks, matchFormat, query, format, origin);
     const shown = grid.mine.length + grid.presets.length;
 
     return (
@@ -79,6 +92,21 @@ export default function DeckGrid({
                         ))}
                     </select>
                 )}
+                {limited && originOptions.length > 0 && (
+                    <select
+                        aria-label="Limited Origin"
+                        value={origin}
+                        onChange={(e) => setOrigin(e.target.value)}
+                        className="input-field px-2 py-1.5 text-sm"
+                    >
+                        <option value="all">All origins</option>
+                        {originOptions.map((o) => (
+                            <option key={o.key} value={o.key}>
+                                {o.label}
+                            </option>
+                        ))}
+                    </select>
+                )}
                 <input
                     type="search"
                     aria-label="Search decks"
@@ -94,13 +122,26 @@ export default function DeckGrid({
                     />
                 )}
             </div>
-            <DeckGridSection
-                title="Your decks"
-                entries={grid.mine}
-                selectedId={selectedId}
-                showFormat={freeform}
-                onSelect={onSelect}
-            />
+            {limited ? (
+                groupByLimitedOrigin(grid.mine).map((group) => (
+                    <DeckGridSection
+                        key={group.origin ?? "unclassified"}
+                        title={group.label}
+                        entries={group.entries}
+                        selectedId={selectedId}
+                        showFormat={false}
+                        onSelect={onSelect}
+                    />
+                ))
+            ) : (
+                <DeckGridSection
+                    title="Your decks"
+                    entries={grid.mine}
+                    selectedId={selectedId}
+                    showFormat={freeform}
+                    onSelect={onSelect}
+                />
+            )}
             <DeckGridSection
                 title="Presets"
                 entries={grid.presets}

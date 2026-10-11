@@ -6,6 +6,7 @@ import {
     EMPTY_SETUP,
     MATCH_SETUP_STORAGE_KEY,
     applyChange,
+    defaultBotDeckId,
     firstOpenStep,
     loadSetup,
     matchFormatOptions,
@@ -482,5 +483,80 @@ describe("reconcileSetup — a remembered setup made true of today", () => {
 
     it("drops a deck that was deleted", () => {
         expect(reconcileSetup(READY_BOT, [atog], []).myDeckId).toBeNull();
+    });
+});
+
+describe("Bot deck default by Limited Origin (issue #5394, ADR 0153)", () => {
+    const limited = (id: string, limitedOrigin?: string) =>
+        deck({
+            kind: "user",
+            presetId: id,
+            name: id,
+            format: "limited",
+            limitedOrigin,
+        });
+    const cubeA = limited("cube-a", "draft:cube:vintage");
+    const cubeB = limited("cube-b", "draft:cube:vintage");
+    const alpha = limited("alpha", "sealed:lea");
+    const legacy = limited("legacy");
+    const LIMITED_DECKS = [cubeA, alpha, cubeB, legacy];
+    const base = setup({
+        mode: "arena",
+        opponent: "bot",
+        matchFormat: "limited",
+    });
+
+    it("picking a deck defaults the Bot to another deck of the same origin", () => {
+        const next = applyChange(base, { myDeckId: "cube-a" }, LIMITED_DECKS);
+        expect(next.opponentDeckId).toBe("cube-b");
+        expect(next.opponentDeckChosen).toBe(true);
+    });
+
+    it("keeps Mirror when no other deck shares the origin, or the deck has none", () => {
+        for (const mine of ["alpha", "legacy"]) {
+            const next = applyChange(base, { myDeckId: mine }, LIMITED_DECKS);
+            expect(next.opponentDeckId).toBeNull();
+            expect(next.opponentDeckChosen).toBe(true);
+        }
+    });
+
+    it("re-defaults when the player's deck changes, but never overrides a hand pick", () => {
+        const first = applyChange(base, { myDeckId: "cube-a" }, LIMITED_DECKS);
+        const moved = applyChange(first, { myDeckId: "alpha" }, LIMITED_DECKS);
+        expect(moved.opponentDeckId).toBeNull();
+        const picked = applyChange(
+            first,
+            { opponentDeckId: "legacy" },
+            LIMITED_DECKS
+        );
+        const changed = applyChange(
+            picked,
+            { myDeckId: "alpha" },
+            LIMITED_DECKS
+        );
+        expect(changed.opponentDeckId).toBe("legacy");
+    });
+
+    it("a cross-origin Bot deck stays choosable", () => {
+        const first = applyChange(base, { myDeckId: "cube-a" }, LIMITED_DECKS);
+        const cross = applyChange(
+            first,
+            { opponentDeckId: "alpha", opponentDeckChosen: true },
+            LIMITED_DECKS
+        );
+        expect(cross.opponentDeckId).toBe("alpha");
+    });
+
+    it("applies to the Bot under Limited only", () => {
+        const mine = { myDeckId: "cube-a" };
+        expect(
+            defaultBotDeckId(
+                { ...base, ...mine, opponent: "solo" },
+                LIMITED_DECKS
+            )
+        ).toBeNull();
+        expect(defaultBotDeckId({ ...base, ...mine }, LIMITED_DECKS)).toBe(
+            "cube-b"
+        );
     });
 });

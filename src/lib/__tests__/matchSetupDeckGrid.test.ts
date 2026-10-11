@@ -6,6 +6,9 @@ import {
     deckGrid,
     deckSearchHit,
     freeformFormatOptions,
+    groupByLimitedOrigin,
+    limitedOriginOptions,
+    UNCLASSIFIED_ORIGIN_LABEL,
 } from "../matchSetupDeckGrid";
 
 const card = (cardName: string) => ({
@@ -128,5 +131,60 @@ describe("freeformFormatOptions — the Freeform select", () => {
             "old-school",
             "premodern",
         ]);
+    });
+});
+
+describe("Limited Origin grouping (issue #5394)", () => {
+    const limited = (id: string, limitedOrigin?: string) =>
+        deck({
+            kind: "user",
+            presetId: id,
+            name: id,
+            format: "limited",
+            limitedOrigin,
+        });
+    const cube = limited("cube-a", "draft:cube:vintage");
+    const cube2 = limited("cube-b", "draft:cube:vintage");
+    const alpha = limited("alpha-a", "sealed:lea");
+    const legacy = limited("legacy");
+    const all = [legacy, alpha, cube, cube2];
+
+    it("groups by origin sorted by label, unclassified last in its own group", () => {
+        const groups = groupByLimitedOrigin(deckGrid(all, "limited", "").mine);
+        expect(groups.map((g) => g.label)).toEqual([
+            "Limited Edition Alpha Sealed",
+            "Vintage Cube Draft",
+            UNCLASSIFIED_ORIGIN_LABEL,
+        ]);
+        expect(
+            groups.map((g) => g.entries.map((e) => e.deck.presetId))
+        ).toEqual([["alpha-a"], ["cube-a", "cube-b"], ["legacy"]]);
+        expect(groups[2].origin).toBeNull();
+    });
+
+    it("an unparseable key reads as unclassified", () => {
+        const groups = groupByLimitedOrigin(
+            deckGrid([limited("odd", "garbage")], "limited", "").mine
+        );
+        expect(groups.map((g) => g.label)).toEqual([UNCLASSIFIED_ORIGIN_LABEL]);
+    });
+
+    it("offers one option per origin present, never one for unclassified", () => {
+        expect(limitedOriginOptions(all)).toEqual([
+            { key: "sealed:lea", label: "Limited Edition Alpha Sealed" },
+            { key: "draft:cube:vintage", label: "Vintage Cube Draft" },
+        ]);
+    });
+
+    it("the origin filter narrows Limited decks and is inert elsewhere", () => {
+        const ids = (origin: string) =>
+            deckGrid(all, "limited", "", "all", origin).mine.map(
+                (e) => e.deck.presetId
+            );
+        expect(ids("draft:cube:vintage")).toEqual(["cube-a", "cube-b"]);
+        expect(ids("all")).toHaveLength(4);
+        expect(
+            deckGrid(all, "freeform", "", "all", "sealed:lea").mine
+        ).toHaveLength(4);
     });
 });
