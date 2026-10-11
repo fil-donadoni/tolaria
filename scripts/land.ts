@@ -122,10 +122,17 @@ import {
 import { changedPaths, classifyLane, type Lane } from "./check-lane";
 import {
     landingDiffScope,
+    landingWalkOwed,
     verifyReceiptText,
     type ExpectedScope,
 } from "./ui-gate/verify-receipt.ts";
-import type { UiScope } from "./lib/ui-scope.ts";
+import {
+    hasNoWalkOwedLine,
+    isNonDomPath,
+    uiWalkOwed,
+    type UiScope,
+    type WalkOwed,
+} from "./lib/ui-scope.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
 import { REGENERATE_MARKER } from "./lib/generated-artifacts";
 import { robustnessBaselineRefusal } from "./lib/robustness-baseline-refusal";
@@ -164,13 +171,20 @@ export function skinReceiptInvalidForDiff(
     paths: string[],
     root: string,
     prBody: string,
-    scopeOf: (changed: string[], root: string) => UiScope = landingDiffScope
+    scopeOf: (changed: string[], root: string) => UiScope = landingDiffScope,
+    owedOf: (changed: string[], root: string) => WalkOwed = landingWalkOwed
 ): boolean {
-    const lane = classifyLane(paths).lane;
-    if (lane !== "skin" || isTestOnlySrcDiff(paths)) return false;
+    // WHATEVER the lane (issue #5459, absorbing issue #5380): a `full` diff
+    // (`src/**` + `convex/**`) reaches the DOM through its `src/**` paths just
+    // as a `skin` one does. Only a `src/**` path that can reach the DOM owes
+    // anything; a test-only `src/**` diff or a prose one never does.
+    const reachesDom = paths.some(
+        (p) => p.startsWith("src/") && !isNonDomPath(p)
+    );
+    if (!reachesDom || isTestOnlySrcDiff(paths)) return false;
     // A scope that cannot be derived demands the FULL receipt. It must never
-    // reach `safeSkinReceiptInvalid`'s catch, which reads "not a skin diff"
-    // and would demand no receipt at all (issue #3628 review).
+    // read as "not a skin diff" and demand no receipt at all (issue #3628
+    // review).
     let scope: UiScope;
     try {
         scope = scopeOf(paths, root);
@@ -180,10 +194,21 @@ export function skinReceiptInvalidForDiff(
             reason: `scope unavailable: ${(err as Error).message}`,
         };
     }
-    return computeSkinReceiptInvalid(lane, prBody, {
+    const receiptOk = verifyReceiptText(prBody, {
         base: ORIGIN_BASE,
         scope,
-    });
+    }).ok;
+    if (receiptOk) return false;
+    // Owed: only a receipt satisfies. An owed verdict that cannot be derived
+    // stays owed — fail closed.
+    let owed: WalkOwed;
+    try {
+        owed = owedOf(paths, root);
+    } catch {
+        owed = { owed: true, rule: "owed verdict unavailable", path: "" };
+    }
+    if (owed.owed) return true;
+    return !hasNoWalkOwedLine(prBody);
 }
 
 /**
@@ -497,9 +522,10 @@ export function refusalReason(facts: LandFacts): string | null {
     if (mode === "housekeeping") return null;
     if (facts.skinReceiptInvalid) {
         return (
-            "landing diff is `skin` and its pasted check:ui receipt failed verification " +
+            "landing diff reaches the DOM and its pasted check:ui receipt failed verification " +
             "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
-            "`bun run verify:ui-receipt <PR#>` names the problem"
+            "`bun run verify:ui-receipt <PR#>` names the problem. A diff that owes no walk " +
+            "(`bun run check:ui -- --scope-only` says `not owed`) states `check:ui: no walk owed (<reason>)` instead"
         );
     }
     if (facts.scenarioRefusal) {
@@ -1361,9 +1387,10 @@ async function main(): Promise<void> {
         // leave both null — refusalReason reports "PR not found"
     }
 
-    // The receipt check only applies to a `skin` landing diff (issue #2760)
-    // — `check:ui` is the whole enforcement for a diff that can change what
-    // a user sees, and does nothing for engine/full diffs. Computed even
+    // The receipt check applies to any landing diff with a DOM-reaching
+    // `src/**` path, whatever its lane (issue #2760, #5459) — `check:ui` is
+    // the whole enforcement for a diff that can change what a user sees, and
+    // owes nothing to engine/cards diffs. Computed even
     // when the PR wasn't found: `refusalReason` checks `prState` first and
     // short-circuits before this ever matters. `safeSkinReceiptInvalid`
     // tolerates a diff-classification failure (finding 6) instead of

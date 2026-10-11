@@ -10,7 +10,10 @@ import { createImportGraph } from "../lib/import-graph";
 import {
     computeUiScope,
     isStaffOnlyRouteEntry,
+    hasNoWalkOwedLine,
     renderUiScope,
+    renderWalkOwed,
+    uiWalkOwed,
     type ScopeSurface,
 } from "../lib/ui-scope";
 import type { SurfaceEdits } from "../lib/ui-surface-edits";
@@ -510,5 +513,110 @@ describe("the real router's admin layout (issue #5075)", () => {
             unclassified,
             `admin-layout pages neither staff-only nor the design-system page: ${unclassified.join(", ")}`
         ).toEqual([]);
+    });
+});
+
+// Issue #5459 — does a `src/**` diff OWE a walk at all? One positive fixture
+// per rule class, negatives for the diffs that cannot move layout.
+describe("uiWalkOwed — a diff owes a walk only when it can move layout (issue #5459)", () => {
+    const LEAF = `export const Badge = ({ n }: { n: number }) => <span className="text-sm">{n}</span>;\n`;
+    const owed = (path: string, source: string | null = LEAF) =>
+        uiWalkOwed([path], () => source);
+
+    it.each([
+        ["a stylesheet", "src/index.css", LEAF],
+        ["the HTML document", "index.html", LEAF],
+        ["a public asset", "public/img/logo.svg", LEAF],
+        ["a design-token source", "src/lib/design-tokens.ts", LEAF],
+        [
+            "the app shell / chrome",
+            "src/components/chrome/app-header.tsx",
+            LEAF,
+        ],
+        ["the app shell / chrome", "src/main.tsx", LEAF],
+        ["a layout component", "src/routes/admin/admin-layout.tsx", LEAF],
+        ["a shared UI primitive", "src/components/ui/button.tsx", LEAF],
+        ["an overlay", "src/components/lobby/join-dialog.tsx", LEAF],
+        ["an overlay", "src/components/cards/card-popover.tsx", LEAF],
+        ["a viewport", "src/hooks/useViewportSize.ts", LEAF],
+        ["z-index", "src/components/x/leaf.tsx", `<div className="z-[60]" />`],
+        ["z-index", "src/components/x/leaf.tsx", `const s = { zIndex: 4 };`],
+        [
+            "scroll",
+            "src/components/x/leaf.tsx",
+            `<div className="overflow-y-auto" />`,
+        ],
+        [
+            "scroll",
+            "src/components/x/leaf.tsx",
+            `const s = { overflow: "auto" };`,
+        ],
+        [
+            "responsive",
+            "src/components/x/leaf.tsx",
+            `const m = window.matchMedia("(max-width: 600px)");`,
+        ],
+        [
+            "responsive",
+            "src/components/x/leaf.tsx",
+            `const c = "@media (min-width: 1px) {}";`,
+        ],
+    ])("owes a walk: %s (%s)", (_label, path, source) => {
+        const r = owed(path, source);
+        expect(r.owed).toBe(true);
+    });
+
+    it("names the matching rule and the path", () => {
+        expect(owed("src/index.css")).toEqual({
+            owed: true,
+            rule: "a stylesheet",
+            path: "src/index.css",
+        });
+        expect(renderWalkOwed(owed("src/index.css"))).toBe(
+            "walk: owed — src/index.css: a stylesheet"
+        );
+    });
+
+    it("owes nothing for a leaf component, a test file, a copy change, markdown or server code", () => {
+        expect(owed("src/components/x/leaf.tsx").owed).toBe(false);
+        expect(owed("src/components/x/__tests__/leaf.test.tsx").owed).toBe(
+            false
+        );
+        expect(
+            owed("src/components/x/leaf.test.tsx", `overflow-auto`).owed
+        ).toBe(false);
+        expect(owed("src/CLAUDE.md", `overflow-auto z-10`).owed).toBe(false);
+        expect(owed("convex/gre/state.ts", `z-index`).owed).toBe(false);
+        // copy: a string edit in a leaf component
+        expect(
+            owed("src/components/x/leaf.tsx", `<p>Choose a deck to play</p>`)
+                .owed
+        ).toBe(false);
+        expect(renderWalkOwed(owed("src/components/x/leaf.tsx"))).toMatch(
+            /^walk: not owed — /
+        );
+    });
+
+    it("fails closed: a file gone or unreadable stays owed", () => {
+        expect(owed("src/components/x/leaf.tsx", null).owed).toBe(true);
+    });
+
+    it("is owed as soon as ONE path of the diff is", () => {
+        const r = uiWalkOwed(
+            ["src/components/x/leaf.tsx", "src/index.css"],
+            () => LEAF
+        );
+        expect(r).toMatchObject({ owed: true, path: "src/index.css" });
+    });
+
+    it("reads the 'no walk owed' PR-body line only with a reason", () => {
+        expect(
+            hasNoWalkOwedLine("x\ncheck:ui: no walk owed (leaf copy)\n")
+        ).toBe(true);
+        expect(hasNoWalkOwedLine("check:ui: no walk owed ()")).toBe(false);
+        expect(hasNoWalkOwedLine("check:ui: no walk owed")).toBe(false);
+        expect(hasNoWalkOwedLine("see check:ui: no walk owed (x) here")).toBe(
+            false
+        );
     });
 });

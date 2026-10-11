@@ -400,3 +400,116 @@ export function renderUiScope(scope: UiScope, base: string): string {
         ...scope.surfaces.map((id) => `  · ${id}`),
     ].join("\n");
 }
+
+/**
+ * Whether a `src/**` diff OWES a `check:ui` walk (issue #5459, PRD #5454): it
+ * does only when it can move layout. A measured 6.8 min per scoped run and 57%
+ * red (30/53) over 14 days is too dear for a diff that cannot — a leaf
+ * component's copy, a handler, a test.
+ *
+ * FAIL-CLOSED like `computeUiScope`: a path no rule clears but a rule cannot
+ * read (a deleted file) is owed. A path is owed by, in this order:
+ *   - PATH: a stylesheet, `index.html`, a public asset or the design tokens;
+ *     the shell and chrome (`src/components/chrome/`, `main.tsx`, the
+ *     routers); a layout component (`*layout*`); a shared UI primitive
+ *     (`src/components/ui/`); an overlay / portal / popover / dialog family
+ *     component (by name); a viewport or responsive module (by name);
+ *   - CONTENT: the changed file declares a `z-index` (`z-10`, `z-[60]`,
+ *     `zIndex`), a scroll container (`overflow-auto`, `overflow-y: scroll`,
+ *     `ScrollArea`) or a responsive rule (`@media`, `@container`,
+ *     `matchMedia`, `useMediaQuery`, `useViewport`).
+ * Tests, markdown, scripts and server-only paths cannot reach the DOM and owe
+ * nothing. Content is read from the file AS CHANGED, not its hunks: a leaf
+ * file that declares a scroll container anywhere owes a walk — over-owing is
+ * the safe side. `land` and `check:ui -- --scope-only` both call this.
+ */
+export type WalkOwed =
+    | { owed: true; rule: string; path: string }
+    | { owed: false; reason: string };
+
+const OVERLAY_NAME =
+    /(?:dialog|modal|popover|overlay|portal|sheet|drawer|tooltip|dropdown|menu|toast)/i;
+const RESPONSIVE_NAME = /(?:viewport|responsive|breakpoint|media-?query)/i;
+const Z_INDEX_CONTENT =
+    /(?:^|[\s"'`{:])-?z-(?:\[|\d|auto\b)|\bz-index\b|\bzIndex\b/;
+const SCROLL_CONTAINER_CONTENT =
+    /\boverflow(?:-[xy])?-(?:auto|scroll)\b|\boverflow(?:-?[xyXY])?\s*:\s*["']?(?:auto|scroll)\b|\bScrollArea\b/;
+const RESPONSIVE_CONTENT =
+    /@media\b|@container\b|\bmatchMedia\b|\buseMediaQuery\b|\buseViewport\w*\b/;
+
+/** The rule that owes a walk for `path` by its name alone, or `null`. */
+export function owedByPath(path: string): string | null {
+    if (/\.css$/.test(path)) return "a stylesheet";
+    if (path === "index.html") return "the HTML document every route loads";
+    if (path.startsWith("public/")) return "a public asset";
+    if (path === "src/lib/design-tokens.ts") return "a design-token source";
+    if (
+        path === SHELL_ENTRY ||
+        path === "src/app-router.tsx" ||
+        path === ROUTER_MODULE ||
+        path.startsWith("src/components/chrome/")
+    ) {
+        return "the app shell / chrome";
+    }
+    const base = path.slice(path.lastIndexOf("/") + 1);
+    if (/layout/i.test(base)) return "a layout component";
+    if (path.startsWith("src/components/ui/")) return "a shared UI primitive";
+    if (OVERLAY_NAME.test(base))
+        return "an overlay / popover / dialog component";
+    if (RESPONSIVE_NAME.test(base)) return "a viewport / responsive module";
+    return null;
+}
+
+/** The rule the CONTENT of a changed file trips, or `null`. */
+export function owedByContent(source: string): string | null {
+    if (Z_INDEX_CONTENT.test(source)) return "declares a z-index";
+    if (SCROLL_CONTAINER_CONTENT.test(source))
+        return "declares a scroll container";
+    if (RESPONSIVE_CONTENT.test(source))
+        return "declares a viewport / responsive rule";
+    return null;
+}
+
+/** `read(path)` returns the file as changed, or `null` when it is gone/unreadable. */
+export function uiWalkOwed(
+    changed: readonly string[],
+    read: (path: string) => string | null
+): WalkOwed {
+    const reachable = [...changed]
+        .sort()
+        .filter((p) => !isNonDomPath(p) && !isServerOnlyPath(p));
+    for (const path of reachable) {
+        const byPath = owedByPath(path);
+        if (byPath) return { owed: true, rule: byPath, path };
+        const source = read(path);
+        if (source === null) {
+            return {
+                owed: true,
+                rule: "file gone or unreadable, so its content cannot be cleared",
+                path,
+            };
+        }
+        const byContent = owedByContent(source);
+        if (byContent) return { owed: true, rule: byContent, path };
+    }
+    return {
+        owed: false,
+        reason:
+            reachable.length === 0
+                ? "no changed path can reach the DOM"
+                : "only leaf components, copy or handlers: no stylesheet, shell, layout, overlay, z-index, scroll container or responsive rule",
+    };
+}
+
+/** `check:ui -- --scope-only`'s verdict line. */
+export function renderWalkOwed(result: WalkOwed): string {
+    return result.owed
+        ? `walk: owed — ${result.path}: ${result.rule}`
+        : `walk: not owed — ${result.reason}`;
+}
+
+/** The PR-body line that stands in for a receipt when no walk is owed. */
+const NO_WALK_OWED_LINE = /^check:ui: no walk owed \(\s*\S[^)]*\)\s*$/m;
+export function hasNoWalkOwedLine(prBody: string): boolean {
+    return NO_WALK_OWED_LINE.test(prBody);
+}

@@ -48,6 +48,7 @@ import {
 } from "../lib/gate-liveness";
 import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "../lib/branches";
 import { classifyLane } from "../check-lane";
+import type { UiScope } from "../lib/ui-scope";
 import {
     classifyScenarioSection,
     owesScenario,
@@ -1818,6 +1819,78 @@ describe("land.ts — a skin PR's SCOPED receipt must match the scope of its own
         expect(
             skinReceiptInvalidForDiff(DETAIL_DIFF, REPO_ROOT, receiptBody(null))
         ).toBe(false);
+    });
+});
+
+describe("land.ts — the check:ui receipt is owed by the owed predicate, whatever the lane (issue #5459, absorbs issue #5380)", () => {
+    const REPO_ROOT = resolve(__dirname, "..", "..");
+    const OWED = {
+        owed: true,
+        rule: "a stylesheet",
+        path: "src/index.css",
+    } as const;
+    const NOT_OWED = { owed: false, reason: "only leaf components" } as const;
+    const LEAF_DIFF = ["src/components/lobby/deck-count.tsx"];
+    const NO_WALK = "check:ui: no walk owed (leaf copy edit)";
+    const noScope = (): UiScope => ({ kind: "full", reason: "stub" });
+    const invalid = (
+        paths: string[],
+        body: string,
+        owed: typeof OWED | typeof NOT_OWED
+    ) => skinReceiptInvalidForDiff(paths, REPO_ROOT, body, noScope, () => owed);
+
+    it("owed + no receipt → refused, even with the 'no walk owed' line", () => {
+        expect(invalid(["src/index.css"], "no receipt here", OWED)).toBe(true);
+        expect(invalid(["src/index.css"], NO_WALK, OWED)).toBe(true);
+    });
+
+    it("not owed + the 'no walk owed' line → accepted; not owed + nothing → refused", () => {
+        expect(invalid(LEAF_DIFF, `Summary\n\n${NO_WALK}\n`, NOT_OWED)).toBe(
+            false
+        );
+        expect(invalid(LEAF_DIFF, "Summary only", NOT_OWED)).toBe(true);
+    });
+
+    it("owed + a receipt → accepted as today", () => {
+        expect(invalid(["src/index.css"], laneReceipt(null), OWED)).toBe(false);
+    });
+
+    it("a full-lane diff (src + convex) touching an owed glob with no receipt is refused", () => {
+        const diff = ["convex/gre/state.ts", "src/index.css"];
+        expect(classifyLane(diff).lane).toBe("full");
+        expect(
+            skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt", noScope)
+        ).toBe(true);
+        expect(
+            skinReceiptInvalidForDiff(
+                diff,
+                REPO_ROOT,
+                laneReceipt(null),
+                noScope
+            )
+        ).toBe(false);
+    });
+
+    it("a full-lane diff whose src paths are test-only lands without a receipt", () => {
+        const diff = ["convex/gre/state.ts", "src/lib/__tests__/state.test.ts"];
+        expect(classifyLane(diff).lane).toBe("full");
+        expect(skinReceiptInvalidForDiff(diff, REPO_ROOT, "no receipt")).toBe(
+            false
+        );
+    });
+
+    it("an owed verdict that cannot be derived stays owed", () => {
+        expect(
+            skinReceiptInvalidForDiff(
+                LEAF_DIFF,
+                REPO_ROOT,
+                NO_WALK,
+                noScope,
+                () => {
+                    throw new Error("unreadable");
+                }
+            )
+        ).toBe(true);
     });
 });
 
