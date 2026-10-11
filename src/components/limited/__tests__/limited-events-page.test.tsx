@@ -23,7 +23,6 @@ vi.mock("~/hooks/useCurrentUser", () => ({
 
 const openEventsMock = vi.fn();
 const myEventsMock = vi.fn();
-const packSourcesMock = vi.fn();
 
 // `useJoinLimitedEvent` is deliberately left as the REAL implementation
 // (`importOriginal`, issue #2648) rather than stubbed: it is plain React
@@ -38,7 +37,6 @@ vi.mock("~/hooks/useLimitedEvent", async (importOriginal) => {
         ...actual,
         useOpenLimitedEvents: () => openEventsMock(),
         useMyLimitedEvents: () => myEventsMock(),
-        usePackSources: () => packSourcesMock(),
         useLimitedEventMutations: () => ({
             create: vi.fn(),
             join: vi.fn(),
@@ -49,7 +47,6 @@ vi.mock("~/hooks/useLimitedEvent", async (importOriginal) => {
 
 beforeEach(() => {
     vi.clearAllMocks();
-    packSourcesMock.mockReturnValue([]);
 });
 
 afterEach(() => {
@@ -247,6 +244,23 @@ describe("LimitedEventsPage — merged list (issue #2590)", () => {
         expect(
             screen.getByText("No open Limited Events right now.")
         ).toBeTruthy();
+    });
+
+    it("opens the setup route from + Create Event (issue #5387: the dialog is gone)", () => {
+        openEventsMock.mockReturnValue([]);
+        myEventsMock.mockReturnValue([]);
+        render(
+            <LimitedEventsPage
+                mine={false}
+                status={undefined}
+                label={undefined}
+                onMineChange={() => {}}
+                onStatusChange={() => {}}
+            />
+        );
+        fireEvent.click(screen.getByRole("button", { name: "+ Create Event" }));
+        expect(navigate).toHaveBeenCalledWith({ to: "/limited/new" });
+        expect(screen.queryByRole("dialog")).toBeNull();
     });
 
     it("navigates to the event detail page when a row's View button is clicked", () => {
