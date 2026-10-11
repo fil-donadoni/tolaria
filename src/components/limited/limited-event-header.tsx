@@ -27,8 +27,8 @@ export default function LimitedEventHeader({
             <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
                 <LimitedHubArt source={source} />
             </div>
-            <div className="absolute right-2 top-2">{menu}</div>
-            <h1 className="pr-10 font-display text-2xl leading-tight text-parchment drop-shadow">
+            <div className="absolute right-2 top-2 z-10">{menu}</div>
+            <h1 className="pr-14 font-display text-2xl leading-tight text-parchment drop-shadow">
                 {limitedEventName(event)}
             </h1>
             <ul className="flex flex-wrap gap-1.5">
