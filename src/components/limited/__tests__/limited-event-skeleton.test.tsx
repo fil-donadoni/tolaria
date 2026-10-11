@@ -200,7 +200,7 @@ describe("LimitedEventDetail skeleton — one primary CTA per phase", () => {
         expect(screen.queryByText("Share invite link")).toBeNull();
 
         fireEvent.click(screen.getByLabelText("Event actions"));
-        const menu = screen.getByRole("menu");
+        const menu = screen.getByTestId("event-menu-list");
         expect(menu.textContent).toContain("Cancel Event");
         expect(menu.textContent).toContain("Leave Seat");
         expect(menu.textContent).toContain("Share invite link");
@@ -214,9 +214,9 @@ describe("LimitedEventDetail skeleton — one primary CTA per phase", () => {
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
         fireEvent.click(screen.getByLabelText("Event actions"));
-        expect(screen.queryByRole("menu")).not.toBeNull();
+        expect(screen.queryByTestId("event-menu-list")).not.toBeNull();
         fireEvent.keyDown(document, { key: "Escape" });
-        expect(screen.queryByRole("menu")).toBeNull();
+        expect(screen.queryByTestId("event-menu-list")).toBeNull();
     });
 
     it("shows the draft progress tile per pack and the viewer's picks while drafting", () => {

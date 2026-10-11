@@ -20,9 +20,13 @@ export default function LimitedEventHeader({
     return (
         <header
             data-testid="event-header"
-            className="relative isolate flex min-h-32 flex-col justify-end gap-2 overflow-hidden rounded-[var(--panel-radius)] border border-accent/50 bg-surface p-4"
+            className="relative isolate flex min-h-32 flex-col justify-end gap-2 rounded-[var(--panel-radius)] border border-accent/50 bg-surface p-4"
         >
-            <LimitedHubArt source={source} />
+            {/* Only the art is clipped: the header itself must not clip the
+                ⋯ menu that drops out of it. */}
+            <div className="absolute inset-0 overflow-hidden rounded-[inherit]">
+                <LimitedHubArt source={source} />
+            </div>
             <div className="absolute right-2 top-2">{menu}</div>
             <h1 className="pr-10 font-display text-2xl leading-tight text-parchment drop-shadow">
                 {limitedEventName(event)}

@@ -147,6 +147,9 @@ export function limitedEventHero(
                 : waiting("Draft in progress");
         case "deckbuilding":
             if (!seat) return waiting("Players are building their decks");
+            if (seat.hasDeck && event.seatsWithDeck >= event.seatCount) {
+                return waiting("All decks are in — rounds are starting");
+            }
             return seat.hasDeck
                 ? waiting(
                       `Waiting — ${event.seatsWithDeck}/${event.seatCount} decks`

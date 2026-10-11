@@ -161,6 +161,14 @@ describe("limitedEventHero — CTA per phase and role", () => {
         });
     });
 
+    it("says the rounds are starting once every deck is in", () => {
+        const hero = limitedEventHero(
+            event("deckbuilding", { seatsWithDeck: 4 }),
+            { isCreator: false, seat: { hasDeck: true } }
+        );
+        expect(hero.cta.label).toBe("All decks are in — rounds are starting");
+    });
+
     it("never offers a Match for a bye or a decided pairing", () => {
         const bye = event("games", {
             viewerPairing: { ...PAIRING, isBye: true },

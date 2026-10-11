@@ -66,7 +66,6 @@ export default function LimitedEventMenu({
                 variant="secondary"
                 size="sm"
                 aria-label="Event actions"
-                aria-haspopup="menu"
                 aria-expanded={open}
                 onClick={() => setOpen((o) => !o)}
             >
@@ -74,12 +73,11 @@ export default function LimitedEventMenu({
             </Button>
             {open && (
                 <div
-                    role="menu"
+                    data-testid="event-menu-list"
                     className="absolute right-0 top-full z-[var(--z-sheet)] mt-1 flex min-w-44 flex-col gap-0.5 rounded-md border border-border-subtle bg-surface p-1 shadow-lg"
                 >
                     <button
                         type="button"
-                        role="menuitem"
                         className="rounded-sm px-3 py-2 text-left text-sm text-text hover:bg-surface-elevated"
                         onClick={copyLink}
                     >
@@ -92,7 +90,6 @@ export default function LimitedEventMenu({
                     {onLeave && (
                         <button
                             type="button"
-                            role="menuitem"
                             disabled={disabled}
                             className="rounded-sm px-3 py-2 text-left text-sm text-text hover:bg-surface-elevated disabled:text-text-disabled"
                             onClick={choose(onLeave)}
@@ -103,7 +100,6 @@ export default function LimitedEventMenu({
                     {onCancel && (
                         <button
                             type="button"
-                            role="menuitem"
                             disabled={disabled}
                             className="rounded-sm px-3 py-2 text-left text-sm text-danger-strong hover:bg-surface-elevated disabled:text-text-disabled"
                             onClick={choose(onCancel)}
