@@ -1,8 +1,7 @@
-// LimitedEventListItem's viewer match record (issue #2357): the row already
-// carried the phase chip via `limitedEventStatusHint`; this proves the new
-// `viewerMatchRecord` field renders through the REAL `formatLimitedMatchRecord`
-// helper (not a hand-built string) — present once rounds have started, blank
-// (never a false "0-0") before that.
+// LimitedEventListItem is the hub's "Join a table" row (issue #5388): the
+// event's name, the "Waiting for players" badge, one dot per seat, the free
+// seats and Join. Rendered through the real component, never a hand-built
+// string.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
@@ -31,46 +30,30 @@ function makeEvent(
     } as unknown as LimitedEventSummaryView;
 }
 
-describe("LimitedEventListItem — viewer match record (issue #2357)", () => {
-    it("renders no record segment when viewerMatchRecord is absent (event hasn't reached the play phase)", () => {
-        render(
-            <LimitedEventListItem
-                event={makeEvent({ status: "started" })}
-                viewerHasSeat
-                onOpen={vi.fn()}
-            />
-        );
-        // No stray "· 0-0" anywhere in the row.
-        expect(screen.queryByText(/0-0/)).toBeNull();
-    });
-
-    it("renders 'wins-losses' once rounds are running, without a trailing draws segment when there are none", () => {
-        render(
+describe("LimitedEventListItem — seats (issue #5388)", () => {
+    it("badges the table, draws one dot per seat and counts the free seats", () => {
+        const { container } = render(
             <LimitedEventListItem
                 event={makeEvent({
-                    status: "playing",
-                    viewerMatchRecord: { wins: 2, losses: 1, draws: 0 },
+                    status: "open",
+                    seatCount: 3,
+                    seats: [
+                        { seatIndex: 0, userId: "u", isBot: false },
+                        { seatIndex: 1, isBot: true },
+                        { seatIndex: 2, isBot: false },
+                    ] as LimitedEventSummaryView["seats"],
                 })}
-                viewerHasSeat
+                viewerHasSeat={false}
+                onJoin={vi.fn()}
                 onOpen={vi.fn()}
             />
         );
-        expect(screen.getByText(/2-1/)).toBeTruthy();
-        expect(screen.queryByText(/2-1-0/)).toBeNull();
-    });
-
-    it("appends the draws segment only when the viewer actually has one", () => {
-        render(
-            <LimitedEventListItem
-                event={makeEvent({
-                    status: "finished",
-                    viewerMatchRecord: { wins: 1, losses: 0, draws: 1 },
-                })}
-                viewerHasSeat
-                onOpen={vi.fn()}
-            />
-        );
-        expect(screen.getByText(/1-0-1/)).toBeTruthy();
+        expect(screen.getByText("Waiting for players")).toBeTruthy();
+        expect(container.querySelectorAll("[data-seat-dot]")).toHaveLength(3);
+        expect(
+            container.querySelectorAll('[data-seat-dot="free"]')
+        ).toHaveLength(1);
+        expect(screen.getByText(/1 free seat$/)).toBeTruthy();
     });
 });
 

@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { type FormatId, isFormatId } from "@convex/formatAdmission";
 import {
-    isLimitedEventStatusChip,
+    parseLimitedStatusParam,
     type LimitedEventStatusChip,
 } from "~/lib/limitedEventStatus";
 import { AuthGate } from "./components/auth/auth-gate";
@@ -129,13 +129,13 @@ const joinRoute = createRoute({
 });
 
 // Limited Events lobby + detail (PRD #1107, ADR 0054/0055, issue #1110).
-// The merged list (issue #2590): status chips + a "mine" filter, both
-// carried in the URL so `/limited?mine=1` is a real, shareable/bookmarkable
-// destination — specifically the one `/limited/events` redirects to below.
-// An unrecognized `status` (a stale link, a hand-edited URL) is dropped
-// rather than kept, mirroring `decksCreateRoute`'s `?format=` guard above.
+// The hub (issue #5388, PRD #5383): status chips, carried in the URL so
+// `/limited?status=history` is a real, shareable destination. The pre-hub
+// `?mine=` filter is retired — an old link lands on the plain hub — and the
+// pre-hub `open` / `done` values map to `waiting` / `history`. An
+// unrecognized `status` (a stale link, a hand-edited URL) is dropped rather
+// than kept, mirroring `decksCreateRoute`'s `?format=` guard above.
 type LimitedEventsSearch = {
-    mine?: true;
     status?: LimitedEventStatusChip;
     /** Fixture-label PREFIX filter (issue #2822): `/limited?label=ui-gate/`
      *  narrows the list to seeded fixture events
@@ -154,18 +154,8 @@ const limitedEventsRoute = createRoute({
     path: "/limited",
     validateSearch: (search): LimitedEventsSearch => {
         const out: LimitedEventsSearch = {};
-        // Three shapes accepted, not two: TanStack's default `parseSearch`
-        // JSON-parses each query-string value, so the literal bookmarkable
-        // URL `?mine=1` arrives here as the NUMBER 1, not the string "1" —
-        // only `stringifySearch`'s own `?mine=true` output round-trips to
-        // the boolean. Dropping the number branch silently turns off the
-        // filter for the exact URL this route's doc comment promises.
-        if (search.mine === true || search.mine === "1" || search.mine === 1) {
-            out.mine = true;
-        }
-        if (isLimitedEventStatusChip(search.status)) {
-            out.status = search.status;
-        }
+        const status = parseLimitedStatusParam(search.status);
+        if (status) out.status = status;
         // Non-empty strings only — TanStack's default `parseSearch`
         // JSON-parses each value, so a numeric-looking label would arrive as a
         // number and an empty `?label=` as `""`; neither is a label, and

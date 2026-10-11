@@ -3,27 +3,21 @@ import {
     LIMITED_EVENT_STATUS_CHIPS,
     type LimitedEventStatusChip,
 } from "~/lib/limitedEventStatus";
+import { LIMITED_HUB_CHIP_LABEL } from "~/lib/limited/limitedHub";
 
-const CHIP_LABEL: Record<LimitedEventStatusChip, string> = {
-    open: "Open",
-    drafting: "Drafting",
-    building: "Building",
-    playing: "Playing",
-    done: "Done",
-};
-
-/** The merged `/limited` list's status filter (issue #2590): open / drafting
- *  / building / playing / done, plus an implicit "All" (no chip pressed).
- *  Toggling the ACTIVE chip clears back to "All" rather than needing a
- *  separate "All" button to keep the row's element count fixed at five,
- *  which is also why `value` is `undefined` for "All" rather than an "all"
- *  member of the chip union — the union stays exactly the five values a row
- *  in the list can actually resolve to (`limitedEventStatusChip`). */
+/** The hub's status chips (issue #2590, reworded by #5388): Waiting /
+ *  Drafting / Building / Playing narrow the live sections; History swaps the
+ *  hub for the finished events. Each carries its count. Toggling the ACTIVE
+ *  chip clears back to the plain hub rather than needing a separate "All"
+ *  button, which is also why `value` is `undefined` for "no chip" rather than
+ *  an "all" member of the union. */
 export default function LimitedStatusFilterBar({
     value,
+    counts,
     onChange,
 }: {
     value: LimitedEventStatusChip | undefined;
+    counts: Record<LimitedEventStatusChip, number>;
     onChange: (next: LimitedEventStatusChip | undefined) => void;
 }) {
     return (
@@ -43,7 +37,7 @@ export default function LimitedStatusFilterBar({
                         aria-pressed={active}
                         onClick={() => onChange(active ? undefined : chip)}
                     >
-                        {CHIP_LABEL[chip]}
+                        {LIMITED_HUB_CHIP_LABEL[chip]} {counts[chip]}
                     </Button>
                 );
             })}

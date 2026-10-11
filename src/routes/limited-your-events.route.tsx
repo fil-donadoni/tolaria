@@ -6,9 +6,9 @@ import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 /** `/limited/events` (issue #2590) — retired as its own page, kept as a
  *  redirect stub so a bookmarked/shared link still lands somewhere real. The
  *  merged `/limited` list absorbed the "every event I've ever sat at" view
- *  behind the `mine` filter (see `limited-events.route.tsx`), so this route's
- *  entire job is one unconditional redirect to `/limited?mine=1` — the exact
- *  filter state that reproduces what this page used to show.
+ *  in the hub's "Your events" and History (see `limited-events.route.tsx`, issue
+ *  #5388), so this route's entire job is one unconditional redirect to
+ *  `/limited`.
  *
  *  Unconditional (no `sessionStorage` one-shot marker needed, unlike
  *  `useDraftRoomRedirect`): there is no "stay put after leaving" concern here
@@ -31,7 +31,7 @@ export default function LimitedYourEventsRoute() {
     useEffect(() => {
         void navigate({
             to: "/limited",
-            search: { mine: true, ...(label ? { label } : {}) },
+            search: label ? { label } : {},
             replace: true,
         });
     }, [navigate, label]);
