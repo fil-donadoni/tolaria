@@ -548,11 +548,7 @@ async function reachDraftRoom(page: Page, ctx: WalkContext): Promise<void> {
     const landed = await openFixtureEvent(page, ctx, ctx.fixtureLabels.draft);
     if (landed === "event") {
         if (
-            !(await clickIfVisible(
-                page,
-                "a:has-text('Enter the Draft Room')",
-                4000
-            ))
+            !(await clickIfVisible(page, "button[data-hero-cta='draft']", 4000))
         ) {
             throw new Unreachable(
                 `the "${ctx.fixtureLabels.draft}" fixture's event page offered no "Enter the Draft Room" — its seat has no live pack. ${FIXTURE_SEED_HINT}`
@@ -757,6 +753,9 @@ async function reachFixtureAntechamber(
  *  antechamber contains the phrase. */
 const LIMITED_VIEW_TABLE = 'button:text-is("View Table")';
 const LIMITED_LEAVE_SEAT = 'button:has-text("Leave Seat")';
+/** The event page's ⋯ menu trigger (issue #5389): Copy link, Leave Seat and
+ *  Cancel / Close Event live behind it, never beside the hero's CTA. */
+const LIMITED_EVENT_MENU = 'button[aria-label="Event actions"]';
 
 /** `ActionSheet`'s own queryable handle (`ui/action-sheet.tsx`, issue #2584):
  *  it portals to `document.body`, so this is the only seam that names it. */
@@ -3989,8 +3988,9 @@ export const SURFACES: readonly Surface[] = [
          * the occupant of seat 0 (`convex/limitedFixtures.ts` — `seatViewer`
          * over an event inserted with `user._id`), and the event's seating is
          * still open. So `limited-event-detail.tsx` resolves `canLeave`,
-         * `canClose` and `canStart` all true and `canJoin` false: Leave Seat,
-         * Cancel Event and Start Event render, Join Event does not. A fixture
+         * `canClose` and `canStart` all true and `canJoin` false: the hero's
+         * CTA is Start now, and the ⋯ menu holds Leave Seat and Cancel Event
+         * (issue #5389; asserted by the menu's own opener). A fixture
          * that stopped seating the viewer would red these three promises,
          * which is the correct outcome — every walk below assumes that seat.
          */
@@ -4006,18 +4006,13 @@ export const SURFACES: readonly Surface[] = [
                 check: "reachable",
             },
             {
-                label: "Leave Seat",
-                locator: { role: "button", name: "Leave Seat" },
+                label: "Event actions menu",
+                locator: { role: "button", name: "Event actions" },
                 check: "reachable",
             },
             {
-                label: "Start Event",
-                locator: { role: "button", name: "Start Event" },
-                check: "reachable",
-            },
-            {
-                label: "Cancel Event",
-                locator: { role: "button", name: "Cancel Event" },
+                label: "hero CTA (Start now)",
+                locator: { selector: '[data-hero-cta="start"]' },
                 check: "reachable",
             },
             {
@@ -4114,6 +4109,7 @@ export const SURFACES: readonly Surface[] = [
         ],
         async walk(page, ctx) {
             await reachFixtureAntechamber(page, ctx);
+            await clickIfVisible(page, LIMITED_EVENT_MENU);
             if (!(await clickIfVisible(page, LIMITED_LEAVE_SEAT))) {
                 throw new Unreachable(
                     "the antechamber offered no `Leave Seat` button — the `open` fixture should seat the lane"
