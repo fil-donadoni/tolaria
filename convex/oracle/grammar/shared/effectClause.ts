@@ -703,6 +703,21 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 615.1a — "Prevent all combat damage that would be dealt to and
+           * dealt by <this creature> this turn."
+           *
+           * A per-instance two-way shield (Maze of Ith / Ebony Horse's
+           * `preventDamage` mode "combat-to-and-by"). `subject` is read by the
+           * one subject rule and the lowering refuses everything but the
+           * ability's own source: a printed "target creature" is the
+           * announced-slot form no corpus card prints under this clause.
+           */
+          readonly kind: "prevent-combat-damage-to-and-by";
+          readonly subject: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
+          /**
            * CR 614.9 — "The next N damage that would be dealt to <recipient>
            * this turn is dealt to <other recipient> instead."
            *
@@ -3490,6 +3505,14 @@ function isPreventionShieldRecipient(requirement: TargetRequirement): boolean {
 }
 
 /**
+ * CR 615.1a — the two-way combat prevention shield's printed form. The
+ * shielded object runs up to the trailing duration, which is read by the
+ * duration rule itself.
+ */
+const PREVENT_COMBAT_DAMAGE_TO_AND_BY =
+    /^Prevent all combat damage that would be dealt to and dealt by (.+?) (this turn)$/;
+
+/**
  * CR 614.9 — the redirection shield's printed form. The budget is the printed
  * DIGITS or the announced {X} (Captain's Maneuver is the corpus's only {X}
  * spelling); "that much" and a spelled number are refused, not read. Both
@@ -4676,6 +4699,20 @@ function effectSentence(
             kind: "prevent-next-damage" as const,
             amount: Number(preventNext[1]),
             to: to.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── prevent all combat damage to and by <object> (CR 615.1a) ───────────
+    const preventCombatBoth = span.match(PREVENT_COMBAT_DAMAGE_TO_AND_BY);
+    if (preventCombatBoth !== null) {
+        const subject = subjectRule.run(preventCombatBoth[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(preventCombatBoth[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "prevent-combat-damage-to-and-by" as const,
+            subject: subject.value,
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }
