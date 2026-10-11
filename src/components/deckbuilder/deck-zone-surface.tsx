@@ -15,16 +15,21 @@ import { cn } from "~/lib/utils";
 import { CARD_LANDSCAPE_COMPACT_W } from "~/lib/cardSizing";
 import { useViewportWidth } from "~/hooks/useViewportWidth";
 import { useViewportMode } from "~/hooks/useViewportMode";
+import { useSplitCreatures } from "~/hooks/useSplitCreatures";
 import type { ZoneCard } from "~/types/game";
 import type { CardDragData } from "~/components/lobby/deck-builder/dnd-types";
 import DeckColumnPile, { type DeckPileTile } from "./deck-column-pile";
 import DeckMvRow from "./deck-mv-row";
+import DeckSplitGrid from "./deck-split-grid";
+import { layoutZonePiles, type ZoneViewportClass } from "./deckZoneSplit";
+import ZoneSplitCreaturesToggle from "./zone-split-creatures-toggle";
 import { collapseDuplicateTiles } from "./deckZoneRows";
 import type { DeckColumnChoice, DeckZoneSelection } from "./deckZoneSelection";
 import EmptyState from "~/components/ui/empty-state";
 import {
     DEFAULT_ZONE_FILTER,
     filterZoneCards,
+    isCreatureCard,
     isZoneFilterActive,
     toggleZoneFilterColor,
     zoneFilterSummary,
@@ -519,6 +524,29 @@ export default function DeckZoneSurface({
     // window would hide the pile in CSS while JS still filled it with buttons.
     const narrowWidth = useViewportWidth() < 768;
 
+    // Rename/delete controls of one Column (see the long note on the pile's
+    // `actions` below, now at its call site): none for a non-pin-target
+    // Column, none for a Column the pile CSS-hides below `md`.
+    const columnActions = (column: {
+        id: ColumnId;
+        label: string;
+        kind: string;
+        pinNamespace: unknown;
+        deletable: boolean;
+        hiddenWhenEmpty: boolean;
+    }): React.ReactNode =>
+        (onRenameColumn || onDeleteColumn) &&
+        column.pinNamespace !== null &&
+        !(column.hiddenWhenEmpty && narrowWidth) ? (
+            <DeckColumnActions
+                columnId={column.id}
+                label={column.label}
+                onRename={column.kind === "manual" ? onRenameColumn : undefined}
+                onDelete={onDeleteColumn}
+                deletable={column.deletable}
+            />
+        ) : undefined;
+
     // Issue #2584: a phone held UPRIGHT draws each Column as a horizontal ROW
     // (`DeckMvRow`) instead of a vertical pile — see that component for why.
     // `useViewportMode()`, not the width read above, because the arrangement
@@ -546,6 +574,26 @@ export default function DeckZoneSurface({
     // `narrowWidth` above — that read is `md`-keyed on purpose (it mirrors the
     // pile's own `hidden md:flex`) and a landscape phone is not narrow.
     const landscapeCompact = viewportMode === "landscape-compact";
+
+    // Issue #5399: pile layout is a pure function of (columns, split on/off,
+    // viewport class). Only the desktop class has a split grid so far.
+    const [splitCreatures, setSplitCreatures] = useSplitCreatures();
+    const viewportClass: ZoneViewportClass = asRows
+        ? "phone-portrait"
+        : landscapeCompact
+          ? "phone-landscape"
+          : "desktop";
+    const pileLayout = layoutZonePiles(
+        rendered.map((column) => ({
+            ...column,
+            actions: columnActions(column),
+        })),
+        {
+            split: splitCreatures,
+            viewport: viewportClass,
+            isCreature: (cardId) => isCreatureCard(cardId, lookup),
+        }
+    );
 
     // The header's count text. The `countSuffix` branch exists because the
     // naive `${visible.length} of ${cards.length}${countSuffix}` reads as
@@ -667,6 +715,13 @@ export default function DeckZoneSurface({
                                 zoneLabel={title}
                             />
                         )}
+                        {onGroupingChange && viewportClass === "desktop" && (
+                            <ZoneSplitCreaturesToggle
+                                on={splitCreatures}
+                                onChange={setSplitCreatures}
+                                zoneLabel={title}
+                            />
+                        )}
                         {onAddColumn && (
                             <ZoneAddColumnControl
                                 onAdd={onAddColumn}
@@ -759,29 +814,38 @@ export default function DeckZoneSurface({
                         : undefined
                 }
             >
-                {asRows
-                    ? rendered.map((column) => (
-                          <DeckMvRow
-                              key={column.id}
-                              label={column.label}
-                              dropId={column.dropId}
-                              droppable={dropModel === "columns"}
-                              dataColumn={column.id}
-                              tiles={collapseDuplicateTiles(column.tiles)}
-                              hiddenWhenEmpty={column.hiddenWhenEmpty}
-                          />
-                      ))
-                    : rendered.map((column) => (
-                          <DeckColumnPile
-                              key={column.id}
-                              label={column.label}
-                              dropId={column.dropId}
-                              droppable={dropModel === "columns"}
-                              dataColumn={column.id}
-                              tiles={column.tiles}
-                              hiddenWhenEmpty={column.hiddenWhenEmpty}
-                              showHeader={!landscapeCompact}
-                              /* A Column that is not a pin target is never
+                {asRows ? (
+                    rendered.map((column) => (
+                        <DeckMvRow
+                            key={column.id}
+                            label={column.label}
+                            dropId={column.dropId}
+                            droppable={dropModel === "columns"}
+                            dataColumn={column.id}
+                            tiles={collapseDuplicateTiles(column.tiles)}
+                            hiddenWhenEmpty={column.hiddenWhenEmpty}
+                        />
+                    ))
+                ) : pileLayout.kind === "split" ? (
+                    <DeckSplitGrid
+                        columns={pileLayout.columns}
+                        creatureSlots={pileLayout.creatureSlots}
+                        creatureCount={pileLayout.creatureCount}
+                        otherCount={pileLayout.otherCount}
+                        droppable={dropModel === "columns"}
+                    />
+                ) : (
+                    pileLayout.columns.map((column) => (
+                        <DeckColumnPile
+                            key={column.id}
+                            label={column.label}
+                            dropId={column.dropId}
+                            droppable={dropModel === "columns"}
+                            dataColumn={column.id}
+                            tiles={column.tiles}
+                            hiddenWhenEmpty={column.hiddenWhenEmpty}
+                            showHeader={!landscapeCompact}
+                            /* A Column that is not a pin target is never
                                  renameable and never deletable (ADR 0075 §2), so
                                  it gets no controls at all rather than two
                                  disabled ones. Renaming is offered for MANUAL
@@ -810,25 +874,10 @@ export default function DeckZoneSurface({
                                  evaluates to on that rung is never rendered.
                                  Rename/delete stay workbench gestures, as
                                  `DeckMvRow` already decided for phone-portrait. */
-                              actions={
-                                  (onRenameColumn || onDeleteColumn) &&
-                                  column.pinNamespace !== null &&
-                                  !(column.hiddenWhenEmpty && narrowWidth) ? (
-                                      <DeckColumnActions
-                                          columnId={column.id}
-                                          label={column.label}
-                                          onRename={
-                                              column.kind === "manual"
-                                                  ? onRenameColumn
-                                                  : undefined
-                                          }
-                                          onDelete={onDeleteColumn}
-                                          deletable={column.deletable}
-                                      />
-                                  ) : undefined
-                              }
-                          />
-                      ))}
+                            actions={column.actions}
+                        />
+                    ))
+                )}
             </div>
         </div>
     );

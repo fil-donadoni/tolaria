@@ -57,6 +57,16 @@ export function isZoneFilterActive(filter: ZoneFilter): boolean {
 const defaultZoneFilterLookup: CardLookup = (cardId) =>
     tryGetDefinition(cardId) ?? undefined;
 
+/** Whether `cardId` is positively a creature. A card the lookup cannot resolve
+ *  is not (same stance as {@link matchesZoneFilter}: unclassifiable ≠ matching
+ *  a type) — the split layout files it with the non-creatures. */
+export function isCreatureCard(
+    cardId: string,
+    lookup: CardLookup = defaultZoneFilterLookup
+): boolean {
+    return lookup(cardId)?.types.includes("Creature") ?? false;
+}
+
 /** Whether `def` matches `filter`. A card the caller cannot resolve to a
  *  `CardDefinition` (an unregistered / not-yet-catalogued id, ADR 0080)
  *  always matches — this filter only ever HIDES a card it can positively

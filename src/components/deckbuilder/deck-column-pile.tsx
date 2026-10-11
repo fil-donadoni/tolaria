@@ -33,6 +33,7 @@ export default function DeckColumnPile({
     actions,
     hiddenWhenEmpty = false,
     showHeader = true,
+    minSlots = 0,
 }: {
     label: string;
     /** dnd-kit droppable id — unique within the host's `DragDropProvider`. */
@@ -74,6 +75,10 @@ export default function DeckColumnPile({
      *  unreachable menu in the document — the same treatment `DeckMvRow`
      *  already gives phone-portrait. */
     showHeader?: boolean;
+    /** Reserve room for at least this many stacked cards (issue #5399): the
+     *  creature band of the split grid is as tall as its tallest stack, so the
+     *  divider under it stays one straight line. */
+    minSlots?: number;
 }) {
     const { ref, isDropTarget } = useDroppable({
         id: dropId,
@@ -102,7 +107,7 @@ export default function DeckColumnPile({
             )}
             <div
                 className="relative w-(--card-w)"
-                style={{ height: pileHeight(tiles.length) }}
+                style={{ height: pileHeight(Math.max(tiles.length, minSlots)) }}
             >
                 {tiles.map(({ key, ...tile }, idx) => (
                     <DeckCardTile key={key} {...tile} stackIndex={idx} />
