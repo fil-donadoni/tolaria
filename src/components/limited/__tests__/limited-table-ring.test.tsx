@@ -1,10 +1,10 @@
-// The Table Ring (ADR 0101 §6, issue #2587) — "seats, names, queued packs per
-// seat, direction arrows, self at the bottom".
+// The Table Ring (ADR 0101 §6, issues #2587 / #5390) — seats on a ring with
+// the viewer at the bottom, a queued-pack badge on EVERY seat while drafting,
+// pass-direction arrows.
 //
-// Driven through the REAL projection: three of the four things the dialog
-// renders (`poolCount`, `packQueueCount`, `isViewer`) are decided BY the
-// projection, one of them per-seat differently, so a hand-built seat array
-// would let the dialog pass while showing another seat's private state.
+// Driven through the REAL projection: `packQueueCount` and `isViewer` are
+// decided BY the projection, so a hand-built seat array would let the ring
+// pass while the wire carries something else.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import {
@@ -70,59 +70,64 @@ function mountRing(draftRound: number) {
         />
     );
     return [
-        ...document.querySelectorAll("[data-slot=table-ring] li"),
+        ...document.querySelectorAll(
+            "[data-slot=table-ring] [data-seat-index]"
+        ),
     ] as HTMLElement[];
 }
 
-describe("LimitedTableRing (issue #2587)", () => {
-    it("puts the viewer's own seat LAST, whatever its seat index", () => {
-        const rows = mountRing(0);
-
-        expect(rows.map((li) => li.dataset.seatIndex)).toEqual([
-            "2",
-            "3",
-            "0",
-            "1",
-        ]);
-        expect(rows.at(-1)!.dataset.isViewer).toBe("true");
-        expect(rows.at(-1)!.textContent).toContain("Alice");
+describe("LimitedTableRing (issues #2587, #5390)", () => {
+    it("places the viewer's own seat at the bottom whatever its seat index", () => {
+        const seats = mountRing(0);
+        const me = seats.find((el) => el.dataset.isViewer === "true")!;
+        expect(me.dataset.seatIndex).toBe("1");
+        const slot = me.parentElement!;
+        expect(parseFloat(slot.style.left)).toBeCloseTo(50);
+        expect(parseFloat(slot.style.top)).toBeGreaterThan(80);
     });
 
-    it("names each seat's downstream neighbour, and flips it when the round does", () => {
+    it("draws a pass arrow per seat, and flips them when the round does", () => {
+        mountRing(0);
+        const arrow = (from: string) =>
+            document.querySelector(
+                `[data-slot=pass-arrow][data-from="${from}"]`
+            )!;
         // Round 0 passes LEFT (+1): seat 1 hands to seat 2.
-        const left = mountRing(0);
-        expect(
-            left.find((li) => li.dataset.seatIndex === "1")!.textContent
-        ).toContain("Bot 3");
+        expect((arrow("1") as HTMLElement).dataset.to).toBe("2");
         cleanup();
-
-        // Round 1 passes RIGHT (-1): the same seat hands to seat 0 instead.
-        // The direction comes from the server's `passDirection`, so this is
-        // the assertion that would catch a client-side second opinion.
-        const right = mountRing(1);
-        expect(
-            right.find((li) => li.dataset.seatIndex === "1")!.textContent
-        ).toContain("Bot 1");
+        // Round 1 passes RIGHT (-1): the server's `passDirection`, not a
+        // client-side second opinion.
+        mountRing(1);
+        expect((arrow("1") as HTMLElement).dataset.to).toBe("0");
     });
 
-    it("shows every seat's picks made, and a queued-pack count only where the wire carries one", () => {
-        const rows = mountRing(0);
-        const bySeat = (i: string) =>
-            rows.find((li) => li.dataset.seatIndex === i)!;
+    it("shows a queued-pack badge on every seat from the projection's counts (issue #5390)", () => {
+        const seats = mountRing(0);
+        const badge = (i: string) =>
+            seats
+                .find((el) => el.dataset.seatIndex === i)!
+                .querySelector("[data-slot=queued-packs]")?.textContent;
+        expect(badge("1")).toBe("2 queued");
+        expect(badge("0")).toBe("0 queued");
+        expect(badge("2")).toBe("0 queued");
+        expect(badge("3")).toBe("0 queued");
+    });
 
-        // `poolCount` is public for every seat, so the pace of the whole
-        // table is readable.
-        expect(bySeat("2").textContent).toContain("2 picked");
-        expect(bySeat("1").textContent).toContain("3 picked");
+    it("marks bots distinctly from humans", () => {
+        const seats = mountRing(0);
+        const kind = (i: string) =>
+            seats.find((el) => el.dataset.seatIndex === i)!.dataset.seatKind;
+        expect(kind("1")).toBe("human");
+        expect(kind("0")).toBe("bot");
+    });
 
-        // `packQueueCount` is the viewer's own seat ONLY (the projection
-        // strips it everywhere else) — the dialog must render that absence,
-        // never a fabricated zero.
-        expect(
-            bySeat("1").querySelector("[data-slot=queued-packs]")!.textContent
-        ).toBe("2 queued");
-        expect(
-            bySeat("0").querySelector("[data-slot=queued-packs]")!.textContent
-        ).toBe("· · ·");
+    it("keeps each seat's picks made while drafting", () => {
+        const seats = mountRing(0);
+        const picked = (i: string) =>
+            seats
+                .find((el) => el.dataset.seatIndex === i)!
+                .querySelector("[data-slot=picked]")?.textContent;
+        expect(picked("2")).toBe("2 picked");
+        expect(picked("1")).toBe("3 picked");
     });
 });

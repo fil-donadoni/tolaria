@@ -212,10 +212,10 @@ describe("check:ui surface table — Named Assertions", () => {
             ],
             "limited-antechamber": [
                 "reachable role=button name=← Back to Limited Events",
-                "reachable role=button name=View Table",
+                'visible [data-slot="event-table"]',
                 "reachable role=button name=Event actions",
                 'reachable [data-hero-cta="start"]',
-                "contrast role=button name=View Table",
+                'contrast [data-hero-cta="start"]',
             ],
             "limited-build": [
                 'visible [data-deck-pane="maindeck"]',
@@ -298,8 +298,8 @@ describe("check:ui surface table — Named Assertions", () => {
     it("the Limited overlays promise the layer they open", () => {
         expectPromised({
             "limited-table-ring": [
-                "visible role=dialog name=The Table",
-                'visible [data-slot=table-ring] [data-is-viewer="true"]',
+                "visible [data-slot=table-ring]:visible",
+                'visible [data-slot=table-ring] [data-is-viewer="true"]:visible',
             ],
             "limited-leave-seat-confirm": [
                 "visible role=dialog name=Leave this Seat?",

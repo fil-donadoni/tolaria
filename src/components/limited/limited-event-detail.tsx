@@ -16,7 +16,6 @@ import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import ErrorState from "~/components/ui/error-state";
 import ActionButton from "~/components/board/action-button";
 import LimitedTablePanel from "./limited-table-panel";
-import LimitedEventSeatsDisclosure from "./limited-event-seats-disclosure";
 import LimitedYourDeckPanel from "./limited-your-deck-panel";
 import LimitedVsAiPanel from "./limited-vs-ai-panel";
 import LimitedChallengePanel from "./limited-challenge-panel";
@@ -168,8 +167,6 @@ export default function LimitedEventDetail({
     const isPoolFinal =
         arePoolsDealt(event.status) &&
         (event.type === "sealed" || event.draftCompletedAt !== undefined);
-    // During an active draft the per-seat roster is noise (the drafter watches
-    // the Booster, not the table), so it collapses behind a "Seats" summary.
     const draftInProgress =
         areDraftPicksLegal(event.status) &&
         event.type === "draft" &&
@@ -295,21 +292,15 @@ export default function LimitedEventDetail({
             </PanelBody>
 
             <PanelBody className="mt-3">
-                {/* The table area — a slot the next slice (PRD #5383) fills
-                    with the ring; today's seat components stay until then.
-                    The build-progress bar is gated on `isPoolFinal` (issue
-                    #1580): a deck cannot exist before the Pool is final, so
+                {/* The table: the seat ring (issue #5390). The build-progress
+                    bar is gated on `isPoolFinal` (issue #1580): a deck cannot exist before the Pool is final, so
                     the "N/seatCount decks in" counter would otherwise misread
                     as live progress while a Draft is still running. */}
                 <div data-slot="event-table">
-                    {draftInProgress ? (
-                        <LimitedEventSeatsDisclosure event={event} />
-                    ) : (
-                        <LimitedTablePanel
-                            event={event}
-                            showProgress={isPoolFinal}
-                        />
-                    )}
+                    <LimitedTablePanel
+                        event={event}
+                        showProgress={isPoolFinal}
+                    />
                 </div>
 
                 {draftInProgress && (

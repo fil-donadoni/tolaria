@@ -18,7 +18,11 @@ import type {
     LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
-import { areRoundsRunning, isEventConcluded } from "./eventStatus";
+import {
+    areDraftPicksLegal,
+    areRoundsRunning,
+    isEventConcluded,
+} from "./eventStatus";
 import { resolveEventGamesFormat } from "./gamesFormat";
 import { findSeatPairing, isRoundComplete } from "./rounds";
 import {
@@ -154,10 +158,10 @@ export interface LimitedEventSeatView {
      *  the hidden information a Draft protects (PRD #1107 story 15). `null`
      *  for a Sealed event, before the draft starts, or a non-viewer seat. */
     currentPack: DraftPackCard[] | null;
-    /** Draft only: how many packs are queued behind `currentPack` — viewer's
-     *  own seat only (never another seat's, and never a queued pack's
-     *  contents, only the count). `null` when not applicable/not the
-     *  viewer. */
+    /** Draft only: how many packs are queued behind `currentPack` — a COUNT,
+     *  never a queued pack's contents. Public for EVERY seat while the Draft
+     *  is live (issue #5390: the table ring's queued-packs badge); outside a
+     *  live Draft it stays the viewer's own seat only, `null` for the rest. */
     packQueueCount: number | null;
     /** Draft only, timer-on events (issue #1114): epoch ms when this seat's
      *  CURRENT `currentPack` pick times out, so the UI can render a live
@@ -485,6 +489,11 @@ export function projectLimitedEvent(
         event.status,
         event.openDecklists ?? false
     );
+    // The Draft is running: picks are legal and the last pack is not yet taken.
+    const draftLive =
+        event.type === "draft" &&
+        areDraftPicksLegal(event.status) &&
+        event.draftCompletedAt === undefined;
     return {
         _id: event._id,
         createdBy: event.createdBy,
@@ -574,7 +583,14 @@ export function projectLimitedEvent(
                       }
                     : null,
                 currentPack: isViewer ? (seat.currentPack ?? null) : null,
-                packQueueCount: isViewer ? (seat.packQueue?.length ?? 0) : null,
+                // Count only, never contents: during the Draft every seat's
+                // queued-pack count is public (the table ring's "who is
+                // holding the table up" badge, issue #5390); outside it,
+                // viewer-only as before.
+                packQueueCount:
+                    isViewer || draftLive
+                        ? (seat.packQueue?.length ?? 0)
+                        : null,
                 pickDeadline: isViewer ? (seat.pickDeadline ?? null) : null,
                 poolArrangement: isViewer
                     ? (seat.poolArrangement ?? null)
