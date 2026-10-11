@@ -7,7 +7,7 @@ import { EMPTY_SETUP, type MatchSetup } from "../matchSetup";
 import { homeDecks, lastMatchView, yourTables } from "../lobbyHome";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 
-function deck(overrides: Partial<LobbyDeck>): LobbyDeck {
+function deck(overrides: Record<string, unknown>): LobbyDeck {
     return {
         kind: "preset",
         presetId: "deck",
@@ -20,7 +20,7 @@ function deck(overrides: Partial<LobbyDeck>): LobbyDeck {
         isLegal: true,
         reasons: [],
         ...overrides,
-    } as LobbyDeck;
+    } as unknown as LobbyDeck;
 }
 
 const burn = deck({
@@ -33,14 +33,14 @@ const elves = deck({
     name: "Elves",
     featuredCardId: "art-elves",
     cards: [{ id: "c", cardName: "Llanowar Elves", quantity: 4 }],
-} as Partial<LobbyDeck>);
+});
 const mine = deck({
     kind: "user",
     presetId: "mine",
     name: "Solitary Box",
     format: "old-school",
     cards: [{ id: "c", cardName: "Solitary Confinement", quantity: 1 }],
-} as Partial<LobbyDeck>);
+});
 const DECKS = [burn, elves, mine];
 
 const setup = (patch: Partial<MatchSetup>): MatchSetup => ({

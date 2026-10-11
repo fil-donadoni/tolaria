@@ -995,17 +995,6 @@ function currentEventId(page: Page): string {
     return match[1];
 }
 
-/* The v4 lobby's walk hooks (ADR 0103 §6, issue #2726). ATTRIBUTES, not
- * `:has-text()` literals, because neither control the walk needs carries a
- * stable string any more: a Deck Shelf tile's visible text is the deck NAME
- * (its "Select <name>" is an `aria-label`, which `:has-text` does not read),
- * and the Loadout's single ivory plate is NAMED BY the selected Mode Tile
- * ("Play vs Bot" on a cold lobby), so `button:has-text('Solo Game')` would
- * match the Mode TILE — which selects and starts nothing. Both attributes are
- * declared as walk seams at their component (`deck-shelf-tile.tsx`,
- * `lobby-loadout.tsx`) and exercised through the real lobby wiring in
- * `src/components/lobby/__tests__/lobby.test.tsx`. */
-const DECK_TILE_SELECTED = '[data-deck-tile][data-selected="true"]';
 /** A card in the seat's hand (`gre-hand-card.tsx`) — the card-preview walk's
  *  subject. The hand is the one zone guaranteed non-empty on a freshly created
  *  solo game, where the battlefield is empty by rule (CR 103). */
@@ -1015,29 +1004,89 @@ const PREVIEW_ANCHORED = "[data-card-preview-anchored]";
 /** The Engine View well (`card-preview-engine-view.tsx`, issue #2728), which
  *  issue #2704 fills with the tree. */
 const ENGINE_VIEW_TREE = "[data-engine-view-tree]";
-const DECK_TILE_SELECT = "[data-deck-tile] [data-deck-select]:not([disabled])";
+/** The setup flow's remembered setup (`src/lib/matchSetup.ts`). */
+const MATCH_SETUP_KEY = "tolaria:matchSetup";
+/** The flow's Start, once every step is answered (`match-setup-rail.tsx`). */
+const START_MATCH = 'button:text-is("Start match"):not([disabled])';
+
 /**
- * Select a deck the lane can actually play a game with: the PRESET shelf
- * first, any shelf second (issue #3493).
- *
- * Not merely "the first selectable tile": "Your decks" carries whatever the
- * account happens to hold, including the three-card rows THIS lane's own
- * `deck-builder` walk leaves behind when it dies before its cleanup. A solo
- * game on one of those is a DRAW by decking before the first priority, and the
- * Game Over dialog's modal scrim then swallows every later click on the board.
- * `createVsAiGame` reaches the same conclusion from the vs-AI side (#3492) and
- * this shares its selector.
+ * Open /play/constructed on its FIRST step. The flow re-opens on the last
+ * setup the context remembers, and the walks here share a context per
+ * viewport: a Solo game started by `ensureBoard` would otherwise open the
+ * `match-setup` walk on the Solo branch's last step, and its Bot walk on
+ * nothing it expects. Clearing the key is client state only — it writes
+ * nothing on the deployment.
  */
-async function selectPlayableDeck(page: Page): Promise<boolean> {
-    if (await clickIfVisible(page, PRESET_DECK_SELECT, 6000)) return true;
-    return clickIfVisible(page, DECK_TILE_SELECT, 6000);
+async function openFreshSetupFlow(page: Page, ctx: WalkContext): Promise<void> {
+    await goto(page, ctx, "/play/constructed");
+    await page.evaluate((key) => localStorage.removeItem(key), MATCH_SETUP_KEY);
+    await goto(page, ctx, "/play/constructed");
+    if (!(await visible(page, "h1:has-text('Constructed')", 10_000))) {
+        throw new Unreachable("/play/constructed did not render its heading");
+    }
 }
 
-const MODE_TILE_SOLO = '[data-mode-tile="solo"]';
-/** The lobby's DEFAULT mode tile — the one whose primary action opens the
- *  vs-AI setup dialog rather than creating a game (`lobby-vs-ai` below). */
-const MODE_TILE_BOT = '[data-mode-tile="bot"]';
-const LOBBY_PRIMARY = "[data-lobby-primary]:not([disabled])";
+/** Press the setup choice whose accessible name starts with `name`. */
+async function chooseSetup(page: Page, name: string): Promise<void> {
+    await page
+        .getByRole("button", { name: new RegExp(`^${name}`) })
+        .click({ timeout: STEP_TIMEOUT });
+}
+
+/** The flow's step currently open (`data-setup-step` on the rail). */
+async function currentSetupStep(page: Page): Promise<string | null> {
+    return page
+        .locator("[data-setup-step][aria-current=step]")
+        .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
+        .catch(() => null);
+}
+
+/**
+ * Pick a deck in the flow's grid: a PRESET first, any deck second (issues
+ * #3492/#3493). "Your decks" carries whatever the account holds, including
+ * the three-card rows this lane's own `deck-builder` walk leaves behind when
+ * it dies before its cleanup — a solo game on one of those is a draw by
+ * decking before the first priority, and the Game Over scrim then swallows
+ * every later click on the board. A preset is a real 60-card list.
+ */
+async function pickPlayableDeck(page: Page): Promise<void> {
+    const preset = page
+        .locator(
+            'section:has(h3:has-text("Presets")) [data-deck-select]:not([disabled])'
+        )
+        .first();
+    const any = page.locator("[data-deck-select]:not([disabled])").first();
+    const target = (await preset.count()) > 0 ? preset : any;
+    await target.click({ timeout: STEP_TIMEOUT });
+}
+
+/**
+ * Start a fresh Solo game through the setup flow: Arena, Solo, Freeform, a
+ * playable deck, Mirror (the flow's default second seat), Start match.
+ */
+async function startSoloThroughFlow(
+    page: Page,
+    ctx: WalkContext
+): Promise<void> {
+    await openFreshSetupFlow(page, ctx);
+    // Four answers at most; the slack absorbs a read that lands before the
+    // rail re-renders.
+    for (let i = 0; i < 8; i++) {
+        const step = await currentSetupStep(page);
+        if (step === "mode") await chooseSetup(page, "Arena");
+        else if (step === "opponent") await chooseSetup(page, "Solo");
+        else if (step === "format") await chooseSetup(page, "Freeform");
+        else if (step === "myDeck") await pickPlayableDeck(page);
+        else break;
+    }
+    if (!(await clickIfVisible(page, START_MATCH, 6000))) {
+        throw new Unreachable(
+            "Arena → Solo → Freeform → a deck left Start match disabled — is the deployment seeded with preset decks?"
+        );
+    }
+    ctx.createdGame = true;
+    ctx.log("created a solo game through the setup flow");
+}
 
 /**
  * Reach a live board. Runbook: "Start a solo game from cold" plus its
@@ -1052,53 +1101,18 @@ async function ensureBoard(page: Page, ctx: WalkContext): Promise<void> {
     await goto(page, ctx, "/");
 
     // Already inside a match? Resume it — read-only, and it is the only branch
-    // that does not destroy state the developer may care about.
-    if (await clickIfVisible(page, "button:has-text('Resume')", 4000)) {
+    // that does not destroy state the developer may care about. Every later
+    // VIEWPORT reaches a board this way: `index.ts`'s `browser.newContext`
+    // passes no `storageState`, so viewports 2-5 start with empty storage and
+    // resume the game viewport 1 created.
+    if (await clickIfVisible(page, BANNER_RESUME, 4000)) {
         ctx.log("resumed the pre-existing active game");
     } else {
-        // 1. A deck has to be the Loadout's ACTIVE one before the primary
-        //    action ungates. An already-selected tile and an illegal one are
-        //    both `disabled`, so this addresses the first tile that can
-        //    actually take the selection — and the step is skipped outright
-        //    when a tile already carries the selection. That is the SECOND
-        //    `ensureBoard` call inside one viewport (`game-board` then a later
-        //    board row — `game-stress` names the same pairing but is still
-        //    declared unwalked, issue #3506), which
-        //    shares the context and so the
-        //    `tolaria:selectedDeckId` the first call wrote. It is NOT how a
-        //    later VIEWPORT starts: `index.ts`'s `browser.newContext({viewport,
-        //    …})` passes no `storageState`, so every viewport begins with empty
-        //    storage and viewports 2-5 reach a board through the `Resume`
-        //    branch above, on the game viewport 1 created.
-        if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
-            if (!(await selectPlayableDeck(page))) {
-                throw new Unreachable(
-                    "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
-                );
-            }
-            await settle(page);
-        }
-        // 2. A Mode Tile SELECTS; it never starts anything. "Solo game" is the
-        //    one whose primary action creates a game outright — the default
-        //    "Play vs Bot" tile opens the vs-AI setup dialog instead, and
-        //    "Open a table" hosts a seat and waits for a second player.
-        if (!(await clickIfVisible(page, MODE_TILE_SOLO, 6000))) {
-            throw new Unreachable(
-                "the lobby's Mode Tiles offered no 'Solo game' tile — is the game-mode selector stuck on Cockatrice mode?"
-            );
-        }
-        // 3. The single ivory plate, which now reads "Solo game".
-        if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
-            throw new Unreachable(
-                "the Loadout's primary action stayed disabled after selecting a deck and the 'Solo game' Mode Tile"
-            );
-        }
-        ctx.createdGame = true;
-        ctx.log("created a solo game");
+        await startSoloThroughFlow(page, ctx);
     }
 
     await page.waitForURL(/\/game/, { timeout: NAV_TIMEOUT }).catch(() => {
-        throw new Unreachable("the lobby never routed to /game");
+        throw new Unreachable("neither Resume nor Start match routed to /game");
     });
     await settle(page);
 
@@ -1343,18 +1357,6 @@ async function closeDebugSheet(page: Page): Promise<void> {
     }
 }
 
-/* The PRESET shelf's tiles, not "the first selectable tile anywhere in the
- * lobby" (issue #3492). The lobby renders two shelves — `Your decks` and
- * `Preset decks` (`lobby.tsx`) — and the unscoped selector `ensureBoard` uses
- * reaches whichever comes first, which is the user's. On this shared dev
- * account that is a `deck-builder` leftover: measured here, the vs-AI walk
- * dealt `Deck 38`, a freeform two-card list, to BOTH seats and the game ended
- * before the first prompt with `The game is a draw` — both players drew from
- * an empty library at the same moment. A preset is a real 60-card list, so the
- * position the probe measures is a board and not a scoreboard. */
-const PRESET_SHELF = 'section:has(h2:text-is("Preset decks"))';
-const PRESET_DECK_SELECT = `${PRESET_SHELF} [data-deck-tile] [data-deck-select]:not([disabled])`;
-
 /**
  * Concede the active match from the lobby banner (`active-game-notice.tsx`).
  *
@@ -1492,29 +1494,10 @@ async function ensurePregameGate(page: Page, ctx: WalkContext): Promise<void> {
     if (await clickIfVisible(page, BANNER_RESUME, 4000)) {
         ctx.log("resumed the pre-existing active game");
     } else {
-        if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
-            if (!(await selectPlayableDeck(page))) {
-                throw new Unreachable(
-                    "the lobby offered neither Resume nor a selectable Deck Shelf tile — is the deployment seeded with preset decks?"
-                );
-            }
-            await settle(page);
-        }
-        if (!(await clickIfVisible(page, MODE_TILE_SOLO, 6000))) {
-            throw new Unreachable(
-                "the lobby's Mode Tiles offered no 'Solo game' tile — is the game-mode selector stuck on Cockatrice mode?"
-            );
-        }
-        if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
-            throw new Unreachable(
-                "the Loadout's primary action stayed disabled after selecting a deck and the 'Solo game' Mode Tile"
-            );
-        }
-        ctx.createdGame = true;
-        ctx.log("created a solo game");
+        await startSoloThroughFlow(page, ctx);
     }
     await page.waitForURL(/\/game/, { timeout: NAV_TIMEOUT }).catch(() => {
-        throw new Unreachable("the lobby never routed to /game");
+        throw new Unreachable("neither Resume nor Start match routed to /game");
     });
     await settle(page);
     if (!(await visible(page, PREGAME_GATE, 10_000))) {
@@ -2315,34 +2298,17 @@ function laneDeckPath(ctx: WalkContext, suffix = ""): string {
 /** Walk /play/constructed to the Bot deck step (step 5): Arena, Bot, Freeform,
  *  a deck. Shared by the `match-setup` surfaces. */
 async function reachBotDeckStep(page: Page, ctx: WalkContext): Promise<void> {
-    await goto(page, ctx, "/play/constructed");
-    if (!(await visible(page, "h1:has-text('Constructed')", 10_000))) {
-        throw new Unreachable("/play/constructed did not render its heading");
-    }
-    // A retry inside the same viewport reuses the context, whose
-    // storage remembers how far the last attempt got: answer only
-    // the step the flow opens on, until it opens on step 5.
-    const current = page.locator("[data-setup-step][aria-current=step]");
-    const choose = (name: string) =>
-        page
-            .getByRole("button", { name: new RegExp(`^${name}`) })
-            .click({ timeout: STEP_TIMEOUT });
+    await openFreshSetupFlow(page, ctx);
     // Four answers at most; the slack absorbs a read that lands
     // before the rail re-renders.
     for (let i = 0; i < 8; i++) {
-        const step = await current
-            .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
-            .catch(() => null);
+        const step = await currentSetupStep(page);
         if (step === "opponentDeck") break;
-        if (step === "mode") await choose("Arena");
-        else if (step === "opponent") await choose("Bot");
-        else if (step === "format") await choose("Freeform");
-        else if (step === "myDeck") {
-            await page
-                .locator("[data-deck-select]:not([disabled])")
-                .first()
-                .click({ timeout: STEP_TIMEOUT });
-        } else {
+        if (step === "mode") await chooseSetup(page, "Arena");
+        else if (step === "opponent") await chooseSetup(page, "Bot");
+        else if (step === "format") await chooseSetup(page, "Freeform");
+        else if (step === "myDeck") await pickPlayableDeck(page);
+        else {
             throw new Unreachable(
                 `the setup flow opened on an unexpected step: ${step}`
             );
@@ -2535,79 +2501,61 @@ export const SURFACES: readonly Surface[] = [
     {
         id: "lobby",
         entries: ["src/routes/lobby.route.tsx"],
-        label: "Lobby (/)",
+        label: "Lobby home (/)",
         /**
-         * EVERY ENTRY POINT THE LOBBY RUNBOOK NAMES (`docs/guides/ui-runbooks.md`
-         * § Start a solo game from cold, § Lobby, deck builder and the Limited
-         * list). This is the coverage hole of
-         * `docs/findings/2726-ui-gate-lobby-walk-asserts-almost-nothing.md`: the walk
-         * below asserts a main region, so a lobby that had lost all four Mode
-         * Tiles, the Loadout's plate, both deck shelves, the Limited footer
-         * and the profile menu would still have measured green.
+         * The lobby home (PRD #5334, issue #5344): Play's two tiles, Your
+         * Tables, and the Decks section's controls — every entry point the
+         * runbook names (`docs/guides/ui-runbooks.md` § Lobby home).
          *
-         * `reachable`, not `visible`, for the controls, because the lobby is a
-         * scrolling page and what matters is that a gesture gets there: the
-         * check scrolls the element into view first and then requires its
-         * centre inside the viewport, so a control below the fold passes and
-         * one pinned under fixed chrome does not.
+         * Last Match is NOT promised: it renders only while the context
+         * remembers a setup that can be replayed, which depends on what an
+         * earlier walk in the same context left in storage — a promise that
+         * holds half the time is a promise about neither state. Nor is a Your
+         * Tables tile: the lane's account is seated wherever its own game
+         * walks left it.
+         *
+         * `reachable`, not `visible`, for the controls: the home scrolls, and
+         * what matters is that a gesture gets there.
          */
         asserts: [
-            // The four tiles are the ARENA set (`src/lib/lobbyModes.ts`): a
-            // Cockatrice lobby offers `Solo table` instead of `Play vs Bot` /
-            // `Solo game`. The lane never writes `tolaria:playMode`, so every
-            // context opens on the `arena` default — a walk that starts
-            // touching the game-mode selector owes this list the other set,
-            // and four reds here would be that, not a product regression.
             {
-                label: "mode tile: Play vs Bot",
-                locator: { selector: '[data-mode-tile="bot"]' },
+                label: "play: Constructed",
+                locator: { selector: '[data-home-play="constructed"]' },
                 check: "reachable",
             },
             {
-                label: "mode tile: Solo game",
-                locator: { selector: '[data-mode-tile="solo"]' },
+                label: "play: Limited",
+                locator: { selector: '[data-home-play="limited"]' },
                 check: "reachable",
             },
             {
-                label: "mode tile: Open a table",
-                locator: { selector: '[data-mode-tile="table"]' },
-                check: "reachable",
-            },
-            {
-                label: "mode tile: Limited",
-                locator: { selector: '[data-mode-tile="limited"]' },
-                check: "reachable",
-            },
-            // VISIBLE, not reachable, and that is the promise: the Loadout's
-            // single plate is `disabled` until a deck is the active one
-            // (`src/lib/lobbyGate.ts`), and this walk selects nothing — so
-            // requiring actionability here would assert the opposite of the
-            // designed state.
-            {
-                label: "Loadout primary action",
-                locator: { selector: "[data-lobby-primary]" },
+                label: "Your Tables",
+                locator: { selector: '[data-home-section="tables"]' },
                 check: "visible",
             },
-            // The contrast promise points at an ENABLED control with text:
-            // axe's `color-contrast` rule skips a disabled one and everything
-            // under it, so the same check on the plate above — disabled in the
-            // state this walk measures — is a promise that could never fail.
             {
-                label: "Limited re-entry contrast",
-                locator: { role: "button", name: "Browse / Create Events" },
+                label: "decks: Format filter",
+                locator: { role: "combobox", name: "Filter decks by format" },
+                check: "reachable",
+            },
+            {
+                label: "decks: search",
+                locator: { role: "searchbox", name: "Search decks or cards" },
+                check: "reachable",
+            },
+            {
+                label: "decks: New Deck",
+                locator: { role: "button", name: "+ New Deck" },
+                check: "reachable",
+            },
+            {
+                label: "decks: New Deck contrast",
+                locator: { role: "button", name: "+ New Deck" },
                 check: "contrast",
             },
             {
-                label: "deck shelf: first selectable tile",
-                locator: {
-                    selector:
-                        "[data-deck-tile] [data-deck-select]:not([disabled])",
-                },
-                check: "reachable",
-            },
-            {
-                label: "Limited re-entry",
-                locator: { role: "button", name: "Browse / Create Events" },
+                label: "decks: first tile",
+                locator: { selector: "[data-home-deck]" },
                 check: "reachable",
             },
             // One element at any viewport, never two: the profile lives in the
@@ -2622,102 +2570,21 @@ export const SURFACES: readonly Surface[] = [
         ],
         async walk(page, ctx) {
             await goto(page, ctx, "/");
-            if (!(await visible(page, "main, [role=main]", 10_000))) {
-                throw new Unreachable("the lobby rendered no main region");
+            if (!(await visible(page, '[data-home-section="decks"]', 10_000))) {
+                throw new Unreachable(
+                    "the lobby home rendered no Decks section"
+                );
             }
         },
     },
     {
-        id: "lobby-vs-ai",
+        id: "match-setup-join-by-code",
         // The dialog is still open at measurement — the walk ends on it
-        // (issue #3420).
-        mounts: ["src/components/lobby/vs-ai-setup-dialog.tsx"],
-        entries: ["src/routes/lobby.route.tsx"],
-        label: "vs-AI setup dialog (/ \u2192 Play vs Bot \u2192 primary)",
-        // The dialog's own controls — the selector that makes it the RIGHT
-        // dialog, and the two plates that leave it.
-        asserts: [
-            {
-                label: "Bot difficulty selector",
-                locator: { role: "radiogroup", name: "Bot difficulty" },
-                check: "visible",
-            },
-            {
-                label: "dialog primary: Play vs Bot",
-                locator: { role: "button", name: "Play vs Bot" },
-                check: "reachable",
-            },
-            {
-                label: "dialog Cancel",
-                locator: { role: "button", name: "Cancel" },
-                check: "reachable",
-            },
-        ],
-        async walk(page, ctx) {
-            // The difficulty selector lives BEHIND this dialog, so the `lobby`
-            // row above — which only asserts a main region on `/` — has never
-            // measured it. Issue #2790 added a fourth level (`Expert`) plus a
-            // per-level description line to that selector, i.e. a wider
-            // segmented control and one more text row at every viewport, which
-            // is precisely the shape of change a lobby-only walk cannot see.
-            await goto(page, ctx, "/");
-            // `bot` is the lobby's DEFAULT mode tile, but the walk selects it
-            // explicitly rather than trusting the default: a viewport that
-            // reached a board earlier in the same context has already clicked
-            // `solo` (`ensureBoard` above), and the tile selection is React
-            // state, not storage — pinning it here keeps this row independent
-            // of surface order.
-            if (!(await clickIfVisible(page, MODE_TILE_BOT, 6000))) {
-                throw new Unreachable(
-                    "the lobby's Mode Tiles offered no 'Play vs Bot' tile"
-                );
-            }
-            // The primary plate stays disabled until a deck is the Loadout's
-            // active one. An already-selected tile is itself `disabled`, so
-            // this step is skipped when the selection is already made.
-            if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
-                if (!(await clickIfVisible(page, DECK_TILE_SELECT, 6000))) {
-                    throw new Unreachable(
-                        "the lobby offered no selectable Deck Shelf tile \u2014 is the deployment seeded with preset decks?"
-                    );
-                }
-                await settle(page);
-            }
-            if (!(await clickIfVisible(page, LOBBY_PRIMARY, 6000))) {
-                throw new Unreachable(
-                    "the Loadout's primary action stayed disabled after selecting a deck and the 'Play vs Bot' Mode Tile"
-                );
-            }
-            // The dialog is the subject; the difficulty radiogroup is what
-            // makes it the RIGHT dialog (`difficulty-selector.tsx` declares the
-            // `aria-label` as its walk seam, and the lobby's other dialogs —
-            // join-by-code, delete-deck — carry none).
-            if (!(await visible(page, "[role=dialog]", STEP_TIMEOUT))) {
-                throw new Unreachable(
-                    "the 'Play vs Bot' primary action did not open a dialog within 8s"
-                );
-            }
-            if (
-                !(await visible(
-                    page,
-                    '[role=dialog] [role=radiogroup][aria-label="Bot difficulty"]',
-                    STEP_TIMEOUT
-                ))
-            ) {
-                throw new Unreachable(
-                    "the vs-AI setup dialog opened without its Bot difficulty selector"
-                );
-            }
-            await settle(page);
-        },
-    },
-    {
-        id: "lobby-join-by-code",
-        // The dialog is still open at measurement — the walk ends on it
-        // (issue #4421).
+        // (issue #4421; moved from the retired lobby Loadout to the setup
+        // flow's Table step by issue #5344).
         mounts: ["src/components/lobby/join-by-code-dialog.tsx"],
-        entries: ["src/routes/lobby.route.tsx"],
-        label: "Join by code dialog (/ \u2192 Loadout \u2192 Join by code)",
+        entries: ["src/routes/match-setup.route.tsx"],
+        label: "Join by code dialog (/play/constructed \u2192 Arena \u2192 Join a table \u2192 Join by code)",
         // The code-entry step of joining someone else's table (issue #2649):
         // the field the code goes in and the plate that leaves. `Join table`
         // is deliberately NOT promised — it is disabled until a code is typed,
@@ -2740,78 +2607,19 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            await goto(page, ctx, "/");
-            // `Join by code` shares the primary plate's gate
-            // (`lobbyActionGate`'s `canAct`): disabled until a deck is the
-            // Loadout's active one — the same precondition `lobby-vs-ai`
-            // meets one row up.
-            if (!(await visible(page, DECK_TILE_SELECTED, 2000))) {
-                if (!(await selectPlayableDeck(page))) {
-                    throw new Unreachable(
-                        "the lobby offered no selectable Deck Shelf tile \u2014 is the deployment seeded with preset decks?"
-                    );
-                }
-                await settle(page);
-            }
-            await pressNamed(page, "Join by code", "the lobby's Loadout");
+            await openFreshSetupFlow(page, ctx);
+            await chooseSetup(page, "Arena");
+            await chooseSetup(page, "Join a table");
+            await pressNamed(
+                page,
+                "Join by code",
+                "the setup flow's Table step"
+            );
             await settleOnLayer(
                 page,
                 "[role=dialog]",
                 "`Join by code`",
                 "Join by code"
-            );
-        },
-    },
-    {
-        id: "lobby-delete-confirm",
-        // `lobby.tsx`'s own inline confirm, open at measurement (issue #4421).
-        mounts: ["src/components/lobby/lobby.tsx"],
-        entries: ["src/routes/lobby.route.tsx"],
-        label: `Lobby delete confirm (/ \u2192 ${LANE_DECK_NAME} \u2192 More actions \u2192 Delete)`,
-        // The confirm's own name and its safe exit. The destructive plate is
-        // deliberately NOT promised: `Delete` is also the name of the row
-        // menu's item and of other decks' controls behind the scrim, and a
-        // promise whose `.first()` could land on either is a promise about
-        // neither.
-        asserts: [
-            {
-                label: "dialog: delete the lane deck",
-                locator: {
-                    role: "dialog",
-                    name: `Delete "${LANE_DECK_NAME}"?`,
-                },
-                check: "visible",
-            },
-            {
-                label: "dialog Cancel",
-                locator: { role: "button", name: "Cancel" },
-                check: "reachable",
-            },
-        ],
-        async walk(page, ctx) {
-            await goto(page, ctx, "/");
-            const menu = `button[aria-label="More actions for ${LANE_DECK_NAME}"]`;
-            if (!(await clickIfVisible(page, menu, 10_000))) {
-                throw new Unreachable(
-                    `the lobby's Deck Shelf showed no \`${LANE_DECK_NAME}\` tile \u2014 the lane seeds it at bootstrap (lane-account.ts)`
-                );
-            }
-            if (
-                !(await clickIfVisible(
-                    page,
-                    '[role="menuitem"]:has-text("Delete")',
-                    STEP_TIMEOUT
-                ))
-            ) {
-                throw new Unreachable(
-                    `the \`${LANE_DECK_NAME}\` row menu offered no Delete item`
-                );
-            }
-            await settleOnLayer(
-                page,
-                "[role=dialog]",
-                "the row menu's Delete",
-                `Delete "${LANE_DECK_NAME}"?`
             );
         },
     },
@@ -3318,7 +3126,7 @@ export const SURFACES: readonly Surface[] = [
         label: `Deck builder delete confirm (/decks/<${LANE_DECK_NAME}>/edit \u2192 Delete)`,
         // The confirm and its safe exit; the destructive plate shares its
         // name with the save bar's opener behind the scrim (see
-        // `lobby-delete-confirm`).
+        // `deck-detail-delete-confirm`).
         asserts: [
             {
                 label: "dialog: delete the lane deck",
@@ -3358,8 +3166,7 @@ export const SURFACES: readonly Surface[] = [
          * states: it reads "Play" and is enabled until this deck is the
          * lobby's active one, then reads "Selected" and is `disabled`. Which
          * state this walk finds depends on what an EARLIER surface in the same
-         * context selected (`selectPlayableDeck` takes the first selectable
-         * tile), so a role+name promise would name an element that exists only
+         * context stored as `tolaria:selectedDeckId`), so a role+name promise would name an element that exists only
          * half the time and an actionability check would assert the opposite
          * of a legitimate state. `data-deck-detail-play` holds across both.
          *

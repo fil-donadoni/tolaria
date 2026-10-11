@@ -85,7 +85,7 @@ describe("check:ui surface table — Named Assertions", () => {
             "auth-sign-in",
             "auth-forgot-password",
             "lobby",
-            "lobby-vs-ai",
+            "match-setup",
         ]) {
             const declared = SURFACES.find((s) => s.id === id);
             expect(declared, id).toBeDefined();
@@ -108,13 +108,13 @@ describe("check:ui surface table — Named Assertions", () => {
                 : `role=${a.locator.role} name=${a.locator.name}`
         );
         for (const entryPoint of [
-            '[data-mode-tile="bot"]',
-            '[data-mode-tile="solo"]',
-            '[data-mode-tile="table"]',
-            '[data-mode-tile="limited"]',
-            "[data-lobby-primary]",
-            "[data-deck-tile] [data-deck-select]:not([disabled])",
-            "role=button name=Browse / Create Events",
+            '[data-home-play="constructed"]',
+            '[data-home-play="limited"]',
+            '[data-home-section="tables"]',
+            "role=combobox name=Filter decks by format",
+            "role=searchbox name=Search decks or cards",
+            "role=button name=+ New Deck",
+            "[data-home-deck]",
             "[data-profile-entry]",
         ]) {
             expect(locators, entryPoint).toContain(entryPoint);
@@ -501,12 +501,11 @@ describe("check:ui surface table — Named Assertions", () => {
             "reachable role=button name=Cancel",
         ];
         expectPromised({
-            "lobby-join-by-code": [
+            "match-setup-join-by-code": [
                 "visible role=dialog name=Join by code",
                 "reachable role=textbox name=Join code",
                 "reachable role=button name=Cancel",
             ],
-            "lobby-delete-confirm": confirm,
             "deck-builder-import": [
                 "visible role=dialog name=Import decklist",
                 "reachable role=button name=Add 5 cards",
