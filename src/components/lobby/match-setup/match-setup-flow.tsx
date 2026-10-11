@@ -76,8 +76,15 @@ export default function MatchSetupFlow() {
             : reconciled;
     const request = startRequest(setup, decks, user.nickname);
 
-    const update = (patch: Partial<MatchSetup>) => {
-        const next = applyChange(setup, patch, decks);
+    // `imported` is a deck the strict import just saved: it is admitted here
+    // before the reactive deck list delivers its row (a stored id that is
+    // briefly unknown is dropped only from the view, never from `stored`).
+    const update = (patch: Partial<MatchSetup>, imported?: LobbyDeck) => {
+        const next = applyChange(
+            setup,
+            patch,
+            imported ? [...decks, imported] : decks
+        );
         setStored(next);
         saveSetup(next);
     };

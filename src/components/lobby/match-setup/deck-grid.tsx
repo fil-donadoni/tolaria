@@ -5,13 +5,15 @@
 // Step 5 passes `mirror`, an always-admitted choice above the grid.
 import { useState } from "react";
 import { FORMAT_LABELS, type FormatId } from "@convex/formats";
-import type { LobbyDeck } from "~/lib/deckTypes";
+import type { LobbyDeck, UserLobbyDeck } from "~/lib/deckTypes";
 import {
     deckGrid,
     freeformFormatOptions,
     type DeckGridFormat,
 } from "~/lib/matchSetupDeckGrid";
+import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupDeckImport";
 import DeckGridSection from "./deck-grid-section";
+import ImportDeckAction from "./import-deck-action";
 import SetupChoice from "./setup-choice";
 
 export default function DeckGrid({
@@ -19,6 +21,7 @@ export default function DeckGrid({
     matchFormat,
     selectedId,
     onSelect,
+    onImported,
     mirror,
 }: {
     decks: readonly LobbyDeck[];
@@ -26,6 +29,8 @@ export default function DeckGrid({
     /** The selected deck's id; `null` when none is (or Mirror is). */
     selectedId: string | null;
     onSelect: (presetId: string) => void;
+    /** A deck the strict import just saved — the step selects it. */
+    onImported: (deck: UserLobbyDeck) => void;
     mirror?: { selected: boolean; onSelect: () => void };
 }) {
     const [query, setQuery] = useState("");
@@ -82,6 +87,12 @@ export default function DeckGrid({
                     placeholder="Search deck or card name"
                     className="input-field min-w-0 flex-1 px-3 py-1.5 text-sm"
                 />
+                {!IMPORT_EXCLUDED_FORMATS.includes(matchFormat) && (
+                    <ImportDeckAction
+                        matchFormat={matchFormat}
+                        onImported={onImported}
+                    />
+                )}
             </div>
             <DeckGridSection
                 title="Your decks"

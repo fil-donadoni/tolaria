@@ -2314,6 +2314,51 @@ function laneDeckPath(ctx: WalkContext, suffix = ""): string {
     return `/decks/${ctx.laneDeckId}${suffix}`;
 }
 
+/** Walk /play/constructed to the Bot deck step (step 5): Arena, Bot, Freeform,
+ *  a deck. Shared by the `match-setup` surfaces. */
+async function reachBotDeckStep(page: Page, ctx: WalkContext): Promise<void> {
+    await goto(page, ctx, "/play/constructed");
+    if (!(await visible(page, "h1:has-text('Constructed')", 10_000))) {
+        throw new Unreachable("/play/constructed did not render its heading");
+    }
+    // A retry inside the same viewport reuses the context, whose
+    // storage remembers how far the last attempt got: answer only
+    // the step the flow opens on, until it opens on step 5.
+    const current = page.locator("[data-setup-step][aria-current=step]");
+    const choose = (name: string) =>
+        page
+            .getByRole("button", { name: new RegExp(`^${name}`) })
+            .click({ timeout: STEP_TIMEOUT });
+    // Four answers at most; the slack absorbs a read that lands
+    // before the rail re-renders.
+    for (let i = 0; i < 8; i++) {
+        const step = await current
+            .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
+            .catch(() => null);
+        if (step === "opponentDeck") break;
+        if (step === "mode") await choose("Arena");
+        else if (step === "opponent") await choose("Bot");
+        else if (step === "format") await choose("Freeform");
+        else if (step === "myDeck") {
+            await page
+                .locator("[data-deck-select]:not([disabled])")
+                .first()
+                .click({ timeout: STEP_TIMEOUT });
+        } else {
+            throw new Unreachable(
+                `the setup flow opened on an unexpected step: ${step}`
+            );
+        }
+    }
+    const difficulty = "[role=radiogroup][aria-label='Bot difficulty']";
+    if (!(await visible(page, difficulty, STEP_TIMEOUT))) {
+        throw new Unreachable(
+            "Arena → Bot → Freeform → a deck did not open the Bot deck step"
+        );
+    }
+    await settle(page);
+}
+
 /**
  * Press the VISIBLE button named exactly `name`, optionally inside `scope`.
  *
@@ -3681,48 +3726,47 @@ export const SURFACES: readonly Surface[] = [
             },
         ],
         async walk(page, ctx) {
-            await goto(page, ctx, "/play/constructed");
-            if (!(await visible(page, "h1:has-text('Constructed')", 10_000))) {
-                throw new Unreachable(
-                    "/play/constructed did not render its heading"
-                );
+            await reachBotDeckStep(page, ctx);
+        },
+    },
+    {
+        id: "match-setup-import",
+        // The strict Import deck dialog of steps 4–5 (PRD #5334, issue
+        // #5343), opened over the Bot deck step with a refused paste showing.
+        mounts: ["src/components/lobby/match-setup/import-deck-dialog.tsx"],
+        entries: ["src/routes/match-setup.route.tsx"],
+        label: "Constructed setup \u2014 Import deck, refused (/play/constructed \u2192 Import deck)",
+        asserts: [
+            {
+                label: "dialog: Import deck",
+                locator: { role: "dialog", name: "Import deck" },
+                check: "visible",
+            },
+            {
+                label: "refusal listed",
+                locator: { selector: "[data-import-refusal]" },
+                check: "visible",
+            },
+            {
+                label: "dialog Cancel",
+                locator: { role: "button", name: "Cancel" },
+                check: "reachable",
+            },
+        ],
+        async walk(page, ctx) {
+            await reachBotDeckStep(page, ctx);
+            await pressNamed(page, "Import deck", "the Bot deck step");
+            const textarea = '[role="dialog"] textarea';
+            if (!(await visible(page, textarea, STEP_TIMEOUT))) {
+                throw new Unreachable("Import deck did not open its dialog");
             }
-            // A retry inside the same viewport reuses the context, whose
-            // storage remembers how far the last attempt got: answer only
-            // the step the flow opens on, until it opens on step 5.
-            const current = page.locator(
-                "[data-setup-step][aria-current=step]"
-            );
-            const choose = (name: string) =>
-                page
-                    .getByRole("button", { name: new RegExp(`^${name}`) })
-                    .click({ timeout: STEP_TIMEOUT });
-            // Four answers at most; the slack absorbs a read that lands
-            // before the rail re-renders.
-            for (let i = 0; i < 8; i++) {
-                const step = await current
-                    .getAttribute("data-setup-step", { timeout: STEP_TIMEOUT })
-                    .catch(() => null);
-                if (step === "opponentDeck") break;
-                if (step === "mode") await choose("Arena");
-                else if (step === "opponent") await choose("Bot");
-                else if (step === "format") await choose("Freeform");
-                else if (step === "myDeck") {
-                    await page
-                        .locator("[data-deck-select]:not([disabled])")
-                        .first()
-                        .click({ timeout: STEP_TIMEOUT });
-                } else {
-                    throw new Unreachable(
-                        `the setup flow opened on an unexpected step: ${step}`
-                    );
-                }
-            }
-            const difficulty = "[role=radiogroup][aria-label='Bot difficulty']";
-            if (!(await visible(page, difficulty, STEP_TIMEOUT))) {
-                throw new Unreachable(
-                    "Arena → Bot → Freeform → a deck did not open the Bot deck step"
-                );
+            await page.locator(textarea).fill("4 Not A Real Card");
+            await page
+                .locator('[role="dialog"]')
+                .getByRole("button", { name: "Import", exact: true })
+                .click({ timeout: STEP_TIMEOUT });
+            if (!(await visible(page, "[data-import-refusal]", STEP_TIMEOUT))) {
+                throw new Unreachable("a refused paste listed no problem");
             }
             await settle(page);
         },
