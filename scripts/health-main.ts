@@ -155,12 +155,7 @@ import {
     gateSkipReason,
     parseCadence,
 } from "./lib/health-cadence";
-import {
-    existsSync,
-    mkdirSync,
-    readFileSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { holdLease } from "./lib/process-lease";
 
