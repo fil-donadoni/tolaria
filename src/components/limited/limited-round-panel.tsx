@@ -44,9 +44,12 @@ const OUTCOME_TONE = {
 export default function LimitedRoundPanel({
     eventId,
     event,
+    hideAction = false,
 }: {
     eventId: Id<"limitedEvents">;
     event: LimitedEventView;
+    /** The page hero hosts the Match action (issue #5389). */
+    hideAction?: boolean;
 }) {
     if (event.currentRound === undefined) return null;
 
@@ -138,7 +141,8 @@ export default function LimitedRoundPanel({
                 )}
                 {pairing !== null &&
                     pairing.outcome === null &&
-                    !pairing.isBye && (
+                    !pairing.isBye &&
+                    !hideAction && (
                         <LimitedRoundAction
                             eventId={eventId}
                             event={event}

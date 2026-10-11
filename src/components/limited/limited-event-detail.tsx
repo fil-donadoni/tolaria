@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
     useLimitedEvent,
     useLimitedEventMutations,
+    usePackSources,
 } from "~/hooks/useLimitedEvent";
 import { PanelHeader, PanelBody } from "~/components/ui/panel";
 import { Banner } from "@/components/ui/banner";
@@ -23,10 +24,15 @@ import LimitedReviewPanel from "./limited-review-panel";
 import LimitedStandingsTable from "./limited-standings-table";
 import LimitedEventWinnerBanner from "./limited-event-winner-banner";
 import LimitedRoundPanel from "./limited-round-panel";
-import LimitedShareInviteButton from "./limited-share-invite-button";
+import LimitedEventHeader from "./limited-event-header";
+import LimitedEventStepper from "./limited-event-stepper";
+import LimitedEventMenu from "./limited-event-menu";
+import LimitedEventHeroCard from "./limited-event-hero";
+import LimitedEventDraftProgress from "./limited-event-draft-progress";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
-import { limitedEventName } from "~/lib/limitedEventName";
+import { packSourceForEvent } from "~/lib/limited/limitedHub";
+import { limitedEventHero } from "~/lib/limited/limitedEventHero";
 import { OPEN_DECKLISTS_JOIN_WARNING } from "~/lib/openDecklists";
 import {
     arePoolsDealt,
@@ -39,9 +45,12 @@ import { useAutoOpenLimitedBuilder } from "~/hooks/useAutoOpenLimitedBuilder";
 import { useDraftRoomRedirect } from "~/hooks/useDraftRoomRedirect";
 import { useRoundCascadeRecovery } from "~/hooks/useRoundCascadeRecovery";
 
-/** One Limited Event's detail page (PRD #1107, ADR 0054/0055). It shows what
- *  the event's phase makes actionable, and nothing else:
- *  - OPEN — the table, plus Join / Start / Leave / Cancel.
+/** One Limited Event's detail page (PRD #1107, ADR 0054/0055; skeleton by
+ *  PRD #5383 / issue #5389). One skeleton for every phase: Feature Card
+ *  header, phase stepper, a hero with the phase's ONE primary CTA
+ *  (`limitedEventHero`), secondary actions in the ⋯ menu, then phase tiles.
+ *  It shows what the event's phase makes actionable, and nothing else:
+ *  - OPEN — the table, plus Join / Start (hero); Leave / Cancel (⋯).
  *  - DRAFTING — the way into the Draft Room (issue #2587): the Booster is
  *    NOT here any more, it is `/limited/$eventId/draft`, and a seated player
  *    landing here mid-draft is sent straight there once per tab
@@ -58,6 +67,7 @@ export default function LimitedEventDetail({
     const navigate = useNavigate();
     const user = useCurrentUser();
     const event = useLimitedEvent(eventId);
+    const packSources = usePackSources();
     const { join, leave, cancel, start } = useLimitedEventMutations();
     const [pending, setPending] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -220,28 +230,46 @@ export default function LimitedEventDetail({
         void runMutation(() => cancel({ eventId }));
     };
 
+    const hero = limitedEventHero(event, {
+        isCreator,
+        seat: viewerSeat,
+    });
+    const source = packSourceForEvent(event, packSources ?? []);
+
     return (
         <LimitedEventPageFrame>
             <SurfaceReadyMarker />
-            <PanelHeader title={limitedEventName(event)} />
             <PanelBody>
-                <LimitedEventToolbar event={event} onBack={handleBack} />
+                <LimitedEventToolbar onBack={handleBack} />
+
+                <LimitedEventHeader
+                    event={event}
+                    source={source}
+                    menu={
+                        <LimitedEventMenu
+                            eventId={eventId}
+                            canInvite={seatingOpen}
+                            onLeave={
+                                canLeave
+                                    ? () => setConfirmLeave(true)
+                                    : undefined
+                            }
+                            onCancel={
+                                canClose
+                                    ? () => setConfirmCancel(true)
+                                    : undefined
+                            }
+                            cancelLabel={
+                                seatingOpen ? "Cancel Event" : "Close Event"
+                            }
+                            disabled={pending}
+                        />
+                    }
+                />
+
+                <LimitedEventStepper phase={hero.phase} />
 
                 {error && <Banner tone="danger">{error}</Banner>}
-
-                {/* The build-progress bar is gated on `isPoolFinal` (issue
-                        #1580): a deck cannot exist before the Pool is final,
-                        so the "N/seatCount decks in" counter would otherwise
-                        misread as live progress while a Draft is still
-                        running. */}
-                {draftInProgress ? (
-                    <LimitedEventSeatsDisclosure event={event} />
-                ) : (
-                    <LimitedTablePanel
-                        event={event}
-                        showProgress={isPoolFinal}
-                    />
-                )}
 
                 {/* Warned before sitting down, never after (issue #5386):
                     joining an Open Decklists event accepts the disclosure. */}
@@ -251,68 +279,46 @@ export default function LimitedEventDetail({
                     </Banner>
                 )}
 
-                <div className="flex justify-end gap-2">
-                    {canLeave && (
-                        <ActionButton
-                            onClick={() => setConfirmLeave(true)}
-                            label="Leave Seat"
-                            tone="secondary"
-                            disabled={pending}
-                        />
-                    )}
-                    {canClose && (
-                        <ActionButton
-                            onClick={() => setConfirmCancel(true)}
-                            label={seatingOpen ? "Cancel Event" : "Close Event"}
-                            tone="destructive"
-                            disabled={pending}
-                        />
-                    )}
-                    {canJoin && (
-                        <ActionButton
-                            onClick={handleJoin}
-                            label="Join Event"
-                            tone="primary"
-                            disabled={pending}
-                        />
-                    )}
-                    {canStart && (
-                        <ActionButton
-                            onClick={handleStart}
-                            label="Start Event"
-                            tone="primary"
-                            disabled={pending}
+                <LimitedEventHeroCard
+                    eventId={eventId}
+                    event={event}
+                    hero={hero}
+                    pending={pending}
+                    onJoin={handleJoin}
+                    onStart={handleStart}
+                    hint={
+                        canStart
+                            ? "You can start the event at any time. The free seats will be managed by bots, both for draft and for gameplay"
+                            : undefined
+                    }
+                />
+            </PanelBody>
+
+            <PanelBody className="mt-3">
+                {/* The table area — a slot the next slice (PRD #5383) fills
+                    with the ring; today's seat components stay until then.
+                    The build-progress bar is gated on `isPoolFinal` (issue
+                    #1580): a deck cannot exist before the Pool is final, so
+                    the "N/seatCount decks in" counter would otherwise misread
+                    as live progress while a Draft is still running. */}
+                <div data-slot="event-table">
+                    {draftInProgress ? (
+                        <LimitedEventSeatsDisclosure event={event} />
+                    ) : (
+                        <LimitedTablePanel
+                            event={event}
+                            showProgress={isPoolFinal}
                         />
                     )}
                 </div>
 
-                {/* Explains the Start button next to it — so it belongs
-                        to whoever can actually press it, and only while
-                        pressing it is possible. It used to render
-                        unconditionally, which left a started event telling
-                        every viewer they could still start it. */}
-                {canStart && (
-                    <div className="text-right text-sm italic">
-                        You can start the event at any time. The free seats will
-                        be managed by bots, both for draft and for gameplay
-                    </div>
-                )}
-            </PanelBody>
-
-            <PanelBody className="mt-3">
-                {/* The way back INTO the room (issue #2587). The redirect
-                    above is one-shot per tab, so a player who left through
-                    the room's overflow stays here — this is what lets them
-                    change their mind without the page bouncing them on every
-                    render. */}
-                {draftInProgress && viewerSeat && (
-                    <Link
-                        to="/limited/$eventId/draft"
-                        params={{ eventId }}
-                        className="self-start rounded-sm px-2 py-1 text-sm tracking-[0.14em] text-accent-strong uppercase transition-colors hover:text-parchment"
-                    >
-                        Enter the Draft Room →
-                    </Link>
+                {draftInProgress && (
+                    <LimitedEventDraftProgress
+                        event={event}
+                        pickCount={
+                            viewerSeat ? (viewerSeat.poolCount ?? 0) : null
+                        }
+                    />
                 )}
 
                 {/* The viewer's deck + the builder entry point, in EVERY
@@ -365,8 +371,15 @@ export default function LimitedEventDetail({
                     </>
                 )}
 
+                {/* The round's Match action is hosted by the hero (it is the
+                    phase's one CTA), so the panel keeps the pairing line and
+                    the other tables only. */}
                 {showRoundPanel && (
-                    <LimitedRoundPanel eventId={eventId} event={event} />
+                    <LimitedRoundPanel
+                        eventId={eventId}
+                        event={event}
+                        hideAction={hero.cta.kind === "play"}
+                    />
                 )}
 
                 {/* The event's conclusion (PRD #1628 story 40, issue #1646) —
@@ -377,20 +390,6 @@ export default function LimitedEventDetail({
                 {showStandings && <LimitedStandingsTable event={event} />}
 
                 <LimitedReviewPanel event={event} />
-
-                {/* Page-footer utilities. The link stays available for the
-                    whole lifetime of the event (issue #1578) — gating it to
-                    `status === "open"` meant a started event's direct link
-                    could no longer be recovered in-app — but it is not an
-                    event ACTION, so it sits down here rather than in the
-                    Join/Start/Leave row. `canInvite` keeps the label honest:
-                    only an open event can actually take a new player. */}
-                <div className="mt-2 flex justify-end border-t border-border-accent/20 pt-3">
-                    <LimitedShareInviteButton
-                        eventId={eventId}
-                        canInvite={seatingOpen}
-                    />
-                </div>
             </PanelBody>
 
             <GameDialog

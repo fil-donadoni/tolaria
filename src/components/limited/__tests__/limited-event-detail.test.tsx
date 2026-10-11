@@ -5,7 +5,7 @@
 // through the real `LimitedEventDetail` render, mirroring
 // `limited-vs-ai-panel.test.tsx`'s mocking discipline.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import {
     projectLimitedEvent,
     type LimitedEventRow,
@@ -78,6 +78,7 @@ const eventMock = vi.fn();
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useLimitedEvent: () => eventMock(),
+    usePackSources: () => [],
     useLimitedEventMutations: () => ({
         join: vi.fn(),
         start: vi.fn(),
@@ -135,6 +136,7 @@ describe("LimitedEventDetail — share/invite reachable post-start (issue #1578)
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(screen.getByLabelText("Event actions"));
 
         expect(screen.getByText("Share invite link")).toBeTruthy();
     });
@@ -143,6 +145,7 @@ describe("LimitedEventDetail — share/invite reachable post-start (issue #1578)
         eventMock.mockReturnValue(makeEvent({ status: "started" }));
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(screen.getByLabelText("Event actions"));
 
         expect(screen.getByText("Copy event link")).toBeTruthy();
         expect(screen.queryByText("Share invite link")).toBe(null);
@@ -154,6 +157,7 @@ describe("LimitedEventDetail — share/invite reachable post-start (issue #1578)
         );
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        fireEvent.click(screen.getByLabelText("Event actions"));
 
         expect(screen.getByText("Copy event link")).toBeTruthy();
     });
@@ -216,7 +220,12 @@ describe("LimitedEventDetail — header (format name + phase chip)", () => {
 
         render(<LimitedEventDetail eventId={"event-1" as never} />);
 
-        expect(screen.getByText("drafting")).toBeTruthy();
+        expect(
+            screen
+                .getByTestId("event-stepper")
+                .querySelector("[aria-current='step']")
+                ?.getAttribute("data-step")
+        ).toBe("draft");
         expect(screen.queryByText(/started/)).toBe(null);
     });
 });
@@ -559,6 +568,7 @@ describe("the event page hands a drafting seat to the Draft Room (issue #2587)",
         // The chrome the #2515 fold used to hide renders unconditionally
         // again: the page is a page, not a cramped host for the Booster.
         expect(screen.getByText("Vintage Cube Draft")).toBeTruthy();
+        fireEvent.click(screen.getByLabelText("Event actions"));
         expect(screen.getByText("Close Event")).toBeTruthy();
         expect(
             screen.queryByRole("button", { name: /Event Details/ })
@@ -646,7 +656,7 @@ describe("LimitedEventDetail — Open Decklists warning before Join (issue #5386
         const { container } = render(
             <LimitedEventDetail eventId={"event-1" as never} />
         );
-        expect(screen.getByText("Join Event")).toBeTruthy();
+        expect(screen.getByText("Join this event")).toBeTruthy();
         expect(
             container.querySelector(
                 '[data-slot="open-decklists-join-warning"]'
@@ -659,7 +669,7 @@ describe("LimitedEventDetail — Open Decklists warning before Join (issue #5386
         const { container } = render(
             <LimitedEventDetail eventId={"event-1" as never} />
         );
-        expect(screen.getByText("Join Event")).toBeTruthy();
+        expect(screen.getByText("Join this event")).toBeTruthy();
         expect(
             container.querySelector('[data-slot="open-decklists-join-warning"]')
         ).toBeNull();

@@ -33,11 +33,18 @@ vi.mock("~/hooks/useUserDecks", () => ({
 }));
 
 const eventMock = vi.fn();
+/** Secondary actions live in the ⋯ menu (issue #5389). */
+function openMenu() {
+    const trigger = screen.queryByLabelText("Event actions");
+    if (trigger) fireEvent.click(trigger);
+}
+
 const leaveMock = vi.fn().mockResolvedValue(null);
 const cancelMock = vi.fn().mockResolvedValue(null);
 
 vi.mock("~/hooks/useLimitedEvent", () => ({
     useLimitedEvent: () => eventMock(),
+    usePackSources: () => [],
     useLimitedEventMutations: () => ({
         join: vi.fn(),
         leave: leaveMock,
@@ -110,12 +117,14 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
     it("shows a Leave Seat button for an occupant of an OPEN event", () => {
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.getByText("Leave Seat")).toBeTruthy();
     });
 
     it("hides the Leave Seat button once the event has STARTED", () => {
         eventMock.mockReturnValue(makeEvent({ status: "started" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.queryByText("Leave Seat")).toBeNull();
     });
 
@@ -141,12 +150,14 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
             })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.queryByText("Leave Seat")).toBeNull();
     });
 
     it("requires confirmation before calling the leave mutation", () => {
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
 
         fireEvent.click(screen.getByText("Leave Seat"));
         expect(leaveMock).not.toHaveBeenCalled();
@@ -159,6 +170,7 @@ describe("LimitedEventDetail — Leave Seat (issue #1579)", () => {
     it("calls the leave mutation once the dialog is confirmed", () => {
         eventMock.mockReturnValue(makeEvent({ status: "open" }));
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
 
         fireEvent.click(screen.getByText("Leave Seat"));
         // Two "Leave Seat" strings now exist — the (still-visible) action
@@ -176,6 +188,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "open", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.getByText("Cancel Event")).toBeTruthy();
     });
 
@@ -192,6 +205,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             const { unmount } = render(
                 <LimitedEventDetail eventId={"event-1" as never} />
             );
+            openMenu();
             expect(screen.queryByText("Cancel Event")).toBeNull();
             expect(screen.queryByText("Close Event")).toBeNull();
             unmount();
@@ -203,6 +217,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "started", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.queryByText("Cancel Event")).toBeNull();
         expect(screen.getByText("Close Event")).toBeTruthy();
     });
@@ -212,6 +227,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "playing", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.getByText("Close Event")).toBeTruthy();
     });
 
@@ -220,6 +236,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "finished", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.queryByText("Cancel Event")).toBeNull();
         expect(screen.queryByText("Close Event")).toBeNull();
     });
@@ -229,6 +246,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "open", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
 
         fireEvent.click(screen.getByText("Cancel Event"));
         expect(cancelMock).not.toHaveBeenCalled();
@@ -243,6 +261,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "open", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
 
         fireEvent.click(screen.getByText("Cancel Event"));
         const confirmButtons = screen.getAllByText("Cancel Event");
@@ -255,6 +274,7 @@ describe("LimitedEventDetail — Cancel/Close Event (issue #1579, extended by #2
             makeEvent({ status: "started", createdBy: "user-1" })
         );
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
 
         fireEvent.click(screen.getByText("Close Event"));
         expect(screen.getByText("Close this event?")).toBeTruthy();
@@ -268,6 +288,7 @@ describe("LimitedEventDetail — cancelled-out-from-under-viewer (issue #1579)",
     it("renders a graceful 'no longer exists' state instead of crashing when getLimitedEvent returns null", () => {
         eventMock.mockReturnValue(null);
         render(<LimitedEventDetail eventId={"event-1" as never} />);
+        openMenu();
         expect(screen.getByText(/no longer exists/i)).toBeTruthy();
     });
 });
