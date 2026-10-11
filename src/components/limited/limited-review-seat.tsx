@@ -1,260 +1,181 @@
-import { useMemo, useState } from "react";
-import { createColumnLayout, type GroupingKind } from "@convex/deckLayout";
+import { useId, useMemo, useState } from "react";
 import type {
     LimitedEventSeatView,
     LimitedEventView,
 } from "~/hooks/useLimitedEvent";
-import type { ZoneCard } from "~/types/game";
-import { cardBase } from "~/lib/cardSizing";
 import EmptyState from "~/components/ui/empty-state";
-import DeckZoneSurface from "~/components/deckbuilder/deck-zone-surface";
-import { SEAT_LOCKED_NOTE } from "~/lib/openDecklists";
-import LimitedReviewPickOrder from "./limited-review-pick-order";
+import SegmentedControl from "~/components/ui/segmented-control";
+import {
+    groupDeckCards,
+    pickOrderCards,
+    type ReviewCard,
+} from "~/lib/limited/limitedReviewGroups";
+import { cn } from "~/lib/utils";
+import LimitedReviewCardGrid from "./limited-review-card-grid";
+import LimitedReviewSeatTrigger from "./limited-review-seat-trigger";
+import LimitedReviewZoomSlider from "./limited-review-zoom-slider";
 
-/** The review tile size (issue #3167). Smaller than either deckbuilder's base
- *  (`8rem`/`7.5rem`) — this surface is a page SECTION holding up to eight
- *  seats, not a workbench — but through the SAME `cardBase()` floor, so a
- *  short-and-wide viewport can never shrink a face below legibility. */
-const REVIEW_CARD_W = cardBase("5.5rem", "11vw", "8dvh");
-const REVIEW_CARD_VARS = {
-    "--card-w": REVIEW_CARD_W,
-    "--card-h": `calc(${REVIEW_CARD_W} * 7 / 5)`,
-} as React.CSSProperties;
+type ReviewTab = "deck" | "picks";
 
-/** The Sideboard renders as ONE Column and offers no Grouping control (issue
- *  #3167), so its Layout is a module constant rather than state: nothing can
- *  change it. */
-const SIDEBOARD_LAYOUT = createColumnLayout({ grouping: "none" });
+const noCaption = (cards: readonly { cardId: string; cardName: string }[]) =>
+    cards.map(
+        (c, i): ReviewCard => ({
+            key: `${c.cardId}-${i}`,
+            cardId: c.cardId,
+            cardName: c.cardName,
+        })
+    );
 
-/** The click every card of this surface does NOT have. `DeckZoneSurface` takes
- *  `onCardClick` unconditionally (every editing host has one), and `readOnly`
- *  is what actually stops the tile binding it — this is the inert value the
- *  prop still needs. Hoisted so it keeps one identity across renders. */
-const NO_CARD_CLICK = () => {};
-
-const cardTitle = (card: ZoneCard) => card.cardName;
-
-/** One Seat's row in the compact "Review the Table" summary (PRD #1107 story
- *  26, issue #1116; redesigned issue #1583; card piles issue #3167). Always
- *  shows a tidy summary line (seat, nickname, bot badge, deck colors, maindeck
- *  / sideboard counts) from the ungated `seat.deckSummary`. The detail — the
- *  built deck, the Sideboard, and either the numbered pick order (Draft) or
- *  the Pool (Sealed) — is gated: the server projection populates another
- *  seat's `pool`/`humanDeck` only under `areOtherSeatsRevealed`
- *  (`convex/limited/eventProjection.ts`, issue #5386), and this collapses it
- *  behind a per-seat `<details>` disclosure (collapsed by default) so a full
- *  table stays scannable. `revealed` (the caller's verdict from that same
- *  rule) gates the disclosure — a bot seat's `autoBuiltDeck` is on the wire
- *  for the vs-AI hookup regardless, so presence of deck data alone must NOT
- *  reveal it. A hidden seat says when it will be revealed.
- *
- *  The detail renders through the deckbuilder's OWN zone surface
- *  (`DeckZoneSurface`, ADR 0075), mounted `readOnly`: a finished 40-card deck
- *  read as 40 truncated strings, and a 45-pick draft as 45 numbered ones, when
- *  the identical data already has a card-image arrangement one component away.
- *  Nothing new reaches the wire — card identity resolves client-side from the
- *  `cardId` that was always there. */
+/** One seat of "Review the table" (PRD #1107 story 26; reworked issue #5392):
+ *  a collapsible with a large trigger, and inside two tabs — Deck (creatures /
+ *  spells / lands with basics collapsed to ×N, then the sideboard) and Pick
+ *  order (P1p1…; a Sealed seat's second tab is its Pool, which has no order).
+ *  `locked` is the projection's verdict, passed in — never derived here. */
 export default function LimitedReviewSeat({
     seat,
     eventType,
-    revealed,
+    packCount,
+    record,
+    locked,
+    open,
+    onToggle,
+    zoom,
+    onZoom,
 }: {
     seat: LimitedEventSeatView;
     eventType: LimitedEventView["type"];
-    revealed: boolean;
+    packCount: number;
+    record: string | null;
+    locked: boolean;
+    open: boolean;
+    onToggle: () => void;
+    zoom: number;
+    onZoom: (zoom: number) => void;
 }) {
-    // The Grouping the two grouped blocks bucket by. Component state for the
-    // session (issue #3167's own out-of-scope note): never persisted, and
-    // never near the deckbuilder's `deckViewPrefs` storage keys — a seat's
-    // review is not a workbench whose arrangement anyone returns to. One state
-    // per BLOCK, so switching a Sealed Pool's grouping leaves the deck alone.
-    const [deckGrouping, setDeckGrouping] = useState<GroupingKind>("mv");
-    const [poolGrouping, setPoolGrouping] = useState<GroupingKind>("mv");
-    // Memoized because `DeckZoneSurface` keys its Column bucketing off the
-    // Layout's IDENTITY (`rawColumns`/`columns`/`rendered`), and every other
-    // caller hands it a Layout held in state. A fresh literal per render would
-    // re-bucket every seat's Columns — collapsed disclosures included — on any
-    // unrelated re-render of the event query (PR #3173 review, note 2).
-    const deckLayout = useMemo(
-        () => createColumnLayout({ grouping: deckGrouping }),
-        [deckGrouping]
-    );
-    const poolLayout = useMemo(
-        () => createColumnLayout({ grouping: poolGrouping }),
-        [poolGrouping]
-    );
-
-    const label = seat.isBot
-        ? (seat.nickname ?? "Bot Drafter")
-        : (seat.nickname ?? "Open seat");
-    const summary = seat.deckSummary;
+    const [tab, setTab] = useState<ReviewTab>("deck");
+    const panelId = useId();
+    const expanded = open && !locked;
+    const isDraft = eventType === "draft";
     const deck = seat.isBot ? seat.autoBuiltDeck : seat.humanDeck;
     const pool = seat.pool ?? [];
-    // A DRAFT seat's `pool` array order IS its pick order (`applyPick`
-    // appends one entry per Pick, never reorders) — numbered directly, no
-    // separate "pick order" field on the wire.
-    const isDraft = eventType === "draft";
 
-    const summaryLine = (
-        <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-                <span className="text-xs text-text-muted">
-                    Seat {seat.seatIndex + 1}
-                </span>
-                <span className="font-medium text-text">{label}</span>
-                {seat.isBot && (
-                    <span className="rounded-sm border border-border-subtle/60 px-1.5 py-0.5 text-[10px] tracking-wide uppercase text-text-muted">
-                        Bot
-                    </span>
-                )}
-            </div>
-            <span className="text-xs text-text-muted">
-                {summary
-                    ? `${summary.colors.join("/") || "—"} — ${summary.maindeckCount} maindeck / ${summary.sideboardCount} sideboard`
-                    : "No deck"}
-            </span>
-        </div>
+    const groups = useMemo(
+        () => (deck ? groupDeckCards(deck.cards) : []),
+        [deck]
+    );
+    const sideboard = useMemo(
+        () => (deck ? noCaption(deck.sideboard) : []),
+        [deck]
+    );
+    const poolCards = useMemo(
+        () => (isDraft ? pickOrderCards(pool, packCount) : noCaption(pool)),
+        // `pool` is a fresh `?? []` only when null; its identity is the wire's.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [seat.pool, isDraft, packCount]
     );
 
-    if (!revealed) {
-        return (
-            <div className="rounded-sm border border-border-subtle/40 p-3">
-                {summaryLine}
-                <p
-                    className="mt-1 text-xs text-text-muted"
-                    data-slot="review-seat-locked"
-                >
-                    {SEAT_LOCKED_NOTE}
-                </p>
-            </div>
-        );
-    }
-
     return (
-        <details className="rounded-sm border border-border-subtle/40 p-3">
-            <summary className="cursor-pointer list-none">
-                {summaryLine}
-            </summary>
-
-            {/* The tile size lives on the disclosure body, so all three blocks
-                below draw from ONE declaration — the deckbuilder pair sets the
-                same pair of properties per zone, from its zoom sliders. */}
-            <div
-                className="mt-3 flex flex-col gap-3"
-                style={REVIEW_CARD_VARS}
-                data-slot="review-seat-detail"
-            >
-                {deck ? (
-                    /* The pair, side by side from `md` up and stacked below —
-                       the deckbuilder's own shape (`deck-zones-surface.tsx`:
-                       `flex-col` … `md:flex-row`), at the same breakpoint, with
-                       the Maindeck taking the 2/3 share the Limited builder's
-                       `splitDefault` uses. NOT that surface itself: its portrait
-                       regime turns `display: contents` and hands its two zones
-                       to a host pane strip as full-page snap panes, which a
-                       `<details>` section is not, and its split divider, zoom
-                       sliders and Peek Panel all belong to a workbench. What
-                       phone-portrait DOES keep is the arrangement inside each
-                       block — `DeckZoneSurface` draws its Columns as horizontal
-                       rows there on its own (`useViewportMode`), unchanged.
-                       `min-w-0` on both halves is what lets each block's own
-                       card strip scroll instead of forcing the row wider than
-                       the disclosure. */
-                    <div
-                        className="flex min-w-0 flex-col gap-3 md:flex-row"
-                        data-slot="review-deck-pair"
-                    >
-                        <div
-                            className="min-w-0 rounded-sm border border-border-subtle/30 md:flex-[2]"
-                            data-slot="review-maindeck"
-                        >
-                            <DeckZoneSurface
-                                zone="maindeck"
-                                title="Built Deck"
-                                cards={deck.cards}
-                                layout={deckLayout}
-                                onGroupingChange={setDeckGrouping}
-                                /* `"pane"` on BOTH blocks, though this one is
-                                   a Maindeck: the model decides whether empty
-                                   Columns render, and `readOnly` has already
-                                   taken the drop itself away. A finished deck
-                                   with no 6-drop wants no empty 6-drop Column
-                                   — there is nothing left to drop into it. */
-                                dropModel="pane"
-                                filterable={false}
-                                readOnly
-                                onCardClick={NO_CARD_CLICK}
-                                cardTitle={cardTitle}
-                                emptyMessage="No maindeck cards."
-                            />
-                        </div>
-                        <div
-                            className="min-w-0 rounded-sm border border-border-subtle/30 md:flex-[1]"
-                            data-slot="review-sideboard"
-                        >
-                            <DeckZoneSurface
-                                zone="sideboard"
-                                title="Sideboard"
-                                cards={deck.sideboard}
-                                layout={SIDEBOARD_LAYOUT}
-                                /* No `onGroupingChange` — the surface's own
-                                   presence-is-the-switch convention is what
-                                   leaves the Sideboard its single ungrouped
-                                   Column and no control. */
-                                dropModel="pane"
-                                filterable={false}
-                                readOnly
-                                onCardClick={NO_CARD_CLICK}
-                                cardTitle={cardTitle}
-                                emptyMessage="No sideboard cards."
-                            />
-                        </div>
-                    </div>
-                ) : (
-                    <div>
-                        <h4 className="text-xs font-semibold tracking-wide uppercase text-text-muted">
-                            Built Deck
-                        </h4>
-                        <EmptyState message="No deck submitted." />
-                    </div>
-                )}
-
-                {isDraft ? (
-                    <div data-slot="review-pick-order">
-                        <h4 className="text-xs font-semibold tracking-wide uppercase text-text-muted">
-                            Pick Order ({pool.length})
-                        </h4>
-                        {pool.length === 0 ? (
-                            <EmptyState message="No Pool." />
-                        ) : (
-                            <LimitedReviewPickOrder pool={pool} />
-                        )}
-                    </div>
-                ) : (
-                    <div
-                        className="rounded-sm border border-border-subtle/30"
-                        data-slot="review-pool"
-                    >
-                        <DeckZoneSurface
-                            zone="maindeck"
-                            title="Pool"
-                            /* `LimitedPoolCard` is already a `ZoneCard` — one
-                               entry per PHYSICAL card, which is what the piles
-                               want: a Sealed Pool holding three Mountains
-                               draws three faces. */
-                            cards={pool}
-                            layout={poolLayout}
-                            onGroupingChange={setPoolGrouping}
-                            dropModel="pane"
-                            filterable={false}
-                            readOnly
-                            onCardClick={NO_CARD_CLICK}
-                            cardTitle={cardTitle}
-                            emptyMessage="No Pool."
+        <section
+            data-slot="review-seat"
+            data-seat-index={seat.seatIndex}
+            data-locked={locked}
+            className={cn(
+                "overflow-hidden rounded-(--panel-radius) border bg-surface/80",
+                expanded ? "border-accent/50" : "border-border-strong",
+                locked && "bg-surface/40"
+            )}
+        >
+            <LimitedReviewSeatTrigger
+                seat={seat}
+                record={record}
+                locked={locked}
+                expanded={expanded}
+                panelId={panelId}
+                onToggle={onToggle}
+            />
+            {expanded && (
+                <div
+                    id={panelId}
+                    data-slot="review-seat-detail"
+                    className="flex flex-col gap-3 border-t border-border-subtle/40 p-3 sm:p-4"
+                >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <SegmentedControl
+                            ariaLabel="Review view"
+                            options={[
+                                {
+                                    value: "deck",
+                                    label: `Deck · ${deck?.cards.length ?? 0}`,
+                                },
+                                {
+                                    value: "picks",
+                                    label: `${isDraft ? "Pick order" : "Pool"} · ${pool.length}`,
+                                },
+                            ]}
+                            value={tab}
+                            onChange={setTab}
+                        />
+                        <LimitedReviewZoomSlider
+                            value={zoom}
+                            onChange={onZoom}
                         />
                     </div>
-                )}
-            </div>
-        </details>
+                    {tab === "deck" ? (
+                        deck ? (
+                            <div
+                                data-slot="review-deck"
+                                className="flex flex-col gap-3"
+                            >
+                                {groups.map((group) => (
+                                    <div
+                                        key={group.id}
+                                        data-group={group.id}
+                                        className="flex flex-col gap-1.5"
+                                    >
+                                        <h4 className="text-[10px] font-bold tracking-[0.16em] uppercase text-text-muted">
+                                            {group.label}
+                                        </h4>
+                                        <LimitedReviewCardGrid
+                                            cards={group.cards}
+                                            zoom={zoom}
+                                        />
+                                    </div>
+                                ))}
+                                {sideboard.length > 0 && (
+                                    <div
+                                        data-group="sideboard"
+                                        className="flex flex-col gap-1.5"
+                                    >
+                                        <h4 className="text-[10px] font-bold tracking-[0.16em] uppercase text-text-muted">
+                                            Sideboard · {sideboard.length}
+                                        </h4>
+                                        <LimitedReviewCardGrid
+                                            cards={sideboard}
+                                            zoom={zoom}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <EmptyState message="No deck submitted." />
+                        )
+                    ) : pool.length === 0 ? (
+                        <EmptyState message="No Pool." />
+                    ) : (
+                        <div
+                            data-slot={
+                                isDraft ? "review-pick-order" : "review-pool"
+                            }
+                        >
+                            <LimitedReviewCardGrid
+                                cards={poolCards}
+                                zoom={zoom}
+                                ordered={isDraft}
+                            />
+                        </div>
+                    )}
+                </div>
+            )}
+        </section>
     );
 }

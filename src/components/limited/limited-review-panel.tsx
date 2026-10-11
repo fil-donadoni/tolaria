@@ -1,60 +1,63 @@
-import { areOtherSeatsRevealed } from "@convex/limited/eventProjection";
+import { useState } from "react";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import { Banner } from "@/components/ui/banner";
 import { OPEN_DECKLISTS_REVIEW_NOTICE } from "~/lib/openDecklists";
+import { seatRecord } from "~/lib/limitedTableRing";
 import LimitedReviewSeat from "./limited-review-seat";
+import { REVIEW_ZOOM_DEFAULT } from "./limited-review-zoom-slider";
 
-/** "Review the Table" — the post-completion summary surface (PRD #1107 story
- *  26, issue #1116; redesigned issue #1583). Once an event is `completed`
- *  (every seat has a Deck, `convex/limited/completion.ts`), this renders one
- *  compact summary row per seat (colors + maindeck/sideboard counts), with
- *  the full deck list + pick order behind a per-seat disclosure
- *  (`LimitedReviewSeat`) for every seat the projection reveals: the viewer's
- *  own always, every other once the event is finished, or from the Play
- *  Phase on with Open Decklists (issue #5386 — the SAME
- *  `areOtherSeatsRevealed` the server projection enforces). Renders nothing
- *  before completion; the caller doesn't need to gate on `event.completed`
- *  itself. */
+/** "Review the table" — the event page's second tab, from the Play Phase on
+ *  (PRD #1107 story 26; issue #5392). One collapsible per seat, the viewer's
+ *  first; the viewer's own seat starts open. Whether another seat is locked is
+ *  the PROJECTION's verdict — its `pool` is on the wire or it is not
+ *  (`areOtherSeatsRevealed`, `convex/limited/eventProjection.ts`, issue
+ *  #5386) — never a second client-side copy of the rule. The Open Decklists
+ *  banner follows the event's own setting. One zoom value serves every seat. */
 export default function LimitedReviewPanel({
     event,
 }: {
     event: LimitedEventView;
 }) {
-    if (!event.completed) return null;
-    const othersRevealed = areOtherSeatsRevealed(
-        event.status,
-        event.openDecklists
+    const seats = [...event.seats].sort(
+        (a, b) =>
+            Number(b.isViewer) - Number(a.isViewer) || a.seatIndex - b.seatIndex
     );
+    const [openSeat, setOpenSeat] = useState<number | null>(
+        seats.find((s) => s.isViewer)?.seatIndex ?? null
+    );
+    const [zoom, setZoom] = useState(REVIEW_ZOOM_DEFAULT);
+    const finished = event.status === "finished";
 
     return (
-        <div className="mt-4 border-t border-border-accent/20 pt-4">
-            <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-text-muted">
-                Review the Table
-            </h3>
-            <p className="mb-3 text-xs text-text-muted">
-                {othersRevealed
-                    ? "Every seat, at a glance. Expand a seat for its deck list and pick order."
-                    : "Every seat's deck, at a glance. Other seats' deck lists and pick orders are revealed when the event ends."}
-            </p>
-            {event.openDecklists && othersRevealed && (
-                <Banner
-                    tone="info"
-                    className="mb-3"
-                    data-slot="open-decklists-notice"
-                >
+        <div data-slot="review-panel" className="flex flex-col gap-3">
+            {event.openDecklists && (
+                <Banner tone="info" data-slot="open-decklists-notice">
                     {OPEN_DECKLISTS_REVIEW_NOTICE}
                 </Banner>
             )}
-            <div className="flex flex-col gap-3">
-                {event.seats.map((seat) => (
-                    <LimitedReviewSeat
-                        key={seat.seatIndex}
-                        seat={seat}
-                        eventType={event.type}
-                        revealed={seat.isViewer || othersRevealed}
-                    />
-                ))}
-            </div>
+            {finished && (
+                <p className="text-sm text-text-muted">
+                    The event is over — every deck and pick order is public.
+                </p>
+            )}
+            {seats.map((seat) => (
+                <LimitedReviewSeat
+                    key={seat.seatIndex}
+                    seat={seat}
+                    eventType={event.type}
+                    packCount={event.packSlots.length}
+                    record={seatRecord(event, seat.seatIndex)}
+                    locked={!seat.isViewer && seat.pool === null}
+                    open={openSeat === seat.seatIndex}
+                    onToggle={() =>
+                        setOpenSeat(
+                            openSeat === seat.seatIndex ? null : seat.seatIndex
+                        )
+                    }
+                    zoom={zoom}
+                    onZoom={setZoom}
+                />
+            ))}
         </div>
     );
 }
