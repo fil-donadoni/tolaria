@@ -108,6 +108,7 @@ import {
 } from "./limited/rounds";
 import { computeStandings } from "./limited/standings";
 import {
+    areOtherSeatsRevealed,
     projectLimitedEvent,
     type HumanDeckView,
     type LimitedEventSeatView,
@@ -988,7 +989,7 @@ async function projectEventForViewer(
     );
     const hydrated = { ...event, seats: asDbSeats(seats) };
     // The frozen cube pool projects to an ADMIN viewer of a COMPLETED draft
-    // and to nobody else (`projectLimitedEvent`'s `cubePool` gate) — so it is
+    // whose Pools are revealed (`areOtherSeatsRevealed`), and to nobody else (`projectLimitedEvent`'s `cubePool` gate) — so it is
     // loaded on exactly that path (`convex/limitedCubePoolStore.ts`) rather
     // than riding along on every read of the event row. The gate is repeated
     // here rather than derived: an over-eager load would silently restore the
@@ -997,7 +998,12 @@ async function projectEventForViewer(
     // it). `completed` is only known after `computeEventCompletion` below, so
     // this uses the persisted `draftCompletedAt` — the same fact, available
     // earlier, and the narrower of the two.
-    if (isAdmin && event.type === "draft" && event.draftCompletedAt) {
+    if (
+        isAdmin &&
+        event.type === "draft" &&
+        event.draftCompletedAt &&
+        areOtherSeatsRevealed(event.status, event.openDecklists ?? false)
+    ) {
         hydrated.cubePool = await loadCubePool(ctx, event);
     }
     // Decks exist for as long as Pools do — through the play phase and past

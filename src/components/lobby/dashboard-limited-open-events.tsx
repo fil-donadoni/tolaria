@@ -1,6 +1,7 @@
 import type { Id } from "@convex/_generated/dataModel";
 import type { LimitedEventSummaryView } from "~/hooks/useLimitedEvent";
 import { limitedEventName } from "~/lib/limitedEventName";
+import { OPEN_DECKLISTS_JOIN_WARNING } from "~/lib/openDecklists";
 import { Button } from "~/components/ui/button";
 import LimitedStatusBadge from "~/components/limited/limited-status-badge";
 
@@ -13,7 +14,9 @@ import LimitedStatusBadge from "~/components/limited/limited-status-badge";
  *  inline helper): that list's rows are each a single big `<button>` (the
  *  whole row navigates on click); these rows carry TWO independent
  *  interactions — the row itself is inert until joined, Join is its own
- *  control — so they are not the same shape squeezed into one file. */
+ *  control — so they are not the same shape squeezed into one file. An Open
+ *  Decklists event carries its disclosure beside Join (issue #5386): every
+ *  Join surface warns before the player sits down. */
 export default function DashboardLimitedOpenEvents({
     events,
     onJoin,
@@ -38,8 +41,18 @@ export default function DashboardLimitedOpenEvents({
                             key={event._id}
                             className="flex items-center justify-between gap-2 rounded-sm border border-[var(--hairline)] bg-surface/70 px-3 py-2 text-sm"
                         >
-                            <span className="truncate font-medium text-text">
-                                {limitedEventName(event)}
+                            <span className="flex min-w-0 flex-col">
+                                <span className="truncate font-medium text-text">
+                                    {limitedEventName(event)}
+                                </span>
+                                {event.openDecklists && (
+                                    <span
+                                        className="text-xs text-text-muted"
+                                        data-slot="open-decklists-join-warning"
+                                    >
+                                        {OPEN_DECKLISTS_JOIN_WARNING}
+                                    </span>
+                                )}
                             </span>
                             <span className="flex shrink-0 items-center gap-2">
                                 <LimitedStatusBadge event={event} />

@@ -1096,8 +1096,8 @@ describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mo
         }
     });
 
-    it("exposes seed for a completed Draft event ONLY to an admin viewer", () => {
-        const event = row({ type: "draft", seed: 42 });
+    it("exposes seed for a finished Draft event ONLY to an admin viewer", () => {
+        const event = row({ type: "draft", status: "finished", seed: 42 });
         const admin = projectLimitedEvent(
             event,
             "user1",
@@ -1110,8 +1110,8 @@ describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mo
         expect(admin.seed).toBe(42);
     });
 
-    it("hides seed for a completed Draft event from every NON-admin viewer, including a seated participant", () => {
-        const event = row({ type: "draft", seed: 42 });
+    it("hides seed for a finished Draft event from every NON-admin viewer, including a seated participant", () => {
+        const event = row({ type: "draft", status: "finished", seed: 42 });
         for (const viewer of ["user1", "user2", "outsider", null]) {
             const view = projectLimitedEvent(
                 event,
@@ -1175,8 +1175,28 @@ describe("projectLimitedEvent — seed exposure (issue #1613, ADR 0074 replay mo
         expect(view.seed).toBeNull();
     });
 
+    it("hides seed and cubePool from an admin while the event's pools are still hidden (completed, Play Phase, no Open Decklists — issue #5386)", () => {
+        const event = row({
+            type: "draft",
+            status: "playing",
+            seed: 42,
+            cubePool: ["c1"],
+        });
+        const view = projectLimitedEvent(
+            event,
+            "user1",
+            true, // completed
+            0,
+            new Map(),
+            new Set(),
+            true // isAdmin
+        );
+        expect(view.seed).toBeNull();
+        expect(view.cubePool).toBeNull();
+    });
+
     it("projects seed as null (not undefined) for a completed Draft event an admin views with no stored seed", () => {
-        const event = row({ type: "draft" });
+        const event = row({ type: "draft", status: "finished" });
         delete event.seed;
         const view = projectLimitedEvent(
             event,

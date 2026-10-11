@@ -274,6 +274,22 @@ describe("DashboardLimitedBox open events (issue #2648)", () => {
         expect(screen.getByRole("button", { name: "Join" })).toBeTruthy();
     });
 
+    it("warns beside Join on an Open Decklists event, and only there (issue #5386)", () => {
+        const { container } = renderBox({
+            openEvents: [
+                makeOpenEvent({ _id: "event-open-1", openDecklists: true }),
+                makeOpenEvent({ _id: "event-open-2" }),
+            ],
+        });
+        const warnings = container.querySelectorAll(
+            '[data-slot="open-decklists-join-warning"]'
+        );
+        expect(warnings.length).toBe(1);
+        expect(warnings[0].textContent).toContain(
+            "your deck and pick order will be visible"
+        );
+    });
+
     it("fires onJoin with the event id when Join is clicked", () => {
         const onJoin = vi.fn();
         renderBox({

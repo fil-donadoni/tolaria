@@ -309,35 +309,23 @@ export interface LimitedEventView {
      *  for a viewer with no seat at this table (a spectator or an admin), or
      *  for a seat somehow absent from the current round's pairings. */
     viewerPairing: LimitedViewerPairingView | null;
-    /** Event RNG seed (ADR 0055), exposed ONLY for a `completed` DRAFT event
-     *  AND ONLY to an admin viewer (issue #1613 fixup, tightening the
-     *  original ADR 0074 "Draft Lab: replay mode" reveal). `null` in every
-     *  other case:
-     *  - a running event, where the same seed would let a live seat compute
-     *    the packs it is about to be passed (the exact hidden information
-     *    the privacy projection protects everywhere else);
-     *  - a SEALED event, `completed` or not: `generateSealedPools`
-     *    (`eventLogic.ts`) is a PURE function of `makeRng(seed)` +
-     *    `packSlots` + `sealedBoosterCount` — all three already project
-     *    unconditionally — so the seed alone lets ANY viewer regenerate
-     *    EVERY seat's exact Pool client-side, defeating the admin gate on
-     *    `pool`/`humanDeck` below (issue #1583). Worse, `completed` only
-     *    means "every seat has a Deck" — PRD #1628's play phase keeps a
-     *    Sealed event `completed` while matches are still being played
-     *    (`projectEventForViewer`'s `arePoolsDealt`/`computeEventCompletion`
-     *    gate is independent of the round/play-phase state), so an
-     *    unconditional reveal would leak opponents' full pools DURING live
-     *    matches, not just after the event is fully over;
-     *  - a non-admin viewer of a completed DRAFT event: a non-admin gains
-     *    nothing from the seed anyway (bot seats' `pool` stays `null` for
-     *    them, so `reconstructDraftReplay` stops at `"hidden-pool"` on the
-     *    first bot pick), so gating this to admin costs zero function while
-     *    closing the leak.
-     *  For a completed DRAFT event viewed by an admin, there is nothing left
-     *  to spoil: the seed plus every seat's already-stored `pool` (which
-     *  `pool`/`humanDeck` above ALSO only reveal to an admin at completion)
-     *  is everything the Draft Lab replay surface needs to regenerate the
-     *  packs and recompute every bot pick. */
+    /** Event RNG seed (ADR 0055), exposed ONLY for a `completed` DRAFT event,
+     *  ONLY once `areOtherSeatsRevealed` holds (issue #5386), and ONLY to an
+     *  admin viewer (issue #1613 fixup, tightening the original ADR 0074
+     *  "Draft Lab: replay mode" reveal). `null` in every other case:
+     *  - any event whose Pools are still hidden — a running draft, or a Play
+     *    Phase without Open Decklists (`completed` stays true right through
+     *    the Play Phase): seed + `packSlots` regenerate every pack, so the
+     *    seed can never open earlier than the Pools it reconstructs;
+     *  - a SEALED event, ever: `generateSealedPools` (`eventLogic.ts`) is a
+     *    PURE function of `makeRng(seed)` + `packSlots` +
+     *    `sealedBoosterCount` — all three project unconditionally — and a
+     *    revealed Sealed Pool is already on the wire, so the replay surface
+     *    has no use for it;
+     *  - a non-admin viewer: the Draft Lab replay surface is admin-only.
+     *  For a revealed DRAFT event viewed by an admin, there is nothing left
+     *  to spoil: the seed plus every seat's `pool` is everything the replay
+     *  surface needs to regenerate the packs and recompute every bot pick. */
     seed: number | null;
     /** The Vintage Cube pool this draft was dealt from (ADR 0062), frozen on
      *  the event at `startEvent`. `null` for a non-cube event, and gated
@@ -528,7 +516,9 @@ export function projectLimitedEvent(
                 : event.seats.find((seat) => seat.userId === viewerUserId)
         ),
         // Issue #1613 fixup: gated on `completed` AND `type === "draft"` AND
-        // `isAdmin` — see `LimitedEventView.seed`'s doc comment for why a
+        // `isAdmin`, and (issue #5386) never before every Pool is revealed by
+        // `areOtherSeatsRevealed` — seed + pack slots regenerate every pack,
+        // so it can never open earlier than the pools it reconstructs. See `LimitedEventView.seed`'s doc comment for why a
         // SEALED event (whose Pools the bare seed can regenerate
         // UNCONDITIONALLY, `generateSealedPools`/`packSlots`/
         // `sealedBoosterCount` all project regardless of viewer) and a
@@ -536,11 +526,11 @@ export function projectLimitedEvent(
         // `reconstructDraftReplay` run stops at "hidden-pool" the moment it
         // hits a bot seat's `null` pool) must never receive it.
         seed:
-            completed && event.type === "draft" && isAdmin
+            completed && othersRevealed && event.type === "draft" && isAdmin
                 ? (event.seed ?? null)
                 : null,
         cubePool:
-            completed && event.type === "draft" && isAdmin
+            completed && othersRevealed && event.type === "draft" && isAdmin
                 ? (event.cubePool ?? null)
                 : null,
         scorerVersion: event.scorerVersion,
