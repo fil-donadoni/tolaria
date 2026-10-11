@@ -772,6 +772,13 @@ export default defineSchema({
         // (`convex/limited/pickTimerSchedule.ts`), never a fixed value. Draft
         // only — a Sealed event has no picks to time.
         timerEnabled: v.optional(v.boolean()),
+        // Open Decklists (issue #5386, PRD #5383; `GLOSSARY.md`): chosen at
+        // `createLimitedEvent`, never changed after. When true, every seat's
+        // Pool, pick order and built Deck are revealed to every viewer from
+        // the Play Phase on (never during the Draft) — `eventProjection.ts`'s
+        // `areOtherSeatsRevealed` is the one enforcement point. Absent ===
+        // false (every event created before the setting existed).
+        openDecklists: v.optional(v.boolean()),
         // Legacy pre-#1243 field: fixed per-pick countdown, superseded by
         // `timerEnabled` + the descending schedule. Kept only so documents
         // written before the switch still validate; never read.

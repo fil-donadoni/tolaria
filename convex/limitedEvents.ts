@@ -314,8 +314,8 @@ const autoBuiltDeckValidator = v.object({
 });
 
 /** Wire shape of a human seat's submitted `limited` Deck (issue #1116) — the
- *  full-disclosure counterpart to `autoBuiltDeck` below, populated ONLY once
- *  the event is `completed`. `colors` is a free-form `v.array(v.string())`
+ *  full-disclosure counterpart to `autoBuiltDeck` below, gated like `pool`
+ *  (issue #5386). `colors` is a free-form `v.array(v.string())`
  *  (a human's `userDecks.colors`, NOT the Auto-Build-derived `colorValidator`
  *  pair) — a human's deck editor never constrains it to exactly two WUBRG
  *  letters. */
@@ -332,15 +332,14 @@ const limitedEventSeatViewValidator = v.object({
     isBot: v.boolean(),
     isViewer: v.boolean(),
     poolCount: v.union(v.number(), v.null()),
-    // Full Pool contents: the viewer's own seat ALWAYS, every other seat ONLY
-    // for an ADMIN viewer once the event is `completed` (issue #1583 admin-
-    // gated debug detail, narrowing #1116 — see `projectLimitedEvent`'s doc
-    // comment). For a DRAFT event, array order IS the seat's pick order (no
-    // separate field).
+    // Full Pool contents: the viewer's own seat ALWAYS, every other seat once
+    // the event is finished, or from the Play Phase on with Open Decklists
+    // (issue #5386 — `eventProjection.ts`'s `areOtherSeatsRevealed`). For a
+    // DRAFT event, array order IS the seat's pick order (no separate field).
     pool: v.union(v.array(limitedPoolCardValidator), v.null()),
     // This seat's submitted `limited` Deck (issue #1116) — `null` for a bot
-    // seat (its deck is `autoBuiltDeck` below instead), before `completed`, or
-    // for another seat when the viewer isn't an admin (issue #1583).
+    // seat (its deck is `autoBuiltDeck` below instead), for a seat with no
+    // deck yet, or for another seat under the same gate as `pool` above.
     humanDeck: v.union(humanDeckValidator, v.null()),
     // Compact deck summary (issue #1583) — colors + maindeck/sideboard counts,
     // never the card list. Ungated: populated for every seat that has a deck
@@ -405,6 +404,10 @@ export const limitedEventViewValidator = v.object({
     draftPacksRemaining: v.optional(v.number()),
     draftCompletedAt: v.optional(v.number()),
     timerEnabled: v.optional(v.boolean()),
+    // Open Decklists (issue #5386) — DEFINITE on the wire (a legacy row with
+    // no stored value reads `false`), so the review banner and the Join
+    // warning never re-implement the default.
+    openDecklists: v.boolean(),
     // Play phase (PRD #1628, issue #1640). `gamesFormat` is REQUIRED on the
     // wire even though the stored field is optional — `projectLimitedEvent`
     // resolves the default, so the client always receives a concrete Bo1/Bo3.
@@ -908,7 +911,7 @@ async function loadHumanDecksBySeat(
  *  query is a pure waste of a DB read), computes `computeEventCompletion`,
  *  and threads BOTH the completion flag and the human-deck map into
  *  `projectLimitedEvent` — the single call that decides the full-disclosure
- *  reveal (`pool`/`humanDeck` exposed for every seat once `completed`). */
+ *  reveal (`pool`/`humanDeck` of every seat, under `areOtherSeatsRevealed`). */
 /** Every PENDING (`waiting`) challenge Game bound to `eventId` (issue #1577),
  *  flattened to `ChallengeGame[]` for the viewer-scoped projection. Uses the
  *  `by_limited_event` index (`convex/schema.ts`) so this is a bounded read.
@@ -950,9 +953,10 @@ async function projectEventForViewer(
     ctx: QueryCtx,
     event: Doc<"limitedEvents">,
     viewerUserId: string | null,
-    // Whether the viewer is an admin (issue #1583) — threads through to
-    // `projectLimitedEvent`'s admin-gated debug-detail reveal so another seat's
-    // pool/deck contents are populated on the wire ONLY for an admin.
+    // Whether the viewer is an admin — threads through to
+    // `projectLimitedEvent`'s admin-gated `seed`/`cubePool` (issue #1613). It
+    // no longer gates another seat's pool/deck (issue #5386 removed #1583's
+    // admin gate; the revelation rule is status + Open Decklists only).
     isAdmin = false
 ): Promise<EventViewWithAutoBuild> {
     const eventContext: AutoBuildEventContext = {
@@ -1655,6 +1659,9 @@ export const createLimitedEvent = mutation({
         // Optional round deadline in MINUTES (PRD #1628 stories 3-4). Omitted
         // === no deadline; a relaxed table is never cut short by a timer.
         roundDeadlineMinutes: v.optional(v.number()),
+        // Open Decklists (issue #5386): reveal every seat's Pool, pick order
+        // and Deck to the table from the Play Phase on. Omitted === off.
+        openDecklists: v.optional(v.boolean()),
     },
     returns: v.id("limitedEvents"),
     handler: async (ctx, args) => {
@@ -1747,6 +1754,9 @@ export const createLimitedEvent = mutation({
             // ambiguous about what the creator chose.
             gamesFormat: resolveGamesFormat(args.gamesFormat),
             roundDeadlineMinutes: args.roundDeadlineMinutes,
+            // Persisted concrete, like `gamesFormat`: absence is reserved for
+            // legacy rows, which the projection reads as off.
+            openDecklists: args.openDecklists ?? false,
             seats: asDbSeats(seats),
             createdAt: now,
             updatedAt: now,

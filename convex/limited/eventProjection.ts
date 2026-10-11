@@ -18,6 +18,7 @@ import type {
     LimitedRound,
     PoolArrangementEntry,
 } from "./eventTypes";
+import { areRoundsRunning, isEventConcluded } from "./eventStatus";
 import { resolveEventGamesFormat } from "./gamesFormat";
 import { findSeatPairing, isRoundComplete } from "./rounds";
 import {
@@ -46,6 +47,10 @@ export interface LimitedEventRow {
      *  always visible (not hidden information) so every seat's UI knows
      *  whether a countdown should render at all. */
     timerEnabled?: boolean;
+    /** Open Decklists (issue #5386, `GLOSSARY.md`) — absent on every event
+     *  created before the setting existed, read as off. See
+     *  `areOtherSeatsRevealed`. */
+    openDecklists?: boolean;
     /** Play phase (PRD #1628, ADR 0076). All four are OPTIONAL on the row: an
      *  event created before the play phase existed carries none of them, and a
      *  live event only gains `currentRound`/`rounds` when it starts playing.
@@ -87,8 +92,8 @@ export interface ReviewDeckCard {
  *  (issue #1116) — the SAME shape as a bot seat's `AutoBuiltDeck.cards` /
  *  `.sideboard` (`convex/limited/autoBuild.ts`), minus the strict 2-color
  *  tuple (a human's `userDecks.colors` is a free-form `string[]`, not
- *  Auto-Build's derived `[TrueColor, TrueColor]`). Populated ONLY once the
- *  event is `completed` — see `LimitedEventSeatView.humanDeck`. */
+ *  Auto-Build's derived `[TrueColor, TrueColor]`). Gated like `pool` — see
+ *  `LimitedEventSeatView.humanDeck`. */
 export interface HumanDeckView {
     cards: ReviewDeckCard[];
     sideboard: ReviewDeckCard[];
@@ -99,8 +104,8 @@ export interface HumanDeckView {
  *  and sideboard COUNTS — never the card list. Deliberately UNGATED (like
  *  `hasDeck`): colors + counts leak nothing about what a seat drafted or
  *  built, so the compact "Review the Table" summary renders one per seat for
- *  EVERY viewer, while the full card list (`pool`/`humanDeck`) stays
- *  admin-gated below. */
+ *  EVERY viewer, while the full card list (`pool`/`humanDeck`) stays behind
+ *  `areOtherSeatsRevealed`. */
 export interface DeckSummaryView {
     colors: string[];
     maindeckCount: number;
@@ -120,10 +125,9 @@ export interface LimitedEventSeatView {
      *  `startLimitedEvent` runs. */
     poolCount: number | null;
     /** Full Pool contents. Populated for the viewer's own seat ALWAYS, and for
-     *  every OTHER seat once the event has reached `completed` (issue #1116:
-     *  "full disclosure for study" — the projection is the enforcement point
-     *  both ways, `strips during, reveals at completion`). Before completion,
-     *  every other seat's Pool is stripped (PRD #1107 story 15: "my picks
+     *  every OTHER seat exactly when `areOtherSeatsRevealed` holds (issue
+     *  #5386: once the event is finished, or from the Play Phase on with Open
+     *  Decklists — never during the Draft, PRD #1107 story 15: "my picks
      *  hidden from other Seats during the draft"). For a DRAFT event, this
      *  array's element order IS the seat's pick order (`applyPick` appends
      *  one entry per Pick, never reorders) — the review UI numbers it
@@ -132,11 +136,10 @@ export interface LimitedEventSeatView {
     /** This seat's submitted `limited` Deck (issue #1116) — `null` for a bot
      *  seat (see `autoBuiltDeck` on `convex/limitedEvents.ts`'s wire shape
      *  instead, computed on demand rather than stored), for a human seat
-     *  with no deck submitted yet, or whenever the event isn't `completed`
-     *  yet (the SAME full-disclosure-at-completion gate as `pool` above).
-     *  Admin-gated (issue #1583): another seat's built deck is a debug detail
-     *  populated only for an admin viewer — a non-admin only ever receives
-     *  their OWN seat's `humanDeck`. */
+     *  with no deck submitted yet, or for another seat while
+     *  `areOtherSeatsRevealed` is false (the SAME gate as `pool` above —
+     *  issue #5386 removed #1583's admin-only gate). The viewer's own deck is
+     *  always populated. */
     humanDeck: HumanDeckView | null;
     /** Compact per-seat deck summary (issue #1583) — colors + maindeck /
      *  sideboard COUNTS, never the card list. UNGATED (populated for every
@@ -270,6 +273,10 @@ export interface LimitedEventView {
     draftPacksRemaining?: number;
     draftCompletedAt?: number;
     timerEnabled?: boolean;
+    /** Open Decklists (issue #5386) — DEFINITE on the wire: a legacy row with
+     *  nothing stored reads `false`, so the review banner and the Join
+     *  warning never re-implement the default. */
+    openDecklists: boolean;
     /** The event's Games Format (PRD #1628 stories 1-2) — Bo1 or Bo3, chosen
      *  at creation. DEFINITE on the wire even though the stored field is
      *  optional: the projection resolves it through `resolveGamesFormat`, so a
@@ -445,6 +452,21 @@ function projectViewerPairing(
     };
 }
 
+/** The one revelation rule (issue #5386, PRD #5383): another seat's Pool,
+ *  pick order and built Deck are visible to a viewer when the event is
+ *  finished, or when Open Decklists is on and the event has reached the Play
+ *  Phase. Never during the Draft or deckbuild (`started`), whatever the
+ *  setting. Asked through the named status predicates (ADR 0076), never a
+ *  literal status comparison. The viewer's OWN seat is outside this rule —
+ *  always fully visible. */
+export function areOtherSeatsRevealed(
+    status: LimitedEventStatus,
+    openDecklists: boolean
+): boolean {
+    if (isEventConcluded(status)) return true;
+    return openDecklists && areRoundsRunning(status);
+}
+
 /** Projects a `limitedEvents` row for `viewerUserId` (`null` for an
  *  unauthenticated/anonymous read, which the lobby list never actually issues
  *  since every route requires login — kept for a defensive default).
@@ -456,17 +478,12 @@ function projectViewerPairing(
  *  performs itself. Both default to "nothing complete, no decks known" so
  *  this stays call-compatible with every caller written before #1116.
  *
- *  Admin-gated full-disclosure reveal (issue #1583, narrowing PRD #1107 story
- *  26): once `completed` is true, every OTHER seat's `pool` and `humanDeck`
- *  are exposed ONLY to an admin viewer (`isAdmin`). These lists exist to debug
- *  the bot drafter / deckbuilder, so they're admin-only debug detail — a
- *  non-admin never receives another seat's pool or deck contents on the wire,
- *  completed or not. A viewer ALWAYS keeps their OWN seat's data (`isViewer`),
- *  admin or not. Every viewer still gets each seat's compact `deckSummary`
- *  (colors + counts) and `poolCount` — the summary the redesigned review
- *  renders in place of the raw lists. (Before #1583 the reveal was
- *  unconditional at completion; the hidden-information discipline that
- *  protects a LIVE draft/build is unchanged.) */
+ *  Revelation (issue #5386): every OTHER seat's `pool` and `humanDeck` are
+ *  exposed exactly when `areOtherSeatsRevealed` holds — to every viewer, admin
+ *  or not (the admin-only gate of issue #1583 is gone; `isAdmin` now gates
+ *  only `seed`/`cubePool`). A viewer ALWAYS keeps their OWN seat's data
+ *  (`isViewer`). Every viewer still gets each seat's compact `deckSummary`
+ *  (colors + counts) and `poolCount`. */
 export function projectLimitedEvent(
     event: LimitedEventRow,
     viewerUserId: string | null,
@@ -476,6 +493,10 @@ export function projectLimitedEvent(
     hasDeckBySeat: ReadonlySet<number> = new Set(),
     isAdmin = false
 ): LimitedEventView {
+    const othersRevealed = areOtherSeatsRevealed(
+        event.status,
+        event.openDecklists ?? false
+    );
     return {
         _id: event._id,
         createdBy: event.createdBy,
@@ -488,6 +509,7 @@ export function projectLimitedEvent(
         draftPacksRemaining: event.draftPacksRemaining,
         draftCompletedAt: event.draftCompletedAt,
         timerEnabled: event.timerEnabled,
+        openDecklists: event.openDecklists ?? false,
         // Play phase (PRD #1628). `gamesFormat` is resolved here — the one
         // place the "absent means bo3" tolerance lives — so the wire shape is
         // definite; `rounds` normalises to `[]` for the same reason.
@@ -512,9 +534,7 @@ export function projectLimitedEvent(
         // `sealedBoosterCount` all project regardless of viewer) and a
         // non-admin viewer (who cannot use the seed for anything — their
         // `reconstructDraftReplay` run stops at "hidden-pool" the moment it
-        // hits a bot seat's `null` pool) must never receive it. Same
-        // admin-gate discipline as `pool`/`humanDeck` below, not the
-        // "everyone once completed" reveal this used to be.
+        // hits a bot seat's `null` pool) must never receive it.
         seed:
             completed && event.type === "draft" && isAdmin
                 ? (event.seed ?? null)
@@ -531,10 +551,9 @@ export function projectLimitedEvent(
         seats: event.seats.map((seat) => {
             const isViewer =
                 viewerUserId !== null && seat.userId === viewerUserId;
-            // Debug detail (pool card list + built deck) reveals for the
-            // viewer's OWN seat always, and for any OTHER seat only to an
-            // admin at a completed event (issue #1583).
-            const detailRevealed = isViewer || (completed && isAdmin);
+            // Pool (pick order) + built deck: the viewer's OWN seat always,
+            // any OTHER seat under the one revelation rule (issue #5386).
+            const detailRevealed = isViewer || othersRevealed;
             const humanDeckForSeat = seat.isBot
                 ? null
                 : (humanDecksBySeat.get(seat.seatIndex) ?? null);
@@ -553,8 +572,7 @@ export function projectLimitedEvent(
                     ? seat.pool.length
                     : (seat.poolCount ?? null),
                 pool: detailRevealed ? (seat.pool ?? null) : null,
-                humanDeck:
-                    completed && detailRevealed ? humanDeckForSeat : null,
+                humanDeck: detailRevealed ? humanDeckForSeat : null,
                 // Ungated compact summary — colors + counts only, for every
                 // seat that has a submitted human deck. Bot seats are filled
                 // by the query shell from `autoBuiltDeck` (null here).
