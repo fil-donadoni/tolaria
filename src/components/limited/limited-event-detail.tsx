@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
-import { canViewLimitedReviewDetail } from "~/lib/adminGating";
 import {
     useLimitedEvent,
     useLimitedEventMutations,
@@ -28,6 +27,7 @@ import LimitedShareInviteButton from "./limited-share-invite-button";
 import LimitedEventPageFrame from "./limited-event-page-frame";
 import LimitedEventToolbar from "./limited-event-toolbar";
 import { limitedEventName } from "~/lib/limitedEventName";
+import { OPEN_DECKLISTS_JOIN_WARNING } from "~/lib/openDecklists";
 import {
     arePoolsDealt,
     areDraftPicksLegal,
@@ -243,6 +243,14 @@ export default function LimitedEventDetail({
                     />
                 )}
 
+                {/* Warned before sitting down, never after (issue #5386):
+                    joining an Open Decklists event accepts the disclosure. */}
+                {canJoin && event.openDecklists && (
+                    <Banner tone="info" data-slot="open-decklists-join-warning">
+                        {OPEN_DECKLISTS_JOIN_WARNING}
+                    </Banner>
+                )}
+
                 <div className="flex justify-end gap-2">
                     {canLeave && (
                         <ActionButton
@@ -368,10 +376,7 @@ export default function LimitedEventDetail({
 
                 {showStandings && <LimitedStandingsTable event={event} />}
 
-                <LimitedReviewPanel
-                    event={event}
-                    isAdmin={canViewLimitedReviewDetail(user)}
-                />
+                <LimitedReviewPanel event={event} />
 
                 {/* Page-footer utilities. The link stays available for the
                     whole lifetime of the event (issue #1578) — gating it to

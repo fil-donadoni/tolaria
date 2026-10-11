@@ -76,7 +76,11 @@ import { resolveCardMeta, resolveSheetCardMeta } from "../limitedCardMeta";
 // the `setPoolArrangementEntry through the REAL mutation handler` block below.
 import type { Doc, Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { setPoolArrangementEntry } from "../limitedEvents";
+import {
+    createLimitedEvent,
+    getLimitedEvent,
+    setPoolArrangementEntry,
+} from "../limitedEvents";
 import { hydrateSeats } from "../limitedSeatStore";
 import { makeInMemoryDb } from "./fixtures/inMemoryDb.fixture";
 
@@ -980,7 +984,7 @@ describe("Limited Event Draft Timer + Auto-Pick (issue #1114, PRD #1107 stories 
     });
 });
 
-describe("Limited Event completion + full-disclosure review (issue #1116): sealed event → build → completion → all pools readable by any participant", () => {
+describe("Limited Event completion + full-disclosure review (issue #1116, issue #5386): sealed event → build → completion → finished → all pools readable by any viewer", () => {
     /** Mirrors `userDecks.create`'s persisted shape (`convex/userDecks.ts`) —
      *  what the mutation would insert. `_creationTime` stands in for the
      *  field Convex stamps automatically; `loadHumanDecksBySeat`
@@ -1052,7 +1056,7 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
         return bySeat;
     }
 
-    it("a 3-seat sealed event (2 humans, 1 bot) completes exactly when both humans submit, then every pool + deck is readable by any participant", () => {
+    it("a 3-seat sealed event (2 humans, 1 bot) completes exactly when both humans submit, then every pool + deck is readable by any viewer once finished", () => {
         // 1. createLimitedEvent — a 3-seat Sealed LEA event.
         const packSlots = ["lea"];
         assertPackSlotsDraftable(packSlots);
@@ -1212,93 +1216,92 @@ describe("Limited Event completion + full-disclosure review (issue #1116): seale
         expect(completion.completed).toBe(true);
         expect(completion.seatsWithDeck).toBe(3);
 
-        // 9a. The "reveals at completion, admin-gated" direction (issue
-        // #1583): an ADMIN viewer sees EVERY seat's Pool AND human Deck. The
-        // bot seat's Deck travels through `autoBuiltDeck` elsewhere
-        // (`convex/limitedEvents.ts`'s `projectEventForViewer`), never through
-        // `humanDeck` — this pure-projection seam only ever reports `null`
-        // there for a bot seat.
-        const adminView = projectLimitedEvent(
-            event,
-            "admin-outsider",
-            completion.completed,
-            completion.seatsWithDeck,
-            humanDecksBySeat,
-            new Set<number>(),
-            true // isAdmin
-        );
-        expect(adminView.completed).toBe(true);
-        expect(adminView.seatsWithDeck).toBe(3);
-        expect(adminView.seats.find((s) => s.seatIndex === 0)!.pool).toEqual(
-            aliceSeat.pool
-        );
-        expect(adminView.seats.find((s) => s.seatIndex === 1)!.pool).toEqual(
-            bobSeat.pool
-        );
-        expect(adminView.seats.find((s) => s.seatIndex === 2)!.pool).toEqual(
-            botSeat.pool
-        );
-        expect(
-            adminView.seats.find((s) => s.seatIndex === 0)!.humanDeck
-        ).toEqual({
-            cards: aliceDeck.cards,
-            sideboard: aliceDeck.sideboard,
-            colors: ["R"],
-        });
-        expect(
-            adminView.seats.find((s) => s.seatIndex === 1)!.humanDeck
-        ).toEqual({
-            cards: bobDeck.cards,
-            sideboard: bobDeck.sideboard,
-            colors: ["U"],
-        });
-        expect(
-            adminView.seats.find((s) => s.seatIndex === 2)!.humanDeck
-        ).toBeNull();
-
-        // 9b. A NON-ADMIN viewer at the same completed event keeps ONLY their
-        // own seat's Pool/Deck; every OTHER seat's contents stay stripped —
-        // but each seat's compact `deckSummary` (colors + counts) is exposed
-        // to everyone, admin or not.
-        const nonAdminOwnSeat: Record<string, number> = {
+        // 9a. Completed is NOT the reveal (issue #5386): every seat has a
+        // deck, but the event is still in its deckbuild phase — another seat's
+        // Pool and Deck stay stripped for every viewer, an admin included.
+        // Each seat's compact `deckSummary` (colors + counts) is exposed to
+        // everyone.
+        const ownSeat: Record<string, number> = {
             user1: 0,
             user2: 1,
             "outsider-user": -1, // no seat
         };
+        for (const isAdmin of [false, true]) {
+            for (const viewerId of ["user1", "user2", "outsider-user"]) {
+                view = projectLimitedEvent(
+                    event,
+                    viewerId,
+                    completion.completed,
+                    completion.seatsWithDeck,
+                    humanDecksBySeat,
+                    new Set<number>(),
+                    isAdmin
+                );
+                expect(view.completed).toBe(true);
+                for (const seatView of view.seats) {
+                    if (seatView.seatIndex === ownSeat[viewerId]) {
+                        expect(seatView.pool).not.toBeNull();
+                    } else {
+                        expect(seatView.pool).toBeNull();
+                        expect(seatView.humanDeck).toBeNull();
+                    }
+                }
+                expect(
+                    view.seats.find((s) => s.seatIndex === 0)!.deckSummary
+                ).toEqual({
+                    colors: ["R"],
+                    maindeckCount: aliceDeck.cards.length,
+                    sideboardCount: aliceDeck.sideboard.length,
+                });
+                expect(
+                    view.seats.find((s) => s.seatIndex === 1)!.deckSummary
+                ).toEqual({
+                    colors: ["U"],
+                    maindeckCount: bobDeck.cards.length,
+                    sideboardCount: bobDeck.sideboard.length,
+                });
+            }
+        }
+
+        // 9b. Once the event is finished, EVERY viewer — non-admin, seated or
+        // not — sees every seat's Pool and human Deck. The bot seat's Deck
+        // travels through `autoBuiltDeck` (`projectEventForViewer`), never
+        // `humanDeck`.
+        const finished = { ...event, status: "finished" as const };
         for (const viewerId of ["user1", "user2", "outsider-user"]) {
             view = projectLimitedEvent(
-                event,
+                finished,
                 viewerId,
                 completion.completed,
                 completion.seatsWithDeck,
                 humanDecksBySeat
             );
-            expect(view.completed).toBe(true);
-            const ownIndex = nonAdminOwnSeat[viewerId];
-            for (const seatView of view.seats) {
-                if (seatView.seatIndex === ownIndex) {
-                    expect(seatView.pool).not.toBeNull();
-                } else {
-                    // Another seat's card list — never on a non-admin's wire.
-                    expect(seatView.pool).toBeNull();
-                    expect(seatView.humanDeck).toBeNull();
-                }
-            }
-            // Human seats' summaries survive for every viewer.
+            expect(view.seats.find((s) => s.seatIndex === 0)!.pool).toEqual(
+                aliceSeat.pool
+            );
+            expect(view.seats.find((s) => s.seatIndex === 1)!.pool).toEqual(
+                bobSeat.pool
+            );
+            expect(view.seats.find((s) => s.seatIndex === 2)!.pool).toEqual(
+                botSeat.pool
+            );
             expect(
-                view.seats.find((s) => s.seatIndex === 0)!.deckSummary
+                view.seats.find((s) => s.seatIndex === 0)!.humanDeck
             ).toEqual({
+                cards: aliceDeck.cards,
+                sideboard: aliceDeck.sideboard,
                 colors: ["R"],
-                maindeckCount: aliceDeck.cards.length,
-                sideboardCount: aliceDeck.sideboard.length,
             });
             expect(
-                view.seats.find((s) => s.seatIndex === 1)!.deckSummary
+                view.seats.find((s) => s.seatIndex === 1)!.humanDeck
             ).toEqual({
+                cards: bobDeck.cards,
+                sideboard: bobDeck.sideboard,
                 colors: ["U"],
-                maindeckCount: bobDeck.cards.length,
-                sideboardCount: bobDeck.sideboard.length,
             });
+            expect(
+                view.seats.find((s) => s.seatIndex === 2)!.humanDeck
+            ).toBeNull();
         }
     });
 });
@@ -2509,5 +2512,133 @@ describe("Limited Event leave/cancel (issue #1579): leaveLimitedEvent + cancelLi
                 /Only the event's creator/
             );
         });
+    });
+});
+
+describe("Open Decklists (issue #5386): createLimitedEvent stores it, getLimitedEvent reveals by it", () => {
+    type CreateArgs = {
+        type: "sealed" | "draft";
+        seatCount: number;
+        packSource?: string;
+        openDecklists?: boolean;
+    };
+    const createHandler = (
+        createLimitedEvent as unknown as {
+            _handler: (ctx: MutationCtx, args: CreateArgs) => Promise<string>;
+        }
+    )._handler;
+    const getHandler = (
+        getLimitedEvent as unknown as {
+            _handler: (
+                ctx: MutationCtx,
+                args: { eventId: Id<"limitedEvents"> }
+            ) => Promise<{
+                openDecklists: boolean;
+                seats: {
+                    seatIndex: number;
+                    pool: unknown[] | null;
+                    humanDeck: unknown;
+                }[];
+            } | null>;
+        }
+    )._handler;
+
+    async function createStored(args: CreateArgs) {
+        const { ctx, tables } = makeInMemoryDb(
+            { users: [{ _id: "user1", nickname: "Creator" }] },
+            { identitySubject: "user1|session1" }
+        );
+        const id = await createHandler(ctx, args);
+        return tables.limitedEvents.find((r) => r._id === id)!;
+    }
+
+    it("stores Open Decklists when chosen, and false when omitted", async () => {
+        const on = await createStored({
+            type: "draft",
+            seatCount: 2,
+            packSource: "lea",
+            openDecklists: true,
+        });
+        const omitted = await createStored({
+            type: "draft",
+            seatCount: 2,
+            packSource: "lea",
+        });
+        expect(on.openDecklists).toBe(true);
+        expect(omitted.openDecklists).toBe(false);
+    });
+
+    const EVENT_ID = "event-5386" as Id<"limitedEvents">;
+    /** A Sealed event in the Play Phase, two human seats, payloads in
+     *  `limitedSeats` — read by user1 through the real query handler. */
+    function readPlaying(openDecklists: boolean | undefined) {
+        const event: Record<string, unknown> = {
+            _id: EVENT_ID,
+            createdBy: "user1",
+            type: "sealed",
+            status: "playing",
+            seatCount: 2,
+            packSlots: ["lea"],
+            sealedBoosterCount: 6,
+            seats: [0, 1].map((seatIndex) => ({
+                seatIndex,
+                userId: `user${seatIndex + 1}`,
+                nickname: `P${seatIndex + 1}`,
+                poolCount: 1,
+            })),
+            createdAt: 0,
+            updatedAt: 0,
+        };
+        if (openDecklists !== undefined) event.openDecklists = openDecklists;
+        const { ctx } = makeInMemoryDb(
+            {
+                users: [
+                    { _id: "user1", nickname: "P1" },
+                    { _id: "user2", nickname: "P2" },
+                ],
+                limitedEvents: [event as never],
+                limitedSeats: [0, 1].map((seatIndex) => ({
+                    _id: `seat-5386-${seatIndex}`,
+                    eventId: EVENT_ID,
+                    seatIndex,
+                    pool: [
+                        {
+                            scryfallId: `sf-${seatIndex}`,
+                            cardId: `card-${seatIndex}`,
+                            cardName: `Card ${seatIndex}`,
+                        },
+                    ],
+                })),
+                userDecks: [0, 1].map((seatIndex) => ({
+                    _id: `deck-5386-${seatIndex}`,
+                    _creationTime: seatIndex,
+                    userId: `user${seatIndex + 1}`,
+                    format: "limited",
+                    cards: [],
+                    sideboard: [],
+                    colors: ["W"],
+                    limitedEventId: EVENT_ID,
+                    limitedSeatId: String(seatIndex),
+                })),
+            },
+            { identitySubject: "user1|session1" }
+        );
+        return getHandler(ctx, { eventId: EVENT_ID });
+    }
+
+    it("a legacy event (no stored setting) reads as off: another seat stays hidden in the Play Phase", async () => {
+        const view = (await readPlaying(undefined))!;
+        expect(view.openDecklists).toBe(false);
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.pool).toBeNull();
+        expect(other.humanDeck).toBeNull();
+    });
+
+    it("with Open Decklists, another seat's pool and deck reach a non-admin in the Play Phase", async () => {
+        const view = (await readPlaying(true))!;
+        expect(view.openDecklists).toBe(true);
+        const other = view.seats.find((s) => s.seatIndex === 1)!;
+        expect(other.pool).toHaveLength(1);
+        expect(other.humanDeck).not.toBeNull();
     });
 });

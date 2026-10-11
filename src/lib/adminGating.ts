@@ -20,20 +20,6 @@ export function canEditPresets(
 }
 
 /**
- * Whether the "Review the Table" surface should expose another seat's debug
- * detail — its built deck list and pick order (issue #1583). Cosmetic only:
- * the server projection (`projectLimitedEvent`) already populates another
- * seat's `pool`/`humanDeck` ONLY for an admin, so a non-admin has nothing to
- * disclose there anyway; this predicate keeps the toggle from rendering for a
- * bot seat's (ungated, vs-AI) `autoBuiltDeck`, which every viewer receives.
- */
-export function canViewLimitedReviewDetail(
-    user: AdminGateUser | null | undefined
-): boolean {
-    return user?.isAdmin === true;
-}
-
-/**
  * Whether the `/admin/*` section renders at all — the header's Admin menu and
  * every page under it (Scenarios, Banlists, Pick Ratings, Card Profiles, Draft
  * Lab, Design System). ONE predicate for the whole section rather than one per

@@ -8,6 +8,7 @@ import type { ZoneCard } from "~/types/game";
 import { cardBase } from "~/lib/cardSizing";
 import EmptyState from "~/components/ui/empty-state";
 import DeckZoneSurface from "~/components/deckbuilder/deck-zone-surface";
+import { SEAT_LOCKED_NOTE } from "~/lib/openDecklists";
 import LimitedReviewPickOrder from "./limited-review-pick-order";
 
 /** The review tile size (issue #3167). Smaller than either deckbuilder's base
@@ -39,12 +40,13 @@ const cardTitle = (card: ZoneCard) => card.cardName;
  *  / sideboard counts) from the ungated `seat.deckSummary`. The detail — the
  *  built deck, the Sideboard, and either the numbered pick order (Draft) or
  *  the Pool (Sealed) — is gated: the server projection populates another
- *  seat's `pool`/`humanDeck` solely for an admin
- *  (`convex/limited/eventProjection.ts`), and this collapses it behind a
- *  per-seat `<details>` disclosure (collapsed by default) so a full table
- *  stays scannable. `showDetail` gates the disclosure to an admin viewer or
- *  the viewer's OWN seat — a bot seat's `autoBuiltDeck` is on the wire for the
- *  vs-AI hookup regardless, so presence of deck data alone must NOT reveal it.
+ *  seat's `pool`/`humanDeck` only under `areOtherSeatsRevealed`
+ *  (`convex/limited/eventProjection.ts`, issue #5386), and this collapses it
+ *  behind a per-seat `<details>` disclosure (collapsed by default) so a full
+ *  table stays scannable. `revealed` (the caller's verdict from that same
+ *  rule) gates the disclosure — a bot seat's `autoBuiltDeck` is on the wire
+ *  for the vs-AI hookup regardless, so presence of deck data alone must NOT
+ *  reveal it. A hidden seat says when it will be revealed.
  *
  *  The detail renders through the deckbuilder's OWN zone surface
  *  (`DeckZoneSurface`, ADR 0075), mounted `readOnly`: a finished 40-card deck
@@ -55,11 +57,11 @@ const cardTitle = (card: ZoneCard) => card.cardName;
 export default function LimitedReviewSeat({
     seat,
     eventType,
-    isAdmin,
+    revealed,
 }: {
     seat: LimitedEventSeatView;
     eventType: LimitedEventView["type"];
-    isAdmin: boolean;
+    revealed: boolean;
 }) {
     // The Grouping the two grouped blocks bucket by. Component state for the
     // session (issue #3167's own out-of-scope note): never persisted, and
@@ -86,9 +88,6 @@ export default function LimitedReviewSeat({
         ? (seat.nickname ?? "Bot Drafter")
         : (seat.nickname ?? "Open seat");
     const summary = seat.deckSummary;
-    // Detail (built deck + Pool / pick order) reveals for an admin viewer, or
-    // for the viewer's own seat (they always keep access to their own data).
-    const showDetail = isAdmin || seat.isViewer;
     const deck = seat.isBot ? seat.autoBuiltDeck : seat.humanDeck;
     const pool = seat.pool ?? [];
     // A DRAFT seat's `pool` array order IS its pick order (`applyPick`
@@ -117,10 +116,16 @@ export default function LimitedReviewSeat({
         </div>
     );
 
-    if (!showDetail) {
+    if (!revealed) {
         return (
             <div className="rounded-sm border border-border-subtle/40 p-3">
                 {summaryLine}
+                <p
+                    className="mt-1 text-xs text-text-muted"
+                    data-slot="review-seat-locked"
+                >
+                    {SEAT_LOCKED_NOTE}
+                </p>
             </div>
         );
     }

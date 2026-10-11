@@ -3,6 +3,7 @@ import GameDialog from "~/components/ui/game-dialog";
 import ActionButton from "~/components/board/action-button";
 import { Input } from "~/components/ui/input";
 import type { PackSourceInfo } from "~/hooks/useLimitedEvent";
+import { OPEN_DECKLISTS_CONSEQUENCE } from "~/lib/openDecklists";
 import {
     DEFAULT_SEALED_BOOSTER_COUNT,
     DRAFT_BOOSTER_COUNT,
@@ -73,6 +74,9 @@ export interface CreateLimitedEventPayload {
      *  when the creator leaves the deadline off — a relaxed table among
      *  friends is never cut short by a timer. */
     roundDeadlineMinutes?: number;
+    /** Open Decklists (issue #5386, `GLOSSARY.md`) — off by default; always
+     *  sent, like `gamesFormat`. */
+    openDecklists: boolean;
 }
 
 interface CreateLimitedEventDialogProps {
@@ -126,6 +130,8 @@ export default function CreateLimitedEventDialog({
     const [roundDeadlineMinutes, setRoundDeadlineMinutes] = useState(
         DEFAULT_ROUND_DEADLINE_MINUTES
     );
+    // Open Decklists (PRD #5383 stories 30-31) — off by default.
+    const [openDecklists, setOpenDecklists] = useState(false);
 
     const resolvedSourceKey = sourceKey ?? firstSelectable;
     const selectedSource = packSources.find((s) => s.key === resolvedSourceKey);
@@ -179,6 +185,7 @@ export default function CreateLimitedEventDialog({
             roundDeadlineMinutes: deadlineEnabled
                 ? roundDeadlineMinutes
                 : undefined,
+            openDecklists,
         });
     };
 
@@ -523,6 +530,50 @@ export default function CreateLimitedEventDialog({
                             pairing to be played.
                         </span>
                     )}
+                </div>
+
+                <div className="flex flex-col gap-1">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-text-muted">
+                        Open Decklists
+                    </span>
+                    <div
+                        role="radiogroup"
+                        aria-label="Open Decklists"
+                        className="inline-flex overflow-hidden rounded-sm border border-border-subtle/40"
+                    >
+                        {(
+                            [
+                                { value: false, label: "Off" },
+                                { value: true, label: "On" },
+                            ] as const
+                        ).map((opt) => (
+                            <button
+                                key={String(opt.value)}
+                                type="button"
+                                role="radio"
+                                aria-label={`Open Decklists ${opt.label}`}
+                                aria-checked={openDecklists === opt.value}
+                                disabled={pending}
+                                onClick={() => setOpenDecklists(opt.value)}
+                                className={
+                                    "px-3 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 " +
+                                    (openDecklists === opt.value
+                                        ? "bg-accent text-surface-base"
+                                        : "bg-surface-elevated/30 text-text hover:bg-surface-elevated/50")
+                                }
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </div>
+                    <span
+                        className="text-xs text-text-muted"
+                        data-slot="open-decklists-consequence"
+                    >
+                        {openDecklists
+                            ? `On — ${OPEN_DECKLISTS_CONSEQUENCE} Players are warned before they join.`
+                            : "Off — other seats' decks and pick orders stay hidden until the event ends."}
+                    </span>
                 </div>
 
                 {error && <p className="text-sm text-danger-strong">{error}</p>}

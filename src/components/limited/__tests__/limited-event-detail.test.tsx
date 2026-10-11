@@ -605,3 +605,63 @@ describe("LimitedChallengePanel hides during rounds, reappears at finish (findin
         expect(screen.getByText("Challenge a Player")).toBeTruthy();
     });
 });
+
+describe("LimitedEventDetail — Open Decklists warning before Join (issue #5386)", () => {
+    /** An open event the viewer (user-1) is NOT seated at — Join is offered. */
+    function joinable(openDecklists: boolean) {
+        return makeEvent({
+            status: "open",
+            openDecklists,
+            seats: [
+                {
+                    seatIndex: 0,
+                    userId: "user-2",
+                    nickname: "Bob",
+                    isBot: false,
+                    isViewer: false,
+                    poolCount: null,
+                    pool: null,
+                    currentPack: null,
+                    packQueueCount: null,
+                    pickDeadline: null,
+                    autoBuiltDeck: null,
+                },
+                {
+                    seatIndex: 1,
+                    isBot: false,
+                    isViewer: false,
+                    poolCount: null,
+                    pool: null,
+                    currentPack: null,
+                    packQueueCount: null,
+                    pickDeadline: null,
+                    autoBuiltDeck: null,
+                },
+            ] as LimitedEventView["seats"],
+        });
+    }
+
+    it("warns beside Join Event when the event has Open Decklists", () => {
+        eventMock.mockReturnValue(joinable(true));
+        const { container } = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        expect(screen.getByText("Join Event")).toBeTruthy();
+        expect(
+            container.querySelector(
+                '[data-slot="open-decklists-join-warning"]'
+            )!.textContent
+        ).toContain("your deck and pick order will be visible");
+    });
+
+    it("says nothing when the event does not have it", () => {
+        eventMock.mockReturnValue(joinable(false));
+        const { container } = render(
+            <LimitedEventDetail eventId={"event-1" as never} />
+        );
+        expect(screen.getByText("Join Event")).toBeTruthy();
+        expect(
+            container.querySelector('[data-slot="open-decklists-join-warning"]')
+        ).toBeNull();
+    });
+});
