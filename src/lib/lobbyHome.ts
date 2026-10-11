@@ -117,11 +117,11 @@ export type TableRow =
       };
 
 const EVENT_PHASE: Record<LimitedEventStatusChip, string> = {
-    open: "Waiting for players",
+    waiting: "Waiting for players",
     drafting: "Draft",
     building: "Deckbuilding",
     playing: "Games",
-    done: "Done",
+    history: "Done",
 };
 
 function matchPhase(status: ActiveGameStatus): string {
