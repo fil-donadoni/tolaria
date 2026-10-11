@@ -3,7 +3,7 @@
 How to install, check and remove the [reaper](#g-reaper) on both machines of
 topology B' (ADR 0154): a `launchd` agent on the MacBook, a `systemd` user
 timer on the Huawei. Built by issue #5470. The unit files live beside this
-guide, in [`runner-units/`](runner-units/).
+guide, in [`runner-units/`](../../scripts/runner-units/).
 
 ## What it does
 
@@ -58,7 +58,7 @@ From the primary checkout:
 REPO=$(git rev-parse --show-toplevel)
 mkdir -p ~/.cache/tolaria/reaper
 sed -e "s|__REPO__|$REPO|g" -e "s|__BUN__|$(command -v bun)|g" -e "s|__HOME__|$HOME|g" \
-    docs/guides/runner-units/com.tolaria.reaper.plist \
+    scripts/runner-units/com.tolaria.reaper.plist \
     > ~/Library/LaunchAgents/com.tolaria.reaper.plist
 launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.tolaria.reaper.plist
 launchctl print "gui/$(id -u)/com.tolaria.reaper" | grep -E 'state|last exit'
@@ -79,7 +79,7 @@ REPO=$(git rev-parse --show-toplevel)
 mkdir -p ~/.config/systemd/user
 for f in tolaria-reaper.service tolaria-reaper.timer; do
     sed -e "s|__REPO__|$REPO|g" -e "s|__BUN__|$(command -v bun)|g" \
-        "docs/guides/runner-units/$f" > ~/.config/systemd/user/$f
+        "scripts/runner-units/$f" > ~/.config/systemd/user/$f
 done
 sudo loginctl enable-linger "$USER"
 systemctl --user daemon-reload
@@ -93,7 +93,7 @@ Remove it with `systemctl --user disable --now tolaria-reaper.timer`.
 ### Every Tolaria unit
 
 Every other Tolaria unit on the Huawei (the health runner, the self-hosted
-Convex, the crons) gets the [`tolaria-unit.conf`](runner-units/tolaria-unit.conf)
+Convex, the crons) gets the [`tolaria-unit.conf`](../../scripts/runner-units/tolaria-unit.conf)
 drop-in: `KillMode=control-group`, so stopping the unit kills its whole cgroup,
 and a [unit tag](#g-unit), so the [reaper](#g-reaper) leaves the unit's tree to
 systemd instead of taking its processes (parent pid 1) for orphans:
@@ -101,7 +101,7 @@ systemd instead of taking its processes (parent pid 1) for orphans:
 ```bash
 UNIT=tolaria-health.service   # each Tolaria unit in turn
 mkdir -p ~/.config/systemd/user/$UNIT.d
-cp docs/guides/runner-units/tolaria-unit.conf ~/.config/systemd/user/$UNIT.d/
+cp scripts/runner-units/tolaria-unit.conf ~/.config/systemd/user/$UNIT.d/
 systemctl --user daemon-reload
 ```
 
