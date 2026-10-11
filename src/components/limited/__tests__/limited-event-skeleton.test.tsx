@@ -3,10 +3,6 @@
 // current phase. Drives the REAL `LimitedEventDetail` render per phase.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, cleanup, screen, fireEvent } from "@testing-library/react";
-import {
-    projectLimitedEvent,
-    type LimitedEventRow,
-} from "@convex/limited/eventProjection";
 import type { LimitedEventView } from "~/hooks/useLimitedEvent";
 import LimitedEventDetail from "../limited-event-detail";
 
@@ -61,12 +57,8 @@ vi.mock("@convex/_generated/api", () => {
     return { api: apiProxy };
 });
 
-// Mutable so the challenge-panel-visibility tests below can give the viewer
-// a legal deck for the event (`LimitedChallengePanel` renders nothing at all
-// without one) without disturbing every other test in this file, which relies
-// on the empty default (mirrors `limited-round-action.test.tsx`'s
-// `userDecksMock` idiom).
-let userDecksMock: unknown[] | undefined = [];
+// No saved decks: the hosted round action only needs the hook to resolve.
+const userDecksMock: unknown[] = [];
 
 vi.mock("~/hooks/useUserDecks", () => ({
     useUserDecks: () => userDecksMock,
