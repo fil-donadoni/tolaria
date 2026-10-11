@@ -1,7 +1,11 @@
 // Strict setup-flow import (PRD #5334 stories 41–48, issue #5343).
 import { describe, expect, it } from "vitest";
 import { getAllCardNames } from "@convex/cards";
-import { importFormat, strictImportDeck } from "../matchSetupDeckImport";
+import {
+    IMPORT_FORMAT_CHOICES,
+    importFormat,
+    strictImportDeck,
+} from "../matchSetupDeckImport";
 
 const NAME = getAllCardNames()[0];
 
