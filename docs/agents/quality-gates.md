@@ -100,7 +100,45 @@ becomes barrel-internal (#2339 — 102 tests across 12 files, seen first at the
 merge-train). `scripts/__tests__/convex-cards-barrel-mock.test.ts` runs in the
 node lane and catches it at light-gate speed.
 
-## `check:lane` — measured lane costs, what each lane skips, and why #2431/#2655 still stand
+## The lane after ADR 0154 — scoped by the import graph, placed never by fallback
+
+**ADR 0154 (2026-10-11, PRD #5454) overturns ADR 0104.** The rule "no lane
+scopes a project's tests to the diff — whole or not at all" cost ~5 of the
+7 minutes `land` held the heavy mutex per PR, on every PR, paid by every
+session queued behind it; what it bought was a census red surfacing at `land`
+instead of at the next health run. The owner's target — 10 issues/h over two
+machines, 5/h each — leaves a 3-minute budget per PR under the mutex (rebase
+
+- resolver ≤ 0.5, lane ≤ 2, merge ≤ 0.5), and no cut but this one reaches it.
+
+What a lane runs now (issue #5464): the vitest tests **reachable from the
+diff through the import graph** — vitest's changed-files mode against the
+base ref — for `engine`, `skin` and `cards`, plus `tsc`, diff-scoped
+prettier/eslint, `cr:lint`, the cached drift guards (`check:index`,
+`check:stubs`, `check:oracle`) and the cheap guards (≤ 10 s, issue #4963). A
+test the diff cannot reach is health's job; the full suite stays in batch
+health as the safety net, every 20 landings or 8 h (§ The batch cadence).
+Three more guards leave the lane for `HEALTH_ONLY_GUARDS` with their measured
+costs: the bot fast lane (its byte-identity pins were 29 of 34 vitest reds at
+`land`, every one base drift), `check:bundle` and `check:convex-bundle`.
+
+What ADR 0104 §3 keeps: **admission is fail-closed** — a path no rule places
+still forces `full`. But `full` is a PLACEMENT, not a fallback (issue #5456):
+`package.json` is `full` only when `dependencies` / `devDependencies` /
+`engines` / `packageManager` change, a scripts-only edit is `engine`;
+`.claude/**` non-prose (hooks, settings, skill scripts) is `engine` with the
+tooling test project; `tolaria.config.json`, `.nvmrc`, `.prettierignore`,
+`.gitattributes` are `engine`. The lane fallback rate row of
+`telemetry:latency` is the acceptance metric: 22 of 168 landings (13 %) on
+2026-10-11, every one a path in that list.
+
+**Until each ticket lands, `check-lane.ts` is the authority on what runs
+today**; the sections below are the history of the lanes it replaces and the
+measurements that justified them — kept because the residual risk ADR 0154
+accepts (a census guard the diff cannot reach reds the base tip ≤ 20 landings
+later, fixed forward) is exactly the risk they priced.
+
+## `check:lane` before ADR 0154 — measured lane costs, what each lane skipped, and why #2431/#2655 stood
 
 `bun run check:lane` (PRD #2738: #2739 tsconfig cache → #2740 classifier landed
 inert → #2741 wiring/execution → #2743 batch homogeneity + this section) picks
@@ -615,9 +653,12 @@ most 8 s on a landing that admits all three, nothing on one that admits none.
 **The census** (`check-lane.test.ts`): every `check:*` package script is either
 reached by some lane's plan (directly or through the scripts it composes) or
 listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured
-cost over `LANE_COST_BUDGET_S`. Today that list is `check:ui` alone (its
-`--all` walk: 14m39s green, 45m37s red). A guard in neither place reds the
-census.
+cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
+`--all` walk: 14m39s green, 45m37s red); ADR 0154 §3 adds the bot fast lane,
+`check:bundle` and `check:convex-bundle` with their costs (issue #5464), and
+moves `check:convex-heap` (9–17 min per health run) out of `HEALTH_SCRIPTS`
+altogether, to a by-hand `maintenance` script (issue #5458). A guard in
+neither place reds the census.
 
 ### No pre-PR gate — `land` pays the lane once (ADR 0136 §1–2)
 
@@ -639,6 +680,15 @@ Only a record whose command is exactly `check:lane` counts; the receipt says
 `check:lane` gates whatever HEAD is, stale or not.
 
 ### `land`'s preflight — the deterministic failures, before the queue (issue #4967)
+
+**Retired by ADR 0154 §5 (issue #5457).** Every recent `land` log printed
+`preflight skipped (the heavy mutex is free …)`; its 15-minute timeout and
+its admission wait were dead weight on the one path a session waits for, and
+the lane under the mutex is the one gate. The same ticket moves `land`'s
+GitHub-bound post-merge steps — `gaps:sync`, grammar residue, release claim,
+umbrella detach — to an hourly `housekeeping` cron, so a GitHub 502 costs the
+cron a retry and never the session. What follows is the record of what the
+preflight did and measured while it existed.
 
 Before `land` registers as a waiter on the mutex it runs
 `check:lane --preflight` on the PR's **un-rebased** head, at the light tier,
@@ -729,12 +779,12 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                   | Runs                                                               | Mutex                |
-| ---------------------- | ------------------------------------------------------------------ | -------------------- |
-| `bun run land <PR#>`   | rebase onto `origin/<base>` → `check:lane` → push → merge to base  | 3-5 min              |
-| batch health, detached | `health` on the CURRENT `origin/<base>` tip, per 10 landings / 4 h | ~10 min, queues last |
-| `bun run release`      | `health` on the `origin/<base>` tip → fast-forward `<release>`     | ~13 min, once        |
-| `bun run health`       | the same full gate, by hand, on the base tip                       | ~13 min              |
+| Step                 | Runs                                                                     | Where (ADR 0154)       | Mutex                      |
+| -------------------- | ------------------------------------------------------------------------ | ---------------------- | -------------------------- |
+| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base | MacBook                | ≤ 3 min budget (6.8 meas.) |
+| batch health         | `health` on the CURRENT `origin/<base>` tip, per 20 landings / 8 h       | Huawei (systemd timer) | its own machine's          |
+| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward    | MacBook                | ~13 min + walk, once       |
+| `bun run health`     | the same full gate, by hand, on the base tip                             | either                 | ~13 min                    |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
@@ -757,8 +807,10 @@ detach`; the decision is pure (`scripts/lib/health-cadence.ts`,
 `health-cadence.test.ts`) over four inputs — the landing count, the age of the
 first un-healthed landing, the last GREEN sha, the current tip:
 
-- fires on the **10th landing since the last GREEN**, or **4 h after the first**
-  un-healthed one;
+- fires on the **20th landing since the last GREEN**, or **8 h after the first**
+  un-healthed one (ADR 0154 §6, issue #5458; the constants are
+  `LANDINGS_PER_BATCH` / `MAX_BATCH_AGE_MS` in `scripts/lib/health-cadence.ts`
+  — read them, not this line, for what fires today);
 - **dedups by sha** twice — a tip already GREEN, and a tip already fired for —
   so five quick landings cost ONE run, which is the ADR 0116 property that had
   to survive;
@@ -785,6 +837,37 @@ batch gate would fire about twice as often and each run holds a machine's heavy
 mutex ~10 min. Doubling both thresholds keeps the runs per hour near the
 single-machine figure, at the price of a wider exposure window
 (≤ 10 landings or 4 h). `FIRE_DEDUP_MS` and `MAX_PENDING_MS` are unchanged.
+
+**Retuned 10 → 20 landings, 4 h → 8 h, and moved off the MacBook (ADR 0154,
+issue #5458).** Measured over the 14 days to 2026-10-11 (`health_detach`,
+`detach.log`): health held the mutex 17–32 min per run and 1–4 h per day —
+252 min on 2026-10-04 — fired mostly by AGE, for batches of 1–4 landings;
+`check:convex-heap` alone was 9–17 min of each run. At the target of 10
+landings/h, 20 / 8 h is one full suite per ~2 h; and the run no longer holds
+the MacBook's mutex at all under topology B': the Huawei's systemd timer
+polls `origin/<base>`, applies the same pure cadence plan
+(`health-cadence.ts`) and runs health against its own self-hosted Convex
+deployment (issues #5467, #5468). The bot refresh steps (`bot:reach`,
+`seed:bot-findings`, `gaps:sync`) leave health for a nightly cron and the
+robustness / pick-agreement audits run weekly, on the same machine. A failed
+vitest project is re-run once before RED (issue #5461): 11 % of health reds
+were flaky.
+
+**The verdict is shared state (issue #5462).** A health verdict on one machine
+was a local file (`.claude/telemetry/health/last.json`, the `RED` marker), so
+the other machine's `queue:plan` kept picking from a tip it could not know was
+red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
+goes through a store with two backends — the local file, and a GitHub commit
+status on the gated sha (`context=health`; `context=ui-walk` for the Linux
+walk while it is advisory, issue #5465). `queue:plan`, `land`'s RED gate,
+`loop-drain`'s stop and `health:fix` read through the store on both machines;
+the backend is `tolaria.config.json`. Last writer per sha wins; `infra` never
+overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the
+final authority (ADR 0116 unchanged). RED on tip T blocks NEW picks on both
+machines and refuses non-repair landings (`--red-ok`, issue #4964) while
+in-flight PRs land; a second RED on the same lineage stops the loop and
+notifies the owner; a stale verdict (no verdict on any tip gated within
+`MAX_PENDING_MS`) makes the MacBook run one local health and notify.
 
 **The mutex queues health LAST.** Health holds the lock ~10 min and a landing
 ~4, and the tip health is about does not get staler while a land runs — the
@@ -1323,7 +1406,7 @@ for it (`gate.test.ts` § the queue): the waiters that should go first are
 SIGSTOPped, so the lowest class is the only one polling a free mutex, and
 "it polled twice and is still queued" is read off its own `seen` stamp.
 
-## Session admission — the cap, the RED refusal, and the number behind them## Session admission — the cap, the RED refusal, and the number behind them
+## Session admission — the cap, the RED refusal, and the number behind them
 
 **The claim is one locked act (issue #4375, PRD #4373).** Until then the cap
 was enforced by a READ — `queue:plan` counted the live `in-progress` claims and
@@ -1432,21 +1515,31 @@ the journal is a correction to it, and both records are read where their
 WRITERS put them (the journal under the session's project directory, the health
 marker under the primary checkout) rather than relative to the caller's cwd.
 
-**The derivation.** The cap is measured, from the PRs-per-hour-by-concurrency
-row of `bun run telemetry:latency`:
+**The derivation (ADR 0154 §8).** The cap is measured, per machine, from the
+PRs-per-hour-by-concurrency row of `bun run telemetry:latency`. The 2026-09
+reading set it at 3 — 0.59 PR/h at one session, 1.44 at three, 1.19 at four, a
+"knee" past which total throughput fell. The 2026-10-11 reading on the MacBook
+(2026-10-05 → 10-11, `telemetry:latency` § PRs landed per hour):
 
-| Active sessions | PR/h measured | Per-session yield | Reading                                         |
-| --------------: | ------------: | ----------------: | ----------------------------------------------- |
-|               1 |          0.59 |              0.59 | Under-subscribed — the machine idles            |
-|               3 |          1.44 |              0.48 | **The knee** — the configured cap               |
-|               4 |          1.19 |              0.30 | Past it: total throughput FALLS, not just yield |
+| Active sessions | Hours | PR/h measured | Reading                                         |
+| --------------: | ----: | ------------: | ----------------------------------------------- |
+|               3 |    18 |          1.28 | the old cap: the mutex, not the CPU, is the cap |
+|               4 |    21 |          1.33 |                                                 |
+|               5 |     8 |      **3.00** | the configured cap — the target is 5/h/machine  |
+|               6 |     5 |          2.40 | contention returns                              |
 
-Three is where the curve turns over, and the fourth session buys negative
-throughput — it contends for the same heavy-gate mutex, the same RAM-bound
-worker pool and the same base branch, so it converts wall-clock into queueing.
-**It moves to 4 only when that row shows the knee moved**, on a later window,
-not because the queue looks long. Re-run the command, read the same three
-columns, then edit the config.
+The knee of 2026-09 was a property of the gates, not of the machine: with
+`land` holding the mutex 6.8 min per PR, the fourth session only queued. Once
+the lane is scoped (ADR 0154 §2) the mutex budget per PR is 3 min and the
+machine, not the mutex, decides; **`sessions.cap` is 5** (issue #5460), and
+the row that moves it is the same row — read PER MACHINE, since each machine
+runs its own sessions against its own mutex. The binding constraint behind
+the cap is the API budget, not the CPU: the same ticket ingests the LLM cost
+per session (≈ 12.8 M cache-read tokens for one `/next-ticket` session on
+2026-10-11) so a `rate-limit` stop is a measured risk, and `telemetry:latency`
+prints PR/h per machine and the land mutex p50/p90 — the acceptance numbers
+(mutex p50 ≤ 3 min and ≥ 4 PR/h after Phase 0; ≥ 5 PR/h per machine over 24 h
+after Phase 1).
 
 **The RED refusal.** The durable release-health marker
 (`.claude/telemetry/health/RED`, left by `health-main.ts`) means the full gate
@@ -1458,6 +1551,20 @@ that. `land` is unchanged: it WARNS and proceeds, so a session already
 mid-issue finishes and the fix-forward has a way in.
 
 ### The machine — what none of the above looked at (issue #4966)
+
+**Two machines, two roles (ADR 0154 §9, topology B').** The MacBook (M1 Pro,
+8 cores, 16 GB) runs the LLM sessions, `land` and `release` — everything a
+person or a session waits on. The Huawei (Omarchy Linux, i7 4c/8t, 16 GiB,
+~0.35× the MacBook's multi-thread) runs what nobody waits on: batch health,
+the nightly crons, the audits, the `check:ui --all` release walk. So the
+admission below is read twice: on the MacBook a heavy holder is now almost
+always a `land` and health never competes with it; on the Huawei the probes
+are Linux's (`/proc`, PSI) and the thresholds are calibrated from that
+machine's first `gate-lock.jsonl` samples (issue #5468), with `systemd-inhibit`
+for keep-awake. The bench brief
+`docs/research/huawei-gate-bench-2026-10-11.md` § 5 decides how much of
+health the Huawei carries. `land` stays on the MacBook in every outcome — on
+the Huawei a lane would be 7–9 min.
 
 Everything above rations the gates and the claims **among themselves**. Nothing
 looked at the machine: a gate that took the mutex at load 14 ran anyway, the
@@ -1778,18 +1885,25 @@ bun run docs:ship          # check:docs → commit → rebase → push → PR �
 bun run docs:ship --no-merge   # …but leave the PR open
 ```
 
-`check:docs` = `format:check` + `cr:lint` + the five guards that read prose
-(`DOC_GATE_TESTS` in `scripts/docs-lane.ts`). Seconds, `light` tier, no
-machine-wide lock — which is what makes a PR per discussion affordable instead
-of a tax people route around.
+`check:docs` = `format:check` + `cr:lint` + the guards that read prose
+(`DOC_GATE_TESTS` in `scripts/lib/doc-gate-tests.ts`). Seconds, `light` tier,
+no machine-wide lock — which is what makes a PR per discussion affordable
+instead of a tax people route around.
 
 **Its MERGE, however, takes the lock** (#2537). Gating and merging are separate
-acts: a docs merge moves `main` exactly as much as any other, and `main` moving
-under a session mid-gate is what makes that session's verified tree stop being
-the tree that lands. So `docs:ship` re-runs the rebase, `check:docs` and the
-force-push _inside_ one `gate.ts heavy` invocation and merges there — paying
-the queue for the seconds it merges in, and for nothing else. The cheap gate is
-untouched; `bun run check:docs` on its own still takes no lock.
+acts: a docs merge moves the base exactly as much as any other, and the base
+moving under a session mid-gate is what makes that session's verified tree
+stop being the tree that lands. So `docs:ship` re-runs the rebase,
+`check:docs` and the force-push _inside_ one `gate.ts heavy` invocation and
+merges there. It pays the queue for the seconds it merges in — **and for the
+whole wait behind whoever holds the mutex**: measured 2026-10-11, a
+`docs:ship` queued 8+ min behind one `land`; on 2026-09-01 one waited 2h07m
+behind a stalled health (§ A waiter says who is blocking it). CLAUDE.md used to
+say "seconds, no lock"; it now says the merge queues on the heavy mutex
+(ADR 0154 §10). The ticket that makes the lock-free reading true is issue
+#5469: landing becomes asynchronous — a session ends at push + `ready-to-land`,
+one `land-runner` on the MacBook merges — and `docs:ship` goes through the
+same runner. `bun run check:docs` on its own still takes no lock.
 
 `docs:ship` refuses a changeset containing anything that is not `*.md` or under
 `docs/`: a mixed change goes through the ordinary branch, where the code
@@ -2086,6 +2200,20 @@ Re-run the command over a later window to say whether that held. Note what the
 `idle` column is NOT saying: its p90 of 300m is real, but it is the abandoned
 long tail, not the median issue — which is exactly why this is reported as a
 distribution and not as the mean the issue was first argued from.
+
+**Re-read on 2026-10-11 (ADR 0154).** The 60-minute target held and then
+some: the `/next-ticket` median is 35.4 min wall over 120 sessions
+(2026-10-05 → 10-11), model 5.2 min, tool 25.4 min. The shape of the problem
+changed with it — the session no longer waits on its OWN gate (gate/test/build
+median 0.4 min; `land` pays the lane) but on the machine's mutex: `land` 6.8
+min per PR, health 1–4 h a day, 42 % of PRs landing on the 2nd–6th attempt,
+8–9 of the 35 minutes spent polling `land`. The target is now the owner's,
+not a median: **10 issues an hour over two machines**, 5/h each, which means
+≤ 3 min of mutex per PR (§ The lane after ADR 0154) and a session that ends
+at push once landing is asynchronous (issue #5469: ~15 min — model 5, review
+3, overhead). `telemetry:latency` gains PR/h per machine and the land mutex
+p50/p90 (issue #5460); those two rows, not this prose, say whether the target
+is met.
 
 ### ADR 0136's KPI rows — four from issue #3777, a fifth from issue #4376
 

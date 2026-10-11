@@ -8,7 +8,12 @@ together with the pre-PR gate it protected. Grilled 2026-09-17; the numbers
 below are that session's, re-derivable with `bun run telemetry:latency` and
 the SQL on `.claude/telemetry/telemetry.db` quoted in
 `docs/agents/quality-gates.md`. The decided flow and the three land/health
-scenarios are drawn in `docs/guides/next-ticket-flow.md`.
+scenarios are drawn in `docs/guides/next-ticket-flow.md`. **Amended by ADR
+0154 (2026-10-11)**: §5's fixed partitions are no longer the limit of what a
+lane may skip (the lane runs the tests reachable from the diff); §6's cadence
+is 20 landings / 8 h and the verdict is shared across machines as a commit
+status; §7's cap is 5 per machine; the health-only guard list grows by cost
+(bot byte-identity pins, `check:bundle`, `check:convex-bundle`).
 
 ## Context
 

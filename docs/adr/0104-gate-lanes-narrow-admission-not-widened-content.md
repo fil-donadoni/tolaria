@@ -2,6 +2,13 @@
 
 ## Status
 
+**Superseded by ADR 0154 (2026-10-11).** Decision item 2 — "lane content is
+never diff-derived: whole or not at all" — is overturned: `check:lane` runs
+the tests reachable from the diff through the import graph, and the whole
+suite is batch health's job. Item 3 (fail-closed admission: an unplaced path
+forces `full`) survives in ADR 0154 §2 and §4. The argument below is kept as
+history of what the doctrine defended and what it measured to cost.
+
 accepted — amended 2026-09-09 (see below); §2 amended for `check:ui` alone
 by ADR 0131 (2026-09-15); §2 amended by ADR 0136 §5 (2026-09-17): a lane may
 run a FIXED, content-classified partition of a vitest project
