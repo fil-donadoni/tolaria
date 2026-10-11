@@ -38851,6 +38851,7 @@
         {"id":"701.9b","line":"// CR 608.2b / 701.9b — mandatory (no \"may\"); see the","sites":1,"status":"baseline"},
         {"id":"701.9b","line":"// CR 701.20a + CR 701.9b — \"Target opponent reveals their hand. You choose","sites":1,"status":"confirmed","ruleHash":"4d06dc715167a317"},
         {"id":"701.9b","line":"// CR 701.9b makes the DISCARDING player choose which cards go, so the discard","sites":1,"status":"baseline"},
+        {"id":"701.9b","line":"// CR 701.9b — \"Draw three cards, then discard two cards\": the CONTROLLER","sites":1,"status":"confirmed","ruleHash":"4d06dc715167a317"},
         {"id":"701.9b","line":"// CR 701.9b — \"Target player discards two cards\": the affected player","sites":1,"status":"confirmed","ruleHash":"4d06dc715167a317"},
         {"id":"701.9b","line":"// CR 701.9b — the DISCARDING player chooses which cards go.","sites":2,"status":"baseline"},
         {"id":"701.9b","line":"// CR 701.9b — the DISCARDING player chooses, not the activator.","sites":1,"status":"baseline"},
