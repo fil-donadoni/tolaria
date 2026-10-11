@@ -380,7 +380,7 @@ function fixtureListPath(ctx: WalkContext): string {
     return `/limited?label=${ctx.fixtureLabels.prefix}`;
 }
 
-/** The row handle `limited-event-list-item.tsx` renders for a labelled event.
+/** The handle `limited-event-list-item.tsx` and the hub tiles render for a labelled event.
  *  `key={event._id}` is a React key, not an attribute — before this there was
  *  nothing in the DOM to select one specific event with. */
 function fixtureRow(label: string): string {
@@ -3782,14 +3782,15 @@ export const SURFACES: readonly Surface[] = [
         label: "Limited events list (/limited, fixture-filtered)",
         /**
          * The list's own controls plus the fixture row and the action that
-         * ENTERS it — the runbook's `/limited` line (status chips, the Mine
-         * toggle, `+ Create Event`) and the row's `View`, which every Limited
-         * and draft walk below reaches its subject through.
+         * ENTERS it — the runbook's `/limited` line (status chips, the New
+         * event tile) and the tile's `View`, which every Limited and draft
+         * walk below reaches its subject through.
          *
-         * `+ Create Event` is promised because `canCreateLimitedEvents` keys
-         * on "signed in", not on admin (`src/lib/limitedGating.ts`) — the
-         * lane's throwaway account sees it, and a regression that put hosting
-         * back behind an admin gate is exactly what this line catches.
+         * The New event tile's "Choose format, seats, timers…" is promised
+         * because `canCreateLimitedEvents` keys on "signed in", not on admin
+         * (`src/lib/limitedGating.ts`) — the lane's throwaway account sees
+         * it, and a regression that put hosting back behind an admin gate is
+         * exactly what this line catches.
          */
         asserts: [
             {
@@ -3798,13 +3799,11 @@ export const SURFACES: readonly Surface[] = [
                 check: "visible",
             },
             {
-                label: "Mine toggle",
-                locator: { role: "button", name: "Mine" },
-                check: "reachable",
-            },
-            {
                 label: "create event",
-                locator: { role: "button", name: "+ Create Event" },
+                locator: {
+                    role: "button",
+                    name: "Choose format, seats, timers…",
+                },
                 check: "reachable",
             },
             {
@@ -3908,17 +3907,17 @@ export const SURFACES: readonly Surface[] = [
             "src/routes/limited-your-events.route.tsx",
             "src/routes/limited-events.route.tsx",
         ],
-        // Issue #2590: `/limited/events` is now a REDIRECT stub to
-        // `/limited?mine=1` — the your-events page it used to render was
-        // absorbed into the merged list. The walk proves the redirect
+        // Issue #2590 / #5388: `/limited/events` is a REDIRECT stub to
+        // `/limited` — the your-events page it used to render was absorbed
+        // into the hub. The walk proves the redirect
         // actually lands somewhere real rather than just checking "a main
         // region exists" (which a stuck redirect's own loading screen would
         // also satisfy).
-        label: "Your Limited events redirect (/limited/events → /limited?mine=1)",
+        label: "Your Limited events redirect (/limited/events → /limited)",
         /**
          * This surface's subject is the REDIRECT, and what proves it landed
-         * somewhere real is the list it lands on: a seeded row, its Enter
-         * action, and the Mine toggle the `?mine=true` target turns on. A
+         * somewhere real is the hub it lands on: a seeded row and its Enter
+         * action. A
          * redirect that dropped `?label=` lands on the unbounded list, where
          * the fixture row promise still holds — the walk's own
          * `fixtureRowsRendered` check is what covers that, and these are the
@@ -3935,11 +3934,6 @@ export const SURFACES: readonly Surface[] = [
                 locator: { role: "button", name: "View" },
                 check: "reachable",
             },
-            {
-                label: "Mine toggle",
-                locator: { role: "button", name: "Mine" },
-                check: "reachable",
-            },
         ],
         async walk(page, ctx) {
             // The `label` param rides through the redirect (issue #2822, see
@@ -3951,13 +3945,6 @@ export const SURFACES: readonly Surface[] = [
                 ctx,
                 `/limited/events?label=${ctx.fixtureLabels.prefix}`
             );
-            // The redirect target's query string is `?mine=true`, not
-            // `?mine=1` — `stringifySearch` serializes the boolean, it never
-            // emits the numeric literal a hand-typed/bookmarked URL would use
-            // (see `src/router.tsx`'s `validateSearch`, which accepts both on
-            // the way IN). A pattern anchored to `?mine=1` can never match
-            // this navigation, so it always burned the full NAV_TIMEOUT
-            // before falling through to the weaker substring check below.
             await page
                 .waitForURL(/\/limited(\?.*)?$/, { timeout: NAV_TIMEOUT })
                 .catch(() => {});

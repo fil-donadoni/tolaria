@@ -77,17 +77,15 @@ const SURFACES: SurfaceRow[] = [
     },
     {
         surface: "Limited list — open events",
-        file: "src/components/limited/limited-event-list.tsx",
+        file: "src/components/limited/limited-hub/limited-hub-join-table.tsx",
         requires: ["EmptyState"],
     },
     {
-        // Issue #2590: the your-events page was absorbed into the merged
-        // `/limited` list behind the `mine` filter (`limited-events-page.tsx`
-        // now backs BOTH what used to be two routes) — `EmptyState` stays
-        // covered by the "Limited list — open events" row above (the SAME
-        // `LimitedEventList` renders every filtered cut of the merged list,
-        // open-only or not), so this row narrows to the page's OWN loading
-        // moment.
+        // Issue #2590 / #5388: the your-events page was absorbed into the hub
+        // (`limited-events-page.tsx` now backs BOTH what used to be two
+        // routes) — `EmptyState` stays covered by the "Limited list — open
+        // events" row above (Join a table, where the hub's empty message
+        // lives), so this row narrows to the page's OWN loading moment.
         surface: "Limited list — events page (loading)",
         file: "src/components/limited/limited-events-page.tsx",
         requires: ["LoadingScreen"],

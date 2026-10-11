@@ -285,16 +285,15 @@ Behaviour for both steps is covered by
 The three routes that need no fixture beyond a signed-in account. Each is one
 navigation:
 
-| Route           | Screen                                                                                                                                                                                              |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/`             | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running                                                                                                               |
-| `/decks/create` | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                                  |
-| `/limited`      | Limited events list (issue #2590) — status chips (open/drafting/building/playing/done) + a "Mine" toggle over the union of open events and every event the viewer has ever sat in, `+ Create Event` |
+| Route           | Screen                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`             | Lobby — PLAY box, PRESET DECKS / MY DECKS, the active-game banner when one is running                                                                                                   |
+| `/decks/create` | Constructed deck builder (`/decks/<slug>/edit` is the same component in edit mode)                                                                                                      |
+| `/limited`      | Limited hub (issue #5388) — status chips (waiting/drafting/building/playing/history, with counts), "Your events" tiles with one CTA per phase and a New event tile last, "Join a table" |
 
 **`/limited/events` is a redirect stub, not a screen** (issue #2590): the
-your-events page it used to render was absorbed into `/limited` behind
-`?mine=1` — navigating there lands on `/limited?mine=1` after one render
-frame. It stays a STATIC sibling of `/limited/$eventId` for route precedence
+your-events page it used to render was absorbed into the `/limited` hub —
+navigating there lands on `/limited` after one render frame. It stays a STATIC sibling of `/limited/$eventId` for route precedence
 (`src/routes/__tests__/router-limited-precedence.test.ts`), so it is still
 worth walking to prove the redirect actually fires, just not as a distinct
 visual surface.
