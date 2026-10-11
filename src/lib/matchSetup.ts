@@ -44,6 +44,11 @@ export interface MatchSetup {
     difficulty: Difficulty;
     joinTableId: string | null;
     joinTableFormat: FormatId | null;
+    /** A join code typed instead of a listed table (Arena only). The code is
+     *  never resolved client-side — resolving it would make the code space an
+     *  enumerable oracle (issue #2649) — so the table's Match Format stays
+     *  unknown and the server re-checks the deck at Start. Never persisted. */
+    joinCode: string | null;
 }
 
 /** The setup a first visit opens on. Mirror is the default second deck. */
@@ -58,14 +63,18 @@ export const EMPTY_SETUP: MatchSetup = {
     difficulty: DEFAULT_DIFFICULTY,
     joinTableId: null,
     joinTableFormat: null,
+    joinCode: null,
 };
 
 const GAME_MODES: readonly GameMode[] = ["arena", "cockatrice"];
 
-/** The opponents step 2 offers today. Join a table lands with its own step
- *  (the table list); until then a stored `join` loads as unanswered rather
- *  than opening a step with nothing to pick. */
-export const OFFERED_OPPONENTS: readonly Opponent[] = ["bot", "solo", "host"];
+/** The opponents step 2 offers. */
+export const OFFERED_OPPONENTS: readonly Opponent[] = [
+    "bot",
+    "solo",
+    "host",
+    "join",
+];
 
 /** The Match Formats step 3 offers: every playable Format. Limited has its own
  *  branch (`/limited`); Manual is Cockatrice's implicit Match Format. */
@@ -74,12 +83,46 @@ export const ARENA_MATCH_FORMATS: readonly FormatId[] = FORMAT_IDS.filter(
 );
 
 /** The Match Format actually in force: Cockatrice is always Manual, a join
- *  inherits the host's, otherwise the one step 3 chose. */
+ *  inherits the host's, otherwise the one step 3 chose. A join by code cannot
+ *  know the host's, so its deck grid admits every Arena deck (Freeform) and
+ *  the server's admission check is the verdict. */
 export function effectiveMatchFormat(s: MatchSetup): FormatId | null {
     if (s.mode === "cockatrice") return "manual";
-    if (s.opponent === "join") return s.joinTableFormat;
+    if (s.opponent === "join") {
+        return s.joinCode === null ? s.joinTableFormat : "freeform";
+    }
     return s.matchFormat;
 }
+
+/** One open table as step 2's Join list shows it — the slice of
+ *  `listOpenGames` this flow reads. */
+export interface OpenTable {
+    _id: string;
+    name: string;
+    /** `"manual"` for a Cockatrice table; absent for an Arena one. */
+    mode?: "manual";
+    matchFormat: FormatId;
+    /** The Games Format as the Match-flow field: 1 = Bo1, 3 = Bo3. */
+    bestOf: GamesFormat;
+    players: readonly { name: string }[];
+}
+
+/** The open tables of one game mode: Cockatrice sees Manual tables only,
+ *  Arena everything else (story 27). */
+export function tablesForMode<T extends Pick<OpenTable, "mode">>(
+    tables: readonly T[],
+    mode: GameMode | null
+): T[] {
+    if (mode === null) return [];
+    return tables.filter(
+        (t) => (t.mode === "manual") === (mode === "cockatrice")
+    );
+}
+
+/** Whether the mode offers join by code: codes only ever name Arena tables
+ *  (`isCodeJoinableGame`). */
+export const joinByCodeAvailable = (mode: GameMode | null): boolean =>
+    mode === "arena";
 
 /** The Bot cannot play a Manual deck (ADR 0080), so Cockatrice has no Bot. */
 export function opponentUnavailableReason(
@@ -183,7 +226,12 @@ export function stepInfo(
             return {
                 key,
                 title: "Table",
-                answer: s.joinTableId === null ? null : "Table picked",
+                answer:
+                    s.joinCode !== null
+                        ? `Code ${s.joinCode}`
+                        : s.joinTableId === null
+                          ? null
+                          : "Table picked",
             };
         case "format":
             return {
@@ -251,9 +299,18 @@ export function applyChange(
     }
     // A table belongs to one game mode: switching mode leaves it behind.
     if (next.opponent === "join" && next.mode !== s.mode) next.opponent = null;
+    if (next.opponent !== "join" || next.mode !== "arena") next.joinCode = null;
     if (next.opponent !== "join") {
         next.joinTableId = null;
         next.joinTableFormat = null;
+    }
+    // A table and a code are two ways to name the same seat: the later pick
+    // wins, and the stale one never rides along into Start.
+    if (patch.joinCode != null) {
+        next.joinTableId = null;
+        next.joinTableFormat = null;
+    } else if (patch.joinTableId != null) {
+        next.joinCode = null;
     }
     if (next.myDeckId !== null && !admittedDeck(next, next.myDeckId, decks)) {
         next.myDeckId = null;
@@ -345,6 +402,7 @@ export function parseSetup(raw: string | null): MatchSetup {
         difficulty: oneOf(o.difficulty, DIFFICULTIES) ?? DEFAULT_DIFFICULTY,
         joinTableId: stringOrNull(o.joinTableId),
         joinTableFormat: formatOrNull(o.joinTableFormat),
+        joinCode: null,
     };
 }
 
@@ -413,6 +471,10 @@ export type StartRequest = { seat: "own" | "p1" } & (
           mutation: "joinGame" | "joinManualGame";
           args: { gameId: Id<"games">; deck: DeckArg };
       }
+    | {
+          mutation: "joinGameByCode";
+          args: { code: string; deck: DeckArg };
+      }
 );
 
 /**
@@ -439,6 +501,13 @@ export function startRequest(
 
     switch (s.opponent) {
         case "join":
+            if (s.joinCode !== null) {
+                return {
+                    seat: "own",
+                    mutation: "joinGameByCode",
+                    args: { code: s.joinCode, deck },
+                };
+            }
             return {
                 seat: "own",
                 mutation: manual ? "joinManualGame" : "joinGame",

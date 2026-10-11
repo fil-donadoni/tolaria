@@ -28,6 +28,7 @@ export default function MatchSetupFlow() {
     const user = useCurrentUser();
     const userDecks = useUserDecks();
     const presetDecks = useQuery(api.decks.list, {});
+    const openGames = useQuery(api.gameReads.listOpenGames);
     const [stored, setStored] = useState<MatchSetup>(loadSetup);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,7 @@ export default function MatchSetupFlow() {
     );
     const joinGame = useMutation(api.game.joinGame);
     const joinManualGame = useMutation(api.gameManual.joinManualGame);
+    const joinGameByCode = useMutation(api.game.joinGameByCode);
 
     const decks = useMemo<LobbyDeck[]>(
         () => [
@@ -80,6 +82,8 @@ export default function MatchSetupFlow() {
             case "joinManualGame":
                 await joinManualGame(req.args);
                 return req.args.gameId;
+            case "joinGameByCode":
+                return (await joinGameByCode(req.args)).gameId;
         }
     };
 
@@ -107,6 +111,7 @@ export default function MatchSetupFlow() {
         <MatchSetupPanes
             setup={setup}
             decks={decks}
+            tables={openGames ?? []}
             onChange={update}
             canStart={request !== null}
             busy={busy}
