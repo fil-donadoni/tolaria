@@ -149,8 +149,11 @@ describe("check-lane — path classification (issue #2740)", () => {
         }
         const hook = classifyLane([".claude/hooks/deny-guard.sh"]);
         expect(hook.run.map((c) => c.id)).toContain("node-tooling");
-        const cfg = classifyLane(["tolaria.config.json"]);
-        expect(cfg.run.map((c) => c.id)).not.toContain("node-tooling");
+        for (const p of ["tolaria.config.json", ".nvmrc", ".gitattributes"])
+            expect(
+                classifyLane([p]).run.map((c) => c.id),
+                p
+            ).toContain("node-tooling");
     });
 
     describe("package.json is classified by content (issue #5456)", () => {
@@ -178,6 +181,11 @@ describe("check-lane — path classification (issue #2740)", () => {
         ])("a %s change is full", (key, value) => {
             expect(
                 packageJsonClass(pkg(base), pkg({ ...base, [key]: value }))
+            ).toBe("full");
+        });
+        it("an unlisted key (type, imports) is full", () => {
+            expect(
+                packageJsonClass(pkg(base), pkg({ ...base, type: "module" }))
             ).toBe("full");
         });
         it("added, deleted or unparsable is full", () => {

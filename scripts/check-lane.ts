@@ -169,25 +169,15 @@ const ENGINE_CONFIG_PATTERNS: RegExp[] = [
 ];
 
 /**
- * `package.json` is classified by CONTENT (issue #5456): `full` only when a
- * key that changes the installed dependency set or the runtime moved, else
- * `engine` (a scripts-only edit is proven by the engine lane's checks).
+ * `package.json` is classified by CONTENT (issue #5456): `engine` only when
+ * nothing but `scripts` (or version/description) moved, else `full` — an
+ * allow-list, so `type`, `imports`, `engines`, dependencies and any unknown
+ * key stay `full`.
  * Anything unparsable, added or deleted is `full` — fail-closed. Pure over the
  * two file texts; the git plumbing that fetches them is `packageJsonClasses`.
  */
-const PACKAGE_JSON_FULL_KEYS = [
-    "dependencies",
-    "devDependencies",
-    "peerDependencies",
-    "optionalDependencies",
-    "overrides",
-    "resolutions",
-    "patchedDependencies",
-    "trustedDependencies",
-    "workspaces",
-    "engines",
-    "packageManager",
-];
+/** Keys whose change cannot move any lane's meaning: allow-list, fail-closed. */
+const PACKAGE_JSON_ENGINE_KEYS = new Set(["scripts", "version", "description"]);
 
 export function packageJsonClass(
     before: string | null,
@@ -197,8 +187,11 @@ export function packageJsonClass(
     try {
         const a = JSON.parse(before) as Record<string, unknown>;
         const b = JSON.parse(after) as Record<string, unknown>;
-        const moved = PACKAGE_JSON_FULL_KEYS.some(
-            (k) => JSON.stringify(a[k]) !== JSON.stringify(b[k])
+        const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+        const moved = [...keys].some(
+            (k) =>
+                !PACKAGE_JSON_ENGINE_KEYS.has(k) &&
+                JSON.stringify(a[k]) !== JSON.stringify(b[k])
         );
         return moved ? "full" : "engine";
     } catch {
@@ -743,7 +736,7 @@ export function classifyLane(
     } else {
         skip.push({
             id: "node-tooling",
-            reason: "no changed code under scripts/** or .claude/** — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
+            reason: "no changed code under scripts/** or tooling config — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
         });
     }
     appendCheapGuards(files, run, skip);
@@ -844,7 +837,8 @@ const PREFLIGHT_STATIC_IDS: ReadonlySet<string> = new Set([
 ]);
 
 /** Where the drift-guard census lives: hooks, skills, the gate scripts. */
-const PREFLIGHT_TOOLING_PATHS = /^(scripts|\.claude)\//;
+const PREFLIGHT_TOOLING_PATHS =
+    /^((scripts|\.claude)\/|tolaria\.config\.json$|\.nvmrc$|\.gitattributes$|\.prettierignore$|package\.json$)/;
 
 const PREFLIGHT_SKIP_REASON =
     "needs the rebased tip — runs inside the mutex, in the lane proper";
