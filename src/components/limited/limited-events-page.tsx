@@ -1,9 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import type { Id } from "@convex/_generated/dataModel";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import {
-    usePackSources,
     useJoinLimitedEvent,
     useLimitedEventMutations,
     useMyLimitedEvents,
@@ -22,9 +21,6 @@ import LoadingScreen from "~/components/ui/loading-screen";
 import SurfaceReadyMarker from "~/components/ui/surface-ready-marker";
 import LimitedEventList from "./limited-event-list";
 import LimitedStatusFilterBar from "./limited-status-filter-bar";
-import CreateLimitedEventDialog, {
-    type CreateLimitedEventPayload,
-} from "./create-limited-event-dialog";
 
 /** Limited Events lobby (PRD #1107, ADR 0054/0055, issue #1110; merged with
  *  the your-events page and given status/mine filtering by issue #2590): the
@@ -60,12 +56,7 @@ export default function LimitedEventsPage({
     const user = useCurrentUser();
     const openEvents = useOpenLimitedEvents();
     const myEvents = useMyLimitedEvents();
-    const packSources = usePackSources();
-    const { create, join } = useLimitedEventMutations();
-
-    const [createOpen, setCreateOpen] = useState(false);
-    const [createPending, setCreatePending] = useState(false);
-    const [createError, setCreateError] = useState<string | null>(null);
+    const { join } = useLimitedEventMutations();
 
     const viewerId = user?._id ?? "";
 
@@ -131,28 +122,10 @@ export default function LimitedEventsPage({
     if (
         openEvents === undefined ||
         myEvents === undefined ||
-        packSources === undefined ||
         user === undefined
     ) {
         return <LoadingScreen />;
     }
-
-    const handleCreate = async (payload: CreateLimitedEventPayload) => {
-        if (createPending) return;
-        setCreatePending(true);
-        setCreateError(null);
-        try {
-            const eventId = await create(payload);
-            setCreateOpen(false);
-            handleOpen(eventId);
-        } catch (err) {
-            setCreateError(
-                err instanceof Error ? err.message : "Failed to create event."
-            );
-        } finally {
-            setCreatePending(false);
-        }
-    };
 
     const emptyMessage =
         mine || status || label
@@ -197,7 +170,9 @@ export default function LimitedEventsPage({
                             <Button
                                 variant="primary"
                                 size="sm"
-                                onClick={() => setCreateOpen(true)}
+                                onClick={() =>
+                                    void navigate({ to: "/limited/new" })
+                                }
                             >
                                 + Create Event
                             </Button>
@@ -205,15 +180,6 @@ export default function LimitedEventsPage({
                     )}
                 </PanelBody>
             </Panel>
-
-            <CreateLimitedEventDialog
-                open={createOpen}
-                onOpenChange={setCreateOpen}
-                packSources={packSources}
-                onCreate={(payload) => void handleCreate(payload)}
-                pending={createPending}
-                error={createError}
-            />
         </div>
     );
 }

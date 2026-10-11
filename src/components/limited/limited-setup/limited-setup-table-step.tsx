@@ -1,0 +1,150 @@
+// Step 3 — Table (PRD #5383): seats, Games Format, pick timer (Draft only),
+// boosters per seat (Sealed only), round deadline and Open Decklists.
+import { MAX_SEATS, MIN_SEATS } from "@convex/limited/eventLogic";
+import {
+    DEFAULT_ROUND_DEADLINE_MINUTES,
+    MAX_ROUND_DEADLINE_MINUTES,
+    MIN_ROUND_DEADLINE_MINUTES,
+} from "@convex/limited/gamesFormat";
+import type { PackSourceInfo } from "~/hooks/useLimitedEvent";
+import { OPEN_DECKLISTS_CONSEQUENCE } from "~/lib/openDecklists";
+import {
+    pickTimerVisible,
+    seatLimit,
+    type LimitedSetup,
+} from "~/lib/limited/limitedSetup";
+import { Input } from "~/components/ui/input";
+import SegmentedControl from "~/components/ui/segmented-control";
+import LimitedSetupToggle from "./limited-setup-toggle";
+
+const FIELD_LABEL = "text-[11px] tracking-wide text-text-muted uppercase";
+
+export default function LimitedSetupTableStep({
+    setup,
+    sources,
+    onChange,
+}: {
+    setup: LimitedSetup;
+    sources: readonly PackSourceInfo[];
+    onChange: (patch: Partial<LimitedSetup>) => void;
+}) {
+    const seatMax = seatLimit(setup, sources);
+    return (
+        <div className="flex flex-col gap-4">
+            <label className="flex max-w-40 flex-col gap-1">
+                <span className={FIELD_LABEL}>
+                    Seats ({MIN_SEATS}-{seatMax})
+                </span>
+                <Input
+                    type="number"
+                    min={MIN_SEATS}
+                    max={seatMax}
+                    value={setup.seats}
+                    onChange={(e) =>
+                        onChange({ seats: Number(e.currentTarget.value) })
+                    }
+                />
+                <span className="text-xs text-text-muted">
+                    {seatMax < MAX_SEATS
+                        ? `The Vintage Cube deals one copy of each card, so the table is capped at ${seatMax} seats until the implemented pool grows.`
+                        : "Unfilled seats become bots when the event starts."}
+                </span>
+            </label>
+
+            {setup.type === "sealed" && (
+                <label className="flex max-w-40 flex-col gap-1">
+                    <span className={FIELD_LABEL}>Boosters per Seat</span>
+                    <Input
+                        type="number"
+                        min={1}
+                        value={setup.boostersPerSeat}
+                        onChange={(e) =>
+                            onChange({
+                                boostersPerSeat: Number(e.currentTarget.value),
+                            })
+                        }
+                    />
+                </label>
+            )}
+
+            <div className="flex flex-col gap-1">
+                <span className={FIELD_LABEL}>Games Format</span>
+                <SegmentedControl
+                    ariaLabel="Games Format"
+                    value={setup.gamesFormat === 1 ? "bo1" : "bo3"}
+                    onChange={(next) =>
+                        onChange({ gamesFormat: next === "bo1" ? 1 : 3 })
+                    }
+                    options={[
+                        { value: "bo1", label: "Bo1" },
+                        { value: "bo3", label: "Bo3" },
+                    ]}
+                />
+                <span className="text-xs text-text-muted">
+                    {setup.gamesFormat === 1
+                        ? "Bo1 — one game decides each round pairing."
+                        : "Bo3 — each round pairing is a best-of-three with sideboarding, like real Limited."}
+                </span>
+            </div>
+
+            {pickTimerVisible(setup) && (
+                <LimitedSetupToggle
+                    label="Pick Timer"
+                    value={setup.pickTimer}
+                    onChange={(pickTimer) => onChange({ pickTimer })}
+                    consequence={
+                        setup.pickTimer
+                            ? "On — each pick's time tightens through the pack on the official schedule; an expired pick auto-picks with the bot engine."
+                            : "Off — seats pick at their own pace."
+                    }
+                />
+            )}
+
+            <LimitedSetupToggle
+                label="Round Deadline"
+                value={setup.roundDeadlineMinutes !== null}
+                onChange={(on) =>
+                    onChange({
+                        roundDeadlineMinutes: on
+                            ? DEFAULT_ROUND_DEADLINE_MINUTES
+                            : null,
+                    })
+                }
+                consequence={
+                    setup.roundDeadlineMinutes !== null
+                        ? "An unplayed pairing is closed as a loss when the round's time runs out, so one absent player cannot freeze the table."
+                        : "Off — rounds never expire; the table waits for every pairing to be played."
+                }
+            />
+            {setup.roundDeadlineMinutes !== null && (
+                <label className="flex max-w-40 flex-col gap-1">
+                    <span className={FIELD_LABEL}>Minutes per Round</span>
+                    <Input
+                        type="number"
+                        min={MIN_ROUND_DEADLINE_MINUTES}
+                        max={MAX_ROUND_DEADLINE_MINUTES}
+                        value={setup.roundDeadlineMinutes}
+                        onChange={(e) =>
+                            onChange({
+                                roundDeadlineMinutes: Number(
+                                    e.currentTarget.value
+                                ),
+                            })
+                        }
+                    />
+                </label>
+            )}
+
+            <LimitedSetupToggle
+                label="Open Decklists"
+                value={setup.openDecklists}
+                onChange={(openDecklists) => onChange({ openDecklists })}
+                consequence={
+                    setup.openDecklists
+                        ? `On — ${OPEN_DECKLISTS_CONSEQUENCE} Players are warned before they join.`
+                        : "Off — other seats' decks and pick orders stay hidden until the event ends."
+                }
+            />
+        </div>
+    );
+}

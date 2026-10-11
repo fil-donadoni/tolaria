@@ -16,7 +16,7 @@ import PickRatingEditor from "./pick-rating-editor";
  * (`useScopeCardRatings`/`useCardRatingMutations`) and hands plain
  * data/callbacks down to the presentational `PickRatingEditor` — mirrors
  * `limited-events-page.tsx` handing `draftableSets` down to
- * `CreateLimitedEventDialog`.
+ * the Limited setup route.
  */
 export default function PickRatingPanel() {
     const draftableSets = useDraftableSets();

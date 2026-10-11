@@ -1979,7 +1979,7 @@ describe("Limited Event: Vintage Cube gate (Draft-only, ADR 0062 §4)", () => {
 
 /** The seat count a cube table is actually DEALT at: the singleton pool cap
  *  (`maxCubeSeats`) clamped to the table maximum, exactly as every production
- *  caller does it (`create-limited-event-dialog.tsx` wraps the same call in
+ *  caller does it (`limited-setup-flow.tsx` wraps the same call in
  *  `Math.min(MAX_SEATS, …)`, `draftLabEngine.ts` mins it against the requested
  *  seats, and `createLimitedEvent` only ever compares it against a
  *  validator-bounded `args.seatCount`). `maxCubeSeats` is pure pool division —

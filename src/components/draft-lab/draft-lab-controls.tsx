@@ -5,7 +5,7 @@
 // so the Lab can never offer a source the server would refuse to deal.
 //
 // Draftable-only filter (issue #1612 fixup, pre-merge review): the real
-// dialog (`create-limited-event-dialog.tsx#isSourceSelectable`) and the
+// setup route (`~/lib/limited/limitedSetup.ts#isSourceSelectable`) and the
 // server (`limitedEvents.ts#createLimitedEvent`, via `isDraftableSet`) both
 // gate on `draftable` — a set below the ≥80% coverage floor is listed by
 // `listDraftableSets()` for INFORMATIONAL reasons (Incompleteness UI) but
