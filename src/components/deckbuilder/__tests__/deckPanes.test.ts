@@ -5,7 +5,7 @@
 // `deckPanes`, and the shape of these tests is what makes that impossible to
 // add without rewriting them.
 import { describe, it, expect } from "vitest";
-import { deckPanes } from "../deckPanes";
+import { deckPanes, maindeckPaneIdFor } from "../deckPanes";
 import {
     SOURCE_TAB_DROP_ID,
     zoneTabDropId,
@@ -68,5 +68,42 @@ describe("deckPanes (issue #2584)", () => {
         // registry by id, so a collision would silently drop one of them.
         expect(zoneTabDropId("maindeck")).not.toBe("deck-zone:maindeck");
         expect(zoneTabDropId("sideboard")).not.toBe("deck-zone:sideboard");
+    });
+});
+
+describe("deckPanes with the Maindeck cut in two (issue #5400)", () => {
+    const input = {
+        mainLabel: "Deck",
+        mainCount: 23,
+        sideLabel: "Pool",
+        sideCount: 17,
+    };
+
+    it("replaces the Maindeck pane by a Creatures and a Non-creatures pane, counts per band", () => {
+        const panes = deckPanes({
+            ...input,
+            mainBands: { creatures: 14, others: 9 },
+        });
+        expect(panes.map((p) => [p.id, p.label, p.count])).toEqual([
+            ["maindeck-creatures", "Creatures", 14],
+            ["maindeck-others", "Non-creatures", 9],
+            ["sideboard", "Pool", 17],
+        ]);
+    });
+
+    it("gives every tab its own drop id, all of them meaning the Maindeck", () => {
+        const panes = deckPanes({
+            ...input,
+            mainBands: { creatures: 1, others: 1 },
+        });
+        expect(new Set(panes.map((p) => p.dropId)).size).toBe(3);
+        expect(parseDeckZoneDropId(panes[0]!.dropId)?.zone).toBe("maindeck");
+        expect(parseDeckZoneDropId(panes[1]!.dropId)?.zone).toBe("maindeck");
+    });
+
+    it("names the pane a Maindeck card lands in", () => {
+        expect(maindeckPaneIdFor(true, true)).toBe("maindeck-creatures");
+        expect(maindeckPaneIdFor(false, true)).toBe("maindeck-others");
+        expect(maindeckPaneIdFor(true, false)).toBe("maindeck");
     });
 });
