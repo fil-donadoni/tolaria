@@ -173,8 +173,9 @@ const limitedEventsRoute = createRoute({
 
 // Your-events REDIRECT stub (issue #2590; was the your-events page itself,
 // issue #2357). `/limited` now absorbs the whole "every event I've ever sat
-// at" view behind the `mine` filter, so this route's only job is to send a
-// bookmarked/shared `/limited/events` link to `/limited?mine=1`.
+// at" view (the hub's Your events and History, issue #5388), so this route's
+// only job is to send a bookmarked/shared `/limited/events` link to
+// `/limited`.
 //
 // The route itself STAYS registered — it is still a STATIC sibling of the
 // dynamic `/limited/$eventId` below, and still needs to win that precedence

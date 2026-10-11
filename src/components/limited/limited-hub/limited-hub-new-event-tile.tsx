@@ -48,7 +48,7 @@ export default function LimitedHubNewEventTile({
                     type="button"
                     variant="primary"
                     size="sm"
-                    className="!border-surface !bg-surface !bg-none !text-parchment"
+                    className="!border-surface !bg-surface !bg-none !text-parchment disabled:!border-surface/40 disabled:!bg-surface/40 disabled:!text-parchment/70"
                     disabled={again === null || busy}
                     onClick={onAgain}
                 >
