@@ -261,7 +261,8 @@ describe("the AFK loop is NOT authorised to fix (PRD issue #3197, out of scope)"
         // to grill, is a separate decision. The TTY rule would refuse it
         // anyway — this guards the layer above it.
         const sh = readFileSync(join(__dirname, "..", "loop-drain.sh"), "utf8");
-        expect(sh).toMatch(/HEALTH_RED_FILE/);
+        // Through the verdict store since issue #5462.
+        expect(sh).toMatch(/health:status --json/);
         expect(sh).toMatch(/stopping rather than stacking work on a red tip/);
         expect(sh).not.toMatch(/bun run release/);
         expect(sh).not.toMatch(/health:fix/);

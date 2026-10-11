@@ -110,6 +110,14 @@ import { join, resolve } from "node:path";
 import { gh, netEnv } from "./lib/gh";
 import { primaryCheckout } from "./lib/primary-checkout";
 import {
+    lineageBlocks,
+    readVerdictLineage,
+    verdictStore,
+    type Lineage,
+    type Verdict,
+    type VerdictStore,
+} from "./lib/health-verdict-store";
+import {
     GATE_OVERRIDE_ENV,
     MACHINE_SATURATED_EXIT,
 } from "./lib/machine-admission";
@@ -646,6 +654,19 @@ export interface HousekeepingOptions {
      * `red-ok` is counted. Absent off RED.
      */
     landingKind?: LandingKind;
+    /**
+     * A repair of the standing RED (issue #5462): the failing test files the
+     * RED verdict names, run EXPLICITLY after the lane, and the RED sha. The
+     * landing record turns the lineage AMBER only when that run passed
+     * (`REPAIR_PROVED`), so the recovery path — which runs no proof — never
+     * does. Absent off a repair, or when the verdict names no test file.
+     */
+    repairProof?: RepairProof;
+}
+
+export interface RepairProof {
+    tests: string[];
+    redSha: string;
 }
 
 export interface LockedCommandOptions extends HousekeepingOptions {
@@ -989,11 +1010,18 @@ export function landingTarget(
  */
 export function recordLandingStep(
     primaryCheckout: string,
-    kind?: LandingKind
+    kind?: LandingKind,
+    repairOf?: string
 ): string {
+    // `REPAIR_PROVED` is set by `repairProofStep` earlier in the same shell:
+    // only a proof that RAN and passed turns the lineage AMBER (issue #5462).
+    const amber =
+        kind === "repair" && repairOf !== undefined && FULL_SHA.test(repairOf)
+            ? `\${REPAIR_PROVED:+ --amber-of=${repairOf}}`
+            : "";
     return (
         `(cd ${shQuote(primaryCheckout)} && ` +
-        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})"${kind ? ` --kind=${kind}` : ""} || ` +
+        `bun ${shQuote(HEALTH_CADENCE_REL)} record --sha="$(git rev-parse ${ORIGIN_BASE})"${kind ? ` --kind=${kind}` : ""}${amber} || ` +
         `echo "land: could not record the landing in the health ledger" >&2; true)`
     );
 }
@@ -1116,7 +1144,11 @@ export function postMergeHousekeepingSteps(
         // landing still pays the LANE gate only; the FULL gate runs once per
         // BATCH — five landings, or two hours — detached below, never inside
         // the lock.
-        recordLandingStep(opts.primaryCheckout, opts.landingKind),
+        recordLandingStep(
+            opts.primaryCheckout,
+            opts.landingKind,
+            opts.repairProof?.redSha
+        ),
         // Local `main` catches up with the tip the API merge just created —
         // unconditional of `--keep`, which is about the WORKTREE, not about
         // leaving the checkout every session branches from one commit stale.
@@ -1219,9 +1251,34 @@ export function postMergeHousekeepingSteps(
 export function buildHousekeepingCommand(opts: HousekeepingOptions): string {
     return [
         UNSET_GITHUB_TOKEN,
+        CLEAR_REPAIR_PROVED,
         `git fetch origin ${BASE_BRANCH} -q`,
         ...postMergeHousekeepingSteps(opts),
     ].join(" && ");
+}
+
+/** Only THIS command's proof may set it: never one inherited from the
+ *  environment, and never on the recovery path, which runs no proof. */
+export const CLEAR_REPAIR_PROVED = "unset REPAIR_PROVED";
+
+/**
+ * The repair proof (issue #5462): the test files the RED verdict names as
+ * failing, run EXPLICITLY on the rebased tree after the lane — whatever the
+ * import graph made the lane run. Red here refuses the landing: a "repair"
+ * whose failing test still fails repairs nothing. Green sets `REPAIR_PROVED`,
+ * which the landing record reads to turn the lineage AMBER. A named file the
+ * repair deleted or moved is skipped; with none left the landing proceeds
+ * unproved — the RED then stands until health confirms, as before AMBER.
+ */
+export function repairProofStep(tests: readonly string[]): string {
+    const files = tests.map(shQuote).join(" ");
+    return (
+        "{ set --; " +
+        `for f in ${files}; do [ -e "$f" ] && set -- "$@" "$f"; done; ` +
+        'if [ "$#" -eq 0 ]; then echo "repair proof: no failing test the RED verdict names exists here — landing unproved, the RED stands until health"; ' +
+        'else echo "repair proof: $*" && bunx vitest run "$@" && REPAIR_PROVED=1; fi; ' +
+        "}"
+    );
 }
 
 export function buildLockedCommand(opts: LockedCommandOptions): string {
@@ -1233,10 +1290,12 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
     // `main` green under concurrency anyway: ADR 0110 §3.
     const steps: string[] = [
         UNSET_GITHUB_TOKEN,
+        CLEAR_REPAIR_PROVED,
         rebaseStep(),
         resolveGeneratedArtifactsStep(),
         refreshGeneratedApiStep(),
         laneStep(opts.gatedGreen, opts.laneRecordDir),
+        ...(opts.repairProof ? [repairProofStep(opts.repairProof.tests)] : []),
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,
     ];
     if (opts.merge) {
@@ -1350,6 +1409,39 @@ function readRepairIssues(primary: string): number[] {
     }
 }
 
+/** The lineage `land`'s RED gate reads (issue #5462) — total, like every
+ *  reader: an unreadable store carries `error` and refuses nothing. */
+export function landHealthLineage(
+    store: () => VerdictStore
+): Lineage & { error?: string } {
+    return readVerdictLineage(store);
+}
+
+/** The repair proof a landing owes: a declared repair of a standing RED whose
+ *  verdict names failing test files. */
+export function repairProofOf(
+    lineage: Lineage,
+    landingKind: LandingKind | undefined
+): RepairProof | undefined {
+    // A health run re-gating the tip leaves a `running` record; the RED it
+    // replaced, with its tests, is that record's `prior` (file backend).
+    const raw = lineage.verdict;
+    const v =
+        raw?.status === "running"
+            ? ((raw as { prior?: Verdict }).prior ?? null)
+            : raw;
+    if (landingKind !== "repair" || !lineageBlocks(lineage.kind) || !v)
+        return undefined;
+    // `*.test.*` only: a blade `*.spec.ts` belongs to `vitest.blade.config.ts`
+    // and the default config would answer "No test files found" — refusing
+    // the repair. A blade RED stands until health, as before AMBER.
+    const tests = (v.tests ?? []).filter((t) =>
+        /\.test\.[cm]?[jt]sx?$/.test(t)
+    );
+    if (tests.length === 0 || !FULL_SHA.test(v.sha)) return undefined;
+    return { tests, redSha: v.sha };
+}
+
 async function main(): Promise<void> {
     // The land's place in the mutex's order dates from here (`lockedEnv`).
     const issuedAt = Date.now();
@@ -1411,7 +1503,15 @@ async function main(): Promise<void> {
     // session already mid-issue finishes with `--red-ok` — a stated act the
     // health ledger counts, never the silent default that paid one full gate
     // per landing for ~43 h (2026-09-30 → 2026-10-02).
-    const red = existsSync(join(primary, ".claude/telemetry/health/RED"));
+    // Through the verdict store (issue #5462): a RED the other machine found
+    // refuses here too, and an AMBER lineage — a proved repair landed — does
+    // not.
+    const lineage = landHealthLineage(() => verdictStore(primary));
+    if (lineage.error)
+        console.warn(
+            `land: WARNING — the health verdict store could not be read (${lineage.error}); landing as if no RED stands`
+        );
+    const red = lineageBlocks(lineage.kind);
     const redGate = redLandGate({
         red,
         prBody,
@@ -1470,6 +1570,11 @@ async function main(): Promise<void> {
     );
 
     const runRoot = gateRunRoot(process.env);
+    const repairProof = repairProofOf(lineage, landingKind);
+    if (repairProof)
+        console.log(
+            `land: repair of RED @ ${repairProof.redSha.slice(0, 8)} — the lane also runs its failing tests (${repairProof.tests.join(", ")}); green turns the lineage AMBER`
+        );
     const housekeeping: HousekeepingOptions = {
         branch: landingBranch,
         pr,
@@ -1477,6 +1582,7 @@ async function main(): Promise<void> {
         worktree: landingWorktree,
         teardown,
         landingKind,
+        ...(repairProof ? { repairProof } : {}),
     };
     const command =
         mode === "housekeeping"

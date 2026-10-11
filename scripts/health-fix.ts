@@ -49,6 +49,12 @@ import { join } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import type { HealthStatus } from "./lib/health-verdict";
 import { OVER_CAP_ENV } from "./lib/machine-admission";
+import {
+    lineageBlocks,
+    readVerdictLineage,
+    verdictStore,
+    type VerdictStore,
+} from "./lib/health-verdict-store";
 
 /** Health telemetry directory, relative to the primary checkout. */
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
@@ -211,14 +217,35 @@ function git(args: string[], cwd: string): string {
     return r.stdout.trim();
 }
 
-function readHealthRecord(root: string): HealthRecord | null {
-    const p = join(root, HEALTH_DIR, "last.json");
-    if (!existsSync(p)) return null;
-    try {
-        return JSON.parse(readFileSync(p, "utf8")) as HealthRecord;
-    } catch {
-        return null;
-    }
+/**
+ * The RED this script would fix, read through the verdict store (issue
+ * #5462): the `RED` marker and `last.json` on the file backend, the base
+ * branch's `health` commit statuses on the github one — so a RED the other
+ * machine found is fixed from here. An AMBER lineage (a proved repair landed)
+ * is not RED: nothing to fix while health confirms. An unreadable store reads
+ * as no RED, with the reason, like every other reader.
+ *
+ * Exported for direct testing; `store` is injectable for the same reason.
+ */
+export function readRedFromStore(store: () => VerdictStore): {
+    redMarker: boolean;
+    last: HealthRecord | null;
+    error?: string;
+} {
+    const lineage = readVerdictLineage(store);
+    const v = lineage.verdict;
+    return {
+        redMarker: lineageBlocks(lineage.kind),
+        last: v
+            ? {
+                  sha: v.sha,
+                  status: v.status === "amber" ? "green" : v.status,
+                  failedStep: v.step,
+                  log: v.log,
+              }
+            : null,
+        ...(lineage.error ? { error: lineage.error } : {}),
+    };
 }
 
 function readVerdictFile(root: string): string | null {
@@ -242,16 +269,20 @@ function main(): void {
         process.exit(2);
     }
 
-    // The marker is a local file, so the common case — nothing red — is
-    // decided without a network round-trip. A green tree must not pay for
-    // machinery it does not need.
-    const redMarker = existsSync(join(cwd, HEALTH_DIR, "RED"));
-    if (redMarker) git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
+    // On the file backend the marker is a local file, so the common case —
+    // nothing red — is decided without a network round-trip. A green tree
+    // must not pay for machinery it does not need.
+    const red = readRedFromStore(() => verdictStore(cwd));
+    if (red.error)
+        console.error(
+            `health:fix: the health verdict store could not be read — ${red.error}`
+        );
+    if (red.redMarker) git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
     const tip = git(["rev-parse", ORIGIN_BASE], cwd);
 
     const decision = spawnDecision({
-        redMarker,
-        last: readHealthRecord(cwd),
+        redMarker: red.redMarker,
+        last: red.last,
         tip,
         interactive: process.stdin.isTTY === true,
     });
