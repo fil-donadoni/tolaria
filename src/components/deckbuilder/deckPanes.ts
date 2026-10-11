@@ -115,3 +115,18 @@ export function deckPanes(input: DeckPaneInput): DeckPane[] {
     });
     return panes;
 }
+
+/** The pane the strip is on, given the one last picked: that pane while it
+ *  still exists, else its counterpart across the Maindeck's cut in two (the
+ *  first band, or the whole Maindeck), else the first pane. */
+export function resolveActivePaneId(
+    panes: readonly DeckPane[],
+    pickedId: string
+): string {
+    if (panes.some((p) => p.id === pickedId)) return pickedId;
+    if (pickedId.startsWith("maindeck")) {
+        const main = panes.find((p) => p.id.startsWith("maindeck"));
+        if (main) return main.id;
+    }
+    return panes[0]!.id;
+}

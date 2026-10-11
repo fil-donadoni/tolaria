@@ -19,7 +19,7 @@ import DeckPaneTabs from "./deck-pane-tabs";
 import DeckBottomBar from "./deck-bottom-bar";
 import DeckFeaturedSelect from "./deck-featured-select";
 import DeckBasicsSheet from "./deck-basics-sheet";
-import { deckPanes, type DeckPane } from "./deckPanes";
+import { deckPanes, resolveActivePaneId, type DeckPane } from "./deckPanes";
 import { isCreatureCard } from "./deckZoneFilter";
 import {
     applyDeckZoneDragAction,
@@ -169,27 +169,25 @@ export default function DeckBuilderShell({
     });
 
     const stripRef = useRef<HTMLDivElement | null>(null);
-    const [activePaneId, setActivePaneId] = useState<string>(panes[0]!.id);
+    const [pickedPaneId, setPickedPaneId] = useState<string>(
+        () => panes[0]!.id
+    );
 
-    // Toggling the split swaps the Maindeck's pane for two, which moves the
-    // Sideboard's index: put the strip back on the pane the player was in
-    // (the first band when they were on the Maindeck) rather than letting the
-    // old scroll offset land it on a neighbour.
+    // Toggling the split swaps the Maindeck's pane for two: a picked id that
+    // no longer exists maps to its counterpart (the first band when the player
+    // was on the Maindeck), derived here rather than stored.
+    const activePaneId = resolveActivePaneId(panes, pickedPaneId);
+
+    // ...and the strip's old scroll offset would land on a neighbour (the
+    // Sideboard's index moved), so put it back on the active pane.
     const bandedBefore = useRef(banded);
     useEffect(() => {
         if (bandedBefore.current === banded) return;
         bandedBefore.current = banded;
         // Only the portrait strip scrolls between panes.
         if (!portrait) return;
-        const wasMain = activePaneId.startsWith("maindeck");
-        const next = wasMain
-            ? banded
-                ? "maindeck-creatures"
-                : "maindeck"
-            : activePaneId;
-        setActivePaneId(next);
         document
-            .querySelector(`[data-deck-pane="${next}"]`)
+            .querySelector(`[data-deck-pane="${activePaneId}"]`)
             ?.scrollIntoView?.({ inline: "start", block: "nearest" });
     }, [banded, activePaneId, portrait]);
     const [basicsOpen, setBasicsOpen] = useState(false);
@@ -200,7 +198,7 @@ export default function DeckBuilderShell({
     // rather than held as refs because the panes are rendered by three
     // different components, one of which (`DeckZonesSurface`) owns two of them.
     const handleSelectPane = useCallback((pane: DeckPane) => {
-        setActivePaneId(pane.id);
+        setPickedPaneId(pane.id);
         document
             .querySelector(`[data-deck-pane="${pane.id}"]`)
             ?.scrollIntoView({ inline: "start", block: "nearest" });
@@ -213,7 +211,7 @@ export default function DeckBuilderShell({
         if (!strip || strip.clientWidth === 0) return;
         const index = Math.round(strip.scrollLeft / strip.clientWidth);
         const pane = panes[Math.min(Math.max(index, 0), panes.length - 1)];
-        if (pane) setActivePaneId(pane.id);
+        if (pane) setPickedPaneId(pane.id);
     }, [panes]);
 
     const handleDragEnd = useCallback(
