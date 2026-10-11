@@ -137,4 +137,11 @@ describe("Import deck", () => {
                 ?.getAttribute("aria-pressed")
         ).toBe("false");
     });
+
+    it("Tabletop offers no Import deck (no Full Catalogue resolver here)", () => {
+        render(<Harness initial={base({ matchFormat: "manual" })} />);
+        expect(
+            screen.queryByRole("button", { name: "Import deck" })
+        ).toBeNull();
+    });
 });

@@ -1,11 +1,7 @@
 // Strict setup-flow import (PRD #5334 stories 41–48, issue #5343).
 import { describe, expect, it } from "vitest";
 import { getAllCardNames } from "@convex/cards";
-import {
-    IMPORT_FORMAT_CHOICES,
-    importFormat,
-    strictImportDeck,
-} from "../matchSetupDeckImport";
+import { importFormat, strictImportDeck } from "../matchSetupDeckImport";
 
 const NAME = getAllCardNames()[0];
 
@@ -65,13 +61,5 @@ describe("importFormat", () => {
     it("is the Match Format, except under Freeform where the select decides", () => {
         expect(importFormat("premodern", "old-school")).toBe("premodern");
         expect(importFormat("freeform", "old-school")).toBe("old-school");
-    });
-});
-
-describe("IMPORT_FORMAT_CHOICES", () => {
-    it("omits Formats a pasted list cannot be (Limited, Tabletop)", () => {
-        expect(IMPORT_FORMAT_CHOICES).not.toContain("limited");
-        expect(IMPORT_FORMAT_CHOICES).not.toContain("manual");
-        expect(IMPORT_FORMAT_CHOICES).toContain("freeform");
     });
 });
