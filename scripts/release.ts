@@ -44,6 +44,12 @@ import { BASE_BRANCH, ORIGIN_BASE, RELEASE_BRANCH } from "./lib/branches";
 import { netEnv } from "./lib/gh";
 import type { HealthStatus } from "./lib/health-verdict";
 import {
+    machineName,
+    verdictStore,
+    type Verdict,
+    type VerdictStore,
+} from "./lib/health-verdict-store";
+import {
     MANUAL_COMMAND,
     parseVerdict,
     verdictPath,
@@ -63,6 +69,8 @@ export interface HealthRecord {
     status: HealthStatus;
     failedStep?: string;
     log?: string;
+    /** The machine that wrote the verdict, when the store says (issue #5466). */
+    machine?: string;
 }
 
 export type ReleaseDecision =
@@ -101,7 +109,7 @@ export function releaseDecision(
     if (last.status !== "green") {
         return {
             kind: "refuse",
-            reason: `health is ${last.status.toUpperCase()} @ ${tip.slice(0, 8)}${last.failedStep ? ` (failed at ${last.failedStep})` : ""}${last.log ? ` — log: ${last.log}` : ""}`,
+            reason: `health is ${last.status.toUpperCase()} @ ${tip.slice(0, 8)}${last.failedStep ? ` (failed at ${last.failedStep})` : ""}${last.machine ? ` on ${last.machine}` : ""}${last.log ? ` — log: ${last.log}` : ""}`,
             // A RUNNING record is not repairable: another gate holds the sha
             // and must not be raced. Nor is INFRA (issue #4938): the tree was
             // never shown wrong, so there is nothing for a fixer to fix.
@@ -109,6 +117,82 @@ export function releaseDecision(
         };
     }
     return { kind: "release", sha: tip };
+}
+
+/**
+ * The record `releaseDecision` judges (issue #5466): the verdict STORE is the
+ * shared truth, `last.json` only this machine's own run. A RED the store holds
+ * for the sha wins over a local `running` or stale record — a RED written by
+ * the other machine must refuse a release here. Otherwise the local record
+ * about the sha, then whatever settled verdict the store holds for it.
+ */
+export function reconcileRecord(
+    sha: string,
+    last: HealthRecord | null,
+    stored: Verdict | null
+): HealthRecord | null {
+    const about = stored?.sha === sha ? stored : null;
+    if (about?.status === "red") return recordOf(about);
+    if (last?.sha === sha) return last;
+    if (about?.status === "green" || about?.status === "infra")
+        return recordOf(about);
+    return last;
+}
+
+function recordOf(v: Verdict): HealthRecord {
+    return {
+        sha: v.sha,
+        status: v.status as HealthStatus,
+        failedStep: v.step,
+        log: v.log,
+        machine: v.machine,
+    };
+}
+
+/** The stored verdict for `sha`; an unreadable store reads as none (the local
+ *  record still decides) and says so, never a throw. */
+function readStored(store: () => VerdictStore, sha: string): Verdict | null {
+    try {
+        return store().read(sha);
+    } catch (e) {
+        console.error(
+            `release: the verdict store could not be read — ${(e as Error).message}`
+        );
+        return null;
+    }
+}
+
+/**
+ * Write this release's own verdict through the store (issue #5466), so the
+ * other machine sees it. Only a settled GREEN / RED the store does not
+ * already hold; never fatal — the release decision is already made.
+ */
+export function publishVerdict(
+    store: () => VerdictStore,
+    record: HealthRecord | null,
+    stored: Verdict | null
+): void {
+    if (record === null) return;
+    if (record.status !== "green" && record.status !== "red") return;
+    if (stored?.status === record.status) return;
+    try {
+        const out = store().write({
+            sha: record.sha,
+            status: record.status,
+            step: record.failedStep ?? "release",
+            log: record.log,
+            machine: machineName(),
+            at: new Date().toISOString(),
+        });
+        if (!out.written)
+            console.error(
+                `release: verdict store kept its record — ${out.reason}`
+            );
+    } catch (e) {
+        console.error(
+            `release: the verdict store could not be written — ${(e as Error).message}`
+        );
+    }
 }
 
 export type LoopDecision =
@@ -334,9 +418,17 @@ function main(): void {
     let sha = tip;
     let promote: string | null = null;
 
+    const store = () => verdictStore(cwd);
     for (let attempt = 1; promote === null; attempt++) {
-        runHealthGate(cwd);
-        const decision = releaseDecision(sha, readLast(cwd));
+        // A RED the store already holds for this tip (written by either
+        // machine) is the verdict: re-gating it would spend a heavy-mutex
+        // slot to learn nothing (issue #5466).
+        const known = readStored(store, sha);
+        if (known?.status !== "red") runHealthGate(cwd);
+        const stored = known?.status === "red" ? known : readStored(store, sha);
+        const record = reconcileRecord(sha, readLast(cwd), stored);
+        publishVerdict(store, record, stored);
+        const decision = releaseDecision(sha, record);
         const step = loopDecision({
             tip: sha,
             decision,
