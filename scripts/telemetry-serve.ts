@@ -105,10 +105,10 @@ const ASSET_PREFIX = "/assets/";
  * `import { Database } from "bun:sqlite"` makes importing THIS MODULE fail
  * outright under the `node` vitest project (#2623), regardless of whether a
  * store ever gets opened. `createRequire` defers resolution to the one call
- * site that actually needs it, and that call site only runs when
- * `existsSync(DB_PATH)` is true — never the case for a fresh worktree/test
- * environment with no `.claude/telemetry/telemetry.db`, so `handleRequest`'s
- * route test never touches the Bun-only builtin at all. Kept synchronous
+ * site that actually needs it, and that call site only runs inside
+ * `requireDb()` — on the first DB-BACKED request, never at import (issue
+ * #5529: opening at import made `handleRequest`'s route test red in any
+ * checkout that had a `.claude/telemetry/telemetry.db`). Kept synchronous
  * (a `require`, not a dynamic `import()`) so `requireDb()` and every route
  * that calls it stay synchronous — no cascading async refactor.
  */
@@ -128,9 +128,10 @@ function openDatabase(path: string): Database {
  * reads no DB at all and is exactly the view an operator needs when
  * everything else here is stale. So `db` is lazy and nullable: the process
  * always starts, and only the DB-BACKED routes fail, with a clear message
- * naming the fix, when there is nothing to query.
+ * naming the fix, when there is nothing to query. Lazy means opened by the
+ * first `requireDb()`, never at import (issue #5529).
  */
-let db: Database | null = existsSync(DB_PATH) ? openDatabase(DB_PATH) : null;
+let db: Database | null = null;
 
 /** Thrown by `requireDb()` — caught once, in the route dispatcher, and
  *  turned into a 503 rather than the generic 400 every other query error
@@ -139,10 +140,8 @@ class NoTelemetryStoreError extends Error {}
 
 function requireDb(): Database {
     if (db) return db;
-    // A store created by a concurrent `telemetry:ingest` after this process
-    // started is picked up on the NEXT request rather than requiring a
-    // restart — cheap to check, and `existsSync` is the same test the
-    // startup path already used.
+    // Also picks up a store created by a concurrent `telemetry:ingest` after
+    // this process started, on the NEXT request, without a restart.
     if (existsSync(DB_PATH)) {
         db = openDatabase(DB_PATH);
         return db;
