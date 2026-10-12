@@ -237,8 +237,9 @@ describe("a keyword is priced once — body table XOR script (issue #5355)", () 
     // The probe above sees only what `getDefinition` expands from the string;
     // a keyword whose ability is a hand-written companion (ward, echo) reads
     // 0 there. The catalogue scan closes that class: on every card declaring
-    // a body-priced keyword, the abilities named after it (`wardAbility` →
-    // "ward", `rampage-2`) add nothing to the realized script value.
+    // a body-priced keyword, the abilities named after it — by id (`ward`,
+    // `rampage-2`, `goblin-patrol-echo`) or by reminder text ("Echo {R} (…")
+    // — add nothing to the realized script value.
     it("no catalogue card's keyword-named ability adds script value to a body-priced keyword", () => {
         const doubled: string[] = [];
         for (const { definition: def } of walkHandWrittenDefinitions()) {
@@ -246,17 +247,19 @@ describe("a keyword is priced once — body table XOR script (issue #5355)", () 
                 if (declared in DOUBLE_PRICE_EXCLUSIONS) continue;
                 if (keywordBonusFor(declared, 3, {}) === 0) continue;
                 const word = keywordWord(declared);
-                const named = (id: string | undefined) =>
-                    id === word || id?.startsWith(`${word}-`) === true;
+                const named = (a: { id?: string; oracleText?: string }) =>
+                    a.id === word ||
+                    a.id?.startsWith(`${word}-`) === true ||
+                    a.id?.endsWith(`-${word}`) === true ||
+                    keywordWord(a.oracleText?.toLowerCase() ?? "") === word;
                 const triggered = def.triggeredAbilities ?? [];
                 const activated = def.activatedAbilities ?? [];
-                if (![...triggered, ...activated].some((a) => named(a.id)))
-                    continue;
+                if (![...triggered, ...activated].some(named)) continue;
                 const withNamed = scriptValueOfDefinition(def);
                 const withoutNamed = scriptValueOfDefinition({
                     ...def,
-                    triggeredAbilities: triggered.filter((a) => !named(a.id)),
-                    activatedAbilities: activated.filter((a) => !named(a.id)),
+                    triggeredAbilities: triggered.filter((a) => !named(a)),
+                    activatedAbilities: activated.filter((a) => !named(a)),
                 });
                 if (withNamed !== withoutNamed)
                     doubled.push(
