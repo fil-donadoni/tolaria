@@ -1942,6 +1942,26 @@ describe("check-lane — the tree may not move under the run (issue #4379, findi
  * In the lane `land` refuses the PR instead. Each is ADMITTED (ADR 0104) by
  * a changed path that is one of its inputs, and runs whole.
  */
+describe("check-lane — a census test is planned when its corpus changes (issue #5535)", () => {
+    const relatedCommand = (paths: string[]) =>
+        classifyLane(paths).run.find((c) => c.id === "vitest(related)")
+            ?.command ?? "";
+
+    it("a test-file edit naming a .claude/ path plans docs-lane.test.ts, which it does not import", () => {
+        // The PR #5534 shape: only dashboard-actions.test.ts changed, and
+        // docs-lane.test.ts censuses every scripts/__tests__ file by text.
+        expect(
+            relatedCommand(["scripts/__tests__/dashboard-actions.test.ts"])
+        ).toContain("'scripts/__tests__/docs-lane.test.ts'");
+    });
+
+    it("a src-only diff does not plan docs-lane.test.ts", () => {
+        expect(relatedCommand(["src/lib/card-utils.ts"])).not.toContain(
+            "docs-lane.test.ts"
+        );
+    });
+});
+
 describe("check-lane — cheap census guards run in the lane (issue #4963)", () => {
     const CENSUS = ["check:gaps", "check:targets", "check:test-hygiene"];
     const census = (plan: LanePlan) =>
