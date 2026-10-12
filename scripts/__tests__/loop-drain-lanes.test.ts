@@ -230,7 +230,9 @@ describe("loop-drain lanes — how many at once (issue #5486)", () => {
     ])("RAM for 5 but %s → one lane", (_why, busy) => {
         stubGh();
         stubBunPlan([101, 102, 103, 104, 105]);
-        stubClaude("sleep 1");
+        // Long enough that a second lane, were it allowed, starts beside it
+        // (a pressure reading is re-sampled before it counts, ~1 s a probe).
+        stubClaude("sleep 3");
         const r = runLanes(["--lanes", "auto", "--max-passes", "3"], {
             ...busy,
             reclaimableMb: ramFor(5),
