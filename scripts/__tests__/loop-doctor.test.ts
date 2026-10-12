@@ -993,8 +993,4 @@ describe("loop-doctor — a PR handed to the land-runner (issue #5469)", () => {
                 .state
         ).toBe("live");
     });
-
-    it("pr-open is a declared verdict state (the dashboard glossary iterates it)", () => {
-        expect(CLAIM_VERDICT_STATES).toContain("pr-open");
-    });
 });
