@@ -419,6 +419,7 @@ describe("graveyard retrieval — the source returning itself (CR 113.6b)", () =
         const outcome = creature(
             "At the beginning of your upkeep, if you control a creature, you may return this card from your graveyard to your hand."
         );
+        expect(outcome.state).not.toBe("unparsed");
         if (outcome.state === "unparsed") return;
         const trigger = outcome.definition.compiledTriggeredAbilities?.[0];
         expect(trigger?.condition).toBeDefined();
