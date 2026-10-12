@@ -11,6 +11,7 @@ import {
     reachIndex,
     relatedTests,
     reverseReach,
+    shellFileNames,
     TEST_ALIASES,
     type ReachIndex,
     type RelatedProject,
@@ -54,6 +55,13 @@ const FIXTURE: Record<string, string> = {
     // A tooling test that spawns a script by path.
     "scripts/spawned.ts": `console.log(1);\n`,
     "scripts/__tests__/spawns.test.ts": `const S = ["..", "spawned.ts"];\n`,
+    // A tooling test that spawns a shell driver, which runs a module by
+    // path, which imports a lib (issue #5555): test → a.sh → b.ts → c.ts.
+    "scripts/__tests__/drives.test.ts": `const D = join(ROOT, "scripts", "a.sh");\n`,
+    "scripts/a.sh": `#!/bin/sh\n# prose: d.ts is not a call\nbun "$SCRIPT_DIR/b.ts" "$@"\n`,
+    "scripts/b.ts": `import { c } from "./lib/c";\nconsole.log(c);\n`,
+    "scripts/lib/c.ts": `export const c = 1;\n`,
+    "scripts/d.ts": `console.log(1);\n`,
     // A census: walks a directory, imports nothing it reads (issue #5535).
     "scripts/__tests__/census.test.ts": `const d = fs.readdirSync("corpus");\n`,
     "corpus/notes.txt": `notes\n`,
@@ -157,6 +165,49 @@ describe("test-reach — the edges a plain import walk misses (issue #5464 revie
         expect(
             relatedTests(index, ["scripts/spawned.ts"])["node-tooling"]
         ).toEqual(["scripts/__tests__/spawns.test.ts"]);
+    });
+});
+
+describe("test-reach — a spawned shell driver propagates reach (issue #5555)", () => {
+    it("test → a.sh → b.ts: a diff on b.ts, or on what b.ts imports, plans the test", () => {
+        for (const changed of [
+            "scripts/a.sh",
+            "scripts/b.ts",
+            "scripts/lib/c.ts",
+        ])
+            expect(
+                relatedTests(index, [changed])["node-tooling"],
+                changed
+            ).toEqual(["scripts/__tests__/drives.test.ts"]);
+    });
+
+    it("a name in a shell comment is not an edge", () => {
+        expect(relatedTests(index, ["scripts/d.ts"])["node-tooling"]).toEqual(
+            []
+        );
+    });
+
+    it("shellFileNames reads bare and quoted words, drops directories, comments and test files", () => {
+        const sh = [
+            `#!/bin/sh`,
+            `# runs gone.ts`,
+            `_doctor="$SCRIPT_DIR/loop-doctor.ts"`,
+            `bun scripts/lib/x.ts --flag # then y.ts`,
+            `cat data/idx.json; echo "\${#arr[@]}"`,
+            `bunx vitest run scripts/__tests__/z.test.ts`,
+        ].join("\n");
+        expect(shellFileNames(sh).sort()).toEqual([
+            "idx.json",
+            "loop-doctor.ts",
+            "x.ts",
+        ]);
+    });
+
+    it("live tree: a diff on the loop doctor alone plans the loop-drain prompt test (issue #5551)", () => {
+        const live = reachIndex(resolve(__dirname, "../.."));
+        expect(
+            relatedTests(live, ["scripts/loop-doctor.ts"])["node-tooling"]
+        ).toContain("scripts/__tests__/loop-drain-prompt.test.ts");
     });
 });
 

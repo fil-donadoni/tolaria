@@ -27,10 +27,18 @@
  *     This is how the walk sees a reader that opens its input through `fs`
  *     (`join(ROOT, "data", "card-index.json")`) and a tooling test that spawns
  *     a script by path (`resolve(__dirname, "..", "gate.ts")`).
+ *   - a name node naming a SPAWNABLE file (`.sh`, `.ts`, `.tsx`, `.mjs`) is
+ *     an edge to every file of that basename, and a shell file's own text is
+ *     scanned for the file names it runs (issue #5555): `test → harness →
+ *     "loop-drain.sh" → bun "$SCRIPT_DIR/loop-doctor.ts" → its imports` is
+ *     one transitive chain. Before it a name node was a dead end, and a red
+ *     the loop doctor caused escaped `land` (issue #5551).
  *
  * WHAT THE WALK STILL CANNOT SEE, stated so nobody reads a skip as a proof:
  * a census that walks a DIRECTORY (`readdirSync(".claude/skills")`) or matches
- * source text by pattern, a vitest `setupFiles` closure (vitest's own
+ * source text by pattern, a shell hook with no `.sh` extension (`.husky/*`),
+ * a script named in a non-shell config (`settings.json` hooks, a
+ * `package.json` script), a vitest `setupFiles` closure (vitest's own
  * `--changed` ignores it too; the setup files are `full`-lane paths), and a
  * name built at runtime. A census that walks a directory is DECLARED in
  * `census-tests.ts` (issue #5535) with the corpus it reads, and `relatedTests`
@@ -98,7 +106,68 @@ export function fileNameLiterals(text: string, inTest: boolean): string[] {
 }
 
 /** The node id every file-name literal of `basename` points at. */
-const nameNode = (basename: string) => `name:${basename}`;
+const NAME_PREFIX = "name:";
+const nameNode = (basename: string) => `${NAME_PREFIX}${basename}`;
+
+/** A name node naming one of these resolves to every file of that basename:
+ *  a shell driver (whose text is scanned) or a module run by path (whose
+ *  imports are walked). A data name (`.json`, `.md`, …) stays a leaf: its
+ *  file has no edges out, and the changed path seeds the name itself. */
+const SPAWNABLE = /\.(sh|tsx?|mjs)$/;
+
+/** Directories the basename index never enters (dot directories other than
+ *  `.claude`, whose hooks are shell drivers, are skipped as well). */
+const UNINDEXED = new Set(["node_modules", "dist", "public", "docs"]);
+
+/** Every SPAWNABLE file under `root` by basename, repo-relative, posix. */
+function spawnableByBasename(root: string): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    const walk = (dir: string, rel: string) => {
+        let entries: fs.Dirent[];
+        try {
+            entries = fs.readdirSync(dir, { withFileTypes: true });
+        } catch {
+            return;
+        }
+        for (const entry of entries) {
+            const name = entry.name;
+            if (entry.isDirectory()) {
+                if (UNINDEXED.has(name)) continue;
+                if (name.startsWith(".") && name !== ".claude") continue;
+                walk(path.join(dir, name), rel ? `${rel}/${name}` : name);
+            } else if (SPAWNABLE.test(name)) {
+                const file = rel ? `${rel}/${name}` : name;
+                const list = out.get(name);
+                if (list) list.push(file);
+                else out.set(name, [file]);
+            }
+        }
+    };
+    walk(root, "");
+    return out;
+}
+
+/** A file name with an extension the repo reads or spawns, as a bare shell
+ *  word or the tail of one (`"$SCRIPT_DIR/loop-doctor.ts"`, `lib/x.ts`). */
+const SHELL_FILE_WORD =
+    /(?<![\w.-])([\w-][\w.-]*\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))(?![\w.-])/g;
+
+/**
+ * The file names a SHELL file runs or reads: every word ending in a known
+ * extension, quoted or bare, its directory dropped, `#` comments stripped (a
+ * comment citing `loop-doctor.ts` is prose, not a call). A test file's name is
+ * never an input, as in `fileNameLiterals`. Over-approximate by design: an
+ * echoed name costs a test run, a missed one costs a red base.
+ */
+export function shellFileNames(text: string): string[] {
+    const code = text.replace(/(^|\s)#.*$/gm, "$1");
+    const names = new Set<string>();
+    for (const m of code.matchAll(SHELL_FILE_WORD)) {
+        if (/\.test\.[cm]?[jt]sx?$/.test(m[1])) continue;
+        names.add(m[1]);
+    }
+    return [...names];
+}
 
 /** Module extensions a specifier may omit, and the index file it may name. */
 const MODULE_SUFFIX = /(\.(tsx?|mjs|js))?$/;
@@ -212,13 +281,23 @@ export function reachIndex(
         }
         return known;
     };
+    let byBasename: Map<string, string[]> | undefined;
     const memo = new Map<string, string[]>();
     const importsOf = (id: string): string[] => {
         const hit = memo.get(id);
         if (hit) return hit;
         const deps = new Set<string>();
         memo.set(id, []);
-        if (/\.(tsx?|mjs|js|jsx)$/.test(id) && isFile(id)) {
+        if (id.startsWith(NAME_PREFIX)) {
+            const name = id.slice(NAME_PREFIX.length);
+            if (SPAWNABLE.test(name)) {
+                byBasename ??= spawnableByBasename(root);
+                for (const file of byBasename.get(name) ?? []) deps.add(file);
+            }
+        } else if (id.endsWith(".sh") && isFile(id)) {
+            const text = fs.readFileSync(path.join(root, id), "utf8");
+            for (const name of shellFileNames(text)) deps.add(nameNode(name));
+        } else if (/\.(tsx?|mjs|js|jsx)$/.test(id) && isFile(id)) {
             const text = fs.readFileSync(path.join(root, id), "utf8");
             const specifiers = [
                 ...importSpecifiers(text),
