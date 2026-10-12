@@ -202,7 +202,7 @@ describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)
 describe("test-reach — file-name literals are narrowed so a hub cannot drag the suite in", () => {
     it("ignores comments, test-file names, and module names outside a test", () => {
         const hub = [
-            `// see card-utils.test.ts and "notes.md"`,
+            `// see card-utils.test.ts and "notes.txt"`,
             `/* "old.json" */`,
             `const a = "pool.json";`,
             `const b = "gate.ts";`,
