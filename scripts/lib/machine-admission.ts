@@ -45,9 +45,11 @@
  * get without swapping — the analogue of free + inactive); the pressure level
  * is PSI, `/proc/pressure/memory`, mapped onto the Darwin scale by
  * `psiLevel`. Darwin's levels are the kernel's own; PSI has no levels, so the
- * two `avg10` cut-offs are OURS — chosen, not yet measured on the Omarchy
- * machine (issue #5305): recalibrate them from `gate-lock.jsonl`'s
- * `pressure_*` columns once Linux runs have accumulated.
+ * two `avg10` cut-offs are OURS, and measured against the Huawei in
+ * `PSI_SOME_WARNING`'s comment (issue #5468). A `run` row also records the
+ * PSI stall the run sat through (`psi_*_stall_ms`, `psiStallMs`): the level
+ * columns say only which side of a cut-off two instants fell, the stall says
+ * how far from it the whole run was — the column a recalibration reads.
  *
  * The two differ on LOAD, deliberately. The 1-minute load average is what an
  * admitted gate itself raises: four vitest workers and `tsc -b` hold it above
@@ -176,6 +178,16 @@ export interface MachineSample {
     pressure: number | null;
     /** Free + inactive RAM, MB — null where the platform does not say. */
     reclaimableMb: number | null;
+    /** PSI's cumulative memory stall since boot, µs (`total=`) — Linux only,
+     *  absent elsewhere. Recorded, never a threshold: two readings bracket
+     *  the stall a run sat through (`psiStallMs`). */
+    psiTotalUs?: PsiTotals | null;
+}
+
+/** `/proc/pressure/memory`'s `total=` counters, µs since boot. */
+export interface PsiTotals {
+    some: number;
+    full: number | null;
 }
 
 /** One live `claude` process whose cwd is the primary checkout or a worktree
@@ -242,11 +254,27 @@ export function parseMeminfo(out: string): {
 
 /** PSI `avg10` at or above which `full` reads critical (4): for a tenth of
  *  the last 10 s EVERY runnable task was stalled on memory — thrashing.
- *  Chosen, not measured (see the header). */
+ *  Measured with `PSI_SOME_WARNING`, below. */
 export const PSI_FULL_CRITICAL = 10;
 /** PSI `avg10` at or above which `some` reads warning (2): for a tenth of
  *  the last 10 s some task waited on reclaim or swap-in — the kernel is
- *  working for memory NOW, the meaning of Darwin's level 2. */
+ *  working for memory NOW, the meaning of Darwin's level 2.
+ *
+ *  Measured on the Huawei (issue #5468, i7-8550U, 16 GiB), the batch gates'
+ *  machine: its first 623 Linux `run` rows in `gate-lock.jsonl`
+ *  (2026-10-09 → 10-12, the gate bench of issue #5463 included: `test`,
+ *  `check:all`, `check:ui --all`, health) read level 1 at every start and
+ *  every end — no run ever crossed either cut-off. Over the last uptime
+ *  (booted 2026-10-10 18:02, read 10-12 15:00, ~45 h, the bench inside it)
+ *  PSI's cumulative
+ *  memory stall was 5.9 s `some` and 5.7 s `full`: 0.004 % of the wall
+ *  clock, while I/O stalled at 4–6 % (`avg300`). A full suite on this
+ *  machine does not make the kernel work for memory, so no observation
+ *  sits near either cut-off to move it toward: the 10 % pair is kept as
+ *  the line for a machine that is genuinely short of memory (a tenth of
+ *  every 10 s stalled is far past anything a healthy run reached), and the
+ *  `psi_*_stall_ms` columns a `run` row now carries are what a future
+ *  recalibration reads once a run HAS stalled. */
 export const PSI_SOME_WARNING = 10;
 
 /** `/proc/pressure/memory` → the Darwin pressure scale (1 normal, 2 warning,
@@ -261,6 +289,32 @@ export function psiLevel(out: string): number | null {
     if (some === null) return null;
     if (full !== null && full >= PSI_FULL_CRITICAL) return 4;
     return some >= PSI_SOME_WARNING ? 2 : 1;
+}
+
+/** `/proc/pressure/memory` → its `total=` stall counters (µs), or null when
+ *  the file is not PSI. */
+export function psiTotals(out: string): PsiTotals | null {
+    const total = (kind: string): number | null => {
+        const m = new RegExp(`^${kind} .*\\btotal=(\\d+)`, "m").exec(out);
+        return m ? Number(m[1]) : null;
+    };
+    const some = total("some");
+    return some === null ? null : { some, full: total("full") };
+}
+
+/** The memory stall a run sat through, ms, from the samples at its start and
+ *  end — null for a side either sample cannot say (not Linux, unreadable). */
+export function psiStallMs(
+    start: Pick<MachineSample, "psiTotalUs">,
+    end: Pick<MachineSample, "psiTotalUs">
+): { some: number | null; full: number | null } {
+    const a = start.psiTotalUs;
+    const b = end.psiTotalUs;
+    const delta = (
+        x: number | null | undefined,
+        y: number | null | undefined
+    ) => (x == null || y == null ? null : Math.round((y - x) / 1000));
+    return { some: delta(a?.some, b?.some), full: delta(a?.full, b?.full) };
 }
 
 /** `ps`'s `etime` — `[[dd-]hh:]mm:ss` — in seconds. */
@@ -869,6 +923,7 @@ function readLinuxSample(): MachineSample {
         swapUsedMb: mem?.swapUsedMb ?? null,
         pressure: psi === null ? null : psiLevel(psi),
         reclaimableMb: mem?.reclaimableMb ?? null,
+        psiTotalUs: psi === null ? null : psiTotals(psi),
     };
 }
 

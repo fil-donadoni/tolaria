@@ -507,6 +507,127 @@ describe("breaking a stale lock never deletes a live one", () => {
     });
 });
 
+/** A stand-in for `systemctl --user` driving one unit (issue #5468): the
+ *  unit's state lives in `<dir>/unit-state`, every start/restart is appended
+ *  to `<dir>/unit-calls` and launches the stub backend detached — what
+ *  systemd would run. `<dir>/unit-fail` makes start/restart exit 1. */
+const STUB_SYSTEMCTL = `
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
+const [dir, serverScript, port, counter, delayMs, verb] = process.argv.slice(2);
+const stateFile = path.join(dir, "unit-state");
+const state = fs.existsSync(stateFile) ? fs.readFileSync(stateFile, "utf8") : "inactive";
+if (verb === "cat") process.exit(0);
+if (verb === "is-active") {
+    console.log(state);
+    process.exit(state === "active" ? 0 : 3);
+}
+fs.appendFileSync(path.join(dir, "unit-calls"), verb + "\\n");
+if (fs.existsSync(path.join(dir, "unit-fail"))) {
+    console.error("Job for tolaria-convex.service failed.");
+    process.exit(1);
+}
+spawn(process.execPath, [serverScript, port, counter, delayMs], {
+    detached: true,
+    stdio: "ignore",
+}).unref();
+fs.writeFileSync(stateFile, "active");
+`;
+
+describe("convex:ensure — the backend is a systemd unit (issue #5468)", () => {
+    const unitCalls = (): string[] =>
+        fs.existsSync(path.join(tmp, "unit-calls"))
+            ? fs
+                  .readFileSync(path.join(tmp, "unit-calls"), "utf8")
+                  .split("\n")
+                  .filter(Boolean)
+            : [];
+
+    async function unitArgs(extra: string[] = []) {
+        const port = await freePort();
+        const stub = path.join(tmp, "stub-systemctl.cjs");
+        fs.writeFileSync(stub, STUB_SYSTEMCTL);
+        const url = `http://127.0.0.1:${port}`;
+        return {
+            url,
+            port,
+            args: [
+                "--url",
+                url,
+                "--instance-name",
+                `test-none-${process.pid}-${port}`,
+                "--unit",
+                "tolaria-convex.service",
+                "--systemctl",
+                JSON.stringify([
+                    process.execPath,
+                    stub,
+                    tmp,
+                    serverScript,
+                    String(port),
+                    counter,
+                    "500",
+                ]),
+                "--start-timeout-ms",
+                "20000",
+                ...extra,
+            ],
+        };
+    }
+
+    it("an inactive unit is started through systemd — nothing spawned, no pid file", async () => {
+        const { url, args } = await unitArgs();
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toMatch(
+            /answers — systemctl --user start tolaria-convex\.service/
+        );
+        expect(unitCalls()).toEqual(["start"]);
+        expect(starts()).toBe(1);
+        expect(await answers(url)).toBe(true);
+        expect(fs.existsSync(path.join(telemetry, "convex-dev.pid"))).toBe(
+            false
+        );
+    });
+
+    it("an active unit that never answers is waited on, then restarted — never killed by hand", async () => {
+        const { url, args } = await unitArgs(["--wait-alive-ms", "1000"]);
+        fs.writeFileSync(path.join(tmp, "unit-state"), "active");
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stderr).toMatch(/is active but not answering/);
+        expect(r.stdout).toMatch(/systemctl --user restart tolaria-convex/);
+        expect(unitCalls()).toEqual(["restart"]);
+        expect(await answers(url)).toBe(true);
+    });
+
+    it("a unit that answers is left alone", async () => {
+        const { port, args } = await unitArgs();
+        const srv = http.createServer((_q, s) => s.end("ok"));
+        servers.push(srv);
+        await new Promise<void>((r) => srv.listen(port, "127.0.0.1", r));
+        const r = await ensure(args);
+        expect(r.code).toBe(0);
+        expect(r.stdout).toMatch(/answers — nothing started/);
+        expect(unitCalls()).toEqual([]);
+    });
+
+    it("a failed start fails non-zero, naming the journal", async () => {
+        const { args } = await unitArgs();
+        fs.writeFileSync(path.join(tmp, "unit-fail"), "");
+        const r = await ensure(args);
+        expect(r.code).toBe(1);
+        expect(r.stderr).toMatch(
+            /systemctl --user start tolaria-convex\.service failed: .*Job for/
+        );
+        expect(r.stderr).toMatch(
+            /journalctl --user -u tolaria-convex\.service/
+        );
+        expect(starts()).toBe(0);
+    });
+});
+
 describe("process classification", () => {
     const BACKEND =
         "/Users/x/.cache/convex/binaries/precompiled-2026-09-28-5c7cb5b/convex-local-backend --port 3210 --site-proxy-port 3211 --instance-name local-fil_5815a-tolaria --instance-secret abc";
