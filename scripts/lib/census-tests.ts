@@ -24,7 +24,9 @@
  *
  * `census-tests.test.ts` keeps the table honest: every `scripts/__tests__`
  * file matching `DIRECTORY_WALK` is a row here or in `CENSUS_WALK_EXEMPT`
- * with the reason its walk censuses no repo corpus.
+ * with the reason its walk censuses no repo corpus. SCOPE: `scripts/__tests__`
+ * only, where the tree's census guards live; a directory-walking test under
+ * `convex/` or `src/` is not seen by the guard and stays health's.
  */
 
 export interface CensusTest {
@@ -42,9 +44,24 @@ export interface CensusTest {
 
 /** The source shapes that walk a directory or grep the tree. */
 export const DIRECTORY_WALK =
-    /\breaddirSync\b|\bglobSync\b|\bgit (?:ls-files|grep)\b/;
+    /\b(?:readdir|opendir|glob)(?:Sync)?\(|["']ls-files["']|\bgit (?:ls-files|grep)\b/;
 
 export const CENSUS_TESTS: readonly CensusTest[] = [
+    // .claude/, docs/agents/ and CLAUDE.md — agent-facing names in resident docs
+    {
+        test: "scripts/__tests__/action-space.test.ts",
+        admits: /^(\.claude|docs\/agents)\/|^CLAUDE\.md$/,
+    },
+    // scripts/**/*.ts and .claude/skills/**/*.md — banned data recipes
+    {
+        test: "scripts/__tests__/destructive-data-recipes.test.ts",
+        admits: /^scripts\/|^\.claude\/skills\//,
+    },
+    // every tracked file — no text source reads as binary
+    {
+        test: "scripts/__tests__/source-control-bytes.test.ts",
+        admits: /./,
+    },
     // docs/adr/ — every ADR has its index row
     { test: "scripts/__tests__/adr-index.test.ts", admits: /^docs\/adr\// },
     // src/, scripts/ — the accessibility-gate exemption attribute
@@ -87,10 +104,10 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/compiled-pool-client-seam.test.ts",
         admits: /^(convex|src|scripts)\//,
     },
-    // convex/ top level — game*.ts / debug*.ts modules
+    // convex/ top-level game*/debug* modules and their bundled import closure
     {
         test: "scripts/__tests__/convex-card-free-seam.test.ts",
-        admits: /^convex\/[^/]+$/,
+        admits: /^convex\//,
     },
     // src/ tests mocking the cards barrel, resolved into convex/cards/
     {
@@ -114,7 +131,7 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     // data/full-catalogue/ artefacts
     {
         test: "scripts/__tests__/full-catalogue-size.test.ts",
-        admits: /^data\/full-catalogue\//,
+        admits: /^data\/full-catalogue\/|^(package\.json|scripts\/ensure-full-catalogue\.mjs|src\/lib\/fullCatalogue\.ts)$/,
     },
     // .claude/hooks/ and their registration in .claude/settings.json
     {
@@ -169,7 +186,7 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     // .claude/skills/
     {
         test: "scripts/__tests__/skill-invocation.test.ts",
-        admits: /^\.claude\/skills\//,
+        admits: /^\.claude\/skills\/|^scripts\/loop-drain\.sh$/,
     },
     // every test file and the vitest project partition
     {
@@ -179,7 +196,7 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
     // every __tests__/fixtures/ path
     {
         test: "scripts/__tests__/test-fixtures-tracked.test.ts",
-        admits: /\/__tests__\/fixtures\//,
+        admits: /\/__tests__\/fixtures\/|^\.gitignore$/,
     },
     // the vitest project include globs, mirrored by test-reach
     {
@@ -220,6 +237,10 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
 
 /** Directory-walking tests that census no repo corpus, each with its reason. */
 export const CENSUS_WALK_EXEMPT: Readonly<Record<string, string>> = {
+    "scripts/__tests__/generated-artifact-merge.test.ts":
+        "`git ls-files --error-unmatch` on the paths an imported table names, never a directory; it censuses no repo corpus",
+    "scripts/__tests__/worktree-bootstrap.test.ts":
+        "`git ls-files` on named .husky/ hook paths, never a directory walk; it censuses no repo corpus",
     "scripts/__tests__/convex-ensure.test.ts":
         "a scratch telemetry dir the test creates; it censuses no repo corpus",
     "scripts/__tests__/gate-run.test.ts":
