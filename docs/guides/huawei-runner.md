@@ -4,6 +4,7 @@ How to install, check and remove the [reaper](#g-reaper) on both machines of
 topology B' (ADR 0154): a `launchd` agent on the MacBook, a `systemd` user
 timer on the Huawei. Built by issue #5470. The unit files live beside the
 scripts they run, in [`scripts/runner-units/`](../../scripts/runner-units/).
+The Huawei's one-time setup for the batch gates is [its own section](#set-up-the-huawei-for-the-batch-gates).
 
 ## What it does
 
@@ -133,6 +134,101 @@ bun run reaper --dry-run --orphan-min-age 0   # both listed, with reasons
 
 The vitest stray is reaped by the first [sweep](#g-sweep) after it is a minute
 old, the python by the next [sweep](#g-sweep). Both must show in `reaped.log` with their reasons.
+
+## Set up the Huawei for the batch gates
+
+What the Huawei (Omarchy / Arch, i7-8550U, 4 cores / 8 threads, 16 GiB)
+needs to run every batch gate — `check:pr`, `test`, `check:all`,
+`check:ui --all`, `health` — and the check that proves each. Issue #5463
+made these changes, in this order; every step is re-runnable (run it again on
+a machine that has it and nothing changes). What the machine then measured:
+`docs/research/huawei-gate-bench-2026-10-11.md` § 4.
+
+| Need                                            | Check                                                                            | Why                                                                                                            |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| The machine never suspends on lid, keys or idle | `systemd-analyze cat-config systemd/logind.conf` shows the `Handle*=ignore` rows | A suspended health step is recorded `infra`, never a verdict (sleep detection, `lib/health-verdict.ts`)        |
+| Read access to the system journal               | `journalctl --system -n1` prints a line                                          | Sleep detection reads it                                                                                       |
+| Playwright's Chromium and its shared libraries  | `bunx playwright install chromium` exits 0; `ldd` on both binaries finds all     | `check:ui` drives it                                                                                           |
+| GNU `time`                                      | `/usr/bin/time --version`                                                        | Peak RSS of a gate (`time -v`); without it every wrapped step exits 127 in under a second                      |
+| Node at the repo's pin                          | `mise current node` equals `.nvmrc`                                              | Vitest and the Convex CLI run under it                                                                         |
+| `perl`                                          | `perl -v`                                                                        | The AFK loop's detach path (`loop-handoff.sh`: `POSIX::setsid`, log stamping)                                  |
+| A local Convex deployment                       | `bun run convex:ensure` prints `answers`                                         | `check:ui` signs in against it; keep the `convex dev` watcher in the primary checkout, never a merged worktree |
+
+### 1. logind and the journal — one root script
+
+Run from a real terminal (Claude Code's `!` prefix gives `sudo` no tty for
+the password), as `sudo bash huawei-setup.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+install -d /etc/systemd/logind.conf.d
+cat >/etc/systemd/logind.conf.d/30-tolaria-runner.conf <<'EOF'
+# Tolaria batch runner (issue #5463): never sleep on lid, keys or idle.
+[Login]
+HandleLidSwitch=ignore
+HandleLidSwitchExternalPower=ignore
+HandleLidSwitchDocked=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+IdleAction=ignore
+EOF
+usermod -aG systemd-journal fil
+systemctl kill -s HUP systemd-logind
+systemd-analyze cat-config systemd/logind.conf | grep -E '^(Handle|Idle)'
+```
+
+`HUP` makes logind re-read its configuration without a restart, so the
+graphical session survives. Omarchy's own `10-ignore-power-button.conf` and
+`20-inhibit-delay.conf` stay as they are. On Arch, `wheel` already has a read
+ACL on `/var/log/journal`, so `journalctl --system` answered before the group
+was added; `systemd-journal` makes access independent of `wheel` from the next
+login.
+
+### 2. Playwright Chromium — user-level, no system package
+
+```bash
+bunx playwright install chromium
+ldd ~/.cache/ms-playwright/chromium-*/chrome-linux64/chrome | grep 'not found'
+ldd ~/.cache/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell | grep 'not found'
+```
+
+Both `ldd` lines must print nothing. Playwright downloads its Ubuntu 24.04
+fallback build on Arch (it says so); `install --with-deps` and
+`install-deps` are apt-only. The Omarchy desktop already carried every
+library both binaries load, so **no pacman package was installed** for it. If
+a later build reports a missing `lib*.so`, `pacman -F <lib>.so` names the
+package: install it and add it here.
+
+### 3. GNU `time` — one pacman package
+
+```bash
+sudo pacman -S --needed time
+```
+
+Arch does not ship `/usr/bin/time`; bash's `time` builtin has no `-v`.
+
+### 4. Node, perl — nothing to install
+
+`mise.toml` at the repo root pins Node to `.nvmrc` (24.21.0) and `mise`
+resolves it on `cd`; if `mise current node` differs, `mise install`. Omarchy
+ships Perl 5 (5.42.2 on 2026-10-12).
+
+### 5. Check the whole machine
+
+```bash
+bun run machine
+journalctl --system -n1 --no-pager
+systemd-inhibit --list
+perl -v
+```
+
+`bun run machine` prints the admission thresholds from `tolaria.config.json`
+beside the live readings. Linux counts runnable **and** uninterruptible tasks
+in the load average, so the same `loadMax` can read higher here than on macOS
+for the same work; compare with the idle reading in the bench's § 4.
+`systemd-inhibit --list` must show no `block`-mode sleep inhibitor you did
+not expect: only `delay` ones (NetworkManager, UPower, Omarchy's lock).
 
 ## Glossary
 

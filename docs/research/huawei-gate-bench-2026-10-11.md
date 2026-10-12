@@ -1,7 +1,8 @@
 # Huawei gate bench — can the second machine carry the batch gates?
 
-Date: 2026-10-11. Status: **measurement brief, results pending** (§ 4 is
-filled in by the instance that runs it).
+Date: 2026-10-11. Status: **measured 2026-10-12** (§ 4; issue #5463).
+Machine setup: `docs/guides/huawei-runner.md` § Set up the Huawei for the
+batch gates.
 
 ## 1. Why
 
@@ -164,16 +165,142 @@ Reference column = MacBook M1 Pro, 8 cores, 16 GiB, load 2–9 at the time.
 
 | Step             | MacBook     | Huawei run 1 | Huawei run 2 | Peak RSS | Temp before → after | Exit |
 | ---------------- | ----------- | ------------ | ------------ | -------- | ------------------- | ---- |
-| `check:pr`       | 378–525 s   |              |              |          |                     |      |
-| `test`           | ~600 s      |              |              |          |                     |      |
-| `check:all`      | ~150 s      |              |              |          |                     |      |
-| `check:ui --all` | ~1140 s     | —            |              |          |                     |      |
-| `health`         | 1000–1900 s | —            |              |          |                     |      |
+| `check:pr`       | 378–525 s   | 1934 s       | 1525 s       | 3.43 GB  | 43 → 53 °C          | 1, 1 |
+| `test`           | ~600 s      | 655 s ¹      | 589 s ¹      | 2.03 GB  | 53 → 59 °C          | 1, 1 |
+| ↳ `test:bot`     | —           | —            | 510 s ²      | —        | 55 → 57 °C          | 0    |
+| ↳ `test:blade`   | —           | —            | 1383 s ²     | —        | 57 → 57 °C          | 0    |
+| `check:all`      | ~150 s      | 108 s        | 61 s         | 2.42 GB  | 56 → 57 °C          | 0, 0 |
+| `check:ui --all` | ~1140 s     | —            | 880 s        | 2.40 GB  | 57 → 57 °C          | 1    |
+| `health`         | 1000–1900 s | —            | skipped ³    | —        | —                   | —    |
 
-CPU model (from `lscpu`): _…_
-`bun run machine` at idle: _…_
-Steps that could not run, with the verbatim error: _…_
-Throttling observed (run 2 slower than run 1, or temperature ≥ 90 °C): _…_
+Run on 2026-10-12, staging `a811f273c`, logs in `~/huawei-bench/` on the
+Huawei. Temperatures are the hottest of the 13 thermal zones. Peak RSS is
+`time -v`'s maximum resident set, the larger of the two runs.
+
+1. **`test` stopped at `test:app`.** `test` is
+   `test:app && test:bot && test:blade`; `test:app` went red (below), so
+   the 655 s / 589 s are `test:app` alone (vitest `Duration` 651 s / 570 s,
+   4 heavy workers).
+2. **`test:bot` and `test:blade` timed separately**, once each, warm, via
+   `gate:run` (elapsed from timestamps, so no peak RSS). The full chain is
+   therefore **589 + 510 + 1383 = 2482 s ≈ 41 min**. `test:blade` alone is
+   23 min: it runs on the light tier (≤ 2 vitest workers), 238 tests whose
+   summed test time is 2598 s.
+3. **`health` skipped** per § 3.6: the `test` chain exceeds 40 min, and
+   three of 3.2–3.5 were red.
+
+`check:pr`'s two vitest `Duration` lines (run 2): bot projects 565 s,
+node+dom 885 s — both at the light tier's 2 workers. The same node+dom
+projects take 570 s at the heavy tier's 4 workers (`test:app`, run 2), so
+this machine scales with workers; during `check:pr` the 1-minute load
+stayed ~2 of 8.
+
+CPU model (from `lscpu`): `Intel(R) Core(TM) i7-8550U CPU @ 1.80GHz`, 4
+cores / 8 threads, 15 GiB usable RAM.
+
+`bun run machine` at idle (09:04, before the first step):
+
+```
+machine — 8 cores, 15 GB (probes: sample 1 ms, session census 23 ms)
+  load (1 min)     1.9  ·  max 8  ·  ok
+  memory pressure  kernel level 1  ·  max 1 (normal)  ·  ok
+  swap used        919 MB  ·  recorded, not a threshold (a high-water mark)
+  reclaimable RAM  11384 MB (free + inactive)  ·  1900 MB per session
+  sessions         2 live  ·  cap 5  ·  effective cap 5
+  a gate start     is admitted (load 1.9, swap 919 MB)
+  a claim/worktree is admitted (counted from this session: the others)
+  process leases   4 registered (/home/fil/.cache/tolaria/leases)
+  reaper           never swept on this machine — install it (docs/guides/huawei-runner.md § The reaper)
+```
+
+Same thresholds as the MacBook (`loadMax 8`, `waitMaxS 900` from
+`tolaria.config.json`; `waitMaxS` is not printed). Effective session cap 5.
+Idle load 1.2–1.9 with a desktop session and two Claude Code processes: sane
+— Linux counts uninterruptible tasks too, but nothing here sat in D state.
+The four leases are expired leftovers of `land` gate tests from 2026-10-11;
+the reaper (issue #5470) is not installed yet, which is why nothing swept
+them. `journalctl` (system and kernel), `systemd-inhibit --list` (three
+`delay` inhibitors: NetworkManager, UPower, Omarchy lock — none `block`) and
+`perl -v` (5.42.2) all answer.
+
+Steps that ran red (timings stand; nothing was fixed, per § 2):
+
+- **`scripts/__tests__/dashboard-actions.test.ts`, 2 tests, every run**
+  (`check:pr` ×2, `test` ×2). Machine-specific: `scripts/telemetry-serve.ts`
+  opens `.claude/telemetry/telemetry.db` at import when the file exists, and
+  this checkout has one (written by `telemetry:ingest`), so the import
+  reaches `bun:sqlite` under vitest's Node runtime:
+  `Error: Cannot find module 'bun:sqlite'` at `scripts/telemetry-serve.ts:133`.
+  A checkout without `telemetry.db` never takes that path. **Not
+  Huawei-specific** (verified on the MacBook on 2026-10-12): the same
+  targeted run is red in the MacBook's primary checkout, whose
+  `telemetry.db` dates from 2026-09-05. Health is GREEN on both machines
+  only because `health-main` runs the suite in a throwaway worktree
+  (`scripts/health-main.ts`), where the file does not exist; § 2 of this
+  bench prescribes the primary checkout, which is why the bench saw the red
+  and health never did. The test depends on the state of its cwd — a test
+  isolation bug (issue #5529).
+- **`scripts/__tests__/dashboard-glossary.test.ts`, 3 tests, `check:pr` run 1
+  only** (`every dimension/metric/fact table the server whitelists has a
+human label`); green in the three later runs.
+- **`check:ui --all`**: one cell of the walk failed, every other cell
+  `PASS every floor at zero`, 67/70 surfaces measured (2 declared unwalked,
+  issue #3506), viewport parallelism `5 of 5 at a time, 5 lane account(s) —
+sized from 8 cpus and 15 GiB`, console errors none:
+  `dlg-attack-all @ 390x844x3: assertion "confirm: Attack" — reachable
+role=button name="Attack" — not actionable: click: Timeout 5000ms
+exceeded.` Playwright's Chromium launched (the Ubuntu 24.04 fallback build;
+  no missing library) and `convex:ensure` found the local backend serving.
+
+Throttling observed (run 2 slower than run 1, or temperature ≥ 90 °C): **none.**
+Every run 2 was faster than its run 1 (cache warm-up), and the hottest zone
+never passed 59 °C.
+
+### Reading against § 5
+
+The summed chain is **~41 min — but that sum is a measurement artefact, not
+the number § 5 asks for.** Read on the MacBook (2026-10-12) against the gate
+code:
+
+- **`test:blade` was timed at 2 workers; inside the chain it runs at 4.**
+  `bun run test` holds the heavy tier, which exports
+  `TOLARIA_VITEST_WORKERS=4` to its child; the nested `test:blade` is a
+  light-tier call, but `gateChildEnv` keeps an inherited
+  `TOLARIA_VITEST_WORKERS` (`scripts/lib/vitest-fs-cache.ts`,
+  `env.TOLARIA_VITEST_WORKERS ?? …`). Timed on its own via `gate:run`,
+  with no heavy parent, it ran at the light tier's 2 workers — 1383 s, 56 %
+  of the sum. This machine scales with workers (node+dom 885 s at 2 → 570 s
+  at 4, above), so the in-chain figure is plausibly ~700–800 s and the
+  chain **~30–32 min: the `25–40 min` row**, not `> 40 min`. Plausible,
+  not measured: the chain never ran whole, because `test:app` was red.
+- The `test:app` red is the cwd-state bug above, not a Huawei trait; it
+  never reaches health (worktree), and is red on the MacBook's primary
+  checkout too.
+- `check:ui --all` is _faster_ here than on the MacBook (880 s vs ~1140 s,
+  5-way parallel on an otherwise idle machine), which empties the
+  `25–40 min` row's "thin health" caveat: a full health here is
+  ~31 + 15 + 2 ≈ 50 min, inside the batch window (20 landings or 8 h).
+- The machine is not slow, it is **empty**: at 4 workers and idle it matches
+  the MacBook at 4 workers under load 2–9 (`test:app` 589 vs ~600 s,
+  `check:all` 61–108 vs ~150 s). At 2 workers it is ~3× slower
+  (single-thread i7-8550U vs M1 Pro) — which is what `check:pr` measured
+  (1525–1934 vs 378–525 s), the projection's upper end.
+
+**Verdict: B' as planned** — sessions, `land` and `release` on the MacBook;
+batch health (full, `check:ui --all` included), the nightly crons and the
+release walk on the Huawei. Two tickets, not a verdict change:
+
+1. `scripts/__tests__/dashboard-actions.test.ts` made independent of
+   `.claude/telemetry/telemetry.db` in the cwd (bug, issue #5529).
+2. `bun run test` run whole on the Huawei, in a worktree as health does, for
+   the chain number this section estimates (HITL on the Huawei, issue #5530).
+
+`land` on the Huawei is the one alternative this bench does not settle:
+`check:pr` here ran at the light tier. A land-runner (issue #5469) makes the
+machine a parameter; once it exists, `check:lane` at the HEAVY tier on three
+typical PRs (`cards` / `engine` / `full`) says whether it can move — at
+10 PR/h it needs ≤ 6 min per landing on average. Until that number exists,
+`land` stays on the MacBook.
 
 ## 5. How the numbers decide
 
