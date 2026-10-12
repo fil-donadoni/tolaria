@@ -124,6 +124,13 @@ RUN_ID="${TOLARIA_LOOP_RUN_ID:-}"
 [ -n "$RUN_ID" ] || RUN_ID="$(date +%s)-$$"
 RUN_START_MS=$(($(date +%s) * 1000))
 SINGLE_INSTANCE=0
+# Concurrent passes (issue #5486): `1` (the default — a hand-started
+# `loop:drain` keeps its one-pass-at-a-time shape), a ceiling N, or `auto` =
+# `sessions.cap`. Above one, the machine admission decides how many of them
+# may run at any moment (`bun scripts/machine.ts lanes`, see
+# `refresh_lane_target`); `--lanes N` only ever lowers that, never raises it.
+# `loop:afk` passes `auto` unless told otherwise.
+LANES=1
 # Grace period before the FIRST pass. The handoff (scripts/loop-handoff.sh)
 # detaches this driver from inside a pass that is still finishing its own
 # Release step; starting pass N+1 the same second would race that pass's
@@ -189,6 +196,10 @@ while [ $# -gt 0 ]; do
             START_DELAY="$2"
             shift 2
             ;;
+        --lanes)
+            LANES="$2"
+            shift 2
+            ;;
         --dry-run)
             DRY_RUN=1
             shift
@@ -245,6 +256,20 @@ for _pair in "max-consecutive-errors:$MAX_CONSECUTIVE_ERRORS" \
     fi
 done
 
+case "$LANES" in
+    auto) ;;
+    '' | *[!0-9]* | 0)
+        echo "loop-drain[error]: --lanes must be a positive integer or 'auto', got: '$LANES'" >&2
+        exit 2
+        ;;
+esac
+# A named prompt is ONE invocation the operator owns (see PASS_PROMPT): N
+# copies of it at once would run the same scoped work N times over.
+if [ "$PROMPT_OVERRIDDEN" -eq 1 ] && [ "$LANES" != "1" ]; then
+    echo "loop-drain[warn]: --prompt runs one lane — --lanes $LANES ignored (N copies of one named prompt would collide)." >&2
+    LANES=1
+fi
+
 if ! is_number "$MAX_PCT"; then
     echo "loop-drain[error]: --max-pct must be numeric, got: '$MAX_PCT'" >&2
     exit 2
@@ -294,7 +319,83 @@ cleanup_pid_file() {
     [ "$_owner" = "$$" ] && rm -f "$PID_FILE"
     return 0
 }
-trap cleanup_pid_file EXIT INT TERM
+
+# ── lanes (issue #5486). One directory per pass in flight,
+# `$LANE_DIR/<k>/`, one value per file — read back with `cat`, never sourced:
+#   driver     this driver's pid — a lane is only ever ours to finish
+#   pid        the background job running the pass (`kill -0` liveness)
+#   pass.pid   the `claude` process itself (the lease anchor), for signals
+#   done       written by the job as its very last act
+#   pass issue model session epoch log rc overlap, and the before-readings
+#   the pass-end accounting compares against.
+# `loop:status` and `loop:afk --status` read the same files for their lane
+# view. A lane whose driver is dead is debris from a killed run: swept here.
+LANE_DIR=".claude/telemetry/loop-lanes"
+# How often a multi-lane driver looks for a finished pass. One lane never
+# polls: it `wait`s on its one job.
+LANE_TICK_SECS="${TOLARIA_LOOP_LANE_TICK_SECS:-1}"
+# How stale the admission's answer may get while nothing starts or ends: a
+# machine that clears grows its lanes back within this.
+LANE_RECHECK_SECS=30
+mkdir -p "$LANE_DIR"
+for _d in "$LANE_DIR"/*; do
+    [ -d "$_d" ] || continue
+    _p=$(cat "$_d/driver" 2>/dev/null || echo "")
+    if is_uint "$_p" && [ "$_p" != "$$" ] && kill -0 "$_p" 2>/dev/null; then
+        continue
+    fi
+    rm -rf "$_d"
+done
+
+lane_put() { printf '%s\n' "$3" >"$LANE_DIR/$1/$2"; }
+lane_get() { cat "$LANE_DIR/$1/$2" 2>/dev/null || true; }
+
+# This driver's lanes, one number per line.
+own_lanes() {
+    for _d in "$LANE_DIR"/*; do
+        [ -f "$_d/driver" ] || continue
+        [ "$(cat "$_d/driver" 2>/dev/null)" = "$$" ] || continue
+        basename "$_d"
+    done
+    return 0
+}
+
+running_lanes() { own_lanes | wc -l | tr -d ' '; }
+
+# The issues this driver's passes are working on — the pre-flight never hands
+# one of them to a second lane, claimed yet or not.
+busy_issues() {
+    for _k in $(own_lanes); do
+        lane_get "$_k" issue
+    done | tr '\n' ' '
+    return 0
+}
+
+# A pass is over when its job says so (`done`) or is gone without saying it.
+lane_over() {
+    [ -f "$LANE_DIR/$1/done" ] && return 0
+    _p=$(lane_get "$1" pid)
+    is_uint "$_p" || return 1
+    kill -0 "$_p" 2>/dev/null && return 1
+    return 0
+}
+
+# A pass in a background job ignores the terminal's SIGINT (POSIX: an
+# asynchronous list in a non-interactive shell), so the driver forwards the
+# end of the run to every pass it started: interrupting the driver ends the
+# passes, as it did when the one pass ran in the foreground.
+stop_lanes() {
+    for _k in $(own_lanes); do
+        for _f in pass.pid pid; do
+            _p=$(lane_get "$_k" "$_f")
+            if is_uint "$_p"; then kill -TERM "$_p" 2>/dev/null || true; fi
+        done
+        rm -rf "${LANE_DIR:?}/$_k"
+    done
+    return 0
+}
+trap cleanup_pid_file EXIT
+trap 'stop_lanes; exit 130' INT TERM
 
 # Sleep in short chunks so the stop-file kill switch is honoured DURING a
 # backoff, not only between passes — a 15-minute backoff that ignores the kill
@@ -612,6 +713,13 @@ reap_orphan_claims() {
 # `land-failed` is `plan.repair`, taken before `resume[0]` and handed off the
 # same way (`pr:<N>` → `/next-ticket N --resume`), under the same one-per-run
 # bound.
+#
+# NEVER A RUNNING LANE'S ISSUE (issue #5486). A pass claims its issue a minute
+# or so after it starts; until then the plan still offers it. So every pick
+# skips the issues this driver's running passes hold (`busy_issues`), and the
+# plan is asked for one more batch item per running lane. A pick that still
+# collides — another machine, a hand session — meets `queue:claim`'s lock,
+# which refuses the second claim outright.
 RESOLVED_ISSUE=""
 RESOLVED_MODEL=""
 RESOLVED_RESUME=""
@@ -625,9 +733,10 @@ resolve_head() {
     # stdout makes the JSON unparseable — a real dry run against a 230-issue
     # queue resolved nothing at all for exactly this reason. Only stdout is
     # the plan.
+    _plan_cap=$((1 + $1))
     _plan_err=$(mktemp)
-    if ! _plan=$(bun run queue:plan --cap 1 --exclude-hitl 2>"$_plan_err"); then
-        echo "loop-drain[error]: pre-flight FAILED (bun run queue:plan --cap 1 --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
+    if ! _plan=$(bun run queue:plan --cap "$_plan_cap" --exclude-hitl 2>"$_plan_err"); then
+        echo "loop-drain[error]: pre-flight FAILED (bun run queue:plan --cap $_plan_cap --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
         cat "$_plan_err" >&2 || true
         rm -f "$_plan_err"
         return 1
@@ -638,18 +747,20 @@ resolve_head() {
     # word is how a quoting bug becomes an arbitrary-command bug.
     # Third word: `new`, or `pr:<N>` / `branch` / `local` for a resume (see
     # above).
-    _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" bun -e '
+    _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" LOOP_BUSY="$(busy_issues)" bun -e '
 const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
-const done = new Set((process.env.LOOP_RESUMED || "").split(/\s+/).filter(Boolean).map(Number));
-const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "";
+const ids = (v) => new Set((v || "").split(/\s+/).filter(Boolean).map(Number));
+const done = ids(process.env.LOOP_RESUMED);
+const busy = ids(process.env.LOOP_BUSY);
+const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "" && !busy.has(x.number);
 const repair = (plan.repair || []).find((x) => ok(x) && Number.isInteger(x.pr) && !done.has(x.number));
 const resume = (plan.resume || []).find((x) => ok(x) && !done.has(x.number));
-const head = (plan.batch || [])[0];
+const head = (plan.batch || []).find(ok);
 if (repair) {
     process.stdout.write(repair.number + " " + repair.model + " pr:" + repair.pr);
 } else if (resume) {
     process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : resume.state === "recoverable" ? "local" : "branch"));
-} else if (ok(head)) {
+} else if (head) {
     process.stdout.write(head.number + " " + head.model + " new");
 }
 ' 2>/dev/null) || _head=""
@@ -733,187 +844,107 @@ pct="n/a"
 first_queue_count=""
 last_queue_count=""
 
-while :; do
-    # 1. stop-file — the user's kill switch for a run already in flight.
-    if [ -f "$STOP_FILE" ]; then
-        stop_reason="stop-file"
-        break
+# ── the lanes' run state (issue #5486) ──────────────────────────────────────
+# DRAIN_REASON: a stop was decided — no pass starts again, the running ones
+#   finish (each still writes its row), and the run ends on this reason once
+#   none is left. A stop is one decision for the whole run: a rate limit in
+#   one lane is the account's (one account, every lane), RED is the base's.
+# HOLD: a refusal that may lift when a running pass ends (an empty queue, a
+#   plan at the cap or with nothing a running lane is not already doing). With
+#   no pass running the same refusal is final, exactly as it was with one lane.
+# NEXT_START_AT: a crash backoff holds every lane's NEXT start, not only the
+#   crashed lane's.
+DRAIN_REASON=""
+HOLD=0
+NEXT_START_AT=0
+LANE_TARGET=""
+LANE_PROBED_AT=0
+LANE_DIRTY=1
+LANES_SEEN=0
+
+# How many passes may be alive now. One lane asks nobody. Above it, the
+# machine admission (`bun scripts/machine.ts lanes`, `laneCap`): the RAM's
+# effective cap under `sessions.cap` and `--lanes`, one lane while load or
+# memory pressure is over its threshold. Re-asked after every pass start and
+# end, and every LANE_RECHECK_SECS while nothing moves. An unreadable answer
+# is one lane — the probe may only ever hold the driver back.
+refresh_lane_target() {
+    if [ "$LANES" = "1" ]; then
+        LANE_TARGET=1
+        return 0
     fi
-
-    # 2. max-passes. MAX_PASSES is already validated numeric above, so this
-    # is a plain comparison — no error-swallowing redirect needed.
-    if [ "$MAX_PASSES" -gt 0 ] && [ "$pass" -ge "$MAX_PASSES" ]; then
-        stop_reason="max-passes"
-        break
+    _now=$(date +%s)
+    if [ "$LANE_DIRTY" -eq 0 ] && [ -n "$LANE_TARGET" ] &&
+        [ $((_now - LANE_PROBED_AT)) -lt "$LANE_RECHECK_SECS" ]; then
+        return 0
     fi
-
-    # 2a. the local Convex backend (issue #4945). `check:ui`, the health
-    # gate's `--all` walk and preset seeding all need it, and while AFK nobody
-    # is there to type `bunx convex dev` after a sleep or a crash killed it —
-    # health went RED at `check:ui` and the run stopped as `health-red`.
-    # `convex:ensure` starts one ONLY when none answers and none is alive
-    # (never a second); it is a no-op probe when the deployment answers.
-    # Checked BEFORE the RED marker so a down backend is named as itself,
-    # never folded into `health-red` or `no-progress`.
-    if ! _convex_out=$(bun run convex:ensure 2>&1); then
-        stop_reason="convex-down"
-        echo "loop-drain[error]: the local Convex backend does not answer and 'bun run convex:ensure' could not start one — stopping. Its output:" >&2
-        printf '%s\n' "$_convex_out" | tail -n 25 >&2
-        break
+    LANE_DIRTY=0
+    LANE_PROBED_AT=$_now
+    _max_arg=""
+    [ "$LANES" = "auto" ] || _max_arg="--max $LANES"
+    # shellcheck disable=SC2086  # `--max N` or nothing, by design
+    _out=$(bun "$SCRIPT_DIR/machine.ts" lanes --running "$1" $_max_arg 2>/dev/null) || _out=""
+    _n=${_out%% *}
+    if is_uint "$_n" && [ "$_n" -ge 1 ]; then
+        _why=${_out#"$_n"}
+        _why=${_why# }
+    else
+        _n=1
+        _why="the admission probe did not answer"
     fi
+    if [ "$_n" != "$LANE_TARGET" ]; then
+        echo "loop-drain: lanes ${_n} (${_why:-the ceiling}) — ${1} running." >&2
+    fi
+    LANE_TARGET=$_n
+    return 0
+}
 
-    # 2b. health RED — the batch full gate failed on the base tip and nobody
-    # has fixed it. ADR 0110's green-main invariant: "A RED marker means
-    # fix-forward FIRST — never stack unrelated work on a red tip." `land`
-    # already refuses a non-repair PR, which is the right strength for a
-    # human who can state `--red-ok`; unattended there is nobody to state it,
-    # so the driver stops instead. Checked BEFORE the budget read and before
-    # the orphan sweep, because a red tip means no pass should happen at all
-    # — and reported as its own reason rather than folded into `no-progress`,
-    # so the morning's log says what to fix.
-    #
-    # Read through the verdict store (issue #5462), via `health:status
-    # --json`: the RED marker on the file backend, the base branch's `health`
-    # commit statuses on the github one — a RED found on the OTHER machine
-    # stops this loop too. An AMBER lineage (a proved repair landed) runs.
-    # The SECOND RED — a red on an AMBER lineage, the repair did not hold —
-    # stops with its own reason and notifies the owner. An unreadable store
-    # is a warning, never a stop: a GitHub 502 must not end the night.
-    _health_json=$(bun run --silent health:status --json 2>/dev/null) || true
-    _lineage=$(_health_field lineage)
-    # An unreadable store answers `none` WITH an error: name it, never as a
-    # clean read.
-    _h_error=$(_health_field error)
-    [ -n "$_h_error" ] && _lineage="unreadable"
-    _h_sha=$(_health_field sha)
-    _h_step=$(_health_field step)
-    _h_machine=$(_health_field machine)
-    _h_log=$(_health_field log)
-    _h_short=$(printf '%.8s' "$_h_sha")
-    _h_detail="${_h_short} red at ${_h_step:-unknown step}${_h_machine:+ on ${_h_machine}}${_h_log:+ — log: ${_h_log}}"
-    case "$_lineage" in
-        second-red)
-            stop_reason="health-second-red"
-            echo "loop-drain[error]: SECOND RED on this lineage — a repair landed (AMBER) and the next health run found the base RED again: ${_h_detail}. Stopping; a broken repair must not loop unattended. Run 'bun run health:status'." >&2
-            notify_owner "Tolaria: second RED on the base (${_h_short}, ${_h_step:-unknown step}) — loop stopped"
-            break
-            ;;
-        red)
-            stop_reason="health-red"
-            echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Verdict:" >&2
-            echo "  ${_h_detail}" >&2
-            break
-            ;;
-        infra)
-            # 2c. health INFRA (issue #4943) — the last run proved nothing
-            # about the tip (the machine slept, or the Convex backend did not
-            # answer). Not a stop: the tip is unproven, not red.
-            _h_reason=$(_health_field reason)
-            echo "loop-drain[warn]: release health is INFRA (at ${_h_step:-unknown step}) — the tip is unproven, not red: ${_h_reason:-re-run 'bun run health'}" >&2
-            ;;
-        green | amber | none) ;;
-        *)
-            echo "loop-drain[warn]: the health verdict could not be read (${_h_error:-'bun run health:status --json' gave no lineage}) — running the pass; 'bun run health:status' says more" >&2
-            ;;
-    esac
-
-    # 3. budget — a local proxy for relative burn, not a real quota reading
-    # (see ADR 0097 and scripts/lib/usage-window.ts). FAILS CLOSED: a
-    # non-zero exit, unparsable output, or a non-numeric/`null` pct all stop
-    # the run with reason `usage-error` rather than silently skipping the
-    # check and running the pass anyway.
-    if [ "$BUDGET_ENABLED" -eq 1 ]; then
-        # `--since` + `--run`, never `--hours`: this reads THIS run's own
-        # spend from its own launch, not the machine's last five hours. See
-        # RUN_ID above for why the two are not the same question.
-        usage_json=$(bun run usage:window --since "$RUN_START_MS" --run "$RUN_ID" --budget "$BUDGET" 2>&1) && usage_rc=0 || usage_rc=$?
-        pct=$(printf '%s' "$usage_json" | grep -o '"pct":[0-9.eE+-]*' | head -1 | cut -d: -f2)
-        weighted=$(printf '%s' "$usage_json" | grep -o '"weighted":[0-9.eE+-]*' | head -1 | cut -d: -f2)
-        # FAIL CLOSED FIRST, then account. The order matters: a reading the
-        # guard is about to declare unreadable must not move the run's spend
-        # on its way out, or the summary reports a figure the guard itself
-        # just refused to trust (PR #3704 review).
-        if [ "$usage_rc" -ne 0 ] || [ -z "$pct" ] || ! is_number "$pct"; then
-            stop_reason="usage-error"
-            pct="n/a"
-            echo "loop-drain[error]: budget guard FAILED CLOSED — could not read a usable pct from 'bun run usage:window' (exit ${usage_rc}). This stops the run rather than skipping the check, per ADR 0097. Reader output was:" >&2
-            printf '%s\n' "$usage_json" >&2
-            break
-        fi
-        # High-water mark, then derive the pct from it rather than trusting
-        # the reader's — so the figure this guard compares, logs and reports
-        # can only ever rise within a run.
-        if is_number "${weighted:-}"; then
-            spent=$(awk -v a="$spent" -v b="$weighted" 'BEGIN { print (b + 0 > a + 0) ? b : a }')
-            pct=$(awk -v s="$spent" -v b="$BUDGET" 'BEGIN { if (b + 0 <= 0) { print 0 } else { print s * 100 / b } }')
-        fi
-        over=$(awk -v p="$pct" -v m="$MAX_PCT" 'BEGIN { print (p + 0 >= m + 0) ? 1 : 0 }')
-        if [ "$over" -eq 1 ]; then
-            stop_reason="budget"
-            echo "loop-drain[warn]: budget guard tripped — run $RUN_ID has spent ${spent} of ${BUDGET} weighted tokens (${pct}%) >= --max-pct ${MAX_PCT}%." >&2
-            break
+# Block until something may have changed: one lane waits on its job; several
+# look again after a tick (POSIX `wait` cannot wait for "any one of them").
+wait_tick() {
+    if [ "$1" -gt 0 ] && [ "$LANES" = "1" ]; then
+        _p=$(lane_get "$(own_lanes | head -n 1)" pid)
+        if is_uint "$_p"; then
+            wait "$_p" 2>/dev/null || true
+            return 0
         fi
     fi
+    sleep "$LANE_TICK_SECS"
+    return 0
+}
 
-    # 3b. reap orphaned claims — BEFORE the queue is counted and before the
-    # pass builds its batch, so anything reclaimed here is selectable by the
-    # pass that is about to run. See `reap_orphan_claims` for why it lives in
-    # the driver rather than in the pass's own prompt.
-    reap_orphan_claims
+# A refusal before a start: final with nothing running, a HOLD otherwise.
+refuse_start() {
+    if [ "$running" -gt 0 ]; then
+        HOLD=1
+        echo "loop-drain: no new pass for now (${1}) — ${running} running; looking again when one ends." >&2
+    else
+        DRAIN_REASON="$1"
+    fi
+    return 0
+}
 
-    # 4. queue — nothing unclaimed left to do.
-    queue_before=$(count_unclaimed 2>/dev/null) || queue_before=""
-    if ! is_uint "$queue_before"; then
-        stop_reason="gh-error"
-        echo "loop-drain[error]: could not read the ready-for-agent queue count via gh — stopping." >&2
-        break
-    fi
-    [ -n "$first_queue_count" ] || first_queue_count="$queue_before"
-    last_queue_count="$queue_before"
-    if [ "$queue_before" -eq 0 ]; then
-        stop_reason="queue-empty"
-        break
-    fi
+# `gh`'s answer to "is issue N still claimed" — `true` / `false`, empty when
+# unread. `any(...)`, never `index(...)` (falsy at position 0).
+issue_claimed() {
+    gh issue view "$1" --json labels --jq 'any(.labels[]; .name == "in-progress")' 2>/dev/null || true
+}
 
-    # 4b. resolve WHICH issue and WHICH tier, unless the operator named the
-    # prompt (see PASS_PROMPT above — an override owns the whole invocation,
-    # including responsibility for what it selects). Before the pass counter
-    # moves, so a failure stops the run without booking a phantom pass.
-    # `pass_model_arg` is EITHER empty or the two words `--model <tier>`, and
-    # is expanded UNQUOTED at the call site for exactly that reason — same
-    # idiom as $CLAUDE_ARGS, and the same reason "$pass_prompt" stays quoted.
-    pass_prompt="$PASS_PROMPT"
-    pass_model_arg=""
-    if [ "$PROMPT_OVERRIDDEN" -eq 0 ]; then
-        if resolve_head; then
-            pass_prompt="$PASS_PROMPT $RESOLVED_ISSUE"
-            pass_model_arg="--model $RESOLVED_MODEL"
-            if [ -n "$RESOLVED_RESUME" ]; then
-                pass_prompt="$pass_prompt --resume"
-                RESUMED_THIS_RUN="$RESUMED_THIS_RUN $RESOLVED_ISSUE"
-                case "$RESOLVED_RESUME" in
-                pr:*) _resume_what="PR #${RESOLVED_RESUME#pr:}" ;;
-                local) _resume_what="local branch, never pushed" ;;
-                *) _resume_what="pushed branch, no PR" ;;
-                esac
-                echo "loop-drain[warn]: resuming dead claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died holding the claim; one resume per issue per run." >&2
-            fi
-        else
-            stop_reason="preflight-error"
-            break
-        fi
-    fi
-    # The pass's session id (issue #4722, see new_session_id) — minted before
-    # the pass counter moves, for the same reason the head is resolved there.
-    pass_session=$(new_session_id)
-    if [ -z "$pass_session" ]; then
-        echo "loop-drain[error]: could not mint a session id (neither uuidgen nor /proc/sys/kernel/random/uuid) — stopping rather than run a pass no transcript can be bound to." >&2
-        stop_reason="preflight-error"
-        break
-    fi
-
-    # ── run one pass ────────────────────────────────────────────────────────
+# ── start one pass in lane `$lane` (background) ─────────────────────────────
+start_pass() {
     pass=$((pass + 1))
+    lane=1
+    while [ -d "$LANE_DIR/$lane" ]; do lane=$((lane + 1)); done
+    mkdir -p "$LANE_DIR/$lane"
+    lane_put "$lane" driver "$$"
+    # OVERLAP: a pass that ran beside another cannot read its outcome off the
+    # queue-wide counts — another lane's landing would move them. It is read
+    # off its own issue instead (see `finish_lane`). Both sides are marked.
+    if [ "$running" -gt 0 ]; then
+        for _o in $(own_lanes); do lane_put "$_o" overlap 1; done
+    fi
+    _lane_word=""
+    [ "$LANES" = "1" ] || _lane_word=" — lane $lane"
     # The pass-START tag: the renderer opens the pass's header rule on it, so
     # the override path announces its pass too, naming the prompt it owns.
     # `session=<uuid>` is a trailing `k=v` word on both forms: the status line
@@ -921,20 +952,31 @@ while :; do
     if [ "$PROMPT_OVERRIDDEN" -eq 1 ]; then
         echo "loop-drain[pass]: pass $pass — prompt \"$pass_prompt\". session=$pass_session" >&2
     else
-        echo "loop-drain[pass]: pass $pass — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}. session=$pass_session" >&2
+        echo "loop-drain[pass]: pass ${pass}${_lane_word} — issue #${RESOLVED_ISSUE} on tier ${RESOLVED_MODEL}. session=$pass_session" >&2
     fi
     epoch=$(date +%s)
-    pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
-    green_before=$(read_green_sha)
-    total_before=$(count_total_open 2>/dev/null) || total_before=""
-    pr_before=""
+    pass_log="$LOG_DIR/pass-${pass}-lane-${lane}-${epoch}.log"
+    lane_put "$lane" pass "$pass"
+    lane_put "$lane" issue "$RESOLVED_ISSUE"
+    lane_put "$lane" model "$RESOLVED_MODEL"
+    lane_put "$lane" session "$pass_session"
+    lane_put "$lane" epoch "$epoch"
+    lane_put "$lane" log "$pass_log"
+    lane_put "$lane" queue_before "$queue_before"
+    lane_put "$lane" green_before "$(read_green_sha)"
+    lane_put "$lane" total_before "$(count_total_open 2>/dev/null || true)"
     # Unread (gh failed) is not "no PR": an existing PR would then read as a
     # new hand-off after the pass. No before-reading, no PR progress.
-    pr_before_ok=0
+    _pr_before=""
+    _pr_before_ok=0
     if [ -n "$RESOLVED_ISSUE" ] &&
-        pr_before=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null); then
-        pr_before_ok=1
+        _pr_before=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null); then
+        _pr_before_ok=1
     fi
+    lane_put "$lane" pr_before "$_pr_before"
+    lane_put "$lane" pr_before_ok "$_pr_before_ok"
+    rc_file="$LANE_DIR/$lane/rc"
+    done_file="$LANE_DIR/$lane/done"
 
     if [ "$DRY_RUN" -eq 1 ]; then
         # Echo the command as it will actually be typed. `$pass_model_arg` is
@@ -948,71 +990,103 @@ while :; do
             _dry_claude="claude --session-id $pass_session -p"
         fi
         echo "loop-drain: [dry-run] pass $pass would run: CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 $_dry_claude \"$pass_prompt\" $CLAUDE_ARGS" >&2
-        : >"$pass_log"
-        claude_exit=0
-    else
-        rc_file=$(mktemp)
-        pass_lease="loop-pass-$$-$pass-$(date +%s)"
-        # A pipeline's exit status in POSIX sh is the LAST command's (tee),
-        # not claude's — capture claude's real exit code via the rc_file
-        # rather than `$?` after the pipe (no PIPESTATUS in POSIX sh).
-        set +e
         (
-            # TOLARIA_LOOP_DRAIN marks the pass as ALREADY driven: the
-            # skill's end-of-pass handoff (scripts/loop-handoff.sh) no-ops on
-            # it, so a driver-launched pass never detaches a second driver.
-            # Without it, every pass would fork its own driver and the fan-out
-            # would be exponential, not sequential.
-            #
-            # CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 disables `claude -p`'s
-            # own background-wait ceiling (default 600000ms/600s — the CLI
-            # terminates any still-running background tasks once print mode's
-            # main turn ends and this ceiling elapses). Verified against the
-            # installed CLI bundle (2.1.237): the ceiling check is
-            # `XS>0 && ...` where `XS` is this env var (falling back to the
-            # 600000 default via `??`) — `0` makes that comparison always
-            # false, so the sweep never fires, matching the CLI's own
-            # stderr message ("Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to
-            # wait indefinitely."). A pass is already bounded by this
-            # driver's own budget/pct ceilings (see the guard above) — a
-            # wall-clock cutoff on background subagents is not one of them
-            # (#2622); it killed subagents mid-edit (18 of ~34 recorded
-            # passes on 2026-08-19).
-            # "$pass_prompt" stays QUOTED — it is ONE argument that normally
-            # contains spaces ("/next-ticket 3083", or an operator's
-            # "/process-gh-issues figli di 2405"); splitting it is the exact
-            # opposite of what the unquoted $pass_model_arg and $CLAUDE_ARGS
-            # beside it deliberately do.
-            # shellcheck disable=SC2086  # intentional word-splitting of the
-            # resolved tier flag and of a user-supplied flag string, both
-            # documented above.
-            #
-            # The `sh -c … exec` wrapper: the pass's PROCESS
-            # LEASE (issue #5470). The wrapper registers the lease on its own
-            # pid and then BECOMES `claude` (exec keeps the pid), so the lease
-            # is anchored on the pass itself — in the foreground, where Ctrl-C
-            # still reaches it — and everything the pass spawns inherits the
-            # tag. Once the pass ends, `bun run reaper` takes whatever it
-            # left running (a detached `gate:run` run has its own lease).
-            # The tag is exported only once the lease is written: a tag naming
-            # no registered lease is reaped. A pass dies on its anchor, never
-            # on the clock (`--no-expiry`).
-            TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
-                sh -c 'if bun "$1" put "$2" loop-pass $$ 0 --no-expiry --cwd "$PWD" --command "claude -p $3" >/dev/null; then TOLARIA_OWNER=$2; export TOLARIA_OWNER; fi; shift 3; exec "$@"' \
-                lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" \
-                claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
-            echo $? >"$rc_file"
-        ) | tee "$pass_log"
-        bun "$LEASE_CLI" clear "$pass_lease" >/dev/null || true
-        set -e
-        claude_exit=$(cat "$rc_file" 2>/dev/null || echo "")
-        rm -f "$rc_file"
-        # If the subshell died before it could write $rc_file (killed,
-        # crashed before `echo $?` ran), default to a generic non-zero code
-        # rather than leaving claude_exit empty — an empty field breaks the
-        # 7-field log-line invariant and `[ "" -ne 0 ]` errors under `-eu`.
-        is_uint "$claude_exit" || claude_exit=1
+            : >"$pass_log"
+            echo 0 >"$rc_file"
+            : >"$done_file"
+        ) &
+    else
+        pass_lease="loop-pass-$$-$pass-$(date +%s)"
+        # The pass runs as a background JOB so other lanes can run beside it;
+        # with one lane the driver `wait`s on it straight away. A pipeline's
+        # exit status in POSIX sh is the LAST command's (tee), not claude's —
+        # claude's real exit code goes to the lane's rc file (no PIPESTATUS in
+        # POSIX sh). `done` is the job's last act: the pass is over.
+        (
+            set +e
+            (
+                # TOLARIA_LOOP_DRAIN marks the pass as ALREADY driven: the
+                # skill's end-of-pass handoff (scripts/loop-handoff.sh) no-ops
+                # on it, so a driver-launched pass never detaches a second
+                # driver. Without it, every pass would fork its own driver and
+                # the fan-out would be exponential, not sequential.
+                #
+                # CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 disables `claude -p`'s
+                # own background-wait ceiling (default 600000ms/600s — the CLI
+                # terminates any still-running background tasks once print
+                # mode's main turn ends and this ceiling elapses). Verified
+                # against the installed CLI bundle (2.1.237): the ceiling check
+                # is `XS>0 && ...` where `XS` is this env var (falling back to
+                # the 600000 default via `??`) — `0` makes that comparison
+                # always false, so the sweep never fires, matching the CLI's
+                # own stderr message ("Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0
+                # to wait indefinitely."). A pass is already bounded by this
+                # driver's own budget/pct ceilings (see the guard below) — a
+                # wall-clock cutoff on background subagents is not one of them
+                # (#2622); it killed subagents mid-edit (18 of ~34 recorded
+                # passes on 2026-08-19).
+                # "$pass_prompt" stays QUOTED — it is ONE argument that
+                # normally contains spaces ("/next-ticket 3083", or an
+                # operator's "/process-gh-issues figli di 2405"); splitting it
+                # is the exact opposite of what the unquoted $pass_model_arg
+                # and $CLAUDE_ARGS beside it deliberately do.
+                # shellcheck disable=SC2086  # intentional word-splitting of
+                # the resolved tier flag and of a user-supplied flag string,
+                # both documented above.
+                #
+                # The `sh -c … exec` wrapper: the pass's PROCESS LEASE (issue
+                # #5470). The wrapper registers the lease on its own pid and
+                # then BECOMES `claude` (exec keeps the pid), so the lease is
+                # anchored on the pass itself and everything the pass spawns
+                # inherits the tag. Once the pass ends, `bun run reaper` takes
+                # whatever it left running (a detached `gate:run` run has its
+                # own lease). The tag is exported only once the lease is
+                # written: a tag naming no registered lease is reaped. A pass
+                # dies on its anchor, never on the clock (`--no-expiry`). The
+                # same pid goes to the lane's `pass.pid`: the one the driver
+                # signals when it is itself interrupted (`stop_lanes`).
+                TOLARIA_LOOP_DRAIN=1 TOLARIA_LOOP_RUN_ID="$RUN_ID" CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 \
+                    sh -c 'echo $$ >"$4" 2>/dev/null; if bun "$1" put "$2" loop-pass $$ 0 --no-expiry --cwd "$PWD" --command "claude -p $3" >/dev/null; then TOLARIA_OWNER=$2; export TOLARIA_OWNER; fi; shift 4; exec "$@"' \
+                    lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" "$LANE_DIR/$lane/pass.pid" \
+                    claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
+                echo $? >"$rc_file"
+            ) | tee "$pass_log"
+            bun "$LEASE_CLI" clear "$pass_lease" >/dev/null 2>&1 || true
+            : >"$done_file"
+        ) &
     fi
+    lane_put "$lane" pid "$!"
+    LANE_DIRTY=1
+    _now_running=$(running_lanes)
+    [ "$_now_running" -le "$LANES_SEEN" ] || LANES_SEEN=$_now_running
+    return 0
+}
+
+# ── account for one finished pass, then free its lane ───────────────────────
+finish_lane() {
+    _k="$1"
+    _job=$(lane_get "$_k" pid)
+    if is_uint "$_job"; then wait "$_job" 2>/dev/null || true; fi
+    lpass=$(lane_get "$_k" pass)
+    lissue=$(lane_get "$_k" issue)
+    epoch=$(lane_get "$_k" epoch)
+    pass_log=$(lane_get "$_k" log)
+    pass_session=$(lane_get "$_k" session)
+    lqueue_before=$(lane_get "$_k" queue_before)
+    green_before=$(lane_get "$_k" green_before)
+    total_before=$(lane_get "$_k" total_before)
+    pr_before=$(lane_get "$_k" pr_before)
+    pr_before_ok=$(lane_get "$_k" pr_before_ok)
+    overlap=$(lane_get "$_k" overlap)
+    claude_exit=$(lane_get "$_k" rc)
+    # If the job died before it could write its rc (killed, crashed before
+    # `echo $?` ran), default to a generic non-zero code rather than leaving
+    # claude_exit empty — an empty field breaks the 7-field log-line invariant
+    # and `[ "" -ne 0 ]` errors under `-eu`.
+    is_uint "$claude_exit" || claude_exit=1
+    rm -rf "${LANE_DIR:?}/$_k"
+    LANE_DIRTY=1
+    HOLD=0
 
     # 5. rate limit / claude error. Two DISTINCT reasons, so the one telemetry
     # field a human reads the next morning doesn't conflate a real usage limit
@@ -1041,11 +1115,11 @@ while :; do
     # A pass ends at push + `ready-to-land` (issue #5469): the PR it handed
     # off is its progress, and the summary reports the PR, not a landing.
     pr_progress=0
-    if [ "$pr_before_ok" -eq 1 ]; then
-        pr_after=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null) || pr_after=""
+    if [ "$pr_before_ok" = "1" ]; then
+        pr_after=$(handed_off_pr "$lissue" 2>/dev/null) || pr_after=""
         if is_uint "$pr_after" && [ "$pr_after" != "$pr_before" ]; then
             pr_progress=1
-            echo "loop-drain[pr]: pass $pass — issue #${RESOLVED_ISSUE} handed off as PR #${pr_after} (ready-to-land; the land-runner merges it)" >&2
+            echo "loop-drain[pr]: pass $lpass — issue #${lissue} handed off as PR #${pr_after} (ready-to-land; the land-runner merges it)" >&2
         fi
     fi
     if is_uint "$queue_after"; then
@@ -1098,8 +1172,9 @@ while :; do
             [ "$backoff_secs" -le "$ERROR_BACKOFF_MAX_SECS" ] ||
                 backoff_secs="$ERROR_BACKOFF_MAX_SECS"
         fi
-    elif [ "$pr_progress" -eq 0 ] && [ "$total_after" = "$total_before" ] &&
-        [ "$green_after" = "$green_before" ]; then
+    elif [ "$pr_progress" -eq 0 ] && { [ "$overlap" = "1" ] ||
+        { [ "$total_after" = "$total_before" ] &&
+            [ "$green_after" = "$green_before" ]; }; }; then
         # 6. no PR handed off (issue #5469) and neither the TOTAL open ready-for-agent count nor main's tip
         # moved. Deliberately NOT `queue_after`/`queue_before` (the unclaimed
         # count): a pass that only CLAIMS issues (adds `in-progress`) drops
@@ -1123,18 +1198,32 @@ while :; do
         # separate `gh pr list --state merged` read (see
         # docs/findings/2624-receipts-cannot-express-a-landing.md) because
         # this branch's guard already proves it.
-        claims_before=""
-        claims_after=""
-        if is_uint "$total_before" && is_uint "$queue_before"; then
-            claims_before=$((total_before - queue_before))
-        fi
-        if is_uint "$total_after" && is_uint "$queue_after"; then
-            claims_after=$((total_after - queue_after))
-        fi
+        #
+        # A pass that ran BESIDE another lane (issue #5486) has no such
+        # window of its own: the other lane's claims and landings move the
+        # very counts. Its progress is its own hand-off alone, and its claim
+        # is its own issue's label — before = unclaimed (the pre-flight only
+        # hands out unclaimed work), after = what the label says now — fed
+        # to the same verdict engine.
         claims_held_now=0
-        if is_uint "$claims_before" && is_uint "$claims_after"; then
-            if [ "$(claims_held_check "$claims_before" "$claims_after" 0)" = "true" ]; then
+        if [ "$overlap" = "1" ]; then
+            if [ -n "$lissue" ] && [ "$(issue_claimed "$lissue")" = "true" ] &&
+                [ "$(claims_held_check 0 1 0)" = "true" ]; then
                 claims_held_now=1
+            fi
+        else
+            claims_before=""
+            claims_after=""
+            if is_uint "$total_before" && is_uint "$lqueue_before"; then
+                claims_before=$((total_before - lqueue_before))
+            fi
+            if is_uint "$total_after" && is_uint "$queue_after"; then
+                claims_after=$((total_after - queue_after))
+            fi
+            if is_uint "$claims_before" && is_uint "$claims_after"; then
+                if [ "$(claims_held_check "$claims_before" "$claims_after" 0)" = "true" ]; then
+                    claims_held_now=1
+                fi
             fi
         fi
         # A death is not "ran and found nothing", so it must not feed the
@@ -1166,7 +1255,7 @@ while :; do
                 stop_now=1
             else
                 reason_field="claims-held-retry"
-                echo "loop-drain[warn]: pass $pass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
+                echo "loop-drain[warn]: pass $lpass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
             fi
         else
             no_progress_streak=$((no_progress_streak + 1))
@@ -1208,35 +1297,259 @@ while :; do
     # `session` (issue #4722) follows the same rule, one field later: the
     # pass's `--session-id`, BEFORE the reason, making the row 10 fields — a
     # parser tells 7, 9 and 10 apart by length alone, and the row binds the
-    # pass to exactly one transcript.
-    echo "$epoch $pass $claude_exit $pct $queue_before $queue_after ${spent_field} ${budget_field} ${pass_session} $reason_field" >>"$LOG_FILE"
+    # pass to exactly one transcript. The lane is not a column: the session
+    # binds the row to its pass log, whose name carries the lane.
+    echo "$epoch $lpass $claude_exit $pct $lqueue_before $queue_after ${spent_field} ${budget_field} ${pass_session} $reason_field" >>"$LOG_FILE"
     # The pass-END tag (ADR 0147): the same facts as the row above, plus what
-    # the row has no column for — the effective ceiling the footer's spend bar
-    # is drawn against, the pass's wall duration and the retry delay. Emitted
-    # right after the row so the terminal footer can never describe a pass the
-    # log does not have. `k=v` words, so the renderer reads fields by name.
-    echo "loop-drain[end]: pass=$pass exit=$claude_exit reason=$reason_field pct=$pct queue_before=$queue_before queue_after=$queue_after spent=${spent_field} budget=${budget_field} ceiling=${CEILING} duration=$(($(date +%s) - epoch)) retry=${backoff_secs}" >&2
+    # the row has no column for — the lane, the effective ceiling the footer's
+    # spend bar is drawn against, the pass's wall duration and the retry
+    # delay. Emitted right after the row so the terminal footer can never
+    # describe a pass the log does not have. `k=v` words, so the renderer
+    # reads fields by name.
+    echo "loop-drain[end]: pass=$lpass lane=$_k exit=$claude_exit reason=$reason_field pct=$pct queue_before=$lqueue_before queue_after=$queue_after spent=${spent_field} budget=${budget_field} ceiling=${CEILING} duration=$(($(date +%s) - epoch)) retry=${backoff_secs}" >&2
 
     if [ "$stop_now" -eq 0 ] && [ "$backoff_secs" -gt 0 ]; then
-        echo "loop-drain[error]: pass $pass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
+        echo "loop-drain[error]: pass $lpass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2
         tail -n 20 "$pass_log" >&2
-        if ! interruptible_sleep "$backoff_secs"; then
-            stop_reason="stop-file"
-            break
-        fi
+        # Every lane's next start waits it out, not only this one's.
+        NEXT_START_AT=$(($(date +%s) + backoff_secs))
     fi
 
     if [ "$stop_now" -eq 1 ]; then
-        stop_reason="$reason_field"
+        [ -n "$DRAIN_REASON" ] || DRAIN_REASON="$reason_field"
         if [ "$reason_field" = "rate-limit" ] || [ "$reason_field" = "claude-error" ]; then
             # A usage limit is a pause to wait out (warn); a crash is a fault.
             _stop_tag=error
             [ "$reason_field" != "rate-limit" ] || _stop_tag=warn
-            echo "loop-drain[${_stop_tag}]: ${reason_field} (claude exit $claude_exit) detected on pass $pass — stopping. Log tail:" >&2
+            echo "loop-drain[${_stop_tag}]: ${reason_field} (claude exit $claude_exit) detected on pass $lpass — stopping. Log tail:" >&2
             tail -n 40 "$pass_log" >&2
         fi
-        break
+        _left=$(running_lanes)
+        if [ "$_left" -gt 0 ]; then
+            echo "loop-drain[warn]: ${reason_field} on pass $lpass — no lane starts another pass; the ${_left} running finish first." >&2
+        fi
     fi
+    return 0
+}
+
+while :; do
+    # 0. account for every pass that ended since the last look.
+    for _k in $(own_lanes); do
+        if lane_over "$_k"; then finish_lane "$_k"; fi
+    done
+    running=$(running_lanes)
+
+    # A decided stop: nothing starts; the run ends once the last pass has.
+    if [ -n "$DRAIN_REASON" ]; then
+        if [ "$running" -eq 0 ]; then
+            stop_reason="$DRAIN_REASON"
+            break
+        fi
+        wait_tick "$running"
+        continue
+    fi
+
+    # 1. stop-file — the user's kill switch for a run already in flight. A
+    # pass in flight finishes; none starts after it.
+    if [ -f "$STOP_FILE" ]; then
+        DRAIN_REASON="stop-file"
+        continue
+    fi
+
+    # A crash backoff, or a refusal waiting for a running pass to end.
+    if [ "$HOLD" -eq 1 ] || [ "$(date +%s)" -lt "$NEXT_START_AT" ]; then
+        wait_tick "$running"
+        continue
+    fi
+
+    # 1b. room for another lane? With none running there always is — the
+    # floor is one.
+    if [ "$running" -gt 0 ]; then
+        refresh_lane_target "$running"
+        if [ "$running" -ge "$LANE_TARGET" ]; then
+            wait_tick "$running"
+            continue
+        fi
+    fi
+
+    # 2. max-passes — shared by every lane: it counts passes STARTED.
+    # MAX_PASSES is already validated numeric above, so this is a plain
+    # comparison — no error-swallowing redirect needed.
+    if [ "$MAX_PASSES" -gt 0 ] && [ "$pass" -ge "$MAX_PASSES" ]; then
+        DRAIN_REASON="max-passes"
+        continue
+    fi
+
+    # 2a. the local Convex backend (issue #4945). `check:ui`, the health
+    # gate's `--all` walk and preset seeding all need it, and while AFK nobody
+    # is there to type `bunx convex dev` after a sleep or a crash killed it —
+    # health went RED at `check:ui` and the run stopped as `health-red`.
+    # `convex:ensure` starts one ONLY when none answers and none is alive
+    # (never a second); it is a no-op probe when the deployment answers.
+    # Checked BEFORE the RED marker so a down backend is named as itself,
+    # never folded into `health-red` or `no-progress`.
+    if ! _convex_out=$(bun run convex:ensure 2>&1); then
+        DRAIN_REASON="convex-down"
+        echo "loop-drain[error]: the local Convex backend does not answer and 'bun run convex:ensure' could not start one — stopping. Its output:" >&2
+        printf '%s\n' "$_convex_out" | tail -n 25 >&2
+        continue
+    fi
+
+    # 2b. health RED — the batch full gate failed on the base tip and nobody
+    # has fixed it. ADR 0110's green-main invariant: "A RED marker means
+    # fix-forward FIRST — never stack unrelated work on a red tip." `land`
+    # already refuses a non-repair PR, which is the right strength for a
+    # human who can state `--red-ok`; unattended there is nobody to state it,
+    # so the driver stops instead. Checked BEFORE the budget read and before
+    # the orphan sweep, because a red tip means no pass should happen at all
+    # — and reported as its own reason rather than folded into `no-progress`,
+    # so the morning's log says what to fix.
+    #
+    # Read through the verdict store (issue #5462), via `health:status
+    # --json`: the RED marker on the file backend, the base branch's `health`
+    # commit statuses on the github one — a RED found on the OTHER machine
+    # stops this loop too. An AMBER lineage (a proved repair landed) runs.
+    # The SECOND RED — a red on an AMBER lineage, the repair did not hold —
+    # stops with its own reason and notifies the owner. An unreadable store
+    # is a warning, never a stop: a GitHub 502 must not end the night.
+    _health_json=$(bun run --silent health:status --json 2>/dev/null) || true
+    _lineage=$(_health_field lineage)
+    # An unreadable store answers `none` WITH an error: name it, never as a
+    # clean read.
+    _h_error=$(_health_field error)
+    [ -n "$_h_error" ] && _lineage="unreadable"
+    _h_sha=$(_health_field sha)
+    _h_step=$(_health_field step)
+    _h_machine=$(_health_field machine)
+    _h_log=$(_health_field log)
+    _h_short=$(printf '%.8s' "$_h_sha")
+    _h_detail="${_h_short} red at ${_h_step:-unknown step}${_h_machine:+ on ${_h_machine}}${_h_log:+ — log: ${_h_log}}"
+    case "$_lineage" in
+        second-red)
+            DRAIN_REASON="health-second-red"
+            echo "loop-drain[error]: SECOND RED on this lineage — a repair landed (AMBER) and the next health run found the base RED again: ${_h_detail}. Stopping; a broken repair must not loop unattended. Run 'bun run health:status'." >&2
+            notify_owner "Tolaria: second RED on the base (${_h_short}, ${_h_step:-unknown step}) — loop stopped"
+            continue
+            ;;
+        red)
+            DRAIN_REASON="health-red"
+            echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Verdict:" >&2
+            echo "  ${_h_detail}" >&2
+            continue
+            ;;
+        infra)
+            # 2c. health INFRA (issue #4943) — the last run proved nothing
+            # about the tip (the machine slept, or the Convex backend did not
+            # answer). Not a stop: the tip is unproven, not red.
+            _h_reason=$(_health_field reason)
+            echo "loop-drain[warn]: release health is INFRA (at ${_h_step:-unknown step}) — the tip is unproven, not red: ${_h_reason:-re-run 'bun run health'}" >&2
+            ;;
+        green | amber | none) ;;
+        *)
+            echo "loop-drain[warn]: the health verdict could not be read (${_h_error:-'bun run health:status --json' gave no lineage}) — running the pass; 'bun run health:status' says more" >&2
+            ;;
+    esac
+
+    # 3. budget — a local proxy for relative burn, not a real quota reading
+    # (see ADR 0097 and scripts/lib/usage-window.ts). FAILS CLOSED: a
+    # non-zero exit, unparsable output, or a non-numeric/`null` pct all stop
+    # the run with reason `usage-error` rather than silently skipping the
+    # check and running the pass anyway. ONE budget for every lane: the
+    # reading is the run's (`--run`), and every lane's pass carries the id.
+    if [ "$BUDGET_ENABLED" -eq 1 ]; then
+        # `--since` + `--run`, never `--hours`: this reads THIS run's own
+        # spend from its own launch, not the machine's last five hours. See
+        # RUN_ID above for why the two are not the same question.
+        usage_json=$(bun run usage:window --since "$RUN_START_MS" --run "$RUN_ID" --budget "$BUDGET" 2>&1) && usage_rc=0 || usage_rc=$?
+        pct=$(printf '%s' "$usage_json" | grep -o '"pct":[0-9.eE+-]*' | head -1 | cut -d: -f2)
+        weighted=$(printf '%s' "$usage_json" | grep -o '"weighted":[0-9.eE+-]*' | head -1 | cut -d: -f2)
+        # FAIL CLOSED FIRST, then account. The order matters: a reading the
+        # guard is about to declare unreadable must not move the run's spend
+        # on its way out, or the summary reports a figure the guard itself
+        # just refused to trust (PR #3704 review).
+        if [ "$usage_rc" -ne 0 ] || [ -z "$pct" ] || ! is_number "$pct"; then
+            DRAIN_REASON="usage-error"
+            pct="n/a"
+            echo "loop-drain[error]: budget guard FAILED CLOSED — could not read a usable pct from 'bun run usage:window' (exit ${usage_rc}). This stops the run rather than skipping the check, per ADR 0097. Reader output was:" >&2
+            printf '%s\n' "$usage_json" >&2
+            continue
+        fi
+        # High-water mark, then derive the pct from it rather than trusting
+        # the reader's — so the figure this guard compares, logs and reports
+        # can only ever rise within a run.
+        if is_number "${weighted:-}"; then
+            spent=$(awk -v a="$spent" -v b="$weighted" 'BEGIN { print (b + 0 > a + 0) ? b : a }')
+            pct=$(awk -v s="$spent" -v b="$BUDGET" 'BEGIN { if (b + 0 <= 0) { print 0 } else { print s * 100 / b } }')
+        fi
+        over=$(awk -v p="$pct" -v m="$MAX_PCT" 'BEGIN { print (p + 0 >= m + 0) ? 1 : 0 }')
+        if [ "$over" -eq 1 ]; then
+            DRAIN_REASON="budget"
+            echo "loop-drain[warn]: budget guard tripped — run $RUN_ID has spent ${spent} of ${BUDGET} weighted tokens (${pct}%) >= --max-pct ${MAX_PCT}%." >&2
+            continue
+        fi
+    fi
+
+    # 3b. reap orphaned claims — BEFORE the queue is counted and before the
+    # pass builds its batch, so anything reclaimed here is selectable by the
+    # pass that is about to run. See `reap_orphan_claims` for why it lives in
+    # the driver rather than in the pass's own prompt.
+    reap_orphan_claims
+
+    # 4. queue — nothing unclaimed left to do.
+    queue_before=$(count_unclaimed 2>/dev/null) || queue_before=""
+    if ! is_uint "$queue_before"; then
+        echo "loop-drain[error]: could not read the ready-for-agent queue count via gh — stopping." >&2
+        refuse_start "gh-error"
+        continue
+    fi
+    [ -n "$first_queue_count" ] || first_queue_count="$queue_before"
+    last_queue_count="$queue_before"
+    if [ "$queue_before" -eq 0 ]; then
+        refuse_start "queue-empty"
+        continue
+    fi
+
+    # 4b. resolve WHICH issue and WHICH tier, unless the operator named the
+    # prompt (see PASS_PROMPT above — an override owns the whole invocation,
+    # including responsibility for what it selects). Before the pass counter
+    # moves, so a failure stops the run without booking a phantom pass.
+    # `pass_model_arg` is EITHER empty or the two words `--model <tier>`, and
+    # is expanded UNQUOTED at the call site for exactly that reason — same
+    # idiom as $CLAUDE_ARGS, and the same reason "$pass_prompt" stays quoted.
+    pass_prompt="$PASS_PROMPT"
+    pass_model_arg=""
+    RESOLVED_ISSUE=""
+    RESOLVED_MODEL=""
+    if [ "$PROMPT_OVERRIDDEN" -eq 0 ]; then
+        if resolve_head "$running"; then
+            pass_prompt="$PASS_PROMPT $RESOLVED_ISSUE"
+            pass_model_arg="--model $RESOLVED_MODEL"
+            if [ -n "$RESOLVED_RESUME" ]; then
+                pass_prompt="$pass_prompt --resume"
+                RESUMED_THIS_RUN="$RESUMED_THIS_RUN $RESOLVED_ISSUE"
+                case "$RESOLVED_RESUME" in
+                pr:*) _resume_what="PR #${RESOLVED_RESUME#pr:}" ;;
+                local) _resume_what="local branch, never pushed" ;;
+                *) _resume_what="pushed branch, no PR" ;;
+                esac
+                echo "loop-drain[warn]: resuming dead claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died holding the claim; one resume per issue per run." >&2
+            fi
+        else
+            refuse_start "preflight-error"
+            continue
+        fi
+    fi
+    # The pass's session id (issue #4722, see new_session_id) — minted before
+    # the pass counter moves, for the same reason the head is resolved there.
+    pass_session=$(new_session_id)
+    if [ -z "$pass_session" ]; then
+        echo "loop-drain[error]: could not mint a session id (neither uuidgen nor /proc/sys/kernel/random/uuid) — stopping rather than run a pass no transcript can be bound to." >&2
+        DRAIN_REASON="preflight-error"
+        continue
+    fi
+
+    # ── run one pass ────────────────────────────────────────────────────────
+    start_pass
 done
 
 echo ""
@@ -1245,7 +1558,7 @@ if [ "$BUDGET_ENABLED" -eq 1 ]; then
 else
     _spend_summary="spent=n/a budget=n/a"
 fi
-echo "loop-drain[summary]: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a} ${_spend_summary} duration=$(($(date +%s) - RUN_START_MS / 1000))"
+echo "loop-drain[summary]: passes=$pass reason=${stop_reason:-unknown} queue_start=${first_queue_count:-?} queue_end=${last_queue_count:-?} final_pct=${pct:-n/a} ${_spend_summary} lanes=${LANES_SEEN} duration=$(($(date +%s) - RUN_START_MS / 1000))"
 
 case "$stop_reason" in
     stop-file | max-passes | queue-empty | budget)
