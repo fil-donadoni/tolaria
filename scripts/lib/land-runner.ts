@@ -13,10 +13,9 @@
  */
 import { redLandGate } from "./health-cadence";
 
-/** The label a session puts on its PR to hand it to the runner. */
-export const READY_LABEL = "ready-to-land";
-/** The label the runner puts on a PR whose `land` went red. */
-export const FAILED_LABEL = "land-failed";
+import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+
+export { FAILED_LABEL, READY_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
  *  admits for a `land` invocation. */
 export const RUNNER_ENV = "TOLARIA_LAND_RUNNER";

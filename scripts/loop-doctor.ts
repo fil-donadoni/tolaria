@@ -27,7 +27,7 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
-import { FAILED_LABEL, READY_LABEL } from "./lib/land-runner";
+import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 
 export type ClaimFacts = {
     issue: number;

@@ -79,7 +79,7 @@ import {
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import { claimClassifications, claimLedgerPath } from "./loop-doctor";
-import { FAILED_LABEL } from "./lib/land-runner";
+import { FAILED_LABEL } from "./lib/land-labels";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
