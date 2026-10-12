@@ -48,14 +48,142 @@ export function netEnv(
     return env;
 }
 
+// ── Why a read is retried on a 5xx (issue #5540) ─────────────────────────────
+//
+// One `HTTP 504: 504 Gateway Timeout (https://api.github.com/graphql)` on the
+// `ready-for-agent` read stopped a whole `loop:afk` run at its pre-flight —
+// fatal by design (issue #3088), so the fix belongs here, below it. A READ
+// that met a gateway error is replayed after a short backoff; anything else
+// throws on the first attempt. A WRITE is never replayed: a 504 on a write
+// may have landed, and replaying `issue create` files a duplicate.
+
+/** Waits between attempts: three retries, 17 s at most per call. */
+export const GH_RETRY_BACKOFF_MS = [2_000, 5_000, 10_000] as const;
+
+const READ_SUBCOMMANDS: Record<string, ReadonlySet<string>> = {
+    issue: new Set(["list", "view", "status"]),
+    pr: new Set(["list", "view", "status", "diff", "checks"]),
+    project: new Set(["list", "view", "item-list", "field-list"]),
+    repo: new Set(["view", "list"]),
+    label: new Set(["list"]),
+    run: new Set(["list", "view"]),
+    release: new Set(["list", "view"]),
+};
+
+/** Whether `gh <args>` only READS — safe to replay after a failure whose
+ *  effect is unknown. Unknown shapes are writes: fail closed. */
+export function isReadOnlyGh(args: readonly string[]): boolean {
+    const [command, sub] = args;
+    if (command === "search") return true; // `gh search …` has no write verb
+    if (command === "api") return isReadOnlyApi(args);
+    return sub !== undefined && READ_SUBCOMMANDS[command]?.has(sub) === true;
+}
+
+/** A field flag in any spelling gh accepts (`-f k=v`, `-fk=v`,
+ *  `--field=k=v`, …) → its value, read off `args[i]` or `args[i + 1]`. */
+const FIELD_FLAG = /^(-f|-F|--field|--raw-field)(=|$)|^-[fF](?=.)/;
+
+function isReadOnlyApi(args: readonly string[]): boolean {
+    let method: string | undefined;
+    const fields: string[] = [];
+    let input = false;
+    for (let i = 1; i < args.length; i++) {
+        const a = args[i];
+        if (a === "-X" || a === "--method") method = args[++i] ?? "";
+        else if (/^--method=/.test(a)) method = a.slice(9);
+        else if (/^-X./.test(a)) method = a.slice(2).replace(/^=/, "");
+        else if (a === "--input" || a.startsWith("--input=")) input = true;
+        else {
+            const m = FIELD_FLAG.exec(a);
+            if (!m) continue;
+            const inline = a.slice(m[0].length);
+            fields.push(inline !== "" ? inline : (args[++i] ?? ""));
+        }
+    }
+    // `gh api graphql` POSTs its fields; the operation, not the verb, says
+    // whether it writes — so a query this cannot read (a file, stdin, an
+    // `--input` body) or that names `mutation` anywhere is a write.
+    if (args.includes("graphql")) {
+        if (input) return false;
+        const query = fields.find((f) => f.startsWith("query="));
+        if (query === undefined || /^query=[@-]/.test(query)) return false;
+        return !/\bmutation\b/.test(query);
+    }
+    if (method !== undefined) return method.toUpperCase() === "GET" && !input;
+    return fields.length === 0 && !input; // fields without -X make gh POST
+}
+
+/** Whether a failed `gh` call met a gateway-side error worth one more try.
+ *  Reads `stderr` — `message` echoes the argv, whose own text (a search
+ *  string, a query) could say "Bad Gateway". */
+export function isTransientGhError(err: unknown): boolean {
+    const e = err as { message?: unknown; stderr?: unknown };
+    const stderr = String(e?.stderr ?? "");
+    const text = stderr !== "" ? stderr : String(e?.message ?? "");
+    return /HTTP 50[234]\b|Bad Gateway|Service Unavailable|Gateway Timeout/i.test(
+        text
+    );
+}
+
+function sleepSync(ms: number): void {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** Retry state for one process. `outage` trips once a call spends its whole
+ *  backoff on transient errors: GitHub is down, not flaking, and a per-item
+ *  loop (`gaps:sync`, a marker sweep) must fail fast again rather than pay
+ *  the backoff once per item. */
+export interface GhRetryState {
+    outage: boolean;
+}
+const processRetryState: GhRetryState = { outage: false };
+
+/** `run()`, replayed per `backoff` while it fails transiently AND `args` is a
+ *  read AND no earlier call tripped `state.outage`; the last error is
+ *  rethrown unchanged. */
+export function withGhRetry(
+    args: readonly string[],
+    run: () => string,
+    sleep: (ms: number) => void = sleepSync,
+    backoff: readonly number[] = GH_RETRY_BACKOFF_MS,
+    state: GhRetryState = processRetryState
+): string {
+    for (let attempt = 0; ; attempt++) {
+        try {
+            const out = run();
+            state.outage = false;
+            return out;
+        } catch (err) {
+            if (state.outage || !isTransientGhError(err) || !isReadOnlyGh(args))
+                throw err;
+            if (attempt >= backoff.length) {
+                state.outage = true;
+                throw err;
+            }
+            const e = err as { message?: unknown; stderr?: unknown };
+            const first =
+                `${String(e?.stderr ?? "")}\n${String(e?.message ?? err)}`
+                    .split("\n")
+                    .find((l) => /HTTP 50|Gateway|Unavailable/i.test(l));
+            console.error(
+                `gh: transient error on \`gh ${args.slice(0, 2).join(" ")}\` (${first?.trim() ?? "5xx"}) — retry ${attempt + 1}/${backoff.length} in ${backoff[attempt] / 1000}s`
+            );
+            sleep(backoff[attempt]);
+        }
+    }
+}
+
 /** Run `gh` under the DEVELOPER's credentials and return stdout. Throws on a
- *  non-zero exit, like `execFileSync`. */
+ *  non-zero exit, like `execFileSync` — after replaying a read that met a
+ *  transient 5xx (see above). */
 export function gh(args: string[]): string {
-    return execFileSync("gh", args, {
-        encoding: "utf8",
-        maxBuffer: 32 * 1024 * 1024,
-        env: netEnv(),
-    });
+    return withGhRetry(args, () =>
+        execFileSync("gh", args, {
+            encoding: "utf8",
+            maxBuffer: 32 * 1024 * 1024,
+            env: netEnv(),
+        })
+    );
 }
 
 /**
