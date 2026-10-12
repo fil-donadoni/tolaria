@@ -12650,7 +12650,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // so it activates once — an untapped repeatable outlet (Psychic Frog)
     // reaches the same leaf by discarding both in either order, and the two
     // roots tie. On the opponent's turn nothing in hand is castable, so the
-    // Mox cannot simply be played out of the way.
+    // Mox cannot simply be played out of the way; the Forest makes Elephant
+    // Grass castable, or `colorCoverage` alone would shed the uncastable
+    // green card and the entry could not red.
     //
     // The pair: the same position with the hand order reversed, so a pick
     // that follows card order or instance identity cannot pass both.
@@ -12667,6 +12669,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
                 { name: "Elephant Grass", owner: "me", zone: "hand" },
                 { name: "Mox Pearl", owner: "me", zone: "hand" },
             ],
@@ -12701,6 +12704,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Forest", owner: "me", zone: "battlefield" },
                 { name: "Mox Pearl", owner: "me", zone: "hand" },
                 { name: "Elephant Grass", owner: "me", zone: "hand" },
             ],
