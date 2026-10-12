@@ -2158,7 +2158,7 @@ function lowerSentenceBody(
             return moved;
         }
         case "graveyard-end-card": {
-            // CR 404.3 — the positional selector `moveZone` ships; an
+            // CR 404.2 — the positional selector `moveZone` ships; an
             // announced player's graveyard is a player slot allocated here.
             let player: EffectPlayerRef = "controller";
             if (sentence.owner === "target-player") {

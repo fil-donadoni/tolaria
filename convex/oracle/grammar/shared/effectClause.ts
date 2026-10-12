@@ -911,7 +911,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 404.3 — "Return the top creature card of your graveyard to the
+           * CR 404.2 — "Return the top creature card of your graveyard to the
            * battlefield" / "Exile the bottom card of target player's
            * graveyard": a DETERMINISTIC pick out of the ordered graveyard, no
            * target announced for the card itself (CR 115.1). `owner` is the
@@ -3302,10 +3302,10 @@ const YOU_DRAW_AND_LOSE_LIFE =
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 701.17a — "Mill three cards" (the controller's own library). */
-/** CR 404.3 — "Return the top creature card of your graveyard to the battlefield". */
+/** CR 404.2 — "Return the top creature card of your graveyard to the battlefield". */
 const RETURN_TOP_CARD =
     /^Return the top (\w+) card of your graveyard to the battlefield$/;
-/** CR 404.3 — "Exile the bottom card of target player's graveyard". */
+/** CR 404.2 — "Exile the bottom card of target player's graveyard". */
 const EXILE_BOTTOM_CARD =
     /^Exile the bottom card of target player(?:'|’)s graveyard$/;
 /** CR 400.7 — "Return all enchantment cards from your graveyard to the battlefield". */
@@ -5475,7 +5475,7 @@ function effectSentence(
             kind: "return-exiled" as const,
         } satisfies EffectSentenceIR);
 
-    // ── the ordered graveyard, swept or taken from the end (CR 404.3) ──────
+    // ── the ordered graveyard, swept or taken from the end (CR 404.2) ──────
     const topCard = span.match(RETURN_TOP_CARD);
     if (topCard !== null) {
         const cardType = permanentCardType(topCard[1]!);

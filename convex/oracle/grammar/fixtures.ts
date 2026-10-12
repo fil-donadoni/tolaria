@@ -6585,7 +6585,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 404.3 — "Exile the bottom card of target player's graveyard": a `moveZone` of the positional graveyard selector, the player an announced slot (issue #4568).
+    // CR 404.2 — "Exile the bottom card of target player's graveyard": a `moveZone` of the positional graveyard selector, the player an announced slot (issue #4568).
     {
         rule: "effect clause",
         card: {

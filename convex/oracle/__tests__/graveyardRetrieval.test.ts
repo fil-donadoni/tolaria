@@ -1,7 +1,7 @@
 // Graveyard retrieval — the clause forms that take a card out of a graveyard
 // without announcing it as an ordinary single target (issue #4568): a
 // reanimation under YOUR control from any graveyard (CR 110.2a, CR 400.7), the
-// top / bottom card of the ordered graveyard (CR 404.3), every matching card
+// top / bottom card of the ordered graveyard (CR 404.2), every matching card
 // at once (CR 400.7), the source returning itself (CR 113.6b) and "each
 // player" putting a card of their own onto the battlefield (CR 101.4).
 //
@@ -342,7 +342,7 @@ describe("graveyard retrieval — goldens", () => {
             sortKeys(REPLENISH_EXPECTED)
         );
     });
-    it("Phyrexian Furnace: the bottom card of a target player's graveyard (CR 404.3)", () => {
+    it("Phyrexian Furnace: the bottom card of a target player's graveyard (CR 404.2)", () => {
         expect(sortKeys(compiled(PHYREXIAN_FURNACE))).toEqual(
             sortKeys(PHYREXIAN_FURNACE_EXPECTED)
         );
@@ -358,7 +358,7 @@ describe("graveyard retrieval — goldens", () => {
             sortKeys(SHOW_AND_TELL_EXPECTED)
         );
     });
-    it("Shallow Grave: the top creature card of your graveyard (CR 404.3)", () => {
+    it("Shallow Grave: the top creature card of your graveyard (CR 404.2)", () => {
         expect(sortKeys(compiled(SHALLOW_GRAVE))).toEqual(
             sortKeys(SHALLOW_GRAVE_EXPECTED)
         );
@@ -373,7 +373,7 @@ describe("graveyard retrieval — refused neighbours (fail-closed)", () => {
         "Put target instant card from a graveyard onto the battlefield under your control.",
         "Return all instant cards from your graveyard to the battlefield.",
         "Each player puts an instant card from their graveyard onto the battlefield.",
-        // CR 404.3 — an unnamed owner / an unknown end of the pile.
+        // CR 404.2 — an unnamed owner / an unknown end of the pile.
         "Return the top creature card of target player's graveyard to the battlefield.",
         "Return the middle creature card of your graveyard to the battlefield.",
         // CR 400.7 — a sweep of ANOTHER graveyard.
