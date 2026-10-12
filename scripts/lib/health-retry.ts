@@ -14,10 +14,17 @@
  * retried and stays RED. Because the chain stops at the first red, a green
  * retry then owes the chain scripts that never started.
  *
- * Node builtins plus `lib/health-step.ts` — `health-main.ts` carries the
- * same constraint.
+ * The note names WHAT failed the first time (issue #5484): `timeout` when
+ * every failed test timed out (`timeoutOnlyFailure`), `assertion` otherwise.
+ * A timeout that passes on the retry is a near-miss on the test's budget —
+ * recorded as one, never dropped as an ordinary flake; the run's `headroom:`
+ * line (`lib/test-headroom.ts`) names how close it ran.
+ *
+ * Node builtins plus `lib/health-step.ts` and `lib/machine-admission.ts` —
+ * `health-main.ts` carries the same constraint.
  */
 import type { HealthStep, StepResult } from "./health-step";
+import { timeoutOnlyFailure } from "./machine-admission";
 
 /** The step the retry applies to. */
 export const RETRY_STEP = "test";
@@ -82,18 +89,32 @@ export function planRetry(stepName: string, output: string): RetryPlan | null {
     };
 }
 
-/** `test (retry: node-engine)` — the step field a retried verdict carries. */
+/** What the first, retried failure was: every failed test timed out, or
+ *  something else did (an assertion, a hook error). */
+export type RetryCause = "timeout" | "assertion";
+
+/** The cause of a failed `test` step's output. */
+export function retryCauseOf(output: string): RetryCause {
+    return timeoutOnlyFailure(output) ? "timeout" : "assertion";
+}
+
+/** `test (retry: bot-node, timeout)` — the step field a retried verdict
+ *  carries. */
 export function retryNote(
     stepName: string,
-    projects: readonly string[]
+    projects: readonly string[],
+    cause?: RetryCause
 ): string {
-    return `${stepName} (retry: ${projects.join(",")})`;
+    // A record written before issue #5484 carries no cause.
+    return `${stepName} (retry: ${projects.join(",")}${cause ? `, ${cause}` : ""})`;
 }
 
 export interface RetriedStep {
     result: StepResult;
     /** Set when the step failed once and was re-run: the projects retried. */
     retried?: string[];
+    /** Set with `retried`: what the first failure was. */
+    cause?: RetryCause;
 }
 
 /** The retry's own step: exactly the failed projects, under the heavy gate. */
@@ -128,7 +149,7 @@ export async function runStepWithRetry(
     if (plan === null) return { result: first };
 
     log(
-        `health-main: ${step.name} failed in ${plan.projects.join(", ")} — re-running only that, once (issue #5461)\n`
+        `health-main: ${step.name} failed (${retryCauseOf(first.output)}) in ${plan.projects.join(", ")} — re-running only that, once (issue #5461)\n`
     );
     let result = await run(retryStep(step, plan.projects));
     for (const script of plan.remaining) {
@@ -139,5 +160,9 @@ export async function runStepWithRetry(
             args: ["run", script],
         });
     }
-    return { result, retried: plan.projects };
+    return {
+        result,
+        retried: plan.projects,
+        cause: retryCauseOf(first.output),
+    };
 }

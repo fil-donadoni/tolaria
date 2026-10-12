@@ -2,6 +2,7 @@ import { defineConfig } from "vitest/config";
 import path from "path";
 import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
 import { VITEST_NODE_ARGV } from "./scripts/lib/vitest-node-argv";
+import { durationReporterOption } from "./scripts/lib/vitest-duration-reporter";
 
 /**
  * Blade-suite vitest config (issue #1427, PRD #1423).
@@ -69,5 +70,7 @@ export default defineConfig({
         // A blade entry runs a full ISMCTS search per seed; the default 5s
         // ceiling is not a meaningful signal here.
         testTimeout: 120_000,
+        // Same headroom reporter as `vitest.config.ts` (issue #5484).
+        ...durationReporterOption(process.env),
     },
 });

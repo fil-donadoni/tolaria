@@ -15,6 +15,9 @@
  *   bun run telemetry:latency --json                   # machine-readable
  *   bun run telemetry:latency --sessions 10            # slowest sessions too
  *   bun run telemetry:latency --max-hours 12 --db <path>
+ *   bun run telemetry:latency --headroom [N]           # tests near their
+ *                                                      # testTimeout, last N
+ *                                                      # health runs (20)
  *
  * The derivation (and what it deliberately cannot see) is documented on
  * `scripts/lib/telemetry-latency.ts`, which holds every pure function here so
@@ -61,6 +64,12 @@ import {
     type HealthVerdict,
     type GateRunLane,
 } from "./lib/telemetry-latency.ts";
+import {
+    formatHeadroomView,
+    headroomView,
+    type HeadroomRun,
+    type TestDuration,
+} from "./lib/test-headroom.ts";
 
 function arg(name: string): string | null {
     const i = process.argv.indexOf(`--${name}`);
@@ -105,6 +114,46 @@ if (!existsSync(dbPath)) {
 }
 
 const db = new Sqlite(dbPath, { readonly: true });
+
+/**
+ * `--headroom [N]` (issue #5484): the tests above 50% of their `testTimeout`
+ * in the last N health runs, worst ratio first, with the machine that
+ * measured it — the risk named before it turns into a RED.
+ */
+function headroomReport(n: number): void {
+    let runs: Array<{ sha12: string; machine: string; ts: number }>;
+    try {
+        runs = db
+            .query(
+                "SELECT sha12, machine, ts FROM test_headroom_runs ORDER BY ts DESC LIMIT ?"
+            )
+            .all(n) as typeof runs;
+    } catch {
+        console.error(
+            "No test_headroom table yet. Run: bun run telemetry:ingest"
+        );
+        process.exit(1);
+    }
+    const rowsOf = db.query(
+        `SELECT test, project, duration_ms AS durationMs, timeout_ms AS timeoutMs,
+                'recorded' AS state
+         FROM test_headroom WHERE sha12 = ?`
+    );
+    const full: HeadroomRun[] = runs.map((r) => ({
+        ...r,
+        records: rowsOf.all(r.sha12) as TestDuration[],
+    }));
+    const view = headroomView(full);
+    if (asJson)
+        console.log(JSON.stringify({ runs: full.length, view }, null, 2));
+    else console.log(formatHeadroomView(view, full.length));
+}
+
+if (process.argv.includes("--headroom")) {
+    const n = Number(arg("headroom"));
+    headroomReport(Number.isInteger(n) && n > 0 ? n : 20);
+    process.exit(0);
+}
 
 /**
  * A session is taken WHOLE when any of its turns falls in the window. Wall

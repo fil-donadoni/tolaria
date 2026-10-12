@@ -1,0 +1,26 @@
+{
+    "version": 1,
+    "records": [
+        {
+            "test": "convex/gre/__tests__/difficulty.bot.test.ts > difficulty — a higher preset plays measurably better (issue #114) > the expert preset is not weaker than hard on the same forced tactic",
+            "project": "bot-node",
+            "durationMs": 73400,
+            "timeoutMs": 60000,
+            "state": "failed"
+        },
+        {
+            "test": "convex/gre/__tests__/fetchland-valuation.bot.test.ts > fetch charter search convergence (issue #1499) > cracks the Delta on every registry seed at 1600 iterations",
+            "project": "bot-node",
+            "durationMs": 83000,
+            "timeoutMs": 60000,
+            "state": "failed"
+        },
+        {
+            "test": "convex/gre/__tests__/fetchland-valuation.bot.test.ts > fetch charter search convergence (issue #1499) > cracks the Delta on every registry seed at 400 iterations",
+            "project": "bot-node",
+            "durationMs": 26600,
+            "timeoutMs": 60000,
+            "state": "passed"
+        }
+    ]
+}
