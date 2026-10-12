@@ -610,7 +610,6 @@ export function validateDeclaredAttackers(
     const declared = combat.attackerIds
         .map((id) => activePlayer.battlefield.find((c) => c.id === id))
         .filter((c): c is CardInstanceState => c !== undefined);
-    const declaredViews = declared as unknown as PermanentView[];
 
     // CR 508.1a — battlefield-wide cap on the number of declared attackers.
     const cap = getAttackerCapEffect(state);
@@ -653,19 +652,37 @@ export function validateDeclaredAttackers(
         };
     }
 
+    const violation = declaredAttackRestrictionViolation(declared, state);
+    if (violation !== undefined) return { ok: false, reason: violation };
+    return { ok: true };
+}
+
+/** CR 508.1c — the oracle text of the first set-dependent attack restriction
+ *  ("can't attack unless a black or green creature also attacks", "can only
+ *  attack alone", "unless at least two other creatures attack") the declared
+ *  set violates, or `undefined`. Exported so the bot's attacker enumeration
+ *  (`enumerateAttackerMoves`, `gre/moves.ts`) filters on the SAME predicate
+ *  `confirmAttackers` throws on — an enumerated declaration the mutation
+ *  rejects freezes the bot (issue #5495). */
+export function declaredAttackRestrictionViolation(
+    declared: readonly CardInstanceState[],
+    state: GameState
+): string | undefined {
+    const declaredViews = declared as unknown as PermanentView[];
     for (const attacker of declared) {
         for (const r of collectDeclaredAttackRestrictions(attacker, state)) {
             if (
                 !r.predicate(
                     attacker as unknown as PermanentView,
-                    declaredViews
+                    declaredViews,
+                    ATTACK_RESTRICTION_CTX
                 )
             ) {
-                return { ok: false, reason: r.oracleText };
+                return r.oracleText;
             }
         }
     }
-    return { ok: true };
+    return undefined;
 }
 
 export type BlockerValidation =

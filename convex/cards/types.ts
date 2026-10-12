@@ -8776,10 +8776,14 @@ export interface StaticDeclaredAttackRestriction {
     /** Returns `true` when the attack is LEGAL, `false` to reject.
      *  `self` = the creature whose attack is being validated.
      *  `declaredAttackers` = every creature declared as an attacker this
-     *  combat, INCLUDING `self`. */
+     *  combat, INCLUDING `self`.
+     *  `ctx` = the engine's colour/type authority (layer 5 included), for a
+     *  restriction that reads a co-attacker's characteristics ("unless a black
+     *  or green creature also attacks", issue #5495). */
     predicate: (
         self: PermanentView,
-        declaredAttackers: readonly PermanentView[]
+        declaredAttackers: readonly PermanentView[],
+        ctx: StaticEffectContext
     ) => boolean;
     /** Oracle text displayed as the rejection reason. */
     oracleText: string;

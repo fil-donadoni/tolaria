@@ -178,6 +178,7 @@ import {
     getAttackerCap,
     getBlockerCap,
     maxObeyableAttackRequirements,
+    declaredAttackRestrictionViolation,
     getMinimumBlockers,
 } from "./combat";
 import { isSorceryTiming } from "./phases";
@@ -5128,10 +5129,22 @@ export function enumerateAttackerMoves(
             : combinations(requiredIds, quota);
     const slack = cap === undefined ? Number.POSITIVE_INFINITY : cap - quota;
 
+    // CR 508.1c — set-dependent restrictions ("can't attack unless a black or
+    // green creature also attacks", "can only attack alone") are judged over
+    // the WHOLE declaration, so they prune subsets rather than attackers. Same
+    // predicate `confirmAttackers` throws on (issue #5495).
+    const byId = new Map(player.battlefield.map((c) => [c.id, c]));
     const subsets = requiredBases.flatMap((base) =>
         powerSet(optional)
             .filter((subset) => subset.length <= slack)
             .map((subset) => [...base, ...subset.map((c) => c.id)])
+            .filter(
+                (ids) =>
+                    declaredAttackRestrictionViolation(
+                        ids.flatMap((id) => byId.get(id) ?? []),
+                        state
+                    ) === undefined
+            )
     );
 
     // CR 508.1g / 701.43d — the optional exert cost, one independent yes/no per
