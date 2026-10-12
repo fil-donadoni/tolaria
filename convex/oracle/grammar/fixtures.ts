@@ -6507,4 +6507,237 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 110.2a + CR 400.7 — "Put target creature card from a graveyard onto the battlefield under your control": a graveyard-slot `moveZone` to the battlefield that names its new controller (`controller: "controller"`) over ANY graveyard, a different skeleton from Zombify's (issue #4568).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Reanimate",
+            manaCost: "{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to that card's mana value.",
+            oracleId: "a044474a-cd72-4e9d-bd8d-a08f2de9cdc0",
+            layout: "normal",
+        },
+        expected: {
+            name: "Reanimate",
+            types: ["Sorcery"],
+            manaCost: { B: 1 },
+            oracleText:
+                "Put target creature card from a graveyard onto the battlefield under your control. You lose life equal to that card's mana value.",
+            effects: [
+                {
+                    op: "moveZone",
+                    target: { target: 0 },
+                    to: "battlefield",
+                    controller: "controller",
+                    bind: "$that1",
+                },
+                {
+                    op: "loseLife",
+                    player: "controller",
+                    amount: { ref: "$that1.manaValue" },
+                },
+            ],
+            targetRequirement: {
+                type: "Creature",
+                count: 1,
+                zone: "graveyard",
+                controller: "any",
+            },
+        },
+    },
+    // CR 400.7 — "Return all enchantment cards from your graveyard to the battlefield": a simultaneous `forEach` over the controller's graveyard cards, each `moveZone`d to the battlefield (issue #4568).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Replenish",
+            manaCost: "{3}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Return all enchantment cards from your graveyard to the battlefield. (Auras with nothing to enchant remain in your graveyard.)",
+            oracleId: "523ae937-5535-490d-96ea-07f331b5e5ad",
+            layout: "normal",
+        },
+        expected: {
+            name: "Replenish",
+            types: ["Sorcery"],
+            manaCost: { X: 3, W: 1 },
+            oracleText:
+                "Return all enchantment cards from your graveyard to the battlefield. (Auras with nothing to enchant remain in your graveyard.)",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: "controller",
+                        filter: { type: "Enchantment" },
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 404.3 — "Exile the bottom card of target player's graveyard": a `moveZone` of the positional graveyard selector, the player an announced slot (issue #4568).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Phyrexian Furnace",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "{T}: Exile the bottom card of target player's graveyard.\n{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw a card.",
+            oracleId: "4aafb7e7-b9fc-44ae-9c54-da11fd9dcc17",
+            layout: "normal",
+        },
+        expected: {
+            name: "Phyrexian Furnace",
+            types: ["Artifact"],
+            manaCost: { X: 1 },
+            oracleText:
+                "{T}: Exile the bottom card of target player's graveyard.\n{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw a card.",
+            activatedAbilities: [
+                {
+                    id: "phyrexian-furnace-ability",
+                    oracleText:
+                        "{T}: Exile the bottom card of target player's graveyard.",
+                    cost: { tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: {
+                                zone: "graveyard",
+                                position: "bottom",
+                                player: { target: 0 },
+                            },
+                            to: "exile",
+                        },
+                    ],
+                    targetRequirement: { type: "player", count: 1 },
+                },
+                {
+                    id: "phyrexian-furnace-ability-2",
+                    oracleText:
+                        "{1}, Sacrifice this artifact: Exile target card from a graveyard. Draw a card.",
+                    cost: { mana: { X: 1 }, sacrifice: true },
+                    useStack: true,
+                    effects: [
+                        { op: "moveZone", target: { target: 0 }, to: "exile" },
+                        { op: "draw", player: "controller", count: 1 },
+                    ],
+                    targetRequirement: {
+                        type: "card",
+                        count: 1,
+                        zone: "graveyard",
+                        controller: "any",
+                    },
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 400.7 — "Each player puts a creature card from their graveyard onto the battlefield": a `forEach` over the players, each `choice` of a graveyard card then `moveZone` of the pick (issue #4568).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Exhume",
+            manaCost: "{1}{B}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player puts a creature card from their graveyard onto the battlefield.",
+            oracleId: "fbe61f74-1b3c-4e12-8758-7029872c9ff1",
+            layout: "normal",
+        },
+        expected: {
+            name: "Exhume",
+            types: ["Sorcery"],
+            manaCost: { X: 1, B: 1 },
+            oracleText:
+                "Each player puts a creature card from their graveyard onto the battlefield.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-graveyard-card",
+                            player: { ref: "$each" },
+                            zone: "graveyard",
+                            filter: { type: "Creature" },
+                            count: 1,
+                            prompt: "Exhume: put a creature card from your graveyard onto the battlefield.",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: { ref: "$each" },
+                            from: "graveyard",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 400.7 — "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield": the same `forEach` over the players on the HAND, with a 0..1 pick (issue #4568).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Show and Tell",
+            manaCost: "{2}{U}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.",
+            oracleId: "b83a3ba0-249e-4c39-bbf0-cb005413f7d2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Show and Tell",
+            types: ["Sorcery"],
+            manaCost: { X: 2, U: 1 },
+            oracleText:
+                "Each player may put an artifact, creature, enchantment, or land card from their hand onto the battlefield.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-hand-card",
+                            player: { ref: "$each" },
+                            zone: "hand",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                ],
+                            },
+                            count: { min: 0, max: 1 },
+                            prompt: "Show and Tell: put an artifact, creature, enchantment, or land card from your hand onto the battlefield (or none).",
+                            bind: "$picked",
+                        },
+                        {
+                            op: "moveZone",
+                            cards: { ref: "$picked" },
+                            player: { ref: "$each" },
+                            from: "hand",
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

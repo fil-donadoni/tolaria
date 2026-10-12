@@ -256,6 +256,13 @@ function lowerCondition(
     }
 }
 
+/** CR 113.6b — a (possibly optional) "return this card from your graveyard". */
+function returnsSelfFromGraveyard(sentence: EffectSentenceIR): boolean {
+    if (sentence.kind === "optional")
+        return returnsSelfFromGraveyard(sentence.effect);
+    return sentence.kind === "return-self-from-graveyard";
+}
+
 export function lowerTriggeredAbility(input: {
     readonly id: string;
     readonly oracleText: string;
@@ -269,7 +276,11 @@ export function lowerTriggeredAbility(input: {
 }): LowerTriggerResult {
     // CR 113.6b — "if this card is in your graveyard" is the ability's zone.
     // Only a phase head has a factory that functions from the graveyard.
-    const fromGraveyard = input.condition?.kind === "self-in-graveyard";
+    // CR 113.6b — a body that returns the SOURCE from the graveyard names the
+    // zone it functions from (Squee, Goblin Nabob).
+    const fromGraveyard =
+        input.condition?.kind === "self-in-graveyard" ||
+        input.effects.some(returnsSelfFromGraveyard);
     if (fromGraveyard && input.head.kind !== "phase")
         return {
             ok: false,

@@ -2145,7 +2145,8 @@ function lowerSentenceBody(
                 sentence.subject,
                 sentence.to,
                 slots,
-                site
+                site,
+                sentence.under
             );
             // CR 608.2h — "that creature" names ONE object, so a WIDE group
             // (an "up to N" head fanned out over several ops) leaves no
@@ -2156,6 +2157,57 @@ function lowerSentenceBody(
                 recordActedOn(walk, sentence.subject, moved.value[0]!);
             return moved;
         }
+        case "graveyard-end-card": {
+            // CR 404.3 — the positional selector `moveZone` ships; an
+            // announced player's graveyard is a player slot allocated here.
+            let player: EffectPlayerRef = "controller";
+            if (sentence.owner === "target-player") {
+                const index = slots.allocate({ type: "player", count: 1 });
+                if (!index.ok) return index;
+                player = { target: index.value };
+            }
+            return lowered([
+                {
+                    op: "moveZone",
+                    target: {
+                        zone: "graveyard",
+                        position: sentence.position,
+                        player,
+                        ...(sentence.cardType !== null
+                            ? { filter: { type: sentence.cardType } }
+                            : {}),
+                    },
+                    to: sentence.to,
+                },
+            ]);
+        }
+        case "graveyard-sweep":
+            // CR 400.7 — one simultaneous `forEach` over the controller's
+            // graveyard cards of the type (Replenish).
+            return lowered([
+                {
+                    op: "forEach",
+                    select: {
+                        set: "graveyard",
+                        controller: "controller",
+                        filter: { type: sentence.cardType },
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$each" },
+                            to: "battlefield",
+                        },
+                    ],
+                },
+            ]);
+        case "return-self-from-graveyard":
+            return lowered([
+                { op: "moveZone", target: { ref: "$source" }, to: sentence.to },
+            ]);
+        case "each-player-puts":
+            return lowerEachPlayerPuts(sentence, site);
         case "create-token":
             return lowerCreateToken(sentence, walk);
         case "optional": {
@@ -3467,6 +3519,55 @@ function recordActedOn(
 }
 
 /**
+ * CR 101.4 — "Each player [may] put[s] a <type> card from their
+ * graveyard/hand onto the battlefield": a `forEach` over the players, each
+ * choosing one of their own cards, then the `moveZone` of that choice.
+ */
+function lowerEachPlayerPuts(
+    sentence: Extract<EffectSentenceIR, { kind: "each-player-puts" }>,
+    site: SiteOptions
+): Lowered<EffectOp[]> {
+    const { from, types, optional } = sentence;
+    const noun = types.map((type) => type.toLowerCase());
+    const list =
+        noun.length === 1
+            ? noun[0]!
+            : `${noun.slice(0, -1).join(", ")}, or ${noun[noun.length - 1]}`;
+    const article = /^[aeiou]/.test(list) ? "an" : "a";
+    const bind = "$picked";
+    return lowered([
+        {
+            op: "forEach",
+            select: { set: "players" },
+            effects: [
+                {
+                    op: "choice",
+                    kind:
+                        from === "graveyard"
+                            ? "choose-graveyard-card"
+                            : "choose-hand-card",
+                    player: { ref: "$each" },
+                    zone: from,
+                    filter: {
+                        type: types.length === 1 ? types[0]! : [...types],
+                    },
+                    count: optional ? { min: 0, max: 1 } : 1,
+                    prompt: `${site.selfName}: put ${article} ${list} card from your ${from} onto the battlefield${optional ? " (or none)" : ""}.`,
+                    bind,
+                },
+                {
+                    op: "moveZone",
+                    cards: { ref: bind },
+                    player: { ref: "$each" },
+                    from,
+                    to: "battlefield",
+                },
+            ],
+        },
+    ]);
+}
+
+/**
  * CR 111.1 — create creature tokens (CR 205.2a: also artifacts when printed
  * so, and then colorless — CR 105.2c, `colors: []`), lowered to `createToken`
  * in the shape every hand-written producer writes: the controller creates them (CR 111.2),
@@ -3631,8 +3732,35 @@ function lowerMoveZone(
     subject: SubjectIR,
     zone: ZoneRefIR,
     slots: TargetSlots,
-    site: SiteOptions
+    site: SiteOptions,
+    under?: "you"
 ): Lowered<EffectOp[]> {
+    // CR 110.2a + CR 400.7 — "put target creature card from a graveyard onto
+    // the battlefield under your control": ANY graveyard, the controller of
+    // the ability controls the new object. One announced permanent card.
+    if (under === "you") {
+        if (
+            zone.zone !== "battlefield" ||
+            subject.kind !== "target" ||
+            subject.requirement.zone !== "graveyard" ||
+            subject.requirement.count !== 1 ||
+            typeof subject.requirement.type !== "string" ||
+            !ACTED_ON_PERMANENT_TYPES.has(subject.requirement.type)
+        )
+            return unlowerable(
+                "only one permanent card from a graveyard is put under your control in grammar v0"
+            );
+        const taken = objectSelectors(subject, slots, site);
+        if (!taken.ok) return taken;
+        return lowered(
+            taken.value.map((target) => ({
+                op: "moveZone",
+                target,
+                to: "battlefield",
+                controller: "controller",
+            }))
+        );
+    }
     // CR 400.7e — "return that card to its owner's hand": the card the site's
     // zone change put into a graveyard. Only the hand is read — the one
     // destination a printed line asks for — so no other zone pair is claimed.
