@@ -605,7 +605,8 @@ export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
  * Open `ready-for-agent` issues nobody claims — the candidates whose orphaned
  * worktree `loop:doctor` reports (issue #5531). Advisory, so it never takes
  * the claim sweep down: an answer that is not a JSON array (an error body, a
- * rate-limit message, a stub) reads as none (issue #5551).
+ * rate-limit message, a stub) reads as none, with a warning so a broken `gh`
+ * never reads as "no orphans" (issue #5551).
  */
 export function fetchUnclaimedIssues(runner: ShRunner = sh): Set<number> {
     let rows: unknown;
@@ -625,9 +626,17 @@ export function fetchUnclaimedIssues(runner: ShRunner = sh): Set<number> {
             ]) || "[]"
         );
     } catch {
+        console.warn(
+            "loop:doctor: the unclaimed-issue list was not JSON — orphan worktrees not reported this run"
+        );
         return new Set();
     }
-    if (!Array.isArray(rows)) return new Set();
+    if (!Array.isArray(rows)) {
+        console.warn(
+            "loop:doctor: the unclaimed-issue list was not an array — orphan worktrees not reported this run"
+        );
+        return new Set();
+    }
     return new Set(
         (rows as { number: number; labels?: { name: string }[] }[])
             .filter(
