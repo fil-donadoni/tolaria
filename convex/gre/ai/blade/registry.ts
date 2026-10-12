@@ -299,6 +299,25 @@ function activationCostPicksArePaid(
     return picked.size === activations.length && picked.size >= 2;
 }
 
+/** Issue #5161 — `move` activates an ability of a permanent `seat` controls
+ *  naming exactly the hand card `cardName` for its discard cost. */
+function activationDiscardsCard(
+    state: GameState,
+    seat: BladeSeat,
+    move: Move | null,
+    cardName: string
+): boolean {
+    if (move?.kind !== "activate-ability") return false;
+    const player = state.players[seat === "me" ? 0 : 1];
+    const ids = move.costPicks?.discardIds;
+    if (!ids || ids.length !== 1) return false;
+    const named = player.hand.find((c) => c.id === ids[0]);
+    return (
+        named !== undefined &&
+        (named.card as { id?: string }).id === getCardByName(cardName).id
+    );
+}
+
 /** Every permanent each enumerated activation of `cardName` would actually
  *  sacrifice, plus the source's own instance id (issue #2297).
  *
@@ -12612,6 +12631,97 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             ],
         },
         note: "Issue #5155. Guards the land branch of `permanentRealisedValue` (`landStandingAbilityValue`, `evaluate.ts`) and the land admission in `carriesStandingAbilityWorth` (`cardValue.ts`). Measured at 400 iterations over 20 seeds: the Library 20/20 with the change (mechanism `material-tiebreak`); with the `!def.types.includes(\"Land\")` exclusion restored in `carriesStandingAbilityWorth`, the Island 20/20. Placed in the OPPONENT'S END STEP on purpose: in the bot's own main phase the same position is held to `pass` by the frozen `hold-trick` root rule (the activation sits inside `outcomeEps` of passing), on the before and after trees alike — a timing gap, not a valuation one, recorded in `docs/findings/5155-hold-trick-defers-instant-speed-land-destruction.md`.",
+    },
+
+    // -----------------------------------------------------------------------
+    // ADR 0151 (issue #5161) — the two-way Latent Floor. Elephant Grass is a
+    // Complete Script (its cumulative-upkeep shadow is a binder plus a
+    // self-sacrifice), so its context-free reading is trusted BELOW the
+    // `base + MV` floor: −20 in hand, against a Mox Pearl's 8. Before, the
+    // floor lifted it to 18 and the Bot gave up the Mox to keep it.
+    //
+    // The comparator must sit between the two readings, which no vanilla
+    // creature does (Grizzly Bears reads 116 — the Bot already shed Grass
+    // first against any creature, so such an entry could not red). And the
+    // decision must be SEARCHED: the CR 514.1 cleanup discard is the client
+    // policy (`discardOrder`, mana value first), outside the blade's reach.
+    // A discard-as-cost activation is the searched equivalent: one Move per
+    // card the cost may name. The source taps (`{R}, {T}, Discard a card`),
+    // so it activates once — an untapped repeatable outlet (Psychic Frog)
+    // reaches the same leaf by discarding both in either order, and the two
+    // roots tie. On the opponent's turn nothing in hand is castable, so the
+    // Mox cannot simply be played out of the way.
+    //
+    // The pair: the same position with the hand order reversed, so a pick
+    // that follows card order or instance identity cannot pass both.
+    // -----------------------------------------------------------------------
+    {
+        label: "Complete Script self-tax: discards Elephant Grass over a Mox to a discard cost",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Armorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Elephant Grass", owner: "me", zone: "hand" },
+                { name: "Mox Pearl", owner: "me", zone: "hand" },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                activationDiscardsCard(state, "me", move, "Elephant Grass"),
+            describe:
+                "activates Dwarven Armorer naming Elephant Grass for its discard cost",
+        },
+        note: "Issue #5161 (ADR 0151). Proof-of-failure: `isCompleteScript` forced to `false` puts Elephant Grass back at its 18-point floor, above the Mox's 8, and the entry reds.",
+    },
+    {
+        label: "Complete Script self-tax: discards Elephant Grass over a Mox to a discard cost (hand order reversed)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Dwarven Armorer",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                { name: "Mox Pearl", owner: "me", zone: "hand" },
+                { name: "Elephant Grass", owner: "me", zone: "hand" },
+            ],
+            phase: "END_STEP",
+            activePlayer: "opp",
+            priority: "me",
+            turn: 4,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                activationDiscardsCard(state, "me", move, "Elephant Grass"),
+            describe:
+                "activates Dwarven Armorer naming Elephant Grass for its discard cost",
+        },
+        note: "Issue #5161, the ordering twin of the entry above: the hand order reversed, so the answer is the valuation's and not the enumeration order's.",
     },
 ];
 
