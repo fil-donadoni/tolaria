@@ -32,9 +32,11 @@
  * a census that walks a DIRECTORY (`readdirSync(".claude/skills")`) or matches
  * source text by pattern, a vitest `setupFiles` closure (vitest's own
  * `--changed` ignores it too; the setup files are `full`-lane paths), and a
- * name built at runtime. `check-lane.ts` admits `node-tooling` whole for a
- * tooling path that is not a module; the rest is health's job, which ADR 0154
- * §2 accepts as the residual risk.
+ * name built at runtime. A census that walks a directory is DECLARED in
+ * `census-tests.ts` (issue #5535) with the corpus it reads, and `relatedTests`
+ * admits it whole when the diff touches that corpus. `check-lane.ts` admits
+ * `node-tooling` whole for a tooling path that is not a module; the rest is
+ * health's job, which ADR 0154 §2 accepts as the residual risk.
  */
 
 import * as fs from "fs";
@@ -46,6 +48,11 @@ import {
     type ImportAlias,
 } from "./import-graph";
 import { collect, splitScriptsTests, splitSrcTests } from "../test-env-split";
+import {
+    admittedCensusTests,
+    CENSUS_TESTS,
+    type CensusTest,
+} from "./census-tests";
 
 /** `vitest.config.ts` `resolve.alias`, repo-relative (pinned by its test). */
 export const TEST_ALIASES: readonly ImportAlias[] = [
@@ -242,21 +249,23 @@ export function reachIndex(
 
 /** The tests in `index` the `changed` (repo-relative) paths reach, per
  *  project. A changed path seeds itself, its extension-less key (a deletion)
- *  and its file name (a literal that names it). */
+ *  and its file name (a literal that names it). A declared census whose
+ *  corpus `changed` touches is added whole (issue #5535). */
 export function relatedTests(
     index: ReachIndex,
-    changed: readonly string[]
+    changed: readonly string[],
+    census: readonly CensusTest[] = CENSUS_TESTS
 ): RelatedTests {
     const seeds = changed.flatMap((p) => [
         p,
         moduleKey(p),
         nameNode(path.posix.basename(p)),
     ]);
-    const reached = reverseReach(
-        [...index.tests.keys()],
-        index.importsOf,
-        seeds
+    const reached = new Set(
+        reverseReach([...index.tests.keys()], index.importsOf, seeds)
     );
+    for (const test of admittedCensusTests(changed, census))
+        if (index.tests.has(test)) reached.add(test);
     const out: RelatedTests = {
         "node-engine": [],
         "node-tooling": [],

@@ -54,7 +54,14 @@ const FIXTURE: Record<string, string> = {
     // A tooling test that spawns a script by path.
     "scripts/spawned.ts": `console.log(1);\n`,
     "scripts/__tests__/spawns.test.ts": `const S = ["..", "spawned.ts"];\n`,
+    // A census: walks a directory, imports nothing it reads (issue #5535).
+    "scripts/__tests__/census.test.ts": `const d = fs.readdirSync("corpus");\n`,
+    "corpus/notes.txt": `notes\n`,
 };
+
+const CENSUS = [
+    { test: "scripts/__tests__/census.test.ts", admits: /^corpus\// },
+];
 
 let root: string;
 let index: ReachIndex;
@@ -158,6 +165,41 @@ describe("test-reach — the edges a plain import walk misses (issue #5464 revie
  * the LIVE tree: a test the mirror places in the wrong project is a filter
  * that matches nothing (exit 1) or a test that silently never runs at land.
  */
+describe("test-reach — a declared census is admitted by its corpus (issue #5535)", () => {
+    it("a changed corpus path plans the census, which no import edge reaches", () => {
+        expect(
+            relatedTests(index, ["corpus/notes.txt"], CENSUS)["node-tooling"]
+        ).toEqual(["scripts/__tests__/census.test.ts"]);
+        expect(
+            relatedTests(index, ["corpus/notes.txt"], [])["node-tooling"]
+        ).toEqual([]);
+    });
+
+    it("a path outside the corpus does not admit it", () => {
+        expect(
+            relatedTests(index, ["scripts/lib/t.ts"], CENSUS)["node-tooling"]
+        ).toEqual(["scripts/__tests__/t.test.ts"]);
+    });
+
+    it("a healthOnly census is never admitted", () => {
+        const costly = [{ ...CENSUS[0], healthOnly: "20 s" }];
+        expect(
+            relatedTests(index, ["corpus/notes.txt"], costly)["node-tooling"]
+        ).toEqual([]);
+    });
+
+    it("a census row naming no general test is never planned", () => {
+        const ghost = [
+            { test: "scripts/__tests__/ghost.test.ts", admits: /^corpus\// },
+        ];
+        expect(relatedTests(index, ["corpus/notes.txt"], ghost)).toEqual({
+            "node-engine": [],
+            "node-tooling": [],
+            dom: [],
+        });
+    });
+});
+
 describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)", () => {
     const ROOT = resolve(__dirname, "../..");
     interface Project {
