@@ -420,12 +420,16 @@ function main(): void {
 
     const store = () => verdictStore(cwd);
     for (let attempt = 1; promote === null; attempt++) {
-        // A RED the store already holds for this tip (written by either
-        // machine) is the verdict: re-gating it would spend a heavy-mutex
-        // slot to learn nothing (issue #5466).
+        // A RED another machine wrote for this tip is the verdict: re-gating
+        // it here would spend a heavy-mutex slot to learn nothing (issue
+        // #5466). A RED from THIS machine is re-gated, as before.
         const known = readStored(store, sha);
-        if (known?.status !== "red") runHealthGate(cwd);
-        const stored = known?.status === "red" ? known : readStored(store, sha);
+        const foreignRed =
+            known?.status === "red" &&
+            known.machine !== undefined &&
+            known.machine !== machineName();
+        if (!foreignRed) runHealthGate(cwd);
+        const stored = foreignRed ? known : readStored(store, sha);
         const record = reconcileRecord(sha, readLast(cwd), stored);
         publishVerdict(store, record, stored);
         const decision = releaseDecision(sha, record);
