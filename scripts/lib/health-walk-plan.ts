@@ -53,3 +53,32 @@ export function walkWasFull(record: { ui?: string; walk?: string }): boolean {
         (record.walk === undefined || record.walk.startsWith("full"))
     );
 }
+
+/** What the walk itself found, before anyone decides what it means for the
+ *  health verdict. */
+export type WalkOutcome = "green" | "red" | "infra";
+
+/**
+ * The walk's own outcome (issue #5465): it ran and held (`green`), the tree
+ * failed it (`red`), or the environment cut it short (`infra` — a bootstrap
+ * that never reached a surface, or a failure the machine explains).
+ */
+export function walkOutcome(run: {
+    failed: boolean;
+    walked: boolean;
+    environmental: boolean;
+}): WalkOutcome {
+    if (!run.failed) return "green";
+    return run.walked && !run.environmental ? "red" : "infra";
+}
+
+/**
+ * Does the walk's outcome reach the health verdict? `gating` is
+ * `readUiWalkGating()`: a Linux machine is advisory until
+ * `bun run check:ui:calibrate` reports zero divergence and the config flag
+ * promotes it. Advisory: the offline half stands as the health verdict and
+ * the walk is recorded under `context=ui-walk` only.
+ */
+export function walkDisposition(gating: boolean): "gate" | "advisory" {
+    return gating ? "gate" : "advisory";
+}

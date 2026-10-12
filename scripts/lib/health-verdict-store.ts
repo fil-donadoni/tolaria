@@ -54,6 +54,10 @@ export const HEALTH_DIR_REL = join(".claude", "telemetry", "health");
 /** The GitHub commit-status context the verdict is written under. */
 export const HEALTH_CONTEXT = "health";
 
+/** The context the advisory Linux walk writes under (issue #5465) — never
+ *  `health`, so a walk divergence can never write RED. */
+export const UI_WALK_CONTEXT = "ui-walk";
+
 /** A GitHub commit description is capped at 140 characters. */
 export const DESCRIPTION_MAX = 140;
 
@@ -476,7 +480,8 @@ export function repoFromRemote(url: string): string | null {
 /** Commits of base history the lineage reads — far more than one batch. */
 export const HISTORY_DEPTH = 60;
 
-const HISTORY_QUERY = `query($owner:String!,$name:String!,$ref:String!,$n:Int!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{... on Commit{history(first:$n){nodes{oid status{context(name:"${HEALTH_CONTEXT}"){state description targetUrl createdAt}}}}}}}}}`;
+const historyQuery = (context: string) =>
+    `query($owner:String!,$name:String!,$ref:String!,$n:Int!){repository(owner:$owner,name:$name){ref(qualifiedName:$ref){target{... on Commit{history(first:$n){nodes{oid status{context(name:"${context}"){state description targetUrl createdAt}}}}}}}}}`;
 
 export interface GithubStoreOptions {
     /** `owner/name`. */
@@ -484,6 +489,8 @@ export interface GithubStoreOptions {
     /** The branch whose history is the lineage. */
     branch?: string;
     run?: GhRunner;
+    /** The commit-status context; `health` unless the advisory walk's. */
+    context?: string;
 }
 
 function ghJson<T>(run: GhRunner, args: string[]): T {
@@ -503,6 +510,7 @@ function ghJson<T>(run: GhRunner, args: string[]): T {
 export function githubVerdictStore(opts: GithubStoreOptions): VerdictStore {
     const run = opts.run ?? realGh;
     const branch = opts.branch ?? BASE_BRANCH;
+    const context = opts.context ?? HEALTH_CONTEXT;
     const [owner, name] = opts.repo.split("/");
     const history = (): Verdict[] => {
         type Node = {
@@ -528,7 +536,7 @@ export function githubVerdictStore(opts: GithubStoreOptions): VerdictStore {
             "api",
             "graphql",
             "-f",
-            `query=${HISTORY_QUERY}`,
+            `query=${historyQuery(context)}`,
             "-F",
             `owner=${owner}`,
             "-F",
@@ -564,7 +572,7 @@ export function githubVerdictStore(opts: GithubStoreOptions): VerdictStore {
                 `repos/${opts.repo}/commits/${sha}/statuses?per_page=100`,
             ]);
             // Newest first: the last writer wins.
-            const s = list.find((x) => x.context === HEALTH_CONTEXT);
+            const s = list.find((x) => x.context === context);
             if (!s) return null;
             return decodeStatus({
                 sha,
@@ -593,7 +601,7 @@ export function githubVerdictStore(opts: GithubStoreOptions): VerdictStore {
                 "-f",
                 `state=${STATE_OF[v.status as VerdictStatus]}`,
                 "-f",
-                `context=${HEALTH_CONTEXT}`,
+                `context=${context}`,
                 "-f",
                 `description=${encodeDescription(v)}`,
             ];
@@ -624,7 +632,7 @@ export function machineName(): string {
     return hostname().replace(/\.local$/, "");
 }
 
-function originRepo(root: string): string {
+export function originRepo(root: string): string {
     const r = spawnSync("git", ["remote", "get-url", "origin"], {
         cwd: root,
         encoding: "utf8",

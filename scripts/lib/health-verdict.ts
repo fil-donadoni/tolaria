@@ -363,4 +363,8 @@ export type UiWalkState =
     | "walking"
     /** Batch health owes no walk: none ran (issue #5378). */
     | "skipped"
+    /** A walk ran on a machine whose walk is advisory (`ui-walk.gating`
+     *  false, issue #5465): recorded under `context=ui-walk`, not the
+     *  health verdict. `release` still owes its own full walk. */
+    | "advisory"
     | "not run";
