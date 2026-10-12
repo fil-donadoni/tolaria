@@ -902,6 +902,57 @@ export type EffectSentenceIR =
           readonly kind: "move-zone";
           readonly subject: SubjectIR;
           readonly to: ZoneRefIR;
+          /**
+           * CR 110.2a + CR 400.7 — "onto the battlefield under your control":
+           * the effect, not the card's owner, says who controls the new
+           * object. Printed only with a battlefield destination.
+           */
+          readonly under?: "you";
+      }
+    | {
+          /**
+           * CR 404.2 — "Return the top creature card of your graveyard to the
+           * battlefield" / "Exile the bottom card of target player's
+           * graveyard": a DETERMINISTIC pick out of the ordered graveyard, no
+           * target announced for the card itself (CR 115.1). `owner` is the
+           * graveyard's owner: the ability's controller, or an announced
+           * player.
+           */
+          readonly kind: "graveyard-end-card";
+          readonly position: "top" | "bottom";
+          readonly cardType: CardType | null;
+          readonly owner: "you" | "target-player";
+          readonly to: "battlefield" | "exile";
+      }
+    | {
+          /**
+           * CR 400.7 + CR 110.2a — "Return all enchantment cards from your
+           * graveyard to the battlefield": every matching card, together,
+           * without announcing a target.
+           */
+          readonly kind: "graveyard-sweep";
+          readonly cardType: CardType;
+      }
+    | {
+          /**
+           * CR 113.6b + CR 400.7 — "return this card from your graveyard to
+           * your hand / the battlefield": the source itself, named by the
+           * sentence as sitting in the graveyard, so the ability it prints
+           * functions from there.
+           */
+          readonly kind: "return-self-from-graveyard";
+          readonly to: "hand";
+      }
+    | {
+          /**
+           * CR 101.4 + CR 400.7 — "Each player [may] put[s] a <type> card from
+           * their graveyard/hand onto the battlefield": every player, in
+           * APNAP order, picks one of their own cards of the listed types.
+           */
+          readonly kind: "each-player-puts";
+          readonly from: "graveyard" | "hand";
+          readonly types: readonly CardType[];
+          readonly optional: boolean;
       }
     | ({
           /**
@@ -3251,6 +3302,45 @@ const YOU_DRAW_AND_LOSE_LIFE =
 const YOU_DRAW_AND_THAT_OPPONENT_DISCARDS =
     /^You (draw \S+ cards?) and (that opponent discards \S+ cards?)$/;
 /** CR 701.17a — "Mill three cards" (the controller's own library). */
+/** CR 404.2 — "Return the top creature card of your graveyard to the battlefield". */
+const RETURN_TOP_CARD =
+    /^Return the top (\w+) card of your graveyard to the battlefield$/;
+/** CR 404.2 — "Exile the bottom card of target player's graveyard". */
+const EXILE_BOTTOM_CARD =
+    /^Exile the bottom card of target player(?:'|’)s graveyard$/;
+/** CR 400.7 — "Return all enchantment cards from your graveyard to the battlefield". */
+const RETURN_ALL_FROM_GRAVEYARD =
+    /^Return all (\w+) cards from your graveyard to the battlefield$/;
+/** CR 113.6b — "return this card from your graveyard to your hand". */
+const RETURN_SELF_FROM_GRAVEYARD =
+    /^Return this card from your graveyard to your hand$/;
+/** CR 101.4 — "Each player puts a creature card from their graveyard onto the battlefield". */
+const EACH_PLAYER_PUTS =
+    /^Each player (puts|may put) an? (.+) card from their (graveyard|hand) onto the battlefield$/;
+
+/** A permanent card type word ("creature", "enchantment") as a `CardType`. */
+function permanentCardType(word: string): CardType | null {
+    const type = word.charAt(0).toUpperCase() + word.slice(1);
+    return (PERMANENT_TYPES as readonly string[]).includes(type)
+        ? (type as CardType)
+        : null;
+}
+
+/** "an artifact, creature, enchantment, or land" → its permanent types. */
+function permanentCardTypeList(phrase: string): readonly CardType[] | null {
+    const words = phrase.split(/, or |, | or /);
+    const types: CardType[] = [];
+    for (const word of words) {
+        const type = permanentCardType(word);
+        if (type === null || types.includes(type)) return null;
+        types.push(type);
+    }
+    return types;
+}
+
+/** CR 110.2a — "Put <object> onto the battlefield under your control". */
+const PUT_UNDER_YOUR_CONTROL =
+    /^Put (.+) onto the battlefield under your control$/;
 /** CR 404.1 — "Exile target player's graveyard": the owner is a possessive. */
 const RETURN_OWN_PERMANENT =
     /^Return (an? .+ you control) to its owner(?:'|’)s hand$/;
@@ -5385,6 +5475,59 @@ function effectSentence(
             kind: "return-exiled" as const,
         } satisfies EffectSentenceIR);
 
+    // ── the ordered graveyard, swept or taken from the end (CR 404.2) ──────
+    const topCard = span.match(RETURN_TOP_CARD);
+    if (topCard !== null) {
+        const cardType = permanentCardType(topCard[1]!);
+        if (cardType === null)
+            return fail(`"${topCard[1]}" is not a permanent card type`, span);
+        return ok({
+            kind: "graveyard-end-card" as const,
+            position: "top" as const,
+            cardType,
+            owner: "you" as const,
+            to: "battlefield" as const,
+        } satisfies EffectSentenceIR);
+    }
+    if (EXILE_BOTTOM_CARD.test(span))
+        return ok({
+            kind: "graveyard-end-card" as const,
+            position: "bottom" as const,
+            cardType: null,
+            owner: "target-player" as const,
+            to: "exile" as const,
+        } satisfies EffectSentenceIR);
+    const sweep = span.match(RETURN_ALL_FROM_GRAVEYARD);
+    if (sweep !== null) {
+        const cardType = permanentCardType(sweep[1]!);
+        if (cardType === null)
+            return fail(`"${sweep[1]}" is not a permanent card type`, span);
+        return ok({
+            kind: "graveyard-sweep" as const,
+            cardType,
+        } satisfies EffectSentenceIR);
+    }
+    if (RETURN_SELF_FROM_GRAVEYARD.test(span))
+        return ok({
+            kind: "return-self-from-graveyard" as const,
+            to: "hand" as const,
+        } satisfies EffectSentenceIR);
+    const eachPuts = span.match(EACH_PLAYER_PUTS);
+    if (eachPuts !== null) {
+        const types = permanentCardTypeList(eachPuts[2]!);
+        if (types === null)
+            return fail(
+                `"${eachPuts[2]}" is not a list of permanent types`,
+                span
+            );
+        return ok({
+            kind: "each-player-puts" as const,
+            from: eachPuts[3] === "graveyard" ? "graveyard" : "hand",
+            types,
+            optional: eachPuts[1] === "may put",
+        } satisfies EffectSentenceIR);
+    }
+
     // ── zone change (CR 400.6) ─────────────────────────────────────────────
     if (span.startsWith("Return ")) {
         // CR 400.3 — a chosen permanent of the controller's own, not an
@@ -5445,6 +5588,20 @@ function effectSentence(
     // the library end in the destination phrase. Only the top-of-library
     // spelling is read; the subject must be a single announced object.
     if (span.startsWith("Put ")) {
+        // CR 110.2a + CR 400.7 — "Put target creature card from a graveyard
+        // onto the battlefield under your control" (Reanimate): the card
+        // leaves ANY graveyard and the effect names its new controller.
+        const reanimate = span.match(PUT_UNDER_YOUR_CONTROL);
+        if (reanimate !== null) {
+            const subject = subjectRule.run(reanimate[1]!, ctx);
+            if (!subject.ok) return subject;
+            return ok({
+                kind: "move-zone" as const,
+                subject: subject.value,
+                to: { zone: "battlefield" as const, owner: "any" as const },
+                under: "you" as const,
+            } satisfies EffectSentenceIR);
+        }
         const onAt = span.lastIndexOf(" on top of ");
         if (onAt !== -1) {
             const subject = subjectRule.run(
