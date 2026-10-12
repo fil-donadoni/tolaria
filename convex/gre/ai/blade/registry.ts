@@ -12395,6 +12395,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield" as const,
                     tapped: false,
                 })),
+                // Issue #5356 — a red source on the bot's side: protection
+                // from red only has worth against a player who shows red.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
                 { name: "Terror", owner: "me", zone: "hand" },
                 { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
@@ -12429,7 +12437,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "Terror is cast on the Runeclaw Bear, the one holding protection from red",
         },
-        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4). Issue #5356 added the bot's Mountain: the row is now board-aware (`ai/keywordRelevance.ts`) and protection from red is worth nothing against a player showing no red — the negative twin below.",
     },
     {
         label: "keyword bonus (protection): Terror takes the Grizzly Bears that carries protection from red, not the identical Runeclaw Bear (issue #5345)",
@@ -12442,6 +12450,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     zone: "battlefield" as const,
                     tapped: false,
                 })),
+                // Issue #5356 — a red source on the bot's side: protection
+                // from red only has worth against a player who shows red.
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: false,
+                },
                 { name: "Terror", owner: "me", zone: "hand" },
                 { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
                 { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
@@ -12476,7 +12492,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "Terror is cast on the Grizzly Bears, the one holding protection from red",
         },
-        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4).",
+        note: "Issue #5345 (follow-up of #5152). Guards the `/^protection from /` family row (flat 15) in `creatureBody.ts`'s keyword bonus table; the sibling entry swaps the carrier. Measured at 400 iterations over 20 seeds: Terror takes the carrier in both entries with the row; with no keyword granted the bot passes (0/20), so the grant alone is what makes the removal worth casting. Proof of failure: zeroing the row turns BOTH entries red (0/4). Issue #5356 added the bot's Mountain: the row is now board-aware (`ai/keywordRelevance.ts`) and protection from red is worth nothing against a player showing no red — the negative twin below.",
+    },
+    {
+        // The board-aware twin of the two entries above (issue #5356): the
+        // SAME position without the bot's Mountain. The bot shows only black,
+        // so protection from red protects the Runeclaw Bear from nothing it
+        // could ever face (CR 702.16a) and the two Bears are the same
+        // creature — Terror is not spent on the carrier for its keyword.
+        label: "keyword relevance (protection): against a bot showing no red, protection from red does not make the Runeclaw Bear Terror's target (issue #5356)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Terror", owner: "me", zone: "hand" },
+                { name: "Runeclaw Bear", owner: "opp", zone: "battlefield" },
+                { name: "Grizzly Bears", owner: "opp", zone: "battlefield" },
+            ],
+            continuousEffects: [
+                {
+                    layer: 6,
+                    affected: { opp: ["Runeclaw Bear"] },
+                    controller: "opp",
+                    payload: {
+                        kind: "keyword-grant",
+                        keyword: "protection from red",
+                    },
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                !matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Terror",
+                    target: "Runeclaw Bear",
+                }),
+            describe:
+                "Terror is NOT cast on the Runeclaw Bear for a protection from red that protects it from nothing",
+        },
+        note: "Issue #5356. Guards `inertKeywordDiscount` (`ai/keywordRelevance.ts`), read by `evaluateCreature`. Measured at 400 iterations over 20 seeds: Terror never takes the carrier (20/20 green), while the two Mountain entries above stay 20/20 on the carrier. Proof of failure: with the discount disabled (the flat 15 for every protection) this entry is red on all 20 seeds (Terror on the Runeclaw Bear).",
     },
     {
         // UTILITY LAND STANDING WORTH (issue #5155) — the bot holds a Strip

@@ -29,9 +29,26 @@ export const SMALLEST_CREATURE_BODY =
     CREATURE_BASE + W_CR_POWER + W_CR_TOUGHNESS;
 
 /** Keyword → realized-value bonus, as a function of the creature's (floored)
- *  effective power. Structured as a table so an unimplemented keyword is
- *  zero-cost to add: drop in one entry. Restricted to the implemented keyword
- *  vocabulary (CR 702). Evasion and combat amplifiers are power-scaled; binary
+ *  effective power.
+ *
+ *  DELIBERATELY FIXED, not fitted (issue #5356). These magnitudes are not
+ *  `EvalWeights` terms and `bun run fit:weights` never sees them, on purpose:
+ *  a keyword row reaches the leaf only inside the `creatures` term, whose
+ *  scale the fit already owns, and no Verdict discriminates one keyword from
+ *  another — the keyword blade entries (issues #5345/#5356) are
+ *  `expect.predicate` Test Positions precisely so they do not oblige a refit
+ *  that would cascade through every pinned snapshot. A per-keyword weight
+ *  would be a dimension with no data under it. What the fixed numbers got
+ *  wrong was CONTEXT, and that is board-aware now in the evaluator: a
+ *  landwalk with no such land across the table and protection from a colour
+ *  the opponents have provably not shown are taken back to zero
+ *  (`ai/keywordRelevance.ts`). Menace and the other evasion rows stay flat:
+ *  their worth hangs on blockers that change every turn, which the rollouts
+ *  play out (menace held 17-18/20 with its row in issue #5345's measurement).
+ *
+ *  Structured as a table so an unimplemented keyword is zero-cost to add:
+ *  drop in one entry. Restricted to the implemented keyword vocabulary
+ *  (CR 702). Evasion and combat amplifiers are power-scaled; binary
  *  keywords are flat; `defender` is a penalty (the creature can't attack, so its
  *  power pushes no damage). Both `"first strike"` (the canonical engine spelling,
  *  see phases.ts) and the hyphenated form are accepted. */
