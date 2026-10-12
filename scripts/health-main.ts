@@ -99,6 +99,7 @@ import {
     describeAuditRecord,
     readAuditRecord,
 } from "./lib/health-robustness-audit";
+import { retryNote, runStepWithRetry } from "./lib/health-retry";
 import {
     healthGateEnv,
     healthStepArgs,
@@ -172,6 +173,10 @@ interface LastRun {
     /** `red` only: the failing test files (`failedTestFiles`) — what a
      *  repair's lane must run before the lineage turns AMBER (issue #5462). */
     tests?: string[];
+    /** The vitest projects a failed `test` step re-ran once (issue #5461):
+     *  on a `green` the flake the retry absorbed, on a `red` what failed
+     *  twice. `health:status` prints it. */
+    retried?: string[];
     /** `infra` only: why, and what to do (`INFRA_REMEDY`). */
     infraCause?: InfraCause;
     reason?: string;
@@ -307,7 +312,7 @@ function status(root: string): never {
     if (!last) console.log("  no health run recorded yet");
     else
         console.log(
-            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
+            `  last: ${last.status.toUpperCase()} @ ${last.sha.slice(0, 8)} (started ${last.startedAt}${last.finishedAt ? `, finished ${last.finishedAt}` : ""})${last.failedStep ? ` — failed at ${last.failedStep}` : ""}${last.retried ? `\n  retry: ${retryNote("test", last.retried)} — ${last.status === "green" ? "failed once, passed on the re-run (a flake)" : "failed twice"}` : ""}${last.reason ? `\n  why:  ${last.reason}` : ""}${last.log ? `\n  log:  ${last.log}` : ""}`
         );
     // Why the last landing did or did not fire the batch gate (issue #4964).
     const cadence = join(dir, "cadence.json");
@@ -378,6 +383,8 @@ interface RunCtx {
     previous: LastRun | null;
     /** The walk this run owes, once planned (issues #5076, #5378). */
     walkPlan?: WalkPlan;
+    /** The projects the offline `test` step re-ran once (issue #5461). */
+    retried?: string[];
 }
 
 /** The record field that says which walk the run owed. */
@@ -454,8 +461,10 @@ function finishRed(
     ctx: RunCtx,
     failedStep: string,
     halves: Pick<LastRun, "offline" | "ui">,
-    tests: string[] = []
+    tests: string[] = [],
+    retried?: string[]
 ): never {
+    if (retried) failedStep = retryNote(failedStep, retried);
     writeLast(ctx.dir, {
         sha: ctx.tip,
         status: "red",
@@ -464,6 +473,7 @@ function finishRed(
         failedStep,
         log: ctx.logPath,
         ...(tests.length > 0 ? { tests } : {}),
+        ...(retried ? { retried } : {}),
         ...halves,
         ...walkFields(ctx),
     });
@@ -487,7 +497,7 @@ function finishRed(
     process.exit(1);
 }
 
-function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
+function finishGreen(ctx: RunCtx, ui: UiWalkState, retried?: string[]): void {
     writeLast(ctx.dir, {
         sha: ctx.tip,
         status: "green",
@@ -496,15 +506,23 @@ function finishGreen(ctx: RunCtx, ui: UiWalkState): void {
         log: ctx.logPath,
         offline: "green",
         ui,
+        ...(retried ? { retried } : {}),
         ...walkFields(ctx),
     });
-    publishVerdict(ctx, { sha: ctx.tip, status: "green", log: ctx.logPath });
+    publishVerdict(ctx, {
+        sha: ctx.tip,
+        status: "green",
+        ...(retried ? { step: retryNote("test", retried) } : {}),
+        log: ctx.logPath,
+    });
     // The health gate IS the authoritative green record now (ADR 0110).
     writeFileSync(
         join(ctx.root, ".claude/telemetry/green-sha"),
         `${ctx.tip}\n`
     );
-    console.log(`health-main: GREEN @ ${ctx.tip.slice(0, 8)}`);
+    console.log(
+        `health-main: GREEN @ ${ctx.tip.slice(0, 8)}${retried ? ` (${retryNote("test", retried)} — a flake, see ${ctx.logPath})` : ""}`
+    );
 }
 
 /**
@@ -616,7 +634,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         });
 
     if (failed === undefined) {
-        finishGreen(ctx, "green");
+        finishGreen(ctx, "green", ctx.retried);
         return;
     }
     if (failed.cause !== null)
@@ -662,6 +680,7 @@ async function walkPhase(root: string, dir: string): Promise<void> {
             // its phases: an infra walk must keep a standing red record.
             previous: last.prior ?? null,
             walkPlan: plan,
+            retried: last.retried,
         },
         splitHealthGates(HEALTH_SCRIPTS).walk
     );
@@ -840,12 +859,19 @@ async function main(): Promise<void> {
     let failedStep: string | undefined;
     let failedTests: string[] = [];
     let failedCause: InfraCause | null = null;
+    let retried: string[] | undefined;
     try {
         git(["worktree", "add", "--detach", wt, tip], root);
         for (const step of steps) {
             const stepStartedAt = Date.now();
             const machineAtStart = readMachineSample();
-            const r = await runHealthStep(step, { cwd: wt, env, logPath });
+            const run = await runStepWithRetry(
+                step,
+                (s) => runHealthStep(s, { cwd: wt, env, logPath }),
+                (line) => process.stdout.write(line)
+            );
+            const r = run.result;
+            if (run.retried) retried = run.retried;
             if (!r.ok) {
                 // Read at once: a later sleep must not reach back to this step.
                 failedCause = infraCause({
@@ -894,17 +920,18 @@ async function main(): Promise<void> {
             ctx,
             failedStep,
             { offline: "red", ui: "not run" },
-            failedTests
+            failedTests,
+            retried
         );
 
     if (walk.length === 0) {
-        finishGreen(ctx, "not run");
+        finishGreen(ctx, "not run", retried);
         return;
     }
     if (ctx.walkPlan?.kind === "skipped") {
         // The offline half alone decides GREEN; `release` walks this tip in
         // full before it trusts it (`walkWasFull`, issue #5378).
-        finishGreen(ctx, "skipped");
+        finishGreen(ctx, "skipped", retried);
         return;
     }
     if (phase === "offline") {
@@ -919,6 +946,7 @@ async function main(): Promise<void> {
             phase: "walk",
             offline: "green",
             ui: "pending",
+            ...(retried ? { retried } : {}),
             ...walkFields(ctx),
             walkPlan: ctx.walkPlan,
             log: logPath,
