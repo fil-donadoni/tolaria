@@ -51,6 +51,7 @@ import {
 import {
     capCensus,
     repairItems,
+    orphanPlanParts,
     resumeItems,
     capRefusal,
     heldFromJournal,
@@ -78,7 +79,12 @@ import {
     verdictStore,
     type VerdictStore,
 } from "./lib/health-verdict-store";
-import { claimClassifications, claimLedgerPath } from "./loop-doctor";
+import {
+    claimClassifications,
+    claimLedgerPath,
+    readClaimOwners,
+} from "./loop-doctor";
+import { orphanWorktrees } from "./lib/orphan-worktree";
 import { FAILED_LABEL } from "./lib/land-labels";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
@@ -855,7 +861,30 @@ function main(): void {
         lineage: lineage ?? undefined,
     };
 
-    const plan = planBatch(issues, config, port);
+    // Orphaned issue worktrees (issue #5531): an unclaimed issue whose local
+    // worktree holds unpushed commits is resumed (proven ownerless) or held,
+    // never picked fresh. Read BEFORE the plan so it stays out of `batch`.
+    const orphans = orphanWorktrees(
+        new Set(
+            issues
+                .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
+                .map((i) => i.number)
+        ),
+        {
+            baseRef: ORIGIN_BASE,
+            owners: readClaimOwners(
+                process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+            ),
+        }
+    );
+    const orphanParts = orphanPlanParts(orphans);
+
+    const plan = planBatch(
+        issues.filter((i) => !orphanParts.excluded.has(i.number)),
+        config,
+        port
+    );
+    plan.skipped.push(...orphanParts.skipped);
 
     // Admission is decided on the PLANNER's own classification
     // (`activeClaims`), never on the raw labels: a claim it already called
@@ -935,7 +964,7 @@ function main(): void {
     );
     const repaired = new Set(plan.repair.map((r) => r.number));
     plan.resume = resumeItems(
-        classified,
+        [...classified, ...orphanParts.classified],
         issues,
         config,
         (n) => port.issueDetail(n).body,

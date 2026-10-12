@@ -21,12 +21,18 @@
 // `--resume` (issue #4763): the worktree of a STRANDED claim — a dead pass's
 // pushed branch, not a fresh one. Checks out `feat|fix/issue-N` (the local
 // branch when it exists, else the remote one) instead of branching from base.
+// A worktree already standing at the issue path on that branch is ADOPTED as
+// it is (issue #5531), not refused.
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
-import { issueWorktree, pickResumeBranch } from "./lib/issue-worktree";
+import {
+    isAdoptableWorktree,
+    issueWorktree,
+    pickResumeBranch,
+} from "./lib/issue-worktree";
 import {
     OVER_CAP_ENV,
     admitSessionNow,
@@ -57,6 +63,27 @@ function main(): void {
     const { branch, worktree } = issueWorktree(primary, issue, kind);
 
     if (existsSync(worktree)) {
+        if (argv.includes("--resume")) {
+            // An orphaned worktree (issue #5531): adopt it as it stands. The
+            // rebase onto base is the pass's job; nothing here moves the branch.
+            const head = spawnSync(
+                "git",
+                ["-C", worktree, "symbolic-ref", "--short", "-q", "HEAD"],
+                { encoding: "utf8" }
+            );
+            const current = head.status === 0 ? head.stdout.trim() : null;
+            if (!isAdoptableWorktree(issue, current)) {
+                console.error(
+                    `wt:new --resume: ${worktree} exists but is on ${current ?? "a detached HEAD"}, not a feat|fix/issue-${issue} branch — not adopting it`
+                );
+                process.exit(1);
+            }
+            console.error(
+                `wt:new: adopted the existing worktree on ${current} for issue #${issue}`
+            );
+            console.log(worktree);
+            return;
+        }
         console.error(`wt:new: ${worktree} already exists`);
         console.log(worktree);
         return;

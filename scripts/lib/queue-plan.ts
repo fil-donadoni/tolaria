@@ -47,6 +47,7 @@ import {
 // Type-only: the liveness verdict is the CLASSIFIER's, never re-spelled here
 // (issue #4384). The gathering of it is I/O and stays in `loop-doctor.ts`.
 import type { ClaimVerdictState } from "../loop-doctor";
+import type { OrphanWorktree } from "./orphan-worktree";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Input — the shape `gh issue list --json number,title,labels,parent,assignees,updatedAt`
@@ -364,7 +365,11 @@ export type SkipAction =
     /** Its native parent was closed as `not planned`: the work was abandoned.
      *  Close it (`bun run issues:orphans --close`) or re-parent it to a live
      *  umbrella — issue #4105. */
-    | "close-orphan";
+    | "close-orphan"
+    /** An unclaimed issue whose local worktree holds unpushed commits and
+     *  whose owner is not proven gone (issue #5531): neither adopted nor
+     *  picked fresh. `loop:doctor` / `loop:status` name the worktree. */
+    | "held-worktree";
 
 /** How much of the tree an issue may touch — the input to disjointness. */
 export type BlastRadius =
@@ -1587,6 +1592,44 @@ export function resumeItems(
             ];
         })
         .sort((a, b) => rank(a.number) - rank(b.number) || a.number - b.number);
+}
+
+/**
+ * Orphaned issue worktrees (issue #5531) in the plan's terms. An unclaimed
+ * issue with unpushed commits in a local worktree never competes in `batch`:
+ * a PROVEN orphan (`adopt`) is handed to the next pass as a `recoverable`
+ * resume item, an unproven one (`held`) is skipped with a reason naming the
+ * worktree. `none` (no unpushed commit) is absent from `orphans` by
+ * construction and competes as before.
+ */
+export function orphanPlanParts(orphans: OrphanWorktree[]): {
+    /** Issue numbers to keep out of `planBatch`. */
+    excluded: Set<number>;
+    /** Rows for `resumeItems`: `recoverable`, no PR. */
+    classified: {
+        issue: number;
+        verdict: { state: ClaimVerdictState };
+        pr: number | null;
+    }[];
+    skipped: SkippedIssue[];
+} {
+    return {
+        excluded: new Set(orphans.map((o) => o.issue)),
+        classified: orphans
+            .filter((o) => o.verdict.state === "adopt")
+            .map((o) => ({
+                issue: o.issue,
+                verdict: { state: "recoverable" as const },
+                pr: null,
+            })),
+        skipped: orphans
+            .filter((o) => o.verdict.state === "held")
+            .map((o) => ({
+                number: o.issue,
+                reason: o.verdict.reason,
+                action: "held-worktree" as const,
+            })),
+    };
 }
 
 export interface AdmissionInput {
