@@ -237,8 +237,8 @@ over two machines); the rest is batch health's.
 - **Never hand-pick a subset of `check:pr`.**
 - **Guard tier = measured cost** (issue #4963): ≤ 10 s → lane (admitted by
   diff: `check:gaps`/`check:targets`/`check:test-hygiene`); above →
-  `HEALTH_ONLY_GUARDS` with its cost (`check:ui --all`, bot byte-identity pins,
-  `check:bundle`/`check:convex-bundle`). A new guard's PR states its cost.
+  `HEALTH_ONLY_GUARDS` with its cost (`check:ui --all`, bot fast lane =
+  `test:bot`, `check:bundle`). A new guard's PR states its cost.
 - **`check:all` VERIFIES formatting**, never repairs: drift → `bun run format`,
   re-run (#1807).
 - **`bun run test` = `test:app` → `test:bot` → `test:blade`.** **New bot/AI

@@ -177,7 +177,7 @@ files under `scripts/**`, `engine`):
 | `bot fast lane`       |                              88.4 s |                                    health-only |
 | `node-engine`         |                              97.1 s | `vitest(related)`: 13 files, 375 tests, 67.9 s |
 | `node-tooling`        |                              66.1 s |                                     (included) |
-| everything else       |                               8.6 s |                                         16.2 s |
+| everything else       |                               8.6 s |                                         16.7 s |
 | **total**             |                         **272.1 s** |                                    **106.2 s** |
 
 The `before` receipt, verbatim from
