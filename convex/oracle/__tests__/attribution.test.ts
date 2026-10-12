@@ -248,20 +248,21 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("static: a descriptor inside the static clause (Urza's Filter)", () => {
+    it("static: a descriptor inside the static clause (Transcendent Envoy)", () => {
         expect(
             attributionOf({
-                name: "Urza's Filter",
-                manaCost: "{4}",
-                typeLine: "Artifact",
-                oracleText: "Multicolored spells cost {2} less to cast.",
-                power: undefined,
-                toughness: undefined,
+                name: "Transcendent Envoy",
+                manaCost: "{1}{W}",
+                typeLine: "Enchantment Creature — Griffin",
+                oracleText:
+                    "Flying\nAura spells you cast cost {1} less to cast.",
+                power: "1",
+                toughness: "2",
             })
         ).toEqual({
             slot: "static",
             path: [STATIC_CLAUSE, DESCRIPTOR],
-            span: "Multicolored cards",
+            span: "Aura cards",
         });
     });
 
