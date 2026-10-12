@@ -272,7 +272,12 @@ with nobody logged in. `sudo` needs a real terminal (see § 1 above):
 
 ```bash
 REPO=$(git rev-parse --show-toplevel)   # the PRIMARY checkout
-pkill -f "convex dev --local" ; sleep 5 ; pgrep -af convex-local-backend   # nothing
+# Only the primary checkout's watcher — never a worktree session's.
+for p in $(pgrep -f "convex dev --local"); do
+    [ "$(readlink /proc/$p/cwd)" = "$REPO" ] && kill "$p"
+done
+sleep 5 ; pgrep -af convex-local-backend   # nothing
+(cd "$REPO" && mise trust && mise exec -- bun --version)   # the unit's toolchain resolves
 mkdir -p ~/.config/systemd/user
 sed -e "s|__REPO__|$REPO|g" -e "s|__MISE__|$(command -v mise)|g" \
     scripts/runner-units/tolaria-convex.service \
@@ -300,8 +305,9 @@ Then reboot, do not log in for a minute, log in, and run the first two
 commands again. The unit must read `active (running)` with its start time at
 boot, and `convex:ensure` must start nothing. If it fails, run
 `journalctl --user -u tolaria-convex.service -n 50`. The usual causes are an
-untrusted `mise.toml` (`mise trust` in the checkout) or a watcher still holding
-the port.
+untrusted `mise.toml` (`mise trust` in the checkout), bun missing from the
+global mise config (the repo's `mise.toml` pins only Node), or a watcher still
+holding the port.
 
 ## Glossary
 

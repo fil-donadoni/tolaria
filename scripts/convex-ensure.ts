@@ -563,6 +563,10 @@ async function reclaim(
     return roots.map((r) => r.pid);
 }
 
+/** A `systemctl` call's bound: a restart waits for the unit's stop
+ *  (`TimeoutStopSec=30`) and its start. */
+const SYSTEMCTL_TIMEOUT_MS = 60_000;
+
 /** `systemctl --user <args>` for the unit — status and output, never a
  *  throw. */
 function systemctl(
@@ -574,7 +578,7 @@ function systemctl(
         [...unit.systemctl.slice(1), ...args],
         {
             encoding: "utf8",
-            timeout: 60_000,
+            timeout: SYSTEMCTL_TIMEOUT_MS,
         }
     );
     return {
@@ -645,7 +649,13 @@ export async function ensureConvex(o: EnsureOptions): Promise<EnsureOutcome> {
 
     fs.mkdirSync(o.telemetryDir, { recursive: true });
     const lockFile = path.join(o.telemetryDir, "convex-ensure.lock");
-    const lockDeadline = Date.now() + o.startTimeoutMs + o.waitAliveMs + 30_000;
+    // The unit path also blocks on `systemctl restart` (SYSTEMCTL_TIMEOUT_MS).
+    const lockDeadline =
+        Date.now() +
+        o.startTimeoutMs +
+        o.waitAliveMs +
+        30_000 +
+        (o.unit ? SYSTEMCTL_TIMEOUT_MS : 0);
     const release = await acquireLock(lockFile, lockDeadline, o.pollMs);
     if (typeof release === "string") return { kind: "failed", reason: release };
     try {
