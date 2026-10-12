@@ -22,6 +22,8 @@ import {
     parseVmStat,
     parseWorktreeRoots,
     psiLevel,
+    psiStallMs,
+    psiTotals,
     processOwner,
     runSaturated,
     saturation,
@@ -163,6 +165,30 @@ describe("probe parsers — the text each probe prints on this machine", () => {
         // A `some`-only file still reads.
         expect(psiLevel("some avg10=12.00 avg60=0 avg300=0 total=1")).toBe(2);
         expect(psiLevel("")).toBeNull();
+    });
+
+    it("reads PSI's cumulative stall and brackets a run with it (issue #5468)", () => {
+        const at = (some: number, full: number) =>
+            `some avg10=0.00 avg60=0.00 avg300=0.00 total=${some}\n` +
+            `full avg10=0.00 avg60=0.00 avg300=0.00 total=${full}\n`;
+        expect(psiTotals(at(5945829, 5674509))).toEqual({
+            some: 5945829,
+            full: 5674509,
+        });
+        expect(psiTotals("some avg10=0 avg60=0 avg300=0 total=7")).toEqual({
+            some: 7,
+            full: null,
+        });
+        expect(psiTotals("")).toBeNull();
+        const start = { psiTotalUs: psiTotals(at(1_000_000, 400_000)) };
+        const end = { psiTotalUs: psiTotals(at(3_500_000, 900_000)) };
+        expect(psiStallMs(start, end)).toEqual({ some: 2500, full: 500 });
+        // Off Linux neither side says: nothing is invented.
+        expect(psiStallMs({}, end)).toEqual({ some: null, full: null });
+        expect(psiStallMs({ psiTotalUs: null }, end)).toEqual({
+            some: null,
+            full: null,
+        });
     });
 
     it("reads `ps` etime in every width it prints", () => {

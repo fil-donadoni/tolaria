@@ -4,7 +4,8 @@ How to install, check and remove the [reaper](#g-reaper) on both machines of
 topology B' (ADR 0154): a `launchd` agent on the MacBook, a `systemd` user
 timer on the Huawei. Built by issue #5470. The unit files live beside the
 scripts they run, in [`scripts/runner-units/`](../../scripts/runner-units/).
-The Huawei's one-time setup for the batch gates is [its own section](#set-up-the-huawei-for-the-batch-gates).
+The Huawei's one-time setup for the batch gates is [its own section](#set-up-the-huawei-for-the-batch-gates);
+its Convex backend, a systemd unit, is [Convex on the Huawei](#convex-on-the-huawei).
 
 ## What it does
 
@@ -144,15 +145,15 @@ made these changes, in this order; every step is re-runnable (run it again on
 a machine that has it and nothing changes). What the machine then measured:
 `docs/research/huawei-gate-bench-2026-10-11.md` § 4.
 
-| Need                                            | Check                                                                            | Why                                                                                                            |
-| ----------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| The machine never suspends on lid, keys or idle | `systemd-analyze cat-config systemd/logind.conf` shows the `Handle*=ignore` rows | A suspended health step is recorded `infra`, never a verdict (sleep detection, `lib/health-verdict.ts`)        |
-| Read access to the system journal               | `journalctl --system -n1` prints a line                                          | Sleep detection reads it                                                                                       |
-| Playwright's Chromium and its shared libraries  | `bunx playwright install chromium` exits 0; `ldd` on both binaries finds all     | `check:ui` drives it                                                                                           |
-| GNU `time`                                      | `/usr/bin/time --version`                                                        | Peak RSS of a gate (`time -v`); without it every wrapped step exits 127 in under a second                      |
-| Node at the repo's pin                          | `mise current node` equals `.nvmrc`                                              | Vitest and the Convex CLI run under it                                                                         |
-| `perl`                                          | `perl -v`                                                                        | The AFK loop's detach path (`loop-handoff.sh`: `POSIX::setsid`, log stamping)                                  |
-| A local Convex deployment                       | `bun run convex:ensure` prints `answers`                                         | `check:ui` signs in against it; keep the `convex dev` watcher in the primary checkout, never a merged worktree |
+| Need                                            | Check                                                                            | Why                                                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| The machine never suspends on lid, keys or idle | `systemd-analyze cat-config systemd/logind.conf` shows the `Handle*=ignore` rows | A suspended health step is recorded `infra`, never a verdict (sleep detection, `lib/health-verdict.ts`)                     |
+| Read access to the system journal               | `journalctl --system -n1` prints a line                                          | Sleep detection reads it                                                                                                    |
+| Playwright's Chromium and its shared libraries  | `bunx playwright install chromium` exits 0; `ldd` on both binaries finds all     | `check:ui` drives it                                                                                                        |
+| GNU `time`                                      | `/usr/bin/time --version`                                                        | Peak RSS of a gate (`time -v`); without it every wrapped step exits 127 in under a second                                   |
+| Node at the repo's pin                          | `mise current node` equals `.nvmrc`                                              | Vitest and the Convex CLI run under it                                                                                      |
+| `perl`                                          | `perl -v`                                                                        | The AFK loop's detach path (`loop-handoff.sh`: `POSIX::setsid`, log stamping)                                               |
+| A local Convex deployment                       | `bun run convex:ensure` prints `answers`                                         | `check:ui` signs in against it; the [`tolaria-convex` unit](#convex-on-the-huawei) runs the watcher in the primary checkout |
 
 ### 1. logind and the journal — one root script
 
@@ -229,6 +230,78 @@ in the load average, so the same `loadMax` can read higher here than on macOS
 for the same work; compare with the idle reading in the bench's § 4.
 `systemd-inhibit --list` must show no `block`-mode sleep inhibitor you did
 not expect: only `delay` ones (NetworkManager, UPower, Omarchy's lock).
+
+## Convex on the Huawei
+
+Health's Convex preflight and its `check:ui --all` walk run on the Huawei
+(topology B', ADR 0154), so the deployment they sign in against runs there
+too, as a systemd **user** unit, and never depends on the MacBook (issue
+#5468). Scenario seeds stay on the MacBook's own deployment.
+
+The unit, [`tolaria-convex.service`](../../scripts/runner-units/tolaria-convex.service),
+runs `convex dev --local` in the primary checkout, which is the command
+`convex:ensure` used to spawn by hand. It runs the watcher, not the bare
+`convex-local-backend`, because the watcher pushes the primary checkout's
+functions whenever they change. Nothing else deploys functions before a walk,
+so the bare binary would serve whatever was pushed last. The deployment is the
+one `.env.local` in the primary checkout names (`VITE_CONVEX_URL`,
+`CONVEX_DEPLOYMENT=local:<name>`). The lane accounts a walk signs in with are
+minted there at the start of each run and destroyed at the end
+(`scripts/ui-gate/lane-account.ts`), so there is nothing to seed.
+
+It listens on `127.0.0.1` only. That is deliberate: every caller (health, the
+walk, `convex:ensure`) runs on the Huawei, and `convex dev --local` has no bind
+option. Reaching it from the LAN would mean the bare binary on `0.0.0.0` plus
+a deploy step, and nothing needs that yet.
+
+`convex:ensure` finds the unit installed (`systemctl --user cat
+tolaria-convex.service` succeeds) and hands it the start:
+
+- the URL answers → nothing happens;
+- the unit is active but silent → wait, then `systemctl --user restart`;
+- the unit is inactive → `systemctl --user start`.
+
+It never spawns a second watcher beside the unit and never kills the unit's
+process by hand.
+
+### Install
+
+Stop the hand-started watcher first, or the unit's backend finds port 3210
+taken. Then install the unit. Lingering is needed for it to start at boot
+with nobody logged in. `sudo` needs a real terminal (see § 1 above):
+
+```bash
+REPO=$(git rev-parse --show-toplevel)   # the PRIMARY checkout
+pkill -f "convex dev --local" ; sleep 5 ; pgrep -af convex-local-backend   # nothing
+mkdir -p ~/.config/systemd/user
+sed -e "s|__REPO__|$REPO|g" -e "s|__MISE__|$(command -v mise)|g" \
+    scripts/runner-units/tolaria-convex.service \
+    > ~/.config/systemd/user/tolaria-convex.service
+sudo loginctl enable-linger "$USER"
+systemctl --user daemon-reload
+systemctl --user enable --now tolaria-convex.service
+```
+
+The unit carries its own `KillMode=control-group` and
+[unit tag](#g-unit), so it needs no
+[`tolaria-unit.conf`](../../scripts/runner-units/tolaria-unit.conf) drop-in.
+To remove it, run `systemctl --user disable --now tolaria-convex.service` and
+delete the file.
+
+### Prove it
+
+```bash
+systemctl --user status tolaria-convex.service   # enabled; active (running)
+bun run convex:ensure                            # "answers — nothing started"
+bun run check:ui -- --all                        # reaches it: exit ≠ 3
+```
+
+Then reboot, do not log in for a minute, log in, and run the first two
+commands again. The unit must read `active (running)` with its start time at
+boot, and `convex:ensure` must start nothing. If it fails, run
+`journalctl --user -u tolaria-convex.service -n 50`. The usual causes are an
+untrusted `mise.toml` (`mise trust` in the checkout) or a watcher still holding
+the port.
 
 ## Glossary
 

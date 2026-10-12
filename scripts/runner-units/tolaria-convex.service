@@ -1,0 +1,32 @@
+# The local Convex backend as a systemd user service (Huawei, issue #5468):
+# `convex dev --local` in the primary checkout, as `convex:ensure` would start
+# it, but owned by systemd — up at boot with nobody logged in (linger),
+# restarted when it dies. `convex:ensure` finds this unit installed and starts
+# or restarts it instead of spawning a second watcher. Install:
+# docs/guides/huawei-runner.md § Convex on the Huawei. __REPO__ and __MISE__
+# are substituted at install time.
+[Unit]
+Description=Tolaria local Convex backend (convex dev --local, primary checkout)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO__
+# The watcher, not the bare `convex-local-backend`: it pushes the primary
+# checkout's functions on every change, the one thing that keeps the
+# deployment serving the base branch the health walk tests. `mise exec` reads
+# the checkout's `mise.toml`: Node at the repo's pin (Convex's node actions
+# need 20/22/24) and bun.
+ExecStart=__MISE__ exec -- bun x convex dev --local
+# Never a tty, never stdin: the CLI must not prompt.
+StandardInput=null
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+# The cgroup kill: the backend binary `convex dev` forks dies with the unit.
+KillMode=control-group
+Environment=TOLARIA_OWNER=unit:tolaria-convex.service
+
+[Install]
+WantedBy=default.target

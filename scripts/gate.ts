@@ -197,6 +197,7 @@ import { holdLease } from "./lib/process-lease";
 import {
     MACHINE_SATURATED_EXIT,
     probeInjected,
+    psiStallMs,
     readMachineConfig,
     readMachineSample,
     waitForMachine,
@@ -1201,6 +1202,7 @@ function installTeardown(holdsLock: boolean) {
 function logRun(start: MachineSample, startedAt: number, exit: number) {
     if (probeInjected()) return;
     const end = readMachineSample();
+    const stall = psiStallMs(start, end);
     logEvent({
         event: "run",
         exit,
@@ -1213,6 +1215,11 @@ function logRun(start: MachineSample, startedAt: number, exit: number) {
         pressure_end: end.pressure,
         reclaimable_start_mb: start.reclaimableMb,
         reclaimable_end_mb: end.reclaimableMb,
+        // Absent off Linux: the calibration input for the PSI cut-offs
+        // (machine-admission.ts § PSI_SOME_WARNING, issue #5468).
+        ...(stall.some === null
+            ? {}
+            : { psi_some_stall_ms: stall.some, psi_full_stall_ms: stall.full }),
     });
 }
 
