@@ -1,4 +1,4 @@
-// "multicolored" in the descriptor reader (CR 105.4, Grammar Cluster issue
+// "multicolored" in the descriptor reader (CR 105.2b, Grammar Cluster issue
 // #5287): a colour COUNT, so it lowers to `colorCountAtLeast: 2` at the sites
 // that read live colours and is REFUSED, never dropped, everywhere else.
 //
@@ -20,7 +20,7 @@ function read(span: string) {
     return outcome.value;
 }
 
-describe("multicolored — the reader (CR 105.4)", () => {
+describe("multicolored — the reader (CR 105.2b)", () => {
     it("is a colour-count flag beside the noun, not a colour", () => {
         const descriptor = read("multicolored creature");
         expect(descriptor.multicolored).toBe(true);

@@ -596,7 +596,7 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
-    // CR 701.21a + CR 101.4 + CR 105.4 — "Each player sacrifices a
+    // CR 701.21a + CR 101.4 + CR 105.2b — "Each player sacrifices a
     // multicolored permanent of their choice.": the same simultaneous `forEach`
     // as Innocent Blood over a colour-COUNT filter (`colorCountAtLeast: 2`, not a
     // colour). The smoke form names the filter, so it is its own form.

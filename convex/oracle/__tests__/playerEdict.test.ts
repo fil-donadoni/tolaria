@@ -333,7 +333,7 @@ describe("player edict — goldens (CR 701.21a, CR 101.4)", () => {
         );
     });
 
-    it("multicolored permanent: Renounce the Guilds — CR 105.4, a colour COUNT bound, not a colour", () => {
+    it("multicolored permanent: Renounce the Guilds — CR 105.2b, a colour COUNT bound, not a colour", () => {
         expect(sortKeys(compiled(RENOUNCE_THE_GUILDS).effects)).toEqual(
             sortKeys([
                 {
