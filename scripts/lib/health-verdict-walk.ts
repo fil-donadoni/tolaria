@@ -6,7 +6,7 @@
  * Linux can never write RED. Whether the health verdict heeds the walk is the
  * config flag `ui-walk.gating` (default false) on Linux; a MacBook walk is
  * the authority (`release`, ADR 0116) and always gates. The flag is promoted
- * to true by hand once `bun run check:ui:calibrate` reports zero divergence
+ * to true by hand once `bun run ui:calibrate` reports zero divergence
  * between a MacBook receipt and a Linux one of the same tip.
  *
  * Node builtins plus the sibling store only: `health-main.ts` imports this.

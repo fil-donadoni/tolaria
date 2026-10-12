@@ -75,7 +75,7 @@ export function walkOutcome(run: {
 /**
  * Does the walk's outcome reach the health verdict? `gating` is
  * `readUiWalkGating()`: a Linux machine is advisory until
- * `bun run check:ui:calibrate` reports zero divergence and the config flag
+ * `bun run ui:calibrate` reports zero divergence and the config flag
  * promotes it. Advisory: the offline half stands as the health verdict and
  * the walk is recorded under `context=ui-walk` only.
  */

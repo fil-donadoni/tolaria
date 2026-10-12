@@ -1,5 +1,5 @@
 // The Linux walk is advisory until calibrated (issue #5465): its verdict goes
-// under `context=ui-walk`, never `health`; `check:ui:calibrate` compares two
+// under `context=ui-walk`, never `health`; `ui:calibrate` compares two
 // receipts of one tip Floor by Floor; `ui-walk.gating` decides whether the
 // health verdict heeds the walk.
 import { describe, expect, it } from "vitest";
@@ -80,7 +80,7 @@ function receipt(
     return verdictBlockLines(ev).join("\n");
 }
 
-describe("check:ui:calibrate — two receipts of one tip, cell by cell", () => {
+describe("ui:calibrate — two receipts of one tip, cell by cell", () => {
     it("identical receipts → no divergent cell", () => {
         const a = parseReceipt(receipt());
         expect(a.size).toBe(VIEWPORT_IDS.length);

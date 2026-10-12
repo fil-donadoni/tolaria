@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * `bun run check:ui:calibrate <receipt-a> <receipt-b>` — compare two
+ * `bun run ui:calibrate <receipt-a> <receipt-b>` — compare two
  * `check:ui` receipts of the SAME tip (the MacBook's and a Linux machine's)
  * Floor by Floor and cell by cell, and print every divergent cell (issue
  * #5465, ADR 0154 §9). The Linux walk stays advisory (`ui-walk.gating`
@@ -152,16 +152,14 @@ export function formatDivergence(d: Divergence): string {
 function main(): number {
     const [pa, pb] = process.argv.slice(2);
     if (!pa || !pb) {
-        console.error(
-            "usage: bun run check:ui:calibrate <receipt-a> <receipt-b>"
-        );
+        console.error("usage: bun run ui:calibrate <receipt-a> <receipt-b>");
         return 2;
     }
     const parsed = [pa, pb].map((p) => parseReceipt(readFileSync(p, "utf8")));
     for (const [i, p] of [pa, pb].entries()) {
         if (parsed[i].size === 0) {
             console.error(
-                `check:ui:calibrate: ${p} holds no cell rows — pass the full receipt block, not the digest form`
+                `ui:calibrate: ${p} holds no cell rows — pass the full receipt block, not the digest form`
             );
             return 2;
         }
