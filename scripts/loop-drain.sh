@@ -16,6 +16,12 @@
 # the `/process-gh-issues` skill, in the model's context, not here; this loop
 # was never the expensive part and must not become it.
 #
+# LANES (issue #5486). With `--lanes N|auto` the driver keeps several such
+# passes alive at once, each a background job in its own lane — as many as the
+# machine admission allows before each start (`refresh_lane_target`). Still
+# one driver: the budget, the stop-file, max-passes and every stop decision
+# are the run's; a lane only runs a pass.
+#
 # This is the "Ralph" pattern: a shell `while` loop around an ephemeral agent
 # process. See ADR 0097 for the full rationale, including why the budget
 # guard below is a LOCAL PROXY and not a real Anthropic quota reading.

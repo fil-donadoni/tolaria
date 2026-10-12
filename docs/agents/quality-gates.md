@@ -1872,6 +1872,13 @@ reclaimable RAM (free + inactive) is what is left WITH the others already
 running, so it measures room for more, not a total; and a machine too full for
 one session is not something a hook may decide — refusing the only session
 refuses the one that would fix it. An unread probe leaves the ceiling.
+**The AFK driver is its consumer** (issue #5486): `loop:afk` keeps as many
+passes alive as `laneCap` allows — this formula with the driver's running
+lanes as the others, under `--lanes` — and, unlike a session start, a load
+over `loadMax` holds it to one lane too: a lane is about to ADD load. It asks
+before every pass start (`bun run machine lanes --running N`), so a tight
+machine shrinks the run to one lane and a clear one grows it back;
+`queue:claim`'s refusal stays the hard floor.
 
 **The derivation.** Three numbers, in `tolaria.config.json` § `machine`.
 
