@@ -16,11 +16,13 @@ import {
     treeMoved,
     hasLintStagedStash,
     CHEAP_GUARDS,
+    WHOLE_PROJECT_AT,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
 } from "../check-lane";
 import { DOC_GATE_TESTS } from "../lib/doc-gate-tests";
+import type { RelatedTests } from "../lib/test-reach";
 import { ORIGIN_BASE } from "../lib/branches";
 import {
     HEALTH_ONLY_GUARDS,
@@ -440,16 +442,20 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
         expect(plan.lane).toBe("skin");
     });
 
-    it("a new src test file ⇒ skin, and the scripts half of node still runs", () => {
+    it("a new src test file ⇒ skin, and the new file itself is planned", () => {
         const plan = classifyLane([
             "src/lib/__tests__/card-utils.test.ts",
             "src/lib/card-utils.ts",
         ]);
         expect(plan.lane).toBe("skin");
-        // src-test-env-split.test.ts lives in scripts/** and is the guard
-        // against a new src test file being selected by neither vitest
-        // project — the skin lane is precisely the lane that adds them.
-        expect(ids(plan.run)).toContain("node[src,scripts]");
+        // A test file in the diff is related to itself (issue #5464): a new
+        // src test runs at land, and one no vitest project selects reds as
+        // "no test files found" — the class src-test-env-split.test.ts
+        // guards in health.
+        const related = plan.run.find((c) => c.id === "vitest(related)");
+        expect(related?.command).toContain(
+            "'src/lib/__tests__/card-utils.test.ts'"
+        );
     });
 
     it("prose-only ⇒ docs, delegating to check:docs verbatim", () => {
@@ -694,8 +700,20 @@ describe("check-lane — lane selection, named cases (issue #2740)", () => {
 });
 
 describe("check-lane — the plan object drives both lists (issue #2740)", () => {
-    const skin = classifyLane(["src/components/board/Card.tsx"]);
-    const engine = classifyLane(["convex/gre/engine.ts"]);
+    /** One related test per project: the exact lists below must not restate
+     *  whatever the live import walk returns (that walk has its own tests in
+     *  `test-reach.test.ts`). */
+    const fixture = (): RelatedTests => ({
+        "node-engine": ["convex/gre/__tests__/x.test.ts"],
+        "node-tooling": ["scripts/__tests__/y.test.ts"],
+        dom: ["src/components/board/Card.test.tsx"],
+    });
+    const skin = classifyLane(
+        ["src/components/board/Card.tsx"],
+        undefined,
+        fixture
+    );
+    const engine = classifyLane(["convex/gre/engine.ts"], undefined, fixture);
     const cards = classifyLane([
         "convex/cards/sets/lea/red.cards.ts",
         "data/card-index.json",
@@ -718,24 +736,18 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "format(diff)",
             "lint(diff)",
             "tsc[app,scripts]",
-            "bundle",
             "cr:lint",
-            "node[src,scripts]",
-            "dom",
+            "vitest(related)",
         ]);
         expect(ids(skin.skip)).toEqual([
             "tsc[convex,node]",
             "check:index",
             "check:stubs",
             "check:oracle",
-            // A board component reaches no bot test, so both bot projects
-            // are skipped BY NAME with a reason each (issue #3435) — the
-            // single "bot fast lane" entry this replaced claimed the bot
-            // suites "cannot go red" for every skin diff, which is false for
-            // any src path a bot test imports.
-            "bot-dom",
-            "bot-node",
-            "node[convex]",
+            // Health-only by cost (ADR 0154 §3, issue #5464), named so the
+            // receipt says where each went.
+            "bot fast lane",
+            "bundle",
             // A board component is none of the census guards' inputs
             // (issue #4963): no test file, nothing under convex/cards/**,
             // data/** or scripts/lib/**.
@@ -746,153 +758,151 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
     });
 
     /**
-     * Issue #3435 — the `skin` lane skipped every `src` bot test, including
-     * the ones its own diff had just changed.
-     *
-     * `src/**\/*.bot.test.{ts,tsx}` is `bot-dom`'s include and is EXCLUDED
-     * from `dom`, so the two projects the lane ran covered none of it, and
-     * the lane said so in a skip line asserting the bot suites "cannot go
-     * red". Observed on the issue #3404 PR: three bot modules changed, two
-     * new `src` bot tests shipped, and the plan ran neither.
-     *
-     * The predicate is COMPUTED, not declared (`test-env-split.ts` §
-     * botSubjects) — so these assertions run against the real closure of the
-     * real tree, which is the only thing that can catch the hole reopening
-     * for a module nobody thought to list. The mechanics of the admission
-     * are pinned separately below against an injected closure, so the guard
-     * is not merely the walk restating itself.
+     * Issue #5464 / ADR 0154 §2 — the `engine` and `skin` lanes run the tests
+     * the diff reaches through the import graph, in ONE vitest run naming
+     * only the projects that hold a related file. The walk itself is pinned
+     * in `test-reach.test.ts`; here, the plan built from its answer.
      */
-    describe("the skin lane admits a bot project the diff can red (issue #3435)", () => {
-        const botIds = (plan: LanePlan) =>
-            ids(plan.run).filter((id) => id.startsWith("bot-"));
-
-        it("a client-host bot module runs bot-dom", () => {
-            const plan = classifyLane(["src/lib/ai/brain-client.ts"]);
-            expect(plan.lane).toBe("skin");
-            expect(botIds(plan)).toContain("bot-dom");
-            expect(ids(plan.skip)).not.toContain("bot-dom");
+    describe("the vitest run is scoped by the import graph (issue #5464)", () => {
+        const only = (r: Partial<RelatedTests>) => (): RelatedTests => ({
+            "node-engine": [],
+            "node-tooling": [],
+            dom: [],
+            ...r,
         });
 
-        it("the vs-AI driver hook runs bot-dom", () => {
-            const plan = classifyLane(["src/hooks/useVsAiDriver.ts"]);
-            expect(plan.lane).toBe("skin");
-            expect(botIds(plan)).toContain("bot-dom");
+        it("a module one test imports plans exactly that file, in its project", () => {
+            const plan = classifyLane(
+                ["convex/gre/combat.ts"],
+                undefined,
+                only({ "node-engine": ["convex/gre/__tests__/combat.test.ts"] })
+            );
+            expect(plan.run).toContainEqual({
+                id: "vitest(related)",
+                command:
+                    "bunx vitest run --project node-engine 'convex/gre/__tests__/combat.test.ts'",
+            });
         });
 
-        /**
-         * The family a list-shaped predicate would have missed: the
-         * DecisionTrace debug components are named by neither `BOT_GLOBS` nor
-         * the bot-suite boundary guard's exact-module list, yet
-         * `ai-decision-trace-box.bot.test.tsx` renders them.
-         */
-        it("a DecisionTrace debug component runs bot-dom", () => {
-            const plan = classifyLane([
-                "src/components/debug/ai-decision-trace-box.tsx",
-            ]);
-            expect(botIds(plan)).toContain("bot-dom");
+        it("a project with no related file is never named — its filters would match nothing", () => {
+            const plan = classifyLane(
+                ["src/components/board/Card.tsx"],
+                undefined,
+                only({ dom: ["src/components/board/Card.test.tsx"] })
+            );
+            const cmd = plan.run.find((c) => c.id === "vitest(related)")!;
+            expect(cmd.command).toBe(
+                "bunx vitest run --project dom 'src/components/board/Card.test.tsx'"
+            );
         });
 
-        /** `scripts/__tests__/ladder-worker-boundary.bot.test.ts` imports it,
-         *  and that test is `bot-node` — so a `src`-only diff can red the
-         *  convex-side bot project too. */
-        it("a src module a convex/scripts bot test imports runs bot-node", () => {
-            const plan = classifyLane(["src/lib/ai/selfplay/ladder.ts"]);
-            expect(botIds(plan)).toEqual(["bot-dom", "bot-node"]);
-        });
-
-        it("a diff that reaches no bot test skips both, naming each", () => {
-            const plan = classifyLane(["src/components/board/Card.tsx"]);
-            expect(botIds(plan)).toEqual([]);
-            const skipped = plan.skip.filter((s) => s.id.startsWith("bot-"));
-            expect(ids(skipped)).toEqual(["bot-dom", "bot-node"]);
-            for (const s of skipped) {
-                expect(s.reason).toMatch(/reachable/);
-                // The defect was a reason that asserted the suites could not
-                // go red for every skin diff. No reason may ever say that.
-                expect(s.reason).not.toMatch(/cannot go red/);
+        it("nothing related ⇒ a skip line naming health, never an empty run", () => {
+            for (const file of ["convex/gre/combat.ts", "src/lib/x.ts"]) {
+                const plan = classifyLane([file], undefined, only({}));
+                expect(ids(plan.run), file).not.toContain("vitest(related)");
+                const s = plan.skip.find((c) => c.id === "vitest(related)");
+                expect(s?.reason, file).toMatch(/import graph.*health/);
             }
         });
 
-        it("admission reads the injected closure, whole project or nothing", () => {
-            const subjects = () => ({
-                dom: ["src/components/x/Subject.tsx"],
-                node: ["src/components/y/Other.tsx"],
-            });
-            const dom = classifyLane(
-                ["src/components/x/Subject.tsx"],
-                undefined,
-                subjects
+        it("past WHOLE_PROJECT_AT related files, the named projects run whole — no filter argv", () => {
+            const many = Array.from(
+                { length: WHOLE_PROJECT_AT + 1 },
+                (_, i) => `convex/t${i}.test.ts`
             );
-            expect(dom.run).toContainEqual({
-                id: "bot-dom",
-                command: "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-dom",
-            });
-            expect(ids(dom.run)).not.toContain("bot-node");
-
-            const node = classifyLane(
-                ["src/components/y/Other.tsx"],
+            const plan = classifyLane(
+                ["convex/gre/types.ts"],
                 undefined,
-                subjects
+                only({ "node-engine": many })
             );
-            expect(ids(node.run)).toContain("bot-node");
-            expect(ids(node.run)).not.toContain("bot-dom");
-
-            const neither = classifyLane(
-                ["src/components/z/Third.tsx"],
+            expect(plan.run).toContainEqual({
+                id: "vitest(related)",
+                command: "bunx vitest run --project node-engine",
+            });
+            const atLimit = classifyLane(
+                ["convex/gre/types.ts"],
                 undefined,
-                subjects
+                only({ "node-engine": many.slice(1) })
             );
             expect(
-                ids(neither.run).filter((i) => i.startsWith("bot-"))
-            ).toEqual([]);
+                atLimit.run.find((c) => c.id === "vitest(related)")!.command
+            ).toContain("'convex/t1.test.ts'");
         });
 
-        /**
-         * `brain-client.ts` spawns the Brain worker through
-         * `new Worker(new URL("./brain.worker.ts", import.meta.url))` — a
-         * specifier no import graph contains. The `BOT_GLOBS` union is the
-         * net for exactly that shape, and it is `bot-dom`'s alone.
-         */
-        it("a Bot-glob path runs bot-dom even when the closure cannot see it", () => {
-            const empty = () => ({ dom: [], node: [] });
+        it("the engine lane never asks for dom tests, even when one is related", () => {
             const plan = classifyLane(
-                ["src/lib/ai/brain.worker.ts"],
+                ["convex/gre/combat.ts"],
                 undefined,
-                empty
+                only({
+                    "node-engine": ["convex/a.test.ts"],
+                    dom: ["src/b.test.tsx"],
+                })
             );
-            expect(ids(plan.run)).toContain("bot-dom");
-            expect(ids(plan.run)).not.toContain("bot-node");
+            const cmd = plan.run.find((c) => c.id === "vitest(related)")!;
+            expect(cmd.command).not.toContain("dom");
+        });
+
+        it("no scoped lane runs a bot project; each names the health-only skips", () => {
+            for (const files of [
+                ["src/lib/ai/brain-client.ts"],
+                ["convex/gre/ai/search.ts"],
+                ["convex/cards/sets/lea/red.cards.ts"],
+            ]) {
+                const plan = classifyLane(files, undefined, fixture);
+                expect(
+                    plan.run.filter(
+                        (c) =>
+                            /bot-(dom|node)/.test(c.command) &&
+                            c.id !== "bot[cards]"
+                    ),
+                    files[0]
+                ).toEqual([]);
+                expect(ids(plan.skip), files[0]).toEqual(
+                    expect.arrayContaining(["bot fast lane", "bundle"])
+                );
+                expect(
+                    plan.run.some((c) => c.command.includes("check:bundle")),
+                    files[0]
+                ).toBe(false);
+            }
         });
     });
 
-    it("engine admits node-tooling whole for a scripts/** diff, never a slice (ADR 0136 §5)", () => {
-        const tooling = classifyLane(["scripts/land.ts"]);
-        expect(tooling.lane).toBe("engine");
-        expect(ids(tooling.run).slice(-2)).toEqual([
-            "node-engine",
-            "node-tooling",
-        ]);
-        expect(tooling.run.at(-1)!.command).toBe(
-            "bunx vitest run --project node-tooling"
+    it("engine admits node-tooling WHOLE only for a tooling path the import graph cannot see", () => {
+        // A module: its importers are found, no whole project.
+        const module = classifyLane(["scripts/land.ts"], undefined, fixture);
+        expect(module.lane).toBe("engine");
+        expect(ids(module.run)).not.toContain("node-tooling");
+        expect(
+            module.run.find((c) => c.id === "vitest(related)")!.command
+        ).toBe(
+            "bunx vitest run --project node-engine --project node-tooling 'convex/gre/__tests__/x.test.ts' 'scripts/__tests__/y.test.ts'"
         );
-        // scripts/land.ts is none of the census guards' inputs either.
-        expect(ids(tooling.skip)).toEqual([
-            "dom",
-            "check:gaps",
-            "check:targets",
-            "check:test-hygiene",
-        ]);
-        for (const files of [
-            ["convex/gre/engine.ts"],
-            ["data/card-index.json"],
+        // Read through fs by the drift guards (issue #5456): whole project,
+        // and the scoped run keeps node-engine only.
+        for (const file of [
+            ".claude/hooks/deny-guard.sh",
+            ".claude/settings.json",
+            "tolaria.config.json",
+            "scripts/lib/identity-test-allowlist.json",
         ]) {
-            expect(ids(classifyLane(files).skip), files[0]).toContain(
-                "node-tooling"
+            const plan = classifyLane([file], undefined, fixture);
+            expect(plan.lane, file).toBe("engine");
+            expect(plan.run, file).toContainEqual({
+                id: "node-tooling",
+                command: "bunx vitest run --project node-tooling",
+            });
+            expect(
+                plan.run.find((c) => c.id === "vitest(related)")!.command,
+                file
+            ).toBe(
+                "bunx vitest run --project node-engine 'convex/gre/__tests__/x.test.ts'"
             );
         }
+        expect(ids(engine.run)).not.toContain("node-tooling");
     });
 
-    it("engine keeps the WHOLE type-check and drops only dom and node-tooling", () => {
+    it("engine keeps the WHOLE type-check and drops only dom", () => {
         expect(ids(engine.run)).toEqual([
             "format(diff)",
             "lint(diff)",
@@ -900,24 +910,24 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:index",
             "check:stubs",
             "check:oracle",
-            "bundle",
+            // 2 s, inside the lane budget: it rides (issue #5464).
+            "check:convex-bundle",
             "cr:lint",
-            "bot fast lane",
-            "node-engine",
+            "vitest(related)",
             // convex/** feeds the registry and the Bot hash every census
             // reads (issue #4963).
             "check:gaps",
             "check:targets",
             "check:test-hygiene",
         ]);
-        expect(ids(engine.skip)).toEqual(["dom", "node-tooling"]);
+        expect(ids(engine.skip)).toEqual(["dom", "bot fast lane", "bundle"]);
         // src/** imports convex/gre (ADR 0074), so an engine diff CAN break
         // the app project — the whole type-check is one of the three
         // backstops that make dropping `dom` safe (#2738).
         expect(ids(engine.run)).not.toContain("tsc[app,scripts]");
     });
 
-    it("cards runs tsc[convex], the catalogue guards and convex/cards/ whole, and names four skips (ADR 0136 §4)", () => {
+    it("cards runs tsc[convex], the catalogue guards and convex/cards/ whole, and names its skips (ADR 0136 §4)", () => {
         expect(ids(cards.run)).toEqual([
             "format(diff)",
             "lint(diff)",
@@ -925,7 +935,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
             "check:index",
             "check:stubs",
             "check:oracle",
-            "bundle",
+            "check:convex-bundle",
             "cr:lint",
             "node[cards]",
             "bot[cards]",
@@ -938,6 +948,7 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
         expect(ids(cards.skip)).toEqual([
             "tsc[app,scripts]",
             "bot fast lane",
+            "bundle",
             "node-engine+node-tooling",
             "dom",
         ]);
@@ -1250,14 +1261,18 @@ describe("check-lane — the printed receipt renders the plan (issue #2740)", ()
      * review, nit 2).
      */
     it("the --json form carries the HEAD SHA the human receipt carries", () => {
-        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const plan = classifyLane(["convex/gre/engine.ts"], undefined, () => ({
+            "node-engine": ["convex/gre/__tests__/x.test.ts"],
+            "node-tooling": [],
+            dom: [],
+        }));
         const parsed = JSON.parse(renderJson(plan, "4f2a91c")) as LanePlan & {
             head: string;
         };
         expect(parsed.head).toBe("4f2a91c");
         expect(parsed.lane).toBe("engine");
         expect(parsed.files).toEqual(["convex/gre/engine.ts"]);
-        expect(ids(parsed.run)).toContain("node-engine");
+        expect(ids(parsed.run)).toContain("vitest(related)");
         expect(renderPlan(plan, "4f2a91c")).toContain("4f2a91c");
     });
 
@@ -2031,8 +2046,11 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
     ];
 
     /** Every package script a plan reaches, closing over `bun run X` inside
-     *  script bodies (`check:pr` → `check:all:inner` → `check:oracle`). */
-    function laneReachable(): Set<string> {
+     *  script bodies (`check:pr` → `check:all:inner` → `check:oracle`).
+     *  `scopedOnly` leaves out the `full` lane: `check:pr` verbatim composes
+     *  every guard, health-only ones included (ADR 0154 §3, issue #5464), so
+     *  "does a lane run it" is asked of the scoped lanes. */
+    function laneReachable(scopedOnly = false): Set<string> {
         const seen = new Set<string>();
         const queue: string[] = [];
         const visit = (text: string) => {
@@ -2043,7 +2061,8 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
                 }
         };
         for (const plan of plans)
-            for (const check of plan.run) visit(check.command);
+            if (!scopedOnly || plan.lane !== "full")
+                for (const check of plan.run) visit(check.command);
         while (queue.length > 0) visit(pkg.scripts[queue.pop()!] ?? "");
         // A script that is only a CPU-admission wrapper around a reached one
         // (`check:all` = `gate.ts heavy 'bun run check:all:inner'`) is the
@@ -2093,8 +2112,8 @@ describe("check-lane — every check:* script is in a lane or health-only by cos
         }
     });
 
-    it("a health-only guard is one the lane does not run, and costs more than the budget", () => {
-        const reach = laneReachable();
+    it("a health-only guard is one no scoped lane runs, and costs more than the budget", () => {
+        const reach = laneReachable(true);
         for (const [name, { measuredCostS, measured }] of Object.entries(
             HEALTH_ONLY_GUARDS
         )) {

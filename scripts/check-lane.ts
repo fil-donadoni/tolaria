@@ -81,27 +81,30 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
-import { matchesBotGlob } from "./lib/bot-globs";
-import { botSubjects, type BotSubjects } from "./test-env-split";
+import {
+    reachIndex,
+    relatedTests,
+    type ReachIndex,
+    type RelatedTests,
+} from "./lib/test-reach";
 
 /** The whole node project, as its two fixed partitions (ADR 0136 §5). */
 export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
 
 /**
- * Which `src/**` paths can red a bot test — computed, never declared
- * (issue #3435). See `test-env-split.ts` § botSubjects for why this is an
- * import-graph closure and not a fourth hand-maintained list of bot paths,
- * and why the call site below unions it with `matchesBotGlob`.
+ * The tests a diff reaches through the import graph (ADR 0154 §2, issue
+ * #5464) — see `lib/test-reach.ts` for what the walk sees and what it cannot,
+ * and why it is a static walk and not vitest's own `--changed`.
  *
- * Memoised: `classifyLane` is called once per process, but the walk is
- * ~0.5s and the `--plan` mode exists precisely so asking which lane a diff
- * owes costs nothing (ADR 0136 §1/§8).
+ * The INDEX is memoised, never a result: `classifyLane` is called once per
+ * process in production, but the walk is ~1–2 s and the `--plan` mode exists
+ * precisely so asking which lane a diff owes costs little (ADR 0136 §1/§8).
  */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-let memoisedBotSubjects: BotSubjects | null = null;
-function defaultBotSubjects(): BotSubjects {
-    memoisedBotSubjects ??= botSubjects(REPO_ROOT);
-    return memoisedBotSubjects;
+let memoisedIndex: ReachIndex | null = null;
+function defaultRelated(paths: string[]): RelatedTests {
+    memoisedIndex ??= reachIndex(REPO_ROOT);
+    return relatedTests(memoisedIndex, paths);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -384,7 +387,9 @@ export function laneFor(classes: PathClass[]): Lane {
     if (code.every((c) => c === "skin")) return "skin";
     // CARDS NEEDS A CARD (ADR 0136 §4). `data/**` alone stays `engine`: a
     // `cr:sync`, a pick-ratings refresh or a hand-edited lockfile is read by
-    // `scripts/__tests__` and `convex/limited` guards this lane never runs.
+    // `scripts/__tests__` and `convex/limited` guards the `cards` lane never
+    // runs — `engine` reaches the ones that NAME the file (a file-name
+    // literal is an edge, `lib/test-reach.ts`) and its drift guards read it.
     if (
         code.includes("cards") &&
         code.every((c) => c === "cards" || c === "data")
@@ -453,14 +458,14 @@ export function classifyLane(
     changedPaths: string[],
     presentPaths: string[] = changedPaths,
     /**
-     * The `src/**` paths each bot project's tests reach (issue #3435).
-     * Injectable so the plan builder stays a pure function over its inputs —
-     * a test pins the `skin` branch against a fixture closure instead of the
-     * live tree, which would make the guard restate whatever the walk
-     * currently returns. Read ONLY in the `skin` branch, and lazily, so no
-     * other lane pays the walk.
+     * The tests the diff reaches through the import graph, per vitest project
+     * (ADR 0154 §2, issue #5464). Injectable so the plan builder stays a pure
+     * function over its inputs — a test pins the `engine` and `skin` branches
+     * against a fixture set instead of the live tree, which would make the
+     * guard restate whatever the walk currently returns. Called ONLY in those
+     * two branches, so `docs`, `cards` and `full` never pay the walk.
      */
-    subjects: () => BotSubjects = defaultBotSubjects,
+    related: (paths: string[]) => RelatedTests = defaultRelated,
     /**
      * Content-decided classes (issue #5456): `package.json` only, from
      * `packageJsonClass`. Absent ⇒ the path-only class, which is `full`.
@@ -555,61 +560,20 @@ export function classifyLane(
                 command:
                     "bunx tsc -b tsconfig.app.json tsconfig.scripts.json --noEmit",
             },
-            // The only check that catches the duplicate-import class that
-            // crashes the app on cold load, and it costs 12s (#2738).
-            { id: "bundle", command: "bun run check:bundle" },
-            { id: "cr:lint", command: "bun run cr:lint" },
-            // `scripts/**` stays in the SKIN lane on purpose: it is where
-            // `src-test-env-split.test.ts` lives, the guard against a new
-            // `src` test file being selected by neither vitest project — and
-            // skin is precisely the lane that adds `src` test files (#2738).
-            // Both node partitions (ADR 0136 §5): the DOM-free `src` tests are
-            // in `node-engine`, that guard is in `node-tooling`.
-            {
-                id: "node[src,scripts]",
-                command: `bunx vitest run ${NODE_PARTITIONS} src/ scripts/`,
-            },
-            { id: "dom", command: "bunx vitest run --project dom" }
+            { id: "cr:lint", command: "bun run cr:lint" }
         );
-        // ADMISSION, NOT SCOPING (ADR 0104): each bot project runs WHOLE or
-        // not at all, and what decides is whether the diff contains a path
-        // one of its tests can reach. The union with `matchesBotGlob` is the
-        // safety net for what an import walk structurally cannot see — see
-        // `test-env-split.ts` § botSubjects.
-        const reach = subjects();
-        const botSkips: SkippedCheck[] = [];
-        // The `matchesBotGlob` net is `bot-dom`'s alone, and on purpose: what
-        // the walk cannot see is a module loaded WITHOUT an import specifier
-        // (`new Worker(new URL("./brain.worker.ts", import.meta.url))`), and a
-        // `src` module in that shape is covered by a `src` bot test, which is
-        // `bot-dom` by the project split. A `convex`/`scripts` bot test reaches
-        // `src` only through a static specifier, which the walk does see — so
-        // netting `bot-node` too would run the heavy convex bot suite on every
-        // `src/lib/ai/**` diff for a reachability the closure already answers.
-        for (const [project, reachable, net, envelope] of [
-            ["bot-dom", reach.dom, true, "a src/**/*.bot.test.{ts,tsx}"],
-            [
-                "bot-node",
-                reach.node,
-                false,
-                "a convex/** or scripts/** *.bot.test.ts",
-            ],
-        ] as const) {
-            const touched = files.filter(
-                (p) => reachable.includes(p) || (net && matchesBotGlob(p))
-            );
-            if (touched.length > 0) {
-                run.push({
-                    id: project,
-                    command: `TOLARIA_BOT_FAST=1 bunx vitest run --project ${project}`,
-                });
-            } else {
-                botSkips.push({
-                    id: project,
-                    reason: `no changed path is reachable from ${envelope}${net ? " and none is under the Bot globs" : ""} — nothing this project covers moved`,
-                });
-            }
-        }
+        // SCOPED BY THE IMPORT GRAPH (ADR 0154 §2): the `node` and `dom`
+        // tests the diff reaches, in ONE vitest run over the projects they
+        // belong to. A new `src` test file is itself in the diff, so it is
+        // planned. A test file NO project selects is in no project here
+        // either, so it is never planned: that class is
+        // `src-test-env-split.test.ts`'s, and it runs in health.
+        pushRelated(
+            related(files),
+            ["node-engine", "node-tooling", "dom"],
+            run,
+            skip
+        );
         skip.push(
             {
                 id: "tsc[convex,node]",
@@ -627,11 +591,7 @@ export function classifyLane(
                 id: "check:oracle",
                 reason: "no changed code under convex/** or data/** — the oracle lockfile cannot drift",
             },
-            ...botSkips,
-            {
-                id: "node[convex]",
-                reason: "no changed code under convex/** — the engine tests cannot go red",
-            }
+            ...HEALTH_ONLY_SKIPS
         );
         appendCheapGuards(files, run, skip);
         appendDocsGuards(files, run);
@@ -646,17 +606,14 @@ export function classifyLane(
             { id: "check:index", command: "bun run check:index" },
             { id: "check:stubs", command: "bun run check:stubs" },
             { id: "check:oracle", command: "bun run check:oracle" },
-            // Not in ADR 0136 §4's list, kept on purpose: the card registry
-            // is imported by the client, and the duplicate-import class that
-            // crashes the app on cold load is caught by the bundle alone —
-            // tsc and eslint both pass it (#2738). 12s against a blank board.
-            { id: "bundle", command: "bun run check:bundle" },
+            CONVEX_BUNDLE,
             { id: "cr:lint", command: "bun run cr:lint" },
-            // A FIXED partition classified by content (ADR 0136 §5), never
-            // the touched set's own directory: `convex/cards/` whole is the
-            // catalogue guards plus EVERY set's tests — 425 files, 18s at
-            // load 25 — so ADR 0104's no-diff-derived-subset rule holds and a
-            // card borrowed by another set's test is still proven.
+            // A FIXED partition, not the import graph (issue #5464): every
+            // test that loads the catalogue imports the set barrel, so the
+            // walk would call half the suite related to any card. The
+            // `convex/cards/` partition is the catalogue guards plus EVERY
+            // set's tests — 425 files, 18s at load 25 — and a card borrowed
+            // by another set's test is still proven.
             {
                 id: "node[cards]",
                 command: "bunx vitest run --project node-engine convex/cards/",
@@ -673,10 +630,7 @@ export function classifyLane(
                 id: "tsc[app,scripts]",
                 reason: "no changed code under src/** or scripts/** — the card files are type-checked by tsc[convex]",
             },
-            {
-                id: "bot fast lane",
-                reason: "every code path is a card definition or a data/** artefact — a card on exercised Ops cannot move a search or eval test; its censuses run as bot[cards], and a card that adds an Op touches convex/gre/** and is engine (ADR 0136 §4)",
-            },
+            ...HEALTH_ONLY_SKIPS,
             {
                 id: "node-engine+node-tooling",
                 reason: "every code path is a card definition or a data/** artefact — the catalogue guards and every set's tests run as node[cards]; a card on exercised Ops cannot reach an engine or tooling test (ADR 0136 §4)",
@@ -704,38 +658,35 @@ export function classifyLane(
         // `data/oracle-*.json` and the projection of `data/card-index.json`;
         // its offline tier is header hashes and costs nothing worth skipping.
         { id: "check:oracle", command: "bun run check:oracle" },
-        { id: "bundle", command: "bun run check:bundle" },
-        { id: "cr:lint", command: "bun run cr:lint" },
-        {
-            id: "bot fast lane",
-            command:
-                "TOLARIA_BOT_FAST=1 bunx vitest run --project bot-node --project bot-dom",
-        },
-        // The FIXED `node-engine` partition, whole (ADR 0136 §5): `convex/**`,
-        // the DOM-free `src` tests, and every `scripts` test that reaches
-        // `convex/` or `data/` (`scripts/test-env-split.ts`).
-        { id: "node-engine", command: "bunx vitest run --project node-engine" }
+        CONVEX_BUNDLE,
+        { id: "cr:lint", command: "bun run cr:lint" }
     );
-    skip.push({
-        id: "dom",
-        reason: "no changed code under src/** — the whole type-check and convex-cards-barrel-mock.test.ts are the backstops (#2738)",
-    });
-    // `node-tooling` is admitted by the diff, whole or not at all — the
-    // ADR 0104 admission rule, never a slice: a `scripts/**` edit can red a
-    // tooling test, a `convex/**` or `data/**` edit cannot reach one.
-    // `.claude/**` too (issue #5456): the hook and skill drift guards live in
-    // `node-tooling`.
-    if (files.some((p) => TOOLING_PATHS.test(p))) {
+    // SCOPED BY THE IMPORT GRAPH (ADR 0154 §2): the `node-engine` and
+    // `node-tooling` tests the diff reaches. One exception is ADMITTED WHOLE:
+    // a tooling path that is not a module (a hook, `settings.json`,
+    // `package.json` scripts, `tolaria.config.json`) is read through `fs` by
+    // the drift guards in `node-tooling`, and no import edge names it
+    // (issue #5456 put those paths in this lane on that premise).
+    const toolingWhole = files.some(
+        (p) => TOOLING_PATHS.test(p) && !MODULE_PATH.test(p)
+    );
+    const reach = related(files);
+    if (toolingWhole) {
         run.push({
             id: "node-tooling",
             command: "bunx vitest run --project node-tooling",
         });
+        pushRelated(reach, ["node-engine"], run, skip);
     } else {
-        skip.push({
-            id: "node-tooling",
-            reason: "no changed code under scripts/** or tooling config — no tooling test imports convex/ or data/, and neither it nor a module it imports names either as a path (scripts/test-env-split.ts)",
-        });
+        pushRelated(reach, ["node-engine", "node-tooling"], run, skip);
     }
+    skip.push(
+        {
+            id: "dom",
+            reason: "no changed code under src/** — the whole type-check is the backstop (#2738); a src test the diff reaches is health's (ADR 0154 §2)",
+        },
+        ...HEALTH_ONLY_SKIPS
+    );
     appendCheapGuards(files, run, skip);
     appendDocsGuards(files, run);
     return { lane, rationale: engineRationale(files), files, run, skip };
@@ -755,8 +706,10 @@ export function classifyLane(
  * cost). These stay in `HEALTH_SCRIPTS` too — health is the full gate; the
  * lane is only no longer the place a violation is first SEEN late.
  *
- * ADMISSION, NOT SCOPING (ADR 0104): each guard runs whole, and runs when the
- * diff holds a path that is one of its inputs — never on a slice.
+ * ADMISSION, NOT SCOPING: each guard runs whole, and runs when the diff holds
+ * a path that is one of its inputs — never on a slice. A census reads its
+ * inputs through `fs`, so the import graph that scopes the vitest run
+ * (ADR 0154 §2) cannot see them; the admission paths below are what can.
  *
  *   - `check:test-hygiene` reads every test file and its `__tests__/`
  *     support, the card registry (which decides pure-DSL), and its
@@ -817,6 +770,75 @@ const TOOLING_PATHS =
     /^((scripts|\.claude)\/|tolaria\.config\.json$|\.nvmrc$|\.gitattributes$|\.prettierignore$|package\.json$)/;
 
 /**
+ * The server bundle's size receipt rides the lanes that can move it (`engine`,
+ * `cards`): its own esbuild pass measured 2 s (2026-10-12, load ~10), inside
+ * the ≤ 10 s lane budget ADR 0154 §3 leaves unchanged — so it is NOT one of
+ * the guards that section sends to health, whatever the issue text guessed.
+ */
+const CONVEX_BUNDLE: PlannedCheck = {
+    id: "check:convex-bundle",
+    command: "bun run check:convex-bundle",
+};
+
+/** A path an import edge can name — what `lib/test-reach.ts` can see. */
+const MODULE_PATH = /\.([cm]?[jt]sx?)$/;
+
+/**
+ * What no scoped lane runs any more (ADR 0154 §3, issue #5464), named in
+ * every scoped plan's skip list so the receipt says where each one went. The
+ * costs are `HEALTH_ONLY_GUARDS`' (`lib/health-step.ts`), the one table.
+ */
+const HEALTH_ONLY_SKIPS: SkippedCheck[] = [
+    {
+        id: "bot fast lane",
+        reason: "health-only (ADR 0154 §3): its byte-identity pins red on base drift, not on the PR — 29 of 34 vitest reds at land",
+    },
+    {
+        id: "bundle",
+        reason: "health-only (ADR 0154 §3): check:bundle costs 12–24 s and runs in health's check:all",
+    },
+];
+
+/**
+ * The scoped vitest run (ADR 0154 §2): ONE command over the projects that
+ * hold a related test, the files as filters. Only projects with a related
+ * file are named, so the filters can never match nothing in a named project
+ * (vitest exits 1 on "no test files found"). Nothing related → a skip line,
+ * never an empty run. Past `WHOLE_PROJECT_AT` related files the named
+ * projects run WHOLE, without filters: a hub edit (`gre/types.ts` relates
+ * 1116 of 1273 `node-engine` files) would otherwise put ~60 KB of filters in
+ * one `sh -c` argument — half Linux's 128 KiB `MAX_ARG_STRLEN` — to select
+ * what the bare project selects anyway.
+ */
+function pushRelated(
+    reach: RelatedTests,
+    projects: (keyof RelatedTests)[],
+    run: PlannedCheck[],
+    skip: SkippedCheck[]
+): void {
+    const named = projects.filter((p) => reach[p].length > 0);
+    const files = named.flatMap((p) => reach[p]);
+    if (files.length === 0) {
+        skip.push({
+            id: "vitest(related)",
+            reason: `no ${projects.join("/")} test reaches a changed path through the import graph — an unreachable test is health's (ADR 0154 §2)`,
+        });
+        return;
+    }
+    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
+    run.push({
+        id: "vitest(related)",
+        command:
+            files.length > WHOLE_PROJECT_AT
+                ? `bunx vitest run ${projectFlags}`
+                : `bunx vitest run ${projectFlags} ${files.map(shellQuote).join(" ")}`,
+    });
+}
+
+/** Related files past which the named projects run whole (see above). */
+export const WHOLE_PROJECT_AT = 400;
+
+/**
  * Prose in a code lane (ADR 0136 §3): the run list ENDS with the docs lane's
  * own node test list — the guards that READ prose, exactly the set
  * `check:docs` runs (`DOC_GATE_TESTS`, one list, two consumers). The other two
@@ -824,11 +846,10 @@ const TOOLING_PATHS =
  * carries the `.md` paths (prettier has a markdown parser) and `cr:lint` is
  * a fixed entry of both `skin` and `engine`.
  *
- * `skin`'s `node[src,scripts]` selects these files already; `engine` runs
- * `node-engine` and admits `node-tooling` only for a `scripts/**` diff
- * (ADR 0136 §5), so for a `convex/**` + prose diff this entry is what runs the
- * prose guards that live in `node-tooling`. A FIXED list, never a
- * diff-derived one — ADR 0104's admission rule is untouched.
+ * The scoped `vitest(related)` run (ADR 0154 §2) cannot select these: they
+ * READ the prose through `fs`, and no import edge names a markdown file — so
+ * for any code + prose diff this entry is what runs them. A FIXED list,
+ * admitted by the presence of prose, never derived from the import graph.
  */
 function appendDocsGuards(files: string[], run: PlannedCheck[]): void {
     if (!files.some((p) => classifyPath(p) === "docs")) return;
@@ -1403,7 +1424,7 @@ function main(): void {
     const plan = classifyLane(
         all,
         present,
-        defaultBotSubjects,
+        defaultRelated,
         contentClasses(all, base, cwd)
     );
 

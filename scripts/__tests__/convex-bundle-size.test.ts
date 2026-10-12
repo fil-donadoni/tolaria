@@ -32,9 +32,10 @@ import {
  * 30 MiB is a WARNING here and the failure is a hard bound at 75% of the
  * enforced ceilings (issue #4810).
  * The mirror of `scripts/__tests__/oracle-pool-size.test.ts` for the server
- * side, and it lives in the `node` project so every lane runs it: the engine
- * lane through `node[all]`, the skin lane through `node[src,scripts]`,
- * `check:pr` through `check:guards`.
+ * side, and it lives in the `node-engine` project: a scoped lane runs it when
+ * the diff reaches it through the import graph (ADR 0154 §2, issue #5464),
+ * `check:pr` through `check:guards`, health through `test:app`; the
+ * `check:convex-bundle` CLI itself rides the `engine` and `cards` lanes.
  *
  * It measures by re-running the CLI's own esbuild invocation rather than by
  * reading a committed number, for the same reason `full-catalogue-size.test.ts`

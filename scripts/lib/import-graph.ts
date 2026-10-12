@@ -132,14 +132,8 @@ export function resolveSpecifier(
     aliases: readonly ImportAlias[],
     isFile: (repoPath: string) => boolean
 ): string | null {
-    const bare = specifier.replace(/[?#].*$/, "");
-    const aliased = applyAlias(bare, aliases);
-    let base: string;
-    if (aliased !== null) base = posix.normalize(aliased);
-    else if (bare.startsWith("./") || bare.startsWith("../")) {
-        base = posix.normalize(posix.join(posix.dirname(fromFile), bare));
-    } else return null;
-    if (base.startsWith("../")) return null;
+    const base = specifierBase(fromFile, specifier, aliases);
+    if (base === null) return null;
 
     const candidates = [base, ...EXTENSIONS.map((ext) => base + ext)];
     // TypeScript ESM style: `./x.js` names `./x.ts`.
@@ -150,6 +144,28 @@ export function resolveSpecifier(
     }
     candidates.push(...EXTENSIONS.map((ext) => `${base}/index${ext}`));
     return candidates.find(isFile) ?? null;
+}
+
+/**
+ * The repo-relative location a LOCAL specifier names before any extension or
+ * `index` probing — query suffix dropped, alias applied — or `null` for a bare
+ * package or a path above the repo. `resolveSpecifier` probes from here; a
+ * caller that must match a file the specifier names even when it no longer
+ * exists (a deletion, `lib/test-reach.ts`) keys on it directly.
+ */
+export function specifierBase(
+    fromFile: string,
+    specifier: string,
+    aliases: readonly ImportAlias[]
+): string | null {
+    const bare = specifier.replace(/[?#].*$/, "");
+    const aliased = applyAlias(bare, aliases);
+    let base: string;
+    if (aliased !== null) base = posix.normalize(aliased);
+    else if (bare.startsWith("./") || bare.startsWith("../")) {
+        base = posix.normalize(posix.join(posix.dirname(fromFile), bare));
+    } else return null;
+    return base.startsWith("../") ? null : base;
 }
 
 export interface ClosureOptions {

@@ -122,11 +122,13 @@ export const HEALTH_SCRIPTS: readonly string[] = [
 ];
 
 /**
- * The `check:*` guards that run in NO lane, each with its MEASURED cost — the
- * only legal reason to keep a guard out of `check:lane` (issue #4963: ≤ 10 s
- * on the heavy tier belongs in the lane). `check-lane.test.ts`'s census reds
- * on a `check:*` package script that is in neither a lane plan nor this list,
- * and on an entry here whose measured cost is within the lane budget.
+ * The guards no SCOPED lane (`engine`, `skin`, `cards`, `docs`) runs, each
+ * with its MEASURED cost — the only legal reason to keep a guard out of
+ * `check:lane` (issue #4963: ≤ 10 s on the heavy tier belongs in the lane;
+ * ADR 0154 §3). The `full` lane is `check:pr` verbatim and may still compose
+ * one of them. `check-lane.test.ts`'s census reds on a `check:*` package
+ * script that is in neither a lane plan nor this list, and on an entry here
+ * whose measured cost is within the lane budget or that a scoped lane runs.
  *
  * `check:lane` itself is not a guard but the lane's runner, and is the one
  * name the census exempts.
@@ -143,6 +145,25 @@ export const HEALTH_ONLY_GUARDS: Readonly<
         measuredCostS: 879,
         measured:
             "`check:ui --all` in health: 14m39s green, 45m37s red (detach.log, 2026-10)",
+    },
+    // The client bundle build (ADR 0154 §3, issue #5464): a full `vite build`
+    // every lane paid for the duplicate-import class, now health's
+    // `check:all`. `check:convex-bundle` is NOT here — 2 s, it rides the lane.
+    "check:bundle": {
+        measuredCostS: 24,
+        measured:
+            "`bun run check:bundle` 24 s at load ~10 (2026-10-12); 12.2/12.4/12.5/20.7 s in land logs land-4954/-4983/-5170/-4775",
+    },
+    // The bot fast lane (ADR 0154 §3, issue #5464): `TOLARIA_BOT_FAST=1` over
+    // `bot-node` + `bot-dom` — `test:bot` with `HEAVY_BOT_GLOB` empty since
+    // issue #2436. Its byte-identity pins (mana census, forced-pass pins) were
+    // 29 of 34 vitest reds at `land` in 14 days, all base drift. Health runs
+    // it as `test` → `test:bot`; the `full` lane still runs it inside
+    // `check:pr` → `check:guards`.
+    "test:bot": {
+        measuredCostS: 100,
+        measured:
+            "bot fast lane in land logs: 99.6/100.1/107.8/176.2 s (land-4954/-4983/-5170/-4775, 2026-10)",
     },
 };
 
