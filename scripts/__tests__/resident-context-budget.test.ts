@@ -127,6 +127,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "create-ticket": 16_518,
     "new-set": 33_135,
     "next-ticket": 11_000,
+    prototype: 2_931,
     retro: 4_760,
     "to-prd": 6_076,
     "to-tickets": 13_587,
@@ -321,7 +322,7 @@ describe("skill manifest budget (PRD #5096 D6, issue #5100)", () => {
  * 7,083 characters across 21 skills on 2026-10-05 (before this tier); 1,956 across
  * 11 listed skills after the split. The ceiling carries ~2% headroom.
  */
-const SKILL_LISTING_CEILING_CHARS = 2_260;
+const SKILL_LISTING_CEILING_CHARS = 2_394;
 
 describe("skill listing budget (PRD #5096 D8, issue #5101)", () => {
     it("finds the model-facing corpus", () => {
