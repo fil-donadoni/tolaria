@@ -858,7 +858,10 @@ An **Effect Script** every Op of which resolves to a valuer whose beneficence is
 declared (not `neutral`) and which names no "each player" reference — the
 condition under which its context-free reading is trusted below the **Latent
 Floor**. Decided by the existing Op census, never by a per-Op flag; fail-closed:
-one neutral Op or one symmetric reference and the script is incomplete.
+one neutral Op or one symmetric reference and the script is incomplete. Two
+`neutral` shapes are looked through (issue #5161): a binder (`mayPay`,
+`chooseNumber`, … — its stake is the Op that reads the binding) and a `sacrifice`
+of the ability's own source (priced as a cost); a sacrifice over picks is not.
 _Avoid_: Fully valued script, trusted script, complete card
 
 **Danger Clock**:
