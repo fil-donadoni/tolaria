@@ -128,8 +128,9 @@ export const defaultCwdProbe: CwdProbe = (dir) => {
     }
     const r = spawnSync("lsof", ["-a", "-d", "cwd", "-Fpn"], {
         encoding: "utf8",
+        timeout: 10_000,
     });
-    if (!r.error && (r.stdout ?? "").includes("\np")) {
+    if (!r.error && (r.stdout ?? "").startsWith("p")) {
         return parseLsofCwds(r.stdout).some(
             (p) => p.pid !== process.pid && cwdInside(p.cwd, real)
         );

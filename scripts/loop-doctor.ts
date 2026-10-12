@@ -29,6 +29,7 @@ import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 import { orphanWorktrees } from "./lib/orphan-worktree";
+import { primaryCheckout } from "./lib/primary-checkout";
 
 export type ClaimFacts = {
     issue: number;
@@ -1056,7 +1057,9 @@ if (import.meta.main) {
     );
     for (const o of orphanWorktrees(unclaimed, {
         baseRef: ORIGIN_BASE,
-        owners: readClaimOwners(),
+        owners: readClaimOwners(
+            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+        ),
     }))
         console.log(
             o.verdict.state === "adopt"

@@ -594,7 +594,13 @@ export function gatherLoopStatus(
             readyQueueSection.status === "ok"
                 ? orphanWorktrees(
                       new Set(readyQueueSection.data.map((i) => i.number)),
-                      { baseRef: ORIGIN_BASE, owners: readClaimOwners() }
+                      {
+                          baseRef: ORIGIN_BASE,
+                          owners: readClaimOwners(
+                              process.env.CLAUDE_PROJECT_DIR ??
+                                  primaryCheckout()
+                          ),
+                      }
                   )
                 : [],
         receiptsSummary: status.receiptsSummary,
