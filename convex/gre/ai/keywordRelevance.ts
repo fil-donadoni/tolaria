@@ -29,6 +29,12 @@
 //   - menace, flying and the other evasion rows — their worth depends on
 //     blockers that change every turn, which the rollouts play out.
 //
+// The colours are PUBLIC evidence only, read the same from either seat: the
+// bot's own hand and decklist do not count toward what it "shows" an
+// opposing pro-colour creature. That errs toward inert only when the bot has
+// shown no source of the colour at all — the case where its removal of that
+// colour is still in hand, a reading the next cast corrects.
+//
 // In the EVALUATOR, never at the root (ADR 0124 §5): this is a term of the
 // creature's valuation, so every consumer of `evaluateCreature` — the leaf,
 // the removal lens, the combat deltas — reads the same answer.
@@ -38,6 +44,7 @@ import { getProducibleColors } from "../constants";
 import { keywordBonusFor } from "../creatureBody";
 import { parseProtectionFromColor } from "../protection";
 import type { CardInstanceState, GameState } from "../state";
+import { applySubstitution } from "../textChanges";
 import { observedOpponentColors } from "./observedColors";
 
 /** The landwalk rule for `keyword`, or undefined when it is not landwalk. */
@@ -98,18 +105,25 @@ export function inertKeywordDiscount(
     const skip = [...alreadyRemoved];
     let colors: (ReadonlySet<string> | null)[] | undefined;
     let discount = 0;
-    for (const keyword of card.staticAbilities) {
+    // CR 612 — a text change rewrites the keyword the rules read (Magical
+    // Hack: forestwalk → islandwalk; Sleight of Mind: protection from red →
+    // from blue). `applySubstitution` maps index for index, so relevance is
+    // read off the live word while the discount (and the skip, which lists
+    // raw strings) stays keyed on the raw one `creatureValueRaw` priced.
+    const live = applySubstitution(card).staticAbilities;
+    card.staticAbilities.forEach((keyword, i) => {
         const skipAt = skip.indexOf(keyword);
         if (skipAt >= 0) {
             skip.splice(skipAt, 1);
-            continue;
+            return;
         }
+        const rules = live[i] ?? keyword;
         let inert = inertLandwalk(
-            keyword,
+            rules,
             card,
             opponents.map((p) => p.battlefield)
         );
-        const color = inert ? null : parseProtectionFromColor(keyword);
+        const color = inert ? null : parseProtectionFromColor(rules);
         if (color && color !== "C") {
             colors ??= opponents.map((p) =>
                 shownColors(state, p.id, p.battlefield)
@@ -119,6 +133,6 @@ export function inertKeywordDiscount(
             );
         }
         if (inert) discount += keywordBonusFor(keyword, power);
-    }
+    });
     return discount;
 }

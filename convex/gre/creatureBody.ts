@@ -44,9 +44,11 @@ export const SMALLEST_CREATURE_BODY =
  *  the opponents have provably not shown are taken back to zero
  *  (`ai/keywordRelevance.ts`). Menace and the other evasion rows stay flat:
  *  their worth hangs on blockers that change every turn, which the rollouts
- *  play out (menace held 17-18/20 with its row in issue #5345's measurement). Structured as a table so an unimplemented keyword is
- *  zero-cost to add: drop in one entry. Restricted to the implemented keyword
- *  vocabulary (CR 702). Evasion and combat amplifiers are power-scaled; binary
+ *  play out (menace held 17-18/20 with its row in issue #5345's measurement).
+ *
+ *  Structured as a table so an unimplemented keyword is zero-cost to add:
+ *  drop in one entry. Restricted to the implemented keyword vocabulary
+ *  (CR 702). Evasion and combat amplifiers are power-scaled; binary
  *  keywords are flat; `defender` is a penalty (the creature can't attack, so its
  *  power pushes no damage). Both `"first strike"` (the canonical engine spelling,
  *  see phases.ts) and the hyphenated form are accepted. */

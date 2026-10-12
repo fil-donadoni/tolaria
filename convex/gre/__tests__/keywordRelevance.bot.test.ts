@@ -44,9 +44,14 @@ function inst(
 
 /** A Grizzly Bears of `p1` carrying `keyword`, its twin without it, and the
  *  opponent `p2`'s battlefield. */
-function bears(keyword: string, opp: CardInstanceState[]) {
+function bears(
+    keyword: string,
+    opp: CardInstanceState[],
+    carrierOverrides: Partial<CardInstanceState> = {}
+) {
     const carrier = inst(BEARS, "p1", "carrier", {
         staticAbilities: [keyword],
+        ...carrierOverrides,
     });
     const plain = inst(BEARS, "p1", "plain");
     const state = makeState({
@@ -108,6 +113,44 @@ describe("keyword relevance — protection from a colour (CR 702.16a, issue #535
             inst(SWAMP, "p2", "swamp"),
         ]);
         expect(table).toBeGreaterThan(0);
+        expect(bonus).toBe(table);
+    });
+});
+
+describe("keyword relevance — a text-changed keyword is read as rewritten (CR 612)", () => {
+    it("Sleight of Mind's protection from red → blue is live against a blue opponent", () => {
+        const { bonus, table } = bears(
+            "protection from red",
+            [inst(getCardByName("Island").id, "p2", "island")],
+            {
+                textChangeHolds: [
+                    {
+                        change: { kind: "color-word", from: "red", to: "blue" },
+                        seq: 1,
+                    },
+                ],
+            }
+        );
+        expect(bonus).toBe(table);
+    });
+
+    it("Magical Hack's forestwalk → islandwalk is live against an Island", () => {
+        const { bonus, table } = bears(
+            "forestwalk",
+            [inst(getCardByName("Island").id, "p2", "island")],
+            {
+                textChangeHolds: [
+                    {
+                        change: {
+                            kind: "land-type",
+                            from: "Forest",
+                            to: "Island",
+                        },
+                        seq: 1,
+                    },
+                ],
+            }
+        );
         expect(bonus).toBe(table);
     });
 });
