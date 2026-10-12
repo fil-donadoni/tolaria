@@ -330,6 +330,14 @@ describe("MacBook stale-verdict fallback at the cadence seam (issue #5467)", () 
         expect(verdict).toMatchObject({ kind: "fire", trigger: "stale" });
     });
 
+    it("does not count an AMBER as an answer: a repair landing proves nothing about the batch", () => {
+        const { verdict } = decide([
+            { ...amber(tip), at: new Date(dueAt + HOUR).toISOString() },
+            red(),
+        ]);
+        expect(verdict).toMatchObject({ kind: "fire", trigger: "stale" });
+    });
+
     it("runs the fallback once per batch: a second landing after it holds", () => {
         const { verdict } = decide([green(BASE, T0 - HOUR)], {
             state: {
