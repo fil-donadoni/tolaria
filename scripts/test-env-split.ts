@@ -86,7 +86,7 @@ export const SRC_NODE_DISQUALIFIERS = [...DOM_MARKERS, ...ISOLATION_MARKERS];
  * The skip rules (`node_modules`, dotfiles) are the same for both and are
  * the half worth not writing twice.
  */
-function collect(
+export function collect(
     dir: string,
     matches: (basename: string) => boolean,
     out: string[] = []
@@ -168,7 +168,7 @@ export function splitSrcTests(root: string): SrcTestSplit {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /** Import specifiers: `from "x"`, `import("x")`, bare `import "x"`. */
-const IMPORT_SPECIFIER =
+export const IMPORT_SPECIFIER =
     /(?:import|export)\s[^'"]*?from\s*["']([^"']+)["']|import\(\s*["']([^"']+)["']\s*\)|^\s*import\s*["']([^"']+)["']/gm;
 
 /** A string literal naming the engine tree or its data as a path. */
@@ -184,7 +184,7 @@ function stripComments(source: string): string {
 
 const ENGINE_ROOTS = ["convex/", "data/"];
 
-function resolveLocal(
+export function resolveLocal(
     root: string,
     from: string,
     specifier: string
