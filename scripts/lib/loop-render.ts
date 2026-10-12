@@ -284,9 +284,13 @@ export function splitPassSession(message: string): {
 
 function passHeaderLabel(env: RenderEnv, raw: string): string {
     const { message, session } = splitPassSession(raw);
-    const m = /^pass (\d+) — issue #(\d+) on tier (\S+?)\.?$/.exec(message);
+    // `— lane K` only on a multi-lane run (issue #5486).
+    const m =
+        /^pass (\d+)(?: — lane (\d+))? — issue #(\d+) on tier (\S+?)\.?$/.exec(
+            message
+        );
     const text = m
-        ? `pass ${m[1]} · #${m[2]} · ${m[3]}`
+        ? `pass ${m[1]}${m[2] ? ` · lane ${m[2]}` : ""} · #${m[3]} · ${m[4]}`
         : message.replace(/\.$/, "");
     // The id's first block is enough to find the transcript by eye; the
     // log row carries it whole.
@@ -298,6 +302,9 @@ function passFooterLabel(env: RenderEnv, message: string): string {
     const f = parseFields(message);
     const duration = num(f.duration);
     return [
+        // Lanes interleave their footers (issue #5486): name the pass that
+        // ended. A one-lane run carries no `lane=` and reads as it always did.
+        f.lane === undefined ? null : `pass ${f.pass} · lane ${f.lane}`,
         passOutcome(env, f),
         duration === null ? null : formatDuration(duration),
         queueMove(f.queue_before, f.queue_after),

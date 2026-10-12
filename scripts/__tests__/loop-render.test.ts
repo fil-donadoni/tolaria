@@ -152,6 +152,14 @@ describe("pass header rule", () => {
         expect(visibleLength(line)).toBe(60);
     });
 
+    it("names the lane of a multi-lane pass (issue #5486)", () => {
+        expect(
+            last([
+                `${S}loop-drain[pass]: pass 7 — lane 2 — issue #4516 on tier opus. session=0f8c2a4e-1b2c-4d3e-8f9a-0b1c2d3e4f5a`,
+            ])
+        ).toMatch(/^10:00:00 ├─ pass 7 · lane 2 · #4516 · opus 0f8c2a4e ─+$/);
+    });
+
     it("keeps the message of a prompt-scoped pass", () => {
         expect(
             last([`${S}loop-drain[pass]: pass 2 — prompt "/next-ticket 3131".`])
@@ -212,6 +220,15 @@ describe("pass footer rule", () => {
             COLOR
         );
         expect(line).toMatch(new RegExp(`\\x1b\\[${sgr}m█`));
+    });
+
+    it("names the pass and lane that ended on a multi-lane run, and nothing on a one-lane run (issue #5486)", () => {
+        const tail =
+            "reason=- queue_before=3 queue_after=2 spent=- budget=- ceiling=- duration=5";
+        expect(last([end(`pass=7 lane=2 ${tail}`)])).toMatch(
+            /─ pass 7 · lane 2 · ✓ done · /
+        );
+        expect(last([end(`pass=7 ${tail}`)])).not.toMatch(/lane/);
     });
 
     it("says spend n/a when the run is unbudgeted", () => {

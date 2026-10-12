@@ -1303,10 +1303,12 @@ finish_lane() {
     # The pass-END tag (ADR 0147): the same facts as the row above, plus what
     # the row has no column for — the lane, the effective ceiling the footer's
     # spend bar is drawn against, the pass's wall duration and the retry
-    # delay. Emitted right after the row so the terminal footer can never
+    # delay; `lane=` only on a multi-lane run, as the pass-START line. Emitted right after the row so the terminal footer can never
     # describe a pass the log does not have. `k=v` words, so the renderer
     # reads fields by name.
-    echo "loop-drain[end]: pass=$lpass lane=$_k exit=$claude_exit reason=$reason_field pct=$pct queue_before=$lqueue_before queue_after=$queue_after spent=${spent_field} budget=${budget_field} ceiling=${CEILING} duration=$(($(date +%s) - epoch)) retry=${backoff_secs}" >&2
+    _lane_kv=""
+    [ "$LANES" = "1" ] || _lane_kv=" lane=$_k"
+    echo "loop-drain[end]: pass=${lpass}${_lane_kv} exit=$claude_exit reason=$reason_field pct=$pct queue_before=$lqueue_before queue_after=$queue_after spent=${spent_field} budget=${budget_field} ceiling=${CEILING} duration=$(($(date +%s) - epoch)) retry=${backoff_secs}" >&2
 
     if [ "$stop_now" -eq 0 ] && [ "$backoff_secs" -gt 0 ]; then
         echo "loop-drain[error]: pass $lpass crashed (claude exit $claude_exit; consecutive failure ${error_streak}/${MAX_CONSECUTIVE_ERRORS}) — retrying in ${backoff_secs}s. Log tail:" >&2

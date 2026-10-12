@@ -268,6 +268,22 @@ export interface DriverPassLine {
     session?: string;
 }
 
+/** One pass in flight (issue #5486): a lane directory the driver keeps under
+ *  `.claude/telemetry/loop-lanes/<lane>/`, one value per file. */
+export interface DriverLane {
+    lane: number;
+    /** The background job running the pass. */
+    pid: number | null;
+    pidAlive: boolean;
+    pass: number | null;
+    /** Null on a `--prompt` run: the operator's prompt names no issue. */
+    issue: number | null;
+    model: string;
+    /** Unix seconds the pass started. */
+    startedAt: number | null;
+    log: string;
+}
+
 export interface DriverState {
     armed: boolean;
     pid: number | null;
@@ -275,6 +291,9 @@ export interface DriverState {
     stopFilePresent: boolean;
     /** Newest-last, mirroring the log file's own append order. */
     recentPasses: DriverPassLine[];
+    /** The passes in flight, by lane. Absent on a hand-built fixture that
+     *  predates lanes — read as none. */
+    lanes?: DriverLane[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -410,8 +429,48 @@ export function readDriverState(opts: ReadDriverStateOptions): DriverState {
     const pidAlive = pid !== null && isAlive(pid);
     const stopFilePresent = fs.existsSync(stopFile);
     const recentPasses = readRecentPasses(logFile, opts.recentPassLimit ?? 5);
+    const lanes = readDriverLanes(
+        path.join(opts.telemetryDir, "loop-lanes"),
+        isAlive
+    );
 
-    return { armed, pid, pidAlive, stopFilePresent, recentPasses };
+    return { armed, pid, pidAlive, stopFilePresent, recentPasses, lanes };
+}
+
+/** The driver's lane directories (issue #5486), lowest lane first. A
+ *  directory with no `pid` is a lane still being set up: not yet a pass. */
+export function readDriverLanes(
+    laneDir: string,
+    isAlive: (pid: number) => boolean = defaultIsAlive
+): DriverLane[] {
+    if (!fs.existsSync(laneDir)) return [];
+    const field = (dir: string, name: string): string => {
+        try {
+            return fs.readFileSync(path.join(dir, name), "utf8").trim();
+        } catch {
+            return "";
+        }
+    };
+    const int = (raw: string): number | null =>
+        /^\d+$/.test(raw) ? Number(raw) : null;
+    const lanes: DriverLane[] = [];
+    for (const name of fs.readdirSync(laneDir)) {
+        const dir = path.join(laneDir, name);
+        const lane = int(name);
+        if (lane === null || !fs.existsSync(path.join(dir, "pid"))) continue;
+        const pid = int(field(dir, "pid"));
+        lanes.push({
+            lane,
+            pid,
+            pidAlive: pid !== null && isAlive(pid),
+            pass: int(field(dir, "pass")),
+            issue: int(field(dir, "issue")),
+            model: field(dir, "model"),
+            startedAt: int(field(dir, "epoch")),
+            log: field(dir, "log"),
+        });
+    }
+    return lanes.sort((a, b) => a.lane - b.lane);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1027,6 +1086,27 @@ export function renderVerdictLines(verdict: LoopVerdict): string[] {
     return lines;
 }
 
+/** The lane view (issue #5486): one row per pass in flight. */
+export function renderLaneLines(
+    lanes: DriverLane[],
+    nowSec: number = Math.floor(Date.now() / 1000)
+): string[] {
+    if (lanes.length === 0) return ["  lanes:      none in flight"];
+    return [
+        `  lanes:      ${lanes.length} in flight`,
+        ...lanes.map((l) => {
+            const age =
+                l.startedAt === null
+                    ? "age unknown"
+                    : `up ${Math.max(0, Math.round((nowSec - l.startedAt) / 60))} min`;
+            const what =
+                l.issue === null ? "operator prompt" : `issue #${l.issue}`;
+            const state = l.pidAlive ? "running" : "GONE";
+            return `    lane ${l.lane}  pass ${l.pass ?? "?"}  ${what}  ${l.model || "-"}  pid ${l.pid ?? "?"} ${state}  ${age}  ${l.log}`;
+        }),
+    ];
+}
+
 export function renderDriverLines(driver: DriverState): string[] {
     const lines: string[] = [];
     lines.push("Driver");
@@ -1045,6 +1125,7 @@ export function renderDriverLines(driver: DriverState): string[] {
     lines.push(
         `  stop-file:  ${driver.stopFilePresent ? "PRESENT — nothing will start until it is removed" : "absent"}`
     );
+    lines.push(...renderLaneLines(driver.lanes ?? []));
     if (driver.recentPasses.length === 0) {
         lines.push("  recent passes: none recorded");
     } else {

@@ -96,6 +96,10 @@ DEFAULT_PROMPT=""
 # Seconds the driver waits before its first pass: the calling pass is still
 # releasing claims when the handoff fires.
 DEFAULT_START_DELAY=45
+# Concurrent passes (issue #5486): `auto` = as many as the machine admission
+# allows (the effective cap — RAM under `sessions.cap`, one lane under load or
+# memory pressure), re-read before every pass. A number caps it lower.
+DEFAULT_LANES="auto"
 
 # Passes replayed at `--watch` start (issue #4720) — fixed, not user-tunable:
 # enough for an operator to reorient before live lines arrive, never a full
@@ -110,6 +114,7 @@ ARG_MAX_PCT=""
 ARG_MAX_PASSES=""
 ARG_MAX_ERRORS=""
 ARG_START_DELAY=""
+ARG_LANES=""
 NO_CAFFEINATE=0
 DRY_RUN=0
 DETACH=0
@@ -152,6 +157,9 @@ Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
   --max-passes <n>             0 = unlimited
   --max-consecutive-errors <n> crashes tolerated in a row before stopping (default 3)
   --start-delay <secs>         grace before the first pass (default 45)
+  --lanes <n|auto>             passes run at once (default auto: the machine's
+                               effective cap, re-read before every pass; a
+                               number caps it lower, never higher)
   --no-caffeinate              do not hold the machine awake for the run
   --detach                     run the driver in its own session instead of in
                                this terminal. Ctrl-C then no longer reaches it
@@ -201,6 +209,10 @@ while [ $# -gt 0 ]; do
             ;;
         --start-delay)
             ARG_START_DELAY="$2"
+            shift 2
+            ;;
+        --lanes)
+            ARG_LANES="$2"
             shift 2
             ;;
         --no-caffeinate)
@@ -279,6 +291,8 @@ write_conf() {
     _prompt=${ARG_PROMPT:-$(conf_get PROMPT)}
     _start_delay=${ARG_START_DELAY:-$(conf_get START_DELAY)}
     [ -n "$_start_delay" ] || _start_delay="$DEFAULT_START_DELAY"
+    _lanes=${ARG_LANES:-$(conf_get LANES)}
+    [ -n "$_lanes" ] || _lanes="$DEFAULT_LANES"
     {
         echo "# Written by scripts/loop-handoff.sh — the AFK arming marker."
         echo "# It stores DEFAULTS for --start (ADR 0109: a pass never starts"
@@ -292,6 +306,7 @@ write_conf() {
         echo "MAX_PASSES=${ARG_MAX_PASSES:-$(conf_get MAX_PASSES)}"
         echo "MAX_CONSECUTIVE_ERRORS=${ARG_MAX_ERRORS:-$(conf_get MAX_CONSECUTIVE_ERRORS)}"
         echo "START_DELAY=$_start_delay"
+        echo "LANES=$_lanes"
     } >"$CONF_FILE.tmp"
     mv "$CONF_FILE.tmp" "$CONF_FILE"
 }
@@ -453,10 +468,15 @@ launch_driver() {
     _max_errors=$(conf_get MAX_CONSECUTIVE_ERRORS)
     _start_delay=$(conf_get START_DELAY)
     [ -n "$_start_delay" ] || _start_delay="$DEFAULT_START_DELAY"
+    # A conf armed before lanes existed has no LANES row: the default applies.
+    _lanes=$(conf_get LANES)
+    [ -n "$_lanes" ] || _lanes="$DEFAULT_LANES"
 
+    # `--single-instance` is one DRIVER per checkout, not one pass: the
+    # driver runs its lanes itself.
     set -- sh "$DRIVER" --single-instance \
         --pid-file "$PID_FILE" --stop-file "$STOP_FILE" \
-        --start-delay "$_start_delay"
+        --start-delay "$_start_delay" --lanes "$_lanes"
     [ -z "$_claude_args" ] || set -- "$@" --claude-args "$_claude_args"
     # Omitted when the conf carries no PROMPT (a conf armed before this flag
     # existed) — the driver's own default is then the single authority.
@@ -660,6 +680,19 @@ case "$MODE" in
         else
             echo "stop-file:  absent"
         fi
+        # The passes in flight, one row per lane (issue #5486) — the files
+        # the driver keeps under loop-lanes/<k>/.
+        _lanes_shown=0
+        for _d in "$TELEMETRY_DIR"/loop-lanes/*; do
+            [ -f "$_d/pid" ] || continue
+            _lp=$(cat "$_d/pid" 2>/dev/null || echo "")
+            _state="GONE"
+            if is_uint "$_lp" && kill -0 "$_lp" 2>/dev/null; then _state="running"; fi
+            [ "$_lanes_shown" -eq 1 ] || echo "lanes:"
+            _lanes_shown=1
+            echo "            lane $(basename "$_d") · pass $(cat "$_d/pass" 2>/dev/null) · issue #$(cat "$_d/issue" 2>/dev/null) · $(cat "$_d/model" 2>/dev/null) · pid $_lp $_state · log $(cat "$_d/log" 2>/dev/null)"
+        done
+        [ "$_lanes_shown" -eq 1 ] || echo "lanes:      none in flight"
         if [ -f "$TELEMETRY_DIR/loop-drain.log" ]; then
             echo "last passes (epoch pass exit pct queue_before queue_after spent budget reason):"
             tail -n 5 "$TELEMETRY_DIR/loop-drain.log" | sed 's/^/            /'
@@ -686,7 +719,7 @@ case "$MODE" in
     stop)
         : >"$STOP_FILE"
         if _pid=$(driver_pid); then
-            echo "loop-handoff: stop requested — driver pid $_pid will exit after the current pass finishes."
+            echo "loop-handoff: stop requested — driver pid $_pid will exit once the passes in flight finish (none starts after them)."
             echo "loop-handoff: to abort the pass in flight too: kill $_pid"
         else
             echo "loop-handoff: stop-file written; no driver is currently running."
