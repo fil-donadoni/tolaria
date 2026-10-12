@@ -74,13 +74,15 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     hexproof: () => 15,
     // NOT here (priced once, by their expanded trigger script via
     // `dslRealizedAbilityValueById`, so a row would count twice): exalted,
-    // prowess, battle cry, annihilator, ward, fading. Only a keyword whose
-    // expansion carries no `effects`/`aiEffects` script is priced in this table.
+    // prowess, battle cry, annihilator, ward, fading, echo. Only a keyword whose
+    // expansion or companion ability carries no `effects`/`aiEffects` script
+    // is priced in this table — guarded by `creatureKeywordBonus.bot.test.ts`.
     // Negative rows: a permanent that stays tapped or leaves is worth less.
     "does-not-untap": () => -40,
     "may-choose-not-to-untap": () => -10,
-    // Echo (CR 702.30) — a one-shot upkeep payment, small.
-    echo: () => -8,
+    // NOT here: echo (CR 702.30) — its `echoTrigger` companion carries an
+    // `aiEffects` script (pay or sacrifice) the realized ability reader
+    // already prices (issue #5355).
 };
 
 /** Parametrized keyword families (a colour, a land type, a number in the

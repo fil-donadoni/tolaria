@@ -1,7 +1,9 @@
 // Issue #5152 — the creature keyword bonus table prices every registry-
 // implemented keyword that is a creature characteristic (keyword abilities).
 import { describe, expect, it } from "vitest";
+import { echoTrigger } from "../../cards/abilities/echo";
 import { wardAbility } from "../../cards/abilities/ward";
+import { walkHandWrittenDefinitions } from "../../cards/catalogue";
 import { MECHANICS_REGISTRY } from "../../cards/mechanicsRegistry";
 import { withTemporaryDefinition } from "../../cards/registry";
 import { grizzlyBears } from "../../cards/sets/lea/green.cards";
@@ -22,10 +24,6 @@ const EXAMPLE_STRING: Record<string, string> = {
     rampage: "rampage 2",
 };
 
-/** Implemented keyword rows that are NOT a creature characteristic the body
- *  prices, listed by name so a newly implemented keyword forces a decision.
- *  Cast-time / cost keywords are priced by the cast route and the script;
- *  the rest are not a standing creature quality. */
 /** Keywords priced ONCE, by their ability script (`dslRealizedAbilityValueById`)
  *  — a body-table row would count them twice (issue #5355). Each entry is the
  *  declared string plus the abilities a card printing it carries beside the
@@ -45,8 +43,18 @@ const SCRIPT_PRICED: Record<
         ],
     },
     fading: { declared: "fading 3" },
+    echo: {
+        declared: "echo",
+        triggered: [
+            echoTrigger({ cost: { mana: { R: 1 } }, costLabel: "{R}" }),
+        ],
+    },
 };
 
+/** Implemented keyword rows that are NOT a creature characteristic the body
+ *  prices, listed by name so a newly implemented keyword forces a decision.
+ *  Cast-time / cost keywords are priced by the cast route and the script;
+ *  the rest are not a standing creature quality. */
 const NOT_A_BODY_KEYWORD = new Set([
     ...Object.keys(SCRIPT_PRICED),
     // cast-time / cost / zone-route keywords
@@ -157,6 +165,10 @@ describe("creature keyword bonus table (issue #5152)", () => {
     });
 });
 
+/** The leading word of a declared keyword string — the id a keyword ability
+ *  factory gives its ability (`wardAbility` → "ward", `echoTrigger` → "echo"). */
+const keywordWord = (declared: string) => declared.split(" ")[0];
+
 /** Body-priced keywords that ALSO carry an ability script, each with the reason
  *  the two readings price different things. Empty: none does today. */
 const DOUBLE_PRICE_EXCLUSIONS: Record<string, string> = {};
@@ -169,22 +181,26 @@ const PATTERN_EXAMPLES = [
     "vanishing 3",
 ];
 
-/** A vanilla 2/2 carrying `declared` (and any abilities printed beside it),
- *  registered for the duration of the read so `getDefinition` expands it. */
+/** The realized script value of `def`, registered under a probe id for the
+ *  duration of the read so `getDefinition` expands it. */
+function scriptValueOfDefinition(def: CardDefinition): number {
+    const probe = { ...def, id: "issue-5355-keyword-probe" };
+    return withTemporaryDefinition(probe, () =>
+        dslRealizedAbilityValueById(probe.id)
+    );
+}
+
+/** A vanilla 2/2 carrying `declared` (and any abilities printed beside it). */
 function scriptValueOf(
     declared: string,
     triggered: CardDefinition["triggeredAbilities"] = []
 ): number {
-    const probe: CardDefinition = {
+    return scriptValueOfDefinition({
         ...grizzlyBears(),
-        id: "issue-5355-keyword-probe",
         name: "Keyword Probe",
         staticAbilities: [declared],
         triggeredAbilities: triggered,
-    };
-    return withTemporaryDefinition(probe, () =>
-        dslRealizedAbilityValueById(probe.id)
-    );
+    });
 }
 
 describe("a keyword is priced once — body table XOR script (issue #5355)", () => {
@@ -217,4 +233,37 @@ describe("a keyword is priced once — body table XOR script (issue #5355)", () 
             expect(scriptValueOf(declared, triggered)).not.toBe(0);
         }
     );
+
+    // The probe above sees only what `getDefinition` expands from the string;
+    // a keyword whose ability is a hand-written companion (ward, echo) reads
+    // 0 there. The catalogue scan closes that class: on every card declaring
+    // a body-priced keyword, the abilities named after it (`wardAbility` →
+    // "ward", `rampage-2`) add nothing to the realized script value.
+    it("no catalogue card's keyword-named ability adds script value to a body-priced keyword", () => {
+        const doubled: string[] = [];
+        for (const { definition: def } of walkHandWrittenDefinitions()) {
+            for (const declared of def.staticAbilities ?? []) {
+                if (declared in DOUBLE_PRICE_EXCLUSIONS) continue;
+                if (keywordBonusFor(declared, 3, {}) === 0) continue;
+                const word = keywordWord(declared);
+                const named = (id: string | undefined) =>
+                    id === word || id?.startsWith(`${word}-`) === true;
+                const triggered = def.triggeredAbilities ?? [];
+                const activated = def.activatedAbilities ?? [];
+                if (![...triggered, ...activated].some((a) => named(a.id)))
+                    continue;
+                const withNamed = scriptValueOfDefinition(def);
+                const withoutNamed = scriptValueOfDefinition({
+                    ...def,
+                    triggeredAbilities: triggered.filter((a) => !named(a.id)),
+                    activatedAbilities: activated.filter((a) => !named(a.id)),
+                });
+                if (withNamed !== withoutNamed)
+                    doubled.push(
+                        `${def.name}: ${declared} (script ${withNamed - withoutNamed})`
+                    );
+            }
+        }
+        expect(doubled).toEqual([]);
+    });
 });
