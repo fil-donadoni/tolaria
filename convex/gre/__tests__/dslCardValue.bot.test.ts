@@ -38,6 +38,7 @@ import { projectPublicState } from "../../gameProjections";
 import {
     dslSpellScriptValue,
     dslStandingAbilityScriptValue,
+    isCompleteScript,
 } from "../ai/cardScriptValue";
 import { contextFreeGrounding } from "../ai/grounding";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
@@ -879,5 +880,225 @@ describe("cardValue wire-format (issue #1426, client-read via bot-view)", () => 
         const slimId = String((slim as { card: { id: string } }).card.id);
         expect(slimId).toBe(fatId); // the id survives the wire
         expect(cardValueById(slimId)).toBe(fatValue); // identical valuation
+    });
+});
+
+// ADR 0151 (issue #5161) — the Latent Floor holds only for a script both
+// UNMEASURED and INCOMPLETE. A Complete Script (every Op's beneficence
+// declared, no "each player" reference) reads its own context-free number,
+// negative included; one unpriced Op keeps the floor exactly as before.
+describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
+    const base = {
+        isCreature: false,
+        power: 0,
+        toughness: 0,
+        manaValue: 3,
+        staticAbilities: [] as string[],
+    };
+    const byName = (name: string): CardDefinition => {
+        const def = [...registeredDefinitions()].find((d) => d.name === name);
+        expect(def).toBeDefined();
+        return def!;
+    };
+    /** An upkeep enchantment whose one triggered ability runs `effects`. */
+    const upkeepEnchantment = (effects: EffectOp[]): CardDefinition =>
+        ({
+            id: "complete-script-probe",
+            name: "Complete Script Probe",
+            rarity: "common",
+            types: ["Enchantment"],
+            manaCost: { G: 1 },
+            triggeredAbilities: [
+                {
+                    id: "probe-upkeep",
+                    event: "PHASE_START",
+                    phase: "UPKEEP",
+                    scope: "your",
+                    oracleText: "At the beginning of your upkeep, …",
+                    effects,
+                },
+            ],
+        }) as unknown as CardDefinition;
+    const valueOf = (def: CardDefinition) =>
+        latentValue({
+            ...base,
+            manaValue: manaValue(def.manaCost),
+            ...dslLatentPieces(def),
+        });
+    const floorOf = (def: CardDefinition) =>
+        latentValue({ ...base, manaValue: manaValue(def.manaCost) });
+
+    describe("latentValue", () => {
+        it("a complete standing script reads its own number, negative included", () => {
+            expect(
+                latentValue({
+                    ...base,
+                    dslStandingAbilityValue: -40,
+                    dslScriptComplete: true,
+                })
+            ).toBe(-40);
+            expect(
+                latentValue({
+                    ...base,
+                    dslStandingAbilityValue: 12,
+                    dslScriptComplete: true,
+                })
+            ).toBe(12);
+        });
+
+        it("a complete spell script below the floor reads its own number", () => {
+            expect(
+                latentValue({
+                    ...base,
+                    dslSpellValue: 5,
+                    dslScriptComplete: true,
+                })
+            ).toBe(5);
+        });
+
+        it("an incomplete, unmeasured script keeps the base+MV floor", () => {
+            expect(
+                latentValue({
+                    ...base,
+                    dslStandingAbilityValue: -40,
+                    dslScriptComplete: false,
+                })
+            ).toBe(38);
+        });
+
+        it("the measured branch is unchanged: floored at 0, complete or not", () => {
+            for (const dslScriptComplete of [false, true]) {
+                expect(
+                    latentValue({
+                        ...base,
+                        dslSpellValue: -10,
+                        dslSpellValueMeasured: true,
+                        dslScriptComplete,
+                    })
+                ).toBe(0);
+            }
+        });
+
+        it("a card with no spell and no standing reading keeps the plain floor", () => {
+            expect(latentValue({ ...base, dslScriptComplete: true })).toBe(38);
+        });
+    });
+
+    describe("isCompleteScript", () => {
+        it("a pay-or-lose upkeep (binder + self-sacrifice) beside a declared Op is complete", () => {
+            expect(
+                isCompleteScript(
+                    upkeepEnchantment([
+                        {
+                            op: "mayPay",
+                            player: "controller",
+                            cost: { X: 1 },
+                            prompt: "Pay?",
+                            bind: "$paid",
+                        },
+                        {
+                            op: "if",
+                            predicate: { not: { binding: "$paid" } },
+                            then: [
+                                { op: "sacrifice", target: { ref: "$source" } },
+                            ],
+                        },
+                    ])
+                )
+            ).toBe(true);
+        });
+
+        it("a sacrifice over picks (neutral beneficence) leaves the script incomplete", () => {
+            expect(
+                isCompleteScript(
+                    upkeepEnchantment([
+                        { op: "loseLife", player: "controller", amount: 3 },
+                        { op: "sacrifice", permanents: { ref: "$picked" } },
+                    ])
+                )
+            ).toBe(false);
+        });
+
+        it("an each-player reference leaves the script incomplete (a Symmetric Effect)", () => {
+            expect(
+                isCompleteScript(
+                    upkeepEnchantment([
+                        {
+                            op: "forEach",
+                            select: { set: "players" },
+                            effects: [
+                                {
+                                    op: "loseLife",
+                                    player: { ref: "$each" },
+                                    amount: 1,
+                                },
+                            ],
+                        },
+                    ])
+                )
+            ).toBe(false);
+        });
+
+        it("an imperative clause with no shadow leaves the card incomplete", () => {
+            const def = upkeepEnchantment([
+                { op: "loseLife", player: "controller", amount: 1 },
+            ]);
+            expect(isCompleteScript(def)).toBe(true);
+            expect(
+                isCompleteScript({
+                    ...def,
+                    activatedAbilities: [
+                        {
+                            id: "probe-imperative",
+                            cost: { mana: { generic: 1 } },
+                            effect: () => {},
+                        },
+                    ],
+                } as unknown as CardDefinition)
+            ).toBe(false);
+        });
+
+        it("a card with no Op at all is not complete (a blank card IS the floor)", () => {
+            expect(isCompleteScript(byName("Black Ward"))).toBe(false);
+        });
+    });
+
+    describe("cardValueById", () => {
+        it("Elephant Grass reads below its base+MV (context-free, a self-tax)", () => {
+            const grass = byName("Elephant Grass");
+            expect(isCompleteScript(grass)).toBe(true);
+            expect(cardValueById(grass.id)).toBeLessThan(floorOf(grass));
+        });
+
+        it("a definition with a sacrifice Op over picks stays at the floor", () => {
+            const def = upkeepEnchantment([
+                { op: "loseLife", player: "controller", amount: 20 },
+                { op: "sacrifice", permanents: { ref: "$picked" } },
+            ]);
+            expect(dslLatentPieces(def).dslStandingAbilityValue).toBeLessThan(
+                floorOf(def)
+            );
+            expect(valueOf(def)).toBe(floorOf(def));
+        });
+
+        it("the same tax, complete, reads below the floor", () => {
+            const def = upkeepEnchantment([
+                { op: "loseLife", player: "controller", amount: 3 },
+            ]);
+            expect(valueOf(def)).toBeLessThan(floorOf(def));
+        });
+
+        it("a complete, positive script is unchanged (Lightning Bolt reads its own script)", () => {
+            const bolt = byName("Lightning Bolt");
+            expect(isCompleteScript(bolt)).toBe(true);
+            expect(cardValueById(bolt.id)).toBe(dslSpellScriptValue(bolt));
+            expect(cardValueById(bolt.id)).toBeGreaterThan(floorOf(bolt));
+        });
+
+        it("a complete land reads its liability on the board face too (no 0 clamp)", () => {
+            const halls = byName("Halls of Mist");
+            expect(isCompleteScript(halls)).toBe(true);
+            expect(standingAbilityValueById(halls.id)).toBeLessThan(0);
+        });
     });
 });
