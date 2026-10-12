@@ -65,7 +65,7 @@ const MOCK_SPECIFIER = /\bvi\.(?:mock|doMock)\(\s*["']([^"'\n]+)["']/g;
 
 /** A quoted file name with an extension the repo reads or spawns. */
 const FILE_LITERAL =
-    /["'`]([\w@.\/-]*?[\w-]+\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))["'`]/g;
+    /["'`]([\w@./-]*?[\w-]+\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))["'`]/g;
 
 /**
  * The file names `text` names as string literals in CODE, narrowed so a hub
