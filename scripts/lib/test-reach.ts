@@ -10,35 +10,49 @@
  * transforms every module every spec reaches before it can answer, and that
  * took 5 min 37 s on a three-file diff (load ~14, 2026-10-12) and 102 s for the
  * graph alone in a second session's measurement — as slow as running
- * `node-engine` whole, inside the mutex the lane exists to shorten. The walk
- * below reads each module once with the SAME specifier regex and resolver the
- * vitest project split already trusts (`test-env-split.ts`, one authority) and
- * answers in seconds.
+ * `node-engine` whole, inside the mutex the lane exists to shorten.
  *
- * WHAT THE WALK CANNOT SEE, stated so nobody reads a skip as a proof:
+ * ONE RESOLVER: edges come from `lib/import-graph.ts` (`importSpecifiers`,
+ * `resolveSpecifier` — `./x.js` → `x.ts`, `index.*`, `?url` dropped, type-only
+ * statements erased as vitest erases them), with vitest's aliases
+ * (`TEST_ALIASES`, pinned to `vitest.config.ts` by `test-reach.test.ts`).
+ * Three edges are added on top, each an over-approximation:
  *
- *   - a test that READS a file through `fs` (the census shape: a catalogue
- *     sweep, a drift guard over `.claude/**`, `package.json`). `check-lane.ts`
- *     admits `node-tooling` WHOLE for a tooling path that is not a module; the
- *     rest is health's job, which ADR 0154 §2 accepts as the residual risk.
- *   - a vitest `setupFiles` closure. vitest's own `--changed` does not count it
- *     either; the setup files themselves are `full`-lane paths.
- *   - a subprocess: a test that spawns a script which imports the change.
+ *   - `vi.mock("x")` / `vi.doMock("x")` — the test depends on the mocked path;
+ *   - an unresolvable LOCAL specifier keys on its extension-less location
+ *     (`specifierBase`), so a test importing a module the diff deletes is
+ *     related;
+ *   - a FILE-NAME LITERAL (`"card-index.json"`, `"deny-guard.sh"`,
+ *     `"gate.ts"`) in any module is an edge to every file of that basename.
+ *     This is how the walk sees a reader that opens its input through `fs`
+ *     (`join(ROOT, "data", "card-index.json")`) and a tooling test that spawns
+ *     a script by path (`resolve(__dirname, "..", "gate.ts")`).
  *
- * Conservative in the direction that matters: an unresolvable specifier still
- * yields a location (`resolveLocal`), and a deleted module is matched by its
- * extension-less key, so a test importing a file the diff deletes is related.
+ * WHAT THE WALK STILL CANNOT SEE, stated so nobody reads a skip as a proof:
+ * a census that walks a DIRECTORY (`readdirSync(".claude/skills")`) or matches
+ * source text by pattern, a vitest `setupFiles` closure (vitest's own
+ * `--changed` ignores it too; the setup files are `full`-lane paths), and a
+ * name built at runtime. `check-lane.ts` admits `node-tooling` whole for a
+ * tooling path that is not a module; the rest is health's job, which ADR 0154
+ * §2 accepts as the residual risk.
  */
 
 import * as fs from "fs";
 import * as path from "path";
 import {
-    collect,
-    IMPORT_SPECIFIER,
-    resolveLocal,
-    splitScriptsTests,
-    splitSrcTests,
-} from "../test-env-split";
+    importSpecifiers,
+    resolveSpecifier,
+    specifierBase,
+    type ImportAlias,
+} from "./import-graph";
+import { collect, splitScriptsTests, splitSrcTests } from "../test-env-split";
+
+/** `vitest.config.ts` `resolve.alias`, repo-relative (pinned by its test). */
+export const TEST_ALIASES: readonly ImportAlias[] = [
+    { find: "~", replacement: "src" },
+    { find: "@", replacement: "src" },
+    { find: "@convex", replacement: "convex" },
+];
 
 /** The vitest projects a related test can belong to (bot, perf and ladder
  *  tests are none of them: ADR 0154 §3 sends the bot suite to health). */
@@ -47,23 +61,21 @@ export type RelatedProject = "node-engine" | "node-tooling" | "dom";
 /** Related test files per vitest project, repo-relative, posix, sorted. */
 export type RelatedTests = Record<RelatedProject, string[]>;
 
-/**
- * Specifiers `IMPORT_SPECIFIER` does not carry and a dependency walk must:
- * `vi.mock("x")` (the test depends on the mocked path) and
- * `new URL("x", import.meta.url)` (a worker entry, no import specifier).
- * Local to this walk on purpose — widening the shared regex would move
- * tests between the vitest project partitions it also decides.
- */
-const EXTRA_SPECIFIER =
-    /vi\.(?:mock|doMock)\(\s*["']([^"']+)["']|new URL\(\s*["']([^"']+)["']\s*,\s*import\.meta\.url/g;
+const MOCK_SPECIFIER = /\bvi\.(?:mock|doMock)\(\s*["']([^"'\n]+)["']/g;
+
+/** A quoted file name with an extension the repo reads or spawns. */
+const FILE_LITERAL =
+    /["'`]([\w@.\/-]*?[\w-]+\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))["'`]/g;
+
+/** The node id every file-name literal of `basename` points at. */
+const nameNode = (basename: string) => `name:${basename}`;
 
 /** Module extensions a specifier may omit, and the index file it may name. */
 const MODULE_SUFFIX = /(\.(tsx?|mjs|js))?$/;
 
 /**
- * The identity a changed path and a resolved import share: repo-relative,
- * posix, without a module extension or a trailing `/index`. `./foo` imports
- * `foo.ts` whether or not `foo.ts` still exists (a deletion), and a deleted
+ * The extension-less identity of a repo-relative path: what an unresolvable
+ * specifier keys on, and what a deleted changed path is matched by. A deleted
  * `foo/index.ts` is what `./foo` named.
  */
 export function moduleKey(rel: string): string {
@@ -110,107 +122,124 @@ export function reverseReach(
     return [...reached].filter((k) => testSet.has(k)).sort();
 }
 
-/** `*.test.ts(x)` that belongs to a general project, not bot/perf/ladder. */
-const isGeneralTest = (basename: string) =>
-    /\.test\.tsx?$/.test(basename) &&
-    !/\.(bot|perf)\.test\.tsx?$/.test(basename);
+/** `*.test.ts(x)` outside the perf project. */
+const isTest = (basename: string) =>
+    /\.test\.tsx?$/.test(basename) && !/\.perf\.test\.tsx?$/.test(basename);
+const isBot = (rel: string) => /\.bot\.test\.tsx?$/.test(rel);
 
 /**
  * Every general test file with its vitest project, mirroring
- * `vitest.config.ts`: `convex/**` → `node-engine`; `scripts/**` by
- * `splitScriptsTests`; `src/**` by `splitSrcTests` (`.tsx` is always `dom`);
- * `dashboard/**` → `dom`. Repo-relative, posix.
+ * `vitest.config.ts` (pinned file by file by `test-reach.test.ts`):
+ * `convex/**\/*.test.ts` → `node-engine`; `scripts/**` by
+ * `splitScriptsTests`; `src/**` by `splitSrcTests` (`.tsx` is always `dom`),
+ * bot tests excluded; `dashboard/**` → `dom` WHOLE, bot-named files included —
+ * `BOT_GLOB_DOM` excludes `src/**` only. Repo-relative, posix.
  */
 export function generalTests(root: string): Map<string, RelatedProject> {
     const rel = (f: string) => path.relative(root, f).split(path.sep).join("/");
     const out = new Map<string, RelatedProject>();
-    for (const f of collect(path.join(root, "convex"), isGeneralTest))
-        if (f.endsWith(".test.ts")) out.set(rel(f), "node-engine");
+    for (const f of collect(path.join(root, "convex"), isTest)) {
+        const r = rel(f);
+        if (r.endsWith(".test.ts") && !isBot(r)) out.set(r, "node-engine");
+    }
     const scripts = splitScriptsTests(root);
     for (const f of scripts.engine) out.set(f, "node-engine");
     for (const f of scripts.tooling) out.set(f, "node-tooling");
     const srcNode = new Set(splitSrcTests(root).node);
-    for (const f of collect(path.join(root, "src"), isGeneralTest)) {
+    for (const f of collect(path.join(root, "src"), isTest)) {
         const r = rel(f);
-        out.set(r, srcNode.has(r) ? "node-engine" : "dom");
+        if (!isBot(r)) out.set(r, srcNode.has(r) ? "node-engine" : "dom");
     }
-    for (const f of collect(path.join(root, "dashboard"), isGeneralTest))
+    for (const f of collect(path.join(root, "dashboard"), isTest))
         out.set(rel(f), "dom");
     return out;
 }
 
 /**
- * The walk's reusable half: every general test keyed by module key, and a
- * memoised `importsOf` — each module is read once per index, however many
- * diffs ask (`check-lane.test.ts` asks dozens).
+ * The walk's reusable half: every general test with its project, and a
+ * memoised `importsOf` over repo-relative node ids — each module is read once
+ * per index, however many diffs ask (`check-lane.test.ts` asks dozens).
  */
 export interface ReachIndex {
-    root: string;
-    /** module key → [test path, project] */
-    tests: Map<string, [string, RelatedProject]>;
-    importsOf: (key: string) => readonly string[];
+    tests: Map<string, RelatedProject>;
+    importsOf: (id: string) => readonly string[];
 }
 
 export function reachIndex(
     root: string,
     tests: Map<string, RelatedProject> = generalTests(root)
 ): ReachIndex {
-    const fileOf = new Map<string, string>();
-    const keyOf = (abs: string) => {
-        const key = moduleKey(path.relative(root, abs));
-        if (!fileOf.has(key)) fileOf.set(key, abs);
-        return key;
-    };
-    const byKey = new Map<string, [string, RelatedProject]>();
-    for (const [t, project] of tests)
-        byKey.set(keyOf(path.join(root, t)), [t, project]);
-
-    const memo = new Map<string, string[]>();
-    const importsOf = (key: string): string[] => {
-        const hit = memo.get(key);
-        if (hit) return hit;
-        const deps: string[] = [];
-        memo.set(key, deps);
-        const file = fileOf.get(key);
-        if (
-            !file ||
-            !/\.(tsx?|mjs|js)$/.test(file) ||
-            !fs.existsSync(file) ||
-            !fs.statSync(file).isFile()
-        )
-            return deps;
-        const source = fs.readFileSync(file, "utf8");
-        for (const re of [IMPORT_SPECIFIER, EXTRA_SPECIFIER])
-            for (const m of source.matchAll(re)) {
-                const spec = m[1] ?? m[2] ?? m[3];
-                const resolved = spec && resolveLocal(root, file, spec);
-                if (resolved && resolved.startsWith(root + path.sep))
-                    deps.push(keyOf(resolved));
+    const fileCache = new Map<string, boolean>();
+    const isFile = (rel: string): boolean => {
+        let known = fileCache.get(rel);
+        if (known === undefined) {
+            try {
+                known = fs.statSync(path.join(root, rel)).isFile();
+            } catch {
+                known = false;
             }
-        return deps;
+            fileCache.set(rel, known);
+        }
+        return known;
     };
-    return { root, tests: byKey, importsOf };
+    const memo = new Map<string, string[]>();
+    const importsOf = (id: string): string[] => {
+        const hit = memo.get(id);
+        if (hit) return hit;
+        const deps = new Set<string>();
+        memo.set(id, []);
+        if (/\.(tsx?|mjs|js|jsx)$/.test(id) && isFile(id)) {
+            const text = fs.readFileSync(path.join(root, id), "utf8");
+            const specifiers = [
+                ...importSpecifiers(text),
+                ...[...text.matchAll(MOCK_SPECIFIER)].map((m) => m[1]),
+            ];
+            for (const spec of specifiers) {
+                const resolved = resolveSpecifier(
+                    id,
+                    spec,
+                    TEST_ALIASES,
+                    isFile
+                );
+                if (resolved !== null) deps.add(resolved);
+                else {
+                    const base = specifierBase(id, spec, TEST_ALIASES);
+                    if (base !== null) deps.add(moduleKey(base));
+                }
+            }
+            for (const m of text.matchAll(FILE_LITERAL))
+                deps.add(nameNode(path.posix.basename(m[1])));
+        }
+        const list = [...deps];
+        memo.set(id, list);
+        return list;
+    };
+    return { tests, importsOf };
 }
 
-/** The tests in `index` the `changed` (repo-relative) paths reach, per project. */
+/** The tests in `index` the `changed` (repo-relative) paths reach, per
+ *  project. A changed path seeds itself, its extension-less key (a deletion)
+ *  and its file name (a literal that names it). */
 export function relatedTests(
     index: ReachIndex,
     changed: readonly string[]
 ): RelatedTests {
+    const seeds = changed.flatMap((p) => [
+        p,
+        moduleKey(p),
+        nameNode(path.posix.basename(p)),
+    ]);
     const reached = reverseReach(
         [...index.tests.keys()],
         index.importsOf,
-        changed.map(moduleKey)
+        seeds
     );
     const out: RelatedTests = {
         "node-engine": [],
         "node-tooling": [],
         dom: [],
     };
-    for (const key of reached) {
-        const [test, project] = index.tests.get(key)!;
-        out[project].push(test);
-    }
+    for (const test of reached) out[index.tests.get(test)!].push(test);
     for (const list of Object.values(out)) list.sort();
     return out;
 }

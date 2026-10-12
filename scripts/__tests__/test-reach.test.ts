@@ -1,13 +1,18 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { globSync } from "tinyglobby";
+import vitestConfig from "../../vitest.config";
 import {
+    generalTests,
     moduleKey,
     reachIndex,
     relatedTests,
     reverseReach,
+    TEST_ALIASES,
     type ReachIndex,
+    type RelatedProject,
 } from "../lib/test-reach";
 
 /**
@@ -34,6 +39,20 @@ const FIXTURE: Record<string, string> = {
     // node-tooling: reaches nothing under convex/ or data/.
     "scripts/lib/t.ts": `export const t = 1;\n`,
     "scripts/__tests__/t.test.ts": `import { t } from "../lib/t";\n`,
+    // An index.tsx barrel, a TypeScript-ESM `.js` specifier, a `?url` query.
+    "src/comp/index.tsx": `export * from "./leaf";\n`,
+    "src/comp/leaf.ts": `export const leaf = 1;\n`,
+    "src/q/y.ts": `export * from "./z";\n`,
+    "src/q/z.ts": `export const z = 1;\n`,
+    "src/assets/pool.json": `{}\n`,
+    "src/__tests__/barrel.test.tsx": `import { leaf } from "../comp";\nimport { z } from "../q/y.js";\nimport url from "../assets/pool.json?url";\n`,
+    // A reader that opens its input through fs, by file name.
+    "data/idx.json": `{}\n`,
+    "scripts/lib/reads-idx.ts": `export const p = ["data", "idx.json"].join("/");\n`,
+    "scripts/__tests__/reader.test.ts": `import { p } from "../lib/reads-idx";\n`,
+    // A tooling test that spawns a script by path.
+    "scripts/spawned.ts": `console.log(1);\n`,
+    "scripts/__tests__/spawns.test.ts": `const S = ["..", "spawned.ts"];\n`,
 };
 
 let root: string;
@@ -108,6 +127,74 @@ describe("test-reach — the tests a diff reaches through the import graph (issu
         expect(
             relatedTests(index, ["convex/x/a.ts"])["node-engine"]
         ).not.toContain("convex/__tests__/three.bot.test.ts");
+    });
+});
+
+describe("test-reach — the edges a plain import walk misses (issue #5464 review)", () => {
+    it("follows an index.tsx barrel, a .js specifier naming a .ts file, and drops a ?url query", () => {
+        for (const changed of [
+            "src/comp/leaf.ts",
+            "src/q/z.ts",
+            "src/assets/pool.json",
+        ])
+            expect(relatedTests(index, [changed]).dom, changed).toEqual([
+                "src/__tests__/barrel.test.tsx",
+            ]);
+    });
+
+    it("a file-name literal is an edge: an fs reader and a spawned script", () => {
+        expect(relatedTests(index, ["data/idx.json"])["node-tooling"]).toEqual([
+            "scripts/__tests__/reader.test.ts",
+        ]);
+        expect(
+            relatedTests(index, ["scripts/spawned.ts"])["node-tooling"]
+        ).toEqual(["scripts/__tests__/spawns.test.ts"]);
+    });
+});
+
+/**
+ * The project mirror (`generalTests`) against `vitest.config.ts` itself, on
+ * the LIVE tree: a test the mirror places in the wrong project is a filter
+ * that matches nothing (exit 1) or a test that silently never runs at land.
+ */
+describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)", () => {
+    const ROOT = resolve(__dirname, "../..");
+    interface Project {
+        test?: { name?: string; include?: string[]; exclude?: string[] };
+    }
+    const config = vitestConfig as {
+        resolve?: { alias?: Record<string, string> };
+        test?: { projects?: Project[] };
+    };
+
+    it("every general project's files, project by project", () => {
+        const mirror = generalTests(ROOT);
+        for (const name of ["node-engine", "node-tooling", "dom"] as const) {
+            const p = config.test!.projects!.find(
+                (x) => x.test?.name === name
+            )!;
+            const files = globSync(p.test!.include!, {
+                cwd: ROOT,
+                ignore: p.test!.exclude ?? [],
+            }).sort();
+            const mirrored = [...mirror]
+                .filter(([, proj]) => proj === (name as RelatedProject))
+                .map(([f]) => f)
+                .sort();
+            expect(mirrored, name).toEqual(files);
+        }
+    });
+
+    it("TEST_ALIASES equals resolve.alias", () => {
+        const alias = config.resolve!.alias!;
+        expect(
+            Object.fromEntries(
+                TEST_ALIASES.map(({ find, replacement }) => [
+                    String(find),
+                    resolve(ROOT, replacement),
+                ])
+            )
+        ).toEqual(alias);
     });
 });
 

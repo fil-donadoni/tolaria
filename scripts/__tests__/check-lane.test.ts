@@ -16,6 +16,7 @@ import {
     treeMoved,
     hasLintStagedStash,
     CHEAP_GUARDS,
+    WHOLE_PROJECT_AT,
     type LanePlan,
     type TreeSnapshot,
     type RunResult,
@@ -802,6 +803,30 @@ describe("check-lane — the plan object drives both lists (issue #2740)", () =>
                 const s = plan.skip.find((c) => c.id === "vitest(related)");
                 expect(s?.reason, file).toMatch(/import graph.*health/);
             }
+        });
+
+        it("past WHOLE_PROJECT_AT related files, the named projects run whole — no filter argv", () => {
+            const many = Array.from(
+                { length: WHOLE_PROJECT_AT + 1 },
+                (_, i) => `convex/t${i}.test.ts`
+            );
+            const plan = classifyLane(
+                ["convex/gre/types.ts"],
+                undefined,
+                only({ "node-engine": many })
+            );
+            expect(plan.run).toContainEqual({
+                id: "vitest(related)",
+                command: "bunx vitest run --project node-engine",
+            });
+            const atLimit = classifyLane(
+                ["convex/gre/types.ts"],
+                undefined,
+                only({ "node-engine": many.slice(1) })
+            );
+            expect(
+                atLimit.run.find((c) => c.id === "vitest(related)")!.command
+            ).toContain("'convex/t1.test.ts'");
         });
 
         it("the engine lane never asks for dom tests, even when one is related", () => {

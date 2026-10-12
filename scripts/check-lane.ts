@@ -97,8 +97,8 @@ export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
  * and why it is a static walk and not vitest's own `--changed`.
  *
  * The INDEX is memoised, never a result: `classifyLane` is called once per
- * process in production, but the walk is ~0.6–2 s and the `--plan` mode exists precisely so asking which lane a diff
- * owes costs little (ADR 0136 §1/§8).
+ * process in production, but the walk is ~1–2 s and the `--plan` mode exists
+ * precisely so asking which lane a diff owes costs little (ADR 0136 §1/§8).
  */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 let memoisedIndex: ReachIndex | null = null;
@@ -387,7 +387,9 @@ export function laneFor(classes: PathClass[]): Lane {
     if (code.every((c) => c === "skin")) return "skin";
     // CARDS NEEDS A CARD (ADR 0136 §4). `data/**` alone stays `engine`: a
     // `cr:sync`, a pick-ratings refresh or a hand-edited lockfile is read by
-    // `scripts/__tests__` and `convex/limited` guards this lane never runs.
+    // `scripts/__tests__` and `convex/limited` guards the `cards` lane never
+    // runs — `engine` reaches the ones that NAME the file (a file-name
+    // literal is an edge, `lib/test-reach.ts`) and its drift guards read it.
     if (
         code.includes("cards") &&
         code.every((c) => c === "cards" || c === "data")
@@ -563,8 +565,9 @@ export function classifyLane(
         // SCOPED BY THE IMPORT GRAPH (ADR 0154 §2): the `node` and `dom`
         // tests the diff reaches, in ONE vitest run over the projects they
         // belong to. A new `src` test file is itself in the diff, so it is
-        // planned — and a file no project selects reds as "no test files
-        // found", the class `src-test-env-split.test.ts` guards in health.
+        // planned. A test file NO project selects is in no project here
+        // either, so it is never planned: that class is
+        // `src-test-env-split.test.ts`'s, and it runs in health.
         pushRelated(
             related(files),
             ["node-engine", "node-tooling", "dom"],
@@ -680,7 +683,7 @@ export function classifyLane(
     skip.push(
         {
             id: "dom",
-            reason: "no changed code under src/** — the whole type-check and convex-cards-barrel-mock.test.ts are the backstops (#2738)",
+            reason: "no changed code under src/** — the whole type-check is the backstop (#2738); a src test the diff reaches is health's (ADR 0154 §2)",
         },
         ...HEALTH_ONLY_SKIPS
     );
@@ -801,7 +804,11 @@ const HEALTH_ONLY_SKIPS: SkippedCheck[] = [
  * hold a related test, the files as filters. Only projects with a related
  * file are named, so the filters can never match nothing in a named project
  * (vitest exits 1 on "no test files found"). Nothing related → a skip line,
- * never an empty run.
+ * never an empty run. Past `WHOLE_PROJECT_AT` related files the named
+ * projects run WHOLE, without filters: a hub edit (`gre/types.ts` relates
+ * 1116 of 1273 `node-engine` files) would otherwise put ~60 KB of filters in
+ * one `sh -c` argument — half Linux's 128 KiB `MAX_ARG_STRLEN` — to select
+ * what the bare project selects anyway.
  */
 function pushRelated(
     reach: RelatedTests,
@@ -818,11 +825,18 @@ function pushRelated(
         });
         return;
     }
+    const projectFlags = named.map((p) => `--project ${p}`).join(" ");
     run.push({
         id: "vitest(related)",
-        command: `bunx vitest run ${named.map((p) => `--project ${p}`).join(" ")} ${files.map(shellQuote).join(" ")}`,
+        command:
+            files.length > WHOLE_PROJECT_AT
+                ? `bunx vitest run ${projectFlags}`
+                : `bunx vitest run ${projectFlags} ${files.map(shellQuote).join(" ")}`,
     });
 }
+
+/** Related files past which the named projects run whole (see above). */
+export const WHOLE_PROJECT_AT = 400;
 
 /**
  * Prose in a code lane (ADR 0136 §3): the run list ENDS with the docs lane's
