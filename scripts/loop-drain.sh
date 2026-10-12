@@ -377,13 +377,18 @@ busy_issues() {
     return 0
 }
 
-# A pass is over when its job says so (`done`) or is gone without saying it.
+# A pass is over when its job says so (`done`) or is gone without saying it —
+# gone includes a zombie: a job killed before it wrote `done` and not yet
+# reaped answers `kill -0` (dash reaps only on `wait`).
 lane_over() {
     [ -f "$LANE_DIR/$1/done" ] && return 0
     _p=$(lane_get "$1" pid)
     is_uint "$_p" || return 1
-    kill -0 "$_p" 2>/dev/null && return 1
-    return 0
+    kill -0 "$_p" 2>/dev/null || return 0
+    case "$(ps -o stat= -p "$_p" 2>/dev/null)" in
+        *Z*) return 0 ;;
+    esac
+    return 1
 }
 
 # A pass in a background job ignores the terminal's SIGINT (POSIX: an
@@ -400,8 +405,12 @@ stop_lanes() {
     done
     return 0
 }
-trap cleanup_pid_file EXIT
-trap 'stop_lanes; exit 130' INT TERM
+# A driver that ends with passes still in flight (an interrupt, or `set -e`
+# aborting it) ends them too: an orphaned pass runs on with no driver to
+# account for it, and the next driver sweeps its lane as debris. A clean end
+# has none left, so this is a no-op there.
+trap 'stop_lanes; cleanup_pid_file' EXIT
+trap 'exit 130' INT TERM
 
 # Sleep in short chunks so the stop-file kill switch is honoured DURING a
 # backoff, not only between passes — a 15-minute backoff that ignores the kill
@@ -870,8 +879,9 @@ LANES_SEEN=0
 
 # How many passes may be alive now. One lane asks nobody. Above it, the
 # machine admission (`bun scripts/machine.ts lanes`, `laneCap`): the RAM's
-# effective cap under `sessions.cap` and `--lanes`, one lane while load or
-# memory pressure is over its threshold. Re-asked after every pass start and
+# effective cap under `sessions.cap` and `--lanes`, each running lane charged
+# the budget it has yet to take, one lane while load or memory pressure is
+# over its threshold. Re-asked after every pass start and
 # end, and every LANE_RECHECK_SECS while nothing moves. An unreadable answer
 # is one lane — the probe may only ever hold the driver back.
 refresh_lane_target() {
@@ -888,8 +898,12 @@ refresh_lane_target() {
     LANE_PROBED_AT=$_now
     _max_arg=""
     [ "$LANES" = "auto" ] || _max_arg="--max $LANES"
+    # The running passes' own pids: a lane is charged its budget less what
+    # its tree already holds, so a pass started seconds ago still counts in
+    # full (`laneCharge`).
+    _pids=$(for _o in $(own_lanes); do lane_get "$_o" pass.pid; done | tr '\n' ',' | sed 's/,$//')
     # shellcheck disable=SC2086  # `--max N` or nothing, by design
-    _out=$(bun "$SCRIPT_DIR/machine.ts" lanes --running "$1" $_max_arg 2>/dev/null) || _out=""
+    _out=$(bun "$SCRIPT_DIR/machine.ts" lanes --running "$1" --pids "$_pids" $_max_arg 2>/dev/null) || _out=""
     _n=${_out%% *}
     if is_uint "$_n" && [ "$_n" -ge 1 ]; then
         _why=${_out#"$_n"}
@@ -930,18 +944,21 @@ refuse_start() {
     return 0
 }
 
-# `gh`'s answer to "is issue N still claimed" — `true` / `false`, empty when
-# unread. `any(...)`, never `index(...)` (falsy at position 0).
-issue_claimed() {
-    gh issue view "$1" --json labels --jq 'any(.labels[]; .name == "in-progress")' 2>/dev/null || true
+# Issue N as an overlapped pass's verdict reads it: `<state> <claimed>
+# <ready>` — e.g. `OPEN true true` — empty when unread. `any(...)`, never
+# `index(...)` (falsy at position 0).
+issue_state() {
+    gh issue view "$1" --json state,labels \
+        --jq '[.state, (any(.labels[]; .name == "in-progress") | tostring), (any(.labels[]; .name == "ready-for-agent") | tostring)] | join(" ")' 2>/dev/null || true
 }
 
 # ── start one pass in lane `$lane` (background) ─────────────────────────────
 start_pass() {
     pass=$((pass + 1))
+    # `mkdir` without `-p` is the claim: it fails on a lane another driver
+    # over this checkout (a hand-run `loop:drain`) took a moment ago.
     lane=1
-    while [ -d "$LANE_DIR/$lane" ]; do lane=$((lane + 1)); done
-    mkdir -p "$LANE_DIR/$lane"
+    until mkdir "$LANE_DIR/$lane" 2>/dev/null; do lane=$((lane + 1)); done
     lane_put "$lane" driver "$$"
     # OVERLAP: a pass that ran beside another cannot read its outcome off the
     # queue-wide counts — another lane's landing would move them. It is read
@@ -964,6 +981,11 @@ start_pass() {
     pass_log="$LOG_DIR/pass-${pass}-lane-${lane}-${epoch}.log"
     lane_put "$lane" pass "$pass"
     lane_put "$lane" issue "$RESOLVED_ISSUE"
+    # A resume or repair pick starts on an issue already claimed (its dead
+    # pass's claim): an overlapped pass's claims-held reading starts there.
+    _claimed_before=0
+    [ -z "$RESOLVED_RESUME" ] || _claimed_before=1
+    lane_put "$lane" claimed_before "$_claimed_before"
     lane_put "$lane" model "$RESOLVED_MODEL"
     lane_put "$lane" session "$pass_session"
     lane_put "$lane" epoch "$epoch"
@@ -1004,7 +1026,9 @@ start_pass() {
     else
         pass_lease="loop-pass-$$-$pass-$(date +%s)"
         # The pass runs as a background JOB so other lanes can run beside it;
-        # with one lane the driver `wait`s on it straight away. A pipeline's
+        # with one lane the driver `wait`s on it straight away. Its output goes
+        # to the terminal only with one lane: several would interleave
+        # untagged lines under each other's headers — the pass log keeps it. A pipeline's
         # exit status in POSIX sh is the LAST command's (tee), not claude's —
         # claude's real exit code goes to the lane's rc file (no PIPESTATUS in
         # POSIX sh). `done` is the job's last act: the pass is over.
@@ -1056,7 +1080,7 @@ start_pass() {
                     lease "$LEASE_CLI" "$pass_lease" "$pass_prompt" "$LANE_DIR/$lane/pass.pid" \
                     claude $pass_model_arg --session-id "$pass_session" -p "$pass_prompt" $CLAUDE_ARGS 2>&1
                 echo $? >"$rc_file"
-            ) | tee "$pass_log"
+            ) | if [ "$LANES" = "1" ]; then tee "$pass_log"; else cat >"$pass_log"; fi
             bun "$LEASE_CLI" clear "$pass_lease" >/dev/null 2>&1 || true
             : >"$done_file"
         ) &
@@ -1084,6 +1108,7 @@ finish_lane() {
     pr_before=$(lane_get "$_k" pr_before)
     pr_before_ok=$(lane_get "$_k" pr_before_ok)
     overlap=$(lane_get "$_k" overlap)
+    claimed_before=$(lane_get "$_k" claimed_before)
     claude_exit=$(lane_get "$_k" rc)
     # If the job died before it could write its rc (killed, crashed before
     # `echo $?` ran), default to a generic non-zero code rather than leaving
@@ -1121,6 +1146,16 @@ finish_lane() {
     # A pass ends at push + `ready-to-land` (issue #5469): the PR it handed
     # off is its progress, and the summary reports the PR, not a landing.
     pr_progress=0
+    # An overlapped pass's own issue: closed, or out of the queue, is its
+    # landing (a docs PR on another branch, "already fixed" closed by hand).
+    _own_state=""
+    if [ "$overlap" = "1" ] && [ -n "$lissue" ]; then
+        _own_state=$(issue_state "$lissue")
+        case "$_own_state" in
+            "" | "OPEN "*" true") ;;
+            *) pr_progress=1 ;;
+        esac
+    fi
     if [ "$pr_before_ok" = "1" ]; then
         pr_after=$(handed_off_pr "$lissue" 2>/dev/null) || pr_after=""
         if is_uint "$pr_after" && [ "$pr_after" != "$pr_before" ]; then
@@ -1207,14 +1242,18 @@ finish_lane() {
         #
         # A pass that ran BESIDE another lane (issue #5486) has no such
         # window of its own: the other lane's claims and landings move the
-        # very counts. Its progress is its own hand-off alone, and its claim
-        # is its own issue's label — before = unclaimed (the pre-flight only
-        # hands out unclaimed work), after = what the label says now — fed
-        # to the same verdict engine.
+        # very counts. Its progress is its own issue's — a hand-off, or the
+        # issue closed or out of the queue (above) — and its claim is its own
+        # issue's label: before = unclaimed, or claimed for a resume/repair
+        # pick; after = what the label says now — fed to the same verdict
+        # engine.
         claims_held_now=0
         if [ "$overlap" = "1" ]; then
-            if [ -n "$lissue" ] && [ "$(issue_claimed "$lissue")" = "true" ] &&
-                [ "$(claims_held_check 0 1 0)" = "true" ]; then
+            _claimed_after=0
+            case "$_own_state" in
+                "OPEN true "*) _claimed_after=1 ;;
+            esac
+            if [ "$(claims_held_check "${claimed_before:-0}" "$_claimed_after" 0)" = "true" ]; then
                 claims_held_now=1
             fi
         else

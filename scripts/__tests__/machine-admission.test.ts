@@ -6,6 +6,7 @@ import {
     effectiveCap,
     gateAdmission,
     laneCap,
+    laneCharge,
     liveProjectSessions,
     machineWaitRow,
     memorySaturation,
@@ -416,6 +417,47 @@ describe("lane cap — the AFK driver's concurrent passes (issue #5486)", () => 
 
     it("never below one: a full machine still runs the lane that drains the queue", () => {
         expect(lanes({ reclaimableMb: 0 }).lanes).toBe(1);
+    });
+
+    it("an unread RAM reading is one lane, never the ceiling — the probe only ever holds the driver back", () => {
+        expect(lanes({ reclaimableMb: null }, 2)).toEqual({
+            lanes: 1,
+            reasons: ["reclaimable RAM unread"],
+        });
+    });
+
+    it("a lane that has not grown yet still owes its budget: RAM for two holds two, however soon the probe is re-read", () => {
+        // One lane started seconds ago: the reading has not moved.
+        const d = laneCap({
+            cap: 5,
+            max: null,
+            running: 1,
+            pendingMb: 2500,
+            sample: { ...calm, reclaimableMb: 2 * 2500 + 100 },
+            thresholds: T,
+        });
+        expect(d.lanes).toBe(2);
+        expect(d.reasons.join()).toMatch(/2500 MB owed to running lanes/);
+    });
+
+    it("laneCharge: budget less the pass tree's resident memory, a full budget for an unknown pid, nothing past the budget", () => {
+        const rows = parseProcRows(
+            [
+                "  100     1   01:00 1024000 claude",
+                "  101   100   00:30  512000 node",
+                "  200     1   01:00 4096000 claude",
+            ].join("\n")
+        );
+        // 100's tree: 1500 MB of 2500 → owes 1000; 200 is past its budget →
+        // 0; a third lane with no pid yet → 2500.
+        expect(
+            laneCharge({
+                running: 3,
+                pids: [100, 200],
+                rows,
+                sessionBudgetMb: 2500,
+            })
+        ).toBe(3500);
     });
 });
 

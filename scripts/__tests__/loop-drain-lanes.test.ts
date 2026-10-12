@@ -1,10 +1,10 @@
 // The driver's lanes (issue #5486): `loop-drain.sh --lanes N|auto` keeps up
 // to the machine's effective cap of passes alive at once, re-reading the
 // admission (`bun scripts/machine.ts lanes`, fed a fake probe through
-// `TOLARIA_MACHINE_PROBE`) before every start. The probe is a MACHINE, not a
-// constant: its reclaimable RAM is the total less what the running lanes use
-// (`--running N` × `sessionBudgetMb`), as a real one's is once a pass is at
-// work — `laneCap` counts the running lanes as sessions already placed. The
+// `TOLARIA_MACHINE_PROBE`) before every start. The fake probe is static, as
+// a real reading is in the seconds after a pass starts: each running lane is
+// charged the budget it has yet to take (`laneCharge` — under an injected
+// probe no process table is read, so all of it). The
 // `claude` stub records a
 // `start`/`end` event per pass, so the concurrency the driver actually ran is
 // replayed off the event file, never inferred from timing.
@@ -43,7 +43,7 @@ const events = () => path.join(tmp, "events");
 
 /** A plan whose batch is `numbers`, in order — the driver asks for one more
  *  item per running lane, and must skip the ones its lanes already hold. */
-const stubBunPlan = (numbers: number[], totalRamMb?: number): void => {
+const stubBunPlan = (numbers: number[]): void => {
     const plan = JSON.stringify({
         version: 1,
         lane: "engine",
@@ -69,19 +69,6 @@ const stubBunPlan = (numbers: number[], totalRamMb?: number): void => {
             `  *loop-doctor.ts*) exit 0 ;;`,
             `esac`,
             CONVEX_ENSURE_UP,
-            ...(totalRamMb === undefined
-                ? []
-                : [
-                      `case "$*" in`,
-                      `  *"machine.ts lanes"*)`,
-                      `    running=$(printf '%s' "$*" | sed -n 's/.*--running \\([0-9][0-9]*\\).*/\\1/p')`,
-                      `    left=$((${totalRamMb} - running * ${BUDGET_MB}))`,
-                      `    [ "$left" -ge 0 ] || left=0`,
-                      `    TOLARIA_MACHINE_PROBE=$(printf '%s' "$TOLARIA_MACHINE_PROBE" | sed "s/}$/,\\"reclaimableMb\\":$left}/")`,
-                      `    export TOLARIA_MACHINE_PROBE`,
-                      `    exec "${REAL_BUN}" "$@" ;;`,
-                      `esac`,
-                  ]),
             `if [ "$1" = "run" ] && [ "$2" = "queue:plan" ]; then`,
             `  cat <<'PLANEOF'`,
             plan,
@@ -98,7 +85,8 @@ const stubBunPlan = (numbers: number[], totalRamMb?: number): void => {
 
 /** `gh`: a steady queue of 9; `pr list --head feat/issue-N` answers the PR a
  *  pass handed off (the `handed-N` file the `claude` stub writes); `issue
- *  view` answers whether the issue is still claimed (`claimed` file). */
+ *  view` answers `<state> <claimed> true` (`state` file, default OPEN;
+ *  `claimed` file, default false). */
 const stubGh = (): void => {
     writeStub(
         "gh",
@@ -108,7 +96,7 @@ const stubGh = (): void => {
             `    n=$(printf '%s' "$*" | sed -n 's/.*--head [a-z]*\\/issue-\\([0-9][0-9]*\\).*/\\1/p')`,
             `    cat "${tmp}/handed-$n" 2>/dev/null`,
             `    exit 0 ;;`,
-            `  *"issue view"*) cat "${tmp}/claimed" 2>/dev/null || echo false; exit 0 ;;`,
+            `  *"issue view"*) echo "$(cat "${tmp}/state" 2>/dev/null || echo OPEN) $(cat "${tmp}/claimed" 2>/dev/null || echo false) true"; exit 0 ;;`,
             `  *) echo 9 ;;`,
             `esac`,
         ].join("\n")
@@ -125,6 +113,7 @@ const stubClaude = (body = "sleep 2", handOff = true): void => {
         [
             `issue=$(printf '%s' "$*" | sed -n 's/.*\\/next-ticket \\([0-9][0-9]*\\).*/\\1/p')`,
             `echo "start $issue" >> "${events()}"`,
+            `echo "pass body of $issue"`,
             body,
             handOff
                 ? `echo $((5000 + issue * 10 + $(grep -c "start $issue" "${events()}"))) > "${tmp}/handed-$issue"`
@@ -180,11 +169,12 @@ const reasons = () => logLines().map((l) => l.split(" ").pop());
 describe("loop-drain lanes — how many at once (issue #5486)", () => {
     it("RAM for 2 → two passes run at once, never three; max-passes is shared", () => {
         stubGh();
-        stubBunPlan([101, 102, 103, 104, 105], ramFor(2));
+        stubBunPlan([101, 102, 103, 104, 105]);
         stubClaude();
         const r = runLanes(["--lanes", "auto", "--max-passes", "4"], {
             load1: 1,
             pressure: 1,
+            reclaimableMb: ramFor(2),
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         const seen = replay();
@@ -205,6 +195,19 @@ describe("loop-drain lanes — how many at once (issue #5486)", () => {
             /loop-drain\[pass\]: pass 2 — lane 2 — issue #102 on tier sonnet\./
         );
         expect(r.stderr).toMatch(/loop-drain\[end\]: pass=\d lane=[12] /);
+        // Two lanes' untagged output would interleave on the terminal: it
+        // stays in each pass's own log.
+        expect(r.stdout).not.toMatch(/pass body of/);
+        const logDir = path.join(tmp, ".claude", "telemetry", "loop-drain");
+        expect(
+            fs.readFileSync(
+                path.join(
+                    logDir,
+                    logs.find((f) => f.startsWith("pass-2-lane-2-"))!
+                ),
+                "utf8"
+            )
+        ).toMatch(/pass body of 102/);
         // Nothing is left in flight.
         expect(
             fs.readdirSync(path.join(tmp, ".claude", "telemetry", "loop-lanes"))
@@ -311,6 +314,21 @@ describe("loop-drain lanes — one account, one run (issue #5486)", () => {
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
         expect(replay().peak).toBe(2);
         expect(reasons()).toEqual(["claims-held-retry", "claims-held-retry"]);
+    });
+
+    it("…closed with no hand-off (a docs PR, closed by hand) = progress", () => {
+        stubGh();
+        stubBunPlan([101, 102, 103, 104, 105]);
+        stubClaude("sleep 2", false);
+        fs.writeFileSync(path.join(tmp, "state"), "CLOSED\n");
+        fs.writeFileSync(path.join(tmp, "claimed"), "true\n");
+        const r = runLanes(["--lanes", "auto", "--max-passes", "2"], {
+            load1: 1,
+            pressure: 1,
+            reclaimableMb: ramFor(5),
+        });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(reasons()).toEqual(["-", "-"]);
     });
 
     it("…and released with no hand-off = no progress, which stops the run as it always did", () => {

@@ -21,11 +21,13 @@ import {
     admitSessionNow,
     consumerLines,
     laneCap,
+    laneCharge,
     memorySaturation,
     parseProcRows,
     readConsumers,
     readMachineConfig,
     readMachineSample,
+    probeInjected,
     readSessionCensus,
     sampleLine,
     saturation,
@@ -179,9 +181,11 @@ async function measure(argv: string[]): Promise<number> {
     return code;
 }
 
-/** `machine lanes --running N [--max N]` — the AFK driver's lane count
- *  (issue #5486), one line: `<lanes> <why below the ceiling, or nothing>`.
- *  Exit 2 on a malformed flag; the driver reads any failure as one lane. */
+/** `machine lanes --running N [--max N] [--pids a,b]` — the AFK driver's lane
+ *  count (issue #5486), one line: `<lanes> <why below the ceiling, or
+ *  nothing>`. `--pids` are the running passes' own pids: each lane is charged
+ *  its budget less what its tree holds (`laneCharge`). Exit 2 on a malformed
+ *  flag; the driver reads any failure as one lane. */
 function lanes(args: string[]): number {
     const flag = (name: string): number | null | undefined => {
         const i = args.indexOf(`--${name}`);
@@ -197,12 +201,36 @@ function lanes(args: string[]): number {
         );
         return 2;
     }
+    const i = args.indexOf("--pids");
+    const pids =
+        i < 0
+            ? []
+            : (args[i + 1] ?? "")
+                  .split(",")
+                  .filter((p) => /^\d+$/.test(p))
+                  .map(Number);
+    const thresholds = readMachineConfig();
+    // Under an injected probe no process table is read: every lane owes its
+    // whole budget, as a pass that has not started working does.
+    const ps = probeInjected()
+        ? null
+        : spawnSync("ps", ["-axo", "pid=,ppid=,etime=,rss=,comm="], {
+              encoding: "utf8",
+              timeout: 5000,
+          });
+    const rows = ps?.status === 0 ? parseProcRows(ps.stdout) : [];
     const decision = laneCap({
         cap: sessionCap(),
         max,
         running: running ?? 0,
+        pendingMb: laneCharge({
+            running: running ?? 0,
+            pids,
+            rows,
+            sessionBudgetMb: thresholds.sessionBudgetMb,
+        }),
         sample: sustainedSample(() => readMachineSample()),
-        thresholds: readMachineConfig(),
+        thresholds,
     });
     console.log(`${decision.lanes} ${decision.reasons.join("; ")}`.trimEnd());
     return 0;
