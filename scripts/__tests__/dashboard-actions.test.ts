@@ -58,7 +58,9 @@ function installTokenMeta(token: string): void {
  * in any checkout holding `.claude/telemetry/telemetry.db` and green in the
  * throwaway worktree health runs in. Pinning the project dir to a fixture
  * that HAS the file makes that condition the same everywhere — the store
- * must only ever be opened by a DB-backed route, never by the import.
+ * must only ever be opened by a DB-backed route, never by the import. The
+ * fixture is an EMPTY file and is never queried: `/api/action` reads no DB.
+ * A case added here against a DB-backed route needs a real store, under Bun.
  */
 let projectDir: string;
 beforeEach(() => {
