@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { postAction } from "../../dashboard/lib/actions";
 
 /**
@@ -48,10 +51,30 @@ function installTokenMeta(token: string): void {
     };
 }
 
+/**
+ * Every case imports `telemetry-serve` with a telemetry store PRESENT in its
+ * project dir (issue #5529). The module used to open the store at import, and
+ * `bun:sqlite` does not exist under vitest's Node runtime: this file was red
+ * in any checkout holding `.claude/telemetry/telemetry.db` and green in the
+ * throwaway worktree health runs in. Pinning the project dir to a fixture
+ * that HAS the file makes that condition the same everywhere — the store
+ * must only ever be opened by a DB-backed route, never by the import.
+ */
+let projectDir: string;
+beforeEach(() => {
+    projectDir = mkdtempSync(join(tmpdir(), "dashboard-actions-"));
+    mkdirSync(join(projectDir, ".claude/telemetry"), { recursive: true });
+    writeFileSync(join(projectDir, ".claude/telemetry/telemetry.db"), "");
+    vi.stubEnv("CLAUDE_PROJECT_DIR", projectDir);
+    vi.resetModules();
+});
+
 afterEach(() => {
     delete g.document;
     delete g.fetch;
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+    rmSync(projectDir, { recursive: true, force: true });
 });
 
 describe("/api/action — the client's own request is accepted by the real server route", () => {
