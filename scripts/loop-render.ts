@@ -19,7 +19,8 @@
 // this wrapper's too: drawn only when rendering (so only on a TTY), erased
 // before every real line and redrawn after it, ticked every second, its
 // transcript read (`scripts/lib/pass-activity.ts`) refreshed every
-// `ACTIVITY_REFRESH_MS`. It is written to stdout and nowhere else — it has no
+// `ACTIVITY_REFRESH_MS`. It is one row per pass in flight — a block of rows
+// on a multi-lane run (issue #5546), each with its own transcript reader. It is written to stdout and nowhere else — it has no
 // path into `loop-afk.log`, which `tee` wrote before this process started.
 //
 // `TOLARIA_LOOP_RENDER_TTY=1` renders as if stdout were a terminal — the one
@@ -39,7 +40,7 @@ import {
 } from "./lib/loop-render";
 import {
     INITIAL_STATUS_LINE_STATE,
-    formatStatusLine,
+    formatStatusLines,
     observeStatusLine,
 } from "./lib/loop-status-line";
 import {
@@ -53,6 +54,8 @@ const DEFAULT_TICK_MS = 1000;
 const ACTIVITY_REFRESH_MS = 2000;
 /** Erase the current terminal row and return to its first column. */
 const ERASE_LINE = "\r\x1b[2K";
+/** Move up one row and erase it. */
+const ERASE_ROW_ABOVE = "\x1b[1A\x1b[2K";
 
 /** `https://<host>/<owner>/<repo>` from a remote URL, whichever form git
  * hands back (`git@host:owner/repo.git`, `https://host/owner/repo.git`,
@@ -117,54 +120,82 @@ function main(): void {
     const tickMs =
         Number(process.env.TOLARIA_LOOP_STATUS_TICK_MS) || DEFAULT_TICK_MS;
     let status = INITIAL_STATUS_LINE_STATE;
-    let statusShown = false;
+    /** Rows of the status block on screen; the cursor sits on the last. */
+    let statusRows = 0;
     let frame = 0;
-    let reader: PassActivityReader | null = null;
-    let readerSession: string | null = null;
-    let activity: PassActivity | null = null;
-    let lastActivityMs = 0;
+    interface SessionActivity {
+        reader: PassActivityReader;
+        activity: PassActivity | null;
+        lastMs: number;
+    }
+    const sessions = new Map<string, SessionActivity>();
     const refreshActivity = (nowMs: number): void => {
-        const session = status.current?.session ?? null;
-        if (session !== readerSession) {
-            readerSession = session;
-            reader = session
-                ? new PassActivityReader({ projectsRoot, projectSlug, session })
-                : null;
-            activity = null;
-            lastActivityMs = 0;
-        }
-        if (!reader || nowMs - lastActivityMs < ACTIVITY_REFRESH_MS) return;
-        lastActivityMs = nowMs;
-        try {
-            activity = reader.refresh();
-        } catch {
-            // A transcript we cannot read is level A, never a dead renderer.
-            activity = null;
+        const live = new Set(
+            status.inFlight.flatMap((q) => (q.session ? [q.session] : []))
+        );
+        for (const session of sessions.keys())
+            if (!live.has(session)) sessions.delete(session);
+        for (const session of live) {
+            let entry = sessions.get(session);
+            if (!entry) {
+                entry = {
+                    reader: new PassActivityReader({
+                        projectsRoot,
+                        projectSlug,
+                        session,
+                    }),
+                    activity: null,
+                    lastMs: 0,
+                };
+                sessions.set(session, entry);
+            }
+            if (nowMs - entry.lastMs < ACTIVITY_REFRESH_MS) continue;
+            entry.lastMs = nowMs;
+            try {
+                entry.activity = entry.reader.refresh();
+            } catch {
+                // A transcript we cannot read is level A, never a dead renderer.
+                entry.activity = null;
+            }
         }
     };
+    const eraseStatus = (): string =>
+        statusRows === 0
+            ? ""
+            : ERASE_LINE + ERASE_ROW_ABOVE.repeat(statusRows - 1);
     const clearStatus = (): void => {
-        if (!statusShown) return;
-        process.stdout.write(ERASE_LINE);
-        statusShown = false;
+        if (statusRows === 0) return;
+        process.stdout.write(eraseStatus());
+        statusRows = 0;
     };
     const drawStatus = (): void => {
         if (degraded) return;
         try {
             const nowMs = Date.now();
             refreshActivity(nowMs);
-            const line = formatStatusLine(status, activity, nowMs, frame, env);
-            if (line === null) return clearStatus();
-            process.stdout.write(`${ERASE_LINE}${line}`);
-            statusShown = true;
+            const rows = formatStatusLines(
+                status,
+                (session) =>
+                    (session && sessions.get(session)?.activity) ?? null,
+                nowMs,
+                frame,
+                env
+            );
+            if (rows.length === 0) return clearStatus();
+            // One write: erase the old block, draw the new one, cursor left
+            // on its last row (no trailing newline), so the next erase walks
+            // back up exactly `rows.length - 1` rows.
+            process.stdout.write(eraseStatus() + ERASE_LINE + rows.join("\n"));
+            statusRows = rows.length;
         } catch {
             clearStatus();
         }
     };
-    // Any other way out (an uncaught throw, EPIPE) must not leave the line
+    // Any other way out (an uncaught throw, EPIPE) must not leave the block
     // drawn: `render_stream`'s fallback `cat` would append onto that row.
     // `exit` handlers run synchronously, and so does this write.
     process.on("exit", () => {
-        if (statusShown) process.stdout.write(ERASE_LINE);
+        if (statusRows > 0) process.stdout.write(eraseStatus());
     });
     const ticker = degraded
         ? null
