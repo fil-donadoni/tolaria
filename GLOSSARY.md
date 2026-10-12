@@ -1096,7 +1096,7 @@ The one process that merges into the base branch, on the MacBook only: it lands 
 _Avoid_: Merge train (the retired multi-PR orchestrator), merge bot, lander, auto-merge (GitHub's feature, which gates nothing)
 
 **Health runner**:
-Batch health on the one machine `healthRunner.platform` names (the Huawei): a systemd timer runs a cadence tick every few minutes (`bun run health:runner`), which rebuilds the cadence rule from the shared verdict store and the base branch's history — no ledger crosses machines — and on a fire runs the full health gate and writes its verdict. It never claims, lands or seeds. On every other machine `land`'s cadence becomes the stale-verdict fallback: one local health run, and a notification, when a due batch finds no verdict younger than `MAX_PENDING`.
+Batch health on the one machine `healthRunner.platform` names (the Huawei): a systemd timer runs a cadence tick every few minutes (`bun run health:runner`), which rebuilds the cadence rule from the shared verdict store and the base branch's history — no ledger crosses machines — and on a fire runs the full health gate and writes its verdict. It never claims, lands or seeds. On every other machine `land`'s cadence becomes the stale-verdict fallback: one local health run, and a notification, when a batch has been due for `MAX_PENDING` with no GREEN or RED written since.
 _Avoid_: Health cron (it is a cadence, not a schedule), CI, health bot
 
 **Residue**:

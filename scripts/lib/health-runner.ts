@@ -84,7 +84,15 @@ export function runnerTick(
     deps: RunnerDeps,
     opts: { dryRun?: boolean } = {}
 ): TickResult {
-    const tip = deps.fetchTip();
+    let tip: string;
+    try {
+        tip = deps.fetchTip();
+    } catch (err) {
+        deps.log(
+            `health-runner: holding — the base cannot be fetched: ${String(err)}`
+        );
+        return { plan: null, code: 0 };
+    }
     const lineage = readVerdictLineage(deps.store);
     if (lineage.error !== undefined) {
         deps.log(

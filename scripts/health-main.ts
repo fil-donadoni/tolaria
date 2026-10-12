@@ -889,12 +889,17 @@ async function main(): Promise<void> {
         return;
     }
     // Only the cadence's waiter runs `--under-lock`; by hand, a RED or INFRA
-    // tip is re-gated on purpose (issue #4960).
+    // tip is re-gated on purpose (issue #4960). The health runner's waiter
+    // passes `--retry-infra` (issue #5467): it re-fires only past its own
+    // dedup, and an INFRA tip proves nothing — skipping it would leave the
+    // tip unproven until the next landing.
+    const retryInfra =
+        process.argv.includes("--retry-infra") && last?.status === "infra";
     const skip = gateSkipReason({
         last,
         tip,
         now: Date.now(),
-        retryTerminal: !underLock,
+        retryTerminal: !underLock || retryInfra,
         staleMs: STALE_RUNNING_MS,
     });
     if (skip !== null) {

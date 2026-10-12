@@ -330,7 +330,12 @@ systemd timer starts every 5 minutes. Each tick:
    offline gates in its own throwaway worktree, then the walk if one is owed.
    `health-main` writes the verdict through the store.
 
-No ledger file crosses machines and nothing uses ssh. The runner never
+No ledger file crosses machines and nothing uses ssh. A repair is fired at
+once only when it is PROVED: `land` writes AMBER to the store when the
+repair's lane ran the failing tests. A repair declared with `--repair` or by
+closing a `/health-fix` issue, with no proof, leaves nothing in the store, so
+the runner gates it with the next batch (20 landings or 8 h). Run `bun run
+health` on the Huawei to confirm it sooner. The runner never
 claims, lands, seeds a scenario or opens a `health:fix` issue. On a
 [second RED](#g-second-red) it stops gating and notifies the owner once.
 
@@ -391,8 +396,8 @@ The installed service runs exactly
 `ExecStart=<mise> exec -- bun scripts/health-runner.ts` in `WorkingDirectory=<primary checkout>`.
 It carries its own `KillMode=control-group` and [unit tag](#g-unit), so it
 needs no [`tolaria-unit.conf`](../../scripts/runner-units/tolaria-unit.conf)
-drop-in. `TimeoutStartSec=6h` is `MAX_PENDING_MS`: past it, the MacBook has
-already run its own fallback. To remove it, run
+drop-in. `TimeoutStartSec=6h` matches `MAX_PENDING_MS`: a batch that has gone
+unanswered that long is the MacBook's to gate anyway. To remove it, run
 `systemctl --user disable --now tolaria-health.timer` and delete both files.
 
 ### Prove it
@@ -411,15 +416,15 @@ gh api "repos/{owner}/{repo}/commits/$(git rev-parse origin/staging)/statuses" -
 
 ### Recovery
 
-| Symptom                                                          | Cause and fix                                                                                                                                                                                                          |
-| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stopped — SECOND RED …` on every tick                           | By design. A proved repair (`land` writes AMBER) or a GREEN by hand (`bun run health` on the Huawei) ends it. To get the notification again, delete `notifiedSecondRed` from `runner.json`                             |
-| `holding — the verdict store is unreadable`                      | `gh` cannot reach GitHub or is logged out. Run `gh auth status`. The tick gates nothing until the store reads                                                                                                          |
-| `holding — health already started for tip …` and no run is going | A run died without a verdict (reboot, OOM). The dedup expires after 90 minutes. To re-fire sooner, delete `lastFire` from `runner.json`                                                                                |
-| Verdicts are `infra` at `preflight:convex`                       | The deployment is down: see [Convex on the Huawei § Prove it](#prove-it-1)                                                                                                                                             |
-| Verdicts are `infra` at `preflight:machine`                      | PSI stayed over the cut-off past `machine.waitMaxS`. Run `bun run machine` and find the load                                                                                                                           |
-| The MacBook notifies "health runner silent"                      | No verdict was newer than 6 h on a due batch. Check `systemctl --user status tolaria-health.timer` and `journalctl --user -u tolaria-health.service` on the Huawei. The MacBook's own run has already gated that batch |
-| `nothing to do` on the Huawei                                    | `healthRunner.platform` is absent or names another platform in the primary checkout's `tolaria.config.json`. Pull the base                                                                                             |
+| Symptom                                                          | Cause and fix                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stopped — SECOND RED …` on every tick                           | By design. A proved repair (`land` writes AMBER) or a GREEN by hand (`bun run health` on the Huawei) ends it. To get the notification again, delete `notifiedSecondRed` from `runner.json`                                                                    |
+| `holding — the verdict store is unreadable`                      | `gh` cannot reach GitHub or is logged out. Run `gh auth status`. The tick gates nothing until the store reads                                                                                                                                                 |
+| `holding — health already started for tip …` and no run is going | A run died without a verdict (reboot, OOM). The dedup expires after 90 minutes. To re-fire sooner, delete `lastFire` from `runner.json`. The runner passes `--retry-infra`, so a tip left `infra` is gated again; a RED tip is not                            |
+| Verdicts are `infra` at `preflight:convex`                       | The deployment is down: see [Convex on the Huawei § Prove it](#prove-it-1)                                                                                                                                                                                    |
+| Verdicts are `infra` at `preflight:machine`                      | PSI stayed over the cut-off past `machine.waitMaxS`. Run `bun run machine` and find the load                                                                                                                                                                  |
+| The MacBook notifies "health runner silent"                      | A batch has been due for 6 h with no GREEN or RED since (an `infra` does not count). Check `systemctl --user status tolaria-health.timer` and `journalctl --user -u tolaria-health.service` on the Huawei. The MacBook's own run has already gated that batch |
+| `nothing to do` on the Huawei                                    | `healthRunner.platform` is absent or names another platform in the primary checkout's `tolaria.config.json`. Pull the base                                                                                                                                    |
 
 ## Glossary
 
@@ -433,9 +438,10 @@ and git. It gates, writes verdicts, and does nothing else.
 ### <a id="g-stale-verdict"></a>Stale-verdict fallback
 
 This is what `land`'s cadence does on the MacBook once a health runner is
-named. A batch that is due is left to the runner, unless the store's newest
-verdict is older than `MAX_PENDING_MS` (6 h). In that case the MacBook gates
-the batch locally once and notifies the owner.
+named. A batch that is due is left to the runner. If the runner writes no
+GREEN or RED within `MAX_PENDING_MS` (6 h) of the batch falling due, the
+MacBook gates that batch locally, once, and notifies the owner. It never does
+so on a [second RED](#g-second-red).
 
 ### <a id="g-second-red"></a>Second RED
 

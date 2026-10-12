@@ -18,8 +18,8 @@ ExecStart=__MISE__ exec -- bun scripts/health-runner.ts
 # variable the runner reads. A missing file is not an error.
 EnvironmentFile=-%h/.config/tolaria/runner.env
 StandardInput=null
-# A whole batch run on the Huawei, offline gates plus a walk, with room; past
-# MAX_PENDING_MS (6 h) the MacBook has already run its own fallback.
+# A whole batch run on the Huawei, offline gates plus a walk, with room. 6 h is
+# MAX_PENDING_MS: a batch unanswered that long is the MacBook's to gate.
 TimeoutStartSec=6h
 # The cgroup kill: health-main's worktree gates die with the unit.
 KillMode=control-group

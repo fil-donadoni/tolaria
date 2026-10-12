@@ -259,17 +259,26 @@ function ledger(n: number, over: Partial<CadenceState> = {}): CadenceState {
 }
 
 describe("MacBook stale-verdict fallback at the cadence seam (issue #5467)", () => {
+    // 20 landings, 5 min apart from T0: the batch is due by COUNT at the
+    // 20th, T0 + 95 min.
     const due = ledger(LANDINGS_PER_BATCH);
     const tip = sha(LANDINGS_PER_BATCH);
-    const now = T0 + 3 * HOUR;
+    const dueAt = T0 + 95 * MIN;
+    const decide = (
+        history: Verdict[] | (() => never),
+        over: { state?: CadenceState; now?: number; tip?: string } = {}
+    ) =>
+        remoteCadenceDecision({
+            state: over.state ?? due,
+            tip: over.tip ?? tip,
+            now: over.now ?? dueAt + MAX_PENDING_MS,
+            red: false,
+            readLineage: () => fakeStore(history).lineage(),
+        });
 
-    it("holds a due batch while the runner's newest verdict is fresh", () => {
-        const store = fakeStore([red("a".repeat(40), now - HOUR)]);
-        const { verdict } = remoteCadenceDecision({
-            state: due,
-            tip,
-            now,
-            readLatest: () => store.latest(),
+    it("holds a due batch while the runner still has time to answer it", () => {
+        const { verdict } = decide([green(BASE, T0 - 9 * HOUR)], {
+            now: dueAt + MAX_PENDING_MS - MIN,
         });
         expect(verdict).toMatchObject({
             kind: "hold",
@@ -277,51 +286,95 @@ describe("MacBook stale-verdict fallback at the cadence seam (issue #5467)", () 
         });
     });
 
-    it("runs ONE local health when the newest verdict is older than MAX_PENDING", () => {
-        const store = fakeStore([green(BASE, now - MAX_PENDING_MS)]);
-        const { verdict } = remoteCadenceDecision({
-            state: due,
-            tip,
-            now,
-            readLatest: () => store.latest(),
-        });
+    it("runs ONE local health when no GREEN or RED came MAX_PENDING after the batch fell due", () => {
+        const { verdict } = decide([green(BASE, T0 - HOUR)]);
         expect(verdict).toMatchObject({
             kind: "fire",
             trigger: "stale",
             sha: tip,
+            dueAt,
         });
     });
 
-    it("treats an empty store as stale", () => {
-        const { verdict } = remoteCadenceDecision({
-            state: due,
-            tip,
-            now,
-            readLatest: () => fakeStore([]).latest(),
+    it("an AGE-fired batch is not stale while the runner gates it: silence counts from the batch, not the old verdict", () => {
+        // Two landings; the oldest turns 8 h old at T0 + 8 h, so the newest
+        // verdict is ≥ 8 h old by construction — and the runner is working.
+        const ageDue = T0 + MAX_BATCH_AGE_MS;
+        const { verdict } = decide([green(BASE, T0 - HOUR)], {
+            state: ledger(2),
+            tip: sha(2),
+            now: ageDue + 30 * MIN,
         });
+        expect(verdict).toMatchObject({
+            kind: "hold",
+            reason: expect.stringContaining("owns this batch"),
+        });
+    });
+
+    it("holds once the runner answered the batch, RED included, and adopts that RED as the last fire", () => {
+        const answered = red(sha(LANDINGS_PER_BATCH), dueAt + HOUR);
+        const { verdict, state } = decide([answered]);
+        expect(verdict.kind).toBe("hold");
+        expect(state.lastFiredSha).toBe(sha(LANDINGS_PER_BATCH));
+    });
+
+    it("does not count an INFRA as an answer", () => {
+        const { verdict } = decide([
+            {
+                sha: tip,
+                status: "infra",
+                at: new Date(dueAt + HOUR).toISOString(),
+            },
+            green(BASE, T0 - HOUR),
+        ]);
+        expect(verdict).toMatchObject({ kind: "fire", trigger: "stale" });
+    });
+
+    it("runs the fallback once per batch: a second landing after it holds", () => {
+        const { verdict } = decide([green(BASE, T0 - HOUR)], {
+            state: {
+                ...ledger(LANDINGS_PER_BATCH + 1),
+                lastFiredSha: tip,
+                lastFiredAt: dueAt + MAX_PENDING_MS,
+            },
+            tip: sha(LANDINGS_PER_BATCH + 1),
+            now: dueAt + MAX_PENDING_MS + 10 * MIN,
+        });
+        expect(verdict).toMatchObject({
+            kind: "hold",
+            reason: expect.stringContaining("already started"),
+        });
+    });
+
+    it("stands down on a SECOND RED: the loop is stopped and the owner notified", () => {
+        const { verdict } = decide([
+            red("f".repeat(40), T0 - 7 * HOUR),
+            amber(sha(1)),
+            red(),
+        ]);
+        expect(verdict).toMatchObject({
+            kind: "hold",
+            reason: expect.stringContaining("SECOND RED"),
+        });
+    });
+
+    it("treats an empty store as unanswered", () => {
+        const { verdict } = decide([]);
         expect(verdict).toMatchObject({ kind: "fire", trigger: "stale" });
     });
 
     it("never calls a quiet base stale: a batch that is not due holds", () => {
-        const { verdict } = remoteCadenceDecision({
+        const { verdict } = decide([green(BASE, T0 - 3 * 24 * HOUR)], {
             state: ledger(2),
             tip: sha(2),
             now: T0 + HOUR,
-            readLatest: () =>
-                fakeStore([green(BASE, T0 - 3 * 24 * HOUR)]).latest(),
         });
         expect(verdict.kind).toBe("hold");
     });
 
     it("holds when the store cannot be read", () => {
-        const { verdict } = remoteCadenceDecision({
-            state: due,
-            tip,
-            now,
-            readLatest: () =>
-                fakeStore(() => {
-                    throw new Error("gh api graphql failed (exit 1)");
-                }).latest(),
+        const { verdict } = decide(() => {
+            throw new Error("gh api graphql failed (exit 1)");
         });
         expect(verdict).toMatchObject({
             kind: "hold",
@@ -330,15 +383,17 @@ describe("MacBook stale-verdict fallback at the cadence seam (issue #5467)", () 
     });
 
     it("adopts the runner's GREEN: the ledger prunes what it covered", () => {
-        const { verdict, state } = remoteCadenceDecision({
-            state: due,
-            tip,
-            now,
-            readLatest: () => fakeStore([green(sha(18), now - HOUR)]).latest(),
+        const { verdict, state } = decide([green(sha(18), T0 + 2 * HOUR)], {
+            now: T0 + 3 * HOUR,
         });
         expect(state.lastGreenSha).toBe(sha(18));
         expect(state.landings.map((l) => l.sha)).toEqual([sha(19), sha(20)]);
         expect(verdict.kind).toBe("hold");
+    });
+
+    it("returns the SAME state object when there is nothing to adopt — no needless write", () => {
+        const s = { ...due, lastGreenSha: BASE };
+        expect(decide([green(BASE, T0 - HOUR)], { state: s }).state).toBe(s);
     });
 });
 
@@ -426,6 +481,15 @@ describe("health runner — one tick (issue #5467)", () => {
         expect(calls.runs).toEqual([]);
         expect(calls.notes).toHaveLength(1);
         expect(calls.notes[0]).toContain("second RED");
+    });
+
+    it("a base that cannot be fetched holds: nothing runs, no crash", () => {
+        const { deps, calls } = harness({ history: [green()] });
+        deps.fetchTip = () => {
+            throw new Error("git fetch origin staging failed");
+        };
+        expect(runnerTick(deps)).toEqual({ plan: null, code: 0 });
+        expect(calls.runs).toEqual([]);
     });
 
     it("an unreadable store holds: nothing runs", () => {

@@ -82,7 +82,7 @@ import {
 import { join, resolve } from "node:path";
 import { BASE_BRANCH, CONFIG_PATH } from "./lib/branches";
 import {
-    adoptRemoteGreen,
+    adoptRemoteVerdict,
     afterFire,
     clearPending,
     describeLastDecision,
@@ -396,17 +396,17 @@ function decideAndRun(root: string, branch: string): Round {
     const remoteDecision = remote
         ? remoteCadenceDecision({
               ...trigger,
-              readLatest: () => verdictStore(root, { branch }).latest(),
+              readLineage: () => verdictStore(root, { branch }).lineage(),
           })
         : null;
     const verdict = remoteDecision?.verdict ?? healthTrigger(trigger);
     // The runner's GREEN resets this ledger too — re-applied to a fresh read,
     // like every write below.
-    if (remoteDecision?.latest)
-        writeCadence(
-            root,
-            adoptRemoteGreen(readCadence(root), remoteDecision.latest)
-        );
+    if (remoteDecision?.lineage) {
+        const fresh = readCadence(root);
+        const adopted = adoptRemoteVerdict(fresh, remoteDecision.lineage);
+        if (adopted !== fresh) writeCadence(root, adopted);
+    }
     if (verdict.kind === "fire" && verdict.trigger === "stale")
         notifyOwner(
             `health runner silent — ${verdict.reason}`,
@@ -500,7 +500,8 @@ export function runHealthGate(
     root: string,
     branch: string,
     tip: string,
-    firedAt: number
+    firedAt: number,
+    opts: { retryInfra?: boolean } = {}
 ): number | null {
     // ONE acquisition for the whole run — see the WHY at the top.
     const env: NodeJS.ProcessEnv = {
@@ -518,7 +519,7 @@ export function runHealthGate(
         [
             GATE,
             "yield",
-            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock --phase=offline`,
+            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock --phase=offline${opts.retryInfra ? " --retry-infra" : ""}`,
         ],
         { stdio: "inherit", cwd: root, env }
     );

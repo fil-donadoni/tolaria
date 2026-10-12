@@ -92,7 +92,8 @@ function realDeps(root: string, branch: string): RunnerDeps {
             writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
             renameSync(tmp, statePath);
         },
-        runHealth: (tip, firedAt) => runHealthGate(root, branch, tip, firedAt),
+        runHealth: (tip, firedAt) =>
+            runHealthGate(root, branch, tip, firedAt, { retryInfra: true }),
         notify: (message) => notifyOwner(message, "Tolaria health"),
         now: () => Date.now(),
         log: (line) => console.log(line),
