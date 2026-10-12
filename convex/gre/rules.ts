@@ -3032,6 +3032,7 @@ export function protectionSourceFromTargeting(
         colors: source.colors,
         types: source.types,
         supertypes: source.supertypes,
+        subtypes: source.subtypes,
         controllerId,
         isSpell: source.isSpell === true,
     };

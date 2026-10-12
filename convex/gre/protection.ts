@@ -57,11 +57,15 @@
 // instead of a silently inert keyword on the battlefield (the deathtouch /
 // hexproof "shipped but dead" shape, issues #957/#958).
 //
-// NOT parseable today, deliberately: a SUBTYPE quality ("protection from
-// Goblins") — this engine has no closed subtype vocabulary to fail closed
-// against, and no catalogue card needs one. It returns `null` from the parser,
-// so the catalogue guard turns it into a CI failure the moment a card wants
-// it.
+// A creature-SUBTYPE quality ("protection from Kavu", "protection from
+// Goblins" — CR 702.16a, issue #2765, Shoreline Raider) is a leg of the
+// CHARACTERISTIC family. It fails closed by CONSTRUCTION against a closed
+// vocabulary: the CR 205.3m creature-type table the Oracle grammar already
+// vendors (`CREATURE_SUBTYPES`, re-derived from the vendored CR by
+// `oracle-subtypes.test.ts`). A word in neither that table (singular or
+// regular/irregular plural) nor the card-type / supertype vocabularies
+// returns `null`, so a typo or a non-creature type can never become a
+// quality that matches nothing. The next subtype-protection card copies this.
 //
 // Consult sites — every DEBT clause of CR 702.16, server and client. The
 // trailing column is the CR 112.1 `isSpell` each site states (issue #2296);
@@ -102,6 +106,7 @@ import type { CardSupertype, CardType, Color } from "../cards/types";
 import { STATIC_EFFECT_CTX } from "./layers";
 import { hasSupertypeLive } from "../cards/snowReads";
 import { applySubstitution, textChangesOf } from "./textChanges";
+import { CREATURE_SUBTYPES } from "../oracle/grammar/shared/subtypes";
 import type { TextChangeCarrier } from "./textChanges";
 
 export {
@@ -168,6 +173,30 @@ for (const supertype of PROTECTION_SUPERTYPES) {
     QUALITY_WORD_TO_SUPERTYPE.set(supertype.toLowerCase(), supertype);
 }
 
+/** Oracle plural → the CR 205.3m creature type it names ("goblins" → Goblin,
+ *  "elves" → Elf, "zombies" → Zombie). Singular spellings win over a generated
+ *  plural, so "Fish"/"Kavu"/"Merfolk" (same in the plural) resolve to
+ *  themselves. Keys are lowercase; the value is the canonical subtype. */
+const QUALITY_WORD_TO_SUBTYPE = new Map<string, string>();
+for (const subtype of CREATURE_SUBTYPES) {
+    QUALITY_WORD_TO_SUBTYPE.set(subtype.toLowerCase(), subtype);
+}
+for (const subtype of CREATURE_SUBTYPES) {
+    const lower = subtype.toLowerCase();
+    const plurals = /(s|x|z|ch|sh)$/.test(lower)
+        ? [`${lower}es`]
+        : /[^aeiou]y$/.test(lower)
+          ? [`${lower.slice(0, -1)}ies`]
+          : /fe?$/.test(lower)
+            ? [`${lower}s`, `${lower.replace(/fe?$/, "")}ves`]
+            : [`${lower}s`];
+    for (const plural of plurals) {
+        if (!QUALITY_WORD_TO_SUBTYPE.has(plural)) {
+            QUALITY_WORD_TO_SUBTYPE.set(plural, subtype);
+        }
+    }
+}
+
 /** A parsed CR 702.16 quality. The union is the ONE place a quality family is
  *  named — every consult site reads it through `isProtectedFrom`, so a family
  *  can never be honoured at one site and dropped at another. */
@@ -177,14 +206,17 @@ export type ProtectionQuality =
     /** CR 702.16k — "each of your opponents", resolved live against the
      *  protected permanent's own controller. */
     | { kind: "each-opponent" }
-    /** CR 702.16a — card types and/or supertypes. A source matches when it has
-     *  ALL of them ("legendary creatures" = Legendary AND Creature). Never
-     *  empty: an empty characteristic quality would match every source, so the
-     *  parser rejects it. */
+    /** CR 702.16a — card types, supertypes and/or creature subtypes. A source
+     *  matches when it has ALL of them ("legendary creatures" = Legendary AND
+     *  Creature; "Kavu" = the Kavu subtype). Never empty: an empty
+     *  characteristic quality would match every source, so the parser rejects
+     *  it. */
     | {
           kind: "characteristic";
           types: readonly CardType[];
           supertypes: readonly CardSupertype[];
+          /** CR 205.3m creature types (issue #2765), canonical spelling. */
+          subtypes: readonly string[];
       }
     /** CR 702.16a — "spells that are one or more colors" (issue #2296). A
      *  CONJUNCTION of two dimensions that no other family combines: the source
@@ -212,6 +244,9 @@ export interface ProtectionSourceView {
     types: readonly CardType[];
     /** CR 205.4a — the source's live supertypes. */
     supertypes: readonly CardSupertype[];
+    /** CR 205.3 — the source's live subtypes, for the CR 702.16a subtype
+     *  quality (issue #2765). */
+    subtypes: readonly string[];
     /** CR 109.5 — the source's controller, for the CR 702.16k player quality. */
     controllerId: string | undefined;
     /** CR 112.1 / 113.3 — is this source a SPELL (a card or copy on the
@@ -304,14 +339,15 @@ export function parseProtectionFromColor(ability: string): Color | null {
 
 /** CR 702.16a — parses the CHARACTERISTIC quality phrase that follows
  *  "protection from " ("legendary creatures", "artifact creatures",
- *  "instants"). Every word must name a card type (singular or plural) or a
- *  supertype; ANY unrecognized word returns `null` (fail closed) rather than a
+ *  "instants", "Kavu"). Every word must name a card type (singular or plural),
+ *  a supertype or a CR 205.3m creature type; ANY unrecognized word returns `null` (fail closed) rather than a
  *  partially-understood quality. */
 function parseCharacteristicQuality(phrase: string): ProtectionQuality | null {
     const words = phrase.split(/\s+/).filter(Boolean);
     if (words.length === 0) return null;
     const types: CardType[] = [];
     const supertypes: CardSupertype[] = [];
+    const subtypes: string[] = [];
     for (const word of words) {
         const type = QUALITY_WORD_TO_CARD_TYPE.get(word);
         if (type) {
@@ -323,13 +359,26 @@ function parseCharacteristicQuality(phrase: string): ProtectionQuality | null {
             if (!supertypes.includes(supertype)) supertypes.push(supertype);
             continue;
         }
+        // CR 702.16a / 205.3m (issue #2765) — a creature type, closed against
+        // the vendored CR table: an unknown word still returns null below.
+        const subtype = QUALITY_WORD_TO_SUBTYPE.get(word);
+        if (subtype) {
+            if (!subtypes.includes(subtype)) subtypes.push(subtype);
+            continue;
+        }
         return null;
     }
     // An empty quality would match EVERY source — the fail-open shape this
     // parser exists to prevent. Unreachable given the word loop above, kept as
     // the explicit invariant.
-    if (types.length === 0 && supertypes.length === 0) return null;
-    return { kind: "characteristic", types, supertypes };
+    if (
+        types.length === 0 &&
+        supertypes.length === 0 &&
+        subtypes.length === 0
+    ) {
+        return null;
+    }
+    return { kind: "characteristic", types, supertypes, subtypes };
 }
 
 /** CR 702.16 — the SINGLE parser for every protection quality family. Returns
@@ -390,8 +439,10 @@ function sameQuality(a: ProtectionQuality, b: ProtectionQuality): boolean {
         return (
             a.types.length === b.types.length &&
             a.supertypes.length === b.supertypes.length &&
+            a.subtypes.length === b.subtypes.length &&
             a.types.every((t) => b.types.includes(t)) &&
-            a.supertypes.every((s) => b.supertypes.includes(s))
+            a.supertypes.every((s) => b.supertypes.includes(s)) &&
+            a.subtypes.every((s) => b.subtypes.includes(s))
         );
     }
     // Both "each-opponent", both "colored-spell", or both "everything" — none
@@ -456,7 +507,8 @@ export function isProtectedFrom(
                     quality.types.every((t) => source.types.includes(t)) &&
                     quality.supertypes.every((s) =>
                         source.supertypes.includes(s)
-                    )
+                    ) &&
+                    quality.subtypes.every((s) => source.subtypes.includes(s))
                 ) {
                     return true;
                 }
@@ -527,6 +579,7 @@ export function protectionSourceCharacteristics(
         colors: STATIC_EFFECT_CTX.getColors(source),
         types: source.types,
         supertypes: liveSupertypes(source),
+        subtypes: source.subtypes,
         controllerId: source.controllerId,
     };
 }

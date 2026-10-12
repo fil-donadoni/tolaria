@@ -4282,6 +4282,16 @@
         "source": "compiled"
     },
     {
+        "name": "Baneslayer Angel",
+        "scryfallId": "6764ea7b-ccb3-4f39-b8ba-654a186210b9",
+        "oracleId": "0e11792b-7fe5-4208-aa0b-e5d09b2b65fe",
+        "firstSet": "m10",
+        "firstPrintId": "6764ea7b-ccb3-4f39-b8ba-654a186210b9",
+        "firstPrintSet": "m10",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "Banisher Priest",
         "scryfallId": "06823bf8-2fca-49e1-ba40-9b61c9ae55b3",
         "oracleId": "9f560b83-32d4-4bb4-a956-8f5db18599db",
@@ -15992,6 +16002,16 @@
         "source": "compiled"
     },
     {
+        "name": "Dragonstalker",
+        "scryfallId": "58017ff1-74d2-4be2-976a-8dff53e16150",
+        "oracleId": "d9410a82-1b7f-4f3a-a0fd-53099d7594ec",
+        "firstSet": "scg",
+        "firstPrintId": "58017ff1-74d2-4be2-976a-8dff53e16150",
+        "firstPrintSet": "scg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Drain Life",
         "scryfallId": "5d077a49-73d4-4958-b42a-31b814e110e8",
         "oracleId": "e75ba79f-4cc2-4ede-8641-559ab94e7e36",
@@ -17541,6 +17561,16 @@
         "firstPrintId": "7396c4e9-b0d8-4b8f-8c17-6f913a967b17",
         "firstPrintSet": "por",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Elite Inquisitor",
+        "scryfallId": "c9411c44-92a8-4f5d-b3de-d80046649c8c",
+        "oracleId": "4f7e865b-6ab0-4361-b864-63c38cdb2fed",
+        "firstSet": "isd",
+        "firstPrintId": "c9411c44-92a8-4f5d-b3de-d80046649c8c",
+        "firstPrintSet": "isd",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -19580,6 +19610,16 @@
         "firstSet": "leg",
         "firstPrintId": "0f4174e4-0be8-49b5-8c52-22001790f6eb",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Fallen Cleric",
+        "scryfallId": "7652dc61-9170-4895-a0bf-c32a1ee0350e",
+        "oracleId": "7330201a-41ff-44bf-a623-2ed062878c58",
+        "firstSet": "ons",
+        "firstPrintId": "7652dc61-9170-4895-a0bf-c32a1ee0350e",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Fallen Ferromancer",
@@ -21750,6 +21790,16 @@
         "firstSet": "por",
         "firstPrintId": "458ddb33-66c4-4753-b1eb-8937ab812a81",
         "firstPrintSet": "por",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Foothill Guide",
+        "scryfallId": "409adb7b-6dcb-4e7f-a5dd-c0adf12140a4",
+        "oracleId": "d91c7e21-43af-40f9-b544-f39d1e77dee9",
+        "firstSet": "ons",
+        "firstPrintId": "409adb7b-6dcb-4e7f-a5dd-c0adf12140a4",
+        "firstPrintSet": "ons",
         "rarity": "common",
         "source": "compiled"
     },
@@ -25555,6 +25605,16 @@
         "firstPrintId": "65f5efac-ef98-4be2-abcc-1aa38bf66b06",
         "firstPrintSet": "mir",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Grave Bramble",
+        "scryfallId": "8be1d4d2-5215-44b2-9b67-627d088efdb5",
+        "oracleId": "9e2f854b-17f7-4d52-927c-abdfef86c1f8",
+        "firstSet": "isd",
+        "firstPrintId": "8be1d4d2-5215-44b2-9b67-627d088efdb5",
+        "firstPrintSet": "isd",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -37162,6 +37222,16 @@
         "source": "compiled"
     },
     {
+        "name": "Midnight Duelist",
+        "scryfallId": "2371bd0c-ca38-4a62-b525-bef4d1ca0646",
+        "oracleId": "e8e2e1e9-13a6-4cfd-b9ed-2080e984844d",
+        "firstSet": "avr",
+        "firstPrintId": "2371bd0c-ca38-4a62-b525-bef4d1ca0646",
+        "firstPrintSet": "avr",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Midnight Guard",
         "scryfallId": "2264b760-c527-470d-bad0-d8baaf543631",
         "oracleId": "f5430b0e-e77f-47b8-ae6d-30bcff4d7e35",
@@ -39393,6 +39463,16 @@
         "firstPrintId": "202d3ed5-f493-43b6-bf36-81ad289e6fb0",
         "firstPrintSet": "hml",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Nath's Buffoon",
+        "scryfallId": "66f077d2-34ab-45fa-84db-eb408c5a9996",
+        "oracleId": "da404c9c-3fb0-418c-947f-f42d6aff6899",
+        "firstSet": "lrw",
+        "firstPrintId": "66f077d2-34ab-45fa-84db-eb408c5a9996",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -48216,6 +48296,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Riptide Biologist",
+        "scryfallId": "4d399b71-c365-492c-976e-2c79d97d08bc",
+        "oracleId": "fe378f26-5c80-4548-8127-10724ac0c452",
+        "firstSet": "ons",
+        "firstPrintId": "4d399b71-c365-492c-976e-2c79d97d08bc",
+        "firstPrintSet": "ons",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Riptide Chimera",
         "scryfallId": "e9f88da5-b013-478a-8a0b-da9d1e8eb2c9",
         "oracleId": "718d72c4-ad37-49b6-860a-0b921c0de978",
@@ -52914,6 +53004,14 @@
         "firstPrintSet": "j25",
         "rarity": "common",
         "source": "compiled"
+    },
+    {
+        "name": "Shoreline Raider",
+        "scryfallId": "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
+        "oracleId": "79dcc432-e8f5-4f2b-bff8-5ae964714666",
+        "firstSet": "inv",
+        "firstPrintId": "d895b3b8-2acc-4c9f-8341-f651c1255b7c",
+        "firstPrintSet": "inv"
     },
     {
         "name": "Shoreline Salvager",
@@ -67332,6 +67430,16 @@
         "firstSet": "blb",
         "firstPrintId": "4bf20069-5a20-4f95-976b-6af2b69f3ad0",
         "firstPrintSet": "blb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Warren-Scourge Elf",
+        "scryfallId": "7ab5fe17-5499-427b-9267-3b3a9676a087",
+        "oracleId": "64368768-77b9-4f78-adb7-951ca71dfb28",
+        "firstSet": "lrw",
+        "firstPrintId": "7ab5fe17-5499-427b-9267-3b3a9676a087",
+        "firstPrintSet": "lrw",
         "rarity": "common",
         "source": "compiled"
     },

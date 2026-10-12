@@ -839,3 +839,84 @@ describe("CR 601.2c — client parity for a forced target choice (#3805)", () =>
         ).toBe(true);
     });
 });
+
+describe("isUntargetableByPending — protection from a creature subtype (CR 702.16a, issue #2765)", () => {
+    const SHORELINE_RAIDER_ID = "d895b3b8-2acc-4c9f-8341-f651c1255b7c";
+    const KAVU_CHAMELEON_ID = "f726437b-a41a-4ee9-b0ee-e09327508615";
+    const BEARS_ID = "ce2d603a-3231-4a8c-bf39-1617586ea870";
+
+    /** p1's Shoreline Raider; p2 (the chooser) controls a Kavu and a Bear and
+     *  is activating an ability of `sourceId`. Returns both the verdict of the
+     *  client click gate (over the WIRE projection) and of the server's
+     *  accepted-set function. */
+    function verdicts(sourceId: "kavu" | "bears") {
+        const pendingTarget: PendingTarget = {
+            playerId: "p2",
+            cardInstanceId: sourceId,
+            targetType: "Creature",
+            count: { min: 1, max: 3 },
+            selected: [],
+            kind: "ability",
+        };
+        const state = makeState({
+            players: [
+                makePlayer("p1", {
+                    battlefield: [
+                        makeInstance(SHORELINE_RAIDER_ID, {
+                            id: "raider",
+                            controllerId: "p1",
+                            ownerId: "p1",
+                        }),
+                    ],
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        makeInstance(KAVU_CHAMELEON_ID, {
+                            id: "kavu",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                        makeInstance(BEARS_ID, {
+                            id: "bears",
+                            controllerId: "p2",
+                            ownerId: "p2",
+                        }),
+                    ],
+                }),
+            ],
+            pendingTarget,
+        });
+        const projected = projectPublicState(state, 1, "p2");
+        const players = projected.players as unknown as Player[];
+        const clientBars = isUntargetableByPending(
+            players,
+            players[0].battlefield[0],
+            sourceId,
+            "ability",
+            (projected.stack ?? []) as unknown as StackItem[],
+            "p2"
+        );
+        let serverBars = false;
+        try {
+            applyOneTargetSelection(state, "p2", {
+                targetType: "permanent",
+                targetId: "raider",
+            });
+        } catch (e) {
+            serverBars = /protection/i.test((e as Error).message);
+        }
+        return { clientBars, serverBars };
+    }
+
+    it("MUST — a Kavu's ability can't target it, on both sides", () => {
+        const v = verdicts("kavu");
+        expect(v.serverBars).toBe(true);
+        expect(v.clientBars).toBe(true);
+    });
+
+    it("must-NOT — a Bear's ability still can, on both sides", () => {
+        const v = verdicts("bears");
+        expect(v.serverBars).toBe(false);
+        expect(v.clientBars).toBe(false);
+    });
+});
