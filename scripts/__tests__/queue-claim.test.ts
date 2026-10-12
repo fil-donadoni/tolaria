@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
     buildClaimRow,
+    buildPrOpenRow,
     claimDecision,
     claimLockVerdict,
     latestPlanFor,
@@ -24,6 +25,7 @@ import { capCensus, isStaleClaim } from "../lib/queue-plan";
 import {
     claimVerdicts,
     classifyClaims,
+    landQueueByBranch,
     type ClaimVerdictState,
     type ProcessProbe,
     type ShRunner,
@@ -305,6 +307,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
             live: [10],
             recoverable: [20, 30],
             stranded: [],
+            prOpen: [],
         });
         const d = claimDecision({
             issue: 40,
@@ -333,6 +336,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
             live: [10, 20, 30],
             recoverable: [],
             stranded: [],
+            prOpen: [],
         });
         const d = claimDecision({
             issue: 40,
@@ -358,7 +362,12 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
                     [30, "recoverable"],
                 ])
             )
-        ).toEqual({ live: [10, 20], recoverable: [30], stranded: [] });
+        ).toEqual({
+            live: [10, 20],
+            recoverable: [30],
+            stranded: [],
+            prOpen: [],
+        });
     });
 
     it("the refusal breaks the count into live / recoverable and names `bun run loop:doctor`", () => {
@@ -465,6 +474,7 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
             live: [4400],
             recoverable: [4117, 4306],
             stranded: [],
+            prOpen: [],
         });
     });
 });
@@ -523,6 +533,7 @@ describe("queue:claim — a STRANDED claim holds no slot (issue #4763)", () => {
             live: [4761],
             recoverable: [],
             stranded: [4470, 4506],
+            prOpen: [],
         });
         expect(
             claimDecision({ issue: 4800, cap: 3, noCap: false, ...census })
@@ -552,6 +563,189 @@ describe("queue:claim — a STRANDED claim holds no slot (issue #4763)", () => {
         expect(d.admitted).toBe(false);
         if (!d.admitted)
             expect(d.message).toMatch(/1 stranded \(not counted\): #4470/);
+    });
+});
+
+describe("queue:claim — a PR-OPEN claim holds no slot, is never an orphan, and still collides (issue #5469)", () => {
+    // A session ends at push + `land:ready`: its owner is dead BY DESIGN.
+    // Before the `pr-open` state that read `stranded` — resumable — so the
+    // next pass would re-open a PR the land-runner was about to merge.
+    const deadProbe: ProcessProbe = () => "";
+    const owner = (pid: number) => ({
+        session: `s${pid}`,
+        pid,
+        startedAt: "Sun Oct 11 08:00:00 2026",
+    });
+    const classified = () =>
+        classifyClaims(
+            [
+                {
+                    number: 100,
+                    title: "queued",
+                    updatedAt: "2026-10-12T09:00:00Z",
+                },
+                {
+                    number: 200,
+                    title: "failed",
+                    updatedAt: "2026-10-12T09:00:00Z",
+                },
+                {
+                    number: 300,
+                    title: "plain",
+                    updatedAt: "2026-10-12T09:00:00Z",
+                },
+            ],
+            {
+                prBranches: new Set([
+                    "feat/issue-100",
+                    "fix/issue-200",
+                    "feat/issue-300",
+                ]),
+                landQueue: landQueueByBranch([
+                    {
+                        headRefName: "feat/issue-100",
+                        labels: [{ name: "ready-to-land" }],
+                    },
+                    {
+                        headRefName: "fix/issue-200",
+                        labels: [{ name: "land-failed" }],
+                    },
+                    { headRefName: "feat/issue-300", labels: [] },
+                ]),
+                branches: { local: [], remote: [] },
+                owners: new Map([
+                    [100, owner(111)],
+                    [200, owner(222)],
+                    [300, owner(333)],
+                ]),
+                baseRef: "origin/staging",
+                now: Date.parse("2026-10-12T12:00:00Z"),
+                probe: deadProbe,
+                countRunner: () => "0",
+            }
+        );
+
+    it("ready-to-land → pr-open; land-failed → stranded (a repair pick); no label → stranded as before", () => {
+        expect(classified().map((c) => [c.issue, c.verdict.state])).toEqual([
+            [100, "pr-open"],
+            [200, "stranded"],
+            [300, "stranded"],
+        ]);
+    });
+
+    it("the census gives pr-open its own list — no cap slot", () => {
+        const census = capCensus(
+            [100, 200, 300, 400],
+            new Map([
+                ...classified().map(
+                    (c) =>
+                        [c.issue, c.verdict.state] as [
+                            number,
+                            ClaimVerdictState,
+                        ]
+                ),
+                [400, "live" as ClaimVerdictState],
+            ])
+        );
+        expect(census).toEqual({
+            live: [400],
+            recoverable: [],
+            stranded: [200, 300],
+            prOpen: [100],
+        });
+        expect(
+            claimDecision({ issue: 500, cap: 1, noCap: true, ...census })
+                .admitted
+        ).toBe(true);
+        expect(
+            claimDecision({ issue: 500, cap: 2, noCap: false, ...census })
+                .admitted
+        ).toBe(true);
+    });
+
+    it("a pr-open claim still COLLIDES — nobody re-takes an issue whose PR is queued — while a land-failed one is resumable", () => {
+        // The verbs build `collide` as every live claim minus the DEAD ones
+        // (recoverable, stranded); pr-open is not dead.
+        const census = capCensus(
+            [100, 200, 300],
+            new Map(classified().map((c) => [c.issue, c.verdict.state]))
+        );
+        const dead = new Set([...census.recoverable, ...census.stranded]);
+        const collide = [100, 200, 300].filter((n) => !dead.has(n));
+        const claim = (issue: number) =>
+            claimDecision({ issue, cap: 5, noCap: false, collide, ...census });
+        const refused = claim(100);
+        expect(refused.admitted).toBe(false);
+        if (!refused.admitted) expect(refused.refusal).toBe("claimed");
+        expect(claim(200).admitted).toBe(true);
+    });
+
+    it("the gh read carries the labels: claimVerdicts sees pr-open end to end", () => {
+        const runner: ShRunner = (cmd, args) => {
+            if (cmd === "gh" && args[0] === "pr") {
+                expect(args.join(" ")).toMatch(/labels/);
+                return JSON.stringify([
+                    {
+                        headRefName: "feat/issue-100",
+                        number: 9100,
+                        labels: [{ name: "ready-to-land" }],
+                    },
+                ]);
+            }
+            return "";
+        };
+        const verdicts = claimVerdicts(
+            [{ number: 100, title: "q", updatedAt: "2026-10-12T09:00:00Z" }],
+            "origin/staging",
+            "/nonexistent",
+            Date.parse("2026-10-12T12:00:00Z"),
+            runner
+        );
+        expect(verdicts.get(100)).toBe("pr-open");
+    });
+
+    it("the journal: a pr-open last row is NOT held here (no slot) and NOT released (the claim stands)", () => {
+        const row = buildPrOpenRow({
+            now: 1,
+            session: "s",
+            issue: 100,
+            pr: 9100,
+            host: "mac",
+        });
+        expect(row).toMatchObject({
+            event: "pr-open",
+            issue: 100,
+            pr: 9100,
+            by: "land:ready",
+        });
+        const text =
+            [
+                { issue: 100, event: "claim" },
+                row,
+                { issue: 200, event: "claim" },
+                { issue: 300, event: "claim" },
+                { issue: 300, event: "released" },
+            ]
+                .map((r) => JSON.stringify(r))
+                .join("\n") + "\n";
+        expect(claimsHeldHere(text)).toEqual([200]);
+        expect(releasedClaims(text)).toEqual([300]);
+    });
+
+    it("the runner's release at merge is stamped `land-runner`", () => {
+        const rows: ReleaseRow[] = [];
+        performRelease({
+            issue: 100,
+            session: "",
+            now: 1,
+            by: "land-runner",
+            gh: () => undefined,
+            appendRow: (r) => rows.push(r),
+        });
+        expect(rows[0]).toMatchObject({
+            event: "released",
+            by: "land-runner",
+        });
     });
 });
 
@@ -588,6 +782,7 @@ describe("queue:claim — a FAILED read may only make the cap stricter (issue #4
             live: [10, 20],
             recoverable: [],
             stranded: [],
+            prOpen: [],
         });
     });
 

@@ -340,20 +340,58 @@ export interface ReleaseRow {
     /** `released`, the spelling every reader already folds (`releasedClaims`,
      *  `claim-sweep.sh`, `loop:doctor`'s `releaseRecord`). */
     event: "released";
-    by: "queue:release";
+    /** `land-runner` = released at merge (issue #5469). */
+    by: "queue:release" | "land-runner";
 }
 
 export function buildReleaseRow(input: {
     now: number;
     session: string;
     issue: number;
+    by?: ReleaseRow["by"];
 }): ReleaseRow {
     return {
         ts: input.now,
         session: input.session,
         issue: input.issue,
         event: "released",
-        by: "queue:release",
+        by: input.by ?? "queue:release",
+    };
+}
+
+/**
+ * The `pr-open` row (issue #5469): the session pushed, labelled its PR
+ * `ready-to-land` and handed off to the land-runner. The CLAIM stands — the
+ * label stays, so no other pass takes the issue — but nothing on this machine
+ * is working it: `claimsHeldHere` reads the row as not held (no cap slot) and
+ * `releasedClaims` as not released (still a claim). The runner releases it at
+ * merge; a `land-failed` PR is resumed by a new `claim` row.
+ */
+export interface PrOpenRow {
+    ts: number;
+    session: string;
+    issue: number;
+    event: "pr-open";
+    pr: number;
+    host: string;
+    by: "land:ready";
+}
+
+export function buildPrOpenRow(input: {
+    now: number;
+    session: string;
+    issue: number;
+    pr: number;
+    host: string;
+}): PrOpenRow {
+    return {
+        ts: input.now,
+        session: input.session,
+        issue: input.issue,
+        event: "pr-open",
+        pr: input.pr,
+        host: input.host,
+        by: "land:ready",
     };
 }
 
@@ -367,6 +405,7 @@ export function performRelease(input: {
     issue: number;
     session: string;
     now: number;
+    by?: ReleaseRow["by"];
     gh: (args: string[]) => void;
     appendRow: (row: ReleaseRow) => void;
 }): ReleaseRow {

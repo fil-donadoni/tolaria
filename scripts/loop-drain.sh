@@ -396,6 +396,28 @@ count_total_open() {
         --json number --limit 500 --jq 'length'
 }
 
+# The PR a pass HANDED OFF for issue $1 (issue #5469): its open PR labelled
+# `ready-to-land`, or a merged one — the session's own finish line since
+# landing moved to the land-runner. Empty when there is none; non-zero exit
+# when `gh` could not answer. Read before and after a pass: a number that
+# appears (a new PR, or a `land-failed` repair re-queued) is PROGRESS, though
+# no issue closed and no tip moved — the runner lands it later, on its own
+# clock. Asked by HEAD branch (`wt:new`'s `feat|fix/issue-N`), never as "the
+# newest N PRs", which an old repaired PR falls out of. `any(...)` rather
+# than `index(...)`: jq's `index` is 0 — falsy — for a first-position match.
+handed_off_pr() {
+    for _kind in feat fix; do
+        _pr=$(gh pr list --state all --head "$_kind/issue-$1" --limit 5 \
+            --json number,state,labels \
+            --jq '[.[] | select(.state == "MERGED" or (.state == "OPEN" and any(.labels[]; .name == "ready-to-land")))][0].number // empty') ||
+            return 1
+        if [ -n "$_pr" ]; then
+            echo "$_pr"
+            return 0
+        fi
+    done
+}
+
 read_green_sha() {
     if [ -f "$GREEN_SHA_FILE" ]; then
         cat "$GREEN_SHA_FILE"
@@ -585,6 +607,11 @@ reap_orphan_claims() {
 # one resume per issue per run (`RESUMED_THIS_RUN`): a stranded issue whose
 # resume also died is skipped thereafter — `loop:doctor` keeps naming it on
 # every sweep — so one wedged PR cannot eat the whole run.
+#
+# REPAIR BEFORE RESUME (issue #5469): a PR the land-runner labelled
+# `land-failed` is `plan.repair`, taken before `resume[0]` and handed off the
+# same way (`pr:<N>` → `/next-ticket N --resume`), under the same one-per-run
+# bound.
 RESOLVED_ISSUE=""
 RESOLVED_MODEL=""
 RESOLVED_RESUME=""
@@ -615,9 +642,12 @@ resolve_head() {
 const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
 const done = new Set((process.env.LOOP_RESUMED || "").split(/\s+/).filter(Boolean).map(Number));
 const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "";
+const repair = (plan.repair || []).find((x) => ok(x) && Number.isInteger(x.pr) && !done.has(x.number));
 const resume = (plan.resume || []).find((x) => ok(x) && !done.has(x.number));
 const head = (plan.batch || [])[0];
-if (resume) {
+if (repair) {
+    process.stdout.write(repair.number + " " + repair.model + " pr:" + repair.pr);
+} else if (resume) {
     process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : resume.state === "recoverable" ? "local" : "branch"));
 } else if (ok(head)) {
     process.stdout.write(head.number + " " + head.model + " new");
@@ -897,6 +927,14 @@ while :; do
     pass_log="$LOG_DIR/pass-${pass}-${epoch}.log"
     green_before=$(read_green_sha)
     total_before=$(count_total_open 2>/dev/null) || total_before=""
+    pr_before=""
+    # Unread (gh failed) is not "no PR": an existing PR would then read as a
+    # new hand-off after the pass. No before-reading, no PR progress.
+    pr_before_ok=0
+    if [ -n "$RESOLVED_ISSUE" ] &&
+        pr_before=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null); then
+        pr_before_ok=1
+    fi
 
     if [ "$DRY_RUN" -eq 1 ]; then
         # Echo the command as it will actually be typed. `$pass_model_arg` is
@@ -1000,6 +1038,16 @@ while :; do
     queue_after=$(count_unclaimed 2>/dev/null) || queue_after=""
     total_after=$(count_total_open 2>/dev/null) || total_after=""
     green_after=$(read_green_sha)
+    # A pass ends at push + `ready-to-land` (issue #5469): the PR it handed
+    # off is its progress, and the summary reports the PR, not a landing.
+    pr_progress=0
+    if [ "$pr_before_ok" -eq 1 ]; then
+        pr_after=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null) || pr_after=""
+        if is_uint "$pr_after" && [ "$pr_after" != "$pr_before" ]; then
+            pr_progress=1
+            echo "loop-drain[pr]: pass $pass — issue #${RESOLVED_ISSUE} handed off as PR #${pr_after} (ready-to-land; the land-runner merges it)" >&2
+        fi
+    fi
     if is_uint "$queue_after"; then
         last_queue_count="$queue_after"
     else
@@ -1050,8 +1098,9 @@ while :; do
             [ "$backoff_secs" -le "$ERROR_BACKOFF_MAX_SECS" ] ||
                 backoff_secs="$ERROR_BACKOFF_MAX_SECS"
         fi
-    elif [ "$total_after" = "$total_before" ] && [ "$green_after" = "$green_before" ]; then
-        # 6. neither the TOTAL open ready-for-agent count nor main's tip
+    elif [ "$pr_progress" -eq 0 ] && [ "$total_after" = "$total_before" ] &&
+        [ "$green_after" = "$green_before" ]; then
+        # 6. no PR handed off (issue #5469) and neither the TOTAL open ready-for-agent count nor main's tip
         # moved. Deliberately NOT `queue_after`/`queue_before` (the unclaimed
         # count): a pass that only CLAIMS issues (adds `in-progress`) drops
         # the unclaimed count without landing anything, which would

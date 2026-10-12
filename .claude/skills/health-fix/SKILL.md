@@ -125,7 +125,7 @@ standing RED (issue #4964): under RED, `land` refuses every PR that is not a
 declared repair unless it is run with `--red-ok`, and the PR that closes `<N>`
 is how it recognises yours — with no flag — and fires the health gate on its
 tip at once instead of waiting out a batch. A repair with no recorded issue
-lands with `bun run land <PR#> --repair`.
+lands with `--repair` (§ 6).
 
 The shared checkout is read-only (`deny-guard.sh` § 0); the repro worktree is
 for reading, not for authoring.
@@ -193,8 +193,11 @@ not re-review.
 G="${SCRATCHPAD:-$(mktemp -d)}/check-lane.log"
 bun run check:lane >"$G" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$G"
 gh pr create …            # base must be the base branch; `land` refuses otherwise
-bun run land <PR#>
+TOLARIA_LAND_RUNNER=1 bun run land <PR#>   # add --repair when no repair issue is recorded
 ```
+
+Not the land-runner (issue #5469): § 7 reports a LANDING, so `/health-fix`
+lands its own repair through `deny-guard.sh` § 8's hatch.
 
 The PR body names: the step you reproduced and how, the cause, the fix, the
 class guard, and what you broke to prove each — plus `Closes #<N>` for the

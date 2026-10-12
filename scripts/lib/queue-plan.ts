@@ -477,6 +477,13 @@ export interface BatchPlan {
      * takes `resume[0]` over `batch[0]`.
      */
     resume?: ResumeItem[];
+    /**
+     * PRs the land-runner labelled `land-failed` (issue #5469) — the FIRST
+     * pick, ahead of `resume` and `batch`: a red landing is work already
+     * reviewed and one fix away from merging. Set by the wrapper from one
+     * `gh pr list --label land-failed`; `loop-drain` takes `repair[0]` first.
+     */
+    repair?: RepairItem[];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1270,10 +1277,14 @@ export function liveClaims(inProgress: number[], released: number[]): number[] {
         .sort((a, b) => a - b);
 }
 
+/** The journal event `land:ready` writes (issue #5469, `buildPrOpenRow`). */
+export const PR_OPEN_EVENT = "pr-open";
+
 /**
  * Fold the claim journal (`.claude/telemetry/claims.jsonl`) into the issues
  * whose LAST row gave the claim back. Last row per issue wins: a `claim` row
- * takes it, any other event (`released`) returns it.
+ * takes it, a `pr-open` row (issue #5469: handed to the land-runner) keeps
+ * it, any other event (`released`) returns it.
  *
  * Pure over the file's text, and deliberately NOT `loop-doctor.ts`'s
  * `parseClaimOwners`: that fold answers "WHO owns this claim" and therefore
@@ -1296,7 +1307,8 @@ export function releasedClaims(ledgerText: string): number[] {
             continue;
         }
         if (typeof row.issue !== "number") continue;
-        if (row.event === "claim") released.delete(row.issue);
+        if (row.event === "claim" || row.event === PR_OPEN_EVENT)
+            released.delete(row.issue);
         else released.add(row.issue);
     }
     return [...released].sort((a, b) => a - b);
@@ -1310,6 +1322,10 @@ export function releasedClaims(ledgerText: string): number[] {
  * `host` stamp is diagnostic only and is never compared: macOS's hostname
  * follows the network, and a claim that stopped matching its own machine's
  * name would vanish from the local count — the cap failing open.
+ *
+ * A `pr-open` last row (issue #5469) is NOT held: the session pushed and
+ * handed the PR to the land-runner, so the claim stands (`releasedClaims`)
+ * but no session here is working it — it holds no `sessions.cap` slot.
  *
  * Same tolerance as `releasedClaims`: torn or malformed lines are skipped.
  */
@@ -1410,6 +1426,11 @@ export function machineScope(
  * gives up its slot on the same evidence; the label stands, and the plan
  * hands it to the next pass as `resume`.
  *
+ * A `pr-open` claim (issue #5469) is a session that ENDED by design: it
+ * pushed, labelled its PR `ready-to-land` and handed off to the land-runner.
+ * No slot, and — unlike `stranded` — nothing to resume: it stays in the
+ * collision set, so no pass re-takes an issue whose PR is queued to merge.
+ *
  * All lists sorted, so a refusal message is reproducible.
  */
 export function capCensus(
@@ -1419,13 +1440,15 @@ export function capCensus(
     const live: number[] = [];
     const recoverable: number[] = [];
     const stranded: number[] = [];
+    const prOpen: number[] = [];
     for (const n of [...new Set(claims)].sort((a, b) => a - b)) {
         const state = verdicts.get(n);
         if (state === "recoverable") recoverable.push(n);
         else if (state === "stranded") stranded.push(n);
+        else if (state === "pr-open") prOpen.push(n);
         else live.push(n);
     }
-    return { live, recoverable, stranded };
+    return { live, recoverable, stranded, prOpen };
 }
 
 export interface CapCensus {
@@ -1436,6 +1459,67 @@ export interface CapCensus {
     /** Claims proved stranded (pushed work, dead owner, issue #4763) — the
      *  label stands, the slot does not. */
     stranded: number[];
+    /** Claims handed to the land-runner (issue #5469) — the label stands, the
+     *  slot does not, and they still collide. */
+    prOpen: number[];
+}
+
+/** A `land-failed` PR handed to the next pass as a repair (issue #5469): the
+ *  PR, the issue its branch names, the branch `wt:new --resume` checks out,
+ *  and the tier the ISSUE's `model:*` labels route to. */
+export interface RepairItem {
+    number: number;
+    pr: number;
+    branch: string;
+    model: string;
+}
+
+/**
+ * The plan's `repair` list (issue #5469): every open `land-failed` PR whose
+ * branch names an issue (`feat|fix/issue-N`), oldest PR first, on the tier
+ * the issue's own labels route to — `resolveModel`, the batch's rule. A PR
+ * naming no issue (a `docs/` branch) has nothing for `/next-ticket` to resume
+ * and is left to its human. `detailOf` is the wrapper's cached detail read;
+ * `null` (the issue could not be read) leaves the PR out rather than routing
+ * it to a guessed tier. `--exclude-hitl` holds as for `resume`: a repaired PR
+ * is merged by the runner, and an HITL issue is for its human (#3088).
+ */
+export function repairItems(
+    prs: { number: number; headRefName: string }[],
+    detailOf: (issue: number) => { labels: string[]; body: string } | null,
+    config: PlanConfig,
+    /** Issues whose claim reads `live`: a repair already under way (a pass
+     *  re-claimed it) is not offered again — the other machine's pass would
+     *  only collide on `queue:claim`. */
+    working: ReadonlySet<number> = new Set()
+): RepairItem[] {
+    return [...prs]
+        .sort((a, b) => a.number - b.number)
+        .flatMap((pr) => {
+            const m = /^(?:feat|fix)\/issue-(\d+)$/.exec(pr.headRefName);
+            if (!m) return [];
+            const number = Number(m[1]);
+            if (working.has(number)) return [];
+            const detail = detailOf(number);
+            if (detail === null) return [];
+            if (config.excludeHitl && isHitl(detail.body)) return [];
+            const asIssue: QueueIssue = {
+                number,
+                title: "",
+                labels: detail.labels.map((name) => ({ name })),
+                parent: null,
+                assignees: [],
+                updatedAt: "",
+            };
+            return [
+                {
+                    number,
+                    pr: pr.number,
+                    branch: pr.headRefName,
+                    model: resolveModel(asIssue, config).model,
+                },
+            ];
+        });
 }
 
 /** A claim with no process behind it, handed to the next pass (issue #4763,

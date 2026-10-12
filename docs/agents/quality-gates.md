@@ -868,12 +868,12 @@ queued behind it.
 So the full gate moved. `tolaria.config.json` names a **base** branch
 (`staging`) and a **release** branch (`main`):
 
-| Step                 | Runs                                                                     | Where (ADR 0154)       | Mutex                      |
-| -------------------- | ------------------------------------------------------------------------ | ---------------------- | -------------------------- |
-| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base | MacBook                | ≤ 3 min budget (6.8 meas.) |
-| batch health         | `health` on the CURRENT `origin/<base>` tip, per 20 landings / 8 h       | Huawei (systemd timer) | its own machine's          |
-| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward    | MacBook                | ~13 min + walk, once       |
-| `bun run health`     | the same full gate, by hand, on the base tip                             | either                 | ~13 min                    |
+| Step                 | Runs                                                                     | Where (ADR 0154)                          | Mutex                      |
+| -------------------- | ------------------------------------------------------------------------ | ----------------------------------------- | -------------------------- |
+| `bun run land <PR#>` | rebase onto `origin/<base>` → scoped `check:lane` → push → merge to base | MacBook, by the land-runner (issue #5469) | ≤ 3 min budget (6.8 meas.) |
+| batch health         | `health` on the CURRENT `origin/<base>` tip, per 20 landings / 8 h       | Huawei (systemd timer)                    | its own machine's          |
+| `bun run release`    | `health` + `check:ui --all` on the `origin/<base>` tip → fast-forward    | MacBook                                   | ~13 min + walk, once       |
+| `bun run health`     | the same full gate, by hand, on the base tip                             | either                                    | ~13 min                    |
 
 `land` refuses a PR whose base is not the base branch (the API merge lands
 wherever the PR points). `release` moves the release branch only on a GREEN
@@ -2099,10 +2099,11 @@ whole wait behind whoever holds the mutex**: measured 2026-10-11, a
 `docs:ship` queued 8+ min behind one `land`; on 2026-09-01 one waited 2h07m
 behind a stalled health (§ A waiter says who is blocking it). CLAUDE.md used to
 say "seconds, no lock"; it now says the merge queues on the heavy mutex
-(ADR 0154 §10). The ticket that makes the lock-free reading true is issue
-#5469: landing becomes asynchronous — a session ends at push + `ready-to-land`,
-one `land-runner` on the MacBook merges — and `docs:ship` goes through the
-same runner. `bun run check:docs` on its own still takes no lock.
+(ADR 0154 §10). Issue #5469 made the lock-free reading true: landing is
+asynchronous — a session ends at push + `bun run land:ready <PR#>`
+(`ready-to-land`), one land-runner on the MacBook merges — and `docs:ship`
+hands its PR to the same runner instead of merging inside `gate.ts heavy`.
+Neither `docs:ship` nor `bun run check:docs` takes the lock any more.
 
 `docs:ship` refuses a changeset containing anything that is not `*.md` or under
 `docs/`: a mixed change goes through the ordinary branch, where the code

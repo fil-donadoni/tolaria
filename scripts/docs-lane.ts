@@ -29,13 +29,12 @@
  *
  *   bun run wt:docs adr-0101      # worktree + branch off origin/<base> (tolaria.config.json)
  *   bun run check:docs            # the doc gate (also run by ship)
- *   bun run docs:ship             # gate, commit, push, PR, merge, tear down
- *   bun run docs:ship --no-merge  # …but leave the PR open for review
+ *   bun run docs:ship             # gate, commit, push, PR, hand to the land-runner
+ *   bun run docs:ship --no-merge  # …but leave the PR open for review, unqueued
  */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
-import { remoteBranchDeleteStep, UNSET_GITHUB_TOKEN } from "./land";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -235,79 +234,10 @@ function fail(message: string): never {
     process.exit(1);
 }
 
-const GATE = resolve(__dirname, "gate.ts");
-const PR_MERGE = resolve(__dirname, "pr-merge.ts");
-
-function shQuote(s: string): string {
-    return `'${s.replace(/'/g, `'\\''`)}'`;
-}
-
-/**
- * Everything the docs lane does under the machine-wide merge lock, as ONE
- * shell string — the same shape (and the same reasons) as `land`'s
- * `buildLockedCommand`, with the doc gate in place of the full suite.
- *
- * WHY THE LANE TAKES THE LOCK AT ALL (issue #2537). The cheap gate is the
- * lane's whole point and stays unlocked: prose cannot break the engine, so it
- * owes `check:docs` (seconds), never `bun run test`. **Merging is a different
- * act from gating.** `scripts/gate.ts`'s mutex serialises gating; `land`
- * extends it across the merge (#2517) precisely because a merge moves `main`
- * under whoever is mid-gate, and their verified tree stops being the tree that
- * lands. A docs merge moves `main` exactly as much as any other. So the lane
- * pays the queue for the seconds it merges in, and for nothing else.
- *
- * Re-gating inside the lock is what makes that meaningful: `main` may have
- * moved between the pre-PR push and acquiring the lock, so the rebase, the doc
- * gate and the force-push all happen in here, on the tree that actually lands.
- *
- * `pr-merge.ts`, not a bare `gh pr merge`, for the same reason `land` uses it
- * (#2536): the force-push immediately above invalidates GitHub's cached view
- * of the PR and the merge is refused while that recomputes. This lane
- * force-pushes right before merging too, so it had the identical race.
- *
- * `--delete-branch` is deliberately NOT passed: `gh` switches the local repo to
- * the default branch before deleting, and `main` is checked out in the primary
- * worktree, so it dies with `fatal: 'main' is already used by worktree at …`
- * AFTER the merge has landed — a failure reported on a PR that merged fine.
- * Both refs are deleted explicitly instead, each wrapped `(… || true)` so
- * cleanup can never turn a landed merge into a reported failure. The remote
- * branch delete goes through `remoteBranchDeleteStep` (issue #2877) rather
- * than a bare `(git push origin --delete … || true)`: since the repo turned
- * on "Automatically delete head branches", GitHub already removes the head
- * branch as part of the merge, so the ref is routinely already gone by the
- * time this runs — the naive form still writes two spurious `error:` lines
- * to stderr even though its exit code is swallowed. `land.ts` fixed this
- * once; sharing the helper here keeps this lane from drifting back to the
- * same bug.
- *
- * `UNSET_GITHUB_TOKEN` LEADS the string, for the reason `land`'s CREDENTIALS
- * header comment spells out: `NET_ENV` above strips the bug-report PAT from
- * the env THIS process hands to `gate.ts`, but `gate.ts` is a `bun` process
- * that re-reads `.env.local` from its own cwd and spreads `{...process.env}`
- * onto the `sh -c` child — so the push and the merge in here saw the PAT
- * again and 403'd, AFTER the doc gate had already run inside the lock
- * (issue #2579). `sh` never reads `.env.local`: unsetting it here is the one
- * point in the pipeline the PAT cannot re-populate.
- */
-export function buildShipMergeCommand(opts: {
-    branch: string;
-    pr: number;
-    primary: string;
-    cwd: string;
-}): string {
-    const b = shQuote(opts.branch);
-    return [
-        UNSET_GITHUB_TOKEN,
-        `git fetch origin ${BASE_BRANCH} -q`,
-        `git rebase ${ORIGIN_BASE}`,
-        "bun run check:docs",
-        `git push --force-with-lease origin ${b}`,
-        `bun ${shQuote(PR_MERGE)} ${opts.pr}`,
-        remoteBranchDeleteStep(opts.branch),
-        `(git -C ${shQuote(opts.primary)} worktree remove --force ${shQuote(opts.cwd)} || true)`,
-        `(git -C ${shQuote(opts.primary)} branch -D ${b} || true)`,
-    ].join(" && ");
-}
+/** The hand-off verb (issue #5469): the docs PR goes to the land-runner like
+ *  every other PR — `land`'s `docs` lane re-runs `check:docs` on the rebased
+ *  tree under the mutex, so this lane takes no lock at all. */
+const LAND_READY = resolve(__dirname, "land-ready.ts");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // `new` — open the lane
@@ -355,7 +285,7 @@ function cmdNew(rawSlug: string | undefined): void {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// `ship` — gate, PR, merge, tear down
+// `ship` — gate, PR, hand off to the land-runner
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -468,23 +398,22 @@ function cmdShip(argv: string[]): void {
         ).stdout?.trim()
     );
     if (!Number.isInteger(pr) || pr <= 0) {
-        fail("could not read the PR number — the PR is open, merge it there.");
-    }
-
-    console.log(`docs-lane: landing PR #${pr} under the merge lock`);
-    const locked = spawnSync(
-        "bun",
-        [GATE, "heavy", buildShipMergeCommand({ branch, pr, primary, cwd })],
-        { stdio: "inherit", cwd, env: NET_ENV }
-    );
-    if (locked.status !== 0) {
         fail(
-            `landing failed (exit ${locked.status ?? "?"}). Re-check with ` +
-                `\`gh pr view ${pr} --json state\`: MERGED means only a cleanup ` +
-                `step failed; OPEN means fix and re-run \`bun run docs:ship\`.`
+            "could not read the PR number — the PR is open; hand it off with `bun run land:ready <PR#>`."
         );
     }
-    console.log("docs-lane: merged, worktree and branch removed.");
+
+    // The merge is the land-runner's (issue #5469): it rebases, re-runs the
+    // `docs` lane on the tree that lands, merges and tears this worktree down.
+    // Nothing here waits on the heavy mutex any more.
+    if (!run("bun", [LAND_READY, String(pr)], cwd)) {
+        fail(
+            `the PR is open but could not be handed to the land-runner — re-run \`bun run land:ready ${pr}\`.`
+        );
+    }
+    console.log(
+        "docs-lane: handed to the land-runner (ready-to-land) — it merges and removes this worktree."
+    );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

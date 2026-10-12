@@ -1396,7 +1396,7 @@ function parseArgs(argv: string[]): {
 
 /** The `/health-fix` issues recorded against the standing RED — fail-soft,
  *  like every other read of the health ledger. */
-function readRepairIssues(primary: string): number[] {
+export function readRepairIssues(primary: string): number[] {
     try {
         return parseCadence(
             readFileSync(

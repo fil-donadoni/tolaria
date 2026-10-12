@@ -93,6 +93,81 @@ describe("progress is measured on the total open count, not the claim-adjusted u
     });
 });
 
+describe("a pass that HANDS OFF its PR made progress (issue #5469)", () => {
+    // The pass ends at push + `ready-to-land`: no issue closes, the tip does
+    // not move, and the claim STANDS (pr-open) — every old signal reads
+    // "claimed and died". The handed-off PR is the signal.
+    const stubGh = (prFile: string): void => {
+        fs.writeFileSync(queueFile, "9");
+        fs.writeFileSync(totalFile, "9");
+        writeStub(
+            "gh",
+            [
+                `case "$*" in`,
+                `  *"pr list"*) cat "${prFile}" 2>/dev/null || true ;;`,
+                `  *"-label:in-progress"*) cat "${queueFile}" ;;`,
+                `  *) cat "${totalFile}" ;;`,
+                `esac`,
+            ].join("\n")
+        );
+    };
+
+    it("counts a newly handed-off PR as progress — not claims-held, not no-progress — and reports the PR", () => {
+        const prFile = path.join(tmp, "handed-off-pr");
+        stubGh(prFile);
+        writeStub(
+            "claude",
+            [
+                `n=$(cat "${queueFile}")`,
+                `echo $((n-1)) > "${queueFile}"`,
+                `echo 5600 > "${prFile}"`,
+                `exit 0`,
+            ].join("\n")
+        );
+        const r = run({ args: ["--claude-args", "x", "--max-passes", "1"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(r.stderr).toMatch(
+            /loop-drain\[pr\]: pass 1 — issue #101 handed off as PR #5600/
+        );
+        expect(logLines().map((l) => l.split(" ").pop())).toEqual(["-"]);
+    });
+
+    it("an UNREAD before (gh failed) never turns an existing PR into progress", () => {
+        const prFile = path.join(tmp, "handed-off-pr");
+        const calls = path.join(tmp, "pr-list-calls");
+        fs.writeFileSync(queueFile, "9");
+        fs.writeFileSync(totalFile, "9");
+        fs.writeFileSync(prFile, "5600");
+        writeStub(
+            "gh",
+            [
+                `case "$*" in`,
+                `  *"pr list"*)`,
+                `    n=$(cat "${calls}" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "${calls}"`,
+                `    if [ "$n" -eq 1 ]; then echo "gh: 502" >&2; exit 1; fi`,
+                `    cat "${prFile}" ;;`,
+                `  *"-label:in-progress"*) cat "${queueFile}" ;;`,
+                `  *) cat "${totalFile}" ;;`,
+                `esac`,
+            ].join("\n")
+        );
+        writeStub("claude", `exit 0`);
+        const r = run({ args: ["--claude-args", "x", "--max-passes", "1"] });
+        expect(r.stderr).toMatch(/loop-drain\[pass\]: pass 1/);
+        expect(r.stderr).not.toMatch(/loop-drain\[pr\]/);
+    });
+
+    it("the SAME PR seen before and after is no progress — the detector still fires", () => {
+        const prFile = path.join(tmp, "handed-off-pr");
+        stubGh(prFile);
+        fs.writeFileSync(prFile, "5600");
+        writeStub("claude", `exit 0`);
+        const r = run({ args: ["--claude-args", "x"] });
+        expect(r.stdout).toMatch(/reason=no-progress/);
+        expect(r.stderr).not.toMatch(/loop-drain\[pr\]/);
+    });
+});
+
 describe("claims-held (#2626)", () => {
     it("consumes claimsHeld from lib/loop-status rather than re-implementing the comparison in shell", () => {
         // AC: "The predicate is imported from the verdict engine, not

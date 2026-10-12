@@ -81,11 +81,16 @@ describe("the gate rule is ONE rule (#3698)", () => {
         expect(rule).toMatch(/same attended and unattended/);
     });
 
-    it("the skill's own gate commands go through gate:run", () => {
+    it("the skill hands its PR to the land-runner and never runs `land` itself (issue #5469)", () => {
         // A rule stated and then contradicted two sections later by the
-        // command the session actually copies is not a rule.
+        // command the session actually copies is not a rule. Since issue
+        // #5469 the session's last command is the hand-off, not `land`: the
+        // one land-runner merges, and `deny-guard.sh` § 8 refuses a session's
+        // `land` — the skill must not tell it to run one.
         const skill = fs.readFileSync(SKILL, "utf8");
-        expect(skill).toMatch(/bun run gate:run land <PR#>/);
+        expect(skill).toMatch(/bun run land:ready <PR#>/);
+        expect(skill).not.toMatch(/gate:run land/);
+        expect(skill).not.toMatch(/bun run land </);
         // The hygiene section's own "start it with `run_in_background`" line
         // is what a pass read before it backgrounded its gate. It survives —
         // backgrounding a subagent or a long search is still right — but it

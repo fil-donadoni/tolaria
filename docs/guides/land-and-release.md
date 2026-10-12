@@ -1,8 +1,8 @@
 # Land and release
 
 **The whole delivery path, in order: a worktree off the [base branch](#g-base-branch),
-a PR, `land` — which pays the [lane gate](#g-lane-gate), once — and, when a human
-decides, `release`.** Six commands. Everything else in the repository's workflow tooling serves one of
+a PR handed to the land-runner, whose `land` pays the [lane gate](#g-lane-gate),
+once — and, when a human decides, `release`.** Six commands. Everything else in the repository's workflow tooling serves one of
 them or is history.
 
 ```bash
@@ -11,8 +11,17 @@ cd "$(bun run --silent wt:new <N>)"   # 1. worktree off origin/<base>   (--fix f
 git add -A && git commit               # 3. commit
 git push -u origin feat/issue-<N>      # 4. no pre-PR gate (ADR 0136 §1)
 gh pr create                           # 5. base = the base branch (GitHub default), no --base
-bun run land <PR#>                     # 6. rebase, lane gate, merge into the base branch
+bun run land:ready <PR#>               # 6. hand off: the land-runner rebases, gates, merges
 ```
+
+Since issue #5469 a session never runs step 6's `land` itself (`deny-guard.sh`
+§ 8): `land:ready` labels the PR `ready-to-land` and the **land-runner** — one
+`bun run land:runner` on the MacBook, started by `bun run loop:afk --start` or
+its launchd agent (`scripts/runner-units/com.tolaria.land-runner.plist`) —
+runs `land` in the PR's worktree, oldest PR first. A red `land` relabels the
+PR `land-failed` with the lane excerpt as a comment; `queue:plan` makes it a
+repair pick. The sections below are what `land` does when the runner — or an
+owner, with `TOLARIA_LAND_RUNNER=1` — runs it.
 
 ```bash
 cd /Users/filippo/code/mtg/tolaria     # the primary checkout, on the release branch
@@ -94,7 +103,7 @@ when owed, a `## Preset scenario` fence for
 any `convex/{cards/sets,gre}` change (or "none owed"), the Bot reachability
 outcome, proof-of-failure receipts for new guarding tests.
 
-### 6. `bun run land <PR#>` — from the PR's worktree
+### 6. `land <PR#>` — what the land-runner runs, from the PR's worktree
 
 Refuses, named, before taking any lock:
 
@@ -171,7 +180,7 @@ every merged PR, however it merged.)
 **Run it from anywhere, the primary checkout included** (issue #4378):
 
 ```bash
-bun run gate:run land <PR#>      # from ~/code/mtg/tolaria, on the base branch
+TOLARIA_LAND_RUNNER=1 bun run gate:run land <PR#>   # from ~/code/mtg/tolaria, on the base branch
 ```
 
 Housekeeping mode drops the two branch-identity refusals the full path keeps —

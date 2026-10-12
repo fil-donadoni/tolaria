@@ -27,6 +27,7 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
+import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 
 export type ClaimFacts = {
     issue: number;
@@ -50,6 +51,14 @@ export type ClaimFacts = {
     hasLocalBranch: boolean;
     /** An open PR whose head branch ends in `issue-N`. */
     hasOpenPr: boolean;
+    /**
+     * Where that PR stands in the land-runner's queue (issue #5469):
+     * `ready` = labelled `ready-to-land` (the session handed off, the runner
+     * lands it), `failed` = labelled `land-failed` (a repair pick), `null` =
+     * neither, or no open PR. Optional so every caller that predates the
+     * runner keeps its verdicts.
+     */
+    landQueue?: LandQueueState | null;
     /** Hours since the issue was last updated. */
     ageHours: number;
     /**
@@ -121,7 +130,11 @@ export const CLAIM_VERDICT_STATES = [
     "recoverable",
     "stranded",
     "suspect",
+    "pr-open",
 ] as const;
+
+/** A PR's place in the land-runner's queue, by label (issue #5469). */
+export type LandQueueState = "ready" | "failed";
 
 export type ClaimVerdictState = (typeof CLAIM_VERDICT_STATES)[number];
 
@@ -174,6 +187,29 @@ export function classifyClaim(
     // remote) and NOT `orphan` (the label must stand — the PR is usually one
     // `land` away). Same `=== false` as `recoverable` below: `null` keeps the
     // `live` verdict it always had.
+    // Handed to the land-runner (issue #5469): the session ended at push +
+    // `ready-to-land` BY DESIGN, so a dead owner here is the normal shape, not
+    // a corpse. Not `stranded` (nothing to resume — the runner lands it), not
+    // `orphan` (the label must stand until the merge), no cap slot.
+    if (facts.hasOpenPr && facts.landQueue === "ready") {
+        return {
+            state: "pr-open",
+            reason: "PR queued for the land-runner (`ready-to-land`) — holds no slot; the runner releases the claim at merge",
+        };
+    }
+    // `land-failed` is a repair pick: whoever ran it is gone unless PROVED
+    // alive (the `pr-open` row cleared the owner stamp, so `null` is the
+    // ordinary reading), and the next pass resumes it.
+    if (
+        facts.hasOpenPr &&
+        facts.landQueue === "failed" &&
+        facts.ownerAlive !== true
+    ) {
+        return {
+            state: "stranded",
+            reason: "the land-runner labelled its PR `land-failed` — a repair pick for the next pass; the label is NOT released",
+        };
+    }
     if (facts.hasOpenPr || facts.hasRemoteBranch) {
         if (facts.ownerAlive === false) {
             return {
@@ -575,25 +611,66 @@ export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
 export function fetchOpenPrs(
     runner: ShRunner = sh
 ): Map<string, number | null> {
+    return openPrMap(fetchOpenPrRows(runner));
+}
+
+/** One open PR as `fetchOpenPrRows` reads it. */
+export type OpenPrRow = {
+    headRefName: string;
+    number?: unknown;
+    labels?: { name?: unknown }[];
+};
+
+/** Every open PR, with the labels the land-runner's queue lives in
+ *  (issue #5469) — ONE `gh pr list` feeds both `fetchOpenPrs` and
+ *  `landQueueByBranch`. */
+export function fetchOpenPrRows(runner: ShRunner = sh): OpenPrRow[] {
+    return JSON.parse(
+        runner("gh", [
+            "pr",
+            "list",
+            "--state",
+            "open",
+            "--limit",
+            "300",
+            "--json",
+            "headRefName,number,labels",
+        ]) || "[]"
+    ) as OpenPrRow[];
+}
+
+export function openPrMap(rows: OpenPrRow[]): Map<string, number | null> {
     return new Map(
-        (
-            JSON.parse(
-                runner("gh", [
-                    "pr",
-                    "list",
-                    "--state",
-                    "open",
-                    "--limit",
-                    "300",
-                    "--json",
-                    "headRefName,number",
-                ]) || "[]"
-            ) as { headRefName: string; number?: unknown }[]
-        ).map((p) => [
+        rows.map((p) => [
             p.headRefName,
             Number.isInteger(p.number) ? (p.number as number) : null,
         ])
     );
+}
+
+/** Head branch → land-queue state, for the PRs that carry one of the
+ *  runner's labels (issue #5469). `land-failed` wins over a stale
+ *  `ready-to-land` left beside it: the failure is the newer fact. */
+export function landQueueByBranch(
+    rows: OpenPrRow[]
+): Map<string, LandQueueState> {
+    const out = new Map<string, LandQueueState>();
+    for (const p of rows) {
+        const names = (p.labels ?? []).map((l) => l.name);
+        if (names.includes(FAILED_LABEL)) out.set(p.headRefName, "failed");
+        else if (names.includes(READY_LABEL)) out.set(p.headRefName, "ready");
+    }
+    return out;
+}
+
+/** The land-queue state of the PR whose head branch ends in `issue-N`. */
+export function landQueueFor(
+    issue: number,
+    queue: Map<string, LandQueueState>
+): LandQueueState | null {
+    const suffix = new RegExp(`(^|/)issue-${issue}$`);
+    for (const [branch, state] of queue) if (suffix.test(branch)) return state;
+    return null;
 }
 
 /** The open PR whose head branch ends in `issue-N` — the same suffix rule
@@ -820,6 +897,8 @@ export function classifyClaims(
         prBranches: Set<string>;
         /** Head branch → PR number (`fetchOpenPrs`); only names `pr`. */
         prs?: Map<string, number | null>;
+        /** Head branch → land-queue state (`landQueueByBranch`, issue #5469). */
+        landQueue?: Map<string, LandQueueState>;
         branches: BranchNames;
         owners: Map<number, ClaimOwner>;
         baseRef: string;
@@ -847,6 +926,8 @@ export function classifyClaims(
                 deps.countRunner
             )
         );
+        if (deps.landQueue)
+            facts.landQueue = landQueueFor(issue.number, deps.landQueue);
         // Read only where it can move a verdict: `git status` per claim is
         // not free, and only a dead owner's local branch consults it.
         if (facts.ownerAlive === false && facts.hasLocalBranch)
@@ -928,10 +1009,12 @@ export function claimClassifications(
 ): ClaimClassification[] {
     if (issues.length === 0) return [];
     try {
-        const prs = fetchOpenPrs(runner);
+        const rows = fetchOpenPrRows(runner);
+        const prs = openPrMap(rows);
         return classifyClaims(issues, {
             prBranches: new Set(prs.keys()),
             prs,
+            landQueue: landQueueByBranch(rows),
             branches: fetchBranchNames(runner),
             owners: readClaimOwners(root),
             baseRef,
@@ -953,7 +1036,8 @@ if (import.meta.main) {
         process.exit(0);
     }
 
-    const prs = fetchOpenPrs();
+    const prRows = fetchOpenPrRows();
+    const prs = openPrMap(prRows);
     const branches = fetchBranchNames();
 
     // The claim journal is the only place a claim's owning process is named.
@@ -972,6 +1056,7 @@ if (import.meta.main) {
         {
             prBranches: new Set(prs.keys()),
             prs,
+            landQueue: landQueueByBranch(prRows),
             branches,
             owners,
             baseRef: ORIGIN_BASE,
@@ -987,7 +1072,9 @@ if (import.meta.main) {
                     ? "~"
                     : v.state === "suspect"
                       ? "?"
-                      : "·";
+                      : v.state === "pr-open"
+                        ? ">"
+                        : "·";
         console.log(
             `  ${mark} #${issue.number} ${issue.title.slice(0, 52).padEnd(52)} ${v.reason}`
         );

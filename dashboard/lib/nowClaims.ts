@@ -31,6 +31,7 @@ export const VERDICT_WORD: Record<ClaimVerdictState, string> = {
     stranded: "stranded",
     suspect: "unsure",
     live: "working",
+    "pr-open": "queued to land",
 };
 
 export const VERDICT_TONE: Record<ClaimVerdictState, Tone> = {
@@ -39,6 +40,7 @@ export const VERDICT_TONE: Record<ClaimVerdictState, Tone> = {
     stranded: "bad",
     suspect: "warn",
     live: "good",
+    "pr-open": "good",
 };
 
 export const VERDICT_TERM: Record<ClaimVerdictState, TermId> = {
@@ -47,6 +49,7 @@ export const VERDICT_TERM: Record<ClaimVerdictState, TermId> = {
     stranded: "claim.stranded",
     suspect: "claim.suspect",
     live: "claim.live",
+    "pr-open": "claim.pr-open",
 };
 
 /**

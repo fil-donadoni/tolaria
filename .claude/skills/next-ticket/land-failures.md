@@ -1,49 +1,49 @@
-# /next-ticket — `land`'s failure, retry and post-merge modes
+# /next-ticket — a repair pick: the land-runner's `land` went red
 
-Reached from `SKILL.md` § 5 when `land` returns anything but a merge, or
-prints a warning. The command is always the identical
-`TOLARIA_GATE_RUN_KEY=land-<PR#> bun run gate:run land <PR#>`, with the tool's
-`timeout` at 600000ms; the run key is what lets it re-attach from any
-directory after `land` has deleted the worktree.
+Reached from `SKILL.md` § 0 when the pick is `repair` (`queue:plan`'s
+`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses. The
+land-runner (issue #5469) ran `land` on the PR, it exited red, and the runner
+relabelled the PR `ready-to-land` → `land-failed` with a comment carrying the
+lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
 
-## Exit codes
+## Read the failure first
 
-- **75 — still running.** Issue the identical command again, as many times
-  as it takes, until an exit code comes back. Never end the turn on a 75.
-- **77 — the MACHINE stayed saturated** past `machine.waitMaxS` (issue
-  #4966): the gate held the mutex, waited, and ran NOTHING — not a gate
-  failure, the PR is untouched. `bun run machine` names what is over;
-  re-issue the identical command once it reads calm, and report it in § 6 as
-  machine-saturated, never as a red lane.
+`gh pr view <PR#> --comments --json comments --jq '.comments[-1].body'` — the
+runner's comment: `land`'s exit code, its refusal line when it refused, and
+the last lines of the lane. The full log is on the MacBook, at the path the
+comment names.
 
-## A red lane on a regenerable artefact
+## What each failure asks of the repair
 
-An oracle lockfile or catalogue hash that reds after the rebase is fixed in
-THIS turn — run the regenerator in the foreground, commit, push, re-issue
-`land` through `gate:run` — or reported as a failure in § 6. Never "waiting
-for `oracle:compile`": a pass never ends its turn waiting.
+- **A red lane.** The rebased tree fails a check. Fix it on the PR's branch
+  (`wt:new N --resume` checked it out), re-run the failing tests targeted,
+  commit, push.
+- **A rebase conflict.** `land` printed the conflicted paths and aborted.
+  `git fetch origin && git rebase origin/<base>`, resolve, re-run the touched
+  tests, `git push --force-with-lease`.
+- **A regenerable artefact** (an oracle lockfile, a catalogue hash). Run the
+  regenerator in the FOREGROUND, commit, push — never "waiting for
+  `oracle:compile`": a pass never ends its turn waiting.
+- **A refusal** — `land: refusing — <reason>`:
+    - missing `## Preset scenario` or skin receipt → fix the PR body
+      (`gh pr edit <PR#> --body-file …`);
+    - base is not the base branch → `gh pr edit <PR#> --base <base>`;
+    - the health gate is RED and this PR is not a declared repair → nothing
+      to fix in the PR: the runner never labels this `land-failed` (it HOLDS
+      the PR until AMBER/GREEN); if you see it, the lineage changed under the
+      run — re-queue as below.
 
-## Retries do not pay the lane twice
+## Re-queue
 
-`land`'s log says `lane: ran`, or `lane: skipped (gated <sha> against <base>)`
-when that exact rebased tip was already gated green against that exact base —
-so a `land` retried after a merge refusal re-uses the verdict. If only the
-MERGE failed, retry `bun scripts/pr-merge.ts <PR#>`, then re-run `land`: on a
-MERGED PR it only does housekeeping.
+`bun run land:ready <PR#>` — drops `land-failed`, adds `ready-to-land`, moves
+the claim back to `pr-open`. The runner retries it on its next tick. That is
+the end of the pass (`SKILL.md` § 5–§ 6).
 
-## Refusals and warnings
+## Not this pass's to fix
 
-- **Health RED marker.** Read `bun run health:status` first: fixing the base
-  tip comes before landing new work. Under RED `land` refuses a PR that is not
-  a declared repair unless run with `--red-ok` — a session already mid-issue
-  finishes as a stated, counted act (issue #4964).
-- **Run from the base branch.** `land` lands the branch you are on: run it
-  from the PR's worktree.
-- **Base is not the base branch.** `gh pr edit <PR#> --base <base>`, then
-  re-issue.
-- **`could not fast-forward local <base>`.** That line is the whole handover:
-  say so in § 6. Never do the catch-up by hand — `land` owns pulling a
-  checked-out local base branch and deleting the local branch.
+A failure the PR did not cause (the base tip is red, a flaky infra step):
+say so in § 6, re-queue, and let health or the owner decide. Never silence a
+test; "not my test" is no exemption (ADR 0116).
 
-**Done when:** `land` exited 0 with the PR merged — or § 6 reports the
-failure, naming the exit code and the line that carried it.
+**Done when:** the fix is pushed and `land:ready` re-queued the PR — or § 6
+reports the failure, naming the line of the runner's comment that carried it.

@@ -167,7 +167,8 @@ signature that makes the next run's absorption possible.
 
 A worktree like any other skill (`bun run wt:new <Cluster Cut ticket #>`);
 commit `data/grammar-gaps.json` plus the ticket-closing comment in the PR
-description; `TOLARIA_GATE_RUN_KEY=land-<PR#> bun run gate:run land <PR#>`.
+description; push, then `bun run land:ready <PR#>` (the land-runner lands
+it).
 The diff is `data/**` only (`engine` lane) unless a member's own fix rides
 along in the same PR — it usually should not: cutting the clusters and
 implementing a member are different units of work, and bundling them means a
