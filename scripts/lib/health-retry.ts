@@ -30,6 +30,13 @@ const TEST_CHAIN: readonly { script: string; marker: string }[] = [
     { script: "test:blade", marker: "BLADE_TIER=must" },
 ];
 
+/** The echo line `bun run` prints when a chain script starts — anchored, so
+ *  a test printing the same text in its own output cannot fake progress. */
+function startLine(marker: string): RegExp {
+    const esc = marker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`^\\$ bun scripts/gate\\.ts \\w+ '.*${esc}`, "m");
+}
+
 const TAGGED_FAIL =
     /^\s*(?:[❯>×✗]\s*)?FAIL\s+\|([^|\n]+)\|\s+\S+\.(?:test|spec)\.[cm]?[jt]sx?\b/gm;
 const ANY_FAIL = /^\s*(?:[❯>×✗]\s*)?FAIL\s+\S/gm;
@@ -64,7 +71,9 @@ export function planRetry(stepName: string, output: string): RetryPlan | null {
     const projects = failedVitestProjects(output);
     if (projects === null) return null;
     const plain = plainOf(output);
-    const started = TEST_CHAIN.filter((c) => plain.includes(c.marker));
+    // A failure the FAIL lines do not explain is not a flake to absorb.
+    if (/Unhandled (Errors|Rejection)/i.test(plain)) return null;
+    const started = TEST_CHAIN.filter((c) => startLine(c.marker).test(plain));
     const last = started.length > 0 ? started[started.length - 1] : undefined;
     const from = last ? TEST_CHAIN.indexOf(last) + 1 : 1;
     return {
@@ -114,7 +123,8 @@ export async function runStepWithRetry(
 ): Promise<RetriedStep> {
     const first = await run(step);
     if (first.ok) return { result: first };
-    const plan = planRetry(step.name, first.output);
+    // A crash or OOM kill is not a flaky test (the exit has a signal).
+    const plan = first.signal ? null : planRetry(step.name, first.output);
     if (plan === null) return { result: first };
 
     log(

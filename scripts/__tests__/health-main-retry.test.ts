@@ -171,3 +171,31 @@ describe("the retry note in the verdict", () => {
         expect(v?.step).toBe("test (retry: node-engine)");
     });
 });
+
+describe("planRetry — review hardening", () => {
+    it("a test printing a later chain's marker cannot skip that chain", () => {
+        const noisy = `${FAIL_ENGINE}stdout: --project bot-node BLADE_TIER=must\n`;
+        expect(planRetry("test", noisy)?.remaining).toEqual([
+            "test:bot",
+            "test:blade",
+        ]);
+    });
+
+    it("unhandled errors beside a tagged FAIL are RED at once", () => {
+        expect(
+            planRetry("test", `${FAIL_ENGINE}\n⎯ Unhandled Errors ⎯\n`)
+        ).toBeNull();
+    });
+
+    it("a signal-killed first run is never retried", async () => {
+        const killed = {
+            ...result(false, FAIL_ENGINE),
+            status: null,
+            signal: "SIGKILL" as const,
+        };
+        const f = fakeRunner([killed]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.retried).toBeUndefined();
+        expect(f.ran).toHaveLength(1);
+    });
+});
