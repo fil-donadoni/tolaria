@@ -163,8 +163,18 @@ function writeCadence(root: string, state: CadenceState): void {
 }
 
 /** `healthRunner` from `tolaria.config.json` — absent, unreadable or torn
- *  reads as no runner: `land`'s cadence gates locally, as before. */
-export function readHealthRunnerConfig(path = CONFIG_PATH) {
+ *  reads as no runner: `land`'s cadence gates locally, as before.
+ *  `TOLARIA_HEALTH_RUNNER_PLATFORM` overrides it for one process (empty = no
+ *  runner) — a test, like `TOLARIA_VERDICT_STORE` for the store. */
+export function readHealthRunnerConfig(
+    path = CONFIG_PATH,
+    env: NodeJS.ProcessEnv = process.env
+) {
+    const override = env.TOLARIA_HEALTH_RUNNER_PLATFORM;
+    if (override !== undefined)
+        return parseHealthRunnerConfig({
+            healthRunner: { platform: override },
+        });
     try {
         return parseHealthRunnerConfig(JSON.parse(readFileSync(path, "utf8")));
     } catch {
