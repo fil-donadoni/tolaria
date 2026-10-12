@@ -1,5 +1,6 @@
-// The AFK terminal's live status line (issue #4722, PRD #4717): ONE line at
-// the bottom of the rendered view saying what the pass in flight is doing.
+// The AFK terminal's live status line (issue #4722, PRD #4717): ONE row per
+// pass in flight at the bottom of the rendered view, saying what each is
+// doing — a multi-lane run (issue #5486) has several at once (issue #5546).
 //
 // It is a VIEW of the moment, never a record: the wrapper
 // (`scripts/loop-render.ts`) draws it only on a TTY, erases it before every
@@ -7,8 +8,10 @@
 // renderer sits after `tee` (`scripts/loop-handoff.sh`), and this line is
 // not even a log line to begin with.
 //
-//   level A  spinner · pass · issue · tier · elapsed · run spend
+//   level A  spinner · pass · [lane] · issue · tier · elapsed · [run spend]
 //   level B  … · last tool + target · active subagents · pass tokens
+//
+// The run's spend is the run's, not a pass's: drawn once, on the first row.
 //
 // Level A comes from the driver's own tags alone; level B from the pass's
 // transcript (`scripts/lib/pass-activity.ts`), which the pass-start tag's
@@ -37,6 +40,8 @@ export const TOOL_TARGET_MAX = 48;
 
 export interface PassInFlight {
     pass: string;
+    /** The lane the pass runs in — null on a one-lane run (no `— lane K`). */
+    lane: string | null;
     /** `#N · tier`, or the override prompt — whatever the start tag named. */
     label: string;
     session: string | null;
@@ -44,7 +49,8 @@ export interface PassInFlight {
 }
 
 export interface StatusLineState {
-    current: PassInFlight | null;
+    /** Every pass in flight, in start order; one per lane. */
+    inFlight: PassInFlight[];
     /** The run's spend as of the last pass-END tag, and what it is drawn
      *  against (the effective ceiling, else the budget). */
     spent: number | null;
@@ -52,7 +58,7 @@ export interface StatusLineState {
 }
 
 export const INITIAL_STATUS_LINE_STATE: StatusLineState = {
-    current: null,
+    inFlight: [],
     spent: null,
     ceiling: null,
 };
@@ -70,27 +76,42 @@ export function observeStatusLine(
     if (cls.kind !== "tagged") return state;
     if (cls.tag === "pass") {
         const { message, session } = splitPassSession(cls.message);
-        const m = /^pass (\d+) — issue #(\d+) on tier (\S+?)\.?$/.exec(message);
-        const p = /^pass (\d+) — (.*?)\.?$/.exec(message);
-        return {
-            ...state,
-            current: {
-                pass: m?.[1] ?? p?.[1] ?? "?",
-                label: m ? `#${m[2]} · ${m[3]}` : (p?.[2] ?? message),
-                session,
-                startMs: nowMs,
-            },
+        // `— lane K` only on a multi-lane run (issue #5486).
+        const m =
+            /^pass (\d+)(?: — lane (\d+))? — issue #(\d+) on tier (\S+?)\.?$/.exec(
+                message
+            );
+        const p = /^pass (\d+)(?: — lane (\d+))? — (.*?)\.?$/.exec(message);
+        const pass: PassInFlight = {
+            pass: m?.[1] ?? p?.[1] ?? "?",
+            lane: m?.[2] ?? p?.[2] ?? null,
+            label: m ? `#${m[3]} · ${m[4]}` : (p?.[3] ?? message),
+            session,
+            startMs: nowMs,
         };
+        // A pass number is never reused, nor a lane while its pass runs:
+        // either matching means the earlier row's END was lost — replace it.
+        const others = state.inFlight.filter(
+            (q) =>
+                q.pass !== pass.pass &&
+                (pass.lane === null || q.lane !== pass.lane)
+        );
+        return { ...state, inFlight: [...others, pass] };
     }
     if (cls.tag === "end") {
         const f = parseFields(cls.message);
         return {
-            current: null,
+            // The END names its pass: only that row goes, the other lanes
+            // keep running. No `pass=` at all → nothing left to trust.
+            inFlight:
+                f.pass === undefined
+                    ? []
+                    : state.inFlight.filter((q) => q.pass !== f.pass),
             spent: num(f.spent) ?? state.spent,
             ceiling: num(f.ceiling) ?? num(f.budget) ?? state.ceiling,
         };
     }
-    if (cls.tag === "summary") return { ...state, current: null };
+    if (cls.tag === "summary") return { ...state, inFlight: [] };
     return state;
 }
 
@@ -122,46 +143,60 @@ function fitWidth(line: string, max: number): string {
     return out;
 }
 
+/** Rows in lane order; passes without a lane keep their start order. */
+function byLane(passes: PassInFlight[]): PassInFlight[] {
+    return passes
+        .map((q, i) => ({ q, i }))
+        .sort(
+            (a, b) =>
+                Number(a.q.lane ?? Infinity) - Number(b.q.lane ?? Infinity) ||
+                a.i - b.i
+        )
+        .map(({ q }) => q);
+}
+
 /**
- * The status line for `state` at `nowMs`, or null when no pass is in flight
- * (between passes, after the summary) — then nothing is drawn. `activity`
- * null is level A. The line never exceeds `env.width - 1` columns: a line
- * that wraps cannot be erased with one carriage return.
+ * The status rows for `state` at `nowMs`: one per pass in flight, empty when
+ * none is (between passes, after the summary) — then nothing is drawn.
+ * `activityOf(session)` null is level A for that row. No row ever exceeds
+ * `env.width - 1` columns: a row that wraps cannot be erased by row count.
  */
-export function formatStatusLine(
+export function formatStatusLines(
     state: StatusLineState,
-    activity: PassActivity | null,
+    activityOf: (session: string | null) => PassActivity | null,
     nowMs: number,
     frame: number,
     env: RenderEnv
-): string | null {
-    const cur = state.current;
-    if (!cur) return null;
+): string[] {
     const run =
         state.spent === null
             ? "run spend n/a"
             : state.ceiling
               ? `run ${formatTokens(state.spent)}/${formatTokens(state.ceiling)}`
               : `run ${formatTokens(state.spent)}`;
-    const parts = [
-        paint(env, "cyan", SPINNER[frame % SPINNER.length]),
-        paint(env, "bold", `pass ${cur.pass}`),
-        cur.label,
-        formatDuration((nowMs - cur.startMs) / 1000),
-        run,
-    ];
-    if (activity) {
-        const tool = activity.lastTool;
-        parts.push(
-            tool
-                ? `${tool.name}${tool.target ? ` ${clip(tool.target, TOOL_TARGET_MAX)}` : ""}`
-                : "no tool yet",
-            `${activity.activeSubagents} subagent${activity.activeSubagents === 1 ? "" : "s"}`,
-            `pass ${formatTokens(activity.tokens)}`
+    return byLane(state.inFlight).map((cur, row) => {
+        const parts = [
+            paint(env, "cyan", SPINNER[frame % SPINNER.length]),
+            paint(env, "bold", `pass ${cur.pass}`),
+        ];
+        if (cur.lane !== null)
+            parts.push(paint(env, "bold", `lane ${cur.lane}`));
+        parts.push(cur.label, formatDuration((nowMs - cur.startMs) / 1000));
+        if (row === 0) parts.push(run);
+        const activity = activityOf(cur.session);
+        if (activity) {
+            const tool = activity.lastTool;
+            parts.push(
+                tool
+                    ? `${tool.name}${tool.target ? ` ${clip(tool.target, TOOL_TARGET_MAX)}` : ""}`
+                    : "no tool yet",
+                `${activity.activeSubagents} subagent${activity.activeSubagents === 1 ? "" : "s"}`,
+                `pass ${formatTokens(activity.tokens)}`
+            );
+        }
+        return fitWidth(
+            parts.join(paint(env, "dim", " · ")),
+            Math.max(1, env.width - 1)
         );
-    }
-    return fitWidth(
-        parts.join(paint(env, "dim", " · ")),
-        Math.max(1, env.width - 1)
-    );
+    });
 }
