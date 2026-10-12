@@ -5,7 +5,6 @@
 // Modern Scryfall oracle text is authoritative (ADR 0004).
 
 import type {
-    ManaCost,
     SpellContext,
     PermanentView,
     StaticEffectStateView,
@@ -34,21 +33,6 @@ function noOpponentWhiteOrBlueCreature(
                 (ctx.getColors(c).includes("W") ||
                     ctx.getColors(c).includes("U"))
         );
-}
-
-// Local mana-cost → colours helper (CR 202.2), following the established
-// inline-helper precedent (arn/white.cards.ts) rather than importing the shared
-// `convex/cards/colors.ts` — that module pulls in `gre/constants.ts`, which
-// imports back into `convex/cards/index.cards.ts` (the registry), creating an
-// import cycle through the `sets/inv` barrel that leaves `red.ts`'s OWN
-// exports still-undefined mid-evaluation (the registry's `Object.values`
-// scan then silently drops every card in this file). Used only by
-// `declared-attack-restriction` predicates, which get no `ctx` to call
-// `StaticEffectContext.getColors` with.
-const RED_MANA_COLOR_KEYS = ["W", "U", "B", "R", "G"] as const;
-function colorsFromManaCost(cost?: ManaCost): readonly string[] {
-    if (!cost) return [];
-    return RED_MANA_COLOR_KEYS.filter((c) => (cost[c] ?? 0) > 0);
 }
 
 // Overload — "Kicker {2}. Destroy target artifact if its mana value is 2 or
@@ -674,10 +658,10 @@ export const rubyLeech = defineCard(() => ({
 // Scarred Puma — {R} Creature — Cat, 2/1. "This creature can't attack unless
 // a black or green creature also attacks." (CR 508.1c declared-attack
 // restriction, evaluated once the full attacking set is known — the Orcish
-// Conscripts template. `declared-attack-restriction`'s predicate gets no
-// `ctx`, so colour is derived directly off each attacker's raw card via the
-// local `colorsFromManaCost` helper above — the same mana-cost-derivation
-// `ctx.getColors` itself wraps, just without needing a StaticEffectContext.)
+// Conscripts template. A co-attacker's colour is read through `ctx.getColors`,
+// the layer-5 authority (CR 105.2 / 613.1e): the raw `card` of a live instance
+// carries no mana cost, so deriving colour off it read every creature as
+// colourless and the Puma could never attack (issue #5495).)
 export const scarredPuma = defineCard(() => ({
     id: "067ff95e-c4dc-41bb-9677-67f51a09b05a",
     rarity: "common",
@@ -693,12 +677,10 @@ export const scarredPuma = defineCard(() => ({
         {
             kind: "declared-attack-restriction",
             id: "scarred-puma-needs-company",
-            predicate: (self, declaredAttackers) =>
+            predicate: (self, declaredAttackers, ctx) =>
                 declaredAttackers.some((c) => {
                     if (c.id === self.id) return false;
-                    const colors = colorsFromManaCost(
-                        (c.card as { manaCost?: ManaCost }).manaCost
-                    );
+                    const colors = ctx.getColors(c);
                     return colors.includes("B") || colors.includes("G");
                 }),
             oracleText:

@@ -1240,6 +1240,54 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #3214 — the exert seam. The position is chosen so the exert payoff and its price cannot be confused: 4 damage removes the only blocker (which would otherwise trade one-for-one with Glorybringer), and the price — not untapping next turn — is a cost the search only sees beyond its horizon, so a passing entry proves the payoff reaches the root decision rather than that the price was mispriced.",
     },
     {
+        // MUST. The CR 508.1c set-dependent attack restriction (issue #5495).
+        // Scarred Puma "can't attack unless a black or green creature also
+        // attacks"; its only companion is a red Gray Ogre, into an empty board.
+        // The one legal attack is the Ogre ALONE. Before the fix
+        // `enumerateAttackerMoves` offered Ogre + Puma (more damage, so the
+        // search took it) and `confirmAttackers` threw on it, freezing the game.
+        label: "must: never declares Scarred Puma without a black or green co-attacker",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Scarred Puma",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Gray Ogre",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 3,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0x5495, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            predicate: (move, state) => {
+                if (move?.kind !== "declare-attackers") return false;
+                const pumas = instanceIdsForName(state, "Scarred Puma");
+                const ogres = instanceIdsForName(state, "Gray Ogre");
+                return (
+                    move.attackerIds.some((id) => ogres.has(id)) &&
+                    !move.attackerIds.some((id) => pumas.has(id))
+                );
+            },
+            describe:
+                "attacks with Gray Ogre ALONE — Scarred Puma has no black or green co-attacker (CR 508.1c)",
+        },
+        note: "Issue #5495 — the enumeration seam for `declared-attack-restriction`. `enumerateAttackerMoves` prunes subsets through `declaredAttackRestrictionViolation`, the same predicate `validateDeclaredAttackers` throws on at confirm; deleting the filter puts the illegal Ogre + Puma declaration back in the move list, where it out-scores the Ogre alone.",
+    },
+    {
         // STRETCH. A lone 3/3 facing an empty board: attacking is free damage
         // (no blockers, no crackback the position can produce) and passing the
         // combat step throws a turn away. It PASSES today; it is kept in the
