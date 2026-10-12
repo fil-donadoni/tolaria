@@ -62,6 +62,7 @@
         "health:cadence": "bun scripts/health-cadence.ts",
         "health:fix": "bun scripts/health-fix.ts",
         "health:nightly": "bun scripts/health-nightly.ts",
+        "health:runner": "bun scripts/health-runner.ts",
         "health:status": "bun scripts/health-main.ts --status",
         "issue:inherit-band": "bun scripts/issue-inherit-band.ts",
         "issues:orphans": "bun scripts/issues-orphans.ts",

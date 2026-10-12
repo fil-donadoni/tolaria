@@ -80,18 +80,22 @@ import {
     writeFileSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import { BASE_BRANCH } from "./lib/branches";
+import { BASE_BRANCH, CONFIG_PATH } from "./lib/branches";
 import {
+    adoptRemoteVerdict,
     afterFire,
     clearPending,
     describeLastDecision,
+    healthRunnerMode,
     healthTrigger,
     parseCadence,
+    parseHealthRunnerConfig,
     pendingHealthRun,
     recordDecision,
     recordLanding,
     recordRepairIssue,
     reconcileHealthRun,
+    remoteCadenceDecision,
     serializeCadence,
     withPending,
     walkOwedSince,
@@ -111,6 +115,7 @@ import {
     verdictStore,
 } from "./lib/health-verdict-store";
 import { MACHINE_SATURATED_EXIT } from "./lib/machine-admission";
+import { notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { holdLease } from "./lib/process-lease";
 import { kpiReport } from "./workflow-kpi";
@@ -157,7 +162,17 @@ function writeCadence(root: string, state: CadenceState): void {
     renameSync(tmp, cadencePath(root));
 }
 
-function readLast(root: string): HealthRecord | null {
+/** `healthRunner` from `tolaria.config.json` — absent, unreadable or torn
+ *  reads as no runner: `land`'s cadence gates locally, as before. */
+export function readHealthRunnerConfig(path = CONFIG_PATH) {
+    try {
+        return parseHealthRunnerConfig(JSON.parse(readFileSync(path, "utf8")));
+    } catch {
+        return parseHealthRunnerConfig(null);
+    }
+}
+
+export function readLast(root: string): HealthRecord | null {
     try {
         return JSON.parse(
             readFileSync(join(root, HEALTH_DIR, "last.json"), "utf8")
@@ -366,13 +381,37 @@ function decideAndRun(root: string, branch: string): Round {
     // One run at a time, queued or running, whatever sha it is about — see
     // `pendingHealthRun`. Under RED the thresholds count from the last fire,
     // and a declared repair fires at once — see `healthTrigger`.
-    const verdict = healthTrigger({
+    const trigger = {
         state,
         tip,
         now: firedAt,
         red: lineageUnconfirmed(root),
         pending: pendingHealthRun(state, readLast(root), firedAt, processAlive),
-    });
+    };
+    // The health runner gates on another machine (issue #5467): a due batch
+    // is its to gate, and runs here only when its verdicts went stale.
+    const remote =
+        healthRunnerMode(readHealthRunnerConfig(), process.platform) ===
+        "remote";
+    const remoteDecision = remote
+        ? remoteCadenceDecision({
+              ...trigger,
+              readLineage: () => verdictStore(root, { branch }).lineage(),
+          })
+        : null;
+    const verdict = remoteDecision?.verdict ?? healthTrigger(trigger);
+    // The runner's GREEN resets this ledger too — re-applied to a fresh read,
+    // like every write below.
+    if (remoteDecision?.lineage) {
+        const fresh = readCadence(root);
+        const adopted = adoptRemoteVerdict(fresh, remoteDecision.lineage);
+        if (adopted !== fresh) writeCadence(root, adopted);
+    }
+    if (verdict.kind === "fire" && verdict.trigger === "stale")
+        notifyOwner(
+            `health runner silent — ${verdict.reason}`,
+            "Tolaria health"
+        );
     const decision = {
         at: firedAt,
         tip,
@@ -413,6 +452,57 @@ function decideAndRun(root: string, branch: string): Round {
         )
     );
 
+    const gateStatus = runHealthGate(root, branch, tip, firedAt);
+
+    // The RECORD is the verdict, never the exit status, and never the sha this
+    // run SNAPSHOTTED: `health-main` re-resolves the tip when it finally gets
+    // the mutex, which after queuing behind every land is routinely a later
+    // commit. `reconcileHealthRun` owns that — see its header for what an
+    // equality check against `tip` would silently cost.
+    const action = reconcileHealthRun(readCadence(root), {
+        last: readLast(root),
+        firedAt,
+    });
+    if (action.kind === "none") {
+        writeCadence(root, clearPending(readCadence(root)));
+        console.error(
+            `health-cadence: ${action.reason} (gate exited ${gateStatus ?? "on a signal"}) — the ledger is left as it is`
+        );
+        // Still re-decide: a repair that landed while this run was pending
+        // held on it, and nothing else would revisit it before the next
+        // landing. The tip dedup keeps an INFRA tip from re-firing at once.
+        return { code: 1, ran: true };
+    }
+    writeCadence(root, action.state);
+    if (action.kind === "green") {
+        console.log(`health-cadence: ${action.reason}`);
+        return { code: 0, ran: true };
+    }
+    // RED. `health-main` has already written the marker and `last.json`; the
+    // handover is `release`'s, unchanged. The counter is not reset: under RED
+    // the next decision counts from THIS fire, and a declared repair that
+    // landed during the run is gated by the re-decision `detach` makes next.
+    console.error(
+        `health-cadence: ${action.reason} — handing over to health:fix`
+    );
+    spawnSync("bun", [HEALTH_FIX], { stdio: "inherit", cwd: root });
+    return { code: 1, ran: true };
+}
+
+/**
+ * One health run on the base tip: the offline gates under ONE `gate.ts yield`
+ * acquisition, then the browser walk off the mutex when this run's offline
+ * phase left it owed. Returns the last phase's exit status. `health-main`
+ * writes the record and the verdict; the caller reads them. Shared by `land`'s
+ * `detach` and the health runner (`scripts/health-runner.ts`, issue #5467).
+ */
+export function runHealthGate(
+    root: string,
+    branch: string,
+    tip: string,
+    firedAt: number,
+    opts: { retryInfra?: boolean } = {}
+): number | null {
     // ONE acquisition for the whole run — see the WHY at the top.
     const env: NodeJS.ProcessEnv = {
         ...process.env,
@@ -429,7 +519,7 @@ function decideAndRun(root: string, branch: string): Round {
         [
             GATE,
             "yield",
-            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock --phase=offline`,
+            `bun ${JSON.stringify(HEALTH_MAIN)} --branch=${branch} --under-lock --phase=offline${opts.retryInfra ? " --retry-infra" : ""}`,
         ],
         { stdio: "inherit", cwd: root, env }
     );
@@ -476,39 +566,7 @@ function decideAndRun(root: string, branch: string): Round {
               })
             : offline;
 
-    // The RECORD is the verdict, never the exit status, and never the sha this
-    // run SNAPSHOTTED: `health-main` re-resolves the tip when it finally gets
-    // the mutex, which after queuing behind every land is routinely a later
-    // commit. `reconcileHealthRun` owns that — see its header for what an
-    // equality check against `tip` would silently cost.
-    const action = reconcileHealthRun(readCadence(root), {
-        last: readLast(root),
-        firedAt,
-    });
-    if (action.kind === "none") {
-        writeCadence(root, clearPending(readCadence(root)));
-        console.error(
-            `health-cadence: ${action.reason} (gate exited ${r.status ?? "on a signal"}) — the ledger is left as it is`
-        );
-        // Still re-decide: a repair that landed while this run was pending
-        // held on it, and nothing else would revisit it before the next
-        // landing. The tip dedup keeps an INFRA tip from re-firing at once.
-        return { code: 1, ran: true };
-    }
-    writeCadence(root, action.state);
-    if (action.kind === "green") {
-        console.log(`health-cadence: ${action.reason}`);
-        return { code: 0, ran: true };
-    }
-    // RED. `health-main` has already written the marker and `last.json`; the
-    // handover is `release`'s, unchanged. The counter is not reset: under RED
-    // the next decision counts from THIS fire, and a declared repair that
-    // landed during the run is gated by the re-decision `detach` makes next.
-    console.error(
-        `health-cadence: ${action.reason} — handing over to health:fix`
-    );
-    spawnSync("bun", [HEALTH_FIX], { stdio: "inherit", cwd: root });
-    return { code: 1, ran: true };
+    return r.status;
 }
 
 function status(root: string): number {
