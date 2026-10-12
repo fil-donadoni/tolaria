@@ -5,11 +5,21 @@ import {
     DEFAULT_FIX_ATTEMPTS,
     loopDecision,
     parseFixBound,
+    publishVerdict,
+    reconcileRecord,
     releaseDecision,
     type HealthRecord,
     type LoopInputs,
 } from "../release";
 import { issueWorktree } from "../lib/issue-worktree";
+import { mkdtempSync, mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import {
+    fileVerdictStore,
+    githubVerdictStore,
+    type GhRunner,
+    type Verdict,
+} from "../lib/health-verdict-store";
 
 /**
  * `bun run release` (ADR 0116) — the one decision it makes is pure: the
@@ -294,5 +304,101 @@ describe("the fix loop's dependency cannot vanish silently (PR #3209 deleted it 
             readFileSync(join(root, "package.json"), "utf8")
         ) as { scripts: Record<string, string> };
         expect(pkg.scripts["health:fix"]).toBe("bun scripts/health-fix.ts");
+    });
+});
+
+/**
+ * Release through the verdict store (issue #5466): a RED written by the other
+ * machine refuses here, and the release's own verdict is written back.
+ */
+describe("release — reconcileRecord (store vs local last.json)", () => {
+    const tip = "a".repeat(40);
+    const redByHuawei: Verdict = {
+        sha: tip,
+        status: "red",
+        step: "test:bot",
+        machine: "huawei",
+    };
+
+    it("a stored RED refuses even with no local record, naming step and machine", () => {
+        const d = releaseDecision(tip, reconcileRecord(tip, null, redByHuawei));
+        expect(d).toMatchObject({ kind: "refuse", red: true });
+        expect(d.kind === "refuse" && d.reason).toMatch(
+            /RED.*test:bot.*huawei/
+        );
+    });
+
+    it("a stored RED beats a local running or green record about the same sha", () => {
+        for (const status of ["running", "green"] as const)
+            expect(
+                reconcileRecord(tip, { sha: tip, status }, redByHuawei)?.status
+            ).toBe("red");
+    });
+
+    it("a stored GREEN stands in for a missing local record", () => {
+        const rec = reconcileRecord(tip, null, { sha: tip, status: "green" });
+        expect(releaseDecision(tip, rec)).toEqual({
+            kind: "release",
+            sha: tip,
+        });
+    });
+
+    it("a stored verdict about ANOTHER sha is not evidence", () => {
+        expect(
+            reconcileRecord(tip, null, { ...redByHuawei, sha: "b".repeat(40) })
+        ).toBeNull();
+    });
+});
+
+describe("release — publishVerdict through the file backend", () => {
+    const tip = "c".repeat(40);
+
+    it("writes RED (raises the marker) and GREEN (clears it) through the store", () => {
+        const root = mkdtempSync(join(tmpdir(), "release-store-"));
+        const dir = join(root, ".claude", "telemetry", "health");
+        mkdirSync(dir, { recursive: true });
+        const store = () => fileVerdictStore({ root });
+        publishVerdict(
+            store,
+            { sha: tip, status: "red", failedStep: "x" },
+            null
+        );
+        expect(existsSync(join(dir, "RED"))).toBe(true);
+        publishVerdict(store, { sha: tip, status: "green" }, null);
+        expect(existsSync(join(dir, "RED"))).toBe(false);
+    });
+
+    it("writes nothing for a running record or one the store already holds", () => {
+        const calls: Verdict[] = [];
+        const store = () =>
+            ({
+                write: (v: Verdict) => (calls.push(v), { written: true }),
+            }) as never;
+        publishVerdict(store, { sha: tip, status: "running" }, null);
+        publishVerdict(
+            store,
+            { sha: tip, status: "green" },
+            { sha: tip, status: "green" }
+        );
+        expect(calls).toEqual([]);
+    });
+});
+
+describe("release — publishVerdict through the github backend (fake gh)", () => {
+    it("POSTs the commit status for the released tip", () => {
+        const tip = "d".repeat(40);
+        const posts: string[][] = [];
+        const run: GhRunner = (args) => {
+            if (args[1] === "-X") posts.push(args);
+            return { status: 0, stdout: "{}", stderr: "" };
+        };
+        const store = () => githubVerdictStore({ repo: "owner/tolaria", run });
+        publishVerdict(store, { sha: tip, status: "green" }, null);
+        expect(posts).toHaveLength(1);
+        expect(posts[0]).toContain(`repos/owner/tolaria/statuses/${tip}`);
+        expect(posts[0]).toContain("state=success");
+        expect(posts[0].some((a) => a.startsWith("description=GREEN"))).toBe(
+            true
+        );
     });
 });
