@@ -18,6 +18,7 @@
  * without dragging a module graph into a shell step that must never fail.
  */
 import type { HealthStatus } from "./health-verdict";
+import type { Lineage, Verdict } from "./health-verdict-store";
 
 /**
  * How a landing made under a standing RED declared itself (issue #4964).
@@ -123,8 +124,11 @@ export type CadenceVerdict =
     | {
           kind: "fire";
           /** Which threshold tripped — the reason a reader wants. `repair`
-           *  only under RED: a declared repair landed since the last fire. */
-          trigger: "count" | "age" | "repair";
+           *  only under RED: a declared repair landed since the last fire.
+           *  `unproven` and `stale` are the health runner's (issue #5467):
+           *  no verdict to count from, and the MacBook's fallback when the
+           *  runner's verdicts stopped coming. */
+          trigger: "count" | "age" | "repair" | "unproven" | "stale";
           /** The tip to gate: the one CURRENT now, not the one that triggered. */
           sha: string;
           reason: string;
@@ -749,4 +753,277 @@ export function walkOwedSince(
         return false;
     const startedAt = Date.parse(last.startedAt);
     return Number.isFinite(startedAt) && startedAt >= firedAt;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The health runner (issue #5467, ADR 0154 §9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * One first-parent commit of the base branch, as `git log --format='%H %ct'`
+ * reads it. A squash merge's committer time is its merge time, so this IS the
+ * landing `land` would have recorded — without a ledger to carry across
+ * machines.
+ */
+export interface BaseCommit {
+    sha: string;
+    /** Epoch ms. */
+    at: number;
+}
+
+/** The runner's own dedup stamp: the tip it last started health on. */
+export interface RunnerFire {
+    sha: string;
+    at: number;
+}
+
+/**
+ * The sha the runner counts landings FROM: the tip the lineage's newest
+ * completed run gated. GREEN and RED are their own sha; an AMBER is a
+ * landing AFTER the red it repairs, so the count starts at that red and the
+ * repair is one of the landings (`runnerPlan` marks it `repair`). Null when
+ * the store holds no completed verdict in its history — infra only proves
+ * nothing, so it is never a base.
+ */
+export function runnerBase(lineage: Lineage): string | null {
+    const v = lineage.verdict;
+    if (v === null) return null;
+    switch (lineage.kind) {
+        case "green":
+        case "red":
+        case "second-red":
+            return v.sha;
+        case "amber":
+            return v.repairOf ?? null;
+        default:
+            return null;
+    }
+}
+
+export type RunnerPlan = CadenceVerdict | { kind: "stop"; reason: string };
+
+export interface RunnerPlanInput {
+    /** The base tip as fetched now. */
+    tip: string;
+    lineage: Lineage;
+    /** First-parent commits in `(runnerBase(lineage) .. tip]`, oldest first;
+     *  null when there is no base, or it is not an ancestor of the tip. */
+    commits: BaseCommit[] | null;
+    lastFire: RunnerFire | null;
+    /** A run already in flight on this machine (`healthRunInFlight`). */
+    pending?: string | null;
+    now: number;
+    landingsPerBatch?: number;
+    maxAgeMs?: number;
+    fireDedupMs?: number;
+}
+
+/**
+ * Whether the health runner gates `tip` now — the SAME rule `land`'s
+ * `health-cadence detach` applies on the MacBook, never a second one. The
+ * runner has no ledger: it rebuilds the `CadenceState` `healthTrigger` reads
+ * from the verdict store and git, so no file crosses machines and no ssh is
+ * needed (ADR 0154 §9):
+ *
+ *  - the un-healthed landings are the base commits after the last gated tip;
+ *  - `lastGreenSha` is that tip when the lineage is GREEN;
+ *  - the dedup stamp is the runner's own last fire;
+ *  - RED, AMBER or SECOND RED is `red`: thresholds count from the last fire,
+ *    and the AMBER commit — a proved repair `land` declared — fires at once.
+ *
+ * A SECOND RED stops the runner as it stops the loop: the repair did not
+ * hold, and gating every batch after it only re-reports the red. A new AMBER
+ * (the next proved repair) or a GREEN by hand ends the stop.
+ *
+ * No completed verdict to count from, or a base the tip does not descend from
+ * (a force-push), is `unproven`: nothing proves the base, so it is gated —
+ * still behind the dedup and an in-flight run.
+ */
+export function runnerPlan(input: RunnerPlanInput): RunnerPlan {
+    const { tip, lineage, commits, lastFire, now } = input;
+    const fireDedupMs = input.fireDedupMs ?? FIRE_DEDUP_MS;
+    if (lineage.kind === "second-red")
+        return {
+            kind: "stop",
+            reason: `SECOND RED @ ${short(lineage.verdict?.sha ?? "unknown")} on this lineage — the repair did not hold; the runner gates nothing until a proved repair (AMBER) or a GREEN`,
+        };
+    const base = runnerBase(lineage);
+    if (base === null || commits === null) {
+        if (
+            lastFire !== null &&
+            lastFire.sha === tip &&
+            now - lastFire.at < fireDedupMs
+        )
+            return {
+                kind: "hold",
+                reason: `health already started for tip ${short(tip)}`,
+            };
+        if (input.pending) return { kind: "hold", reason: input.pending };
+        return {
+            kind: "fire",
+            trigger: "unproven",
+            sha: tip,
+            reason:
+                base === null
+                    ? `no GREEN or RED in the verdict store's history — nothing proves ${short(tip)}`
+                    : `the last gated tip ${short(base)} is not an ancestor of ${short(tip)}`,
+        };
+    }
+    const amberSha = lineage.kind === "amber" ? lineage.verdict?.sha : null;
+    const state: CadenceState = {
+        ...EMPTY_CADENCE,
+        landings: commits.map((c) =>
+            c.sha === amberSha
+                ? { sha: c.sha, at: c.at, kind: "repair" as const }
+                : { sha: c.sha, at: c.at }
+        ),
+        lastGreenSha: lineage.kind === "green" ? base : null,
+        lastFiredSha: lastFire?.sha ?? null,
+        lastFiredAt: lastFire?.at ?? null,
+    };
+    return healthTrigger({
+        state,
+        tip,
+        now,
+        red: lineage.kind === "red" || lineage.kind === "amber",
+        pending: input.pending,
+        landingsPerBatch: input.landingsPerBatch,
+        maxAgeMs: input.maxAgeMs,
+        fireDedupMs,
+    });
+}
+
+/**
+ * The MacBook's cadence when the health runner gates on ANOTHER machine
+ * (`healthRunner.platform`, issue #5467): `land`'s `detach` still decides by
+ * its own ledger, but a FIRE is the runner's to make — it becomes a local run
+ * only when the runner went silent. Silent = the newest verdict in the store
+ * is older than `maxPendingMs` (`MAX_PENDING_MS`, ADR 0154 §9), or there is
+ * none: then the MacBook runs ONE local health, and the verdict that run
+ * writes is fresh, so the next decision holds again.
+ *
+ * Only a batch the ledger says is DUE is ever checked, so a quiet base — no
+ * landings, so no runs, so an old verdict — is never mistaken for a dead
+ * runner.
+ */
+export function staleVerdictPlan(input: {
+    trigger: CadenceVerdict;
+    latest: Pick<Verdict, "sha" | "at" | "machine"> | null;
+    now: number;
+    maxPendingMs?: number;
+}): CadenceVerdict {
+    const { trigger, latest, now } = input;
+    const maxPendingMs = input.maxPendingMs ?? MAX_PENDING_MS;
+    if (trigger.kind === "hold") return trigger;
+    const at = latest?.at ? Date.parse(latest.at) : Number.NaN;
+    if (latest !== null && Number.isFinite(at) && now - at < maxPendingMs)
+        return {
+            kind: "hold",
+            reason: `the health runner owns this batch — newest verdict ${short(latest.sha)}${latest.machine ? ` (${latest.machine})` : ""} is ${minutes(now - at)} old, under ${minutes(maxPendingMs)}`,
+        };
+    const age =
+        latest === null
+            ? "no verdict in the store"
+            : Number.isFinite(at)
+              ? `newest verdict ${short(latest.sha)} is ${minutes(now - at)} old (threshold ${minutes(maxPendingMs)})`
+              : `newest verdict ${short(latest.sha)} carries no time`;
+    return {
+        kind: "fire",
+        trigger: "stale",
+        sha: trigger.sha,
+        reason: `stale verdict: ${age}; ${trigger.reason} — one local health run`,
+    };
+}
+
+/**
+ * A GREEN the runner wrote resets the MacBook's ledger as its own would, so
+ * the ledger stays a batch and not a history. When the green sha is not a
+ * recorded landing, nothing is pruned: a landing wrongly marked covered costs
+ * the coverage the fallback exists for (`afterGreen`'s rule).
+ */
+export function adoptRemoteGreen(
+    state: CadenceState,
+    latest: Pick<Verdict, "sha" | "status"> | null
+): CadenceState {
+    if (latest?.status !== "green" || latest.sha === state.lastGreenSha)
+        return state;
+    return afterGreen(state, latest.sha, Number.NEGATIVE_INFINITY);
+}
+
+/** `healthRunner` in `tolaria.config.json` (issue #5467). */
+export interface HealthRunnerConfig {
+    /** `process.platform` of the machine whose runner gates batch health, or
+     *  null when no runner is configured: every machine's `land` cadence
+     *  gates locally, as before topology B'. */
+    platform: string | null;
+}
+
+export function parseHealthRunnerConfig(raw: unknown): HealthRunnerConfig {
+    const block = (raw as { healthRunner?: Record<string, unknown> } | null)
+        ?.healthRunner;
+    return {
+        platform:
+            typeof block?.platform === "string" && block.platform.length > 0
+                ? block.platform
+                : null,
+    };
+}
+
+/** Where batch health runs, seen from `platform`: `here` (the runner gates),
+ *  `remote` (another machine's runner gates; `land`'s cadence is the stale
+ *  fallback), `local` (no runner: `land`'s cadence gates). */
+export function healthRunnerMode(
+    config: HealthRunnerConfig,
+    platform: string
+): "here" | "remote" | "local" {
+    if (config.platform === null) return "local";
+    return config.platform === platform ? "here" : "remote";
+}
+
+/**
+ * `land`'s `detach` decision when the runner is on another machine: the
+ * ledger's trigger, after adopting the runner's GREEN, filtered through
+ * `staleVerdictPlan`. An unreadable store holds — the fallback run would
+ * write its verdict to the same store, and a GitHub blip must not cost a
+ * full local gate.
+ */
+export function remoteCadenceDecision(
+    input: TriggerInput & {
+        readLatest: () => Pick<
+            Verdict,
+            "sha" | "status" | "at" | "machine"
+        > | null;
+        maxPendingMs?: number;
+    }
+): {
+    verdict: CadenceVerdict;
+    state: CadenceState;
+    /** What the store returned; null when it was empty or unreadable. */
+    latest: Pick<Verdict, "sha" | "status" | "at" | "machine"> | null;
+} {
+    let latest: Pick<Verdict, "sha" | "status" | "at" | "machine"> | null;
+    try {
+        latest = input.readLatest();
+    } catch (err) {
+        return {
+            verdict: {
+                kind: "hold",
+                reason: `the verdict store is unreadable (${String(err)}) — the health runner's verdict cannot be checked`,
+            },
+            state: input.state,
+            latest: null,
+        };
+    }
+    const state = adoptRemoteGreen(input.state, latest);
+    const trigger = healthTrigger({ ...input, state });
+    return {
+        verdict: staleVerdictPlan({
+            trigger,
+            latest,
+            now: input.now,
+            maxPendingMs: input.maxPendingMs,
+        }),
+        state,
+        latest,
+    };
 }
