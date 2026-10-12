@@ -111,6 +111,7 @@ import {
 // and on whether anything the opponent is doing can currently reach the
 // permanent that carries them.
 import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
+import { inertKeywordDiscount } from "./ai/keywordRelevance";
 import {
     DEFAULT_EVAL_WEIGHTS,
     type EvalWeights,
@@ -252,6 +253,8 @@ export function evaluateCreature(
     // Until-boundary P/T excluded: a combat trick's buff is not lasting
     // material (ADR 0020 §2).
     const pt = getEffectivePT(state, card, { includeTemporary: false, pass });
+    const lastingPower = Math.max(0, pt.power);
+    const quietGrants = quietDefensiveGrants(state, card);
     return (
         creatureValueRaw(
             Math.max(0, pt.power),
@@ -275,7 +278,13 @@ export function evaluateCreature(
         // the creature both carries such a grant AND stands in a provably quiet
         // position (`ai/defensiveGrants.ts`, fail-closed in every clause), so
         // no other board's valuation moves.
-        quietDefensiveGrantFlat(state, card, pt.power) +
+        flatBonusOf(quietGrants, lastingPower) -
+        // Issue #5356 — the same table's bonus for a keyword that does
+        // NOTHING against the players this creature faces: landwalk with no
+        // such land across the table (CR 702.14c), protection from a colour
+        // they have provably not shown (CR 702.16a). Fail-open: zero unless
+        // the board proves the keyword inert (`ai/keywordRelevance.ts`).
+        inertKeywordDiscount(state, card, lastingPower, quietGrants) +
         // `card` doubles as the ability-gate subject (issue #1936): the
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
@@ -902,24 +911,25 @@ function flexibilityTerm(
     return castable * weights.flexWeight;
 }
 
-/** The flat `KEYWORD_BONUS` value `creatureValueRaw` has already added for
- *  defensive keyword occurrences that reached `card` through a DURATION-SCOPED
- *  grant, in a position where nothing can currently reach it (issue #2937).
- *  Read off the same table that added it (`keywordBonusFor`), so the two can
- *  never drift, and gated on `isQuietFor` so the correction never fires while
- *  anything is on the stack, any combat damage is headed at the creature, or
- *  the opponent can pay for an answer. */
-function quietDefensiveGrantFlat(
+/** The defensive keyword occurrences that reached `card` through a
+ *  DURATION-SCOPED grant, in a position where nothing can currently reach it
+ *  (issue #2937) — the occurrences whose flat `KEYWORD_BONUS` value
+ *  `evaluateCreature` takes back. Gated on `isQuietFor`, so the list is empty
+ *  while anything is on the stack, any combat damage is headed at the
+ *  creature, or the opponent can pay for an answer. */
+function quietDefensiveGrants(
     state: GameState,
-    card: CardInstanceState,
-    /** `card`'s lasting power (until-boundary P/T excluded) — the one
-     *  `evaluateCreature` has already read. */
-    lastingPower: number
-): number {
+    card: CardInstanceState
+): string[] {
     const keywords = temporaryDefensiveKeywords(state, card);
-    if (keywords.length === 0) return 0;
-    if (!isQuietFor(state, card)) return 0;
-    const power = Math.max(0, lastingPower);
+    if (keywords.length === 0) return keywords;
+    return isQuietFor(state, card) ? keywords : [];
+}
+
+/** The flat `KEYWORD_BONUS` value `creatureValueRaw` added for `keywords` at
+ *  `power` — read off the same table that added it (`keywordBonusFor`), so
+ *  the two can never drift. */
+function flatBonusOf(keywords: readonly string[], power: number): number {
     let flat = 0;
     for (const keyword of keywords) flat += keywordBonusFor(keyword, power);
     return flat;
