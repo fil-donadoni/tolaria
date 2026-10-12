@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { globSync } from "tinyglobby";
 import vitestConfig from "../../vitest.config";
 import {
+    fileNameLiterals,
     generalTests,
     moduleKey,
     reachIndex,
@@ -195,6 +196,23 @@ describe("test-reach — the mirror equals vitest.config.ts (issue #5464 review)
                 ])
             )
         ).toEqual(alias);
+    });
+});
+
+describe("test-reach — file-name literals are narrowed so a hub cannot drag the suite in", () => {
+    it("ignores comments, test-file names, and module names outside a test", () => {
+        const hub = [
+            `// see card-utils.test.ts and "notes.md"`,
+            `/* "old.json" */`,
+            `const a = "pool.json";`,
+            `const b = "gate.ts";`,
+            `const c = "other.test.ts";`,
+        ].join("\n");
+        expect(fileNameLiterals(hub, false)).toEqual(["pool.json"]);
+        expect(fileNameLiterals(hub, true).sort()).toEqual([
+            "gate.ts",
+            "pool.json",
+        ]);
     });
 });
 

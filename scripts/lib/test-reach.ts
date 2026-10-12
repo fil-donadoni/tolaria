@@ -67,6 +67,29 @@ const MOCK_SPECIFIER = /\bvi\.(?:mock|doMock)\(\s*["']([^"'\n]+)["']/g;
 const FILE_LITERAL =
     /["'`]([\w@.\/-]*?[\w-]+\.(?:tsx?|mjs|json|sh|md|txt|ya?ml|csv|css))["'`]/g;
 
+/**
+ * The file names `text` names as string literals in CODE, narrowed so a hub
+ * module cannot drag half the suite in: comments are stripped (a doc comment
+ * citing `card-utils.test.ts` in `src/lib/card-utils.ts` made 1,300 tests
+ * "related" to that test file), a test file's name is never an input, and a
+ * module name (`.ts`, `.tsx`, `.mjs`) counts only in a TEST file — the
+ * spawn-by-path shape. Data and tooling inputs (`.json`, `.sh`, `.md`, …)
+ * count in any module: their readers live in `scripts/lib/**`.
+ */
+export function fileNameLiterals(text: string, inTest: boolean): string[] {
+    const code = text
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
+    const names = new Set<string>();
+    for (const m of code.matchAll(FILE_LITERAL)) {
+        const name = path.posix.basename(m[1]);
+        if (/\.test\.[cm]?[jt]sx?$/.test(name)) continue;
+        if (!inTest && /\.(tsx?|mjs)$/.test(name)) continue;
+        names.add(name);
+    }
+    return [...names];
+}
+
 /** The node id every file-name literal of `basename` points at. */
 const nameNode = (basename: string) => `name:${basename}`;
 
@@ -207,8 +230,8 @@ export function reachIndex(
                     if (base !== null) deps.add(moduleKey(base));
                 }
             }
-            for (const m of text.matchAll(FILE_LITERAL))
-                deps.add(nameNode(path.posix.basename(m[1])));
+            for (const name of fileNameLiterals(text, tests.has(id)))
+                deps.add(nameNode(name));
         }
         const list = [...deps];
         memo.set(id, list);
