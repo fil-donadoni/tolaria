@@ -280,9 +280,10 @@ export function evaluateCreature(
         // no other board's valuation moves.
         flatBonusOf(quietGrants, lastingPower) -
         // Issue #5356 — the same table's bonus for a keyword that does
-        // NOTHING against the players this creature faces: landwalk with no
-        // such land across the table (CR 702.14c), protection from a colour
-        // they have provably not shown (CR 702.16a). Fail-open: zero unless
+        // NOTHING against the players this creature faces:
+        // landwalk with no such land across the table (CR 702.14c);
+        // protection from a colour they have not shown (CR 702.16a).
+        // Fail-open: zero unless
         // the board proves the keyword inert (`ai/keywordRelevance.ts`).
         inertKeywordDiscount(state, card, lastingPower, quietGrants) +
         // `card` doubles as the ability-gate subject (issue #1936): the

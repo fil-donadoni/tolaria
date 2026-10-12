@@ -1,7 +1,8 @@
-// Board-aware keyword relevance (issue #5356): a landwalk with no such land
-// across the table (CR 702.14c) and protection from a colour the opponents
-// have provably not shown (CR 702.16a) price at zero; every case the board
-// cannot prove inert keeps its `creatureBody.ts` table bonus.
+// Board-aware keyword relevance (issue #5356). Two keywords price at zero:
+// a landwalk with no such land across the table (CR 702.14c),
+// and protection from a colour the opponents have provably not shown
+// (CR 702.16a). Every case the board cannot prove inert keeps its
+// `creatureBody.ts` table bonus.
 //
 // Every assertion goes through `evaluateCreature` — the surface the leaf, the
 // removal lens and the combat deltas read — against the same body without
