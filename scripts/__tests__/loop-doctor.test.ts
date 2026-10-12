@@ -19,6 +19,7 @@ import {
     type ClaimedIssue,
     type ClaimOwner,
     type ProcessProbe,
+    fetchUnclaimedIssues,
 } from "../loop-doctor";
 
 /**
@@ -992,5 +993,25 @@ describe("loop-doctor — a PR handed to the land-runner (issue #5469)", () => {
             classifyClaim({ ...handedOff, landQueue: null, ownerAlive: null })
                 .state
         ).toBe("live");
+    });
+});
+
+describe("fetchUnclaimedIssues — advisory, never fatal (issue #5551)", () => {
+    const answer = (out: string) => () => out;
+    it("reads the open ready-for-agent issues nobody claims", () => {
+        const rows = JSON.stringify([
+            { number: 1, labels: [{ name: "ready-for-agent" }] },
+            { number: 2, labels: [{ name: "in-progress" }] },
+        ]);
+        expect([...fetchUnclaimedIssues(answer(rows))]).toEqual([1]);
+    });
+    it("reads a non-array answer — a count, an error body, garbage — as none", () => {
+        for (const out of [
+            "0",
+            '{"message":"API rate limit exceeded"}',
+            "not json",
+            "",
+        ])
+            expect(fetchUnclaimedIssues(answer(out)).size).toBe(0);
     });
 });
