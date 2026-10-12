@@ -74,13 +74,15 @@ const KEYWORD_BONUS: Record<string, (power: number) => number> = {
     hexproof: () => 15,
     // NOT here (priced once, by their expanded trigger script via
     // `dslRealizedAbilityValueById`, so a row would count twice): exalted,
-    // prowess, battle cry, annihilator, ward, fading. Only a keyword whose
-    // expansion carries no `effects`/`aiEffects` script is priced in this table.
+    // prowess, battle cry, annihilator, ward, fading, echo. Only a keyword whose
+    // expansion or companion ability carries no `effects`/`aiEffects` script
+    // is priced in this table — guarded by `creatureKeywordBonus.bot.test.ts`.
     // Negative rows: a permanent that stays tapped or leaves is worth less.
     "does-not-untap": () => -40,
     "may-choose-not-to-untap": () => -10,
-    // Echo (CR 702.30) — a one-shot upkeep payment, small.
-    echo: () => -8,
+    // NOT here: echo (CR 702.30) — its `echoTrigger` companion carries an
+    // `aiEffects` script (pay or sacrifice) the realized ability reader
+    // already prices (issue #5355).
 };
 
 /** Parametrized keyword families (a colour, a land type, a number in the
@@ -124,6 +126,21 @@ function timeLimitedPenalty(
     const remaining = counters ? (counters.time ?? 0) : Number(match[1]);
     return -(12 + 12 * Math.max(0, 5 - remaining));
 }
+
+/** Every keyword shape `keywordBonusFor` prices: the exact table keys and the
+ *  parametrized patterns (families + the time-limited vanishing row). Exported
+ *  for the double-pricing guard (issue #5355), which demands that none of them
+ *  also carries an ability script `dslRealizedAbilityValueById` values. */
+export const PRICED_KEYWORD_SHAPES: {
+    readonly exact: readonly string[];
+    readonly patterns: readonly RegExp[];
+} = {
+    exact: Object.keys(KEYWORD_BONUS),
+    patterns: [
+        ...KEYWORD_FAMILY_BONUS.map((f) => f.pattern),
+        VANISHING_KEYWORD,
+    ],
+};
 
 /** The flat `KEYWORD_BONUS` contribution one keyword occurrence makes at
  *  `power`, or 0 for a keyword the table does not price. Exported so a caller
