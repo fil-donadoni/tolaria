@@ -63,6 +63,12 @@ STOP_FILE="$TELEMETRY_DIR/loop-stop"
 PID_FILE="$TELEMETRY_DIR/loop-drain.pid"
 DETACH_LOG="$TELEMETRY_DIR/loop-afk.log"
 DRIVER="scripts/loop-drain.sh"
+# The land-runner (issue #5469): the ONE merger, on the MacBook only. Started
+# by `--start`/`--resume` beside the driver, stopped by `--disarm`. Cwd-
+# relative like DRIVER, for the same testability reason.
+LAND_RUNNER="scripts/land-runner.ts"
+RUNNER_LOCK="$TELEMETRY_DIR/land-runner/runner.lock"
+RUNNER_OUT="$TELEMETRY_DIR/land-runner/runner.out"
 # Beside this script rather than cwd-relative like DRIVER: the renderer is
 # presentation, so it is never swapped for a scratch copy under test.
 RENDERER="$(dirname "$0")/loop-render.ts"
@@ -113,7 +119,9 @@ usage() {
     cat <<'EOF'
 loop-handoff — start / stop / inspect the detached AFK driver.
 
-  bun run loop:afk                     arm (if needed) + run the driver in THIS terminal
+  bun run loop:afk                     arm (if needed) + run the driver in THIS terminal;
+                                       on the merging machine (MacBook) also starts the
+                                       land-runner, detached (issue #5469)
   bun run loop:afk --detach            same, but detached — survives this shell
   bun run loop:afk --resume            same as --start, but clears the stop-file first
   bun run loop:afk --stop              ask the running driver to stop after the current pass
@@ -124,7 +132,7 @@ loop-handoff — start / stop / inspect the detached AFK driver.
                                        the last few passes then follows new
                                        ones. Never starts or stops a driver.
   bun run loop:afk --arm               write the conf (defaults for --start) without starting anything
-  bun run loop:afk --disarm            remove the conf
+  bun run loop:afk --disarm            remove the conf and stop the land-runner
   sh scripts/loop-handoff.sh --from-pass   dead switch (ADR 0109): always a no-op — a pass never starts the driver
 
 Options (recorded in .claude/telemetry/afk.conf on --arm / --start):
@@ -546,6 +554,59 @@ watch_log() {
     tail -n "+${_start_line}" -F "$DETACH_LOG" | render_stream
 }
 
+# The land-runner's pid, from its lock (`scripts/land-runner.ts`), when that
+# process is alive.
+runner_pid() {
+    _rpid=$(cat "$RUNNER_LOCK" 2>/dev/null || echo "")
+    is_uint "$_rpid" || return 1
+    kill -0 "$_rpid" 2>/dev/null || return 1
+    echo "$_rpid"
+}
+
+# Start the land-runner detached, unless one is alive or this is not the
+# machine that merges — `land-runner.ts --host-check` is the one authority on
+# that (`tolaria.config.json` landRunner.platform; the Huawei never runs it).
+# Its own session (setsid) so a Ctrl-C of a foreground driver does not reach
+# it, and tagged `TOLARIA_OWNER=unit:…` so the reaper (issue #5470) never
+# takes a `bun scripts/*` it cannot see a parent for as an abandoned orphan.
+# A failure here never blocks the driver: the queue waits, the PRs keep.
+start_land_runner() {
+    [ -f "$LAND_RUNNER" ] || return 0
+    if _rpid=$(runner_pid); then
+        echo "loop-handoff: land-runner already running (pid $_rpid)"
+        return 0
+    fi
+    if ! _host=$(bun "$LAND_RUNNER" --host-check 2>&1); then
+        echo "loop-handoff: land-runner not started — $_host"
+        return 0
+    fi
+    if [ "$DRY_RUN" -eq 1 ]; then
+        echo "loop-handoff: [dry-run] would start the land-runner: bun $LAND_RUNNER (detached, log $RUNNER_OUT)"
+        return 0
+    fi
+    mkdir -p "$(dirname "$RUNNER_OUT")"
+    set -- env TOLARIA_OWNER=unit:tolaria-land-runner bun "$LAND_RUNNER"
+    if command -v perl >/dev/null 2>&1; then
+        set -- perl -e "$SETSID_PERL" -- "$@"
+    fi
+    nohup "$@" >>"$RUNNER_OUT" 2>&1 </dev/null &
+    echo "loop-handoff: land-runner started (pid $!) — log: $RUNNER_OUT"
+}
+
+# Stop the land-runner: SIGTERM, which it honours AFTER the landing in flight.
+stop_land_runner() {
+    if _rpid=$(runner_pid); then
+        if [ "$DRY_RUN" -eq 1 ]; then
+            echo "loop-handoff: [dry-run] would stop the land-runner (pid $_rpid)"
+            return 0
+        fi
+        kill -TERM "$_rpid" 2>/dev/null || true
+        echo "loop-handoff: land-runner (pid $_rpid) told to stop — it exits after the landing in flight."
+    else
+        echo "loop-handoff: no land-runner running."
+    fi
+}
+
 # Every reason a start must NOT happen, in one place so `--start` and
 # `--from-pass` can never drift apart on the safety checks. Prints the reason
 # and returns 1; the caller decides whether that is an error or a quiet no-op.
@@ -587,6 +648,11 @@ case "$MODE" in
         else
             echo "driver:     not running"
         fi
+        if _rpid=$(runner_pid); then
+            echo "land-runner: running (pid $_rpid)"
+        else
+            echo "land-runner: not running"
+        fi
         if [ -f "$STOP_FILE" ]; then
             echo "stop-file:  PRESENT — nothing will start until it is removed"
         else
@@ -611,6 +677,7 @@ case "$MODE" in
     disarm)
         rm -f "$CONF_FILE"
         echo "loop-handoff: disarmed — the stored --start defaults are gone."
+        stop_land_runner
         echo "loop-handoff: a driver already running is NOT stopped by this; use 'bun run loop:afk --stop'."
         ;;
 
@@ -652,6 +719,7 @@ case "$MODE" in
             exit 1
         fi
         write_conf
+        start_land_runner
         # The announcement is launch_driver's now (announce_start): on the
         # foreground path it has to be printed INSIDE the stamped pipeline, or
         # the caller's first lines would be the only unstamped ones.

@@ -1000,7 +1000,9 @@ function verdictMark(state: ClaimVerdict["state"]): string {
             ? "!"
             : state === "stranded"
               ? "~"
-              : "·";
+              : state === "pr-open"
+                ? ">"
+                : "·";
 }
 
 /**

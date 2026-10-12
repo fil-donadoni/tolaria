@@ -38,7 +38,8 @@ export type ClaimVerdictState =
     | "suspect"
     | "orphan"
     | "recoverable"
-    | "stranded";
+    | "stranded"
+    | "pr-open";
 
 export interface ClaimVerdict {
     state: ClaimVerdictState;

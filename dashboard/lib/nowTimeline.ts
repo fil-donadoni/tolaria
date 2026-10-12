@@ -136,6 +136,7 @@ const CLAIM_TONE: Record<ClaimVerdictState, Tone> = {
     stranded: "bad",
     suspect: "warn",
     live: "good",
+    "pr-open": "good",
 };
 const CLAIM_MARK: Record<ClaimVerdictState, string> = {
     orphan: "×",
@@ -143,6 +144,7 @@ const CLAIM_MARK: Record<ClaimVerdictState, string> = {
     stranded: "~",
     suspect: "?",
     live: "·",
+    "pr-open": ">",
 };
 
 const clampPct = (v: number) => Math.min(100, Math.max(0, v));

@@ -416,7 +416,8 @@ lock across rebase → gate → push → merge, so the tree that lands is the tr
 that was gated. A merge typed by hand takes no lock: \`main\` moves under whoever
 is mid-gate, and their verified tree is no longer the one landing.
 
-  bun run land <PR#>        # from any directory checked out on the PR's branch
+  bun run land:ready <PR#>  # a session hands its PR to the land-runner (§ 8),
+                            # which runs \`bun run land <PR#>\` on the PR's branch
 
 If \`land\` already gated and pushed and only the MERGE failed, retry just the
 merge — it never re-runs the suite:
@@ -886,6 +887,40 @@ The sweep on purpose, by explicit owner request:
   TOLARIA_ALLOW_BOT_SWEEP=1 bun run oracle:compile    # or --replay-bot"
         fi
     fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. A session never runs `land` — it hands its PR to the land-runner.
+#
+# Landing is asynchronous (issue #5469, ADR 0154 topology B'): a session ends
+# at push + `bun run land:ready <PR#>` (label `ready-to-land`, claim
+# `pr-open`), and ONE land-runner on the MacBook serializes rebase → lane →
+# merge. A session that runs `land` itself spends 8–9 of its ~35 minutes
+# polling it at a full-context message per poll, and makes the base branch a
+# second writer beside the runner.
+#
+# Denied as an INVOCATION — start of a segment or after a `|`, an env-var
+# prefix allowed, like § 7's `oracle:compile` — `bun run land`, through
+# `gate:run` or `gate-run.sh`, or `bun scripts/land.ts`; `land:ready` and
+# `land:runner` are other scripts and pass. The hatch is the runner's own env
+# var, in the SAME segment, so it names the one command it authorises:
+#   TOLARIA_LAND_RUNNER=1 bun run land <PR#>
+# (the owner asking for a landing by hand; `/health-fix`'s `--repair` with no
+# recorded repair issue).
+# ─────────────────────────────────────────────────────────────────────────────
+LAND_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run[[:space:]]+(gate:run[[:space:]]+)?land|bun[[:space:]]+[^[:space:]]*scripts/land\.ts|sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+land)([[:space:]]|$)'
+if seg_has "$LAND_INVOKE" && ! seg_has 'TOLARIA_LAND_RUNNER=1' "$LAND_INVOKE"; then
+    deny "BLOCKED: a session does not run \`land\` — it hands the PR to the land-runner (issue #5469).
+
+  git push && bun run land:ready <PR#>
+
+labels the PR \`ready-to-land\` and moves the claim to \`pr-open\`; the one
+land-runner on the MacBook rebases, gates and merges it. A red landing comes
+back as \`land-failed\` + a comment, and \`queue:plan\` hands it to the next
+pass as a repair pick.
+
+A landing by hand, on explicit request (the runner's own hatch):
+  TOLARIA_LAND_RUNNER=1 bun run land <PR#>"
 fi
 
 exit 0

@@ -50,6 +50,7 @@ import {
 } from "./lib/board-priority";
 import {
     capCensus,
+    repairItems,
     resumeItems,
     capRefusal,
     heldFromJournal,
@@ -78,6 +79,7 @@ import {
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import { claimClassifications, claimLedgerPath } from "./loop-doctor";
+import { FAILED_LABEL } from "./lib/land-runner";
 
 // Computed the same way scripts/__tests__/land.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -183,6 +185,33 @@ export function issuesWithOpenPr(): number[] {
         .map((pr) => /^(?:feat|fix)\/issue-(\d+)$/.exec(pr.headRefName)?.[1])
         .filter((n): n is string => n !== undefined)
         .map(Number);
+}
+
+/** Open PRs the land-runner labelled `land-failed` (issue #5469) — the
+ *  `repair` list's source. A failed read is an empty list: a repair pick
+ *  missed this time is picked next time, and the batch is still sound. */
+function landFailedPrs(): { number: number; headRefName: string }[] {
+    try {
+        return JSON.parse(
+            gh([
+                "pr",
+                "list",
+                "--state",
+                "open",
+                "--label",
+                FAILED_LABEL,
+                "--json",
+                "number,headRefName",
+                "--limit",
+                "100",
+            ])
+        ) as { number: number; headRefName: string }[];
+    } catch (err) {
+        console.error(
+            `queue:plan: could not read \`${FAILED_LABEL}\` PRs (${(err as Error).message.split("\n")[0]}) — no repair picks this time`
+        );
+        return [];
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -884,13 +913,29 @@ function main(): void {
     // and `loop-drain` reads a non-zero exit as "stop", which is the point.
     if (!admission.admitted) die(admission.message);
 
+    // Repair picks FIRST (issue #5469): a PR the land-runner labelled
+    // `land-failed`. Its claim reads `stranded` too, so it is dropped from
+    // `resume` — one issue, one list.
+    plan.repair = repairItems(
+        landFailedPrs(),
+        (n) => {
+            try {
+                const d = port.issueDetail(n);
+                return { labels: d.labels, body: d.body };
+            } catch {
+                return null;
+            }
+        },
+        config
+    );
+    const repaired = new Set(plan.repair.map((r) => r.number));
     plan.resume = resumeItems(
         classified,
         issues,
         config,
         (n) => port.issueDetail(n).body,
         port.priority
-    );
+    ).filter((r) => !repaired.has(r.number));
 
     writePlanArtefact(plan, config.now, lineage);
 

@@ -358,7 +358,12 @@ describe("queue:claim — the cap counts LIVE SESSIONS, not labels (issue #4384)
                     [30, "recoverable"],
                 ])
             )
-        ).toEqual({ live: [10, 20], recoverable: [30], stranded: [] });
+        ).toEqual({
+            live: [10, 20],
+            recoverable: [30],
+            stranded: [],
+            prOpen: [],
+        });
     });
 
     it("the refusal breaks the count into live / recoverable and names `bun run loop:doctor`", () => {

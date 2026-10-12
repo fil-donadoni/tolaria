@@ -262,6 +262,10 @@ export const GLOSSARY = {
         label: "stranded",
         tip: "The process that took this claim is provably gone, but its work was pushed — an open PR or a pushed branch. Not released and not counted against the session cap; the next AFK pass resumes it, usually one land away.",
     },
+    "claim.pr-open": {
+        label: "PR open",
+        tip: "The session pushed its PR and labelled it ready-to-land: the land-runner merges it. The label stands so nobody re-picks the issue, but it holds no session-cap slot and is never swept as an orphan; the runner releases it at merge.",
+    },
     "claim.suspect": {
         label: "suspect",
         tip: "Something does not line up — artefacts exist but the claim is old, or they disagree with each other. Worth a look before unclaiming, not safe to reap automatically.",
