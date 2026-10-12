@@ -5,6 +5,8 @@ import {
     consumerLines,
     effectiveCap,
     gateAdmission,
+    laneCap,
+    laneCharge,
     liveProjectSessions,
     machineWaitRow,
     memorySaturation,
@@ -362,6 +364,100 @@ describe("gate admission — load/memory → admit / wait / refuse", () => {
                 T
             )
         ).toEqual([]);
+    });
+});
+
+describe("lane cap — the AFK driver's concurrent passes (issue #5486)", () => {
+    const lanes = (
+        sample: Partial<MachineSample>,
+        running = 0,
+        max: number | null = null,
+        cap = 5
+    ) =>
+        laneCap({
+            cap,
+            max,
+            running,
+            sample: { ...calm, ...sample },
+            thresholds: T,
+        });
+
+    it("RAM for two → two lanes, and says why it is under the ceiling", () => {
+        const d = lanes({ reclaimableMb: 2 * 2500 + 100 });
+        expect(d.lanes).toBe(2);
+        expect(d.reasons.join()).toMatch(/holds 2 more beside 0 running/);
+    });
+
+    it("counts the running lanes as sessions already placed — their RAM is already spent", () => {
+        expect(lanes({ reclaimableMb: 2600 }, 2).lanes).toBe(3);
+        expect(lanes({ reclaimableMb: 100 }, 2).lanes).toBe(2);
+    });
+
+    it("RAM for five but load over loadMax → one lane", () => {
+        expect(lanes({ reclaimableMb: 5 * 2500, load1: 9 })).toEqual({
+            lanes: 1,
+            reasons: ["load 9.0 > 8.0"],
+        });
+    });
+
+    it("memory pressure → one lane, however much reclaims", () => {
+        const d = lanes({ reclaimableMb: 5 * 2500, pressure: 2 }, 3);
+        expect(d.lanes).toBe(1);
+        expect(d.reasons.join()).toMatch(/memory pressure WARNING/);
+    });
+
+    it("--lanes caps it lower, never higher than the cap", () => {
+        expect(lanes({ reclaimableMb: 50_000 }, 0, 2).lanes).toBe(2);
+        expect(lanes({ reclaimableMb: 50_000 }, 0, 9).lanes).toBe(5);
+        expect(lanes({ reclaimableMb: 50_000 }, 0, null, 3)).toEqual({
+            lanes: 3,
+            reasons: [],
+        });
+    });
+
+    it("never below one: a full machine still runs the lane that drains the queue", () => {
+        expect(lanes({ reclaimableMb: 0 }).lanes).toBe(1);
+    });
+
+    it("an unread RAM reading is one lane, never the ceiling — the probe only ever holds the driver back", () => {
+        expect(lanes({ reclaimableMb: null }, 2)).toEqual({
+            lanes: 1,
+            reasons: ["reclaimable RAM unread"],
+        });
+    });
+
+    it("a lane that has not grown yet still owes its budget: RAM for two holds two, however soon the probe is re-read", () => {
+        // One lane started seconds ago: the reading has not moved.
+        const d = laneCap({
+            cap: 5,
+            max: null,
+            running: 1,
+            pendingMb: 2500,
+            sample: { ...calm, reclaimableMb: 2 * 2500 + 100 },
+            thresholds: T,
+        });
+        expect(d.lanes).toBe(2);
+        expect(d.reasons.join()).toMatch(/2500 MB owed to running lanes/);
+    });
+
+    it("laneCharge: budget less the pass tree's resident memory, a full budget for an unknown pid, nothing past the budget", () => {
+        const rows = parseProcRows(
+            [
+                "  100     1   01:00 1024000 claude",
+                "  101   100   00:30  512000 node",
+                "  200     1   01:00 4096000 claude",
+            ].join("\n")
+        );
+        // 100's tree: 1500 MB of 2500 → owes 1000; 200 is past its budget →
+        // 0; a third lane with no pid yet → 2500.
+        expect(
+            laneCharge({
+                running: 3,
+                pids: [100, 200],
+                rows,
+                sessionBudgetMb: 2500,
+            })
+        ).toBe(3500);
     });
 });
 

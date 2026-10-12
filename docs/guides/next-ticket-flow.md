@@ -201,3 +201,42 @@ Skills synced from the owner's claude.ai account (`~/.claude/skills/synced/`)
 cannot be switched off from committed settings. If one shows up in a session,
 hide it locally, once, in `.claude/settings.local.json` (gitignored):
 `{ "skillOverrides": { "<name>": "off" } }`. Not gated.
+
+## 6. The AFK loop — lanes
+
+`bun run loop:afk --start` runs ONE driver per machine (`--single-instance`
+means one driver, not one pass), and the driver keeps up to the machine's
+**effective cap** of `/next-ticket` passes alive at once (issue #5486):
+
+- **How many.** Before every pass start the driver asks
+  `bun run machine lanes --running N` (`laneCap`): `sessions.cap`, lowered by
+  `--lanes N` (`auto` by default, recorded in `afk.conf`), then by the RAM —
+  `running + floor((reclaimable − owed) ÷ sessionBudgetMb)`, where `owed` is
+  what the running passes have yet to take (their budget less their tree's
+  resident memory, `laneCharge`: a pass started seconds ago owes all of it) —
+  and held to ONE lane while load is over `loadMax`, the kernel reports memory
+  pressure, or the RAM reading is unread. Running passes
+  are never stopped: a tight machine just starts nothing until it clears, and
+  grows back when it does. `queue:claim`'s cap refusal stays the hard floor.
+- **Which issue.** The pre-flight skips every issue a running lane holds, so
+  two lanes never get the same one; a collision past that (another machine, a
+  hand session) meets the claim lock.
+- **Shared.** The token budget (one run id), the stop-file, `--max-passes`
+  (counts passes started) and the health verdict are the run's, not a lane's.
+  A `rate-limit` or `claude-error` in any lane stops every lane's next start
+  (one account); the running passes finish and are accounted. A crash backoff
+  holds every lane's next start. The budget is read before each START, so a
+  run can overshoot it by up to one pass per lane, not one pass.
+- **Judged.** A pass that ran alone is judged as it always was (queue-wide
+  counts, green SHA). One that ran beside another is judged on its own issue:
+  a hand-off, or the issue closed or out of the queue, is progress; still
+  claimed with neither is a death holding the claim. A pass refused at
+  `queue:claim` by the cap reads as no progress, like any pass that claims
+  nothing.
+- **Seen.** Per-lane pass logs `pass-<n>-lane-<k>-<ts>.log` — on a
+  multi-lane run a pass's own output goes there only, never interleaved on the
+  terminal; the pass header and footer name the lane; `loop:status` and
+  `loop:afk --status` list the passes in flight
+  (`.claude/telemetry/loop-lanes/<k>/`); the run summary prints `lanes=` (the
+  most that ran at once).
+- **A plain `bun run loop:drain`** keeps one lane unless given `--lanes`.

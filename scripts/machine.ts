@@ -3,6 +3,9 @@
 // probes, the thresholds they are held against, the effective session cap and
 // who is using it. Informational: always exits 0.
 //
+// `bun run machine lanes --running N [--max N]` prints how many concurrent
+// passes the AFK driver may keep alive (issue #5486, `laneCap`).
+//
 // `bun run machine measure <command…>` runs the command and prints the peak
 // resident memory of its process tree — the measurement
 // `machine.sessionBudgetMb` is derived from
@@ -17,16 +20,22 @@ import { cpus, totalmem } from "node:os";
 import {
     admitSessionNow,
     consumerLines,
+    laneCap,
+    laneCharge,
     memorySaturation,
     parseProcRows,
     readConsumers,
+    readMachineConfig,
     readMachineSample,
+    probeInjected,
     readSessionCensus,
     sampleLine,
     saturation,
     sessionLine,
     subtreeRssMb,
+    sustainedSample,
 } from "./lib/machine-admission";
+import { sessionCap } from "./lib/branches";
 import { leaseDir, readLeases, type ProcessLease } from "./lib/process-lease";
 import { readLastSweep, reaperDir } from "./reaper";
 
@@ -172,7 +181,68 @@ async function measure(argv: string[]): Promise<number> {
     return code;
 }
 
+/** `machine lanes --running N [--max N] [--pids a,b]` — the AFK driver's lane
+ *  count (issue #5486), one line: `<lanes> <why below the ceiling, or
+ *  nothing>`. `--pids` are the running passes' own pids: each lane is charged
+ *  its budget less what its tree holds (`laneCharge`). Exit 2 on a malformed
+ *  flag; the driver reads any failure as one lane. */
+function lanes(args: string[]): number {
+    const flag = (name: string): number | null | undefined => {
+        const i = args.indexOf(`--${name}`);
+        if (i < 0) return null;
+        const v = args[i + 1];
+        return v !== undefined && /^\d+$/.test(v) ? Number(v) : undefined;
+    };
+    const running = flag("running");
+    const max = flag("max");
+    if (running === undefined || max === undefined || max === 0) {
+        console.error(
+            "usage: bun run machine lanes --running <n> [--max <n ≥ 1>]"
+        );
+        return 2;
+    }
+    const i = args.indexOf("--pids");
+    const pids =
+        i < 0
+            ? []
+            : (args[i + 1] ?? "")
+                  .split(",")
+                  .filter((p) => /^\d+$/.test(p))
+                  .map(Number);
+    const thresholds = readMachineConfig();
+    // Under an injected probe no process table is read: every lane owes its
+    // whole budget, as a pass that has not started working does.
+    const ps = probeInjected()
+        ? null
+        : spawnSync("ps", ["-axo", "pid=,ppid=,etime=,rss=,comm="], {
+              encoding: "utf8",
+              timeout: 5000,
+          });
+    const rows = ps?.status === 0 ? parseProcRows(ps.stdout) : [];
+    const decision = laneCap({
+        cap: sessionCap(),
+        max,
+        running: running ?? 0,
+        pendingMb: laneCharge({
+            running: running ?? 0,
+            pids,
+            rows,
+            sessionBudgetMb: thresholds.sessionBudgetMb,
+        }),
+        sample: sustainedSample(() => readMachineSample()),
+        thresholds,
+    });
+    console.log(`${decision.lanes} ${decision.reasons.join("; ")}`.trimEnd());
+    return 0;
+}
+
 if (import.meta.main) {
     const [, , verb, ...args] = process.argv;
-    process.exit(verb === "measure" ? await measure(args) : report());
+    process.exit(
+        verb === "measure"
+            ? await measure(args)
+            : verb === "lanes"
+              ? lanes(args)
+              : report()
+    );
 }

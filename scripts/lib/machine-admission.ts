@@ -610,6 +610,90 @@ export function effectiveCap(input: {
     return Math.max(1, Math.min(input.cap, input.others + room));
 }
 
+export interface LaneCap {
+    /** How many passes the AFK driver may keep alive now — at least one. */
+    lanes: number;
+    /** Why it is below the ceiling; empty when it is not. */
+    reasons: string[];
+}
+
+/**
+ * How many concurrent passes the AFK driver may keep alive (issue #5486) —
+ * the effective cap, read by the one consumer that STARTS sessions rather
+ * than being one. The ceiling is `sessions.cap`, lowered by `--lanes` (never
+ * raised); under it the RAM decides exactly as `effectiveCap` does, with the
+ * driver's `running` lanes as the sessions already counted. Their RAM is out of
+ * `reclaimableMb` only once they are at work: a pass started seconds ago has
+ * spent almost none of its `sessionBudgetMb`, and counting it as placed would
+ * let the driver open every lane before the first one grew. So `pendingMb` —
+ * what the running lanes have still to take (budget less resident, per lane,
+ * `laneCharge`) — comes off the reading first. An unread reading is ONE lane,
+ * never the ceiling: the probe may only ever hold the driver back. Unlike a
+ * session start, LOAD counts here:
+ * a lane is something about to ADD load, so a machine over `loadMax`, like
+ * one under memory pressure, holds the driver to one lane — its running
+ * lanes finish, no new one starts — until it clears. Never below one: the
+ * driver itself is the session that drains the queue.
+ */
+export function laneCap(input: {
+    cap: number;
+    /** `--lanes N`; null = the cap. */
+    max: number | null;
+    running: number;
+    /** RAM the running lanes have yet to take (`laneCharge`); 0 if omitted. */
+    pendingMb?: number;
+    sample: MachineSample;
+    thresholds: MachineThresholds;
+}): LaneCap {
+    const ceiling = Math.max(
+        1,
+        input.max === null ? input.cap : Math.min(input.cap, input.max)
+    );
+    const busy = saturation(input.sample, input.thresholds);
+    if (busy.length > 0) return { lanes: 1, reasons: busy };
+    if (input.sample.reclaimableMb === null)
+        return { lanes: 1, reasons: ["reclaimable RAM unread"] };
+    const pending = input.pendingMb ?? 0;
+    const free = Math.max(0, input.sample.reclaimableMb - pending);
+    const lanes = effectiveCap({
+        cap: ceiling,
+        others: input.running,
+        reclaimableMb: free,
+        sessionBudgetMb: input.thresholds.sessionBudgetMb,
+    });
+    const owed = pending > 0 ? `, ${mb(pending)} owed to running lanes` : "";
+    return {
+        lanes,
+        reasons:
+            lanes < ceiling
+                ? [
+                      `reclaimable ${mb(input.sample.reclaimableMb)}${owed} holds ${Math.max(0, lanes - input.running)} more beside ${input.running} running (${mb(input.thresholds.sessionBudgetMb)} per session)`,
+                  ]
+                : [],
+    };
+}
+
+/**
+ * What the running lanes have yet to take from the RAM: per lane, its budget
+ * less what its pass's process tree already holds resident — a lane whose
+ * pid is unknown, or whose tree is not in `rows`, owes the whole budget. A
+ * lane past its budget owes nothing (it never pays the others back).
+ */
+export function laneCharge(input: {
+    running: number;
+    pids: readonly number[];
+    rows: readonly ProcRow[];
+    sessionBudgetMb: number;
+}): number {
+    let owed = 0;
+    for (let i = 0; i < input.running; i++) {
+        const pid = input.pids[i];
+        const rss = pid === undefined ? 0 : subtreeRssMb(input.rows, pid);
+        owed += Math.max(0, input.sessionBudgetMb - rss);
+    }
+    return owed;
+}
+
 export type SessionAdmission =
     | { verdict: "admit"; effectiveCap: number; overridden: string[] }
     | { verdict: "refuse"; effectiveCap: number; reasons: string[] };

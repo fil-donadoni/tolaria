@@ -13,6 +13,7 @@ import {
     parseDriverPassLine,
     readRecentPasses,
     readDriverState,
+    renderLaneLines,
     renderLoopStatusText,
     renderClaimsLines,
     renderQueueDepthLines,
@@ -452,7 +453,63 @@ describe("loop-status — readDriverState", () => {
             pidAlive: false,
             stopFilePresent: false,
             recentPasses: [],
+            lanes: [],
         });
+    });
+
+    it("reads the passes in flight off the driver's lane directories, lowest lane first (issue #5486)", () => {
+        const tmp = fs.mkdtempSync(
+            path.join(os.tmpdir(), "tolaria-loop-status-")
+        );
+        const lane = (k: number, files: Record<string, string>) => {
+            const dir = path.join(tmp, "loop-lanes", String(k));
+            fs.mkdirSync(dir, { recursive: true });
+            for (const [name, value] of Object.entries(files))
+                fs.writeFileSync(path.join(dir, name), `${value}\n`);
+        };
+        lane(2, {
+            pid: "222",
+            pass: "7",
+            issue: "5486",
+            model: "opus",
+            epoch: "1000",
+            log: ".claude/telemetry/loop-drain/pass-7-lane-2-1000.log",
+        });
+        lane(1, { pid: "111", pass: "6", issue: "", model: "", epoch: "940" });
+        // Still being set up: no pid yet, so not a pass.
+        lane(3, { pass: "8" });
+        const state = readDriverState({
+            telemetryDir: tmp,
+            isAlive: (pid) => pid === 222,
+        });
+        expect(state.lanes).toEqual([
+            {
+                lane: 1,
+                pid: 111,
+                pidAlive: false,
+                pass: 6,
+                issue: null,
+                model: "",
+                startedAt: 940,
+                log: "",
+            },
+            {
+                lane: 2,
+                pid: 222,
+                pidAlive: true,
+                pass: 7,
+                issue: 5486,
+                model: "opus",
+                startedAt: 1000,
+                log: ".claude/telemetry/loop-drain/pass-7-lane-2-1000.log",
+            },
+        ]);
+        expect(renderLaneLines(state.lanes!, 1060)).toEqual([
+            "  lanes:      2 in flight",
+            "    lane 1  pass 6  operator prompt  -  pid 111 GONE  up 2 min  ",
+            "    lane 2  pass 7  issue #5486  opus  pid 222 running  up 1 min  .claude/telemetry/loop-drain/pass-7-lane-2-1000.log",
+        ]);
+        expect(renderLaneLines([])).toEqual(["  lanes:      none in flight"]);
     });
 });
 

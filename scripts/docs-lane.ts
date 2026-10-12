@@ -109,6 +109,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "parses GitHub PR BODIES for the ADR 0044 preset-scenario block, which are not files in this repo — the ```json / ``` fences in its fixtures are PR-body shapes, not repo prose",
     "scripts/__tests__/branches.test.ts":
         "walks `.claude/hooks/**/*.sh` for an `origin/<branch>` literal — hooks are programs and stay in the `full` lane (check-lane.ts CLAUDE_PROSE_PATTERNS), so no prose diff this lane carries can red it; it reads no document",
+    "scripts/__tests__/dashboard-actions.test.ts":
+        "the `.claude/telemetry/telemetry.db` path is the RUNTIME telemetry store, created empty in a scratch project dir per test; it reads no repo document",
     "scripts/__tests__/health-walk-off-mutex.test.ts":
         "the `.claude/telemetry/health/` path is the RUNTIME verdict directory and docs/notes.md is a synthetic file committed into a scratch repo; it reads no repo document",
     "scripts/__tests__/health-fix.test.ts":
@@ -121,6 +123,8 @@ export const DOC_GATE_TESTS_EXCLUDED: Record<string, string> = {
         "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
     "scripts/__tests__/loop-drain.test.ts":
         "names the retired `.claude/hooks/receipt-guard.sh` in a header comment as the hook its own sh-driving shape came from — hooks stay `full`; it reads no document",
+    "scripts/__tests__/loop-status.test.ts":
+        "the `.claude/telemetry/loop-drain/` paths are lane log fixtures (the RUNTIME per-pass log directory, gitignored) rendered by the status view; it reads no repo document",
     "scripts/__tests__/pass-activity.test.ts":
         "the `~/.claude/projects` path is Claude Code's own transcript directory outside this repo; it reads no repo document",
     "scripts/__tests__/receipt.test.ts":
