@@ -239,7 +239,7 @@ Steps that ran red (timings stand; nothing was fixed, per § 2):
   (`scripts/health-main.ts`), where the file does not exist; § 2 of this
   bench prescribes the primary checkout, which is why the bench saw the red
   and health never did. The test depends on the state of its cwd — a test
-  isolation bug, ticketed below.
+  isolation bug (issue #5529).
 - **`scripts/__tests__/dashboard-glossary.test.ts`, 3 tests, `check:pr` run 1
   only** (`every dimension/metric/fact table the server whitelists has a
 human label`); green in the three later runs.
@@ -291,9 +291,9 @@ batch health (full, `check:ui --all` included), the nightly crons and the
 release walk on the Huawei. Two tickets, not a verdict change:
 
 1. `scripts/__tests__/dashboard-actions.test.ts` made independent of
-   `.claude/telemetry/telemetry.db` in the cwd (bug).
+   `.claude/telemetry/telemetry.db` in the cwd (bug, issue #5529).
 2. `bun run test` run whole on the Huawei, in a worktree as health does, for
-   the chain number this section estimates (HITL on the Huawei).
+   the chain number this section estimates (HITL on the Huawei, issue #5530).
 
 `land` on the Huawei is the one alternative this bench does not settle:
 `check:pr` here ran at the light tier. A land-runner (issue #5469) makes the
