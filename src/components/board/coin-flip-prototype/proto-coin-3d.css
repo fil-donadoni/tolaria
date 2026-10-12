@@ -1,0 +1,120 @@
+/* PROTOTYPE (issue #4433) — throwaway. A 3D coin: two embossed faces plus a
+   stack of edge discs between them (thickness), all from design tokens.
+   Technique (layered edge + preserve-3d faces + tossed arc) after the public
+   dev.to "3D flipping coin" write-up; code written from scratch here. */
+
+.pc3d {
+    --pc3d-size: 104px;
+    --pc3d-metal: var(--color-accent);
+    --pc3d-metal-hi: color-mix(in oklab, var(--color-accent) 55%, white);
+    --pc3d-metal-lo: color-mix(in oklab, var(--color-accent) 55%, black);
+    --pc3d-ink: color-mix(in oklab, var(--color-accent) 30%, black);
+    position: relative;
+    width: var(--pc3d-size);
+    height: var(--pc3d-size);
+    perspective: 800px;
+}
+
+.pc3d-body {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.pc3d-face,
+.pc3d-edge {
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    backface-visibility: hidden;
+}
+
+.pc3d-edge {
+    backface-visibility: visible;
+    background: linear-gradient(
+        90deg,
+        var(--pc3d-metal-lo),
+        color-mix(in oklab, var(--pc3d-metal-lo) 60%, black) 50%,
+        var(--pc3d-metal-lo)
+    );
+}
+
+.pc3d-face {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: var(--pc3d-ink);
+    background:
+        radial-gradient(
+            circle at 32% 28%,
+            var(--pc3d-metal-hi) 0%,
+            transparent 45%
+        ),
+        radial-gradient(
+            circle at 50% 50%,
+            var(--pc3d-metal) 0%,
+            var(--pc3d-metal) 58%,
+            var(--pc3d-metal-lo) 100%
+        );
+    box-shadow:
+        inset 0 0 0 calc(var(--pc3d-size) * 0.045) var(--pc3d-metal-lo),
+        inset 0 0 0 calc(var(--pc3d-size) * 0.07) var(--pc3d-metal-hi),
+        inset 0 calc(var(--pc3d-size) * -0.04) calc(var(--pc3d-size) * 0.12)
+            color-mix(in oklab, black 35%, transparent);
+}
+
+/* Engraved inner ring. */
+.pc3d-face::after {
+    content: "";
+    position: absolute;
+    inset: 16%;
+    border-radius: 9999px;
+    border: 1px dashed color-mix(in oklab, var(--pc3d-ink) 45%, transparent);
+}
+
+.pc3d-glyph {
+    width: 38%;
+    height: 38%;
+    filter: drop-shadow(0 1px 0 var(--pc3d-metal-hi));
+}
+
+.pc3d-word {
+    font-family: var(--font-display, inherit);
+    font-size: calc(var(--pc3d-size) * 0.095);
+    letter-spacing: 0.18em;
+    font-weight: 700;
+    text-shadow: 0 1px 0 var(--pc3d-metal-hi);
+}
+
+.pc3d-shadow {
+    position: absolute;
+    left: 15%;
+    right: 15%;
+    bottom: calc(var(--pc3d-size) * -0.16);
+    height: calc(var(--pc3d-size) * 0.1);
+    border-radius: 9999px;
+    background: radial-gradient(
+        closest-side,
+        color-mix(in oklab, black 55%, transparent),
+        transparent
+    );
+}
+
+.pc3d-halo {
+    position: absolute;
+    inset: -10%;
+    border-radius: 9999px;
+    pointer-events: none;
+}
+.pc3d-halo[data-tone="good"] {
+    box-shadow:
+        0 0 0 2px var(--color-accent-strong),
+        0 0 28px 4px color-mix(in oklab, var(--color-accent) 45%, transparent);
+}
+.pc3d-halo[data-tone="bad"] {
+    box-shadow:
+        0 0 0 2px var(--color-danger),
+        0 0 28px 4px color-mix(in oklab, var(--color-danger) 45%, transparent);
+}

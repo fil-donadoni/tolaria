@@ -1,23 +1,34 @@
-// PROTOTYPE (issue #4433) — throwaway. Drives a flip sequence: accelerating
-// pacing, click-to-end, simulated ack (flipper's client / Bot waits the full
-// duration), then an ephemeral summary.
+// PROTOTYPE (issue #4433) — throwaway. Drives a flip sequence: each round is
+// TOSSED, then its result is SHOWN (held) before the next toss starts; tosses
+// accelerate, holds shrink a little. Click-to-end, simulated ack (flipper's
+// client / Bot waits the full duration), then an ephemeral summary.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProtoScenario } from "./prototype-scenarios";
 
-const FIRST_MS = 1600; // today's FLIP_ANIM_MS
-const DECAY = 0.6;
-const MIN_MS = 380;
-const HOLD_AFTER_LAND_MS = 900; // read the last face before the ack
+const FIRST_TOSS_MS = 1600; // today's FLIP_ANIM_MS
+const TOSS_DECAY = 0.7;
+const MIN_TOSS_MS = 650;
+const FIRST_HOLD_MS = 1100;
+const MIN_HOLD_MS = 650;
+const FINAL_HOLD_MS = 1400; // read the last result before the ack
 const SUMMARY_MS = 4000;
 
-export function roundDurationMs(i: number): number {
-    return Math.max(MIN_MS, Math.round(FIRST_MS * Math.pow(DECAY, i)));
+export function tossMs(i: number): number {
+    return Math.max(
+        MIN_TOSS_MS,
+        Math.round(FIRST_TOSS_MS * Math.pow(TOSS_DECAY, i))
+    );
+}
+
+export function holdMs(i: number): number {
+    return Math.max(MIN_HOLD_MS, FIRST_HOLD_MS - i * 120);
 }
 
 export function sequenceDurationMs(rounds: number): number {
     let t = 0;
-    for (let i = 0; i < rounds; i++) t += roundDurationMs(i);
-    return t + HOLD_AFTER_LAND_MS;
+    for (let i = 0; i < rounds; i++)
+        t += tossMs(i) + (i < rounds - 1 ? holdMs(i) : 0);
+    return t + FINAL_HOLD_MS;
 }
 
 export type Phase = "revealing" | "landed" | "summary" | "closed";
@@ -26,8 +37,10 @@ export type ProtoSequence = {
     phase: Phase;
     /** Rounds whose coins have landed. */
     landed: number;
-    /** Round currently spinning (=== landed while revealing), -1 when none. */
+    /** Round currently in the air, -1 when none (holding / done). */
     spinning: number;
+    /** Round whose result is being held on screen, -1 when none. */
+    showing: number;
     spinMs: number;
     skipped: boolean;
     skipToEnd: () => void;
@@ -40,6 +53,7 @@ export function useProtoSequence(
 ): ProtoSequence {
     const total = scenario.rounds.length;
     const [landed, setLanded] = useState(0);
+    const [holding, setHolding] = useState(false);
     const [phase, setPhase] = useState<Phase>("revealing");
     const [skipped, setSkipped] = useState(false);
     const [elapsedMs, setElapsed] = useState(0);
@@ -47,40 +61,43 @@ export function useProtoSequence(
 
     useEffect(() => {
         setLanded(0);
+        setHolding(false);
         setPhase("revealing");
         setSkipped(false);
         start.current = performance.now();
     }, [scenario.key, runId]);
 
-    // Advance one round at a time with accelerating pacing.
+    // toss → land → hold → next toss …; the last hold hands over to "landed".
     useEffect(() => {
         if (phase !== "revealing") return;
+        if (!holding) {
+            const t = setTimeout(() => {
+                setLanded((n) => n + 1);
+                setHolding(true);
+            }, tossMs(landed));
+            return () => clearTimeout(t);
+        }
         if (landed >= total) {
             setPhase("landed");
             return;
         }
-        const t = setTimeout(
-            () => setLanded((n) => n + 1),
-            roundDurationMs(landed)
-        );
+        const t = setTimeout(() => setHolding(false), holdMs(landed - 1));
         return () => clearTimeout(t);
-    }, [phase, landed, total]);
+    }, [phase, holding, landed, total]);
 
-    // Ack: the acker's client acks after the hold. A Bot acker waits the
-    // full sequence duration (grill decision 4) — modelled as the same hold
-    // unless the human skipped (a viewer skip never shortens the Bot's wait,
-    // but the overlay still shows the landed result until the Bot acks).
+    // Ack after the final hold. A Bot acker waits the full sequence duration
+    // (grill decision 4): a viewer's skip never shortens the Bot's wait.
     useEffect(() => {
         if (phase !== "landed") return;
-        const botWaitsRemaining =
+        const wait =
             scenario.acker === "opp" && skipped
                 ? Math.max(
-                      HOLD_AFTER_LAND_MS,
+                      FINAL_HOLD_MS,
                       sequenceDurationMs(total) -
                           (performance.now() - start.current)
                   )
-                : HOLD_AFTER_LAND_MS;
-        const t = setTimeout(() => setPhase("summary"), botWaitsRemaining);
+                : FINAL_HOLD_MS;
+        const t = setTimeout(() => setPhase("summary"), wait);
         return () => clearTimeout(t);
     }, [phase, scenario.acker, skipped, total]);
 
@@ -102,14 +119,17 @@ export function useProtoSequence(
         if (phase !== "revealing") return;
         setSkipped(true);
         setLanded(total);
+        setHolding(true);
         setPhase("landed");
     }, [phase, total]);
 
+    const inAir = phase === "revealing" && !holding && landed < total;
     return {
         phase,
         landed,
-        spinning: phase === "revealing" && landed < total ? landed : -1,
-        spinMs: roundDurationMs(landed),
+        spinning: inAir ? landed : -1,
+        showing: inAir ? -1 : landed - 1,
+        spinMs: tossMs(landed),
         skipped,
         skipToEnd,
         elapsedMs,

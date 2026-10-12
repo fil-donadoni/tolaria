@@ -17,6 +17,10 @@ export type ProtoScenario = {
     key: string;
     label: string;
     sourceName: string;
+    /** Card definition id = Scryfall print id (art crop + mana cost). */
+    sourceId: string;
+    /** Stack-row kind label: "Triggered ability", "Sorcery", … */
+    sourceKind: string;
     sourceController: Seat;
     oracleExcerpt: string;
     /** Who acknowledges (the flipper of a one-player flip; the controller otherwise). */
@@ -62,6 +66,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "crypt",
         label: "Mana Crypt — you win",
         sourceName: "Mana Crypt",
+        sourceId: "160cf235-6463-4e16-a426-8b5be76b10d2",
+        sourceKind: "Triggered ability",
         sourceController: "you",
         oracleExcerpt:
             "At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you.",
@@ -73,6 +79,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "crypt-bot",
         label: "Mana Crypt (Bot's) — Bot loses",
         sourceName: "Mana Crypt",
+        sourceId: "160cf235-6463-4e16-a426-8b5be76b10d2",
+        sourceKind: "Triggered ability",
         sourceController: "opp",
         oracleExcerpt:
             "At the beginning of your upkeep, flip a coin. If you lose the flip, Mana Crypt deals 3 damage to you.",
@@ -84,6 +92,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "squee",
         label: "Squee's Revenge — chose 6, W W W L",
         sourceName: "Squee's Revenge",
+        sourceId: "2b391ee3-c1cd-47bc-9540-977cbc32913e",
+        sourceKind: "Sorcery",
         sourceController: "you",
         oracleExcerpt:
             "Choose a number. Flip a coin that many times or until you lose a flip, whichever comes first. If you win all the flips, draw two cards for each flip.",
@@ -97,6 +107,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "squee-all",
         label: "Squee's Revenge — chose 6, all won",
         sourceName: "Squee's Revenge",
+        sourceId: "2b391ee3-c1cd-47bc-9540-977cbc32913e",
+        sourceKind: "Sorcery",
         sourceController: "you",
         oracleExcerpt:
             "Choose a number. Flip a coin that many times or until you lose a flip, whichever comes first. If you win all the flips, draw two cards for each flip.",
@@ -109,6 +121,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "clash",
         label: "Mana Clash — 4 rounds",
         sourceName: "Mana Clash",
+        sourceId: "72955141-d990-459f-adbe-7d3d0f5f6c95",
+        sourceKind: "Sorcery",
         sourceController: "you",
         oracleExcerpt:
             "You and target opponent each flip a coin. Mana Clash deals 1 damage to each player whose coin comes up tails. Repeat this process until both players' coins come up heads on the same flip.",
@@ -126,6 +140,8 @@ export const SCENARIOS: ProtoScenario[] = [
         key: "clash-long",
         label: "Mana Clash — 11 rounds",
         sourceName: "Mana Clash",
+        sourceId: "72955141-d990-459f-adbe-7d3d0f5f6c95",
+        sourceKind: "Sorcery",
         sourceController: "you",
         oracleExcerpt:
             "You and target opponent each flip a coin. Mana Clash deals 1 damage to each player whose coin comes up tails. Repeat this process until both players' coins come up heads on the same flip.",

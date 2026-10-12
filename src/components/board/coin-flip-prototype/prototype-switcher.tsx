@@ -10,7 +10,7 @@ export function readProtoParams(): ProtoParams | null {
     const q = new URLSearchParams(window.location.search);
     if (!q.has("coinProto")) return null;
     return {
-        variant: q.get("variant") ?? "A",
+        variant: q.get("variant") ?? "A2",
         scenario: q.get("coinProto") || SCENARIOS[0].key,
         rm: q.get("rm") === "1",
     };

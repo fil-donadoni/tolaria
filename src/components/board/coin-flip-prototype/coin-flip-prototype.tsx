@@ -15,13 +15,13 @@ import PrototypeSwitcher, {
 } from "./prototype-switcher";
 import ProtoSummaryToast from "./proto-summary-toast";
 import VariantASpotlight, { VARIANT_A_NAME } from "./variant-a-spotlight";
-import VariantBLedger, { VARIANT_B_NAME } from "./variant-b-ledger";
-import VariantCRibbon, { VARIANT_C_NAME } from "./variant-c-ribbon";
+import VariantA2Spotlight, { VARIANT_A2_NAME } from "./variant-a2-spotlight";
 
+// Owner picked A (2026-10-12); B "Ledger" and C "Ribbon" stay in this
+// branch's history (fcc9abbac) but leave the switcher.
 const VARIANTS = [
+    { key: "A2", name: VARIANT_A2_NAME, C: VariantA2Spotlight },
     { key: "A", name: VARIANT_A_NAME, C: VariantASpotlight },
-    { key: "B", name: VARIANT_B_NAME, C: VariantBLedger },
-    { key: "C", name: VARIANT_C_NAME, C: VariantCRibbon },
 ];
 
 export default function CoinFlipPrototype() {
