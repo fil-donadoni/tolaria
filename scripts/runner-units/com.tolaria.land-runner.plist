@@ -6,7 +6,9 @@
   same process detached; the runner's lock keeps one of them. Install like the
   reaper's (docs/guides/huawei-runner.md § Install on the MacBook). __REPO__,
   __BUN__ and __HOME__ are substituted at install time. The `unit:` tag keeps
-  the reaper off its tree.
+  the reaper off its tree. Restarted only after a CRASH: SIGTERM (`--disarm`)
+  makes it exit 0 after the landing in flight, which launchd leaves stopped;
+  `ExitTimeOut` gives that landing an hour before launchd's SIGKILL.
 -->
 <plist version="1.0">
 <dict>
@@ -20,9 +22,14 @@
     <key>WorkingDirectory</key>
     <string>__REPO__</string>
     <key>KeepAlive</key>
-    <true/>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
     <key>ThrottleInterval</key>
     <integer>60</integer>
+    <key>ExitTimeOut</key>
+    <integer>3600</integer>
     <key>EnvironmentVariables</key>
     <dict>
         <key>HOME</key>

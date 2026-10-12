@@ -3296,6 +3296,17 @@ describe("repairItems — a land-failed PR is the FIRST pick (issue #5469)", () 
         ).toEqual([5505]);
     });
 
+    it("leaves out a repair already under way — its claim reads live", () => {
+        expect(
+            repairItems(
+                failedPrs,
+                (n) => details[n] ?? null,
+                CONFIG,
+                new Set([5501])
+            ).map((r) => r.number)
+        ).toEqual([5490]);
+    });
+
     it("holds an HITL issue for its human under --exclude-hitl, as resume does (#3088)", () => {
         const hitl = { labels: [], body: "## HITL\nhuman decides" };
         const plain = repairItems(failedPrs, () => hitl, CONFIG);

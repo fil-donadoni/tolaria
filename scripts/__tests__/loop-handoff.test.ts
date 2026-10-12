@@ -923,19 +923,39 @@ describe("the land-runner rides with the loop on the merging machine only (issue
         expect(r.stdout).not.toMatch(/would start the land-runner/);
     });
 
+    /** A live process whose command line names `land-runner`, as the real
+     *  one's does (`bun scripts/land-runner.ts`). `; :` keeps `sh` from
+     *  exec-ing `sleep` in its place. */
+    const liveRunner = () =>
+        spawn("sh", ["-c", "sleep 30; :", "land-runner"], { stdio: "ignore" });
+
     it("--start does not start a second runner beside a live one", () => {
         fakeRunner();
+        const child = liveRunner();
+        try {
+            fs.mkdirSync(path.dirname(RUNNER_LOCK()), { recursive: true });
+            fs.writeFileSync(RUNNER_LOCK(), String(child.pid));
+            const r = run({ args: ["--start", "--budget", "1", "--dry-run"] });
+            expect(r.stdout).toMatch(
+                new RegExp(`land-runner already running \\(pid ${child.pid}\\)`)
+            );
+            expect(r.stdout).not.toMatch(/would start the land-runner/);
+        } finally {
+            child.kill("SIGKILL");
+        }
+    });
+
+    it("a stale lock naming a recycled pid is not a runner — never signalled", () => {
+        // This test process is alive but is not a land-runner.
         fs.mkdirSync(path.dirname(RUNNER_LOCK()), { recursive: true });
         fs.writeFileSync(RUNNER_LOCK(), String(process.pid));
-        const r = run({ args: ["--start", "--budget", "1", "--dry-run"] });
-        expect(r.stdout).toMatch(
-            new RegExp(`land-runner already running \\(pid ${process.pid}\\)`)
-        );
-        expect(r.stdout).not.toMatch(/would start the land-runner/);
+        const r = run({ args: ["--disarm"] });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/no land-runner running/);
     });
 
     it("--disarm stops a live runner with SIGTERM", async () => {
-        const child = spawn("sleep", ["30"], { stdio: "ignore" });
+        const child = liveRunner();
         const exited = new Promise<NodeJS.Signals | null>((resolve) =>
             child.on("exit", (_code, signal) => resolve(signal))
         );

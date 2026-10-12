@@ -555,11 +555,13 @@ watch_log() {
 }
 
 # The land-runner's pid, from its lock (`scripts/land-runner.ts`), when that
-# process is alive.
+# process is alive AND is a land-runner — a stale lock's pid the OS recycled
+# names some other program, which `--disarm` must never signal.
 runner_pid() {
     _rpid=$(cat "$RUNNER_LOCK" 2>/dev/null || echo "")
     is_uint "$_rpid" || return 1
     kill -0 "$_rpid" 2>/dev/null || return 1
+    ps -p "$_rpid" -o command= 2>/dev/null | grep -q 'land-runner' || return 1
     echo "$_rpid"
 }
 

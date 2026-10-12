@@ -104,7 +104,7 @@ describe("a pass that HANDS OFF its PR made progress (issue #5469)", () => {
             "gh",
             [
                 `case "$*" in`,
-                `  *"pr list"*) cat "${prFile}" 2>/dev/null ;;`,
+                `  *"pr list"*) cat "${prFile}" 2>/dev/null || true ;;`,
                 `  *"-label:in-progress"*) cat "${queueFile}" ;;`,
                 `  *) cat "${totalFile}" ;;`,
                 `esac`,
@@ -130,6 +130,31 @@ describe("a pass that HANDS OFF its PR made progress (issue #5469)", () => {
             /loop-drain\[pr\]: pass 1 — issue #101 handed off as PR #5600/
         );
         expect(logLines().map((l) => l.split(" ").pop())).toEqual(["-"]);
+    });
+
+    it("an UNREAD before (gh failed) never turns an existing PR into progress", () => {
+        const prFile = path.join(tmp, "handed-off-pr");
+        const calls = path.join(tmp, "pr-list-calls");
+        fs.writeFileSync(queueFile, "9");
+        fs.writeFileSync(totalFile, "9");
+        fs.writeFileSync(prFile, "5600");
+        writeStub(
+            "gh",
+            [
+                `case "$*" in`,
+                `  *"pr list"*)`,
+                `    n=$(cat "${calls}" 2>/dev/null || echo 0); n=$((n+1)); echo "$n" > "${calls}"`,
+                `    if [ "$n" -eq 1 ]; then echo "gh: 502" >&2; exit 1; fi`,
+                `    cat "${prFile}" ;;`,
+                `  *"-label:in-progress"*) cat "${queueFile}" ;;`,
+                `  *) cat "${totalFile}" ;;`,
+                `esac`,
+            ].join("\n")
+        );
+        writeStub("claude", `exit 0`);
+        const r = run({ args: ["--claude-args", "x", "--max-passes", "1"] });
+        expect(r.stderr).toMatch(/loop-drain\[pass\]: pass 1/);
+        expect(r.stderr).not.toMatch(/loop-drain\[pr\]/);
     });
 
     it("the SAME PR seen before and after is no progress — the detector still fires", () => {

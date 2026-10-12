@@ -915,7 +915,11 @@ function main(): void {
 
     // Repair picks FIRST (issue #5469): a PR the land-runner labelled
     // `land-failed`. Its claim reads `stranded` too, so it is dropped from
-    // `resume` — one issue, one list.
+    // `resume` — one issue, one list. One whose claim reads `live` is a
+    // repair already under way (a pass re-claimed it): not offered again.
+    const working = new Set(
+        classified.filter((c) => c.verdict.state === "live").map((c) => c.issue)
+    );
     plan.repair = repairItems(
         landFailedPrs(),
         (n) => {
@@ -926,7 +930,8 @@ function main(): void {
                 return null;
             }
         },
-        config
+        config,
+        working
     );
     const repaired = new Set(plan.repair.map((r) => r.number));
     plan.resume = resumeItems(

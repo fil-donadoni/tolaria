@@ -1487,7 +1487,11 @@ export interface RepairItem {
 export function repairItems(
     prs: { number: number; headRefName: string }[],
     detailOf: (issue: number) => { labels: string[]; body: string } | null,
-    config: PlanConfig
+    config: PlanConfig,
+    /** Issues whose claim reads `live`: a repair already under way (a pass
+     *  re-claimed it) is not offered again — the other machine's pass would
+     *  only collide on `queue:claim`. */
+    working: ReadonlySet<number> = new Set()
 ): RepairItem[] {
     return [...prs]
         .sort((a, b) => a.number - b.number)
@@ -1495,6 +1499,7 @@ export function repairItems(
             const m = /^(?:feat|fix)\/issue-(\d+)$/.exec(pr.headRefName);
             if (!m) return [];
             const number = Number(m[1]);
+            if (working.has(number)) return [];
             const detail = detailOf(number);
             if (detail === null) return [];
             if (config.excludeHitl && isHitl(detail.body)) return [];

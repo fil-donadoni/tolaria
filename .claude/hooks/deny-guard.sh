@@ -899,16 +899,17 @@ fi
 # polling it at a full-context message per poll, and makes the base branch a
 # second writer beside the runner.
 #
-# Denied as an INVOCATION — start of a segment or after a `|`, an env-var
-# prefix allowed, like § 7's `oracle:compile` — `bun run land`, through
-# `gate:run` or `gate-run.sh`, or `bun scripts/land.ts`; `land:ready` and
-# `land:runner` are other scripts and pass. The hatch is the runner's own env
+# Denied as an INVOCATION — start of a segment or after a `|` (or a `(`),
+# env-var / `env` / `nohup` / `time` prefixes allowed, like § 7's
+# `oracle:compile` — `bun run [--flags] land`, through `gate:run` or any
+# `sh`/`bash` of `gate-run.sh`, or `bun [run] scripts/land.ts`; `land:ready`
+# and `land:runner` are other scripts and pass. The hatch is the runner's own env
 # var, in the SAME segment, so it names the one command it authorises:
 #   TOLARIA_LAND_RUNNER=1 bun run land <PR#>
 # (the owner asking for a landing by hand; `/health-fix`'s `--repair` with no
 # recorded repair issue).
 # ─────────────────────────────────────────────────────────────────────────────
-LAND_INVOKE='(^|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run[[:space:]]+(gate:run[[:space:]]+)?land|bun[[:space:]]+[^[:space:]]*scripts/land\.ts|sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+land)([[:space:]]|$)'
+LAND_INVOKE='(^|\|)[[:space:]]*\(?[[:space:]]*((env|nohup|time|command|exec)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run([[:space:]]+-[^[:space:]]+)*[[:space:]]+(gate:run[[:space:]]+)?land|bun[[:space:]]+(run[[:space:]]+)?[^[:space:]]*scripts/land\.ts|[^[:space:]]*sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+land)([[:space:]]|\)|$)'
 if seg_has "$LAND_INVOKE" && ! seg_has 'TOLARIA_LAND_RUNNER=1' "$LAND_INVOKE"; then
     deny "BLOCKED: a session does not run \`land\` — it hands the PR to the land-runner (issue #5469).
 

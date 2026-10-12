@@ -398,15 +398,24 @@ count_total_open() {
 
 # The PR a pass HANDED OFF for issue $1 (issue #5469): its open PR labelled
 # `ready-to-land`, or a merged one — the session's own finish line since
-# landing moved to the land-runner. Empty when there is none. Read before and
-# after a pass: a number that appears (a new PR, or a `land-failed` repair
-# re-queued) is PROGRESS, though no issue closed and no tip moved — the runner
-# lands it later, on its own clock. `any(...)` rather than `index(...)`: jq's
-# `index` is 0 — falsy — for a first-position match.
+# landing moved to the land-runner. Empty when there is none; non-zero exit
+# when `gh` could not answer. Read before and after a pass: a number that
+# appears (a new PR, or a `land-failed` repair re-queued) is PROGRESS, though
+# no issue closed and no tip moved — the runner lands it later, on its own
+# clock. Asked by HEAD branch (`wt:new`'s `feat|fix/issue-N`), never as "the
+# newest N PRs", which an old repaired PR falls out of. `any(...)` rather
+# than `index(...)`: jq's `index` is 0 — falsy — for a first-position match.
 handed_off_pr() {
-    gh pr list --state all --limit 50 \
-        --json number,headRefName,state,labels \
-        --jq "[.[] | select(.headRefName | test(\"(^|/)issue-$1\$\")) | select(.state == \"MERGED\" or (.state == \"OPEN\" and any(.labels[]; .name == \"ready-to-land\")))][0].number // empty"
+    for _kind in feat fix; do
+        _pr=$(gh pr list --state all --head "$_kind/issue-$1" --limit 5 \
+            --json number,state,labels \
+            --jq '[.[] | select(.state == "MERGED" or (.state == "OPEN" and any(.labels[]; .name == "ready-to-land")))][0].number // empty') ||
+            return 1
+        if [ -n "$_pr" ]; then
+            echo "$_pr"
+            return 0
+        fi
+    done
 }
 
 read_green_sha() {
@@ -919,8 +928,12 @@ while :; do
     green_before=$(read_green_sha)
     total_before=$(count_total_open 2>/dev/null) || total_before=""
     pr_before=""
-    if [ -n "$RESOLVED_ISSUE" ]; then
-        pr_before=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null) || pr_before=""
+    # Unread (gh failed) is not "no PR": an existing PR would then read as a
+    # new hand-off after the pass. No before-reading, no PR progress.
+    pr_before_ok=0
+    if [ -n "$RESOLVED_ISSUE" ] &&
+        pr_before=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null); then
+        pr_before_ok=1
     fi
 
     if [ "$DRY_RUN" -eq 1 ]; then
@@ -1028,7 +1041,7 @@ while :; do
     # A pass ends at push + `ready-to-land` (issue #5469): the PR it handed
     # off is its progress, and the summary reports the PR, not a landing.
     pr_progress=0
-    if [ -n "$RESOLVED_ISSUE" ]; then
+    if [ "$pr_before_ok" -eq 1 ]; then
         pr_after=$(handed_off_pr "$RESOLVED_ISSUE" 2>/dev/null) || pr_after=""
         if is_uint "$pr_after" && [ "$pr_after" != "$pr_before" ]; then
             pr_progress=1

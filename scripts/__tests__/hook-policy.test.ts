@@ -2676,6 +2676,14 @@ describe("deny-guard § 8 — a session hands its PR to the land-runner, never r
             "bun scripts/land.ts 5469",
             "sh scripts/gate-run.sh land 5469",
             "cd /x && bun run land 5469 --red-ok",
+            "env FOO=1 bun run land 5469",
+            "bun run --silent land 5469",
+            "bun run scripts/land.ts 5469",
+            "bash scripts/gate-run.sh land 5469",
+            "/bin/sh /repo/scripts/gate-run.sh land 5469",
+            "(bun run land 5469)",
+            "nohup bun run land 5469",
+            "time bun run land 5469",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
