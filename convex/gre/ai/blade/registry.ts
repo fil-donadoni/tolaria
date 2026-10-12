@@ -12544,7 +12544,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "Terror is NOT cast on the Runeclaw Bear for a protection from red that protects it from nothing",
         },
-        note: "MEASURE",
+        note: "Issue #5356. Guards `inertKeywordDiscount` (`ai/keywordRelevance.ts`), read by `evaluateCreature`. Measured at 400 iterations over 20 seeds: Terror never takes the carrier (20/20 green), while the two Mountain entries above stay 20/20 on the carrier. Proof of failure: with the discount disabled (the flat 15 for every protection) this entry is red on all 20 seeds (Terror on the Runeclaw Bear).",
     },
     {
         // UTILITY LAND STANDING WORTH (issue #5155) — the bot holds a Strip
