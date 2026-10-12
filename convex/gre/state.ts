@@ -3758,6 +3758,11 @@ function finalizeSpellResolution(
         // `PermanentView.notedManaSpentOnCast`).
         if (item.notedManaSpent) {
             item.notedManaSpentOnCast = { ...item.notedManaSpent };
+        } else {
+            // CR 400.7 (issue #5523) — a permanent with no noted mana carries
+            // no record of an earlier existence; written explicitly like
+            // `wasKicked` below (issue #1753).
+            delete item.notedManaSpentOnCast;
         }
         // CR 702.33 / 614.1c (issue #1716) — snapshot the one-shot "was this
         // kicked" fact onto the permanent, the same `notedManaSpentOnCast`
