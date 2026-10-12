@@ -49,8 +49,6 @@ export const mindStone = defineCard(() => ({
 //    "graveyard"` + `controller: "any"` — either bin — is the Soul-Guide
 //    Lantern shape (`thb/colorless.cards.ts`), exiled through `moveZone` and
 //    followed by the plain `draw` Op.
-//
-// hand-tail: {T}: Exile the bottom card of target player's graveyard. (#4195)
 export const phyrexianFurnace = defineCard(() => ({
     id: "e98bca31-8c05-430b-b5d7-331bdc55710a",
     name: "Phyrexian Furnace",
