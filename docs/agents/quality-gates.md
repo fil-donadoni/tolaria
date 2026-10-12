@@ -123,47 +123,65 @@ its fixed subsets — `node[cards]` and `bot[cards]` — because every catalogue
 test imports the set barrel, and the drift guards stay its data-side net.
 `full` is `check:pr` verbatim.
 
-**The graph is a static walk, not vitest's `--changed`** (`scripts/lib/test-reach.ts`).
-vitest answers `--changed` by transforming every module every spec reaches:
-`vitest list --changed HEAD~1` took 5 min 37 s on a three-file diff (load ~14,
-2026-10-12), and a second measurement put the graph alone at 102 s — as slow
-as `node-engine` whole, inside the mutex. The walk reuses the specifier regex
-and resolver the project split already trusts (`test-env-split.ts`), adds
-`vi.mock(...)` and `new URL(..., import.meta.url)`, and answers in 0.6–2 s.
-What it cannot see is a test that reads its input through `fs` (a census, a
-drift guard), so a tooling path that is not a module (`.claude/hooks/*.sh`,
-`settings.json`, `package.json` scripts, `tolaria.config.json`, a
-`scripts/**/*.json`) still admits `node-tooling` **whole**, and prose still
-appends `node[docs]`.
+**The graph is a static walk, not vitest's `--changed`**
+(`scripts/lib/test-reach.ts`). vitest answers `--changed` by transforming
+every module every spec reaches: `vitest list --changed HEAD~1` took 5 min
+37 s on a three-file diff (load ~14, 2026-10-12), and a second measurement put
+the graph alone at 102 s — as slow as `node-engine` whole, inside the mutex.
+The walk takes its edges from `scripts/lib/import-graph.ts`, the repo's one
+import-graph authority (`./x.js` → `x.ts`, `index.*`, `?url` dropped,
+`import type` erased as vitest erases it), with vitest's aliases pinned to
+`vitest.config.ts`; it builds once in ~1 s and answers each diff in ms. It
+adds three over-approximating edges: `vi.mock(...)`; an unresolvable local
+specifier keyed by its extension-less location (a deleted module); and a
+**file-name literal** in code — `"card-index.json"` in a `scripts/lib` reader,
+`"gate.ts"` in a tooling test that spawns it — so a reader that opens its input
+through `fs` and a CLI test that spawns its subject are related. Literals are
+narrowed so a hub cannot drag the suite in: comments stripped, test-file names
+never an input, module names only inside a test file. What it still cannot see
+is a census that walks a DIRECTORY or pattern-matches source text: a tooling
+path that is not a module (`.claude/hooks/*.sh`, `settings.json`,
+`package.json`, `tolaria.config.json`, a `scripts/**/*.json`) still admits
+`node-tooling` **whole**, prose still appends `node[docs]`, and the rest — a
+source-scanning census like `branches.test.ts` or `perf-test-boundary.test.ts`
+— reds at the next health run, the residual risk ADR 0154 accepts. Past 400
+related files (a hub edit) the named projects run whole: the filter argv
+would otherwise approach Linux's 128 KiB per-argument cap to select what the
+bare project selects anyway. `test-reach.test.ts` pins the mirror of project
+membership against `vitest.config.ts` file by file, so a misplaced filter can
+neither match nothing nor silently skip.
 
 **The decision gate** (issue #5464: adopt the graph for a lane only if the
-median related set is ≤ 25 % of its suite), last 20 landed PRs, walker against
-vitest's own `getTestDependencies` graph over the same trees:
+median related set is ≤ 25 % of its suite), last 20 landed PRs, the walker
+against vitest's own `getTestDependencies` graph over the same trees:
 
-| lane                     | median related set | suite | share | vitest's own graph agrees                       |
-| ------------------------ | -----------------: | ----: | ----: | ----------------------------------------------- |
-| `engine` (11 PRs)        |      16 node files |  1341 | 1.2 % | walker ≥ vitest on every unforced row           |
-| `skin` (4 PRs)           |        26 node+dom |  1780 | 1.5 % | equal on 2 of 4, walker +1 / +5 on the others   |
-| `full` → `check:pr` kept |                  — |     — |     — | PR #5483 relates 820 (vitest: 336) — a hub edit |
+| lane              |  median related set | suite | share | against vitest's graph                             |
+| ----------------- | ------------------: | ----: | ----: | -------------------------------------------------- |
+| `engine` (11 PRs) |       42 node files |  1342 | 3.1 % | walker ≥ vitest on every row it did not force      |
+| `skin` (4 PRs)    | 27 node + dom files |  1781 | 1.5 % | equal on 2 of 4, walker +2 / +2 on the others      |
+| `full` (kept)     |                   — |     — |     — | the widest row, PR #5483, relates 339 (vitest 336) |
 
 vitest forced the whole suite on 3 of 11 `engine` rows because `package.json`
-is in its `forceRerunTriggers`; the walker relates 15–61 files there.
+is in its `forceRerunTriggers`; the walker relates 67–82 files there. The
+largest single module, `src/lib/card-utils.ts`, relates 263 — still under the
+whole-project threshold.
 
 **Measured cost, one real `land` log against the same tree** (PR #5510, 3
 files under `scripts/**`, `engine`):
 
-| check                 | before (`land-5510`, ADR 0136 lane) | after (this lane, cold guard caches, load 10–17) |
-| --------------------- | ----------------------------------: | -----------------------------------------------: |
-| `tsc[all]`            |                   0.3 s (cache hit) |                                    59.1 s (cold) |
-| `bundle`              |                              11.6 s |                                      health-only |
-| `check:convex-bundle` |                                   — |                                            4.2 s |
-| `bot fast lane`       |                              88.4 s |                                      health-only |
-| `node-engine`         |                              97.1 s |                `vitest(related)`: 1 file, 14.8 s |
-| `node-tooling`        |                              66.1 s |                                       (included) |
-| everything else       |                               8.6 s |                                           32.1 s |
-| **total**             |                         **272.1 s** |                                      **110.2 s** |
+| check                 | before (`land-5510`, ADR 0136 lane) |                    after (this lane, load 5–7) |
+| --------------------- | ----------------------------------: | ---------------------------------------------: |
+| `tsc[all]`            |                   0.3 s (cache hit) |                                         20.5 s |
+| `bundle`              |                              11.6 s |                                    health-only |
+| `check:convex-bundle` |                                   — |                                          1.2 s |
+| `bot fast lane`       |                              88.4 s |                                    health-only |
+| `node-engine`         |                              97.1 s | `vitest(related)`: 13 files, 375 tests, 67.9 s |
+| `node-tooling`        |                              66.1 s |                                     (included) |
+| everything else       |                               8.6 s |                                         16.2 s |
+| **total**             |                         **272.1 s** |                                    **106.2 s** |
 
-The `before` receipt, verbatim from `~/.cache/tolaria/gate-runs/land-140933708219/log`:
+The `before` receipt, verbatim from
+`~/.cache/tolaria/gate-runs/land-140933708219/log`:
 
 ```
   ✓ bundle              11.6s
@@ -173,9 +191,10 @@ The `before` receipt, verbatim from `~/.cache/tolaria/gate-runs/land-14093370821
 PASS  272.1s total
 ```
 
-The vitest share fell from 251.6 s to 14.8 s; with `tsc` and `cr:lint` as warm as `land`
-finds them (0.3 s and 0.2 s above) the same plan is an estimated ~40 s. The acceptance number is
-`telemetry:latency`'s land mutex p50 ≤ 3 min after one week.
+The vitest share fell from 251.6 s to 67.9 s on a diff to the health
+runner — a CLI whose tests spawn it, which the file-name edge now relates on
+purpose. The acceptance number is `telemetry:latency`'s land mutex p50 ≤ 3
+min after one week.
 
 `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) gains two rows with their
 measured costs: **`test:bot`** — the bot fast lane, 99.6–176.2 s in `land`
@@ -723,8 +742,9 @@ most 8 s on a landing that admits all three, nothing on one that admits none.
 reached by some lane's plan (directly or through the scripts it composes) or
 listed in `HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) with a measured
 cost over `LANE_COST_BUDGET_S`. The list started as `check:ui` alone (its
-`--all` walk: 14m39s green, 45m37s red); ADR 0154 §3 adds the bot fast lane,
-`check:bundle` and `check:convex-bundle` with their costs (issue #5464), and
+`--all` walk: 14m39s green, 45m37s red); ADR 0154 §3 adds the bot fast lane
+(`test:bot`) and `check:bundle` with their costs (issue #5464; ADR 0154 named
+`check:convex-bundle` too, but at 2–4 s it rides the lane), and
 moves `check:convex-heap` (9–17 min per health run) out of `HEALTH_SCRIPTS`
 altogether, to a by-hand `maintenance` script (issue #5458). A guard in
 neither place reds the census.
