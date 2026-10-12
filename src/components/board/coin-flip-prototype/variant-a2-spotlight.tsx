@@ -101,7 +101,7 @@ export default function VariantA2Spotlight({
                                 )}
                                 {!inAir && (
                                     <span
-                                        className={`text-xs font-semibold ${isGood(flip) ? "text-accent-strong" : "text-danger"}`}
+                                        className={`text-xs font-semibold ${isGood(flip) ? "text-success-strong" : "text-danger"}`}
                                     >
                                         {caption(flip)}
                                     </span>

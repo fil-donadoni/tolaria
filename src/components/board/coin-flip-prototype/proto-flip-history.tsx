@@ -17,7 +17,7 @@ function MiniCoin({ flip }: { flip: ProtoFlip }) {
         <span
             className={`flex h-6 w-6 items-center justify-center rounded-full border ${
                 good
-                    ? "border-accent/70 bg-accent-soft/50 text-accent-strong"
+                    ? "border-success/70 bg-success-soft/50 text-success-strong"
                     : "border-danger/60 bg-danger/15 text-danger"
             }`}
             title={flip.face === "heads" ? "Heads" : "Tails"}
@@ -62,7 +62,7 @@ export default function ProtoFlipHistory({
                         >
                             <MiniCoin flip={f} />
                             <span
-                                className={`text-[10px] ${isGood(f) ? "text-text" : "text-danger"}`}
+                                className={`text-[10px] ${isGood(f) ? "text-success-strong" : "text-danger"}`}
                             >
                                 {i + 1} ·{" "}
                                 {f.outcome === "win"

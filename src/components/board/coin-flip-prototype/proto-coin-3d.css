@@ -110,8 +110,8 @@
 }
 .pc3d-halo[data-tone="good"] {
     box-shadow:
-        0 0 0 2px var(--color-accent-strong),
-        0 0 28px 4px color-mix(in oklab, var(--color-accent) 45%, transparent);
+        0 0 0 2px var(--color-success),
+        0 0 28px 4px color-mix(in oklab, var(--color-success) 45%, transparent);
 }
 .pc3d-halo[data-tone="bad"] {
     box-shadow:
