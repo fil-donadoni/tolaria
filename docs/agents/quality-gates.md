@@ -980,7 +980,7 @@ the other machine's `queue:plan` kept picking from a tip it could not know was
 red. The verdict (GREEN / RED / infra, sha, step, machine, log pointer) now
 goes through a store with two backends — the local file, and a GitHub commit
 status on the gated sha (`context=health`; `context=ui-walk` for the Linux
-walk while it is advisory, issue #5465). `queue:plan`, `land`'s RED gate,
+walk while it is advisory, issue #5465). On Linux `ui-walk.gating` (`tolaria.config.json`, default false) keeps the walk out of the health verdict: the offline half stands as GREEN (`ui: advisory`), the walk's own verdict goes under `ui-walk` with the machine named. Promote the flag once `bun run ui:calibrate <macbook-receipt> <linux-receipt>` of one tip exits 0; a divergent cell goes to `UNWALKED_SURFACES` with an issue. `queue:plan`, `land`'s RED gate,
 `loop-drain`'s stop and `health:fix` read through the store on both machines;
 the backend is `tolaria.config.json`. Last writer per sha wins; `infra` never
 overwrites `RED`; `release` on the MacBook re-proves the exact tip and is the

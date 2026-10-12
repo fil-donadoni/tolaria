@@ -137,8 +137,12 @@ import {
     type Verdict,
 } from "./lib/health-verdict-store";
 import { waitForWalkWindow } from "./lib/health-walk-wait";
+import { readUiWalkGating, writeWalkVerdict } from "./lib/health-verdict-walk";
 import {
     describeWalkPlan,
+    walkDisposition,
+    walkOutcome,
+    type WalkOutcome,
     FORCED_REASON,
     planHealthWalk,
     walkWasFull,
@@ -491,6 +495,40 @@ function publishVerdict(
     }
 }
 
+/**
+ * The walk's own verdict, under `context=ui-walk` (issue #5465), machine
+ * named — written whether or not the walk gates. Never fatal.
+ */
+function publishWalk(
+    ctx: RunCtx,
+    outcome: WalkOutcome,
+    failedStep: string | undefined
+): void {
+    try {
+        const out = writeWalkVerdict(ctx.root, {
+            sha: ctx.tip,
+            status:
+                outcome === "green"
+                    ? "green"
+                    : outcome === "red"
+                      ? "red"
+                      : "infra",
+            ...(failedStep ? { step: failedStep } : {}),
+            log: ctx.logPath,
+            machine: machineName(),
+            at: new Date().toISOString(),
+        });
+        if (!out.written)
+            console.error(
+                `health-main: ui-walk verdict not kept — ${out.reason}`
+            );
+    } catch (err) {
+        console.error(
+            `health-main: the ui-walk verdict could not be written — ${String(err)}`
+        );
+    }
+}
+
 function finishInfra(
     ctx: RunCtx,
     cause: InfraCause,
@@ -702,6 +740,19 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
 
     // A bootstrap that passed in the offline phase on this very sha and
     // fails here is the environment's: the walk never ran.
+    const outcome = walkOutcome({
+        failed: failed !== undefined,
+        walked,
+        environmental: failed !== undefined && failed.cause !== null,
+    });
+    publishWalk(ctx, outcome, failed?.step);
+    // An advisory walk (a Linux machine until calibrated, issue #5465) never
+    // reaches the health verdict: the offline half stands as GREEN.
+    if (walkDisposition(readUiWalkGating()) === "advisory") {
+        finishGreen(ctx, "advisory", ctx.retry);
+        return;
+    }
+
     if (failed && !walked)
         finishInfra(ctx, failed.cause ?? "ui-walk", failed.step, ctx.logPath, {
             offline: "green",
