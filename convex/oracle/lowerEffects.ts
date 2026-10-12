@@ -95,6 +95,8 @@ export function unlowerable<T>(reason: string): Lowered<T> {
 export interface SiteOptions {
     /** CR 107.3 — the source announces a value for {X} (it has an `{X}` pip). */
     readonly allowX: boolean;
+    /** CR 113.6b — the ability being lowered functions from the graveyard. */
+    readonly functionsFromGraveyard?: boolean;
     /**
      * CR 107.3f — the binding a `payVariableMana` wrote ("$paid"), set while
      * the effect that FOLLOWS the payment is lowered: there `X` is the amount
@@ -2203,6 +2205,12 @@ function lowerSentenceBody(
                 },
             ]);
         case "return-self-from-graveyard":
+            // CR 113.6b — only an ability that functions from the graveyard
+            // can run this; the triggered site is the one that sets it.
+            if (site.functionsFromGraveyard !== true)
+                return unlowerable(
+                    "returning this card from the graveyard needs an ability that functions there"
+                );
             return lowered([
                 { op: "moveZone", target: { ref: "$source" }, to: sentence.to },
             ]);

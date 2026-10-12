@@ -941,7 +941,7 @@ export type EffectSentenceIR =
            * functions from there.
            */
           readonly kind: "return-self-from-graveyard";
-          readonly to: "hand" | "battlefield";
+          readonly to: "hand";
       }
     | {
           /**
@@ -3313,7 +3313,7 @@ const RETURN_ALL_FROM_GRAVEYARD =
     /^Return all (\w+) cards from your graveyard to the battlefield$/;
 /** CR 113.6b — "return this card from your graveyard to your hand". */
 const RETURN_SELF_FROM_GRAVEYARD =
-    /^Return this card from your graveyard to (your hand|the battlefield)$/;
+    /^Return this card from your graveyard to your hand$/;
 /** CR 101.4 — "Each player puts a creature card from their graveyard onto the battlefield". */
 const EACH_PLAYER_PUTS =
     /^Each player (puts|may put) an? (.+) card from their (graveyard|hand) onto the battlefield$/;
@@ -5507,11 +5507,10 @@ function effectSentence(
             cardType,
         } satisfies EffectSentenceIR);
     }
-    const selfReturn = span.match(RETURN_SELF_FROM_GRAVEYARD);
-    if (selfReturn !== null)
+    if (RETURN_SELF_FROM_GRAVEYARD.test(span))
         return ok({
             kind: "return-self-from-graveyard" as const,
-            to: selfReturn[1] === "your hand" ? "hand" : "battlefield",
+            to: "hand" as const,
         } satisfies EffectSentenceIR);
     const eachPuts = span.match(EACH_PLAYER_PUTS);
     if (eachPuts !== null) {

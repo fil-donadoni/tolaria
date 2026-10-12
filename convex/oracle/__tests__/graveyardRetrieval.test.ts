@@ -386,3 +386,41 @@ describe("graveyard retrieval — refused neighbours (fail-closed)", () => {
         expect(sorcery(line).state).toBe("unparsed");
     });
 });
+
+describe("graveyard retrieval — the source returning itself (CR 113.6b)", () => {
+    const creature = (oracleText: string) =>
+        compileCard(
+            oracleCard({
+                name: "Graveyard Probe",
+                manaCost: "{2}{R}",
+                typeLine: "Creature — Goblin",
+                oracleText,
+                power: "1",
+                toughness: "1",
+            })
+        );
+
+    it("refuses an activated ability that cannot be activated from the graveyard", () => {
+        expect(
+            creature("{B}: Return this card from your graveyard to your hand.")
+                .state
+        ).toBe("unparsed");
+    });
+
+    it("refuses the battlefield as the destination (no corpus evidence)", () => {
+        expect(
+            creature(
+                "At the beginning of your upkeep, you may return this card from your graveyard to the battlefield."
+            ).state
+        ).toBe("unparsed");
+    });
+
+    it("keeps an intervening-if instead of dropping it", () => {
+        const outcome = creature(
+            "At the beginning of your upkeep, if you control a creature, you may return this card from your graveyard to your hand."
+        );
+        if (outcome.state === "unparsed") return;
+        const trigger = outcome.definition.compiledTriggeredAbilities?.[0];
+        expect(trigger?.condition).toBeDefined();
+    });
+});

@@ -281,6 +281,9 @@ export function lowerTriggeredAbility(input: {
     const fromGraveyard =
         input.condition?.kind === "self-in-graveyard" ||
         input.effects.some(returnsSelfFromGraveyard);
+    // Only the "if this card is in your graveyard" condition IS the zone; any
+    // other intervening-if still lowers to a predicate.
+    const zoneCondition = input.condition?.kind === "self-in-graveyard";
     if (fromGraveyard && input.head.kind !== "phase")
         return {
             ok: false,
@@ -294,7 +297,7 @@ export function lowerTriggeredAbility(input: {
             reason: "an intervening-if behind a cycle head is not read",
         };
     const condition =
-        input.condition !== undefined && !fromGraveyard
+        input.condition !== undefined && !zoneCondition
             ? lowerCondition(input.condition, input.head)
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
@@ -317,6 +320,7 @@ export function lowerTriggeredAbility(input: {
         // so an X in its body has no value to read.
         const result = lowerSentence(sentence, walk, {
             allowX: false,
+            functionsFromGraveyard: fromGraveyard,
             selfName: input.cardName,
             antecedents: index === 0 ? antecedents : laterAntecedents,
             ...(input.kickers !== undefined ? { kickers: input.kickers } : {}),
