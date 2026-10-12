@@ -205,10 +205,25 @@ describe("node partitions — which lane runs which (ADR 0136 §5)", () => {
         cmd.split("&&").filter((seg) => /vitest run/.test(seg));
     const engine = classifyLane(["convex/gre/engine.ts"]);
 
-    it("the engine lane runs node-engine whole", () => {
-        const node = engine.run.find((c) => c.id === "node-engine");
-        expect(node?.command).toBe("bunx vitest run --project node-engine");
-        expect(positionalFilters(node!.command)).toEqual([]);
+    /**
+     * ADR 0154 §2 (issue #5464) overturned "whole or not at all": the engine
+     * lane runs the node tests the diff reaches through the import graph, as
+     * filename filters over the node partitions only — never `dom`, never a
+     * bot project. Against the live tree: this test file's own subject.
+     */
+    it("the engine lane scopes the node partitions by the import graph", () => {
+        const plan = classifyLane(["scripts/lib/test-reach.ts"]);
+        expect(plan.lane).toBe("engine");
+        const node = plan.run.find((c) => c.id === "vitest(related)");
+        const projects = [...node!.command.matchAll(/--project\s+(\S+)/g)].map(
+            (m) => m[1]
+        );
+        expect(projects.length).toBeGreaterThan(0);
+        for (const p of projects)
+            expect(["node-engine", "node-tooling"], p).toContain(p);
+        expect(positionalFilters(node!.command)).toContain(
+            "'scripts/__tests__/test-reach.test.ts'"
+        );
     });
 
     it("check:pr (via check:guards) and test:app run both partitions", () => {
