@@ -98,7 +98,7 @@ describe("test-reach — the tests a diff reaches through the import graph (issu
     });
 
     it("a module no test imports reaches nothing — bot and perf tests never count", () => {
-        for (const changed of [["convex/x/lonely.ts"], ["docs/x.md"]])
+        for (const changed of [["convex/x/lonely.ts"], ["public/img/x.png"]])
             expect(relatedTests(index, changed), changed[0]).toEqual({
                 "node-engine": [],
                 "node-tooling": [],
