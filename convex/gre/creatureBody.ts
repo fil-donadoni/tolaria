@@ -125,6 +125,21 @@ function timeLimitedPenalty(
     return -(12 + 12 * Math.max(0, 5 - remaining));
 }
 
+/** Every keyword shape `keywordBonusFor` prices: the exact table keys and the
+ *  parametrized patterns (families + the time-limited vanishing row). Exported
+ *  for the double-pricing guard (issue #5355), which demands that none of them
+ *  also carries an ability script `dslRealizedAbilityValueById` values. */
+export const PRICED_KEYWORD_SHAPES: {
+    readonly exact: readonly string[];
+    readonly patterns: readonly RegExp[];
+} = {
+    exact: Object.keys(KEYWORD_BONUS),
+    patterns: [
+        ...KEYWORD_FAMILY_BONUS.map((f) => f.pattern),
+        VANISHING_KEYWORD,
+    ],
+};
+
 /** The flat `KEYWORD_BONUS` contribution one keyword occurrence makes at
  *  `power`, or 0 for a keyword the table does not price. Exported so a caller
  *  that must UNDO one occurrence's contribution reads the same table
