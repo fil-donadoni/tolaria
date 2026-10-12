@@ -12,7 +12,7 @@ import {
     type LoopInputs,
 } from "../release";
 import { issueWorktree } from "../lib/issue-worktree";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import {
     fileVerdictStore,
