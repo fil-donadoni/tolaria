@@ -5,6 +5,7 @@ import {
     consumerLines,
     effectiveCap,
     gateAdmission,
+    laneCap,
     liveProjectSessions,
     machineWaitRow,
     memorySaturation,
@@ -362,6 +363,59 @@ describe("gate admission — load/memory → admit / wait / refuse", () => {
                 T
             )
         ).toEqual([]);
+    });
+});
+
+describe("lane cap — the AFK driver's concurrent passes (issue #5486)", () => {
+    const lanes = (
+        sample: Partial<MachineSample>,
+        running = 0,
+        max: number | null = null,
+        cap = 5
+    ) =>
+        laneCap({
+            cap,
+            max,
+            running,
+            sample: { ...calm, ...sample },
+            thresholds: T,
+        });
+
+    it("RAM for two → two lanes, and says why it is under the ceiling", () => {
+        const d = lanes({ reclaimableMb: 2 * 2500 + 100 });
+        expect(d.lanes).toBe(2);
+        expect(d.reasons.join()).toMatch(/holds 2 more beside 0 running/);
+    });
+
+    it("counts the running lanes as sessions already placed — their RAM is already spent", () => {
+        expect(lanes({ reclaimableMb: 2600 }, 2).lanes).toBe(3);
+        expect(lanes({ reclaimableMb: 100 }, 2).lanes).toBe(2);
+    });
+
+    it("RAM for five but load over loadMax → one lane", () => {
+        expect(lanes({ reclaimableMb: 5 * 2500, load1: 9 })).toEqual({
+            lanes: 1,
+            reasons: ["load 9.0 > 8.0"],
+        });
+    });
+
+    it("memory pressure → one lane, however much reclaims", () => {
+        const d = lanes({ reclaimableMb: 5 * 2500, pressure: 2 }, 3);
+        expect(d.lanes).toBe(1);
+        expect(d.reasons.join()).toMatch(/memory pressure WARNING/);
+    });
+
+    it("--lanes caps it lower, never higher than the cap", () => {
+        expect(lanes({ reclaimableMb: 50_000 }, 0, 2).lanes).toBe(2);
+        expect(lanes({ reclaimableMb: 50_000 }, 0, 9).lanes).toBe(5);
+        expect(lanes({ reclaimableMb: 50_000 }, 0, null, 3)).toEqual({
+            lanes: 3,
+            reasons: [],
+        });
+    });
+
+    it("never below one: a full machine still runs the lane that drains the queue", () => {
+        expect(lanes({ reclaimableMb: 0 }).lanes).toBe(1);
     });
 });
 

@@ -1318,7 +1318,12 @@ finish_lane() {
     fi
 
     if [ "$stop_now" -eq 1 ]; then
-        [ -n "$DRAIN_REASON" ] || DRAIN_REASON="$reason_field"
+        # A pass's own stop outranks a benign drain decided while it ran
+        # (max-passes reached by the lane beside it, a stop-file): with one
+        # lane it was read first, and the summary still names the fault.
+        case "$DRAIN_REASON" in
+            "" | stop-file | max-passes | queue-empty | budget) DRAIN_REASON="$reason_field" ;;
+        esac
         if [ "$reason_field" = "rate-limit" ] || [ "$reason_field" = "claude-error" ]; then
             # A usage limit is a pause to wait out (warn); a crash is a fault.
             _stop_tag=error
