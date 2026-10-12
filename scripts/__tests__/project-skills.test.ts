@@ -153,7 +153,7 @@ describe("Tolaria is project-skills-only (ADR 0150, issue #5098)", () => {
     const MACHINE_DIR = path.join(os.homedir(), ".claude", "skills");
 
     /** Slash commands of the harness itself — not skills, never hidden. */
-    const HARNESS_COMMANDS = new Set(["clear", "compact"]);
+    const HARNESS_COMMANDS = new Set(["clear", "compact", "settings"]);
 
     const settings = JSON.parse(
         fs.readFileSync(
