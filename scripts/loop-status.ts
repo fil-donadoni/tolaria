@@ -24,6 +24,12 @@
 import * as path from "node:path";
 import { spawnSync } from "node:child_process";
 import { primaryCheckout } from "./lib/primary-checkout";
+import { ORIGIN_BASE } from "./lib/branches";
+import {
+    orphanWorktrees,
+    renderHeldOrphanLines,
+    type OrphanWorktree,
+} from "./lib/orphan-worktree";
 import {
     fetchBoardPriority,
     NO_PRIORITY_WARNING,
@@ -40,6 +46,7 @@ import {
     fetchBranchNames,
     fetchClaimedIssues,
     fetchOpenPrBranches,
+    readClaimOwners,
     shChecked,
     type ShRunner,
 } from "./loop-doctor";
@@ -389,6 +396,9 @@ export interface GatheredLoopStatus {
     claimsError: string | null;
     queueDepth: QueueDepth | null;
     queueDepthError: string | null;
+    /** Unclaimed issues whose local worktree holds unpushed commits (issue
+     *  #5531). A LOCAL read like `driver`: `[]` when none or unreadable. */
+    orphanWorktrees: OrphanWorktree[];
     receiptsSummary: ReceiptsSummary;
     batch: string | null;
     /** The newest batch's own `batchStartedAt` (`lib/loop-status.ts`) — the
@@ -580,6 +590,19 @@ export function gatherLoopStatus(
             readyQueueSection.status === "ok" ? status.queueDepth : null,
         queueDepthError:
             readyQueueSection.status === "ok" ? null : readyQueueSection.error,
+        orphanWorktrees:
+            readyQueueSection.status === "ok"
+                ? orphanWorktrees(
+                      new Set(readyQueueSection.data.map((i) => i.number)),
+                      {
+                          baseRef: ORIGIN_BASE,
+                          owners: readClaimOwners(
+                              process.env.CLAUDE_PROJECT_DIR ??
+                                  primaryCheckout()
+                          ),
+                      }
+                  )
+                : [],
         receiptsSummary: status.receiptsSummary,
         batch: batch ?? null,
         batchStartedAt: batchStartedAt(receipts),
@@ -619,6 +642,9 @@ export function renderGatheredLoopStatusText(
             ),
             "",
             ...renderReceiptsLines(gathered.receiptsSummary),
+            ...(gathered.orphanWorktrees.some((o) => o.verdict.state === "held")
+                ? ["", ...renderHeldOrphanLines(gathered.orphanWorktrees)]
+                : []),
         ].join("\n") + "\n"
     );
 }

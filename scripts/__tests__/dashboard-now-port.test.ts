@@ -73,6 +73,7 @@ const payload = (over: Partial<NowPayload> = {}): NowPayload => ({
     claimsError: null,
     queueDepth: { P0: 0, P1: 0, P2: 0, P3: 0, unprioritized: 0, total: 0 },
     queueDepthError: null,
+    orphanWorktrees: [],
     receiptsSummary: { total: 0, counts: [], interesting: [] },
     batch: null,
     batchStartedAt: null,

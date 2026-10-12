@@ -360,6 +360,7 @@ function gathered(
         claimsError: null,
         queueDepth: { P0: 0, P1: 0, P2: 0, P3: 0, unprioritized: 0, total: 0 },
         queueDepthError: null,
+        orphanWorktrees: [],
         receiptsSummary: EMPTY_RECEIPTS_SUMMARY,
         batch: null,
         batchStartedAt: null,
@@ -469,5 +470,24 @@ describe("loop-status — gatherLoopStatus carries the shared verdict (#2624)", 
         expect(text.startsWith("LOOP: STALLED\n")).toBe(true);
         expect(text).toContain("no driver is running");
         expect(text).toContain("claims-held: 5 issue(s) held");
+    });
+});
+
+describe("loop-status — held orphan worktrees (issue #5531)", () => {
+    it("lists a held orphan worktree in the CLI text", () => {
+        const text = renderGatheredLoopStatusText(
+            gathered({
+                orphanWorktrees: [
+                    {
+                        issue: 5287,
+                        path: "/w/tolaria-issue-5287",
+                        branch: "feat/issue-5287",
+                        verdict: { state: "held", reason: "held for /w/x" },
+                    },
+                ],
+            })
+        );
+        expect(text).toContain("Held orphan worktrees (1)");
+        expect(text).toContain("#5287");
     });
 });

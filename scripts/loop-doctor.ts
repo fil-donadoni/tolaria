@@ -28,6 +28,8 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
+import { orphanWorktrees } from "./lib/orphan-worktree";
+import { primaryCheckout } from "./lib/primary-checkout";
 
 export type ClaimFacts = {
     issue: number;
@@ -1030,6 +1032,40 @@ if (import.meta.main) {
     const release = process.argv.includes("--release");
 
     const issues = fetchClaimedIssues();
+
+    // Unclaimed issues whose worktree still holds unpushed commits (issue
+    // #5531) — invisible to the claim roster below. Reported, never released.
+    const unclaimed = new Set<number>(
+        (
+            JSON.parse(
+                sh("gh", [
+                    "issue",
+                    "list",
+                    "--label",
+                    "ready-for-agent",
+                    "--state",
+                    "open",
+                    "--json",
+                    "number,labels",
+                    "--limit",
+                    "500",
+                ]) || "[]"
+            ) as { number: number; labels: { name: string }[] }[]
+        )
+            .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
+            .map((i) => i.number)
+    );
+    for (const o of orphanWorktrees(unclaimed, {
+        baseRef: ORIGIN_BASE,
+        owners: readClaimOwners(
+            process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
+        ),
+    }))
+        console.log(
+            o.verdict.state === "adopt"
+                ? `  ! #${o.issue} ORPHAN WORKTREE ${o.path} — ${o.verdict.reason}`
+                : `  ? #${o.issue} HELD ORPHAN WORKTREE — ${o.verdict.reason}`
+        );
 
     if (issues.length === 0) {
         console.log("loop:doctor — no claimed issues. Nothing to check.");

@@ -54,3 +54,19 @@ export function issueOfBranch(branch: string): number | null {
     const m = /(?:^|\/)issue-(\d+)$/.exec(branch);
     return m ? Number(m[1]) : null;
 }
+
+/**
+ * Can `wt:new N --resume` adopt a worktree that already exists at the issue's
+ * path (issue #5531)? Only when it is checked out on that issue's own
+ * `feat|fix/issue-N` branch — anything else is not the dead pass's work.
+ */
+export function isAdoptableWorktree(
+    issue: number,
+    head: string | null
+): boolean {
+    return (
+        head !== null &&
+        /^(feat|fix)\//.test(head) &&
+        issueOfBranch(head) === issue
+    );
+}
