@@ -26,6 +26,13 @@ import * as path from "path";
  *
  * Deliberately an APPLICATION test: it must run in `bun run test:app`, so the
  * signal never depends on the very lane it describes.
+ *
+ * KEPT, NOT RETIRED, by issue #5464 (ADR 0154 §3): the scoped `check:lane`
+ * lanes no longer run the bot fast lane — it is `test:bot` in
+ * `HEALTH_ONLY_GUARDS` — but the `full` lane is still `check:pr` verbatim, and
+ * `check:pr` → `check:guards` still runs `TOLARIA_BOT_FAST=1` against the
+ * `HEAVY_BOT_GLOB` this file mirrors. While that glob exists, so does its
+ * drift guard.
  */
 
 const ROOT = path.resolve(__dirname, "../..");

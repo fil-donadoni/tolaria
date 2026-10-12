@@ -111,16 +111,81 @@ machines, 5/h each — leaves a 3-minute budget per PR under the mutex (rebase
 
 - resolver ≤ 0.5, lane ≤ 2, merge ≤ 0.5), and no cut but this one reaches it.
 
-What a lane runs now (issue #5464): the vitest tests **reachable from the
-diff through the import graph** — vitest's changed-files mode against the
-base ref — for `engine`, `skin` and `cards`, plus `tsc`, diff-scoped
-prettier/eslint, `cr:lint`, the cached drift guards (`check:index`,
-`check:stubs`, `check:oracle`) and the cheap guards (≤ 10 s, issue #4963). A
-test the diff cannot reach is health's job; the full suite stays in batch
-health as the safety net, every 20 landings or 8 h (§ The batch cadence).
-Three more guards leave the lane for `HEALTH_ONLY_GUARDS` with their measured
-costs: the bot fast lane (its byte-identity pins were 29 of 34 vitest reds at
-`land`, every one base drift), `check:bundle` and `check:convex-bundle`.
+What a lane runs now (issue #5464, `scripts/check-lane.ts` citing ADR 0154
+§2–3): the vitest tests **reachable from the diff through the import graph**
+for `engine` and `skin`, as ONE `vitest(related)` run naming only the projects
+that hold a related file, plus `tsc`, diff-scoped prettier/eslint, `cr:lint`,
+the cached drift guards (`check:index`, `check:stubs`, `check:oracle`),
+`check:convex-bundle` and the cheap guards (≤ 10 s, issue #4963). A test the
+diff cannot reach is health's job; the full suite stays in batch health as
+the safety net, every 20 landings or 8 h (§ The batch cadence). `cards` keeps
+its fixed subsets — `node[cards]` and `bot[cards]` — because every catalogue
+test imports the set barrel, and the drift guards stay its data-side net.
+`full` is `check:pr` verbatim.
+
+**The graph is a static walk, not vitest's `--changed`** (`scripts/lib/test-reach.ts`).
+vitest answers `--changed` by transforming every module every spec reaches:
+`vitest list --changed HEAD~1` took 5 min 37 s on a three-file diff (load ~14,
+2026-10-12), and a second measurement put the graph alone at 102 s — as slow
+as `node-engine` whole, inside the mutex. The walk reuses the specifier regex
+and resolver the project split already trusts (`test-env-split.ts`), adds
+`vi.mock(...)` and `new URL(..., import.meta.url)`, and answers in 0.6–2 s.
+What it cannot see is a test that reads its input through `fs` (a census, a
+drift guard), so a tooling path that is not a module (`.claude/hooks/*.sh`,
+`settings.json`, `package.json` scripts, `tolaria.config.json`, a
+`scripts/**/*.json`) still admits `node-tooling` **whole**, and prose still
+appends `node[docs]`.
+
+**The decision gate** (issue #5464: adopt the graph for a lane only if the
+median related set is ≤ 25 % of its suite), last 20 landed PRs, walker against
+vitest's own `getTestDependencies` graph over the same trees:
+
+| lane                     | median related set | suite | share | vitest's own graph agrees                       |
+| ------------------------ | -----------------: | ----: | ----: | ----------------------------------------------- |
+| `engine` (11 PRs)        |      16 node files |  1341 | 1.2 % | walker ≥ vitest on every unforced row           |
+| `skin` (4 PRs)           |        26 node+dom |  1780 | 1.5 % | equal on 2 of 4, walker +1 / +5 on the others   |
+| `full` → `check:pr` kept |                  — |     — |     — | PR #5483 relates 820 (vitest: 336) — a hub edit |
+
+vitest forced the whole suite on 3 of 11 `engine` rows because `package.json`
+is in its `forceRerunTriggers`; the walker relates 15–61 files there.
+
+**Measured cost, one real `land` log against the same tree** (PR #5510, 3
+files under `scripts/**`, `engine`):
+
+| check                 | before (`land-5510`, ADR 0136 lane) | after (this lane, cold guard caches, load 10–17) |
+| --------------------- | ----------------------------------: | -----------------------------------------------: |
+| `tsc[all]`            |                   0.3 s (cache hit) |                                    59.1 s (cold) |
+| `bundle`              |                              11.6 s |                                      health-only |
+| `check:convex-bundle` |                                   — |                                            4.2 s |
+| `bot fast lane`       |                              88.4 s |                                      health-only |
+| `node-engine`         |                              97.1 s |                `vitest(related)`: 1 file, 14.8 s |
+| `node-tooling`        |                              66.1 s |                                       (included) |
+| everything else       |                               8.6 s |                                           32.1 s |
+| **total**             |                         **272.1 s** |                                      **110.2 s** |
+
+The `before` receipt, verbatim from `~/.cache/tolaria/gate-runs/land-140933708219/log`:
+
+```
+  ✓ bundle              11.6s
+  ✓ bot fast lane       88.4s
+  ✓ node-engine         97.1s
+  ✓ node-tooling        66.1s
+PASS  272.1s total
+```
+
+The vitest share fell from 251.6 s to 14.8 s; with `tsc` and `cr:lint` as warm as `land`
+finds them (0.3 s and 0.2 s above) the same plan is an estimated ~40 s. The acceptance number is
+`telemetry:latency`'s land mutex p50 ≤ 3 min after one week.
+
+`HEALTH_ONLY_GUARDS` (`scripts/lib/health-step.ts`) gains two rows with their
+measured costs: **`test:bot`** — the bot fast lane, 99.6–176.2 s in `land`
+logs, whose byte-identity pins were 29 of 34 vitest reds at `land`, every one
+base drift — and **`check:bundle`** (12–24 s). **`check:convex-bundle` is not
+health-only**: ADR 0154 §3 named it, but its own esbuild pass measured 2–4 s,
+inside the ≤ 10 s budget the same section leaves unchanged, so it rides the
+`engine` and `cards` lanes. The census in `check-lane.test.ts` asks "does a
+lane run it" of the SCOPED lanes only: `full` is `check:pr` verbatim and
+composes every guard.
 
 What ADR 0104 §3 keeps: **admission is fail-closed** — a path no rule places
 still forces `full`. But `full` is a PLACEMENT, not a fallback (issue #5456):
@@ -132,8 +197,7 @@ tooling test project; `tolaria.config.json`, `.nvmrc`, `.prettierignore`,
 `telemetry:latency` is the acceptance metric: 22 of 168 landings (13 %) on
 2026-10-11, every one a path in that list.
 
-**Until each ticket lands, `check-lane.ts` is the authority on what runs
-today**; the sections below are the history of the lanes it replaces and the
+**`check-lane.ts` is the authority on what runs today**; the sections below are the history of the lanes it replaces and the
 measurements that justified them — kept because the residual risk ADR 0154
 accepts (a census guard the diff cannot reach reds the base tip ≤ 20 landings
 later, fixed forward) is exactly the risk they priced.
@@ -304,6 +368,11 @@ both; 109 classify as `engine` after the change, against 34 before):
   truth test in `check-lane.test.ts` checks the claim against the code paths.
 
 ### The skin lane and the bot projects — a computed reach, not a fourth list (issue #3435)
+
+_Superseded by issue #5464: no scoped lane runs a bot project, and
+`botSubjects` was deleted with its last consumer. Kept as the record of why
+a list-shaped reach was wrong — the reason `lib/test-reach.ts` is a computed
+walk too._
 
 `skin` used to skip both bot projects with one entry whose reason read "no
 changed code under `convex/**` or `scripts/**` — the bot suites cannot go
