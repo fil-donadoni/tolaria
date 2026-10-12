@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import CoinFlipPrototype from "~/components/board/coin-flip-prototype/coin-flip-prototype";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
@@ -698,6 +699,8 @@ export default function Board({
                                                         gameId={gameId}
                                                     />
                                                 ))}
+                                            {/* PROTOTYPE #4433 — throwaway */}
+                                            <CoinFlipPrototype />
                                             {/* Fact or Fiction (ADR 0053) — the divider's
                                     3-zone drag stage / the chooser's face-up
                                     two-pile pick. Owns the surface for the
