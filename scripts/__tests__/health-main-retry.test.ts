@@ -3,6 +3,7 @@ import type { HealthStep, StepResult } from "../lib/health-step";
 import {
     failedVitestProjects,
     planRetry,
+    retryCauseOf,
     retryNote,
     runStepWithRetry,
 } from "../lib/health-retry";
@@ -197,5 +198,72 @@ describe("planRetry — review hardening", () => {
         const out = await runStepWithRetry(TEST_STEP, f.run);
         expect(out.retried).toBeUndefined();
         expect(f.ran).toHaveLength(1);
+    });
+});
+
+describe("the retry note separates a timeout from an assertion (issue #5484)", () => {
+    const TIMEOUT_BOT = [
+        BOT_CMD,
+        " FAIL  |bot-node| convex/gre/__tests__/difficulty.bot.test.ts > difficulty > the expert preset is not weaker",
+        "Error: Test timed out in 60000ms.",
+        "      Tests  1 failed | 40 passed (41)",
+        "",
+    ].join("\n");
+    const ASSERT_BOT = [
+        BOT_CMD,
+        " FAIL  |bot-node| convex/gre/__tests__/difficulty.bot.test.ts > difficulty > the expert preset is not weaker",
+        "AssertionError: expected 3 to be greater than or equal to 4",
+        "      Tests  1 failed | 40 passed (41)",
+        "",
+    ].join("\n");
+
+    it("reads the cause of the first failure", () => {
+        expect(retryCauseOf(TIMEOUT_BOT)).toBe("timeout");
+        expect(retryCauseOf(ASSERT_BOT)).toBe("assertion");
+    });
+
+    it("a timeout that passes on the retry is noted as one", async () => {
+        const f = fakeRunner([
+            result(false, TIMEOUT_BOT),
+            result(true),
+            result(true),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.result.ok).toBe(true);
+        expect(out.cause).toBe("timeout");
+        expect(retryNote("test", out.retried!, out.cause)).toBe(
+            "test (retry: bot-node, timeout)"
+        );
+    });
+
+    it("an assertion failure is noted as one", async () => {
+        const f = fakeRunner([
+            result(false, ASSERT_BOT),
+            result(true),
+            result(true),
+        ]);
+        const out = await runStepWithRetry(TEST_STEP, f.run);
+        expect(out.cause).toBe("assertion");
+        expect(retryNote("test", out.retried!, out.cause)).toBe(
+            "test (retry: bot-node, assertion)"
+        );
+    });
+
+    it("the cause survives the commit-status description round trip", () => {
+        const desc = encodeDescription({
+            sha: "a".repeat(40),
+            status: "green",
+            step: retryNote("test", ["bot-node"], "timeout"),
+            machine: "mac",
+        });
+        expect(
+            decodeStatus({
+                sha: "a".repeat(40),
+                state: "success",
+                description: desc,
+                targetUrl: null,
+                createdAt: null,
+            })?.step
+        ).toBe("test (retry: bot-node, timeout)");
     });
 });

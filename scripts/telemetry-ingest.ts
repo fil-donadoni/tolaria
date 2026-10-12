@@ -9,6 +9,7 @@
  *   ~/.cache/tolaria/gate-runs/*               → gate_runs, gate_attempts
  *   .claude/telemetry/health/*.log             → health_runs
  *   .claude/telemetry/health/detach.log        → health_detach
+ *   .claude/telemetry/health/durations/<sha12>/ → test_headroom(_runs)
  *   .claude/telemetry/gate-lock.jsonl          → gate_lock
  *
  * Each file carries a byte-offset cursor in `ingest_state`, so a re-run parses
@@ -73,6 +74,7 @@ import {
     landLogMerged,
     parseDetachLine,
 } from "./lib/workflow-kpi.ts";
+import { headroomRatio, readHeadroomRun } from "./lib/test-headroom.ts";
 
 const PROJECT_DIR = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const DB_PATH = join(PROJECT_DIR, ".claude/telemetry/telemetry.db");
@@ -1293,6 +1295,52 @@ function ingestHealthRuns(db: Sqlite): number {
     return n;
 }
 
+/**
+ * Each sealed `health/durations/<sha12>/` directory (`run.json` present,
+ * written once the run's offline steps ended) into `test_headroom_runs` +
+ * `test_headroom` (issue #5484). A directory still being written has no
+ * `run.json` and is revisited; a sealed one already in the table is not
+ * re-read — the same sha dedup as `ingestHealthRuns`.
+ */
+function ingestTestHeadroom(db: Sqlite): number {
+    const dir = join(PROJECT_DIR, ".claude/telemetry/health/durations");
+    if (!existsSync(dir)) return 0;
+    const seen = new Set(
+        db
+            .query<{ sha12: string }, []>(
+                "SELECT sha12 FROM test_headroom_runs"
+            )
+            .all()
+            .map((r) => r.sha12)
+    );
+    const putRun = db.prepare(
+        "INSERT OR REPLACE INTO test_headroom_runs (sha12, machine, ts) VALUES (?, ?, ?)"
+    );
+    const putTest = db.prepare(
+        "INSERT OR REPLACE INTO test_headroom (sha12, project, test, duration_ms, timeout_ms, ratio) VALUES (?, ?, ?, ?, ?, ?)"
+    );
+    let n = 0;
+    for (const sha12 of readdirSync(dir)) {
+        if (!/^[0-9a-f]{12}$/.test(sha12) || seen.has(sha12)) continue;
+        const run = readHeadroomRun(join(dir, sha12), sha12);
+        if (run === null) continue; // not sealed yet
+        db.transaction(() => {
+            putRun.run(run.sha12, run.machine, run.ts);
+            for (const r of run.records)
+                putTest.run(
+                    run.sha12,
+                    r.project,
+                    r.test,
+                    r.durationMs,
+                    r.timeoutMs,
+                    headroomRatio(r)
+                );
+        })();
+        n++;
+    }
+    return n;
+}
+
 function readFileSafe(path: string): string | null {
     try {
         return readFileSync(path, "utf8").trim();
@@ -1775,6 +1823,7 @@ async function quick(): Promise<void> {
     await recoverRotation(db, EVENTS, HARNESS_CLAUDE);
     const gateRuns = ingestGateRuns(db);
     const healthRuns = ingestHealthRuns(db);
+    const headroomRuns = ingestTestHeadroom(db);
     const detach = await ingestHealthDetach(db, DETACH_LOG);
     const lock = await ingestGateLock(db, GATE_LOCK);
     const spans = await ingestSpansBounded(
@@ -1801,7 +1850,7 @@ async function quick(): Promise<void> {
     ]);
     db.close();
     console.log(
-        `telemetry:ingest --quick: +${spans} spans, +${gateRuns} gate runs, +${healthRuns} health runs, ` +
+        `telemetry:ingest --quick: +${spans} spans, +${gateRuns} gate runs, +${healthRuns} health runs, +${headroomRuns} headroom runs, ` +
             `+${detach} detach lines, +${lock} gate-lock rows${rotated ? ", tool-events.jsonl rotated" : ""}` +
             `${backlog > 0 ? `, ${(backlog / 1048576).toFixed(0)} MB of spans still to ingest` : ""} ` +
             `in ${((Date.now() - t0) / 1000).toFixed(1)}s`
@@ -1841,6 +1890,7 @@ async function main(): Promise<void> {
     const fetchedPrs = refreshPrMeta(db);
     const gateRuns = ingestGateRuns(db);
     const healthRuns = ingestHealthRuns(db);
+    const headroomRuns = ingestTestHeadroom(db);
     const detach = await ingestHealthDetach(db, DETACH_LOG);
     const lock = await ingestGateLock(db, GATE_LOCK);
     const rotated = await rotateEvents(db, EVENTS, HARNESS_CLAUDE);
@@ -1867,7 +1917,7 @@ async function main(): Promise<void> {
                 : "") +
             `${attributed} issue-attributed, +${fetched} issue metas, ` +
             `+${fetchedPrs} PR metas, +${gateRuns} gate runs, ` +
-            `+${healthRuns} health runs, +${detach} detach lines, +${lock} gate-lock rows` +
+            `+${healthRuns} health runs, +${headroomRuns} headroom runs, +${detach} detach lines, +${lock} gate-lock rows` +
             `${rotated ? ", tool-events.jsonl rotated" : ""}) → ${DB_PATH}`
     );
     db.close();

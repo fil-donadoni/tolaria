@@ -5,6 +5,7 @@ import { buildDefine } from "./scripts/lib/build-define";
 import { LongestFirstSequencer } from "./scripts/lib/vitest-sequencer";
 import { fsModuleCacheOptions } from "./scripts/lib/vitest-fs-cache";
 import { VITEST_NODE_ARGV } from "./scripts/lib/vitest-node-argv";
+import { durationReporterOption } from "./scripts/lib/vitest-duration-reporter";
 
 // Shared resolve aliases — must match tsconfig paths so both projects resolve
 // `~`, `@`, and `@convex` identically.
@@ -277,6 +278,10 @@ export default defineConfig({
         // (issue #4483, ADR 0104). The rule and its measurement live in
         // `scripts/lib/vitest-sequencer.ts`.
         sequence: { sequencer: LongestFirstSequencer },
+        // Test timeout headroom (issue #5484): a per-test duration file beside
+        // the default reporter, only when health sets
+        // TOLARIA_TEST_DURATIONS_DIR — measured, never asserted.
+        ...durationReporterOption(process.env),
         projects: [
             {
                 extends: true,

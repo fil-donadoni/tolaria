@@ -1,0 +1,12 @@
+{
+    "version": 1,
+    "records": [
+        {
+            "test": "convex/gre/__tests__/stack.test.ts > stack > resolves a deep stack",
+            "project": "node-engine",
+            "durationMs": 4100,
+            "timeoutMs": 30000,
+            "state": "passed"
+        }
+    ]
+}

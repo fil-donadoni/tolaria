@@ -201,6 +201,27 @@ CREATE TABLE IF NOT EXISTS health_runs (
     ts    INTEGER NOT NULL             -- the log file's mtime, epoch seconds
 );
 
+-- Test timeout headroom (issue #5484): one row per health run whose
+-- per-test durations were sealed (health/durations/<sha12>/run.json), and
+-- one row per test that run recorded at or above RECORD_FLOOR of its budget
+-- (lib/test-headroom.ts). ratio = duration_ms / timeout_ms, the WORST over
+-- the run's vitest invocations (a timeout then a green retry keeps the
+-- timeout). Measured, never asserted.
+CREATE TABLE IF NOT EXISTS test_headroom_runs (
+    sha12   TEXT PRIMARY KEY,
+    machine TEXT NOT NULL,
+    ts      INTEGER NOT NULL           -- epoch seconds the offline steps ended
+);
+CREATE TABLE IF NOT EXISTS test_headroom (
+    sha12       TEXT NOT NULL,
+    project     TEXT NOT NULL,
+    test        TEXT NOT NULL,
+    duration_ms INTEGER NOT NULL,
+    timeout_ms  INTEGER NOT NULL,
+    ratio       REAL NOT NULL,
+    PRIMARY KEY (sha12, project, test)
+);
+
 -- One row per gate-run ATTEMPT (issue #4968). gate_runs is keyed by the run
 -- dir, and gate-run.sh REUSES a dir for every run under the same key, so a
 -- failed land retried under TOLARIA_GATE_RUN_KEY=land-N overwrote its own
