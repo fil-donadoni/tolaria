@@ -601,6 +601,44 @@ export function fetchClaimedIssues(runner: ShRunner = sh): ClaimedIssue[] {
     ) as ClaimedIssue[];
 }
 
+/**
+ * Open `ready-for-agent` issues nobody claims — the candidates whose orphaned
+ * worktree `loop:doctor` reports (issue #5531). Advisory, so it never takes
+ * the claim sweep down: an answer that is not a JSON array (an error body, a
+ * rate-limit message, a stub) reads as none (issue #5551).
+ */
+export function fetchUnclaimedIssues(runner: ShRunner = sh): Set<number> {
+    let rows: unknown;
+    try {
+        rows = JSON.parse(
+            runner("gh", [
+                "issue",
+                "list",
+                "--label",
+                "ready-for-agent",
+                "--state",
+                "open",
+                "--json",
+                "number,labels",
+                "--limit",
+                "500",
+            ]) || "[]"
+        );
+    } catch {
+        return new Set();
+    }
+    if (!Array.isArray(rows)) return new Set();
+    return new Set(
+        (rows as { number: number; labels?: { name: string }[] }[])
+            .filter(
+                (i) =>
+                    Number.isInteger(i?.number) &&
+                    !(i.labels ?? []).some((l) => l.name === "in-progress")
+            )
+            .map((i) => i.number)
+    );
+}
+
 /** Head branch names of every currently OPEN pull request. See
  *  `fetchClaimedIssues` for the `runner` default/override convention. */
 export function fetchOpenPrBranches(runner: ShRunner = sh): Set<string> {
@@ -1035,26 +1073,7 @@ if (import.meta.main) {
 
     // Unclaimed issues whose worktree still holds unpushed commits (issue
     // #5531) — invisible to the claim roster below. Reported, never released.
-    const unclaimed = new Set<number>(
-        (
-            JSON.parse(
-                sh("gh", [
-                    "issue",
-                    "list",
-                    "--label",
-                    "ready-for-agent",
-                    "--state",
-                    "open",
-                    "--json",
-                    "number,labels",
-                    "--limit",
-                    "500",
-                ]) || "[]"
-            ) as { number: number; labels: { name: string }[] }[]
-        )
-            .filter((i) => !i.labels.some((l) => l.name === "in-progress"))
-            .map((i) => i.number)
-    );
+    const unclaimed = fetchUnclaimedIssues();
     for (const o of orphanWorktrees(unclaimed, {
         baseRef: ORIGIN_BASE,
         owners: readClaimOwners(
