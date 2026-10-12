@@ -238,7 +238,8 @@ describe("a keyword is priced once — body table XOR script (issue #5355)", () 
     // a keyword whose ability is a hand-written companion (ward, echo) reads
     // 0 there. The catalogue scan closes that class: on every card declaring
     // a body-priced keyword, the abilities named after it — by id (`ward`,
-    // `rampage-2`, `goblin-patrol-echo`) or by reminder text ("Echo {R} (…")
+    // `rampage-2`) or by reminder text ("Echo {R} (…"); an ability GRANTING the
+    // keyword to another creature prices something else and is not matched
     // — add nothing to the realized script value.
     it("no catalogue card's keyword-named ability adds script value to a body-priced keyword", () => {
         const doubled: string[] = [];
@@ -250,7 +251,6 @@ describe("a keyword is priced once — body table XOR script (issue #5355)", () 
                 const named = (a: { id?: string; oracleText?: string }) =>
                     a.id === word ||
                     a.id?.startsWith(`${word}-`) === true ||
-                    a.id?.endsWith(`-${word}`) === true ||
                     keywordWord(a.oracleText?.toLowerCase() ?? "") === word;
                 const triggered = def.triggeredAbilities ?? [];
                 const activated = def.activatedAbilities ?? [];
