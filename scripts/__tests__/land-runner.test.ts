@@ -315,6 +315,8 @@ describe("which machine runs it — the MacBook, never the Huawei (topology B')"
 describe("owesPresetSeed — the post-merge seed a session used to run", () => {
     it("is owed by a card-set diff only", () => {
         expect(owesPresetSeed(["convex/cards/sets/lea/blue.ts"])).toBe(true);
-        expect(owesPresetSeed(["convex/gre/sba.ts", "docs/x.md"])).toBe(false);
+        expect(owesPresetSeed(["convex/gre/sba.ts", "scripts/x.ts"])).toBe(
+            false
+        );
     });
 });

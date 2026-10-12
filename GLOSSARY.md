@@ -1091,6 +1091,10 @@ _Avoid_: Epic, tracker (a roll-up issue that enumerates gaps, retired by audit),
 An atomic work issue with a native parent **Umbrella**. One PR, one landing; it inherits the umbrella's **Priority Band** and its place in the queue's lineage, and is detached from the umbrella once it closes.
 _Avoid_: Sub-issue (the platform's word for the edge), child alone, task, ticket (any issue)
 
+**Land-runner**:
+The one process that merges into the base branch, on the MacBook only: it lands each PR a session handed off with `land:ready` (labelled `ready-to-land`, oldest first) through the existing `land` pipeline, one at a time. A session ends at the hand-off and never runs `land`; its claim is then `pr-open` — it stands, holds no session slot, and the runner releases it at merge. A red landing comes back labelled `land-failed`, and the queue hands it to the next pass as a repair pick, before any new work. Under RED it lands only declared repairs and holds the rest.
+_Avoid_: Merge train (the retired multi-PR orchestrator), merge bot, lander, auto-merge (GitHub's feature, which gates nothing)
+
 **Residue**:
 An open issue the band rule can place in no **Priority Band** — nothing it names, unlocks or blocks lends one — left unprioritised and listed for the owner, by cause: undeclared (no cards at all) or off-road (cards named, none in a Target that lends a band). Never folded into `P3`: "the rule abstained" and "the owner ruled later" must not read the same.
 _Avoid_: Backlog (everything open), unprioritised alone (the board value; residue is why it is empty), leftovers

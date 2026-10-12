@@ -10,8 +10,7 @@ One session, one issue, no orchestrator, no implement subagents (ADR 0110).
 Target and baseline: `docs/agents/quality-gates.md` § Latency per issue
 (`bun run telemetry:latency`). Each step below ends on a **Done when** line;
 a pass that picks, implements, reviews and hands off without incident reads
-this file and nothing else. Landing is the land-runner's (issue #5469): the
-pass ends at push + `ready-to-land`.
+this file and nothing else.
 
 **Disclosed material** — open a file only when its condition holds:
 
@@ -185,9 +184,8 @@ says no review.
 
 ## 5. Hand off — push + `ready-to-land`
 
-The pass ENDS here (issue #5469): one land-runner on the MacBook lands every
-PR — rebase, lane gate under the mutex, merge, scenario seed, teardown. A
-session never runs `land` (`deny-guard.sh` § 8); it never waits for a merge.
+The pass ENDS here (issue #5469): the land-runner lands every PR (rebase,
+lane, merge, seed, teardown). A session never runs `land` nor waits for it.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
   push, open the PR (base: the base branch).
@@ -196,11 +194,9 @@ session never runs `land` (`deny-guard.sh` § 8); it never waits for a merge.
 - **`## Preset scenario`** heading over a `json` fence holding
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the
-  heading — as a `land-failed` the next pass repairs; write "none owed" there
-  when it is not. The runner seeds it; you do not.
-- Hand off: `bun run land:ready <PR#>` — labels the PR `ready-to-land`
-  (dropping `land-failed` on a repair) and moves the claim to `pr-open`: it
-  stands, holds no cap slot, and the runner releases it at merge.
+  heading; write "none owed" there when it is not. The runner seeds it.
+- Hand off: `bun run land:ready <PR#>` — PR labelled `ready-to-land`, claim
+  `pr-open` (stands, no cap slot; released at merge).
 - **Gap issue**: `gap-holes.md` before the report.
 
 **Done when:** the PR is open and pushed, and `land:ready` reported it
@@ -208,9 +204,8 @@ labelled `ready-to-land`.
 
 ## 6. Report
 
-Five lines, no more: issue, PR (handed off `ready-to-land` — the PR is the
-pass's result, the landing is the runner's), what changed, what the review
-caught (or "clean"), anything flagged for the user. Then STOP — one issue per
+Five lines, no more: issue, PR (handed off `ready-to-land`), what changed,
+what the review caught (or "clean"), anything flagged for the user. Then STOP — one issue per
 invocation; the user (or the AFK driver) decides on a next one.
 
 **Done when:** the five lines are written.

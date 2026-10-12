@@ -9,7 +9,11 @@ import {
     fetchRecentMergedPrs,
     fetchUnclaimedReadyQueue,
 } from "../loop-status";
-import { fetchClaimedIssues, fetchOpenPrBranches } from "../loop-doctor";
+import {
+    fetchClaimedIssues,
+    fetchOpenPrBranches,
+    fetchOpenPrRows,
+} from "../loop-doctor";
 
 /**
  * The REST fallback for `loop:status`'s `gh` reads.
@@ -331,6 +335,29 @@ describe("gh-rest-fallback — the REAL fetchers' argv is recognised", () => {
             withRestFallbackSh((_cmd, args) => runner(args), REPO)
         );
         expect([...out]).toEqual(["feat/issue-3107"]);
+    });
+
+    it("fetchOpenPrRows falls back WITH the labels the land queue reads (issue #5469)", () => {
+        const { runner } = rateLimitedThen([
+            [
+                {
+                    number: 9100,
+                    head: { ref: "feat/issue-100" },
+                    labels: [{ name: "ready-to-land" }],
+                },
+            ],
+        ]);
+        expect(
+            fetchOpenPrRows(
+                withRestFallbackSh((_cmd, args) => runner(args), REPO)
+            )
+        ).toEqual([
+            {
+                headRefName: "feat/issue-100",
+                number: 9100,
+                labels: [{ name: "ready-to-land" }],
+            },
+        ]);
     });
 
     it("fetchUnclaimedReadyQueue falls back, and still drops in-progress", () => {

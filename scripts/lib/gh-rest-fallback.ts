@@ -262,10 +262,13 @@ function planPrList(args: string[], repo: string): RestPlan | null {
     const state = flagValue(args, "--state");
     const search = flagValue(args, "--search");
 
-    // `--state open --json headRefName[,number]` — the open-PR reads
-    // (`issuesWithOpenPr`; `fetchOpenPrs`, which also wants the number so a
-    // stranded claim is named by its PR, issue #4763).
-    const withNumber = sameFields(args, ["headRefName", "number"]);
+    // `--state open --json headRefName[,number[,labels]]` — the open-PR
+    // reads (`issuesWithOpenPr`; `fetchOpenPrRows`, which also wants the
+    // number so a stranded claim is named by its PR, issue #4763, and the
+    // labels the land-runner's queue lives in, issue #5469).
+    const withLabels = sameFields(args, ["headRefName", "number", "labels"]);
+    const withNumber =
+        withLabels || sameFields(args, ["headRefName", "number"]);
     if (
         state === "open" &&
         search === undefined &&
@@ -275,13 +278,23 @@ function planPrList(args: string[], repo: string): RestPlan | null {
             path: `repos/${repo}/pulls`,
             query: { state: "open" },
             limit: limitOf(args, 300),
-            what: withNumber
-                ? "pr list (headRefName,number)"
-                : "pr list (headRefName)",
+            what: withLabels
+                ? "pr list (headRefName,number,labels)"
+                : withNumber
+                  ? "pr list (headRefName,number)"
+                  : "pr list (headRefName)",
             project: (rows) =>
                 rows.map((r) => ({
                     headRefName: str((r.head as RestRow)?.ref),
                     ...(withNumber ? { number: num(r.number) } : {}),
+                    ...(withLabels
+                        ? {
+                              labels: (Array.isArray(r.labels)
+                                  ? (r.labels as RestRow[])
+                                  : []
+                              ).map((l) => ({ name: str(l.name) })),
+                          }
+                        : {}),
                 })),
         };
     }
