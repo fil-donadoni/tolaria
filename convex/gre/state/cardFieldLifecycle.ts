@@ -254,7 +254,7 @@ export const CARD_FIELD_LIFECYCLE = {
     bestowed:                   { codec: "custom",  reset: ["custom:zone-change", "custom:stack"] },
     overloaded:                 { codec: "flag",    reset: ZONE_STACK },
     castOffSorceryTiming:       { codec: "flag",    reset: ZONE_STACK },
-    notedManaSpentOnCast:       { codec: "record",  reset: NONE },
+    notedManaSpentOnCast:       { codec: "record",  reset: ZONE_STACK },
     wasKicked:                  { codec: "flag",    reset: ZONE },
     kickerPayments:             { codec: "record",  reset: ZONE_STACK },
     unkickedCostPayments:       { codec: "record",  reset: ZONE_STACK },
