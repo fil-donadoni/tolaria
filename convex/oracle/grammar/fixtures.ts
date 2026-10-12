@@ -596,6 +596,71 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 701.21a + CR 101.4 + CR 105.2b — "Each player sacrifices a
+    // multicolored permanent of their choice.": the same simultaneous `forEach`
+    // as Innocent Blood over a colour-COUNT filter (`colorCountAtLeast: 2`, not a
+    // colour). The smoke form names the filter, so it is its own form.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "bc9acc14-24e0-4c03-a09a-2afee351f2cc",
+            name: "Renounce the Guilds",
+            manaCost: "{1}{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Each player sacrifices a multicolored permanent of their choice.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Renounce the Guilds",
+            types: ["Instant"],
+            manaCost: {
+                X: 1,
+                W: 1,
+            },
+            oracleText:
+                "Each player sacrifices a multicolored permanent of their choice.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: {
+                        set: "players",
+                    },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "sacrifice-permanents",
+                            player: {
+                                ref: "$each",
+                            },
+                            zone: "battlefield",
+                            filter: {
+                                type: [
+                                    "Artifact",
+                                    "Battle",
+                                    "Creature",
+                                    "Enchantment",
+                                    "Land",
+                                    "Planeswalker",
+                                ],
+                                colorCountAtLeast: 2,
+                            },
+                            count: 1,
+                            prompt: "Sacrifice a multicolored permanent.",
+                            bind: "$sacrifice1",
+                        },
+                        {
+                            op: "sacrifice",
+                            permanents: {
+                                ref: "$sacrifice1",
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 701.21a + CR 101.4 — "Each player sacrifices a land of their choice.": the same simultaneous
     // `forEach` as Innocent Blood over the land filter. The smoke form names the
     // filter, so each filter is its own form and needs its own evidence.

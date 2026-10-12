@@ -104,6 +104,11 @@ export interface DescriptorIR {
     readonly excludeSupertypes?: readonly CardSupertype[];
     readonly colors?: readonly Color[];
     readonly excludeColors?: readonly Color[];
+    /** CR 105.2b — "multicolored": two or more colours. A colour COUNT, not a
+     *  colour (CR 105.4), so it sits beside `colors` rather than inside it; the lowering
+     *  turns it into `colorCountAtLeast: 2`. Read live (layer 5), so only the
+     *  sites that read live colours admit it. */
+    readonly multicolored?: true;
     readonly controller?: "you" | "opponent";
     readonly tapped?: "tapped" | "untapped";
     readonly combatRole?: readonly ("attacking" | "blocking")[];
@@ -211,6 +216,8 @@ export interface DescriptorState {
      *  adjective may join it (that would be an AND read as a wider OR). */
     colorsDisjunctive?: true;
     excludeColors: Color[];
+    /** See `DescriptorIR.multicolored`. */
+    multicolored?: true;
     controller?: "you" | "opponent";
     tapped?: "tapped" | "untapped";
     combatRole?: ("attacking" | "blocking")[];
@@ -281,6 +288,12 @@ function readAdjective(
             return `"${token}" joins another colour adjective`;
         into.colors.push(first, second);
         into.colorsDisjunctive = true;
+        return null;
+    }
+    // CR 105.2b — "multicolored" is a colour COUNT; see `DescriptorIR`.
+    if (lower === "multicolored") {
+        if (into.multicolored === true) return `"${token}" twice`;
+        into.multicolored = true;
         return null;
     }
     const color = COLOR_WORDS.get(lower);
@@ -874,6 +887,7 @@ function finish(
     if (state.player !== undefined || state.anyTarget === true) {
         const decorated =
             state.colors.length > 0 ||
+            state.multicolored === true ||
             state.subtypes.length > 0 ||
             state.supertypes.length > 0 ||
             state.tapped !== undefined ||
@@ -905,6 +919,13 @@ function finish(
         out.excludeSupertypes = state.excludeSupertypes;
     if (state.colors.length > 0) out.colors = state.colors;
     if (state.excludeColors.length > 0) out.excludeColors = state.excludeColors;
+    // "multicolored white" would be an AND of a count and a colour that no
+    // consumer has a fixture for; refused here, where both halves are known.
+    if (state.multicolored === true) {
+        if (state.colors.length > 0 || state.excludeColors.length > 0)
+            return fail("a colour count beside a colour adjective", span);
+        out.multicolored = true;
+    }
     if (state.controller !== undefined) out.controller = state.controller;
     if (state.tapped !== undefined) out.tapped = state.tapped;
     if (state.combatRole !== undefined) out.combatRole = state.combatRole;
@@ -995,6 +1016,15 @@ export function targetRequirementFromDescriptor(
         return fail(
             "a chosen creature type is not expressible as a target requirement (CR 205.3m)",
             "chosenType"
+        );
+    // CR 105.2b — `TargetRequirement` has no colour-count field (only
+    // `colorFilter`/`colorFilterAny`, which ask WHICH colour); copying the
+    // known fields would announce "target creature" for "target multicolored
+    // creature" and widen the legal targets.
+    if (descriptor.multicolored === true)
+        return fail(
+            "a colour count is not expressible as a target requirement (CR 105.2b)",
+            "multicolored"
         );
     if (descriptor.anyTarget === true) return ok({ type: "any", count });
     if (descriptor.player !== undefined) {
@@ -1106,7 +1136,7 @@ export function permanentFilterFromDescriptor(
                 "excludeSubtypes",
                 "excludeSupertypes",
                 "plural",
-                ...(allow.colors === true ? ["colors"] : []),
+                ...(allow.colors === true ? ["colors", "multicolored"] : []),
             ].includes(field)
         ) {
             return fail(
@@ -1126,6 +1156,8 @@ export function permanentFilterFromDescriptor(
     if (descriptor.excludeSupertypes)
         filter.excludeSupertypes = [...descriptor.excludeSupertypes];
     if (descriptor.colors) filter.colors = [...descriptor.colors];
+    // CR 105.2b — two or more colours, read live like `colors` itself.
+    if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
     if (Object.keys(filter).length === 0)
         return fail("cost filter matches everything", "filter");
     return ok(filter as PermanentFilter);
@@ -1150,7 +1182,15 @@ export function sacrificeFilterFromDescriptor(
 ): RuleResult<EffectCardFilter> {
     for (const [field, value] of Object.entries(descriptor)) {
         if (value === undefined) continue;
-        if (!["types", "combatRole", "plural", "colors"].includes(field))
+        if (
+            ![
+                "types",
+                "combatRole",
+                "plural",
+                "colors",
+                "multicolored",
+            ].includes(field)
+        )
             return fail(
                 `"${field}" is not expressible as a sacrifice filter`,
                 field
@@ -1180,6 +1220,9 @@ export function sacrificeFilterFromDescriptor(
             );
         filter.color = colors.length === 1 ? colors[0]! : [...colors];
     }
+    // CR 105.2b — "a multicolored permanent": the filter's colour COUNT bound
+    // (`EffectCardFilter.colorCountAtLeast`, read live on the battlefield).
+    if (descriptor.multicolored === true) filter.colorCountAtLeast = 2;
     const role = descriptor.combatRole;
     if (role !== undefined) {
         if (role.length !== 1 || role[0] !== "attacking")

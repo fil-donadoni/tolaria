@@ -99,6 +99,13 @@ const UMBRAL_JUKE = row(
     "Instant",
     "Choose one —\n• Target player sacrifices a creature or planeswalker of their choice.\n• Create a 2/1 white and black Inkling creature token with flying."
 );
+const RENOUNCE_THE_GUILDS = row(
+    "bc9acc14-24e0-4c03-a09a-2afee351f2cc",
+    "Renounce the Guilds",
+    "{1}{W}",
+    "Instant",
+    "Each player sacrifices a multicolored permanent of their choice."
+);
 const MISGUIDED_RAGE = row(
     "f5c77355-96dc-46af-a7de-f547a1368ff1",
     "Misguided Rage",
@@ -326,6 +333,34 @@ describe("player edict — goldens (CR 701.21a, CR 101.4)", () => {
         );
     });
 
+    it("multicolored permanent: Renounce the Guilds — CR 105.2b, a colour COUNT bound, not a colour", () => {
+        expect(sortKeys(compiled(RENOUNCE_THE_GUILDS).effects)).toEqual(
+            sortKeys([
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: edict(
+                        { ref: "$each" },
+                        {
+                            type: [
+                                "Artifact",
+                                "Battle",
+                                "Creature",
+                                "Enchantment",
+                                "Land",
+                                "Planeswalker",
+                            ],
+                            colorCountAtLeast: 2,
+                        },
+                        1,
+                        "Sacrifice a multicolored permanent."
+                    ),
+                },
+            ])
+        );
+    });
+
     it("every golden reaches `ready` — the fixtures clear the choice-binding and forEach smoke skips", () => {
         for (const card of [
             DIABOLIC_EDICT,
@@ -336,6 +371,7 @@ describe("player edict — goldens (CR 701.21a, CR 101.4)", () => {
             WING_SHARDS,
             UMBRAL_JUKE,
             MISGUIDED_RAGE,
+            RENOUNCE_THE_GUILDS,
         ])
             expect([card.name, compileCard(card).state]).toEqual([
                 card.name,
@@ -400,10 +436,10 @@ describe("player edict — refusals (fail-closed, ADR 0105 § 2)", () => {
             "Target player sacrifices a blocking creature of their choice.",
             "combatRole",
         ],
-        // "multicolored" is no descriptor word at all (Renounce the Guilds).
+        // A colour count beside a colour word is an AND no filter field says.
         [
-            "Each player sacrifices a multicolored permanent of their choice.",
-            "multicolored permanent",
+            "Each player sacrifices a multicolored white permanent of their choice.",
+            "multicolored white permanent",
         ],
         // Two nouns, each with its own article: no single filter (Perilous Predicament).
         [

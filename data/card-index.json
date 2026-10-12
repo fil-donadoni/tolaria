@@ -47566,6 +47566,16 @@
         "source": "compiled"
     },
     {
+        "name": "Renounce the Guilds",
+        "scryfallId": "bc9acc14-24e0-4c03-a09a-2afee351f2cc",
+        "oracleId": "c854f9e8-6a1c-4515-9912-3847978bf5d5",
+        "firstSet": "dgm",
+        "firstPrintId": "bc9acc14-24e0-4c03-a09a-2afee351f2cc",
+        "firstPrintSet": "dgm",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Repeal",
         "scryfallId": "9e7dd929-4bba-46a6-86c9-b8ed853eb721",
         "oracleId": "b1f2b26c-91b2-4f3c-9f48-6429ec3fde48",
