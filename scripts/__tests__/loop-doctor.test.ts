@@ -953,3 +953,48 @@ describe("worktreeQuietMinutes — the resumed-session veto's input (issue #5174
         ).toBeNull();
     });
 });
+
+describe("loop-doctor — a PR handed to the land-runner (issue #5469)", () => {
+    const handedOff: ClaimFacts = {
+        ...base,
+        hasOpenPr: true,
+        hasRemoteBranch: true,
+        landQueue: "ready",
+    };
+
+    it("`ready-to-land` is pr-open whatever the owner — dead by design, never stranded, never orphan", () => {
+        for (const ownerAlive of [false, null, true]) {
+            const v = classifyClaim({
+                ...handedOff,
+                ownerAlive,
+                ageHours: 500,
+            });
+            expect(v.state, `ownerAlive=${ownerAlive}`).toBe("pr-open");
+            expect(v.reason).toMatch(/land-runner/);
+        }
+    });
+
+    it("`land-failed` is a repair pick (stranded) unless an owner is PROVED alive", () => {
+        const failed = { ...handedOff, landQueue: "failed" as const };
+        expect(classifyClaim({ ...failed, ownerAlive: null }).state).toBe(
+            "stranded"
+        );
+        expect(classifyClaim({ ...failed, ownerAlive: false }).state).toBe(
+            "stranded"
+        );
+        expect(classifyClaim({ ...failed, ownerAlive: true }).state).toBe(
+            "live"
+        );
+    });
+
+    it("no land label keeps the pre-runner verdicts", () => {
+        expect(
+            classifyClaim({ ...handedOff, landQueue: null, ownerAlive: null })
+                .state
+        ).toBe("live");
+    });
+
+    it("pr-open is a declared verdict state (the dashboard glossary iterates it)", () => {
+        expect(CLAIM_VERDICT_STATES).toContain("pr-open");
+    });
+});

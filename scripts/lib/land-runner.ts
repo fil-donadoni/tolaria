@@ -143,6 +143,27 @@ export function landExcerpt(output: string, lines = EXCERPT_LINES): string {
     return tail.join("\n");
 }
 
+/**
+ * `land`'s lane receipt line — `lane: ran` or `lane: skipped (gated <sha>
+ * against <base>)` (ADR 0136 §2) — or `null` when the output carries none.
+ * The session that used to quote it in its report no longer sees the
+ * landing, so the runner records it on the merged PR.
+ */
+export function laneReceipt(output: string): string | null {
+    const line = output
+        .replace(ANSI, "")
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => /^lane: (ran|skipped\b)/.test(l));
+    return line ?? null;
+}
+
+/** The comment the runner leaves on a PR it merged. */
+export function mergedComment(output: string): string {
+    const receipt = laneReceipt(output);
+    return `**land-runner: merged.** ${receipt === null ? "No lane receipt in `land`'s output." : `\`${receipt}\``}`;
+}
+
 /** The comment the runner leaves on a PR it labelled `land-failed`. */
 export function failureComment(input: {
     status: number | null;
@@ -167,6 +188,15 @@ export function failureComment(input: {
         "",
         `Full log on the runner: \`${input.logPath}\``,
     ].join("\n");
+}
+
+/**
+ * Whether a merged PR owes `bun run seed:preset --all` — a diff under
+ * `convex/cards/sets/` (a preset deck may name the card). It was the
+ * session's post-merge step; the session no longer sees the merge.
+ */
+export function owesPresetSeed(paths: readonly string[]): boolean {
+    return paths.some((p) => p.startsWith("convex/cards/sets/"));
 }
 
 /** `gh` argv for each label move — one place, so tests pin them. */

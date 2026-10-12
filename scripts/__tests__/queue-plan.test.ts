@@ -18,6 +18,7 @@ import {
     effectivePriority,
     bandIsInherited,
     lineageRefusal,
+    repairItems,
     resumeItems,
     UNPRIORITIZED,
     type AdmissionInput,
@@ -3255,5 +3256,54 @@ describe("resumeItems — dead passes' claims go to the next pass (issue #4763, 
                 body
             ).map((r) => r.number)
         ).toEqual([4470]);
+    });
+});
+
+describe("repairItems — a land-failed PR is the FIRST pick (issue #5469)", () => {
+    // Fixture queue: three `land-failed` PRs as `gh pr list --label
+    // land-failed` returns them (newest first), one on a docs branch.
+    const failedPrs = [
+        { number: 5520, headRefName: "fix/issue-5501" },
+        { number: 5510, headRefName: "docs/adr-0156" },
+        { number: 5505, headRefName: "feat/issue-5490" },
+    ];
+    const details: Record<number, { labels: string[]; body: string }> = {
+        5501: { labels: ["bug", "model:opus"], body: "" },
+        5490: { labels: ["enhancement"], body: "" },
+    };
+
+    it("lists each PR with its issue and branch, oldest PR first, on the issue's label-routed tier", () => {
+        expect(
+            repairItems(failedPrs, (n) => details[n] ?? null, CONFIG)
+        ).toEqual([
+            {
+                number: 5490,
+                pr: 5505,
+                branch: "feat/issue-5490",
+                model: "sonnet",
+            },
+            { number: 5501, pr: 5520, branch: "fix/issue-5501", model: "opus" },
+        ]);
+    });
+
+    it("leaves out a PR naming no issue, and one whose issue cannot be read", () => {
+        expect(
+            repairItems(
+                failedPrs,
+                (n) => (n === 5490 ? details[n] : null),
+                CONFIG
+            ).map((r) => r.pr)
+        ).toEqual([5505]);
+    });
+
+    it("holds an HITL issue for its human under --exclude-hitl, as resume does (#3088)", () => {
+        const hitl = { labels: [], body: "## HITL\nhuman decides" };
+        const plain = repairItems(failedPrs, () => hitl, CONFIG);
+        const excluded = repairItems(failedPrs, () => hitl, {
+            ...CONFIG,
+            excludeHitl: true,
+        });
+        expect(plain.length).toBe(2);
+        expect(excluded).toEqual([]);
     });
 });

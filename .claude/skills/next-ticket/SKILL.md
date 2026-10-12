@@ -1,6 +1,6 @@
 ---
 name: next-ticket
-description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, land."
+description: "Close one ready-for-agent issue end-to-end: pick, worktree, implement, review, hand off to the land-runner."
 disable-model-invocation: true
 ---
 
@@ -9,17 +9,18 @@ disable-model-invocation: true
 One session, one issue, no orchestrator, no implement subagents (ADR 0110).
 Target and baseline: `docs/agents/quality-gates.md` § Latency per issue
 (`bun run telemetry:latency`). Each step below ends on a **Done when** line;
-a pass that picks, implements, reviews and lands without incident reads this
-file and nothing else.
+a pass that picks, implements, reviews and hands off without incident reads
+this file and nothing else. Landing is the land-runner's (issue #5469): the
+pass ends at push + `ready-to-land`.
 
 **Disclosed material** — open a file only when its condition holds:
 
 - → `abort.md` — the abort protocol: wire the prerequisite in both stores,
   release the claim as one act. Read it when: this issue cannot land in this
   pass.
-- → `land-failures.md` — `land`'s failure, retry and post-merge modes (exit
-  75 / 77, a regenerable-artefact red, RED marker, wrong base, missing band).
-  Read it when: `land` returns anything but a merge, or prints a warning.
+- → `land-failures.md` — a REPAIR pick: the runner labelled the PR
+  `land-failed` (a red lane, a regenerable-artefact red, a RED refusal, a
+  wrong base). Read it when: the pick is `repair`, or `land:ready` refuses.
 - → `filing.md` — the band-inheritance procedure for an issue you file by
   hand. Read it when: you are about to run `gh issue create`.
 - → `gap-holes.md` — each hole has an issue, parent, band. Read it when: a
@@ -42,7 +43,7 @@ Every token a tool result adds is re-read by every later turn.
     bunx vitest run <path> >"$L" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$L"
     ```
 
-    Read with `grep -c` / `grep -n` / `sed -n 'A,Bp'` before `cat`. `land`
+    Read with `grep -c` / `grep -n` / `sed -n 'A,Bp'` before `cat`. A gate
     is the exception: it goes through `gate:run` below.
 
 3. **Never poll.** No `sleep N; echo` turns.
@@ -72,10 +73,10 @@ with the turn and takes the gate's verdict with it.
 <!-- <<<END GATE-RULE>>> -->
 
 **A pass never ends its turn waiting** (issue #4763) — at ANY point: on a
-gate, a regenerator (`oracle:compile`), a test suite or a `land` retry.
+gate, a regenerator (`oracle:compile`), a test suite or the land-runner.
 Whatever the pass needs the result of runs in the FOREGROUND (`gate:run`, or
 a foreground call with `timeout` up to 600000ms); the turn ends only on a
-verdict — landed, or a failure reported as a failure.
+verdict — handed off, or a failure reported as a failure.
 
 ## 0. Pick
 
@@ -92,10 +93,11 @@ verdict — landed, or a failure reported as a failure.
   fix a missing or comma-joined section in the issue.
 - **`/next-ticket N --resume`** — a dead pass's claim: stranded (pushed a
   branch or opened a PR) or recoverable (local branch, maybe uncommitted WIP
-  in its worktree). Do not start over: `queue:claim N`, then
-  `cd "$(bun run --silent wt:new N --resume)"`; `git status` shows the WIP.
-  Open PR → read it against the issue, go to §5. Branch, no PR → finish
-  §3–§4, open the PR, §5.
+  in its worktree) — or a **repair** pick (`queue:plan`'s `repair[0]`, first
+  of all picks: the land-runner labelled its PR `land-failed`). Do not start
+  over: `queue:claim N`, then `cd "$(bun run --silent wt:new N --resume)"`;
+  `git status` shows the WIP. Repair → `land-failures.md`. Open PR → read it
+  against the issue, go to §5. Branch, no PR → finish §3–§4, open the PR, §5.
 
 **Done when:** one issue number is chosen and its body and comments are read.
 
@@ -181,36 +183,34 @@ answer in the PR thread. No re-review round. A wrong-mental-model finding
 **Done when:** every blocking finding is fixed and committed, or the row
 says no review.
 
-## 5. Land
+## 5. Hand off — push + `ready-to-land`
+
+The pass ENDS here (issue #5469): one land-runner on the MacBook lands every
+PR — rebase, lane gate under the mutex, merge, scenario seed, teardown. A
+session never runs `land` (`deny-guard.sh` § 8); it never waits for a merge.
 
 - **No pre-PR gate** (ADR 0136 §1): targeted runs + §4 review, then commit,
-  push, open the PR.
+  push, open the PR (base: the base branch).
 - PR body: what changed, tests + proof-of-failure line; UI: `check:ui` walk
   `owed` → receipt, `not owed` → `check:ui: no walk owed (<reason>)`.
 - **`## Preset scenario`** heading over a `json` fence holding
   `{ "label", "spec" }` for any new card/gameplay feature (ADR 0044). `land`
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the
-  heading; write "none owed" there when it is not. `land` seeds it; you do
-  not.
-- From the worktree, timeout 600000ms:
-  `TOLARIA_GATE_RUN_KEY=land-<PR#> bun run gate:run land <PR#>` — rebase,
-  lane gate under the mutex, merge, teardown. The key lets the identical
-  command re-attach from anywhere after `land` deletes the worktree.
-- Exit 75 → re-issue the identical command. Never end the turn on a 75.
-- Diff under `convex/cards/sets/` → `bun run seed:preset --all` after the
-  merge (idempotent; no deployment → nothing owed).
-- Issue not auto-closed → close it with a one-line comment.
+  heading — as a `land-failed` the next pass repairs; write "none owed" there
+  when it is not. The runner seeds it; you do not.
+- Hand off: `bun run land:ready <PR#>` — labels the PR `ready-to-land`
+  (dropping `land-failed` on a repair) and moves the claim to `pr-open`: it
+  stands, holds no cap slot, and the runner releases it at merge.
 - **Gap issue**: `gap-holes.md` before the report.
 
-**Done when:** `land` exited 0 with the PR merged, the issue closed, and
-`seed:preset --all` run if owed.
+**Done when:** the PR is open and pushed, and `land:ready` reported it
+labelled `ready-to-land`.
 
 ## 6. Report
 
-Five lines, no more: issue, PR, what landed, what the review caught (or
-"clean"), anything flagged for the user. Quote `land`'s lane receipt in the
-"what landed" line — `lane: ran` or
-`lane: skipped (gated <sha> against <base>)` (ADR 0136 §2). Then STOP — one
-issue per invocation; the user (or the AFK driver) decides on a next one.
+Five lines, no more: issue, PR (handed off `ready-to-land` — the PR is the
+pass's result, the landing is the runner's), what changed, what the review
+caught (or "clean"), anything flagged for the user. Then STOP — one issue per
+invocation; the user (or the AFK driver) decides on a next one.
 
 **Done when:** the five lines are written.

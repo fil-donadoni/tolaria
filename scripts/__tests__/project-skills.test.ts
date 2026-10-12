@@ -323,12 +323,12 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(text).not.toMatch(/On abort: remove `in-progress`/);
     });
 
-    it("lands through `land` and creates worktrees through `wt:new` — never by hand", () => {
-        // `gate:run land` since issue #3698 — `land` is a gate, and a gate
-        // that can outrun the Bash tool's 600s cap is driven so that no
-        // single call can be promoted out from under the pass. The `land`
-        // part is what this guard is about and is still pinned.
-        expect(body()).toMatch(/bun run gate:run land <PR#>/);
+    it("hands off through `land:ready` and creates worktrees through `wt:new` — never by hand", () => {
+        // Issue #5469: the pass ends at push + `ready-to-land`; the one
+        // land-runner runs `land`. Before it, `gate:run land` (issue #3698)
+        // had the pass polling its own landing for 8–9 minutes.
+        expect(body()).toMatch(/bun run land:ready <PR#>/);
+        expect(body()).not.toMatch(/gate:run land/);
         expect(body()).toMatch(/wt:new/);
         expect(body()).not.toMatch(/git worktree add/);
         expect(body()).not.toMatch(/health:main/);
@@ -379,15 +379,27 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(laneSrc).toContain('"--plan"');
     });
 
-    it("§6 reports `land`'s lane receipt line (ADR 0136 §2, issue #3781)", () => {
+    it("§6 reports the handed-off PR; the runner carries `land`'s lane receipt onto it (ADR 0136 §2, issues #3781, #5469)", () => {
         // Which lane paid for the landed tree — and whether it was paid at
         // all — is the one line of the flow a reader cannot reconstruct
-        // afterwards. `land` prints it; §6 has to carry it out of the log.
+        // afterwards. `land` prints it. Since issue #5469 the pass ends
+        // before the landing, so §6 reports the PR and the land-runner
+        // comments the receipt on the merged PR (`mergedComment`).
         const text = body();
         expect(text.indexOf("## 6. Report")).toBeGreaterThan(-1);
         const section = fileTail(text, "## 6. Report");
-        expect(section).toMatch(/lane: ran/);
-        expect(section).toMatch(/lane: skipped/);
+        expect(section).toMatch(/ready-to-land/);
+        expect(section).not.toMatch(/lane: ran/);
+        const runnerLib = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "lib", "land-runner.ts"),
+            "utf8"
+        );
+        expect(runnerLib).toMatch(/lane: \(ran\|skipped/);
+        const runnerSrc = fs.readFileSync(
+            path.join(REPO_ROOT, "scripts", "land-runner.ts"),
+            "utf8"
+        );
+        expect(runnerSrc).toContain("mergedComment(");
 
         const landSrc = fs.readFileSync(
             path.join(REPO_ROOT, "scripts", "land.ts"),
@@ -447,9 +459,10 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         // The pre-PR `check:lane` certified a tree that never landed: at
         // 2.5 PR/h the base moved during it, and `land` paid the lane again
         // on the rebased tip anyway. A §5 that names `check:lane` ahead of
-        // the PR step is that gate coming back.
+        // the PR step is that gate coming back. §5 is the hand-off since
+        // issue #5469; the land-runner's `land` pays the lane.
         const text = body();
-        const land = text.indexOf("## 5. Land");
+        const land = text.indexOf("## 5. Hand off");
         const report = text.indexOf("## 6. Report");
         expect(land).toBeGreaterThan(-1);
         expect(report).toBeGreaterThan(land);

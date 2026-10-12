@@ -30,9 +30,19 @@ describe("loop-drain — resumes dead passes' claims first (issue #4763, issue #
             pr: number | null;
             state?: "stranded" | "recoverable";
             model: string;
-        }[]
+        }[],
+        repair: {
+            number: number;
+            pr: number;
+            branch: string;
+            model: string;
+        }[] = []
     ): void => {
-        const plan = { ...JSON.parse(planJson(101, "sonnet")), resume };
+        const plan = {
+            ...JSON.parse(planJson(101, "sonnet")),
+            resume,
+            repair,
+        };
         writeStub(
             "bun",
             [
@@ -87,6 +97,29 @@ describe("loop-drain — resumes dead passes' claims first (issue #4763, issue #
             "sonnet|/next-ticket 101",
         ]);
         expect(r.stderr).toMatch(/resuming dead claim #4506 \(PR #4760\)/);
+    });
+
+    it("a land-failed REPAIR is taken before any resume and any new pick, on its issue's tier (issue #5469)", () => {
+        stubGhCountingFrom(5);
+        stubPlanWithResume(
+            [{ number: 4506, pr: 4760, model: "sonnet" }],
+            [
+                {
+                    number: 5490,
+                    pr: 5505,
+                    branch: "feat/issue-5490",
+                    model: "opus",
+                },
+            ]
+        );
+        const prompts = stubClaudeRecording();
+        const r = run({ args: ["--max-passes", "3"] });
+        expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+        expect(fs.readFileSync(prompts, "utf8").trim().split("\n")).toEqual([
+            "opus|/next-ticket 5490 --resume",
+            "sonnet|/next-ticket 4506 --resume",
+            "sonnet|/next-ticket 101",
+        ]);
     });
 
     it("a stranded branch with no PR is resumed too, and says so", () => {

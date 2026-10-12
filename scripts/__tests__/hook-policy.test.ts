@@ -2667,3 +2667,45 @@ describe("resident prose pruned to its hook — each denial names the fix (issue
         expect(r.stderr).toMatch(/TOLARIA_ALLOW_MANUAL_MERGE=1/);
     });
 });
+
+describe("deny-guard § 8 — a session hands its PR to the land-runner, never runs `land` (issue #5469)", () => {
+    it("denies every spelling of a land invocation, naming land:ready and the hatch", () => {
+        for (const cmd of [
+            "bun run land 5469",
+            "TOLARIA_GATE_RUN_KEY=land-5469 bun run gate:run land 5469",
+            "bun scripts/land.ts 5469",
+            "sh scripts/gate-run.sh land 5469",
+            "cd /x && bun run land 5469 --red-ok",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toMatch(/bun run land:ready <PR#>/);
+            expect(r.stderr).toMatch(/TOLARIA_LAND_RUNNER=1/);
+        }
+    });
+
+    it("allows land:ready, land:runner, the runner's hatch, and land quoted in a message", () => {
+        for (const cmd of [
+            "bun run land:ready 5469",
+            "bun run land:runner --once --dry-run",
+            "TOLARIA_LAND_RUNNER=1 bun run land 5469",
+            'git commit -m "sessions no longer run bun run land 5469"',
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(
+                false
+            );
+        }
+    });
+
+    it("the hatch names ONE command: it does not cover a land in another segment", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "TOLARIA_LAND_RUNNER=1 echo ok; bun run land 5469",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(true);
+    });
+});

@@ -20,8 +20,8 @@
  *      scripts/land.ts <PR#>` with `TOLARIA_LAND_RUNNER=1` — the hatch
  *      `deny-guard.sh` § 8 admits — output to
  *      `.claude/telemetry/land-runner/land-<PR#>.log`;
- *   4. exit 0 → unlabel, release the issue's claim (label, assignee, journal
- *      row); 77 or a signal → stays queued; anything else → `land-failed` +
+ *   4. exit 0 → unlabel, comment `land`'s lane receipt, `seed:preset --all` when a card set changed, release
+ *      the issue's claim (label, assignee, journal row); 77 or a signal → stays queued; anything else → `land-failed` +
  *      a comment carrying the lane excerpt, which `queue:plan` turns into a
  *      repair pick.
  *
@@ -60,7 +60,9 @@ import { issueOfBranch } from "./lib/issue-worktree";
 import {
     failureComment,
     labelArgs,
+    mergedComment,
     outcomeOf,
+    owesPresetSeed,
     parseLandRunnerConfig,
     planTick,
     READY_LABEL,
@@ -202,11 +204,46 @@ function dropWorktree(primary: string, dir: string, branch: string): void {
     git(primary, ["branch", "-D", branch]);
 }
 
+/** `seed:preset --all` after a merge that touched a card set — idempotent,
+ *  and a failure costs a preset deck, never the landing: logged only. */
+function seedPresetsIfOwed(
+    pr: number,
+    primary: string,
+    log: (line: string) => void
+): void {
+    let paths: string[];
+    try {
+        paths = gh([
+            "pr",
+            "view",
+            String(pr),
+            "--json",
+            "files",
+            "--jq",
+            ".files[].path",
+        ])
+            .split("\n")
+            .filter(Boolean);
+    } catch {
+        log(`PR #${pr}: could not list its files — seed:preset not checked`);
+        return;
+    }
+    if (!owesPresetSeed(paths)) return;
+    const r = spawnSync("bun", ["run", "seed:preset", "--all"], {
+        cwd: primary,
+        stdio: "ignore",
+        env: netEnv(process.env),
+    });
+    log(`PR #${pr}: seed:preset --all exited ${r.status ?? "on a signal"}`);
+}
+
 function applyOutcome(input: {
     pr: QueuedPr;
     outcome: LandOutcome;
     status: number | null;
     logPath: string;
+    /** `land`'s output — the merged comment quotes its lane receipt. */
+    output: string;
     primary: string;
     log: (line: string) => void;
 }): void {
@@ -215,11 +252,19 @@ function applyOutcome(input: {
         log(`PR #${pr.number}: landed`);
         try {
             gh(labelArgs.unqueue(pr.number));
+            gh([
+                "pr",
+                "comment",
+                String(pr.number),
+                "--body",
+                mergedComment(input.output),
+            ]);
         } catch (err) {
             log(
                 `PR #${pr.number}: could not drop \`${READY_LABEL}\` (${(err as Error).message.split("\n")[0]})`
             );
         }
+        seedPresetsIfOwed(pr.number, input.primary, log);
         const issue = issueOfBranch(pr.headRefName);
         if (issue === null) return;
         const ledger = claimLedgerPath(input.primary);
@@ -314,6 +359,7 @@ function tick(opts: {
             outcome: { action: "failed", excerpt: message },
             status: 1,
             logPath,
+            output: message,
             primary,
             log,
         });
@@ -328,10 +374,11 @@ function tick(opts: {
     });
     closeSync(fd);
     const status = r.status;
-    const outcome = outcomeOf(status, readFileSync(logPath, "utf8"));
+    const output = readFileSync(logPath, "utf8");
+    const outcome = outcomeOf(status, output);
     if (outcome.action === "failed" && wt.created)
         dropWorktree(primary, wt.dir, pr.headRefName);
-    applyOutcome({ pr, outcome, status, logPath, primary, log });
+    applyOutcome({ pr, outcome, status, logPath, output, primary, log });
     return true;
 }
 

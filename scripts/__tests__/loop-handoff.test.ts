@@ -884,3 +884,76 @@ describe("--start runs convex:ensure once before arming (issue #4945)", () => {
         }
     });
 });
+
+describe("the land-runner rides with the loop on the merging machine only (issue #5469)", () => {
+    const RUNNER_LOCK = () => telemetry("land-runner", "runner.lock");
+    // A stand-in for `scripts/land-runner.ts`: only `--host-check` is asked
+    // by the handoff, and it is the ONE authority on which machine merges.
+    const fakeRunner = (): void =>
+        fs.writeFileSync(
+            path.join(tmp, "scripts", "land-runner.ts"),
+            [
+                `if (process.argv.includes("--host-check")) {`,
+                `    if (process.env.FAKE_RUNNER_HOST === "huawei") {`,
+                `        console.log("land:runner: this machine is \`linux\`; the runner runs on \`darwin\` only");`,
+                `        process.exit(1);`,
+                `    }`,
+                `    process.exit(0);`,
+                `}`,
+            ].join("\n")
+        );
+
+    it("--start on the MacBook starts it beside the driver", () => {
+        fakeRunner();
+        const r = run({ args: ["--start", "--budget", "1", "--dry-run"] });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(
+            /\[dry-run\] would start the land-runner: bun scripts\/land-runner\.ts/
+        );
+    });
+
+    it("--start on the Huawei never starts it, and says why", () => {
+        fakeRunner();
+        const r = run({
+            args: ["--start", "--budget", "1", "--dry-run"],
+            env: { FAKE_RUNNER_HOST: "huawei" },
+        });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/land-runner not started — .*darwin/);
+        expect(r.stdout).not.toMatch(/would start the land-runner/);
+    });
+
+    it("--start does not start a second runner beside a live one", () => {
+        fakeRunner();
+        fs.mkdirSync(path.dirname(RUNNER_LOCK()), { recursive: true });
+        fs.writeFileSync(RUNNER_LOCK(), String(process.pid));
+        const r = run({ args: ["--start", "--budget", "1", "--dry-run"] });
+        expect(r.stdout).toMatch(
+            new RegExp(`land-runner already running \\(pid ${process.pid}\\)`)
+        );
+        expect(r.stdout).not.toMatch(/would start the land-runner/);
+    });
+
+    it("--disarm stops a live runner with SIGTERM", async () => {
+        const child = spawn("sleep", ["30"], { stdio: "ignore" });
+        const exited = new Promise<NodeJS.Signals | null>((resolve) =>
+            child.on("exit", (_code, signal) => resolve(signal))
+        );
+        fs.mkdirSync(path.dirname(RUNNER_LOCK()), { recursive: true });
+        fs.writeFileSync(RUNNER_LOCK(), String(child.pid));
+        const r = run({ args: ["--disarm"] });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(
+            new RegExp(`land-runner \\(pid ${child.pid}\\) told to stop`)
+        );
+        expect(await exited).toBe("SIGTERM");
+    });
+
+    it("--disarm with no runner says so and still disarms", () => {
+        fs.writeFileSync(CONF(), "BUDGET=1\n");
+        const r = run({ args: ["--disarm"] });
+        expect(r.status, r.stderr).toBe(0);
+        expect(r.stdout).toMatch(/no land-runner running/);
+        expect(fs.existsSync(CONF())).toBe(false);
+    });
+});

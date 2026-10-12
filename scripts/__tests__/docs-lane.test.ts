@@ -11,10 +11,7 @@ import {
     slugify,
     DOC_GATE_TESTS,
     DOC_GATE_TESTS_EXCLUDED,
-    buildShipMergeCommand,
 } from "../docs-lane";
-import { BASE_BRANCH, ORIGIN_BASE } from "../lib/branches";
-import { remoteBranchDeleteStep } from "../land";
 
 /**
  * The documentation lane (`bun run wt:docs` / `bun run docs:ship`).
@@ -312,101 +309,20 @@ describe("docs-lane — the doc gate covers every guard that reads prose", () =>
     });
 });
 
-describe("docs-lane — the landing runs under the merge lock (#2537)", () => {
-    const cmd = buildShipMergeCommand({
-        branch: "docs/adr-0101",
-        pr: 2537,
-        primary: "/repo",
-        cwd: "/repo-docs",
-    });
+describe("docs-lane — the merge is the land-runner's, never the lane's (issue #5469)", () => {
+    const src = fs.readFileSync(
+        path.join(__dirname, "..", "docs-lane.ts"),
+        "utf8"
+    );
 
-    it("re-gates the REBASED tree inside the lock, before pushing", () => {
-        // `main` can move between the pre-PR push and acquiring the lock, so
-        // the rebase, the doc gate and the force-push all belong in here — the
-        // tree that lands is the tree that was checked.
-        const at = (needle: string) => {
-            const i = cmd.indexOf(needle);
-            expect(i, `missing "${needle}" in: ${cmd}`).toBeGreaterThan(-1);
-            return i;
-        };
-        expect(at(`git rebase ${ORIGIN_BASE}`)).toBeGreaterThan(
-            at(`git fetch origin ${BASE_BRANCH}`)
-        );
-        expect(at("bun run check:docs")).toBeGreaterThan(
-            at(`git rebase ${ORIGIN_BASE}`)
-        );
-        expect(at("git push --force-with-lease")).toBeGreaterThan(
-            at("bun run check:docs")
-        );
-    });
-
-    it("unsets GITHUB_TOKEN as the very first thing the locked shell does (issue #2579)", () => {
-        // `NET_ENV` strips the bug-report PAT from the env docs-lane.ts hands
-        // to `spawnSync("bun", [GATE, …])`, but that child is
-        // `bun scripts/gate.ts`, which re-reads `.env.local` from its own cwd
-        // and spreads `{...process.env}` onto the `sh -c` child — so the push
-        // and the merge below saw the PAT again and 403'd AFTER the doc gate
-        // had already run inside the lock. `land.ts` had fixed exactly this
-        // (review round 3, B1); this lane shipped without it.
-        expect(cmd.split(" && ")[0]).toBe("unset GITHUB_TOKEN");
-        expect(cmd.indexOf("unset GITHUB_TOKEN")).toBeLessThan(
-            cmd.indexOf("git push --force-with-lease")
-        );
-    });
-
-    it("the unset actually clears a re-injected GITHUB_TOKEN for anything the locked shell runs, not just a string position (issue #2579)", () => {
-        // A position assertion passes on a step that does not clear anything.
-        // Take the EXACT first step `buildShipMergeCommand` produces and run
-        // it through a real shell with GITHUB_TOKEN seeded as the `.env.local`
-        // re-injection would leave it.
-        const firstStep = cmd.split(" && ")[0];
-        const r = spawnSync(
-            "sh",
-            ["-c", `${firstStep} && echo "TOKEN=[$GITHUB_TOKEN]"`],
-            {
-                encoding: "utf8",
-                env: { ...process.env, GITHUB_TOKEN: "github_pat_leaked" },
-            }
-        );
-        expect(r.stdout).toContain("TOKEN=[]");
-    });
-
-    it("keeps the lane cheap — the heavy suite is still not part of it", () => {
-        expect(cmd).not.toMatch(/bun run (test|test:app|test:bot|check:all)\b/);
-    });
-
-    it("merges through pr-merge.ts, which survives the post-force-push settle", () => {
-        // The lane force-pushes immediately before merging, so it had the
-        // identical race land had (#2536).
-        expect(cmd).toMatch(/bun '[^']*pr-merge\.ts' 2537/);
-        expect(cmd).not.toContain("--delete-branch");
-        const mergeIdx = cmd.indexOf("pr-merge.ts");
-        expect(cmd.indexOf("git push --force-with-lease")).toBeLessThan(
-            mergeIdx
-        );
-    });
-
-    it("wraps ref cleanup and teardown so they cannot fail a landed merge", () => {
-        // The remote-branch delete goes through `remoteBranchDeleteStep`
-        // (issue #2877), asserted verbatim so this test also proves the
-        // lane doesn't reimplement or diverge from `land.ts`'s helper — see
-        // `remoteBranchDeleteStep`'s own describe block in land.test.ts for
-        // the DIAGNOSTIC-filtering behaviour it provides.
-        expect(cmd).toContain(remoteBranchDeleteStep("docs/adr-0101"));
-        expect(cmd).toContain(
-            "(git -C '/repo' worktree remove --force '/repo-docs' || true)"
-        );
-        expect(cmd).toContain(
-            "(git -C '/repo' branch -D 'docs/adr-0101' || true)"
-        );
-        const mergeIdx = cmd.indexOf("pr-merge.ts");
-        expect(cmd.indexOf("git push origin --delete")).toBeGreaterThan(
-            mergeIdx
-        );
-    });
-
-    it("is syntactically valid shell", () => {
-        const r = spawnSync("sh", ["-n", "-c", cmd], { encoding: "utf8" });
-        expect(r.status, r.stderr).toBe(0);
+    it("hands the PR off through land-ready.ts and runs no merge of its own", () => {
+        // Before issue #5469 `docs:ship` merged inside `gate.ts heavy` and
+        // queued 8+ min behind a `land` for a merge measured in seconds. The
+        // runner now re-runs the `docs` lane on the rebased tree and merges;
+        // a second merge path here would be a second writer to the base.
+        expect(src).toMatch(/resolve\(__dirname, "land-ready\.ts"\)/);
+        expect(src).not.toMatch(/pr-merge\.ts/);
+        expect(src).not.toMatch(/"heavy"/);
+        expect(src).not.toMatch(/gh", \[\s*"pr",\s*"merge"/);
     });
 });
