@@ -126,7 +126,7 @@ export function outcomeOf(status: number | null, output: string): LandOutcome {
     return { action: "failed", excerpt: landExcerpt(output) };
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escapes
+// eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
 const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g;
 
 /**

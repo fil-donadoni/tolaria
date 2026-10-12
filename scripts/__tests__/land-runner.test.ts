@@ -184,7 +184,7 @@ describe("landExcerpt — the lines a repairer needs", () => {
         const ex = landExcerpt(out).split("\n");
         expect(ex).toHaveLength(EXCERPT_LINES);
         expect(ex.at(-1)).toBe("line 199");
-        expect(ex.join("\n")).not.toMatch(/\u001b/);
+        expect(ex.join("\n")).not.toContain("\u001b");
     });
 
     it("prepends a refusal line that scrolled out of the tail", () => {
