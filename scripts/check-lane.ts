@@ -81,7 +81,12 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
-import { relatedTests, type RelatedTests } from "./lib/test-reach";
+import {
+    reachIndex,
+    relatedTests,
+    type ReachIndex,
+    type RelatedTests,
+} from "./lib/test-reach";
 
 /** The whole node project, as its two fixed partitions (ADR 0136 §5). */
 export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
@@ -91,15 +96,15 @@ export const NODE_PARTITIONS = "--project node-engine --project node-tooling";
  * #5464) — see `lib/test-reach.ts` for what the walk sees and what it cannot,
  * and why it is a static walk and not vitest's own `--changed`.
  *
- * Memoised: `classifyLane` is called once per process, but the walk is
- * ~0.6–2 s and the `--plan` mode exists precisely so asking which lane a diff
+ * The INDEX is memoised, never a result: `classifyLane` is called once per
+ * process in production, but the walk is ~0.6–2 s and the `--plan` mode exists precisely so asking which lane a diff
  * owes costs little (ADR 0136 §1/§8).
  */
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-let memoisedRelated: RelatedTests | null = null;
+let memoisedIndex: ReachIndex | null = null;
 function defaultRelated(paths: string[]): RelatedTests {
-    memoisedRelated ??= relatedTests(REPO_ROOT, paths);
-    return memoisedRelated;
+    memoisedIndex ??= reachIndex(REPO_ROOT);
+    return relatedTests(memoisedIndex, paths);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -560,7 +565,12 @@ export function classifyLane(
         // belong to. A new `src` test file is itself in the diff, so it is
         // planned — and a file no project selects reds as "no test files
         // found", the class `src-test-env-split.test.ts` guards in health.
-        pushRelated(related(files), ["node-engine", "node-tooling", "dom"], run, skip);
+        pushRelated(
+            related(files),
+            ["node-engine", "node-tooling", "dom"],
+            run,
+            skip
+        );
         skip.push(
             {
                 id: "tsc[convex,node]",

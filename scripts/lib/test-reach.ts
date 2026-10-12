@@ -140,26 +140,37 @@ export function generalTests(root: string): Map<string, RelatedProject> {
 }
 
 /**
- * The tests under `root` the `changed` paths reach, per project. The
- * filesystem half: keys are module keys of repo-relative paths, and
- * `importsOf` reads each module once.
+ * The walk's reusable half: every general test keyed by module key, and a
+ * memoised `importsOf` — each module is read once per index, however many
+ * diffs ask (`check-lane.test.ts` asks dozens).
  */
-export function relatedTests(
+export interface ReachIndex {
+    root: string;
+    /** module key → [test path, project] */
+    tests: Map<string, [string, RelatedProject]>;
+    importsOf: (key: string) => readonly string[];
+}
+
+export function reachIndex(
     root: string,
-    changed: readonly string[],
     tests: Map<string, RelatedProject> = generalTests(root)
-): RelatedTests {
+): ReachIndex {
     const fileOf = new Map<string, string>();
     const keyOf = (abs: string) => {
         const key = moduleKey(path.relative(root, abs));
         if (!fileOf.has(key)) fileOf.set(key, abs);
         return key;
     };
-    const testKeys = new Map<string, string>();
-    for (const t of tests.keys())
-        testKeys.set(keyOf(path.join(root, t)), t);
+    const byKey = new Map<string, [string, RelatedProject]>();
+    for (const [t, project] of tests)
+        byKey.set(keyOf(path.join(root, t)), [t, project]);
 
+    const memo = new Map<string, string[]>();
     const importsOf = (key: string): string[] => {
+        const hit = memo.get(key);
+        if (hit) return hit;
+        const deps: string[] = [];
+        memo.set(key, deps);
         const file = fileOf.get(key);
         if (
             !file ||
@@ -167,9 +178,8 @@ export function relatedTests(
             !fs.existsSync(file) ||
             !fs.statSync(file).isFile()
         )
-            return [];
+            return deps;
         const source = fs.readFileSync(file, "utf8");
-        const deps: string[] = [];
         for (const re of [IMPORT_SPECIFIER, EXTRA_SPECIFIER])
             for (const m of source.matchAll(re)) {
                 const spec = m[1] ?? m[2] ?? m[3];
@@ -179,16 +189,27 @@ export function relatedTests(
             }
         return deps;
     };
+    return { root, tests: byKey, importsOf };
+}
 
+/** The tests in `index` the `changed` (repo-relative) paths reach, per project. */
+export function relatedTests(
+    index: ReachIndex,
+    changed: readonly string[]
+): RelatedTests {
     const reached = reverseReach(
-        [...testKeys.keys()],
-        importsOf,
+        [...index.tests.keys()],
+        index.importsOf,
         changed.map(moduleKey)
     );
-    const out: RelatedTests = { "node-engine": [], "node-tooling": [], dom: [] };
+    const out: RelatedTests = {
+        "node-engine": [],
+        "node-tooling": [],
+        dom: [],
+    };
     for (const key of reached) {
-        const test = testKeys.get(key)!;
-        out[tests.get(test)!].push(test);
+        const [test, project] = index.tests.get(key)!;
+        out[project].push(test);
     }
     for (const list of Object.values(out)) list.sort();
     return out;
