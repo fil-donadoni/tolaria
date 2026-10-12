@@ -176,7 +176,7 @@ function main(): void {
             const rows = formatStatusLines(
                 status,
                 (session) =>
-                    (session && sessions.get(session)?.activity) ?? null,
+                    (session ? sessions.get(session)?.activity : null) ?? null,
                 nowMs,
                 frame,
                 env
