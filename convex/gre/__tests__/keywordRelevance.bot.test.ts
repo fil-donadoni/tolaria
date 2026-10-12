@@ -92,7 +92,7 @@ describe("keyword relevance — protection from a colour (CR 702.16a, issue #535
     it("a TAPPED Mountain is still red: protection from red keeps its bonus", () => {
         const { bonus, table } = bears("protection from red", [
             inst(SWAMP, "p2", "swamp"),
-            inst(MOUNTAIN, "p2", "mountain", { tapped: true }),
+            inst(MOUNTAIN, "p2", "mountain", { isTapped: true }),
         ]);
         expect(bonus).toBe(table);
     });
