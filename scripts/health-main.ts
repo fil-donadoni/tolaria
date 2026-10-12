@@ -883,8 +883,17 @@ async function main(): Promise<void> {
     // Every vitest invocation of the run writes its per-test durations here
     // (`lib/vitest-duration-reporter.ts`, issue #5484) — measured, never
     // asserted.
-    const durDir = freshDurationsDir(dir, tip);
-    env[DURATIONS_ENV] = durDir;
+    // Advisory: a directory that cannot be made costs the measurement, never
+    // the run.
+    let durDir: string | null = null;
+    try {
+        durDir = freshDurationsDir(dir, tip);
+        env[DURATIONS_ENV] = durDir;
+    } catch (err) {
+        console.error(
+            `health-main: no test durations this run (advisory) — ${String(err)}`
+        );
+    }
 
     const scripts = HEALTH_SCRIPTS;
     const gates = scripts;
@@ -990,7 +999,7 @@ async function main(): Promise<void> {
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], { cwd: root });
     }
-    reportHeadroom(durDir, logPath);
+    if (durDir !== null) reportHeadroom(durDir, logPath);
 
     if (failedStep && failedCause !== null)
         finishInfra(ctx, failedCause, failedStep, logPath, {

@@ -1300,7 +1300,8 @@ function ingestHealthRuns(db: Sqlite): number {
  * written once the run's offline steps ended) into `test_headroom_runs` +
  * `test_headroom` (issue #5484). A directory still being written has no
  * `run.json` and is revisited; a sealed one already in the table is not
- * re-read — the same sha dedup as `ingestHealthRuns`.
+ * re-read — the same sha dedup as `ingestHealthRuns`, so a re-gated sha
+ * keeps its first sealed run (advisory data; a re-gate is rare).
  */
 function ingestTestHeadroom(db: Sqlite): number {
     const dir = join(PROJECT_DIR, ".claude/telemetry/health/durations");

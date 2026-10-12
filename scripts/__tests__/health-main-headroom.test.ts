@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { isAgent } from "std-env";
 import { join } from "node:path";
 import {
     collectDurations,
@@ -152,7 +153,7 @@ describe("the reporter seam — collectDurations", () => {
     it("is added beside the default reporter only when health names a directory", () => {
         expect(durationReporterOption({})).toEqual({});
         const opt = durationReporterOption({ [DURATIONS_ENV]: "/tmp/d" });
-        expect(opt.reporters?.[0]).toBe("default");
+        expect(opt.reporters?.[0]).toBe(isAgent ? "agent" : "default");
         expect(opt.reporters?.[1]).toBeInstanceOf(DurationReporter);
     });
 });

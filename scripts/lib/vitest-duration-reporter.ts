@@ -12,6 +12,7 @@
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { isAgent } from "std-env";
 import type { Reporter, TestModule } from "vitest/node";
 import {
     DURATIONS_ENV,
@@ -92,12 +93,22 @@ export class DurationReporter implements Reporter {
     }
 }
 
-/** The `test.reporters` a vitest config spreads in: the default reporter plus
- *  this one when `env` names a durations directory, nothing otherwise (the
- *  config's own default stands). */
+/** The `test.reporters` a vitest config spreads in: vitest's own default
+ *  reporter plus this one when `env` names a durations directory, nothing
+ *  otherwise. An explicit list replaces vitest's pick, so the pick is made
+ *  the way vitest makes it (`agent` under an agent, `default` elsewhere,
+ *  std-env's `isAgent`): health's output — what `planRetry` and
+ *  `timeoutOnlyFailure` read — keeps its shape. */
 export function durationReporterOption(env: NodeJS.ProcessEnv): {
     reporters?: (string | Reporter)[];
 } {
     const dir = env[DURATIONS_ENV];
-    return dir ? { reporters: ["default", new DurationReporter(dir)] } : {};
+    return dir
+        ? {
+              reporters: [
+                  isAgent ? "agent" : "default",
+                  new DurationReporter(dir),
+              ],
+          }
+        : {};
 }
