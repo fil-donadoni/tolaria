@@ -3178,6 +3178,26 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
     "restrictCombat",
 ]);
 
+/** Issue #5161 (ADR 0151) — the `neutral` rows of the "Binds a value; the
+ *  stake belongs to the sibling Op that reads it" group above: each writes a
+ *  binding and moves no material, so its neutral sign is not an UNPRICED
+ *  stake — the Op that reads the binding back carries its own row. The
+ *  Complete Script test (`isCompleteScript`, `cardScriptValue.ts`) looks
+ *  through them instead of letting them hold the Latent Floor up under every
+ *  pay-or-lose script. Every member is `neutral` in {@link OP_BENEFICENCE}
+ *  (the census guard pins it). */
+export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
+    EffectOp["op"]
+>([
+    "mayPay",
+    "payVariableMana",
+    "chooseNumber",
+    "coinFlipSeries",
+    "nameCard",
+    "chooseCreatureType",
+    "divideIntoPiles",
+]);
+
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for
  *  the three Ops whose sign is a PARAMETER, not a name: a `pump` / `counters`
  *  can be a buff or a shrink, and `tapUntap` is a Twiddle in either direction.
