@@ -213,6 +213,17 @@ describe("the PR comments", () => {
         expect(body).toMatch(/^````$/m);
     });
 
+    it("a branch naming no issue (a docs lane) says no pass is handed it", () => {
+        const body = failureComment({
+            status: 1,
+            excerpt: "x",
+            logPath: "/l",
+            repairable: false,
+        });
+        expect(body).toMatch(/names no issue/);
+        expect(body).not.toMatch(/repair pick/);
+    });
+
     it("the merged comment carries land's lane receipt (ADR 0136 §2)", () => {
         expect(laneReceipt("…\nlane: skipped (gated abc against def)\n…")).toBe(
             "lane: skipped (gated abc against def)"

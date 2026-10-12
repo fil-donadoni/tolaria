@@ -413,6 +413,7 @@ function applyOutcome(input: {
                 status: input.status,
                 excerpt: outcome.excerpt,
                 logPath: input.logPath,
+                repairable: issueOfBranch(pr.headRefName) !== null,
             }),
         ],
         log

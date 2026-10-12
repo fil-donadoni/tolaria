@@ -169,6 +169,9 @@ export function failureComment(input: {
     status: number | null;
     excerpt: string;
     logPath: string;
+    /** The branch names an issue (`feat|fix/issue-N`): `queue:plan` makes it
+     *  a repair pick. `false` (a `docs/` lane): nobody is picked — say so. */
+    repairable?: boolean;
 }): string {
     // A fence the excerpt cannot close early.
     const fence = "`".repeat(
@@ -180,7 +183,9 @@ export function failureComment(input: {
     return [
         `**land-runner: \`land\` exited ${input.status ?? "on a signal"}** — labelled \`${FAILED_LABEL}\`.`,
         "",
-        `\`queue:plan\` hands this PR to the next pass as a repair pick (\`/next-ticket <issue> --resume\`); after the fix, \`bun run land:ready <PR#>\` re-queues it.`,
+        input.repairable === false
+            ? "This branch names no issue, so no pass is handed it: a human repairs it; after the fix, `bun run land:ready <PR#>` re-queues it."
+            : `\`queue:plan\` hands this PR to the next pass as a repair pick (\`/next-ticket <issue> --resume\`); after the fix, \`bun run land:ready <PR#>\` re-queues it.`,
         "",
         fence,
         input.excerpt,
