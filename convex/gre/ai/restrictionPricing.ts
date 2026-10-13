@@ -43,7 +43,14 @@
 //   - `globalAttackProhibitionReason`'s scan, here per source so the forbidding
 //     source is known (`cards/attackRestrictions.ts`, Moat / Akron Legionnaire);
 //   - `collectUntapRestrictions` (`gre/phases.ts`), kept to `maxUntap: 0` —
-//     the untap restrictions the untap dispatcher itself hard-skips on.
+//     the untap restrictions the untap dispatcher itself hard-skips on. A
+//     lock that declares an `untapEscapeCost` (Thelon's Curse, Magnetic
+//     Mountain; CR 503.1a) holds a creature only when its controller cannot
+//     buy it out: the escape is payable from the controller's mana BASE (the
+//     lands untap before the upkeep it is paid in) AND cheaper than the
+//     creature costs (`manaValue` of the escape < the creature's own).
+//     Known limit: each held creature is asked alone, so a controller who can
+//     afford one escape but not three reads all three as free.
 //
 // The MANA axis (issue #5163, ADR 0151 — a symmetric lock read by
 // Differential Reading). An untap restriction on MANA SOURCES (Winter Orb's
@@ -75,10 +82,9 @@
 // keyword rows (issue #5152); an untap CAP on CREATURES (`maxUntap: 1` over
 // creatures, Smoke — which creature untaps is not a per-creature fact; its
 // mana creatures ARE read by the mana axis); the `does-not-untap` keyword
-// grant and the pay-to-untap escape (Thelon's Curse, Magnetic Mountain — the
-// lock is read as a hard skip); declared-set restrictions ("can only attack
-// alone"); a block restriction with a `bypassCost` (Hipparion — the block is
-// still legal for a price).
+// grant; declared-set restrictions ("can only attack alone"); a block
+// restriction with a `bypassCost` (Hipparion — the block is still legal for a
+// price).
 //
 // One walk per leaf: the plan is built lazily on the layer-7 pass
 // (`Layer7Pass.restrictions`) the first time a creature is priced, like the
@@ -90,6 +96,7 @@
 
 import type { CardInstanceState, GameState } from "../state";
 import type {
+    ManaCost,
     PermanentFilter,
     PermanentView,
     StaticAttackRestriction,
@@ -98,14 +105,17 @@ import type {
 } from "../../cards/types";
 import { ATTACK_RESTRICTION_CTX } from "../../cards/attackRestrictions";
 import { matchesPermanentFilter } from "../../cards/filters";
-import { tryGetDefinition } from "../../cards";
+import { getInstanceManaCost, tryGetDefinition } from "../../cards";
 import { declaresCombatRestrictionStaticEffect } from "../../cards/registry";
 import { collectAttackRestrictions, collectBlockRestrictions } from "../combat";
 import {
     finiteManaUsesRemaining,
     hasManaAbility,
     isCreature,
+    manaValue,
 } from "../constants";
+import { canPayCost } from "../manaAvailability";
+import { censusOf } from "../manaCensusMemo";
 import { creatureAttackShareRaw, creatureBlockShareRaw } from "../creatureBody";
 import { getEffectivePT, type Layer7Pass } from "../layers";
 import { effectivePermanentView } from "../permanentView";
@@ -206,6 +216,23 @@ function restrictionsBySource<R>(
     return out;
 }
 
+/** Whether `card`'s controller would buy `card` out of an untap lock for
+ *  `escapeCost` (CR 503.1a): payable from their mana base — their lands untap
+ *  before the upkeep the cost is paid in — and cheaper than the creature
+ *  itself (a 4-mana buy-out of a 2-drop is a lock). */
+function escapeWorthPaying(
+    state: GameState,
+    card: CardInstanceState,
+    escapeCost: ManaCost
+): boolean {
+    if (manaValue(escapeCost) >= manaValue(getInstanceManaCost(card))) {
+        return false;
+    }
+    const controller = state.players.find((p) => p.id === card.controllerId);
+    if (!controller) return false;
+    return canPayCost(censusOf(state, controller).base, escapeCost);
+}
+
 /** Walk the board ONCE and record, per creature, which sources forbid its
  *  attack, reject its blocks and hold it tapped. */
 function buildRestrictionPlan(
@@ -261,13 +288,17 @@ function buildRestrictionPlan(
     // gate applied and every host-/self-scoped filter already synthesized),
     // kept to the `maxUntap: 0` ones exactly as `computeHardSkipFilters` does.
     const untapRestrictions = collectUntapRestrictions(state);
-    const hardSkips: { sourceId: string; filter: PermanentFilter }[] =
-        untapRestrictions
-            .filter((r) => r.restriction.maxUntap === 0)
-            .map((r) => ({
-                sourceId: r.source.id,
-                filter: r.restriction.filter,
-            }));
+    const hardSkips: {
+        sourceId: string;
+        filter: PermanentFilter;
+        escapeCost?: ManaCost;
+    }[] = untapRestrictions
+        .filter((r) => r.restriction.maxUntap === 0)
+        .map((r) => ({
+            sourceId: r.source.id,
+            filter: r.restriction.filter,
+            escapeCost: r.restriction.untapEscapeCost,
+        }));
     const manaLocks = buildManaLocks(state, untapRestrictions);
 
     // Probe views for the block axis: every creature with its EFFECTIVE power,
@@ -370,10 +401,17 @@ function buildRestrictionPlan(
             const untapBy = new Set<string>();
             if (hardSkips.length > 0) {
                 const view = effectivePermanentView(state, card);
-                for (const { sourceId, filter } of hardSkips) {
-                    if (matchesPermanentFilter(view, filter)) {
-                        untapBy.add(sourceId);
+                for (const { sourceId, filter, escapeCost } of hardSkips) {
+                    if (!matchesPermanentFilter(view, filter)) continue;
+                    // CR 503.1a — a pay-to-untap escape the controller can
+                    // buy and that costs less than the creature: not held.
+                    if (
+                        escapeCost !== undefined &&
+                        escapeWorthPaying(state, card, escapeCost)
+                    ) {
+                        continue;
                     }
+                    untapBy.add(sourceId);
                 }
             }
 

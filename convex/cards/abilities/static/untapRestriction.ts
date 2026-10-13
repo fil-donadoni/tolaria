@@ -19,6 +19,7 @@
 import type { PermanentFilter } from "../../filters";
 import type {
     CardDefinition,
+    ManaCost,
     PermanentView,
     StaticUntapRestriction,
 } from "../../types";
@@ -73,6 +74,10 @@ export interface UntapRestrictionArgs {
      *  nothing this untap step. See `StaticUntapRestriction.condition` — Winter
      *  Orb's "As long as this artifact is untapped, …". */
     condition?: (source: PermanentView) => boolean;
+    /** The per-permanent mana its controller may pay at upkeep to untap a
+     *  held permanent anyway (CR 503.1a). See
+     *  `StaticUntapRestriction.untapEscapeCost`. */
+    untapEscapeCost?: ManaCost;
 }
 
 /** Builds a `StaticUntapRestriction` for `staticEffects[]`. The engine
@@ -102,5 +107,8 @@ export function untapRestriction(
         ...(args.appliesToSelf ? { appliesToSelf: true } : {}),
         ...(args.dynamicMatch ? { dynamicMatch: args.dynamicMatch } : {}),
         ...(args.condition ? { condition: args.condition } : {}),
+        ...(args.untapEscapeCost
+            ? { untapEscapeCost: args.untapEscapeCost }
+            : {}),
     };
 }

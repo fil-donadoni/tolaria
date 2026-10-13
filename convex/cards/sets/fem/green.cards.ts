@@ -516,6 +516,10 @@ export const thelonsChant = defineCard(() => ({
     ],
 }));
 
+/** CR 503.1a — the per-creature price of Thelon's Curse's upkeep untap; read
+ *  by the static (the Brain prices the lock with it) and by the trigger. */
+const THELONS_CURSE_ESCAPE_COST = { U: 1 } as const;
+
 export const thelonsCurse = defineCard(() => ({
     id: "9b868846-cc3c-4756-a5dd-2335bb380567", // FEM 77
     rarity: "rare",
@@ -531,6 +535,7 @@ export const thelonsCurse = defineCard(() => ({
                 "Blue creatures don't untap during their controllers' untap steps (Thelon's Curse).",
             filter: { types: "Creature", colors: "U" },
             maxUntap: 0,
+            untapEscapeCost: THELONS_CURSE_ESCAPE_COST,
         }),
     ],
     triggeredAbilities: [
@@ -563,7 +568,7 @@ export const thelonsCurse = defineCard(() => ({
                     const paid = ctx.requestMayPay({
                         playerId: player,
                         choiceId: `thelons-curse-untap-${id}`,
-                        cost: { U: 1 },
+                        cost: THELONS_CURSE_ESCAPE_COST,
                         prompt: "Pay {U} to untap this blue creature (Thelon's Curse)?",
                     });
                     if (paid === undefined) return; // suspended for the choice

@@ -8697,6 +8697,13 @@ export interface StaticUntapRestriction {
      *  pre-filters the candidate pool cheaply (Tsabo's Web scopes to
      *  `types: "Land"`) before the predicate refines it. */
     dynamicMatch?: (candidate: PermanentView, def: CardDefinition) => boolean;
+    /** The pay-to-untap ESCAPE of a hard skip (CR 502.3, CR 503.1a): the mana
+     *  its held permanent's controller may pay, per permanent, at the beginning
+     *  of their upkeep to untap it anyway (Thelon's Curse {U}, Magnetic
+     *  Mountain {4}). DATA for the Brain's pricing (`ai/restrictionPricing.ts`)
+     *  and the single source of the cost the card's upkeep trigger asks for;
+     *  the untap dispatcher ignores it. Meaningful with `maxUntap: 0` only. */
+    untapEscapeCost?: ManaCost;
 }
 
 /** Card-level block restriction (CR 509.1b). Declares that a permanent
