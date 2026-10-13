@@ -34,7 +34,7 @@ import type {
     EffectForEachSelector,
     TargetRequirement,
 } from "../../cards/types";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import {
     matchesPermanentFilter,
     type PermanentFilter,
@@ -47,7 +47,7 @@ import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { isLand } from "../constants";
 import type { EvalWeights } from "./evalWeights";
-import type { LatentLens, SweepOutcome } from "./grounding";
+import type { EachPlayerSide, LatentLens, SweepOutcome } from "./grounding";
 
 // The Representative Victim lives in its own leaf module (issue #4903), so
 // the context-free ETB valuation can price a TYPED one without importing the
@@ -288,7 +288,80 @@ export function makeLatentBoardLens(
             measured = true;
             return net / denominator;
         },
+        eachPlayerDifferential(valueSide) {
+            let total = 0;
+            for (const player of state.players) {
+                const side = boardSide(
+                    state,
+                    player,
+                    player.id === casterId,
+                    card.id,
+                    realisedLoss,
+                    returnedWorth,
+                    denominator
+                );
+                total += valueSide(side);
+                // ADR 0151 — both sides or none: a side the board could not
+                // answer leaves the representative-member valuation standing.
+                if (!side.answered()) return undefined;
+            }
+            measured = true;
+            return total;
+        },
         measured: () => measured,
+    };
+}
+
+/** Issue #5162 — `player`'s side of a Differential Reading, with the flag
+ *  `eachPlayerDifferential` reads to know the side was answered. */
+function boardSide(
+    state: GameState,
+    player: PlayerState,
+    own: boolean,
+    valuedCardId: string,
+    realisedLoss: RealisedLoss,
+    returnedWorth: RealisedLoss,
+    denominator: number
+): EachPlayerSide & { answered(): boolean } {
+    let answered = false;
+    // A read the board could not answer voids the whole side.
+    let unreadable = false;
+    return {
+        own,
+        answered: () => answered && !unreadable,
+        handWorth() {
+            answered = true;
+            let worth = 0;
+            for (const c of player.hand) {
+                if (c.id !== valuedCardId) worth += returnedWorth(c);
+            }
+            return worth;
+        },
+        sacrificeUnits(effectFilter, count) {
+            const filter = sweepPermanentFilter(effectFilter);
+            if (filter === UNREADABLE_SWEEP_FILTER) {
+                unreadable = true;
+                return undefined;
+            }
+            answered = true;
+            const losses: number[] = [];
+            for (const perm of player.battlefield) {
+                const view = effectivePermanentView(state, perm);
+                if (
+                    filter !== undefined &&
+                    !matchesPermanentFilter(view, filter, {
+                        supertypesOf: liveSupertypesOf,
+                    })
+                ) {
+                    continue;
+                }
+                losses.push(realisedLoss(perm));
+            }
+            losses.sort((a, b) => a - b);
+            let taken = 0;
+            for (const loss of losses.slice(0, count)) taken += loss;
+            return taken / denominator;
+        },
     };
 }
 
