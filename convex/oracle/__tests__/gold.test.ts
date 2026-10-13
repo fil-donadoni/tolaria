@@ -41,6 +41,19 @@ const REPORT = runGoldHarness(CARDS);
  * be wrong" is exactly the reasoning this list exists to make expensive.
  */
 const KNOWN_DIVERGENCES: readonly string[] = [
+    // Clairvoyance and Portent (issue #4569): the delayed draw they print
+    // ("Draw a card at the beginning of the next turn's upkeep") is now read,
+    // so both lines compile whole — to `lookHand` / `scryReorder` + `libraryLook`
+    // with an inline `delayedTrigger`. Their hand-written twins are protocol
+    // cards on the legacy `delayedTriggers` seam, whose bodies are closures:
+    // the harness cannot treat them as incomparable because the schedule sits
+    // OUTSIDE the body, in `delayedTriggers`, which the compiled side carries
+    // inside `effects`. Neither side is wrong: migrating either card swaps a
+    // wire-visible choice (Clairvoyance's display-only `revealHand` dismiss,
+    // Portent's `reorder-library` choice kind) for the Op's, which the pure
+    // refactor invariant forbids. docs/findings/4569-delayed-draw-protocol-cards.md
+    "Clairvoyance (other)",
+    "Portent (other)",
     // Ashnod's Altar left this list in issue #3047: it is now the CR 605.1a
     // mana ability the compiler emits (`useStack: false` + `manaProduced`).
     // Northern Paladin, Active Volcano, Flash Flood and Desert Twister left
@@ -273,7 +286,11 @@ describe("gold round-trip — precision", () => {
         // while its hand-written side carries the `gate.onSelf` closure
         // (`additionalCostPaidCondition`) — the same move as the entries
         // above, out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(57);
+        //
+        // 56 -> 57 by issue #4569 (delayed draw): Krovikan Fetish's hand-written
+        // trigger body is a closure while the line is now compiled — the same
+        // move as the entries above.
+        expect(REPORT.incomparable.length).toBeLessThan(58);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");

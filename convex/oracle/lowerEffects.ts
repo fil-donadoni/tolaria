@@ -2346,6 +2346,13 @@ function lowerSentenceBody(
             // structural construct. The inner sentence is lowered by THIS
             // walk, so "you may tap target creature" allocates its slot once,
             // through the shared allocator, exactly as the bare sentence does.
+            // CR 603.7a — "you may draw a card at the beginning of the next
+            // turn's upkeep" asks at the upkeep, not on this resolution: the
+            // gate would decide the schedule instead of the draw.
+            if (sentence.effect.kind === "delayed-draw-next-upkeep")
+                return unlowerable(
+                    "an optional delayed draw is chosen at the delayed trigger, not here"
+                );
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");

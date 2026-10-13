@@ -297,9 +297,17 @@ describe('optionality — "you may <effect>" (CR 603.2)', () => {
         // half-lowered ability whose body the grammar never read.
         expect(
             refusalReason(
-                "When this creature enters, you may draw a card at the beginning of the next turn's upkeep."
+                "When this creature enters, you may draw a card at the beginning of the next end step."
             )
         ).toMatch(/no slot consumed the line/);
+    });
+
+    it("refuses an optional delayed draw: the choice belongs to the delayed trigger (CR 603.7a)", () => {
+        expect(
+            refusalReason(
+                "When this creature enters, you may draw a card at the beginning of the next turn's upkeep."
+            )
+        ).toMatch(/chosen at the delayed trigger/);
     });
 
     it("refuses a non-effect sentence under the marker", () => {
@@ -338,7 +346,7 @@ describe("what the triggered slot refuses", () => {
         // prefix and dropping it is the competitor's largest misparse bucket.
         expect(
             refusalReason(
-                "When this creature enters, draw a card at the beginning of the next turn's upkeep."
+                "When this creature enters, draw a card at the beginning of the next end step."
             )
         ).toMatch(/no slot consumed the line/);
     });
