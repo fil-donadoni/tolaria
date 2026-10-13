@@ -1094,7 +1094,9 @@ export function telemetryIngestStep(primaryCheckout: string): string {
  * landed squash touched the fitted weights or added a set. A line, nothing
  * more: `; true` and a stderr-silent fallback so it can never change `land`'s
  * exit code. Reads the diff of the tip the squash produced (`ORIGIN_BASE~1..`)
- * from the PRIMARY checkout, by a RELATIVE path, for the reason
+ * (the recovery path runs it unlocked: a base that moved since the merge
+ * suggests from the wrong squash — a printed line only). From the PRIMARY
+ * checkout, by a RELATIVE path, for the reason
  * `HEALTH_CADENCE_REL` gives.
  */
 export function botAuditSuggestionStep(primaryCheckout: string): string {

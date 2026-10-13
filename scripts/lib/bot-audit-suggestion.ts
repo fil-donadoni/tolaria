@@ -13,7 +13,7 @@ const SETS_PREFIX = "convex/cards/sets/";
 
 /**
  * `bot audit suggested: …` for the landed diff, or null. A diff touching the
- * weights module → "weights moved"; a file ADDED under a set directory →
+ * weights module → "weights moved"; a set's `index.cards.ts` ADDED →
  * "new set <code>" (every code, sorted). Both → two lines, weights first.
  */
 export function botAuditSuggestion(nameStatus: string): string | null {
@@ -27,8 +27,9 @@ export function botAuditSuggestion(nameStatus: string): string | null {
         if (!/^[ACR]/.test(status)) continue;
         const dest = paths[paths.length - 1];
         if (!dest.startsWith(SETS_PREFIX)) continue;
-        const code = dest.slice(SETS_PREFIX.length).split("/")[0];
-        if (code && dest.includes("/", SETS_PREFIX.length)) sets.add(code);
+        // Every set has exactly one `index.cards.ts`: its arrival is the set's.
+        const [code, file] = dest.slice(SETS_PREFIX.length).split("/");
+        if (code && file === "index.cards.ts") sets.add(code);
     }
     const lines: string[] = [];
     if (weights) lines.push("bot audit suggested: weights moved");

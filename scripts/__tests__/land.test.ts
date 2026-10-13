@@ -2331,6 +2331,11 @@ describe("bot audit suggestion line (issue #4924)", () => {
         expect(
             botAuditSuggestion("M\tconvex/cards/sets/aer/red.cards.ts\n")
         ).toBeNull();
+        expect(
+            botAuditSuggestion(
+                "A\tconvex/cards/sets/aer/tokens.cards.ts\nR100\tconvex/cards/sets/aer/a.ts\tconvex/cards/sets/aer/b.ts\n"
+            )
+        ).toBeNull();
     });
 
     it("runs after the landing record, last of the shared list, and cannot fail the shell", () => {
