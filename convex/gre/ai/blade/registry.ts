@@ -12637,8 +12637,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // ADR 0151 (issue #5161) — the two-way Latent Floor. Urza's Chalice is a
     // Complete Script (a binder plus a declared `gainLife`, no clause the
     // reader cannot see), so its context-free reading is trusted BELOW the
-    // `base + MV` floor: 3.8 in hand, against a Mox Pearl's 8. Before, the
-    // floor lifted it to 18 and the Bot gave up the Mox to keep it.
+    // `base + MV` floor: 3.8 in hand, against Urza's Bauble's 8 (a cantrip, the
+    // better card). Before, the floor lifted it to 18 and the Bot gave up the
+    // Bauble to keep it.
     //
     // The comparator must sit between the two readings, which no vanilla
     // creature does (Grizzly Bears reads 116 — the Bot already shed the
@@ -12649,8 +12650,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // Move per card the cost may name. The source taps (`{R}, {T}, Discard a
     // card`), so it activates once — an untapped repeatable outlet (Psychic
     // Frog) reaches the same leaf by discarding both in either order, and the
-    // two roots tie. On the opponent's turn nothing in hand is castable, so
-    // the Mox cannot simply be played out of the way.
+    // two roots tie. On the opponent's turn nothing in hand is castable. The
+    // comparator must not be a mana source: a Mox Pearl kept in hand is cast
+    // in the rollouts and the `mana` term swamps the latent gap, so the
+    // entry could not red.
     //
     // The pair: the same position with the hand order reversed, so a pick
     // that follows card order or instance identity cannot pass both. An
@@ -12658,7 +12661,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     // Chalice that still reads above it — every candidate pins a wrong play.
     // -----------------------------------------------------------------------
     {
-        label: "Complete Script below the floor: discards Urza's Chalice over a Mox to a discard cost",
+        label: "Complete Script below the floor: discards Urza's Chalice over Urza's Bauble to a discard cost",
         classification: { kind: "absolute" },
         spec: {
             cards: [
@@ -12670,7 +12673,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
                 { name: "Urza's Chalice", owner: "me", zone: "hand" },
-                { name: "Mox Pearl", owner: "me", zone: "hand" },
+                { name: "Urza's Bauble", owner: "me", zone: "hand" },
             ],
             phase: "END_STEP",
             activePlayer: "opp",
@@ -12689,10 +12692,10 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
             describe:
                 "activates Dwarven Armorer naming Urza's Chalice for its discard cost",
         },
-        note: "Issue #5161 (ADR 0151). Proof-of-failure: `isCompleteScript` forced to `false` puts Urza's Chalice back at its 18-point floor, above the Mox's 8, and the entry reds.",
+        note: "Issue #5161 (ADR 0151). Proof-of-failure: `isCompleteScript` forced to `false` puts Urza's Chalice back at its 18-point floor, above the Bauble's 8, and the entry reds.",
     },
     {
-        label: "Complete Script below the floor: discards Urza's Chalice over a Mox to a discard cost (hand order reversed)",
+        label: "Complete Script below the floor: discards Urza's Chalice over Urza's Bauble to a discard cost (hand order reversed)",
         classification: { kind: "absolute" },
         spec: {
             cards: [
@@ -12703,7 +12706,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
-                { name: "Mox Pearl", owner: "me", zone: "hand" },
+                { name: "Urza's Bauble", owner: "me", zone: "hand" },
                 { name: "Urza's Chalice", owner: "me", zone: "hand" },
             ],
             phase: "END_STEP",

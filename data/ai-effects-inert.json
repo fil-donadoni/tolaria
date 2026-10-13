@@ -1,11 +1,51 @@
 [
     {
+        "cardId": "f977975d-0439-4731-b129-270cc4cdbb23",
+        "name": "Ancient Cornucopia"
+    },
+    {
+        "cardId": "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
+        "name": "Blizzard"
+    },
+    {
+        "cardId": "ceeb7bbc-2d41-4709-95be-1ceb952ed1fb",
+        "name": "Brand of Ill Omen"
+    },
+    {
+        "cardId": "e40c9657-fab4-489d-8eb0-960ba2605add",
+        "name": "Breath of Dreams"
+    },
+    {
+        "cardId": "f4c1f5a7-0d28-43ab-9b66-937e963f42cd",
+        "name": "Elephant Grass"
+    },
+    {
+        "cardId": "3955e358-4285-44e2-9e24-9804346a6e58",
+        "name": "Energy Storm"
+    },
+    {
+        "cardId": "3efbe59d-bebc-40b1-85ac-2e4c1ff3731e",
+        "name": "Fyndhorn Pollen"
+    },
+    {
         "cardId": "3d23f800-7a6f-40e3-b242-9f5955e47a75",
         "name": "Glacial Chasm"
     },
     {
+        "cardId": "b926a189-90b6-47bb-b5d6-b033e57007b4",
+        "name": "Halls of Mist"
+    },
+    {
+        "cardId": "691f4a1b-4706-41aa-82da-ae920739f036",
+        "name": "Illusionary Terrain"
+    },
+    {
         "cardId": "17eeeef2-2ced-42b8-a5e0-1095c9e13b02",
         "name": "Illusions of Grandeur"
+    },
+    {
+        "cardId": "f3475eb3-909d-450b-9597-b241b259b425",
+        "name": "Infernal Darkness"
     },
     {
         "cardId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
@@ -16,6 +56,14 @@
         "name": "Mesmeric Trance"
     },
     {
+        "cardId": "e35d7f08-0687-41bd-8c53-31a49adabb11",
+        "name": "Mystic Might"
+    },
+    {
+        "cardId": "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",
+        "name": "Naked Singularity"
+    },
+    {
         "cardId": "311a6257-dd77-4bb6-81cb-c8e7862350f3",
         "name": "Necromancy"
     },
@@ -24,7 +72,27 @@
         "name": "Planeswalker's Mischief"
     },
     {
+        "cardId": "1b7e955c-3de2-430c-93b9-0b39ccea5420",
+        "name": "Reality Twist"
+    },
+    {
+        "cardId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
+        "name": "Ritual of Subdual"
+    },
+    {
         "cardId": "6f79f4b2-71cd-4f78-a161-d75b162c745e",
         "name": "Sleeping Potion"
+    },
+    {
+        "cardId": "788ed793-3993-4a63-b9f9-9ac3947c3108",
+        "name": "Snowfall"
+    },
+    {
+        "cardId": "e7a8eb7a-eb3f-405e-8f44-d8ea64d76386",
+        "name": "Solitary Confinement"
+    },
+    {
+        "cardId": "b6cef408-5b4b-49f6-9531-be544815b93f",
+        "name": "Stasis"
     }
 ]
