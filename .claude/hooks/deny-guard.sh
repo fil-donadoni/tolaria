@@ -830,7 +830,7 @@ pass, so a label-only release starves it forever. Release as ONE act — label,
 assignee and the claim-journal row:
   bun run queue:release <issue#>
 Or, repairing by hand, remove both:
-  gh issue edit <issue#> --remove-label in-progress --remove-assignee @me"
+  gh issue edit <issue#> --remove-label in-progress --remove-label pr-open --remove-assignee @me"
 fi
 
 
