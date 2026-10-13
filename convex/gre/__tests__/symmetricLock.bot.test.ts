@@ -132,7 +132,11 @@ describe("symmetric locks — Differential Reading per leaf (issue #5163)", () =
                 )
             );
         };
-        expect(swing(true)).toBeGreaterThan(swing(false));
+        // The Orb is on p1's side in both boards, so its own body cancels:
+        // what is left is the four renewals more it takes from the long side,
+        // counted on the restricted side and credited to the source — well
+        // over two untapped sources' worth, never a rounding difference.
+        expect(swing(true) - swing(false)).toBeGreaterThan(2 * W.manaWeight);
     });
 
     it("a TAPPED Winter Orb locks nothing (its condition), and reads no standing worth", () => {
