@@ -3185,7 +3185,10 @@ export const PARAMETRIZED_BENEFICENCE_OPS: ReadonlySet<string> = new Set([
  *  Complete Script test (`isCompleteScript`, `cardScriptValue.ts`) looks
  *  through them instead of letting them hold the Latent Floor up under every
  *  pay-or-lose script. Every member is `neutral` in {@link OP_BENEFICENCE}
- *  (the census guard pins it). */
+ *  and the list itself is pinned (the census guard). `divideIntoPiles` sits
+ *  in that group but is NOT here: its material is the `chosenEffect` /
+ *  `otherEffect` bodies, which the valuer never walks — a pile split whose
+ *  stake is unpriced, not merely moved to a sibling. */
 export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     EffectOp["op"]
 >([
@@ -3195,7 +3198,6 @@ export const BINDING_ONLY_OPS: ReadonlySet<EffectOp["op"]> = new Set<
     "coinFlipSeries",
     "nameCard",
     "chooseCreatureType",
-    "divideIntoPiles",
 ]);
 
 /** Sign of one Op for its recipient (issue #1888). Reads the Op's own shape for

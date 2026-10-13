@@ -240,8 +240,12 @@ describe("OP_BENEFICENCE census (issue #3006)", () => {
 //     only ever raises it, so a `cards`-lane PR (which runs this file) never
 //     owes a re-pin; raise the floor when a row is declared.
 //
-// Census at the time of writing (issue #5161): 2831 complete definitions over
-// the catalogue, 31 `"neutral"` static rows.
+//   • the exact list of binding-only Ops the test looks through
+//     (`BINDING_ONLY_OPS`) — widening it completes scripts as surely as
+//     declaring a row does.
+//
+// Census at the time of writing (issue #5161): 1838 complete definitions over
+// the catalogue, 31 `"neutral"` static rows, 6 binding-only Ops.
 const NEUTRAL_ROWS = [
     "addSubtype",
     "animate",
@@ -275,7 +279,15 @@ const NEUTRAL_ROWS = [
     "suppressDamagePrevention",
     "transform",
 ];
-const COMPLETE_SCRIPT_FLOOR = 2831;
+const BINDING_ONLY = [
+    "chooseCreatureType",
+    "chooseNumber",
+    "coinFlipSeries",
+    "mayPay",
+    "nameCard",
+    "payVariableMana",
+];
+const COMPLETE_SCRIPT_FLOOR = 1838;
 
 describe("Complete Script census (issue #5161, ADR 0151)", () => {
     it('the `"neutral"` static rows are exactly the pinned list (declaring one is a valuation change: refit + Test Position)', () => {
@@ -287,7 +299,8 @@ describe("Complete Script census (issue #5161, ADR 0151)", () => {
         ).toEqual(NEUTRAL_ROWS);
     });
 
-    it('every binding-only Op is a `"neutral"` row (the Complete Script test looks through it, never past a sign)', () => {
+    it('the binding-only Ops are exactly the pinned list, each a `"neutral"` row (the Complete Script test looks through them, never past a sign)', () => {
+        expect([...BINDING_ONLY_OPS].sort()).toEqual(BINDING_ONLY);
         for (const op of BINDING_ONLY_OPS) {
             expect(OP_BENEFICENCE[op], op).toBe("neutral");
         }

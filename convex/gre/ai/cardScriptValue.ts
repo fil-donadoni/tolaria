@@ -1078,7 +1078,85 @@ function isPricedNeutralOp(op: EffectOp): boolean {
     );
 }
 
+/** The `CardDefinition` keys the latent reading accounts for: identity and
+ *  presentation (inert), the scripts it walks (spell, modes, abilities,
+ *  delayed templates — an imperative body among them is caught per site),
+ *  their target slots, and the AI-only hints. Every OTHER key a definition
+ *  sets — a static effect, a replacement, a keyword, an alternative or
+ *  additional cost, a mana substitution, a graveyard permission, … — carries
+ *  a clause the hand face never prices, so the card is incomplete. An
+ *  allowlist rather than a list of known unread fields (review, issue
+ *  #5161): a mechanic field added tomorrow is unread until someone teaches
+ *  the reader and adds it here, which is the fail-closed direction. */
+const LATENT_READ_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "name",
+    "rarity",
+    "oracleText",
+    "setCode",
+    "imagePrintId",
+    "imagePrintFace",
+    "types",
+    "subtypes",
+    "supertypes",
+    "manaCost",
+    "power",
+    "toughness",
+    "effects",
+    "aiEffects",
+    "resolve",
+    "resolveSteps",
+    "effect",
+    "modes",
+    "modeSelection",
+    "targetRequirement",
+    "additionalTargetRequirements",
+    "activatedAbilities",
+    "triggeredAbilities",
+    "delayedTriggers",
+    "aiValue",
+    "aiCombatHint",
+]);
+
+/** True when the definition sets a key outside {@link LATENT_READ_KEYS}. An
+ *  empty array is no clause. */
+function carriesUnreadField(def: CardDefinition): boolean {
+    for (const [key, value] of Object.entries(def)) {
+        if (value === undefined || LATENT_READ_KEYS.has(key)) continue;
+        if (Array.isArray(value) && value.length === 0) continue;
+        return true;
+    }
+    return false;
+}
+
+/** An event-bound player reference (`$event.activePlayerId`,
+ *  `$event.playerId`, …): the trigger acts on whichever player the event
+ *  names — every player alike for an "each upkeep" or "whenever a player
+ *  draws" trigger (Howling Mine, Bottomless Pit, Phyrexian Tyranny). The
+ *  Symmetric Effect shape the `$each` test misses; fail-closed, so a
+ *  "your upkeep" trigger naming its own active player is incomplete too. */
+function readsEventPlayer(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(readsEventPlayer);
+    if (node === null || typeof node !== "object") return false;
+    const ref = (node as { ref?: unknown }).ref;
+    if (typeof ref === "string" && /^\$event\.\w*[pP]layerId$/.test(ref)) {
+        return true;
+    }
+    return Object.values(node).some(readsEventPlayer);
+}
+
+/** A `forEach` selector that ranges over every player alike: the players
+ *  themselves, or permanents with no `controller` narrowing. */
+function isSymmetricSelector(select: unknown): boolean {
+    const sel = select as { set?: unknown; controller?: unknown };
+    return (
+        sel.set === "players" ||
+        (sel.set === "permanents" && sel.controller === undefined)
+    );
+}
+
 function computeCompleteScript(def: CardDefinition): boolean {
+    if (carriesUnreadField(def)) return false;
     const scripts: EffectOp[][] = [];
     if (!collectSiteScripts(def as ScriptSite, scripts)) return false;
     for (const ability of [
@@ -1103,13 +1181,14 @@ function computeCompleteScript(def: CardDefinition): boolean {
             mana: t.manaAbility === true,
         })),
     ]) {
-        // A mana ability is the `mana` term's to price, never a script's.
-        if (ability.mana) continue;
-        // An ability the non-creature latent reading never prices — spent on
+        // An ability the non-creature latent reading never prices — a mana
+        // ability (the `mana` term's, and only on the battlefield), spent on
         // entering (an ETB Ability), consumed by its own cost, or hand-only
         // (`dslStandingAbilityScriptValue`'s exclusions) — is an unread
-        // clause: the card keeps its floor.
+        // clause: the card keeps its floor. Skipping it instead would read a
+        // mana rock as its drawback alone (review: Mana Crypt at −112).
         if (
+            ability.mana ||
             ability.etbAbility === true ||
             ability.cost?.sacrifice === true ||
             ability.cost?.exileThis === true ||
@@ -1132,16 +1211,16 @@ function computeCompleteScript(def: CardDefinition): boolean {
             scripts.push(template.effects);
         }
     }
+    if (readsEventPlayer(scripts)) return false;
     const ops: EffectOp[] = [];
     collectOps(scripts, ops);
     let leaves = 0;
     for (const op of ops) {
         // CR 101.4 — "each player" is a Symmetric Effect: its sign is the
         // board's (Differential Reading), never the representative member's.
-        if (
-            op.op === "forEach" &&
-            (op.select as { set?: unknown }).set === "players"
-        ) {
+        // A sweep over every player's permanents (no `controller` narrowing —
+        // Armageddon, a wrath) is one too (ADR 0151 § Decision 1).
+        if (op.op === "forEach" && isSymmetricSelector(op.select)) {
             return false;
         }
         if (STRUCTURAL_CONSTRUCTS.has(op.op)) continue;

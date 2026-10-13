@@ -12634,31 +12634,31 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
     },
 
     // -----------------------------------------------------------------------
-    // ADR 0151 (issue #5161) — the two-way Latent Floor. Elephant Grass is a
-    // Complete Script (its cumulative-upkeep shadow is a binder plus a
-    // self-sacrifice), so its context-free reading is trusted BELOW the
-    // `base + MV` floor: −20 in hand, against a Mox Pearl's 8. Before, the
+    // ADR 0151 (issue #5161) — the two-way Latent Floor. Urza's Chalice is a
+    // Complete Script (a binder plus a declared `gainLife`, no clause the
+    // reader cannot see), so its context-free reading is trusted BELOW the
+    // `base + MV` floor: 3.8 in hand, against a Mox Pearl's 8. Before, the
     // floor lifted it to 18 and the Bot gave up the Mox to keep it.
     //
     // The comparator must sit between the two readings, which no vanilla
-    // creature does (Grizzly Bears reads 116 — the Bot already shed Grass
-    // first against any creature, so such an entry could not red). And the
-    // decision must be SEARCHED: the CR 514.1 cleanup discard is the client
-    // policy (`discardOrder`, mana value first), outside the blade's reach.
-    // A discard-as-cost activation is the searched equivalent: one Move per
-    // card the cost may name. The source taps (`{R}, {T}, Discard a card`),
-    // so it activates once — an untapped repeatable outlet (Psychic Frog)
-    // reaches the same leaf by discarding both in either order, and the two
-    // roots tie. On the opponent's turn nothing in hand is castable, so the
-    // Mox cannot simply be played out of the way; the Forest makes Elephant
-    // Grass castable, or `colorCoverage` alone would shed the uncastable
-    // green card and the entry could not red.
+    // creature does (Grizzly Bears reads 116 — the Bot already shed the
+    // Chalice first against any creature, so such an entry could not red).
+    // And the decision must be SEARCHED: the CR 514.1 cleanup discard is the
+    // client policy (`discardOrder`, mana value first), outside the blade's
+    // reach. A discard-as-cost activation is the searched equivalent: one
+    // Move per card the cost may name. The source taps (`{R}, {T}, Discard a
+    // card`), so it activates once — an untapped repeatable outlet (Psychic
+    // Frog) reaches the same leaf by discarding both in either order, and the
+    // two roots tie. On the opponent's turn nothing in hand is castable, so
+    // the Mox cannot simply be played out of the way.
     //
     // The pair: the same position with the hand order reversed, so a pick
-    // that follows card order or instance identity cannot pass both.
+    // that follows card order or instance identity cannot pass both. An
+    // opposite-answer twin would need a card legitimately worse than the
+    // Chalice that still reads above it — every candidate pins a wrong play.
     // -----------------------------------------------------------------------
     {
-        label: "Complete Script self-tax: discards Elephant Grass over a Mox to a discard cost",
+        label: "Complete Script below the floor: discards Urza's Chalice over a Mox to a discard cost",
         classification: { kind: "absolute" },
         spec: {
             cards: [
@@ -12669,8 +12669,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
-                { name: "Elephant Grass", owner: "me", zone: "hand" },
+                { name: "Urza's Chalice", owner: "me", zone: "hand" },
                 { name: "Mox Pearl", owner: "me", zone: "hand" },
             ],
             phase: "END_STEP",
@@ -12686,14 +12685,14 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: {
             predicate: (move, state) =>
-                activationDiscardsCard(state, "me", move, "Elephant Grass"),
+                activationDiscardsCard(state, "me", move, "Urza's Chalice"),
             describe:
-                "activates Dwarven Armorer naming Elephant Grass for its discard cost",
+                "activates Dwarven Armorer naming Urza's Chalice for its discard cost",
         },
-        note: "Issue #5161 (ADR 0151). Proof-of-failure: `isCompleteScript` forced to `false` puts Elephant Grass back at its 18-point floor, above the Mox's 8, and the entry reds.",
+        note: "Issue #5161 (ADR 0151). Proof-of-failure: `isCompleteScript` forced to `false` puts Urza's Chalice back at its 18-point floor, above the Mox's 8, and the entry reds.",
     },
     {
-        label: "Complete Script self-tax: discards Elephant Grass over a Mox to a discard cost (hand order reversed)",
+        label: "Complete Script below the floor: discards Urza's Chalice over a Mox to a discard cost (hand order reversed)",
         classification: { kind: "absolute" },
         spec: {
             cards: [
@@ -12704,9 +12703,8 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                     summoningSick: false,
                 },
                 { name: "Mountain", owner: "me", zone: "battlefield" },
-                { name: "Forest", owner: "me", zone: "battlefield" },
                 { name: "Mox Pearl", owner: "me", zone: "hand" },
-                { name: "Elephant Grass", owner: "me", zone: "hand" },
+                { name: "Urza's Chalice", owner: "me", zone: "hand" },
             ],
             phase: "END_STEP",
             activePlayer: "opp",
@@ -12721,9 +12719,9 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         tier: "must",
         expect: {
             predicate: (move, state) =>
-                activationDiscardsCard(state, "me", move, "Elephant Grass"),
+                activationDiscardsCard(state, "me", move, "Urza's Chalice"),
             describe:
-                "activates Dwarven Armorer naming Elephant Grass for its discard cost",
+                "activates Dwarven Armorer naming Urza's Chalice for its discard cost",
         },
         note: "Issue #5161, the ordering twin of the entry above: the hand order reversed, so the answer is the valuation's and not the enumeration order's.",
     },

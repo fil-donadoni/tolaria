@@ -885,8 +885,9 @@ describe("cardValue wire-format (issue #1426, client-read via bot-view)", () => 
 
 // ADR 0151 (issue #5161) — the Latent Floor holds only for a script both
 // UNMEASURED and INCOMPLETE. A Complete Script (every Op's beneficence
-// declared, no "each player" reference) reads its own context-free number,
-// negative included; one unpriced Op keeps the floor exactly as before.
+// declared, no "each player" reference, no clause the reader cannot see)
+// reads its own context-free number, floored at 0 like a measured one; one
+// unpriced Op or one unread clause keeps the floor exactly as before.
 describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
     const base = {
         isCreature: false,
@@ -911,7 +912,7 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             triggeredAbilities: [
                 {
                     id: "probe-upkeep",
-                    event: "PHASE_START",
+                    event: "PHASE_BEGIN",
                     phase: "UPKEEP",
                     scope: "your",
                     oracleText: "At the beginning of your upkeep, …",
@@ -919,6 +920,20 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
                 },
             ],
         }) as unknown as CardDefinition;
+    const payOrSacrifice: EffectOp[] = [
+        {
+            op: "mayPay",
+            player: "controller",
+            cost: { X: 1 },
+            prompt: "Pay?",
+            bind: "$paid",
+        },
+        {
+            op: "if",
+            predicate: { not: { binding: "$paid" } },
+            then: [{ op: "sacrifice", target: { ref: "$source" } }],
+        },
+    ];
     const valueOf = (def: CardDefinition) =>
         latentValue({
             ...base,
@@ -929,14 +944,7 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
         latentValue({ ...base, manaValue: manaValue(def.manaCost) });
 
     describe("latentValue", () => {
-        it("a complete standing script reads its own number, negative included", () => {
-            expect(
-                latentValue({
-                    ...base,
-                    dslStandingAbilityValue: -40,
-                    dslScriptComplete: true,
-                })
-            ).toBe(-40);
+        it("a complete script below the floor reads its own number", () => {
             expect(
                 latentValue({
                     ...base,
@@ -944,9 +952,6 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
                     dslScriptComplete: true,
                 })
             ).toBe(12);
-        });
-
-        it("a complete spell script below the floor reads its own number", () => {
             expect(
                 latentValue({
                     ...base,
@@ -956,11 +961,21 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             ).toBe(5);
         });
 
-        it("an incomplete, unmeasured script keeps the base+MV floor", () => {
+        it("a complete negative reading stops at 0 — a card in hand is never cast at a loss, so it is never worth less than nothing", () => {
             expect(
                 latentValue({
                     ...base,
                     dslStandingAbilityValue: -40,
+                    dslScriptComplete: true,
+                })
+            ).toBe(0);
+        });
+
+        it("an incomplete, unmeasured script keeps the base+MV floor", () => {
+            expect(
+                latentValue({
+                    ...base,
+                    dslStandingAbilityValue: 12,
                     dslScriptComplete: false,
                 })
             ).toBe(38);
@@ -985,27 +1000,10 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
     });
 
     describe("isCompleteScript", () => {
-        it("a pay-or-lose upkeep (binder + self-sacrifice) beside a declared Op is complete", () => {
-            expect(
-                isCompleteScript(
-                    upkeepEnchantment([
-                        {
-                            op: "mayPay",
-                            player: "controller",
-                            cost: { X: 1 },
-                            prompt: "Pay?",
-                            bind: "$paid",
-                        },
-                        {
-                            op: "if",
-                            predicate: { not: { binding: "$paid" } },
-                            then: [
-                                { op: "sacrifice", target: { ref: "$source" } },
-                            ],
-                        },
-                    ])
-                )
-            ).toBe(true);
+        it("a pay-or-lose upkeep (binder + self-sacrifice) is complete", () => {
+            expect(isCompleteScript(upkeepEnchantment(payOrSacrifice))).toBe(
+                true
+            );
         });
 
         it("a sacrifice over picks (neutral beneficence) leaves the script incomplete", () => {
@@ -1039,6 +1037,48 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             ).toBe(false);
         });
 
+        it("an event-bound player reference is symmetric too (Howling Mine's each-upkeep draw)", () => {
+            expect(
+                isCompleteScript(
+                    upkeepEnchantment([
+                        {
+                            op: "draw",
+                            player: { ref: "$event.activePlayerId" },
+                            count: 1,
+                        },
+                    ])
+                )
+            ).toBe(false);
+            expect(isCompleteScript(byName("Howling Mine"))).toBe(false);
+        });
+
+        it("a sweep over every player's permanents is symmetric (no controller narrowing)", () => {
+            const sweep = (controller?: "controller"): CardDefinition =>
+                ({
+                    id: "complete-script-sweep",
+                    name: "Complete Script Sweep",
+                    rarity: "common",
+                    types: ["Sorcery"],
+                    manaCost: { W: 1 },
+                    effects: [
+                        {
+                            op: "forEach",
+                            select: {
+                                set: "permanents",
+                                zone: "battlefield",
+                                filter: { type: "Land" },
+                                ...(controller ? { controller } : {}),
+                            },
+                            effects: [
+                                { op: "destroy", target: { ref: "$each" } },
+                            ],
+                        },
+                    ],
+                }) as unknown as CardDefinition;
+            expect(isCompleteScript(sweep())).toBe(false);
+            expect(isCompleteScript(sweep("controller"))).toBe(true);
+        });
+
         it("an imperative clause with no shadow leaves the card incomplete", () => {
             const def = upkeepEnchantment([
                 { op: "loseLife", player: "controller", amount: 1 },
@@ -1058,16 +1098,60 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             ).toBe(false);
         });
 
+        it("any definition field the latent reader does not read is an unread clause (static effects, keywords, …)", () => {
+            const def = upkeepEnchantment(payOrSacrifice);
+            for (const extra of [
+                { staticAbilities: ["flash"] },
+                { staticEffects: [{ kind: "anthem", id: "probe" }] },
+                { entersTapped: true },
+            ]) {
+                expect(
+                    isCompleteScript({
+                        ...def,
+                        ...extra,
+                    } as unknown as CardDefinition)
+                ).toBe(false);
+            }
+            // An empty array is no clause.
+            expect(
+                isCompleteScript({
+                    ...def,
+                    staticEffects: [],
+                } as unknown as CardDefinition)
+            ).toBe(true);
+        });
+
+        it("a mana ability is an unread clause (Mana Crypt is not read as its drawback alone)", () => {
+            const crypt = byName("Mana Crypt");
+            expect(isCompleteScript(crypt)).toBe(false);
+            expect(cardValueById(crypt.id)).toBe(floorOf(crypt));
+        });
+
+        it("Elephant Grass keeps its floor: its attack restrictions are static effects the hand face never reads", () => {
+            const grass = byName("Elephant Grass");
+            expect(isCompleteScript(grass)).toBe(false);
+            expect(cardValueById(grass.id)).toBe(floorOf(grass));
+        });
+
         it("a card with no Op at all is not complete (a blank card IS the floor)", () => {
             expect(isCompleteScript(byName("Black Ward"))).toBe(false);
         });
     });
 
     describe("cardValueById", () => {
-        it("Elephant Grass reads below its base+MV (context-free, a self-tax)", () => {
-            const grass = byName("Elephant Grass");
-            expect(isCompleteScript(grass)).toBe(true);
-            expect(cardValueById(grass.id)).toBeLessThan(floorOf(grass));
+        it("a complete, weak script reads below its base+MV (Urza's Chalice, context-free)", () => {
+            const chalice = byName("Urza's Chalice");
+            expect(isCompleteScript(chalice)).toBe(true);
+            expect(cardValueById(chalice.id)).toBeLessThan(floorOf(chalice));
+        });
+
+        it("a complete, positive script below the floor reads its own number (Jayemdae Tome)", () => {
+            const tome = byName("Jayemdae Tome");
+            expect(isCompleteScript(tome)).toBe(true);
+            expect(cardValueById(tome.id)).toBe(
+                dslLatentPieces(tome).dslStandingAbilityValue
+            );
+            expect(cardValueById(tome.id)).toBeLessThan(floorOf(tome));
         });
 
         it("a definition with a sacrifice Op over picks stays at the floor", () => {
@@ -1088,17 +1172,11 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             expect(valueOf(def)).toBeLessThan(floorOf(def));
         });
 
-        it("a complete, positive script is unchanged (Lightning Bolt reads its own script)", () => {
+        it("a complete, positive script above the floor is unchanged (Lightning Bolt reads its own script)", () => {
             const bolt = byName("Lightning Bolt");
             expect(isCompleteScript(bolt)).toBe(true);
             expect(cardValueById(bolt.id)).toBe(dslSpellScriptValue(bolt));
             expect(cardValueById(bolt.id)).toBeGreaterThan(floorOf(bolt));
-        });
-
-        it("a complete land reads its liability on the board face too (no 0 clamp)", () => {
-            const halls = byName("Halls of Mist");
-            expect(isCompleteScript(halls)).toBe(true);
-            expect(standingAbilityValueById(halls.id)).toBeLessThan(0);
         });
     });
 });

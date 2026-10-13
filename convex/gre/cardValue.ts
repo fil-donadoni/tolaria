@@ -241,11 +241,10 @@ export function latentValue(chars: {
     // for a script both UNMEASURED and INCOMPLETE: a measured script reads its
     // own number from 0 up (issue #3398, unchanged), a Complete Script reads
     // its own number outright, negative included (no floor: `-Infinity`).
-    const fallback = chars.dslSpellValueMeasured
-        ? 0
-        : chars.dslScriptComplete
-          ? Number.NEGATIVE_INFINITY
-          : nonCreatureBodyRaw(chars.manaValue);
+    const fallback =
+        chars.dslSpellValueMeasured || chars.dslScriptComplete
+            ? 0
+            : nonCreatureBodyRaw(chars.manaValue);
     // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
     // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
     // exists so no single hand card can pin the reward band (see its own doc),
@@ -454,8 +453,7 @@ export function dslRealizedAbilityValueById(
  *  takes through `latentValue` (mana abilities skipped — the `mana` term
  *  scores them beside this; sacrifice-cost abilities skipped — issue #5145,
  *  the effect is priced where it is spent), clamped to the same
- *  `[0, MAX_LATENT_SCRIPT_VALUE]` band (no lower bound for a Complete Script,
- *  issue #5161), so the two faces move together and
+ *  `[0, MAX_LATENT_SCRIPT_VALUE]` band, so the two faces move together and
  *  playing the land is never a value loss this reading causes. A land has no
  *  `nonCreatureBodyValue` on the board (its body IS the mana term, issue
  *  #149), so this is the only script worth a land carries there. 0 for a land
@@ -481,13 +479,7 @@ export function standingAbilityValueById(
         contextFreeGrounding(latent)
     );
     if (standing === undefined) return 0;
-    // ADR 0151 (issue #5161) — the hand face's floor rule, on the board: a
-    // Complete Script's reading is trusted below zero (a cumulative-upkeep
-    // land is a liability in play), an incomplete one keeps the 0 floor.
-    return Math.max(
-        isCompleteScript(def) ? Number.NEGATIVE_INFINITY : 0,
-        Math.min(standing, MAX_LATENT_SCRIPT_VALUE)
-    );
+    return Math.max(0, Math.min(standing, MAX_LATENT_SCRIPT_VALUE));
 }
 
 /** Issue #4758 — the in-flight value of one ETB Ability, from its source's
