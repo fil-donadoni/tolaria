@@ -125,6 +125,12 @@ const PRINT_READER_ALLOWLIST: readonly AllowlistEntry[] = [
         reason: "names the field in the set of definition keys that carry NO behaviour, so the Bot's plain-body test ignores art — the blindness rule, applied.",
     },
     {
+        file: "ai/cardScriptValue.ts",
+        count: 1,
+        role: "cosmetic-key exclusion",
+        reason: "names the field in `LATENT_READ_KEYS`, the definition keys the Latent Floor's Complete Script test accounts for as inert presentation — art never makes a script incomplete.",
+    },
+    {
         file: "ai/interchangeable.ts",
         count: 2,
         role: "cosmetic-key exclusion",

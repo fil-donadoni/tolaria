@@ -41,7 +41,15 @@ import {
     type LatentLens,
 } from "./grounding";
 import type { LatentWeights } from "./evalWeights";
-import { SAC_SELF_COST, addValues, valueEffectScript } from "./opValuers";
+import {
+    BINDING_ONLY_OPS,
+    SAC_SELF_COST,
+    STRUCTURAL_CONSTRUCTS,
+    VALUED_OR_STRUCTURAL,
+    addValues,
+    opBeneficence,
+    valueEffectScript,
+} from "./opValuers";
 import { withTypedRepresentativeVictim } from "./representativeVictim";
 import type { OpValue, ValueTag } from "./featureBasis";
 
@@ -998,4 +1006,256 @@ export function dslStandingAbilityScriptValue(
 ): number | undefined {
     const standing = abilityScriptOpValue(def, ctx, undefined, "standing");
     return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
+}
+
+/** One script-bearing site of a definition, in the shape every reader above
+ *  takes: a script (real or shadow), per-mode scripts, or an imperative body
+ *  the value model cannot walk. */
+type ScriptSite = {
+    effects?: EffectOp[];
+    aiEffects?: EffectOp[];
+    modes?: readonly ScriptSite[];
+    resolve?: unknown;
+    resolveSteps?: unknown;
+    effect?: unknown;
+};
+
+/** The scripts of one site into `out`; FALSE when part of the site is an
+ *  imperative body no script stands in for (a `resolve()`, `resolveSteps`,
+ *  an activated `effect`, a mode closure) — an unread clause. */
+function collectSiteScripts(site: ScriptSite, out: EffectOp[][]): boolean {
+    const script = effectiveScript(site);
+    if (script) {
+        out.push(script);
+        return true;
+    }
+    if (site.modes && site.modes.length > 0) {
+        for (const mode of site.modes) {
+            const modeScript = effectiveScript(mode);
+            if (modeScript) out.push(modeScript);
+            else if (mode.resolve !== undefined) return false;
+        }
+        return true;
+    }
+    return (
+        site.resolve === undefined &&
+        site.resolveSteps === undefined &&
+        site.effect === undefined
+    );
+}
+
+/** The Op nodes of a script at any nesting depth (structural constructs,
+ *  scheduled bodies), in order. Walks plain data — an Effect Script is JSON
+ *  by construction — and keeps only nodes naming an implemented Op, so a
+ *  predicate node is never mistaken for one. */
+function collectOps(node: unknown, out: EffectOp[]): void {
+    if (Array.isArray(node)) {
+        for (const n of node) collectOps(n, out);
+        return;
+    }
+    if (node === null || typeof node !== "object") return;
+    const op = (node as { op?: unknown }).op;
+    if (typeof op === "string" && VALUED_OR_STRUCTURAL.has(op)) {
+        out.push(node as EffectOp);
+    }
+    for (const n of Object.values(node)) collectOps(n, out);
+}
+
+/** Issue #5161 (ADR 0151) — a leaf Op whose `neutral` sign is not an
+ *  unpriced stake: a binder (its reader carries the sign) or a `sacrifice` of
+ *  the ability's OWN source, which the `sacrifice` valuer prices as
+ *  `SAC_SELF_COST` (the pay-or-lose penalty of a cumulative upkeep or an
+ *  echo). A sacrifice over picks — an edict, or a cost the controller wants
+ *  to pay — stays neutral and keeps the floor. */
+function isPricedNeutralOp(op: EffectOp): boolean {
+    if (BINDING_ONLY_OPS.has(op.op)) return true;
+    return (
+        op.op === "sacrifice" &&
+        op.permanents === undefined &&
+        op.target !== undefined &&
+        typeof op.target === "object" &&
+        (op.target as { ref?: unknown }).ref === "$source"
+    );
+}
+
+/** The `CardDefinition` keys the latent reading accounts for: identity and
+ *  presentation (inert), the scripts it walks (spell, modes, abilities,
+ *  delayed templates — an imperative body among them is caught per site),
+ *  their target slots, and the AI-only hints. Every OTHER key a definition
+ *  sets — a static effect, a replacement, a keyword, an alternative or
+ *  additional cost, a mana substitution, a graveyard permission, … — carries
+ *  a clause the hand face never prices, so the card is incomplete. An
+ *  allowlist rather than a list of known unread fields (review, issue
+ *  #5161): a mechanic field added tomorrow is unread until someone teaches
+ *  the reader and adds it here, which is the fail-closed direction. */
+const LATENT_READ_KEYS: ReadonlySet<string> = new Set([
+    "id",
+    "name",
+    "rarity",
+    "oracleText",
+    "setCode",
+    "imagePrintId",
+    "imagePrintFace",
+    "types",
+    "subtypes",
+    "supertypes",
+    "manaCost",
+    "power",
+    "toughness",
+    "effects",
+    "aiEffects",
+    "resolve",
+    "resolveSteps",
+    "effect",
+    "modes",
+    "modeSelection",
+    "targetRequirement",
+    "additionalTargetRequirements",
+    "activatedAbilities",
+    "triggeredAbilities",
+    "delayedTriggers",
+    "aiValue",
+    "aiCombatHint",
+]);
+
+/** True when the definition sets a key outside {@link LATENT_READ_KEYS}. An
+ *  empty array is no clause. */
+function carriesUnreadField(def: CardDefinition): boolean {
+    for (const [key, value] of Object.entries(def)) {
+        if (value === undefined || LATENT_READ_KEYS.has(key)) continue;
+        if (Array.isArray(value) && value.length === 0) continue;
+        return true;
+    }
+    return false;
+}
+
+/** An event-bound player reference (`$event.activePlayerId`,
+ *  `$event.playerId`, …): the trigger acts on whichever player the event
+ *  names — every player alike for an "each upkeep" or "whenever a player
+ *  draws" trigger (Howling Mine, Bottomless Pit, Phyrexian Tyranny). The
+ *  Symmetric Effect shape the `$each` test misses; fail-closed, so a
+ *  "your upkeep" trigger naming its own active player is incomplete too. */
+function readsEventPlayer(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(readsEventPlayer);
+    if (node === null || typeof node !== "object") return false;
+    const ref = (node as { ref?: unknown }).ref;
+    if (typeof ref === "string" && /^\$event\.\w*[pP]layerId$/.test(ref)) {
+        return true;
+    }
+    return Object.values(node).some(readsEventPlayer);
+}
+
+/** A `forEach` selector that ranges over every player alike: the players
+ *  themselves, or permanents with no `controller` narrowing. */
+function isSymmetricSelector(select: unknown): boolean {
+    const sel = select as { set?: unknown; controller?: unknown };
+    return (
+        sel.set === "players" ||
+        (sel.set === "permanents" && sel.controller === undefined)
+    );
+}
+
+function computeCompleteScript(def: CardDefinition): boolean {
+    if (carriesUnreadField(def)) return false;
+    const scripts: EffectOp[][] = [];
+    if (!collectSiteScripts(def as ScriptSite, scripts)) return false;
+    for (const ability of [
+        ...(def.activatedAbilities ?? []).map((a) => ({
+            site: a as ScriptSite,
+            cost: a.cost as
+                | {
+                      sacrifice?: boolean;
+                      exileThis?: boolean;
+                      discardThis?: boolean;
+                  }
+                | undefined,
+            activateFromHand: a.activateFromHand,
+            etbAbility: undefined,
+            mana: isManaAbilityDefinition(a),
+        })),
+        ...(def.triggeredAbilities ?? []).map((t) => ({
+            site: t as ScriptSite,
+            cost: undefined,
+            activateFromHand: undefined,
+            etbAbility: t.etbAbility,
+            mana: t.manaAbility === true,
+        })),
+    ]) {
+        // An ability the non-creature latent reading never prices — a mana
+        // ability (the `mana` term's, and only on the battlefield), spent on
+        // entering (an ETB Ability), consumed by its own cost, or hand-only
+        // (`dslStandingAbilityScriptValue`'s exclusions) — is an unread
+        // clause: the card keeps its floor. Skipping it instead would read a
+        // mana rock as its drawback alone (review: Mana Crypt at −112).
+        if (
+            ability.mana ||
+            ability.etbAbility === true ||
+            ability.cost?.sacrifice === true ||
+            ability.cost?.exileThis === true ||
+            ability.cost?.discardThis === true ||
+            ability.activateFromHand === true
+        ) {
+            return false;
+        }
+        if (!collectSiteScripts(ability.site, scripts)) return false;
+    }
+    // CR 603.7a — a template the reader prices is a script; one it skips (no
+    // `effects[]`, or a body reading a scheduling-time capture) is an unread
+    // clause, unless a shadow stands for the whole resolution
+    // (`delayedTriggerTemplateOpValue`'s exclusions).
+    if (def.delayedTriggers?.length && !carriesShadowScript(def)) {
+        for (const template of def.delayedTriggers) {
+            if (!template.effects?.length || readsBinding(template.effects)) {
+                return false;
+            }
+            scripts.push(template.effects);
+        }
+    }
+    if (readsEventPlayer(scripts)) return false;
+    const ops: EffectOp[] = [];
+    collectOps(scripts, ops);
+    let leaves = 0;
+    for (const op of ops) {
+        // CR 101.4 — "each player" is a Symmetric Effect: its sign is the
+        // board's (Differential Reading), never the representative member's.
+        // A sweep over every player's permanents (no `controller` narrowing —
+        // Armageddon, a wrath) is one too (ADR 0151 § Decision 1).
+        if (op.op === "forEach" && isSymmetricSelector(op.select)) {
+            return false;
+        }
+        if (STRUCTURAL_CONSTRUCTS.has(op.op)) continue;
+        leaves++;
+        if (isPricedNeutralOp(op)) continue;
+        if (opBeneficence(op) === "neutral") return false;
+    }
+    return leaves > 0;
+}
+
+const completeScriptCache = new WeakMap<CardDefinition, boolean>();
+
+/** Issue #5161 (ADR 0151) — is this definition a **Complete Script**: every
+ *  Op of every script the latent reading walks (spell, modes, activated and
+ *  triggered abilities, delayed templates) carries a declared beneficence
+ *  (the issue #3006 census), none is an "each player" reference, and the
+ *  definition carries no clause the reading cannot see? The condition under
+ *  which `latentValue` trusts a context-free reading BELOW the Latent Floor
+ *  (down to 0).
+ *
+ *  Fail-closed throughout: one `neutral` Op, one symmetric reference
+ *  (`forEach` over players or every player's permanents, an `$event`
+ *  player), one clause the reader cannot see (a definition field outside
+ *  {@link LATENT_READ_KEYS}, an imperative body with no shadow, an ability
+ *  the non-creature reading skips) and the answer is false — the
+ *  floor stands, exactly as before. A definition with no Op at all is not
+ *  complete (a blank card IS the floor). No per-Op flag and no definition
+ *  field: declaring a beneficence row is the only way a script completes.
+ *
+ *  Memoized per definition object: it is read for every hand card at every
+ *  search leaf, and a definition is immutable. */
+export function isCompleteScript(def: CardDefinition): boolean {
+    const cached = completeScriptCache.get(def);
+    if (cached !== undefined) return cached;
+    const complete = computeCompleteScript(def);
+    completeScriptCache.set(def, complete);
+    return complete;
 }

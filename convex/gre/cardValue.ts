@@ -26,6 +26,7 @@ import {
     dslLatentDelayedTemplateValue,
     dslStandingAbilityScriptValue,
     etbSelfSacrificeWeight,
+    isCompleteScript,
     type LatentCastRoute,
     dslRealizedAbilityScriptValue,
     dslSpellScriptValue,
@@ -184,6 +185,14 @@ export function latentValue(chars: {
      *  is what left Stone Rain worth 38 in hand against a 17-point land —
      *  still a net loss to announce, so still never announced. */
     dslSpellValueMeasured?: boolean;
+    /** Issue #5161 (ADR 0151) — true when the card is a **Complete Script**
+     *  (`isCompleteScript`): every Op its readable scripts carry has a
+     *  declared beneficence, none is an "each player" reference and no clause
+     *  is unread. Like a measurement, it lowers the `base + MV` floor to 0: a
+     *  weak complete script reads below a blank card of its mana value, but
+     *  never below nothing — a card in hand is never cast at a loss, and a
+     *  negative reading made dumping a self-harm spell look like profit. */
+    dslScriptComplete?: boolean;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
@@ -226,13 +235,17 @@ export function latentValue(chars: {
     if (chars.aiValue !== undefined) return chars.aiValue;
     // No override: its DSL spell-script value (real `effects[]`, else its
     // `aiEffects` shadow script) if it has one, floored at the `base + MV`
-    // fallback. The floor makes the semantic layer a strict UPLIFT — a card
-    // whose script the current Op vocabulary can't yet value fully (a
-    // backfilled Op, #1430) never drops BELOW its mana-value worth; a burn /
-    // removal spell rises far above it.
-    const fallback = chars.dslSpellValueMeasured
-        ? 0
-        : nonCreatureBodyRaw(chars.manaValue);
+    // fallback. The floor makes the semantic layer an UPLIFT — a card whose
+    // script the current Op vocabulary can't yet value fully (a backfilled Op,
+    // #1430) never drops BELOW its mana-value worth; a burn / removal spell
+    // rises far above it. ADR 0151 (issue #5161) — the Latent Floor holds only
+    // for a script both UNMEASURED and INCOMPLETE: a measured script reads its
+    // own number from 0 up (issue #3398, unchanged), and so does a Complete
+    // Script read context-free (issue #5161).
+    const fallback =
+        chars.dslSpellValueMeasured || chars.dslScriptComplete
+            ? 0
+            : nonCreatureBodyRaw(chars.manaValue);
     // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
     // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
     // exists so no single hand card can pin the reward band (see its own doc),
@@ -271,7 +284,13 @@ export function latentValue(chars: {
         );
         return Math.max(fallback, bounded);
     }
-    return Math.min(fallback + delayed, MAX_LATENT_SCRIPT_VALUE);
+    // No spell and no standing reading: the card has nothing the floor could
+    // be lifted for (a Complete Script always reads at least one), so the
+    // fallback is the plain mana-value worth.
+    return Math.min(
+        nonCreatureBodyRaw(chars.manaValue) + delayed,
+        MAX_LATENT_SCRIPT_VALUE
+    );
 }
 
 /** Issue #5145 — true for a non-creature PERMANENT card: the class whose
@@ -324,6 +343,7 @@ export function dslLatentPieces(
     dslDelayedTemplateValue?: number;
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
+    dslScriptComplete?: boolean;
     etbSelfSacrificeWeight?: number;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
@@ -370,6 +390,8 @@ export function dslLatentPieces(
         // pre-#3398 representative valuation, floor included.
         dslSpellValueMeasured:
             dslSpellValue !== undefined && board?.measured() === true,
+        // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
+        dslScriptComplete: isCompleteScript(def),
     };
 }
 
@@ -390,6 +412,7 @@ export function dslLatentPiecesById(
     dslDelayedTemplateValue?: number;
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
+    dslScriptComplete?: boolean;
     etbSelfSacrificeWeight?: number;
 } {
     const def = tryGetDefinition(cardId);

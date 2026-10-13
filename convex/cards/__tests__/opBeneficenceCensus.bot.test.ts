@@ -40,10 +40,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { EFFECT_OP_REGISTRY, isRegisteredEffectOp } from "../mechanicsRegistry";
 import {
+    BINDING_ONLY_OPS,
     OP_BENEFICENCE,
     PARAMETRIZED_BENEFICENCE_OPS,
     STRUCTURAL_CONSTRUCTS,
+    isCompleteScript,
 } from "../../gre/ai";
+import { registeredDefinitions } from "..";
 
 const OP_VALUERS_SOURCE = fileURLToPath(
     new URL("../../gre/ai/opValuers.ts", import.meta.url)
@@ -219,5 +222,95 @@ describe("OP_BENEFICENCE census (issue #3006)", () => {
                 "(issue #3006) — the guard cannot read prose, so that part is on " +
                 "the author and the reviewer."
         ).toEqual([]);
+    });
+});
+
+// ADR 0151 (issue #5161) — the Complete Script census. A script whose every Op
+// carries a declared beneficence reads its own context-free number BELOW the
+// Latent Floor (`latentValue`), so the `"neutral"` rows above are now the
+// boundary of trusted valuation: declaring one is a VALUATION change, never
+// bookkeeping. Two pins hold that boundary:
+//
+//   • the exact list of `"neutral"` static rows — declaring one (the only way
+//     a script completes, besides a new card) reds here, and the PR that
+//     edits this list owes a refit and a Test Position (ADR 0151 §
+//     Consequences);
+//   • the catalogue's Complete Script count as a FLOOR — un-declaring a row,
+//     or narrowing `isCompleteScript`, drops the count and reds. A new card
+//     only ever raises it, so a `cards`-lane PR (which runs this file) never
+//     owes a re-pin; raise the floor when a row is declared.
+//
+//   • the exact list of binding-only Ops the test looks through
+//     (`BINDING_ONLY_OPS`) — widening it completes scripts as surely as
+//     declaring a row does.
+//
+// Census at the time of writing (issue #5161): 1838 complete definitions over
+// the catalogue, 31 `"neutral"` static rows, 6 binding-only Ops.
+const NEUTRAL_ROWS = [
+    "addSubtype",
+    "animate",
+    "attach",
+    "becomeCopy",
+    "captureBinding",
+    "chooseCreatureType",
+    "chooseNumber",
+    "coinFlipSeries",
+    "delayedTrigger",
+    "divideIntoPiles",
+    "exileSelf",
+    "libraryLook",
+    "lookHand",
+    "lookRandomHand",
+    "mayPay",
+    "moveZone",
+    "nameCard",
+    "payVariableMana",
+    "rangedTopdeck",
+    "recallCapturedBinding",
+    "redirectDamage",
+    "reflexiveTrigger",
+    "reveal",
+    "revealTopAndRoute",
+    "sacrifice",
+    "setBasePT",
+    "setCardTypes",
+    "setColor",
+    "setSubtype",
+    "suppressDamagePrevention",
+    "transform",
+];
+const BINDING_ONLY = [
+    "chooseCreatureType",
+    "chooseNumber",
+    "coinFlipSeries",
+    "mayPay",
+    "nameCard",
+    "payVariableMana",
+];
+const COMPLETE_SCRIPT_FLOOR = 1838;
+
+describe("Complete Script census (issue #5161, ADR 0151)", () => {
+    it('the `"neutral"` static rows are exactly the pinned list (declaring one is a valuation change: refit + Test Position)', () => {
+        expect(
+            Object.entries(OP_BENEFICENCE)
+                .filter(([, sign]) => sign === "neutral")
+                .map(([op]) => op)
+                .sort()
+        ).toEqual(NEUTRAL_ROWS);
+    });
+
+    it('the binding-only Ops are exactly the pinned list, each a `"neutral"` row (the Complete Script test looks through them, never past a sign)', () => {
+        expect([...BINDING_ONLY_OPS].sort()).toEqual(BINDING_ONLY);
+        for (const op of BINDING_ONLY_OPS) {
+            expect(OP_BENEFICENCE[op], op).toBe("neutral");
+        }
+    });
+
+    it(`the catalogue holds at least ${COMPLETE_SCRIPT_FLOOR} Complete Scripts (a drop means a row lost its sign)`, () => {
+        let complete = 0;
+        for (const def of registeredDefinitions()) {
+            if (isCompleteScript(def)) complete++;
+        }
+        expect(complete).toBeGreaterThanOrEqual(COMPLETE_SCRIPT_FLOOR);
     });
 });

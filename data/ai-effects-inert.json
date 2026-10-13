@@ -4,10 +4,6 @@
         "name": "Ancient Cornucopia"
     },
     {
-        "cardId": "2307fb16-8b77-45b5-8a02-51a13214791d",
-        "name": "Arnjlot's Ascent"
-    },
-    {
         "cardId": "c369e4f9-0f2b-446c-9e2d-d3eefab0586d",
         "name": "Blizzard"
     },
@@ -52,16 +48,8 @@
         "name": "Infernal Darkness"
     },
     {
-        "cardId": "d8009a37-f966-4a71-9a2a-469127758dc6",
-        "name": "Insolence"
-    },
-    {
         "cardId": "5277656c-70f5-4660-bd58-7d9261d53fb5",
         "name": "Maddening Wind"
-    },
-    {
-        "cardId": "73e3e0b3-5284-464f-8c62-0f7801c966f5",
-        "name": "Mana Short"
     },
     {
         "cardId": "ae3df593-e9d5-479d-9a9a-1c7262dd9c6c",
@@ -70,10 +58,6 @@
     {
         "cardId": "e35d7f08-0687-41bd-8c53-31a49adabb11",
         "name": "Mystic Might"
-    },
-    {
-        "cardId": "58e93dff-b774-4765-b7bd-d3957e42ff4a",
-        "name": "Mystic Remora"
     },
     {
         "cardId": "cabadfb2-93cd-4c7a-b901-59c3dd1a7c3c",

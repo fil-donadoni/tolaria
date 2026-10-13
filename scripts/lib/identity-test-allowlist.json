@@ -200,6 +200,16 @@
         "reason": "Partition invariant: signed+parametrized+structural exactly cover implemented Ops."
     },
     {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "Complete Script census (issue #5161, ADR 0151) > the `\"neutral\"` static rows are exactly the pinned list (declaring one is a valuation change: refit + Test Position)",
+        "reason": "Census pin: the neutral rows derived from OP_BENEFICENCE; declaring one moves Complete Script valuation."
+    },
+    {
+        "file": "convex/cards/__tests__/opBeneficenceCensus.bot.test.ts",
+        "test": "Complete Script census (issue #5161, ADR 0151) > the binding-only Ops are exactly the pinned list, each a `\"neutral\"` row (the Complete Script test looks through them, never past a sign)",
+        "reason": "Census pin + cross-table invariant: BINDING_ONLY_OPS each a neutral OP_BENEFICENCE row."
+    },
+    {
         "file": "convex/cards/__tests__/opValuerCoverage.bot.test.ts",
         "test": "OP_VALUERS coverage guard (PRD #1423, issue #1426) > every implemented Op is valued, structural, or on the backfill allowlist",
         "reason": "Coverage: every implemented Op is valued, structural, or backfill-allowlisted."

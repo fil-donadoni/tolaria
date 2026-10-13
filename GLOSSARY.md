@@ -848,7 +848,8 @@ Value** never drops below while its **Effect Script** is UNMEASURED and
 INCOMPLETE: an uplift that protects a card whose Ops the valuation vocabulary
 cannot yet price. It does not hold for a script measured on a real board (the
 lens answered) nor for a **Complete Script** read context-free — both read their
-own number, negative included. Distinct from the UI **Floor** (a count held at
+own number, floored at 0 (issue #5161: a card in hand is never cast at a loss, so
+a negative reading would make dumping a self-harm spell look like profit). Distinct from the UI **Floor** (a count held at
 zero), which shares nothing but the word.
 _Avoid_: Floor (alone), base value, minimum value, uplift (the mechanism, not the
 name)
@@ -858,7 +859,13 @@ An **Effect Script** every Op of which resolves to a valuer whose beneficence is
 declared (not `neutral`) and which names no "each player" reference — the
 condition under which its context-free reading is trusted below the **Latent
 Floor**. Decided by the existing Op census, never by a per-Op flag; fail-closed:
-one neutral Op or one symmetric reference and the script is incomplete.
+one neutral Op, one symmetric reference (`$each` over players or every player's
+permanents, an `$event` player) or one clause the reader cannot see (a definition
+field outside the scripts it walks — static effects, keywords, replacements, a
+mana ability, an imperative body) and the script is incomplete. Two `neutral`
+shapes are looked through (issue #5161): a binder (`mayPay`, `chooseNumber`, … —
+its stake is the Op that reads the binding) and a `sacrifice` of the ability's
+own source (priced as a cost); a sacrifice over picks is not.
 _Avoid_: Fully valued script, trusted script, complete card
 
 **Danger Clock**:
