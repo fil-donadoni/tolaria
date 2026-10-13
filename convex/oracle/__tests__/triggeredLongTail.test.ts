@@ -621,7 +621,7 @@ describe("triggered long tail — refusals (fail-closed)", () => {
         ).toBe(true);
         expect(
             unparsed(
-                "Whenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Wombat."
+                "Whenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Banana."
             )
         ).toBe(true);
     });
