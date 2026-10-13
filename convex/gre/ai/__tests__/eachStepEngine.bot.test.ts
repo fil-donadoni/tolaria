@@ -128,24 +128,33 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         expect(mineWorth(better)).toBeGreaterThan(mineWorth(bears));
     });
 
-    it("hand face equals board face on the same board", () => {
+    it("hand face equals board face on the same board, whatever the sign", () => {
         // ADR 0151 / issue #5145 — casting the Mine moves its worth from the
-        // hand term to the board term unchanged.
-        const held = board({ hand: 1, mine: "hand" }, { hand: 7 });
-        const mineInHand = held.players[0].hand.find(
-            (c) => String(c.card.id) === MINE
-        )!;
-        const handFace = cardValue(
-            held,
-            mineInHand,
-            handLatentLens(held, "p1", mineInHand)
-        );
-        const boardFace = mineWorth(
-            board({ hand: 1, mine: "board" }, { hand: 7 })
-        );
-        expect(handFace).toBeGreaterThan(0);
-        expect(handFace).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
-        expect(handFace).toBeCloseTo(boardFace, 6);
+        // hand term to the board term unchanged; a Mine that would feed the
+        // opponent reads below nothing in hand as on the board (the measured
+        // standing lock's rule, issue #5163).
+        const faces = (own: number, opp: number) => {
+            const held = board({ hand: own, mine: "hand" }, { hand: opp });
+            const mineInHand = held.players[0].hand.find(
+                (c) => String(c.card.id) === MINE
+            )!;
+            const handFace = cardValue(
+                held,
+                mineInHand,
+                handLatentLens(held, "p1", mineInHand)
+            );
+            const boardFace = mineWorth(
+                board({ hand: own, mine: "board" }, { hand: opp })
+            );
+            return { handFace, boardFace };
+        };
+        const feeds = faces(1, 7);
+        expect(feeds.handFace).toBeGreaterThan(0);
+        expect(feeds.handFace).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
+        expect(feeds.handFace).toBeCloseTo(feeds.boardFace, 6);
+        const starves = faces(7, 1);
+        expect(starves.handFace).toBeLessThan(0);
+        expect(starves.handFace).toBeCloseTo(starves.boardFace, 6);
     });
 
     it("context-free, the Mine carries no fixed sign: it reads as a blank card of its mana value", () => {

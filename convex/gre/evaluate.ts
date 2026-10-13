@@ -356,7 +356,6 @@ export function cardValue(
         ...(card.zone === "battlefield" && isStandingLockInstance(card)
             ? { standingLockValue: 0 }
             : {}),
-        onBattlefield: card.zone === "battlefield",
     });
 }
 

@@ -12676,7 +12676,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5164. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the board face's negative bound (`latentValue`'s `onBattlefield`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (pass 12, Aeolipile 8). Before issue #5164 (\"its controller draws\" read context-free): Disenchant on the Mine 20/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): the Mine 7/20.",
+        note: "Issue #5164. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the measured reading's sign (`latentValue`'s `dslStandingAbilityMeasured`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (pass 12, Aeolipile 8). Before issue #5164 (\"its controller draws\" read context-free): Disenchant on the Mine 20/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): the Mine 7/20.",
     },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of

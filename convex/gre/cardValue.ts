@@ -215,15 +215,11 @@ export function latentValue(chars: {
     standingLockValue?: number;
     /** Issue #5164 (ADR 0151) — true when `dslStandingAbilityValue` was
      *  MEASURED against a real board (a standing engine's Differential
-     *  Reading). Like `dslSpellValueMeasured`, it lowers the floor to 0. */
+     *  Reading). The Latent Floor drops and, as a measured standing lock's
+     *  does (issue #5163), the reading keeps its sign on both faces — an
+     *  engine that feeds the opponent costs its controller in hand and in
+     *  play alike, down to `-MAX_LATENT_SCRIPT_VALUE`. */
     dslStandingAbilityMeasured?: boolean;
-    /** Issue #5164 — the card is ON THE BATTLEFIELD (the board face). There a
-     *  measured standing reading is the permanent's worth NEGATIVE INCLUDED
-     *  (down to `-MAX_LATENT_SCRIPT_VALUE`):
-     *  an engine that feeds the opponent costs its controller, and removing
-     *  it is a gain. The hand face keeps the 0 bound — a card in hand is
-     *  never cast at a loss. */
-    onBattlefield?: boolean;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
@@ -279,13 +275,12 @@ export function latentValue(chars: {
         chars.dslScriptComplete
             ? 0
             : nonCreatureBodyRaw(chars.manaValue);
-    // Issue #5164 — the board face of a measured standing reading is
-    // bounded below only by the mirror of the cap (see `onBattlefield`): no
-    // single permanent may pin the reward band from either side.
-    const floor =
-        chars.dslStandingAbilityMeasured && chars.onBattlefield
-            ? -MAX_LATENT_SCRIPT_VALUE
-            : fallback;
+    // Issue #5164 — a measured standing reading is bounded below only by
+    // the mirror of the cap (see `dslStandingAbilityMeasured`): no single
+    // card may pin the reward band from either side.
+    const floor = chars.dslStandingAbilityMeasured
+        ? -MAX_LATENT_SCRIPT_VALUE
+        : fallback;
     // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
     // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
     // exists so no single hand card can pin the reward band (see its own doc),
