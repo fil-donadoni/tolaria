@@ -31,7 +31,9 @@
 import type {
     CardDefinition,
     EffectCardFilter,
+    EffectCountSpec,
     EffectForEachSelector,
+    EffectValue,
     TargetRequirement,
 } from "../../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
@@ -48,6 +50,7 @@ import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { isLand } from "../constants";
 import type { EvalWeights } from "./evalWeights";
 import type { EachPlayerSide, LatentLens, SweepOutcome } from "./grounding";
+import { isEachPlayerRef } from "./grounding";
 
 // The Representative Victim lives in its own leaf module (issue #4903), so
 // the context-free ETB valuation can price a TYPED one without importing the
@@ -403,6 +406,21 @@ function boardSide(
             }
             return worth;
         },
+        discardWorth(count) {
+            answered = true;
+            const worths = player.hand
+                .filter((c) => c.id !== valuedCardId)
+                .map((c) => returnedWorth(c))
+                .sort((a, b) => a - b);
+            let worth = 0;
+            for (const w of worths.slice(0, count)) worth += w;
+            return worth;
+        },
+        groundCount(value) {
+            const n = groundSideCount(state, player, valuedCardId, value);
+            if (n === undefined) unreadable = true;
+            return n;
+        },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
             if (filter === UNREADABLE_SWEEP_FILTER) {
@@ -429,6 +447,79 @@ function boardSide(
             return taken / denominator;
         },
     };
+}
+
+/** Issue #5559 — `value` grounded on the board with `$each` bound to
+ *  `player` (`EachPlayerSide.groundCount`), or `undefined` for a shape the
+ *  board cannot answer exactly. Every step of a script is grounded against
+ *  the board BEFORE resolution: a later step's count does not see what an
+ *  earlier step removed (a land creature counted by both of Balance's
+ *  battlefield steps) — an accepted valuation approximation. A `difference` may come out negative; the
+ *  consuming count clamps it (CR 107.1b). */
+function groundSideCount(
+    state: GameState,
+    player: PlayerState,
+    valuedCardId: string,
+    value: EffectValue
+): number | undefined {
+    if (typeof value === "number") return value;
+    if ("count" in value) {
+        return groundZoneCount(state, player, valuedCardId, value.count);
+    }
+    if ("difference" in value) {
+        const { from, minus } = value.difference;
+        const a = groundSideCount(state, player, valuedCardId, from);
+        const b = groundSideCount(state, player, valuedCardId, minus);
+        return a === undefined || b === undefined ? undefined : a - b;
+    }
+    return undefined;
+}
+
+/** Issue #5559 — an `EffectCountSpec` over battlefield or hand members,
+ *  scoped to `$each` (`player`), the fewest any player has
+ *  (`smallestAcrossPlayers`) or every player's (`acrossAllPlayers`). */
+function groundZoneCount(
+    state: GameState,
+    player: PlayerState,
+    valuedCardId: string,
+    spec: EffectCountSpec
+): number | undefined {
+    if (spec.picks !== undefined || spec.countTypes) return undefined;
+    if (spec.zone !== "battlefield" && spec.zone !== "hand") return undefined;
+    const filter = sweepPermanentFilter(spec.filter);
+    if (filter === UNREADABLE_SWEEP_FILTER) return undefined;
+    // A hand count with a filter reads card characteristics no reveal has
+    // made public here: not a board fact.
+    if (spec.zone === "hand" && filter !== undefined) return undefined;
+    const sizeOf = (p: PlayerState): number => {
+        if (spec.zone === "hand") {
+            return p.hand.filter((c) => c.id !== valuedCardId).length;
+        }
+        if (filter === undefined) return p.battlefield.length;
+        return p.battlefield.filter((perm) =>
+            matchesPermanentFilter(
+                effectivePermanentView(state, perm),
+                filter,
+                {
+                    supertypesOf: liveSupertypesOf,
+                }
+            )
+        ).length;
+    };
+    let size: number;
+    if (spec.smallestAcrossPlayers) {
+        size = Math.min(...state.players.map(sizeOf));
+    } else if (spec.acrossAllPlayers) {
+        size = state.players.reduce((n, p) => n + sizeOf(p), 0);
+    } else if (
+        spec.controller !== undefined &&
+        isEachPlayerRef(spec.controller)
+    ) {
+        size = sizeOf(player);
+    } else {
+        return undefined;
+    }
+    return size * (spec.times ?? 1);
 }
 
 /** Issue #4773 — the realised loss a `forEach` over the battlefield takes

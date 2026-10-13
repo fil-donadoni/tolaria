@@ -9613,6 +9613,70 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4773, position B of the symmetric-sweep pair: the mirror of A. The sweep takes more of the Bot's lands than the opponent's, so its net worth is below zero and the card in hand is floored at nothing — casting it only buys the Bot's own mana base a trip to the graveyard while the opponent's creatures keep attacking.",
     },
     {
+        label: "keep-N edict: casts Balance at two lands and no creatures against five lands and two creatures",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the land and creature surplus on the opponent's side",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Balance", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 2 },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 5 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "battlefield",
+                    count: 2,
+                },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Balance" }] },
+        note: "Issue #5559, position A of the keep-N edict pair. Balance takes three Forests and both Bears and nothing of the Bot's: a human casts it without hedging. Until its `aiEffects` shadow, Balance was a `resolveSteps` card with no script, priced in hand at the `base + MV` Latent Floor on every board, so the reading could not tell this board from its mirror. Each step now reads as a `$each` edict whose count is the members above the fewest any player has (a computed `choice.count`), and the Differential prices each side off the board (`EachPlayerSide.groundCount`). POSTCOMBAT_MAIN because this is the turn's last window: precombat, `pass` contains the same cast after combat. Position B is the mirror and must hold.",
+    },
+    {
+        label: "keep-N edict: holds Balance at five lands and two creatures against two lands and no creatures",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the land and creature surplus on the Bot's side",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Balance", owner: "me", zone: "hand" },
+                { name: "Plains", owner: "me", zone: "battlefield", count: 5 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 2,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 2 },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { forbidden: [{ kind: "cast-spell", card: "Balance" }] },
+        note: "Issue #5559, position B of the keep-N edict pair: the mirror of A. Balance would take three of the Bot's Plains and both its Bears and nothing of the opponent's, so the Differential reads it below zero and the Bot holds.",
+    },
+    {
         label: "damage sweep: casts Pyroclasm when the opponent holds the bodies it kills and the Bot a survivor",
         classification: {
             kind: "conditional",

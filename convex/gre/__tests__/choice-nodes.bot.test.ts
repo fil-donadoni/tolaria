@@ -246,7 +246,12 @@ describe("choice-node candidate contract (CR 608.2 / ADR 0016, issue #1425)", ()
         // the settle stopped at the keep and never scored the Ops after it
         // (Thassa's Oracle's win check).
         expect(hasChoiceCandidateGenerator("look-distribute")).toBe(true);
-        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(16);
+        // CR 608.2d (issue #5559) — "choose N to keep" (Balance, Pox).
+        // Unregistered, the search stopped at the keep and a cast of Balance
+        // scored nothing it does.
+        expect(hasChoiceCandidateGenerator("keep-permanents")).toBe(true);
+        expect(hasChoiceCandidateGenerator("keep-hand")).toBe(true);
+        expect(Object.keys(CHOICE_CANDIDATE_GENERATORS).length).toBe(18);
     });
 
     it("searchable is per-CHOICE, not per-kind: a mandatory hand pick is not a node (PR #1914 review finding 2)", () => {

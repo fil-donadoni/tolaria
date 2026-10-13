@@ -3895,7 +3895,15 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
  *  `{ attackTargetOf }` (CR 506.2 — "the player or planeswalker it's
  *  attacking", untargeted, over `SpellContext.getAttackTarget`) and the
  *  battlefield-only `EffectCardFilter.tapped` status field (CR 110.5), gated in
- *  the validator exactly like `isAttacking`. */
+ *  the validator exactly like `isAttacking`.
+ *  `choice.count` as a computed `EffectValue` (issue #5559) is NOT an Op and
+ *  NOT a new value member: the existing `choice` Op's exact count widened
+ *  from a literal to any non-literal `EffectValue`, resolved once as the
+ *  choice is raised (a non-positive result raises nothing). It is the
+ *  cross-player minimum count Balance's "the rest" needed, written with
+ *  members that already existed — `difference` of the chooser's own `count`
+ *  and the `smallestAcrossPlayers` one (issue #783). It earns no
+ *  EFFECT_OP_REGISTRY row. */
 export const EFFECT_OP_BACKLOG: EffectOpRow[] = [
     // --- Architecture-setting foundations (implemented before the skins) ---
     // delayedTrigger SHIPPED (issue #838, ADR 0048) and moveZone SHIPPED

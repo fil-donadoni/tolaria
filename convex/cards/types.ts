@@ -14668,6 +14668,19 @@ export interface EffectChoiceSuperlative {
     extreme: "greatest" | "least";
 }
 
+/** A `choice` Op's `count`: an exact literal, an optional `{ min, max }`
+ *  range (issue #677), or a computed exact count (any non-literal
+ *  `EffectValue`, issue #5559). See the field's own note. */
+export type EffectChoiceCount = EffectValue | { min: number; max: number };
+
+/** True when a `choice` Op's `count` is the optional `{ min, max }` range —
+ *  the one shape no `EffectValue` member shares. */
+export function isChoiceCountRange(
+    count: EffectChoiceCount
+): count is { min: number; max: number } {
+    return typeof count === "object" && "min" in count && "max" in count;
+}
+
 /** The Pending Choice kinds a `choice` Op may request (issue #805). A strict
  *  subset of the existing `ZonePickKind` taxonomy — the Op maps 1:1 onto
  *  `SpellContext.requestChoice`, reusing the whole Pending Choice pipeline
@@ -18218,8 +18231,17 @@ export type EffectOp =
            *  Gearhulk's "up to two" is `{ min: 0, max: 2 }`). Maps 1:1 onto
            *  `PendingChoice.count`'s existing fixed-N / range union — no new
            *  primitive, just exposing the shape the Op already had access to
-           *  via `SpellContext.requestChoice`. */
-          count: number | { min: number; max: number };
+           *  via `SpellContext.requestChoice`.
+           *
+           *  A non-literal `EffectValue` (issue #5559) is a COMPUTED exact
+           *  count, resolved once when the choice is raised: "sacrifices the
+           *  rest" of a keep-N edict is `difference` of the chooser's own
+           *  `count` and the `smallestAcrossPlayers` one (Balance's "equal to
+           *  the number … controlled by the player who controls the
+           *  fewest"). A result at or below zero raises no choice, exactly as
+           *  an exact count with nothing available does (CR 107.1b: zero is
+           *  used instead of a negative result). */
+          count: EffectChoiceCount;
           prompt: string;
           /** REQUIRED — the picks binding name (`"$picked"`). A choice whose
            *  picks nothing consumes is meaningless, so the grammar demands a

@@ -38,6 +38,7 @@ import type {
     PlayerCounterKind,
     RevealRouteDestination,
 } from "../../cards/types";
+import { isChoiceCountRange } from "../../cards/types";
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
 import { ZERO_OP_VALUE } from "./featureBasis";
@@ -46,7 +47,7 @@ import type {
     GroundingContext,
     SweepOutcome,
 } from "./grounding";
-import { contextFreeGrounding } from "./grounding";
+import { contextFreeGrounding, isEachPlayerRef } from "./grounding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
 
@@ -471,9 +472,20 @@ function valueEachPlayerSide(
     const sideCtx = eachPlayerGrounding(ctx, side);
     let total = ZERO_OP_VALUE;
     for (const op of body) {
+        const handEdict = op.op === "discard" && handEdictChoiceFor(op, body);
+        if (handEdict) {
+            const count = groundedEdictCount(side, handEdict);
+            const worth = side.discardWorth(count);
+            total = addValues(total, {
+                points: side.own ? -worth : worth,
+                tags: ["cardAdvantage"],
+            });
+            continue;
+        }
         const edict = op.op === "sacrifice" && edictChoiceFor(op, body);
         if (edict) {
-            const units = side.sacrificeUnits(edict.filter, edict.count) ?? 0;
+            const count = groundedEdictCount(side, edict);
+            const units = side.sacrificeUnits(edict.filter, count) ?? 0;
             const taken = pricedFraction(
                 sideCtx,
                 "boardRemoval",
@@ -489,6 +501,17 @@ function valueEachPlayerSide(
         total = addValues(total, valueOp(op, sideCtx, scope));
     }
     return total;
+}
+
+/** Issue #5559 — how many members `side` gives up to an edict: its literal
+ *  count, or the computed one grounded on `side`'s board (a keep-N edict's
+ *  "the rest"), never below zero (CR 107.1b). A count the board cannot
+ *  ground voids the side (`EachPlayerSide.groundCount`) and reads 0 here. */
+function groundedEdictCount(
+    side: EachPlayerSide,
+    choice: EachPlayerEdictChoice
+): number {
+    return Math.max(0, side.groundCount(choice.count) ?? 0);
 }
 
 /** Issue #5162 — the side `ref` names during one side of a Differential
@@ -539,7 +562,8 @@ function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
         case "draw":
             return isEachPlayerRef(op.player) && typeof op.count === "number";
         case "discard":
-            return isEachPlayerRef(op.player) && !op.cards && !op.filter;
+            if (op.cards) return handEdictChoiceFor(op, body) !== undefined;
+            return isEachPlayerRef(op.player) && !op.filter;
         case "moveZone":
             return isWholeHandToLibrary(op);
         case "libraryLook":
@@ -554,7 +578,9 @@ function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
                 typeof op.amount === "number"
             );
         case "choice":
-            return isEachPlayerEdictChoice(op);
+            return (
+                isEachPlayerEdictChoice(op) || isEachPlayerHandEdictChoice(op)
+            );
         case "sacrifice":
             return edictChoiceFor(op, body) !== undefined;
         default:
@@ -576,27 +602,63 @@ function isWholeHandToLibrary(op: Extract<EffectOp, { op: "moveZone" }>) {
     );
 }
 
-/** Issue #5162 — a `choice` that has `$each` pick a fixed number of its OWN
- *  battlefield permanents to sacrifice (Innocent Blood's shape). */
+/** Issue #5162 — a `choice` that has `$each` pick a number of its OWN
+ *  battlefield permanents to sacrifice (Innocent Blood's shape). Issue #5559
+ *  — the number may be computed (Balance's "the rest"), grounded per side. */
 function isEachPlayerEdictChoice(op: EffectOp): op is EachPlayerEdictChoice {
     return (
-        op.op === "choice" &&
+        isOwnZoneEachPlayerChoice(op) &&
         op.kind === "sacrifice-permanents" &&
+        op.zone === "battlefield"
+    );
+}
+
+/** Issue #5559 — a `choice` that has `$each` pick a number of cards from its
+ *  OWN hand to discard (Balance's hand step), any card of it. */
+function isEachPlayerHandEdictChoice(
+    op: EffectOp
+): op is EachPlayerEdictChoice {
+    return (
+        isOwnZoneEachPlayerChoice(op) &&
+        op.kind === "discard-hand" &&
+        op.zone === "hand" &&
+        op.filter === undefined
+    );
+}
+
+/** The shape both edict choices share: `$each` picks an exact number of
+ *  members of its own zone, with no narrowing this reading cannot follow. */
+function isOwnZoneEachPlayerChoice(op: EffectOp): op is EachPlayerEdictChoice {
+    return (
+        op.op === "choice" &&
         isEachPlayerRef(op.player) &&
-        op.zone === "battlefield" &&
         op.zoneOwnerId === undefined &&
         op.allControllers === undefined &&
         op.candidates === undefined &&
         op.superlative === undefined &&
         op.categories === undefined &&
         op.bindOther === undefined &&
-        typeof op.count === "number"
+        !isChoiceCountRange(op.count)
     );
 }
 
 type EachPlayerEdictChoice = Extract<EffectOp, { op: "choice" }> & {
-    count: number;
+    count: EffectValue;
 };
+
+/** Issue #5559 — the hand edict `choice` of `body` whose picks `op`
+ *  discards, if any. */
+function handEdictChoiceFor(
+    op: Extract<EffectOp, { op: "discard" }>,
+    body: readonly EffectOp[]
+): EachPlayerEdictChoice | undefined {
+    const ref = op.cards;
+    if (!ref || op.filter || !isEachPlayerRef(op.player)) return undefined;
+    for (const e of body) {
+        if (isEachPlayerHandEdictChoice(e) && e.bind === ref.ref) return e;
+    }
+    return undefined;
+}
 
 /** The edict `choice` of `body` whose picks `op` sacrifices, if any. */
 function edictChoiceFor(
@@ -662,20 +724,6 @@ function withCapturedSourceAliases(
         isSourceBattlefieldRef: (ref) =>
             aliasNames.has(ref.ref) || ctx.isSourceBattlefieldRef(ref),
     };
-}
-
-/** True for the `{ ref: "$each" }` forEach iteration variable used as a
- *  PLAYER ref (issue #1521). Every catalogue card naming a player this way
- *  does so inside a `forEach { set: "players" }` — an Earthquake / Flame
- *  Rift / Fissure-style "deals N damage to each player" (CR 120.3), which
- *  hits the caster too. The walker only evaluates a context-free `forEach`
- *  body ONCE (a representative member, not once per real player), so a
- *  valuer that saw this ref and guessed "self" (the generic `isSelf`
- *  heuristic for an opaque ref) would score the whole symmetric effect as a
- *  pure self-cost — wrong in the other direction from the bug this guards
- *  against. Treated as its own case so the caller can score it neutral. */
-function isEachPlayerRef(ref: EffectPlayerRef): boolean {
-    return typeof ref === "object" && "ref" in ref && ref.ref === "$each";
 }
 
 /** issue #3292 — extends a walk's `ScriptScope` with the binding an Op creates,

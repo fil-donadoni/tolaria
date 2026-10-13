@@ -10,7 +10,9 @@
 import type {
     CardDefinition,
     Color,
+    EffectCardFilter,
     EffectOp,
+    EffectValue,
     ManaCost,
     PermanentFilter,
     Rarity,
@@ -201,16 +203,85 @@ export const balance = defineCard(() => ({
         "Each player chooses a number of lands they control equal to the number of lands controlled by the player who controls the fewest, then sacrifices the rest. Players discard cards and sacrifice creatures the same way.",
     manaCost: { X: 1, W: 1 },
     types: ["Sorcery"],
-    // NOT DSL-migratable (ADR 0045, issue #831): planned-migratable. Needs a
-    // "keep N / sacrifice the rest" APNAP choice keyed on a cross-player minimum
-    // count — no `choice` kind or value construct expresses "equal to the fewest
-    // any player controls". Blocked on: keep-count choice semantics.
+    // NOT DSL-migratable (ADR 0045, issue #831): planned-migratable. The
+    // count is expressible (issue #5559: a computed `choice.count` over
+    // `smallestAcrossPlayers`), the choice is not: Oracle has each player
+    // choose what to KEEP and sacrifice the rest, and no `choice` kind keeps
+    // (`keep-permanents` / `keep-hand` are engine-raised only). Blocked on:
+    // keep-count choice semantics.
     resolveSteps: [
         balanceEqualizeLands,
         balanceEqualizeHand,
         balanceEqualizeCreatures,
     ],
+    // Valuation-only shadow (issue #5559): each step as the `$each` edict it
+    // amounts to — every player sacrifices (discards) the members ABOVE the
+    // fewest any player has, `difference` of its own `count` and the
+    // `smallestAcrossPlayers` one, all choices first (CR 101.4). It picks the
+    // complement of what Oracle has the player choose (see above).
+    aiEffects: [
+        balanceEdictShadow("battlefield", "$lands", { type: "Land" }),
+        balanceEdictShadow("hand", "$cards"),
+        balanceEdictShadow("battlefield", "$creatures", { type: "Creature" }),
+    ],
 }));
+
+/** One step of Balance's `aiEffects` shadow: `$each` gives up its members of
+ *  `zone` (matching `filter`) above the fewest any player has. */
+function balanceEdictShadow(
+    zone: "battlefield" | "hand",
+    bind: string,
+    filter?: EffectCardFilter
+): EffectOp {
+    const filtered = filter ? { filter } : {};
+    const excess: EffectValue = {
+        difference: {
+            from: {
+                count: { zone, controller: { ref: "$each" }, ...filtered },
+            },
+            minus: {
+                count: { zone, smallestAcrossPlayers: true, ...filtered },
+            },
+        },
+    };
+    const give: EffectOp[] =
+        zone === "hand"
+            ? [
+                  {
+                      op: "choice",
+                      kind: "discard-hand",
+                      player: { ref: "$each" },
+                      zone,
+                      count: excess,
+                      prompt: "Choose the cards to discard",
+                      bind,
+                  },
+                  {
+                      op: "discard",
+                      player: { ref: "$each" },
+                      cards: { ref: bind },
+                  },
+              ]
+            : [
+                  {
+                      op: "choice",
+                      kind: "sacrifice-permanents",
+                      player: { ref: "$each" },
+                      zone,
+                      ...filtered,
+                      count: excess,
+                      prompt: "Choose the permanents to sacrifice",
+                      bind,
+                  },
+                  { op: "sacrifice", permanents: { ref: bind } },
+              ];
+    return {
+        op: "forEach",
+        select: { set: "players" },
+        simultaneous: true,
+        effects: give,
+    };
+}
 
 // Benalish Hero — vanilla 1/1 with banding (CR 702.22). The keyword lives in
 // staticAbilities[]; the combat engine reads it to expand band-blocking and
