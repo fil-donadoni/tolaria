@@ -12612,7 +12612,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5164. The anchor reading of the Howling Mine pair: the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Mine 20/20. NOT discriminating on its own — with `eachStepDifferentialValue` returning undefined (the netting skipped) the context-free \"its controller draws\" reading also prices the Mine above the Aeolipile, 20/20; the mirror entry below is the half that reds.",
+        note: "Issue #5164. The anchor reading of the Howling Mine positions (two unpaired `conditional` Test Positions — the hands differ by more than one Discriminant, so no `pairOf`): the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Mine 20/20. NOT discriminating on its own — with `eachStepDifferentialValue` returning undefined (the netting skipped) the Mine still 20/20; the mirror entry below is the one that reds.",
     },
     {
         // SYMMETRIC ENGINE, MIRROR (issue #5164, ADR 0151) — the board above
@@ -12622,7 +12622,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // discarded at cleanup (CR 514.1) or replaces a worse one — so
         // destroying it is destroying the bot's own engine.
         //
-        // This is the half that discriminates: read once as "its controller
+        // This is the position that discriminates: read once as "its controller
         // draws" (the pre-#5164 reading), the Mine is worth an extra card a
         // turn to the opponent on every board and Disenchant takes it 20/20
         // here exactly as above.
@@ -12676,7 +12676,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5164. The discriminating half of the Howling Mine pair (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the board face's negative bound (`latentValue`'s `onBattlefield`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (Aeolipile 8, pass 12); proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): Disenchant on the Mine 20/20.",
+        note: "Issue #5164. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the board face's negative bound (`latentValue`'s `onBattlefield`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (pass 12, Aeolipile 8). Before issue #5164 (\"its controller draws\" read context-free): Disenchant on the Mine 20/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): the Mine 7/20.",
     },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
