@@ -20,6 +20,7 @@
 // 's client-importable barrel.
 
 import type {
+    EffectCardFilter,
     EffectValue,
     EffectSignedValue,
     EffectPlayerRef,
@@ -94,6 +95,22 @@ export interface LatentLens {
         select: EffectForEachSelector,
         outcome?: SweepOutcome
     ): number | undefined;
+    /** Issue #5162 (ADR 0151) — the Differential Reading of a one-shot
+     *  `forEach { set: "players" }` body: `valueSide` is run once per player
+     *  on the board, with that player as the `$each` it names, and the sides
+     *  are summed (each side's points are caster-relative already, so the sum
+     *  is the opponent's realised loss minus the caster's own). `undefined`
+     *  — the walker then keeps the representative-member valuation — when no
+     *  board is attached or a side's walk read nothing off the board
+     *  (`EachPlayerSide`); otherwise the reading is MEASURED. Present only on
+     *  a lens attached to a real board. */
+    eachPlayerDifferential?(
+        valueSide: (side: EachPlayerSide) => number
+    ): number | undefined;
+    /** Issue #5162 — the player a `forEach { set: "players" }` body's
+     *  `$each` names during one side of `eachPlayerDifferential`. Absent on
+     *  every other walk. */
+    readonly eachPlayer?: EachPlayerSide;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.
@@ -121,6 +138,26 @@ export type SweepOutcome =
     | { kind: "leaves" }
     | { kind: "lethalDamage"; amount: number }
     | { kind: "returnsToHand" };
+
+/** Issue #5162 — one player of a Differential Reading, read off the board
+ *  the lens is attached to. Each reader answers in the units of the read the
+ *  sweep path already makes, and marks the side ANSWERED. */
+export interface EachPlayerSide {
+    /** True for the caster's own side. */
+    readonly own: boolean;
+    /** The worth `evaluate`'s hand term gives this player's hand — the card
+     *  being valued left out, since casting it takes it out of the hand —
+     *  i.e. what the player loses when the whole hand leaves it. Points. */
+    handWorth(): number;
+    /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
+     *  this player would choose to sacrifice among its permanents matching
+     *  `filter`: the cheapest ones, since the chooser keeps its best (CR
+     *  701.21a). `undefined` for a filter the lens cannot match exactly. */
+    sacrificeUnits(
+        filter: EffectCardFilter | undefined,
+        count: number
+    ): number | undefined;
+}
 
 /** The lens a valuation with no board attached reads: the production weights,
  *  no victim lookup. */

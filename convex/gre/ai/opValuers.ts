@@ -41,7 +41,11 @@ import type {
 import { creatureValueRaw } from "../creatureBody";
 import type { Feature, OpValue, ValueTag } from "./featureBasis";
 import { ZERO_OP_VALUE } from "./featureBasis";
-import type { GroundingContext, SweepOutcome } from "./grounding";
+import type {
+    EachPlayerSide,
+    GroundingContext,
+    SweepOutcome,
+} from "./grounding";
 import { contextFreeGrounding } from "./grounding";
 
 type OpOf<K extends EffectOp["op"]> = Extract<EffectOp, { op: K }>;
@@ -413,6 +417,196 @@ function singleOpSweepOutcome(
         isEachRef(only.target)
     ) {
         return { outcome: { kind: "returnsToHand" }, tag: "tempo" };
+    }
+    return undefined;
+}
+
+/** Issue #5162 (ADR 0151) — the Differential Reading of a one-shot
+ *  `forEach { set: "players" }` whose body acts on `$each`: on a real board
+ *  the body is valued once per player, `$each` bound to that player
+ *  (`eachPlayerGrounding`), and the sides summed — the opponent's realised
+ *  loss minus the caster's own. The walker's representative member (ONE
+ *  walk, `$each` read as the caster by the context-free `isSelf`) cannot
+ *  know who a Wheel of Fortune hurts more; the board can.
+ *
+ *  `undefined` — the representative-member valuation stands, byte-identical
+ *  — when no board is attached, the body holds an Op this reading cannot
+ *  attribute to one side (`isEachPlayerSideOp`), or a side read nothing off
+ *  the board (a body of symmetric Ops only, which the representative walk
+ *  already prices). */
+function eachPlayerDifferentialValue(
+    op: Extract<EffectOp, { op: "forEach" }>,
+    ctx: GroundingContext,
+    scope: ScriptScope
+): OpValue | undefined {
+    if (op.select.set !== "players") return undefined;
+    const lens = ctx.latent;
+    if (!lens.eachPlayerDifferential) return undefined;
+    if (!op.effects.every((e) => isEachPlayerSideOp(e, op.effects))) {
+        return undefined;
+    }
+    const tags = new Set<ValueTag>(["board-scaling"]);
+    const points = lens.eachPlayerDifferential((side) => {
+        const v = valueEachPlayerSide(op.effects, ctx, side, scope);
+        for (const t of v.tags) tags.add(t);
+        return v.points;
+    });
+    if (points === undefined) return undefined;
+    tags.delete("self-cost");
+    return { points, tags: [...tags] };
+}
+
+/** Issue #5162 — one side of a Differential Reading: every Op of `body`
+ *  valued with `$each` bound to `side`. An edict's `sacrifice` is priced off
+ *  that side's board here, from its `choice`'s filter and count — the
+ *  binding a `sacrifice` valuer reads cannot name either — at the `destroy`
+ *  completeness a sweep's member takes (`sweptForEachValue`): what the
+ *  chooser gives up is known, it is the cheapest. */
+function valueEachPlayerSide(
+    body: readonly EffectOp[],
+    ctx: GroundingContext,
+    side: EachPlayerSide,
+    scope: ScriptScope
+): OpValue {
+    const sideCtx = eachPlayerGrounding(ctx, side);
+    let total = ZERO_OP_VALUE;
+    for (const op of body) {
+        const edict = op.op === "sacrifice" && edictChoiceFor(op, body);
+        if (edict) {
+            const units = side.sacrificeUnits(edict.filter, edict.count) ?? 0;
+            const taken = pricedFraction(
+                sideCtx,
+                "boardRemoval",
+                REMOVAL_COMPLETENESS.destroy,
+                units
+            );
+            total = addValues(total, {
+                points: side.own ? -taken : taken,
+                tags: ["boardRemoval"],
+            });
+            continue;
+        }
+        total = addValues(total, valueOp(op, sideCtx, scope));
+    }
+    return total;
+}
+
+/** Issue #5162 — the side `ref` names during one side of a Differential
+ *  Reading, or `undefined` on every other walk. */
+function eachPlayerSideOf(
+    ref: EffectPlayerRef,
+    ctx: GroundingContext
+): EachPlayerSide | undefined {
+    return isEachPlayerRef(ref) ? ctx.latent.eachPlayer : undefined;
+}
+
+/** Issue #5162 — `side`'s whole hand leaving it: the hand term's worth of
+ *  it, lost by that player. */
+function eachPlayerHandLeaves(side: EachPlayerSide): OpValue {
+    const worth = side.handWorth();
+    return { points: side.own ? -worth : worth, tags: ["cardAdvantage"] };
+}
+
+/** Issue #5162 — `ctx` for one side of a Differential Reading: `$each` is
+ *  that side's player, so a valuer's own sign (`isSelf`) and the side's
+ *  board reads (`latent.eachPlayer`) both follow it. */
+function eachPlayerGrounding(
+    ctx: GroundingContext,
+    side: EachPlayerSide
+): GroundingContext {
+    return {
+        ...ctx,
+        isSelf: (ref, cfAssumption) =>
+            isEachPlayerRef(ref) ? side.own : ctx.isSelf(ref, cfAssumption),
+        latent: { ...ctx.latent, eachPlayer: side },
+    };
+}
+
+/** Issue #5162 — true for an Op of a `forEach { set: "players" }` body whose
+ *  effect on `$each` the Differential Reading prices for one side alone:
+ *   - read off that side's board — the whole hand leaving it (`discard`
+ *     with no selection, CR 701.9; `moveZone` hand → library), and an edict
+ *     (`choice` `sacrifice-permanents` on `$each` + the `sacrifice` of its
+ *     picks, CR 701.21a);
+ *   - or the same magnitude on every side, signed by whose it is — a literal
+ *     `draw`, life gained or lost, damage to the player — which the sides
+ *     net out.
+ *  Every Op must name `$each`: one that names a fixed player would be counted
+ *  once per side. Anything else (a graveyard reshuffle, a draw counted off a
+ *  binding, a choice of another kind) is fail-closed. */
+function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
+    switch (op.op) {
+        case "draw":
+            return isEachPlayerRef(op.player) && typeof op.count === "number";
+        case "discard":
+            return isEachPlayerRef(op.player) && !op.cards && !op.filter;
+        case "moveZone":
+            return isWholeHandToLibrary(op);
+        case "libraryLook":
+            return op.action === "shuffle" && isEachPlayerRef(op.player);
+        case "gainLife":
+        case "loseLife":
+            return isEachPlayerRef(op.player) && typeof op.amount === "number";
+        case "dealDamage":
+            return (
+                "player" in op.to &&
+                isEachPlayerRef(op.to.player) &&
+                typeof op.amount === "number"
+            );
+        case "choice":
+            return isEachPlayerEdictChoice(op);
+        case "sacrifice":
+            return edictChoiceFor(op, body) !== undefined;
+        default:
+            return false;
+    }
+}
+
+/** Issue #5162 — `moveZone`'s player shape moving `$each`'s whole hand into
+ *  its library (Timetwister's, Winds of Change's first half) — the hand
+ *  leaves exactly as a discard's does. A `bindCount` feeds a later Op a
+ *  per-player count, which the side walk cannot ground: fail-closed. */
+function isWholeHandToLibrary(op: Extract<EffectOp, { op: "moveZone" }>) {
+    if (!("from" in op) || !("player" in op) || "cards" in op) return false;
+    return (
+        isEachPlayerRef(op.player) &&
+        op.from === "hand" &&
+        op.to === "library" &&
+        op.bindCount === undefined
+    );
+}
+
+/** Issue #5162 — a `choice` that has `$each` pick a fixed number of its OWN
+ *  battlefield permanents to sacrifice (Innocent Blood's shape). */
+function isEachPlayerEdictChoice(op: EffectOp): op is EachPlayerEdictChoice {
+    return (
+        op.op === "choice" &&
+        op.kind === "sacrifice-permanents" &&
+        isEachPlayerRef(op.player) &&
+        op.zone === "battlefield" &&
+        op.zoneOwnerId === undefined &&
+        op.allControllers === undefined &&
+        op.candidates === undefined &&
+        op.superlative === undefined &&
+        op.categories === undefined &&
+        op.bindOther === undefined &&
+        typeof op.count === "number"
+    );
+}
+
+type EachPlayerEdictChoice = Extract<EffectOp, { op: "choice" }> & {
+    count: number;
+};
+
+/** The edict `choice` of `body` whose picks `op` sacrifices, if any. */
+function edictChoiceFor(
+    op: Extract<EffectOp, { op: "sacrifice" }>,
+    body: readonly EffectOp[]
+): EachPlayerEdictChoice | undefined {
+    const ref = op.permanents;
+    if (!ref || op.target) return undefined;
+    for (const e of body) {
+        if (isEachPlayerEdictChoice(e) && e.bind === ref.ref) return e;
     }
     return undefined;
 }
@@ -1095,6 +1289,13 @@ const moveZone: Valuer<"moveZone"> = (op, ctx) => {
     // "put your hand on the bottom of your library") carries no `to` zone worth
     // scoring as removal/advantage — treat as neutral library manipulation.
     if (!("to" in op) || !("target" in op)) {
+        // Issue #5162 — `$each`'s whole hand shuffled into its library, on
+        // one side of a Differential Reading: the hand leaves as a discard's.
+        const side =
+            "from" in op && !("cards" in op) && op.from === "hand"
+                ? eachPlayerSideOf(op.player, ctx)
+                : undefined;
+        if (side) return eachPlayerHandLeaves(side);
         return { points: 0, tags: ["tempo"] };
     }
     // Issue #1964 — returning the ability's own BATTLEFIELD source to hand is
@@ -1513,6 +1714,10 @@ const discard: Valuer<"discard"> = (op, ctx) => {
         if (self) tags.push("self-cost");
         return { points: DISCARD_VALUE * sign, tags };
     }
+    // Issue #5162 — one side of a Differential Reading reads the hand that
+    // leaves off the board (`EachPlayerSide.handWorth`).
+    const side = eachPlayerSideOf(op.player, ctx);
+    if (side) return eachPlayerHandLeaves(side);
     // Whole-hand discard — no live hand-size reader on `GroundingContext`, so
     // a representative multi-card magnitude stands in for both modes.
     const tags = tagScaling(true, "cardAdvantage");
@@ -2463,6 +2668,8 @@ export function valueOp(
             return { points: branch.points * probability, tags: branch.tags };
         }
         case "forEach": {
+            const differential = eachPlayerDifferentialValue(op, ctx, scope);
+            if (differential) return differential;
             const swept = sweptForEachValue(op, ctx, scope);
             if (swept) return swept;
             const { amount, scaling } = ctx.forEachCount(op.select);
