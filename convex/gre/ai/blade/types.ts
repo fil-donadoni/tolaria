@@ -17,6 +17,7 @@ import type { ScenarioSpec } from "../../../debugScenarioSpec";
 import type { GameState } from "../../state";
 import type { Move } from "../../moves";
 import type { Discriminant, VerdictClassification } from "../verdicts/types";
+import type { AuditTheme } from "./auditThemes";
 
 /** Which seat the search runs for. Mirrors `ScenarioSpec`'s own vocabulary:
  *  `me` is `players[0]` (the scenario author's seat, and the active player),
@@ -542,6 +543,12 @@ export type BladeScenario = {
      *  with a `pair` gap, unless the two positions differ by that Discriminant
      *  only (`verdicts/pairDiff.ts`). */
     pairOf?: { anchor: string; discriminant: Discriminant };
+    /** The Audit Theme this position was written for (ADR 0149 §5, issue
+     *  #4923), from the closed list in `auditThemes.ts`. Absent on every
+     *  pre-audit entry. The registry guard (`auditEntryProblems`) holds an
+     *  audit `stretch` entry to a `beyondBudget.cause` and an `issue #N` in
+     *  `beyondBudget.note`; a `must` audit entry owes neither. */
+    audit?: { theme: AuditTheme };
     /** Optional prose: why this position is a blade, what the bot used to do
      *  wrong, which issue it guards. */
     note?: string;
