@@ -12312,11 +12312,11 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         // Mountains, a Winter Orb and a Tawnos's Weaponry (a 2-MV artifact
         // the Op vocabulary reads at its floor). The Orb locks four of the
         // bot's five lands and one of the opponent's two: on THIS board it is
-        // the opponent's weapon, and the removal lens (`permanentRealisedValue`)
-        // ranks it above the artifact of the same mana value only through the
-        // mana axis of `restrictionSourceWorth` (`ai/restrictionPricing.ts`).
-        // Read context-free, the Orb is a generic 2-mana artifact and the
-        // pick between the two is noise.
+        // the opponent's weapon, and both the leaf and the removal lens
+        // (`permanentRealisedValue`) rank it above the artifact of the same
+        // mana value only through the mana axis of the restriction pricing
+        // (`ai/restrictionPricing.ts`). Without it the Orb is a generic
+        // 2-mana artifact and the Weaponry wins.
         label: "symmetric lock: Disenchant takes the Winter Orb that locks more of the bot's lands, not the 2-MV artifact (issue #5163)",
         classification: {
             kind: "conditional",
@@ -12373,7 +12373,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5163. Guards the mana axis of `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Orb's standing worth is the four renewals it takes from the bot minus the one it takes from the opponent, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Orb 20/20 with the mana axis netted; with the netting skipped (the mana loop of `restrictionSourceWorth` contributing 0), Tawnos's Weaponry 20/20.",
+        note: "Issue #5163. Guards the mana axis of the restriction pricing (`ai/restrictionPricing.ts`): the Orb takes the renewals of four of the bot's five lands and one of the opponent's two, counted once on the restricted side's `mana` term and read by the removal lens through `standingLockMargin`. Board in the lock's steady state (lands held down). Measured at 400 iterations over 20 seeds: the Orb 20/20; with the mana axis off (`buildManaLocks` empty), Tawnos's Weaponry 20/20. With only the lens netting off the Orb still wins 20/20 — the search reads the recovered renewals at the leaf.",
     },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
