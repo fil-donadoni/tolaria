@@ -538,8 +538,8 @@ describe("configuration — tolaria.config.json `health.verdictStore`", () => {
         ).toThrow(/file" or "github/);
     });
 
-    it("the repository's default remains file (Phase 1 flips it)", () => {
-        expect(readVerdictBackend()).toBe("file");
+    it("the repository's store is github: Phase 1 flipped it (issue #5543)", () => {
+        expect(readVerdictBackend()).toBe("github");
     });
 
     it("reads owner/name from either origin URL form", () => {
