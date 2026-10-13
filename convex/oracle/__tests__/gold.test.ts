@@ -265,7 +265,15 @@ describe("gold round-trip — precision", () => {
         // projection cannot compare, while "Other enchantments you control
         // have shroud" is now compiled — the same move as the entries above,
         // out of "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(55);
+        //
+        // 54 -> 56 by issue #4571 (triggered long tail): Ivory Tower's "where X
+        // is the number of cards in your hand minus 4" is now compiled while
+        // its hand-written phase trigger carries `matches`/`resolve` closures,
+        // and Thunderscape Battlemage's per-kicker ETB gate is now compiled
+        // while its hand-written side carries the `gate.onSelf` closure
+        // (`additionalCostPaidCondition`) — the same move as the entries
+        // above, out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(57);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
