@@ -216,7 +216,7 @@ issue until the user confirms.
 Ensure the queue label exists (only the one chosen in Step 6):
 
 ```sh
-gh label create needs-triage --description "Maintainer needs to evaluate" --color "FBCA04" --force
+gh label create needs-triage --description "Maintainer needs to evaluate" --color "D876E3" --force
 ```
 
 Create the issue — `<type>` = `bug` / `enhancement` (Step 4's Category),

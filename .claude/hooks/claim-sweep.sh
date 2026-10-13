@@ -96,7 +96,7 @@ for issue in $claimed; do
 
     work_in_flight "$issue" && continue # work is in flight — leave it claimed
 
-    if gh issue edit "$issue" --remove-label in-progress --remove-assignee @me >/dev/null 2>&1; then
+    if gh issue edit "$issue" --remove-label in-progress --remove-label pr-open --remove-assignee @me >/dev/null 2>&1; then
         printf '{"ts":%s,"session":"%s","issue":%s,"event":"released"}\n' \
             "$(date +%s)" "$session" "$issue" >>"$ledger" 2>/dev/null
         printf 'released orphaned claim on #%s\n' "$issue" >&2

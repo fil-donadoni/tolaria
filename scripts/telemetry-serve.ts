@@ -26,6 +26,7 @@ import type { GracefulPriority } from "./loop-status";
 import { homedir } from "node:os";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { injectActionToken } from "./lib/action-token";
+import { releaseEditArgs } from "./lib/claim-labels";
 import {
     DASHBOARD_BUILD_COMMAND,
     DASHBOARD_OUT_DIR,
@@ -688,13 +689,7 @@ export const DRIVER_COMMANDS = {
     ],
     releaseClaim: (issue: number): OperationArgv => [
         "gh",
-        "issue",
-        "edit",
-        String(issue),
-        "--remove-label",
-        "in-progress",
-        "--remove-assignee",
-        "@me",
+        ...releaseEditArgs(issue),
     ],
 } as const;
 

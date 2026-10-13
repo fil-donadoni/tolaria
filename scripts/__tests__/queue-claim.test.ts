@@ -941,12 +941,15 @@ describe("queue:release — the claim's inverse is ONE act: label, assignee, jou
         return { calls, rows, error };
     }
 
-    it("removes the in-progress label AND the assignee, in one edit", () => {
+    it("removes the in-progress AND pr-open labels AND the assignee, in one edit", () => {
         const { calls } = release();
         expect(calls).toHaveLength(1);
         const args = calls[0];
         expect(args.slice(0, 3)).toEqual(["issue", "edit", "4470"]);
-        expect(args[args.indexOf("--remove-label") + 1]).toBe("in-progress");
+        const removed = args.flatMap((a, i) =>
+            args[i - 1] === "--remove-label" ? [a] : []
+        );
+        expect(removed).toEqual(["in-progress", "pr-open"]);
         expect(args[args.indexOf("--remove-assignee") + 1]).toBe("@me");
     });
 
@@ -1122,5 +1125,38 @@ describe("queue:claim — the cap counts THIS machine's claims (issue #5302)", (
             }
         );
         expect(c.verdict.state).toBe("live");
+    });
+});
+
+describe("claim labels on the board (issue #5562)", () => {
+    it("every release path shares ONE argv that drops pr-open beside in-progress", async () => {
+        const { releaseEditArgs } = await import("../lib/claim-labels");
+        const { DRIVER_COMMANDS } = await import("../telemetry-serve");
+        const { prSteps } = await import("../housekeeping");
+        const step = prSteps(
+            {
+                number: 9,
+                headRefName: "feat/issue-4470",
+                mergedAt: "2026-10-13T10:00:00Z",
+            },
+            null
+        ).find((s) => s.argv[0] === "gh");
+        expect(DRIVER_COMMANDS.releaseClaim(4470)).toEqual([
+            "gh",
+            ...releaseEditArgs(4470),
+        ]);
+        expect(step?.argv).toEqual(["gh", ...releaseEditArgs(4470)]);
+        expect(releaseEditArgs(4470)).toContain("pr-open");
+    });
+
+    it("land:ready's edit ADDS pr-open and never touches in-progress", async () => {
+        const { prOpenEditArgs } = await import("../lib/claim-labels");
+        expect(prOpenEditArgs(4470)).toEqual([
+            "issue",
+            "edit",
+            "4470",
+            "--add-label",
+            "pr-open",
+        ]);
     });
 });
