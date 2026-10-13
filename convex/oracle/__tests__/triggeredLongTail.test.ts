@@ -641,7 +641,11 @@ describe("the compiled kicker gate decides at the engine, per kicker (CR 603.4)"
         ({ kickerPayments: { [kickerId]: 1 } }) as unknown as PermanentView;
 
     it("each trigger fires only for its own kicker's payment", () => {
-        const [red, white] = abilities.map((a) => a.gate?.onSelf);
+        const [red, white] = abilities.map((a) =>
+            a.gate !== undefined && "onSelf" in a.gate
+                ? a.gate.onSelf
+                : undefined
+        );
         expect([red?.(paid("kicker-r")), red?.(paid("kicker-w"))]).toEqual([
             true,
             false,

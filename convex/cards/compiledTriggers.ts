@@ -268,6 +268,10 @@ function conditionHolds(
     self: PermanentView,
     state: TriggerStateView | undefined
 ): boolean {
+    // A kicker gate rides the factory's `conditionOnSelf` and never reaches
+    // here; answering it keeps the union exhaustive and the answer honest.
+    if (condition.kind === "kicker-paid")
+        return additionalCostPaidCondition(condition.kickerId)(self);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
