@@ -109,6 +109,50 @@ describe("an each-player hand script reads the hands (issue #5162)", () => {
         expect(even.measured).toBe(true);
     });
 
+    it("a whole hand shuffled into its library reads like a discarded one", () => {
+        // `moveZone` hand → library on `$each`, then seven draws: the hand
+        // leaves exactly as a Wheel's does, so the sign follows whose hand
+        // was worth more.
+        const def: CardDefinition = {
+            id: "each-player-test:shuffle-in",
+            name: "Each Player Shuffle In",
+            rarity: "common",
+            manaCost: { U: 1, generic: 2 },
+            types: ["Sorcery"],
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "moveZone",
+                            player: { ref: "$each" },
+                            from: "hand",
+                            to: "library",
+                        },
+                        {
+                            op: "libraryLook",
+                            action: "shuffle",
+                            player: { ref: "$each" },
+                        },
+                        { op: "draw", player: { ref: "$each" }, count: 7 },
+                    ],
+                },
+            ],
+        };
+        withTemporaryDefinition(def, () => {
+            const ahead = readOnBoard(
+                def.id,
+                { hand: cards(6, bear) },
+                { hand: [bear] }
+            );
+            const behind = readOnBoard(def.id, {}, { hand: cards(7, bear) });
+            expect(ahead.value).toBeLessThan(0);
+            expect(behind.value).toBeGreaterThan(0);
+            expect(ahead.measured && behind.measured).toBe(true);
+        });
+    });
+
     it("context-free, the representative member stands", () => {
         // A draft pick has no board: no side can be read, the walker's one
         // representative walk is the reading, byte-identical to before.
@@ -200,6 +244,32 @@ describe("a body the Differential cannot attribute keeps today's reading (issue 
                 op: "forEach",
                 select: { set: "players" },
                 effects: [{ op: "draw", player: { ref: "$each" }, count: 2 }],
+            },
+        ]);
+        withTemporaryDefinition(def, () => expectRepresentative(def));
+    });
+
+    it("an edict whose filter the lens cannot match exactly is fail-closed", () => {
+        // A mana-value bound is not read: counting every creature, or none,
+        // would both be guesses (the sweep lens's own rule).
+        const def = sorcery("cheap-edict", [
+            {
+                op: "forEach",
+                select: { set: "players" },
+                simultaneous: true,
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "sacrifice-permanents",
+                        player: { ref: "$each" },
+                        zone: "battlefield",
+                        filter: { type: "Creature", manaValueAtMost: 3 },
+                        count: 1,
+                        prompt: "Sacrifice a creature.",
+                        bind: "$sac",
+                    },
+                    { op: "sacrifice", permanents: { ref: "$sac" } },
+                ],
             },
         ]);
         withTemporaryDefinition(def, () => expectRepresentative(def));

@@ -145,9 +145,11 @@ export type SweepOutcome =
 export interface EachPlayerSide {
     /** True for the caster's own side. */
     readonly own: boolean;
-    /** The worth `evaluate`'s hand term gives this player's hand — the card
-     *  being valued left out, since casting it takes it out of the hand —
-     *  i.e. what the player loses when the whole hand leaves it. Points. */
+    /** What this player loses when its whole hand leaves it: each card's
+     *  CONTEXT-FREE `cardValue` (no board lens — a lens per card would
+     *  recurse through a second symmetric card in the same hand), the card
+     *  being valued left out, since casting it takes it out of the hand.
+     *  Points. */
     handWorth(): number;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching

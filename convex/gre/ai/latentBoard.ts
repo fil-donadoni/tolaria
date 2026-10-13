@@ -34,7 +34,7 @@ import type {
     EffectForEachSelector,
     TargetRequirement,
 } from "../../cards/types";
-import type { CardInstanceState, GameState } from "../state";
+import type { CardInstanceState, GameState, PlayerState } from "../state";
 import {
     matchesPermanentFilter,
     type PermanentFilter,
@@ -293,7 +293,7 @@ export function makeLatentBoardLens(
             for (const player of state.players) {
                 const side = boardSide(
                     state,
-                    player.id,
+                    player,
                     player.id === casterId,
                     card.id,
                     realisedLoss,
@@ -316,14 +316,13 @@ export function makeLatentBoardLens(
  *  `eachPlayerDifferential` reads to know the side was answered. */
 function boardSide(
     state: GameState,
-    playerId: string,
+    player: PlayerState,
     own: boolean,
     valuedCardId: string,
     realisedLoss: RealisedLoss,
     returnedWorth: RealisedLoss,
     denominator: number
 ): EachPlayerSide & { answered(): boolean } {
-    const player = state.players.find((p) => p.id === playerId)!;
     let answered = false;
     // A read the board could not answer voids the whole side.
     let unreadable = false;
