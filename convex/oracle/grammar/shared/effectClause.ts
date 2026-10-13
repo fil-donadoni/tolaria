@@ -79,6 +79,7 @@ import {
     narrowedStackRequirement,
     opensTargetPhrase,
     ownPermanentChoiceFilterFromDescriptor,
+    unqualifiedPermanentChoiceFilter,
     sacrificeFilterFromDescriptor,
     superlativeFromClause,
     targetFilterRule,
@@ -137,6 +138,17 @@ export type AmountIR =
           readonly kind: "counted";
           readonly times: number;
           readonly set: CountedSetIR;
+      }
+    /**
+     * CR 107.1b — "the number of cards in your hand minus 4": a counted set
+     * less a printed constant, bound by "where X is …" (Ivory Tower). The
+     * difference is SIGNED (a calculated value may be negative); the consuming
+     * Op clamps it, so a hand of three gains no life rather than losing any.
+     */
+    | {
+          readonly kind: "counted-difference";
+          readonly set: CountedSetIR;
+          readonly minus: number;
       }
     /**
      * CR 202.3 + CR 208.1 + CR 608.2h — "its mana value" / "its power" /
@@ -819,6 +831,19 @@ export type EffectSentenceIR =
           readonly subject: SubjectIR;
       }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
+    | {
+          /**
+           * CR 701.26b + CR 109.2 — "untap up to seven lands": the controller
+           * CHOOSES, as the sentence resolves, up to `max` permanents of one
+           * type from EVERY player's battlefield (the phrase prints no "you
+           * control", so an opponent's land is as legal a pick) and untaps
+           * them. Nothing is announced, so it is not a `tap-untap` target.
+           */
+          readonly kind: "untap-chosen-permanents";
+          readonly filter: EffectCardFilter;
+          readonly max: number;
+          readonly phrase: string;
+      }
     /**
      * CR 509.1b — "<target creature> can't block / be blocked
      * this turn": a turn-scoped combat restriction on ONE announced
@@ -3128,6 +3153,14 @@ const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 /**
+ * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
+ * tail defines it. The tail is one of two counts: "the number of <plural
+ * descriptor>" and "the number of cards in your hand minus N".
+ */
+const WHERE_X_IS = /^(.+), where X is (the number of .+)$/;
+const CARDS_IN_YOUR_HAND_MINUS =
+    /^the number of cards in your hand minus (\S+)$/;
+/**
  * CR 107.1 — "<player> gains/loses N life for each <set>". The multiplier is a
  * printed number: "X life for each …" is a product of two variables this
  * grammar does not read.
@@ -3344,6 +3377,8 @@ const PUT_UNDER_YOUR_CONTROL =
 /** CR 404.1 — "Exile target player's graveyard": the owner is a possessive. */
 const RETURN_OWN_PERMANENT =
     /^Return (an? .+ you control) to its owner(?:'|’)s hand$/;
+/** CR 701.26b — "Untap up to seven lands": a choice, not a target. */
+const UNTAP_UP_TO = /^Untap up to (\S+) (.+)$/;
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */
@@ -4508,10 +4543,82 @@ function libraryHalf(span: string) {
     return null;
 }
 
+/**
+ * CR 107.3 — the count a "where X is …" tail defines, as an amount.
+ *
+ * Only the two forms a fixture pins: a plural descriptor ("the number of
+ * Zombies you control") and the controller's hand less a printed constant. A
+ * descriptor clause the count cannot express is the LOWERING's refusal.
+ */
+function whereXAmount(tail: string, ctx: unknown): RuleResult<AmountIR> {
+    const hand = tail.match(CARDS_IN_YOUR_HAND_MINUS);
+    if (hand !== null) {
+        const minus = readNumberWord(hand[1]!);
+        if (minus === null) return fail(`"${hand[1]}" is not a number`, tail);
+        return ok({
+            kind: "counted-difference" as const,
+            set: {
+                kind: "cards-in-hand" as const,
+                player: { kind: "you" as const },
+            },
+            minus,
+        });
+    }
+    const set = numberOfSetRule.run(tail, ctx);
+    if (!set.ok) return set;
+    return ok({ kind: "counted" as const, times: 1, set: set.value });
+}
+
+/**
+ * CR 107.3 — replace every printed X of a draw / life-change sentence (or a
+ * conjunction of them) with the amount its "where X is …" tail defines.
+ * `null` when the sentence is another kind, or prints no X: an X the tail does
+ * not define, or a tail defining an X nobody prints, is a line we have misread.
+ */
+function bindWhereX(
+    sentence: EffectSentenceIR,
+    amount: AmountIR
+): EffectSentenceIR | null {
+    switch (sentence.kind) {
+        case "draw":
+            return sentence.count.kind === "x"
+                ? { ...sentence, count: amount }
+                : null;
+        case "life":
+            return sentence.amount.kind === "x"
+                ? { ...sentence, amount }
+                : null;
+        case "conjunction": {
+            const effects = sentence.effects.map((e) => bindWhereX(e, amount));
+            return effects.every((e) => e !== null)
+                ? { ...sentence, effects: effects as EffectSentenceIR[] }
+                : null;
+        }
+        default:
+            return null;
+    }
+}
+
 function effectSentence(
     span: string,
     ctx: unknown
 ): RuleResult<EffectSentenceIR> {
+    // ── "…, where X is the number of …" (CR 107.3) ─────────────────────────
+    const whereX = span.match(WHERE_X_IS);
+    if (whereX !== null) {
+        const head = effectSentence(whereX[1]!, ctx);
+        if (!head.ok) return head;
+        const amount = whereXAmount(whereX[2]!, ctx);
+        if (!amount.ok) return amount;
+        const bound = bindWhereX(head.value, amount.value);
+        if (bound === null)
+            return fail(
+                '"where X is" defines an X a draw or life change prints',
+                span
+            );
+        return ok(bound);
+    }
+
     // ── reveal the top card into hand (CR 701.20a) ─────────────────────────
     if (REVEAL_TOP_TO_HAND.test(span))
         return ok({ kind: "reveal-top-to-hand" as const, lifeLoss: false });
@@ -5231,6 +5338,22 @@ function effectSentence(
         ["Untap ", "untap"],
     ] as const) {
         if (!span.startsWith(verb)) continue;
+        const upTo = action === "untap" ? span.match(UNTAP_UP_TO) : null;
+        if (upTo !== null) {
+            const max = readNumberWord(upTo[1]!);
+            if (max === null || max < 1)
+                return fail(`"${upTo[1]}" is not a count`, span);
+            const descriptor = descriptorRule.run(upTo[2]!, ctx);
+            if (!descriptor.ok) return descriptor;
+            const filter = unqualifiedPermanentChoiceFilter(descriptor.value);
+            if (!filter.ok) return filter;
+            return ok({
+                kind: "untap-chosen-permanents" as const,
+                filter: filter.value,
+                max,
+                phrase: uncapitalise(span),
+            } satisfies EffectSentenceIR);
+        }
         const subject = sweepableSubject(span.slice(verb.length), ctx);
         if (!subject.ok) return subject;
         return ok({

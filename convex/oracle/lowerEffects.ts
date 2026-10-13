@@ -253,7 +253,11 @@ function lowerAmount(
             : unlowerable(
                   '"its power" names a source its own cost did not sacrifice (CR 608.2h)'
               );
-    if (amount.kind === "counted" || amount.kind === "acted-on-characteristic")
+    if (
+        amount.kind === "counted" ||
+        amount.kind === "counted-difference" ||
+        amount.kind === "acted-on-characteristic"
+    )
         return unlowerable(
             `a ${amount.kind} amount is read only at a life-change site`
         );
@@ -342,6 +346,14 @@ function lowerLifeAmount(
                 amount.times === 1
                     ? spec.value
                     : { ...spec.value, times: amount.times },
+        });
+    }
+    if (amount.kind === "counted-difference") {
+        // CR 107.1b — a signed difference; the consuming Op clamps it.
+        const spec = lowerCountedSet(amount.set, walk.targets, site);
+        if (!spec.ok) return spec;
+        return lowered({
+            difference: { from: { count: spec.value }, minus: amount.minus },
         });
     }
     if (amount.kind === "acted-on-characteristic")
@@ -1848,7 +1860,7 @@ function lowerSentenceBody(
         case "draw": {
             const player = playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
-            const count = lowerAmount(sentence.count, site);
+            const count = lowerLifeAmount(sentence.count, walk, site);
             if (!count.ok) return count;
             return lowered([
                 { op: "draw", player: player.value, count: count.value },
@@ -2552,6 +2564,38 @@ function lowerSentenceBody(
                             op: "moveZone",
                             target: { ref: "$each" },
                             to: "hand",
+                        },
+                    ],
+                },
+            ]);
+        }
+        case "untap-chosen-permanents": {
+            // CR 701.26b + CR 109.2 — the controller picks up to N permanents
+            // from every battlefield (nothing is announced), each is untapped.
+            // The pick is routed through `forEach { set: "bound" }` because a
+            // `choice` Op's `bind` holds raw picks while `tapUntap.target`
+            // wants a selector (the Frantic Search shape).
+            const bind = walk.nextBind("untapped");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: sentence.filter,
+                    count: { min: 0, max: sentence.max },
+                    prompt: `${capitalise(sentence.phrase)}.`,
+                    bind,
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: bind },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$each" },
                         },
                     ],
                 },
