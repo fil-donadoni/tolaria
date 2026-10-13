@@ -7159,4 +7159,69 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 508.1 + CR 613.4c — "it gets +1/+1 until end of turn for each other attacking Kavu": the same scaled-count pump on BOTH stats (the smoke form differs from the +2/+0 power-only one), clearing Kavu Mauler (issue #4571).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Kavu Mauler",
+            manaCost: "{4}{G}{G}",
+            typeLine: "Creature — Kavu",
+            oracleText:
+                "Trample\nWhenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+            power: "4",
+            toughness: "4",
+            oracleId: "6ffbcaba-5437-4fb6-a2d6-e94b1e6dc1d2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Kavu Mauler",
+            types: ["Creature"],
+            subtypes: ["Kavu"],
+            manaCost: { X: 4, G: 2 },
+            power: 4,
+            toughness: 4,
+            oracleText:
+                "Trample\nWhenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "kavu-mauler-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$source" },
+                            power: {
+                                count: {
+                                    zone: "battlefield",
+                                    acrossAllPlayers: true,
+                                    filter: {
+                                        type: "Creature",
+                                        subtype: "Kavu",
+                                        isAttacking: true,
+                                        excludeSource: true,
+                                    },
+                                },
+                            },
+                            toughness: {
+                                count: {
+                                    zone: "battlefield",
+                                    acrossAllPlayers: true,
+                                    filter: {
+                                        type: "Creature",
+                                        subtype: "Kavu",
+                                        isAttacking: true,
+                                        excludeSource: true,
+                                    },
+                                },
+                            },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
