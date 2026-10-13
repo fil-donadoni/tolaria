@@ -892,7 +892,7 @@ export type EffectSentenceIR =
     | { readonly kind: "prevent-regeneration"; readonly subject: SubjectIR }
     | {
           /**
-           * CR 701.19c + CR 608.2h — "A creature dealt damage this way can't
+           * CR 701.19c + CR 608.2c — "A creature dealt damage this way can't
            * be regenerated this turn": the same lock as above, on the ONE
            * target an earlier sentence of the ability damaged. The sentence
            * carries no subject (anaphora); the lowering binds it to the single
@@ -3773,7 +3773,7 @@ const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
 const FORCED_BLOCK = /^(.+) blocks this creature this turn if able$/;
 /** CR 701.19c — the regeneration lock's printed form. */
 const CANT_BE_REGENERATED_THIS_TURN = /^(.+) can't be regenerated this turn$/;
-/** CR 701.19c + CR 608.2h — the lock on "a creature dealt damage this way". */
+/** CR 701.19c + CR 608.2c — the lock on "a creature dealt damage this way". */
 const CANT_BE_REGENERATED_DAMAGED_THIS_WAY =
     "A creature dealt damage this way can't be regenerated this turn";
 /** CR 101.2 + CR 601.2 — the opponents' whole-turn cast lock, whole. */

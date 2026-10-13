@@ -2,9 +2,9 @@
 // issue #4569, a Grammar Cluster (ADR 0137):
 //
 //  - "A creature dealt damage this way can't be regenerated this turn" after
-//    ONE announced target (CR 701.19c, CR 608.2h) — Incinerate;
+//    ONE announced target (CR 701.19c, CR 608.2c) — Incinerate;
 //  - "Draw a card at the beginning of the next turn's upkeep" (CR 603.7a) —
-//    Portent, the imperative twin of "You draw a card at …".
+//    Flare, the imperative twin of "You draw a card at …".
 //
 // GOLDEN fixtures (a real corpus card compiled whole) + REFUSALS (fail-closed,
 // ADR 0105 § 2).
@@ -38,7 +38,7 @@ function expectUnparsed(oracleText: string, typeLine = "Instant") {
 }
 
 describe("regeneration lock and delayed draw — golden fixtures", () => {
-    it("CR 701.19c + CR 608.2h — damaged creature can't regenerate: Incinerate", () => {
+    it("CR 701.19c + CR 608.2c — damaged creature can't regenerate: Incinerate", () => {
         const text =
             "Incinerate deals 3 damage to any target. A creature dealt damage this way can't be regenerated this turn.";
         const card = oracleCard({
