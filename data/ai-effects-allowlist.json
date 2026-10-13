@@ -13,12 +13,6 @@
     },
     {
         "class": "card",
-        "cardId": "6f9ea46a-411f-40ce-a873-a905180093f4",
-        "name": "Balance",
-        "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"
-    },
-    {
-        "class": "card",
         "cardId": "a85ae675-56ca-4a00-83d2-ee035f33d6d1",
         "name": "Battle Frenzy",
         "note": "no honest shadow script: pre-existing resolve() card, backfill tracked by #1436"

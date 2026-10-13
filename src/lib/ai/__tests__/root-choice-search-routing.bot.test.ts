@@ -356,6 +356,50 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ],
             }
         ),
+    // CR 608.2d (issue #5559) — Balance's "choose N to keep, the rest go":
+    // keep one of two creatures of clearly different worth.
+    "keep-permanents": () =>
+        stateWithBotChoice(
+            {
+                kind: "keep-permanents",
+                zone: "battlefield",
+                filter: { types: "Creature" },
+                count: 1,
+                prompt: "Choose the creature to keep",
+            },
+            {
+                battlefield: [
+                    makeInstance(getCardByName("Grizzly Bears").id, {
+                        id: "bf-bears",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                    }),
+                    makeInstance(getCardByName("Craw Wurm").id, {
+                        id: "bf-wurm",
+                        controllerId: BOT,
+                        ownerId: BOT,
+                    }),
+                ],
+            }
+        ),
+    "keep-hand": () =>
+        stateWithBotChoice(
+            {
+                kind: "keep-hand",
+                zone: "hand",
+                count: 1,
+                prompt: "Choose 1 card to keep",
+            },
+            {
+                hand: ["hand-bolt", "hand-wurm"].map((id, i) =>
+                    makeInstance(
+                        getCardByName(i === 0 ? "Lightning Bolt" : "Craw Wurm")
+                            .id,
+                        { id, controllerId: BOT, ownerId: BOT, zone: "hand" }
+                    )
+                ),
+            }
+        ),
     // CR 608.2 (issue #3545) — "untap up to two lands": an optional pick over
     // two of the bot's own tapped lands, the shape the minimal-legal default
     // used to answer with nothing.
