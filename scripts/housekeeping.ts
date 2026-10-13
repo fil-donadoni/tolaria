@@ -30,6 +30,12 @@
  *      (issue #4235) — for a branch naming an issue; none otherwise;
  *   4. `umbrella:detach --sweep` once (issue #5081).
  *
+ * Before any of them, EVERY run — merged PRs or none — releases the claim
+ * labels left on closed issues (`claims:sweep-closed`, issue #5572): an issue
+ * closed outside step 3's path kept `in-progress` / `pr-open` for good, and
+ * this run is a fresh process, so it applies the current release whatever
+ * code the long-lived land-runner holds.
+ *
  * Every step is idempotent (the reasons are in each script's header), so a
  * re-run is safe. A PR whose steps fail is kept in the state's `retry` list
  * (with the band read on its first attempt — the detach removes the parent
@@ -308,6 +314,13 @@ export function prSteps(pr: MergedPr, band: BoardPriority | null): Step[] {
     ];
 }
 
+/** Step 0, every run (issue #5572): the claim labels left on closed issues.
+ *  A failure is logged and retried by the next run; it holds nothing back. */
+export const CLOSED_CLAIMS_STEP: Step = {
+    label: "claims:sweep-closed",
+    argv: ["bun", "scripts/claims-sweep-closed.ts"],
+};
+
 /** Step 4: every other closed child of every censused umbrella. */
 export const SWEEP_STEP: Step = {
     label: "umbrella:detach --sweep",
@@ -458,6 +471,23 @@ function main(): void {
         if (!dryRun) rmSync(lockPath, { force: true });
         process.exit(code);
     };
+
+    // Step 0: not tied to any merged PR, so it runs before the early returns.
+    if (dryRun) {
+        say(`would run: ${CLOSED_CLAIMS_STEP.argv.join(" ")}`);
+    } else {
+        appendFileSync(logPath, `── ${CLOSED_CLAIMS_STEP.label}\n`);
+        const swept = spawnSync(
+            CLOSED_CLAIMS_STEP.argv[0]!,
+            CLOSED_CLAIMS_STEP.argv.slice(1),
+            { cwd: primary, env: netEnv(process.env), encoding: "utf8" }
+        );
+        appendFileSync(logPath, `${swept.stdout ?? ""}${swept.stderr ?? ""}`);
+        if (swept.status !== 0)
+            say(
+                `${CLOSED_CLAIMS_STEP.label} failed (exit ${swept.status ?? swept.signal ?? "?"}) — the next run retries it`
+            );
+    }
 
     let state = parseState(
         existsSync(statePath) ? readFileSync(statePath, "utf8") : null,

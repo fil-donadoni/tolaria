@@ -36,3 +36,45 @@ export function releaseEditArgs(issue: number): string[] {
 export function prOpenEditArgs(issue: number): string[] {
     return ["issue", "edit", String(issue), "--add-label", PR_OPEN_LABEL];
 }
+
+/** One CLOSED issue as `gh issue list --json number,labels` returns it. */
+export interface ClosedIssueLabels {
+    number: number;
+    labels: { name: string }[];
+}
+
+/** The `gh` read listing CLOSED issues still wearing `label` (issue #5572). */
+export function closedWithLabelArgs(label: string, limit = 500): string[] {
+    return [
+        "issue",
+        "list",
+        "--state",
+        "closed",
+        "--label",
+        label,
+        "--limit",
+        String(limit),
+        "--json",
+        "number,labels",
+    ];
+}
+
+/** Issue #5572 — the closed issues whose claim was never released: any that
+ *  still wear `in-progress` or `pr-open`, once each, ascending. A closed
+ *  issue is no claim whatever path closed it (a merge whose runner held
+ *  pre-#5562 code, a close by hand, a duplicate), so the release is owed
+ *  unconditionally. */
+export function closedClaimsToRelease(
+    closed: readonly ClosedIssueLabels[]
+): number[] {
+    const owed = new Set<number>();
+    for (const issue of closed) {
+        if (
+            issue.labels.some(
+                (l) => l.name === CLAIM_LABEL || l.name === PR_OPEN_LABEL
+            )
+        )
+            owed.add(issue.number);
+    }
+    return [...owed].sort((a, b) => a - b);
+}
