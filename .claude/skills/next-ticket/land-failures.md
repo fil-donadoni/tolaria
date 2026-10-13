@@ -48,3 +48,13 @@ test; "not my test" is no exemption (ADR 0116).
 
 **Done when:** the fix is pushed and `land:ready` re-queued the PR — or § 6
 reports the failure, naming the line of the runner's comment that carried it.
+
+## `land:ready` refused: the pre-queue check (issue #5554)
+
+`land:ready` runs the lane's seconds-cost steps on the PR's worktree before it
+labels anything (`lib/pre-queue-steps.ts`: `check:lane`'s plan minus the
+whole-project vitest runs and `check:pr`, plus the PR's own tests and the
+structural guards a NEW file trips). Red → no `ready-to-land`, no `pr-open`
+row: fix it in this session, commit, push, re-run. Only a red you KNOW is
+base's: `TOLARIA_PREQUEUE_RED_OK=1 bun run land:ready <PR#>` — announced and
+commented on the PR.
