@@ -735,20 +735,34 @@ reap_orphan_claims() {
 # plan is asked for one more batch item per running lane. A pick that still
 # collides — another machine, a hand session — meets `queue:claim`'s lock,
 # which refuses the second claim outright.
+#
+# NEVER AN ISSUE A PASS LEFT UNTOUCHED (issue #5564). A pass that ends with no
+# claim, no PR, and its issue still `ready-for-agent` and unclaimed has judged
+# it work no agent can land (owner-only installs, an unreachable host) — and
+# the next plan offers it again at the head, so two such passes stop the run
+# on `no-progress` with other eligible work still queued. Such an issue joins
+# `EXCLUDED_THIS_RUN` (see `finish_lane`): every later pick skips it, and the
+# plan is asked for one more batch item per exclusion. When nothing but
+# excluded issues is left, the run stops on `no-progress` — the queue
+# genuinely has no other head (`RESOLVED_EXHAUSTED`).
 RESOLVED_ISSUE=""
 RESOLVED_MODEL=""
 RESOLVED_RESUME=""
+RESOLVED_EXHAUSTED=0
 RESUMED_THIS_RUN=""
+EXCLUDED_THIS_RUN=""
 resolve_head() {
     RESOLVED_ISSUE=""
     RESOLVED_MODEL=""
     RESOLVED_RESUME=""
+    RESOLVED_EXHAUSTED=0
     # stderr goes to a FILE, never into `$_plan`: `bun run <script>` prints a
     # `$ bun scripts/… ` banner on stderr, and folding that into the captured
     # stdout makes the JSON unparseable — a real dry run against a 230-issue
     # queue resolved nothing at all for exactly this reason. Only stdout is
     # the plan.
     _plan_cap=$((1 + $1))
+    for _x in $EXCLUDED_THIS_RUN; do _plan_cap=$((_plan_cap + 1)); done
     _plan_err=$(mktemp)
     if ! _plan=$(bun run queue:plan --cap "$_plan_cap" --exclude-hitl 2>"$_plan_err"); then
         echo "loop-drain[error]: pre-flight FAILED (bun run queue:plan --cap $_plan_cap --exclude-hitl) — STOPPING. A pass handed the bare prompt picks its own issue and knows nothing about HITL, so it could implement and merge work reserved for a human (#3088)." >&2
@@ -762,12 +776,13 @@ resolve_head() {
     # word is how a quoting bug becomes an arbitrary-command bug.
     # Third word: `new`, or `pr:<N>` / `branch` / `local` for a resume (see
     # above).
-    _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" LOOP_BUSY="$(busy_issues)" bun -e '
+    _head=$(LOOP_PLAN="$_plan" LOOP_RESUMED="$RESUMED_THIS_RUN" LOOP_BUSY="$(busy_issues)" LOOP_EXCLUDED="$EXCLUDED_THIS_RUN" bun -e '
 const plan = JSON.parse(process.env.LOOP_PLAN || "{}");
 const ids = (v) => new Set((v || "").split(/\s+/).filter(Boolean).map(Number));
 const done = ids(process.env.LOOP_RESUMED);
 const busy = ids(process.env.LOOP_BUSY);
-const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "" && !busy.has(x.number);
+const excluded = ids(process.env.LOOP_EXCLUDED);
+const ok = (x) => x && Number.isInteger(x.number) && typeof x.model === "string" && x.model !== "" && !busy.has(x.number) && !excluded.has(x.number);
 const repair = (plan.repair || []).find((x) => ok(x) && Number.isInteger(x.pr) && !done.has(x.number));
 const resume = (plan.resume || []).find((x) => ok(x) && !done.has(x.number));
 const head = (plan.batch || []).find(ok);
@@ -777,8 +792,15 @@ if (repair) {
     process.stdout.write(resume.number + " " + resume.model + " " + (Number.isInteger(resume.pr) ? "pr:" + resume.pr : resume.state === "recoverable" ? "local" : "branch"));
 } else if (head) {
     process.stdout.write(head.number + " " + head.model + " new");
+} else if ((plan.batch || []).some((x) => x && excluded.has(x.number))) {
+    process.stdout.write("exhausted");
 }
 ' 2>/dev/null) || _head=""
+    if [ "$_head" = "exhausted" ]; then
+        echo "loop-drain[warn]: no eligible head left but the issues this run excluded (${EXCLUDED_THIS_RUN# }) — stopping on no-progress." >&2
+        RESOLVED_EXHAUSTED=1
+        return 1
+    fi
     if [ -z "$_head" ]; then
         echo "loop-drain[error]: pre-flight resolved no ELIGIBLE head issue from the plan — stopping rather than letting a pass pick for itself." >&2
         return 1
@@ -1303,10 +1325,26 @@ finish_lane() {
                 echo "loop-drain[warn]: pass $lpass died holding claims (consecutive ${claims_held_streak}/${MAX_CONSECUTIVE_CLAIMS_HELD}) — the next pass reaps the orphaned claim and continues." >&2
             fi
         else
-            no_progress_streak=$((no_progress_streak + 1))
-            if [ "$no_progress_streak" -ge 2 ]; then
-                reason_field="no-progress"
-                stop_now=1
+            # Its issue untouched — still open, unclaimed, `ready-for-agent`
+            # — is the pass's verdict that no agent can land it (issue
+            # #5564, see `resolve_head`): excluded for the rest of the run,
+            # and the streak is left as it stands, since the next pass works
+            # a DIFFERENT head. Read here unless the overlap branch already
+            # read it.
+            _left_state="$_own_state"
+            if [ -n "$lissue" ] && [ "$overlap" != "1" ]; then
+                _left_state=$(issue_state "$lissue")
+            fi
+            if [ -n "$lissue" ] && [ "$_left_state" = "OPEN false true" ] &&
+                ! printf ' %s ' "$EXCLUDED_THIS_RUN" | grep -q " $lissue "; then
+                EXCLUDED_THIS_RUN="$EXCLUDED_THIS_RUN $lissue"
+                echo "loop-drain[warn]: pass $lpass left issue #${lissue} unclaimed and still ready-for-agent — excluding it for the rest of this run (owner work → relabel it ready-for-human; blocked → wire blocked-by)." >&2
+            else
+                no_progress_streak=$((no_progress_streak + 1))
+                if [ "$no_progress_streak" -ge 2 ]; then
+                    reason_field="no-progress"
+                    stop_now=1
+                fi
             fi
         fi
     else
@@ -1586,6 +1624,9 @@ while :; do
                 esac
                 echo "loop-drain[warn]: resuming dead claim #${RESOLVED_ISSUE} (${_resume_what}) — its pass died holding the claim; one resume per issue per run." >&2
             fi
+        elif [ "$RESOLVED_EXHAUSTED" -eq 1 ]; then
+            refuse_start "no-progress"
+            continue
         else
             refuse_start "preflight-error"
             continue
@@ -1605,6 +1646,9 @@ while :; do
 done
 
 echo ""
+if [ -n "$EXCLUDED_THIS_RUN" ]; then
+    echo "loop-drain[warn]: excluded this run (left unclaimed, still ready-for-agent):$(printf ' #%s' $EXCLUDED_THIS_RUN)" >&2
+fi
 if [ "$BUDGET_ENABLED" -eq 1 ]; then
     _spend_summary="spent=${spent} budget=${BUDGET} ceiling=${CEILING}"
 else

@@ -323,6 +323,16 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(text).not.toMatch(/On abort: remove `in-progress`/);
     });
 
+    it("the abort step hands owner work back as `ready-for-human`, read back, with one comment (issue #5564)", () => {
+        const abort = fileTail(body(), "### Abort");
+        expect(abort).toMatch(
+            /--remove-label ready-for-agent --add-label ready-for-human/
+        );
+        expect(abort).toMatch(/gh issue view N --json labels/);
+        expect(abort).toMatch(/gh issue comment N/);
+        expect(abort).toMatch(/\*\*Done when:\*\*[^]*owner-work\s+branch/);
+    });
+
     it("hands off through `land:ready` and creates worktrees through `wt:new` — never by hand", () => {
         // Issue #5469: the pass ends at push + `ready-to-land`; the one
         // land-runner runs `land`. Before it, `gate:run land` (issue #3698)

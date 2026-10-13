@@ -15,8 +15,9 @@ this file and nothing else.
 **Disclosed material** — open a file only when its condition holds:
 
 - → `abort.md` — the abort protocol: wire the prerequisite in both stores,
-  release the claim as one act. Read it when: this issue cannot land in this
-  pass.
+  or hand owner work back as `ready-for-human`; release the claim as one act.
+  Read it when: this issue cannot land in this pass — never end the pass with
+  only a suggestion in chat.
 - → `land-failures.md` — a REPAIR pick: the runner labelled the PR
   `land-failed` (a red lane, a regenerable-artefact red, a RED refusal, a
   wrong base). Read it when: the pick is `repair`, or `land:ready` refuses.
