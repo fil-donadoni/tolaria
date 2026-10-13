@@ -51,6 +51,9 @@
 //     creature costs (`manaValue` of the escape < the creature's own).
 //     Known limit: each held creature is asked alone, so a controller who can
 //     afford one escape but not three reads all three as free.
+//     The base census also counts sources another lock keeps tapped, and
+//     `buildManaLocks` still reads a blue mana source under such a lock as
+//     fully held (the creature axis reads it as escaped).
 //
 // The MANA axis (issue #5163, ADR 0151 — a symmetric lock read by
 // Differential Reading). An untap restriction on MANA SOURCES (Winter Orb's
