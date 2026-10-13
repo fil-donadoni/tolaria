@@ -47,7 +47,7 @@ import {
 } from "../cards/compiledStatics";
 import { PERMANENT_TYPES } from "../cards/types";
 import type { PermanentFilter } from "../cards/filters";
-import type { CardDefinition, KickerCost } from "../cards/types";
+import type { CardDefinition, CardType, KickerCost } from "../cards/types";
 import { kickedValue } from "./lowerEffects";
 import { deriveCastPermissionId } from "./castPermissionId";
 import type {
@@ -86,6 +86,10 @@ export interface LoweredStatic {
     readonly entersTapped?: true;
     /** CR 614.10 — "Skip your draw step". */
     readonly drawStepReplacement?: true;
+    /** CR 305.2 — additional land plays each turn. */
+    readonly extraLandDrops?: number;
+    /** CR 614.1a — "you may discard a <type> card instead" as it enters. */
+    readonly asEntersDiscard?: { readonly filter: { readonly type: CardType } };
     /** CR 614.1a — the self-shuffle replacement. */
     readonly shuffleFromAnywhere?: true;
     /** CR 615 — "prevent that damage. Remove a +1/+1 counter". */
@@ -574,6 +578,28 @@ export function lowerStaticClause(
             };
         case "skip-draw-step":
             return { ok: true, lowered: { drawStepReplacement: true } };
+        case "extra-land-drop":
+            return { ok: true, lowered: { extraLandDrops: clause.count } };
+        case "as-enters-discard":
+            return {
+                ok: true,
+                lowered: { asEntersDiscard: { filter: clause.filter } },
+            };
+        // CR 702.18b — the player-scoped guard is already the engine's own
+        // JSON-pure effect (`StaticPlayerGuard` carries no predicate).
+        case "player-shroud":
+            return {
+                ok: true,
+                lowered: {
+                    effects: [
+                        {
+                            kind: "player-guard",
+                            id: nextId("player-shroud"),
+                            cantBeTargeted: true,
+                        },
+                    ],
+                },
+            };
         case "shuffle-from-anywhere":
             return { ok: true, lowered: { shuffleFromAnywhere: true } };
         case "damage-prevention-counter-removal":

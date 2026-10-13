@@ -55,6 +55,7 @@ import type {
     StaticEffectContext,
     StaticEffectStateView,
     StaticKeywordGrant,
+    StaticPlayerGuard,
     StaticTargetChoiceRequirement,
 } from "./types";
 import type { CompiledControlsCondition } from "./compiledTriggers";
@@ -424,7 +425,14 @@ export type CompiledStaticEffect =
      * read live by `gre/targetChoiceRequirements.ts`), so it carries no
      * predicate a JSON emitter would have to leave behind.
      */
-    | StaticTargetChoiceRequirement;
+    | StaticTargetChoiceRequirement
+    /**
+     * CR 702.18b / 115.4 — "You have shroud": the third member that is the
+     * engine's own effect verbatim. `StaticPlayerGuard` is read live by
+     * `playerHasShroud` (`gre/permanentGuard.ts`) and carries no predicate —
+     * only an id and a boolean — so there is nothing to rebuild.
+     */
+    | StaticPlayerGuard;
 
 /**
  * One descriptor's filter as a live predicate.
@@ -790,6 +798,9 @@ export function resolveCompiledStatic(
             return descriptor;
         // CR 601.2c — verbatim, by the same argument.
         case "target-choice-requirement":
+            return descriptor;
+        // CR 702.18b — verbatim, by the same argument.
+        case "player-guard":
             return descriptor;
         default: {
             const never: never = descriptor;
