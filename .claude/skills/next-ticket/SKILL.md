@@ -197,7 +197,10 @@ lane, merge, seed, teardown). A session never runs `land` nor waits for it.
   refuses a diff under `convex/cards/sets/` or `convex/gre/` without the
   heading; write "none owed" there when it is not. The runner seeds it.
 - Hand off: `bun run land:ready <PR#>` — PR labelled `ready-to-land`, claim
-  `pr-open` (stands, no cap slot; released at merge).
+  `pr-open` (stands, no cap slot; released at merge). It first runs the
+  lane's seconds-cost steps on this worktree (issue #5554); a red refuses
+  the hand-off — fix it HERE, push, re-run. Escape, announced and commented
+  on the PR, for a red that is base's: `TOLARIA_PREQUEUE_RED_OK=1`.
 - **Gap issue**: `gap-holes.md` before the report.
 
 **Done when:** the PR is open and pushed, and `land:ready` reported it

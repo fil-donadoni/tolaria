@@ -1,7 +1,8 @@
 # /next-ticket — a repair pick: the land-runner's `land` went red
 
 Reached from `SKILL.md` § 0 when the pick is `repair` (`queue:plan`'s
-`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses. The
+`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses (its pre-queue check red: the PR's own
+error, fixed in the authoring session, never handed to the runner). The
 land-runner (issue #5469) ran `land` on the PR, it exited red, and the runner
 relabelled the PR `ready-to-land` → `land-failed` with a comment carrying the
 lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
