@@ -12211,11 +12211,13 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         //
         // WHY THIS PAIR AND NOT THE #4141 SLICE. When this entry landed,
         // Black Vise, Ivory Tower, Stasis and the rest of that slice read
-        // BELOW their `base + MV` floor (an upkeep trigger priced as firing
-        // once), and the floor was uplift-only — so the ability reading never
-        // moved them. The Disk was the first artifact whose ability script
-        // outran the floor. The recurrence multiplier (issue #5151) since
-        // lifted Black Vise above it: the next entry is the slice's own.
+        // BELOW their `base + MV` floor (a context-free value of a symmetric
+        // tax or lock is small or negative; an upkeep trigger was priced as
+        // firing once), and for such a script the floor is uplift-only — so
+        // the ability reading never moved them. The Disk was the first
+        // artifact whose ability script outran the floor. The recurrence
+        // multiplier (issue #5151) since lifted Black Vise above it: the next
+        // entry is the slice's own.
         label: "removal: Shatter takes the artifact whose ability script outranks its floor (issue #5145)",
         classification: { kind: "absolute" },
         spec: {
@@ -12306,7 +12308,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5151. Measured at 400 iterations over 20 seeds: with `latent.recurrence` forced to 1 (the pre-#5151 reading) the Vise is taken 6/20 in this listing order (10/20 with the Vise listed first; the rest Bear Trap or a pass — the tie), 20/20 in either order with the multiplier. Proof of failure: dropping Black Vise's `aiEffects` shadow (`lea/colorless.cards.ts`) puts it back at the floor and turns this entry red — the criterion issue #4141 waived, discharged here. Re-proved after ADR 0151's slices (issue #5165, at the #5163 refit): the Vise 20/20 over 20 seeds; with the shadow dropped, Bear Trap 10, the Vise 7, a pass 3 — red on the declared seeds.",
+        note: "Issue #5151. Measured at 400 iterations over 20 seeds: with `latent.recurrence` forced to 1 (the pre-#5151 reading) the Vise is taken 6/20 in this listing order (10/20 with the Vise listed first; the rest Bear Trap or a pass — the tie), 20/20 in either order with the multiplier. Proof of failure: dropping Black Vise's `aiEffects` shadow (`lea/colorless.cards.ts`) puts it back at the floor and turns this entry red — the criterion issue #4141 waived, discharged here. Re-proved after ADR 0151's slices (issue #5165; `fit:weights` left the committed vector unchanged, no weight edit): the Vise 20/20 over 20 seeds; with the shadow dropped, Bear Trap 10, the Vise 7, a pass 3 — red on the declared seeds.",
     },
     {
         // RESTRICTION PRICING (CR 508.1c, issue #5154). The bot holds
