@@ -331,18 +331,20 @@ describe("loop-drain lanes — one account, one run (issue #5486)", () => {
         expect(reasons()).toEqual(["-", "-"]);
     });
 
-    it("…and released with no hand-off = no progress, which stops the run as it always did", () => {
+    it("…and released with no hand-off = its issue excluded for the run; nothing else left stops it on no-progress (issue #5564)", () => {
         stubGh();
-        stubBunPlan([101, 102, 103, 104, 105]);
+        stubBunPlan([101, 102]);
         stubClaude("sleep 2", false);
-        const r = runLanes(["--lanes", "auto", "--max-passes", "2"], {
+        const r = runLanes(["--lanes", "auto", "--max-passes", "5"], {
             load1: 1,
             pressure: 1,
             reclaimableMb: ramFor(5),
         });
         expect(r.status, `${r.stdout}${r.stderr}`).toBe(1);
-        expect(reasons()).toEqual(["-", "no-progress"]);
+        expect(replay().starts).toBe(2);
+        expect(reasons()).toEqual(["-", "-"]);
         expect(r.stdout).toMatch(/reason=no-progress/);
+        expect(r.stderr).toMatch(/excluded this run .*: #10[12] #10[12]$/m);
     });
 
     it("SIGTERM to the driver ends every pass in flight — a background pass ignores the terminal's SIGINT, so the driver forwards it", async () => {
