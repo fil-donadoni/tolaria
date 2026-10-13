@@ -12612,7 +12612,71 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5164. Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) through the board face (`nonCreatureBodyValue`'s `standingEngineLens`, `evaluate.ts`): the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawWorth`, `ai/latentBoard.ts`), the opponent's minus the bot's.",
+        note: "Issue #5164. The anchor reading of the Howling Mine pair: the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawWorth`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Mine 20/20. NOT discriminating on its own — with `eachStepDifferentialValue` returning undefined (the netting skipped) the context-free \"its controller draws\" reading also prices the Mine above the Aeolipile, 20/20; the mirror entry below is the half that reds.",
+    },
+    {
+        // SYMMETRIC ENGINE, MIRROR (issue #5164, ADR 0151) — the board above
+        // with the hands swapped: the bot holds Disenchant alone, the
+        // opponent seven cards. Now the opponent's Howling Mine feeds the
+        // BOT — its extra card lands in an empty hand, the opponent's is
+        // discarded at cleanup (CR 514.1) or replaces a worse one — so
+        // destroying it is destroying the bot's own engine.
+        //
+        // This is the half that discriminates: read once as "its controller
+        // draws" (the pre-#5164 reading), the Mine is worth an extra card a
+        // turn to the opponent on every board and Disenchant takes it 20/20
+        // here exactly as above.
+        label: "symmetric engine: Disenchant leaves the Howling Mine that feeds the bot's empty hand (issue #5164)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Howling Mine whose extra draw only the bot has room in hand for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 7 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "opp" as const,
+                    zone: "hand" as const,
+                })),
+                ...(["me", "opp"] as const).flatMap((owner) =>
+                    Array.from({ length: 10 }, () => ({
+                        name: "Grizzly Bears",
+                        owner,
+                        zone: "library" as const,
+                    }))
+                ),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Howling Mine", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Howling Mine",
+                },
+            ],
+        },
+        note: "Issue #5164. The discriminating half of the Howling Mine pair (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the board face's negative bound (`latentValue`'s `onBattlefield`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (Aeolipile 8, pass 12); proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): Disenchant on the Mine 20/20.",
     },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
