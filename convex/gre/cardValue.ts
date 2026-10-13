@@ -193,6 +193,17 @@ export function latentValue(chars: {
      *  never below nothing — a card in hand is never cast at a loss, and a
      *  negative reading made dumping a self-harm spell look like profit. */
     dslScriptComplete?: boolean;
+    /** Issue #5163 (ADR 0151) — a STANDING LOCK's measured worth on a real
+     *  board (`declaresStandingLock`): the margin its static restrictions move
+     *  there, the opponent's realised loss minus the controller's own. In hand
+     *  it is the lens's `standingLockWorth`; on the battlefield it is 0 here,
+     *  because the board term and `permanentRealisedValue` already carry it
+     *  beside this body (`restrictionSourceWorth`). Defined = MEASURED: the
+     *  Latent Floor drops (ADR 0151 rule 2) and the reading may go negative —
+     *  a lock that hurts its controller reads below nothing on both faces.
+     *  Undefined (no board, or not a lock) keeps the floor. Non-creature
+     *  branch only. */
+    standingLockValue?: number;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
@@ -254,6 +265,19 @@ export function latentValue(chars: {
     // carries the same templates inside `dslAbilityValue`, so this is the
     // non-creature branch's only reading.
     const delayed = chars.dslDelayedTemplateValue ?? 0;
+    // Issue #5163 (ADR 0151) — a measured standing lock reads its own number:
+    // every script the card carries plus the lock's worth on this board, no
+    // floor and no zero clamp, so the hand face and the board face of the
+    // lock are one number whatever its sign.
+    if (chars.standingLockValue !== undefined) {
+        return Math.min(
+            (chars.dslSpellValue ?? 0) +
+                (chars.dslStandingAbilityValue ?? 0) +
+                delayed +
+                chars.standingLockValue,
+            MAX_LATENT_SCRIPT_VALUE
+        );
+    }
     // Issue #5145 — a permanent's standing ability scripts compose ADDITIVELY
     // with its spell script (an artifact with a cast effect AND an activated
     // ability earns both) and inside the same clamp and floor: they are one
@@ -314,6 +338,32 @@ function carriesStandingAbilityWorth(def: CardDefinition): boolean {
     );
 }
 
+/** Issue #5163 (ADR 0151) — true for a non-creature, non-land PERMANENT whose
+ *  static restrictions reach the whole battlefield rather than one host or
+ *  itself: an untap restriction that is neither host- nor self-scoped
+ *  (Winter Orb, Stasis, Meekstone) or a battlefield-scanned attack
+ *  prohibition (Moat). Its worth is a Symmetric Effect's — the board decides
+ *  its sign — so on a real board it is MEASURED (`standingLockValue`), and
+ *  the same reading prices it in hand and on the battlefield. An Aura's
+ *  host-scoped lock (Pacifism, Paralyze) is not one: in hand its host is
+ *  not chosen yet. */
+export function declaresStandingLock(def: CardDefinition): boolean {
+    if (
+        def.types.includes("Creature") ||
+        def.types.includes("Land") ||
+        !carriesStandingAbilityWorth(def)
+    ) {
+        return false;
+    }
+    return (def.staticEffects ?? []).some(
+        (effect) =>
+            effect.kind === "global-attack-restriction" ||
+            (effect.kind === "untap-restriction" &&
+                !effect.appliesToHost &&
+                !effect.appliesToSelf)
+    );
+}
+
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free
  *  grounding — the card's worth in hand). Split out so both the id-keyed and
  *  the live-instance `cardValue` entry points share one derivation. */
@@ -344,6 +394,7 @@ export function dslLatentPieces(
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     dslScriptComplete?: boolean;
+    standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
 } {
     const dslSpellValue = dslSpellScriptValue(def, board, latent);
@@ -392,6 +443,12 @@ export function dslLatentPieces(
             dslSpellValue !== undefined && board?.measured() === true,
         // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
         dslScriptComplete: isCompleteScript(def),
+        // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
+        // board the lens is attached to; context-free (no lens) it stays
+        // unmeasured and keeps the floor.
+        standingLockValue: declaresStandingLock(def)
+            ? board?.standingLockWorth?.()
+            : undefined,
     };
 }
 
@@ -413,6 +470,7 @@ export function dslLatentPiecesById(
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
     dslScriptComplete?: boolean;
+    standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
 } {
     const def = tryGetDefinition(cardId);

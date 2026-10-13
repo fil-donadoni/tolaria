@@ -92,6 +92,7 @@ import {
 } from "./ai/colorCoverage";
 import {
     creatureValueRaw,
+    declaresStandingLock,
     dslEtbAbilityInFlightValueById,
     dslLatentPiecesById,
     dslRealizedAbilityValueById,
@@ -104,6 +105,7 @@ import { keywordBonusFor } from "./creatureBody";
 // and credited to their source, off the engine's own legality collections.
 import {
     creatureRestrictionDiscount,
+    manaSourceLockDiscount,
     restrictionSourceWorth,
     type RestrictionShareWeights,
 } from "./ai/restrictionPricing";
@@ -344,7 +346,21 @@ export function cardValue(
         // survives the wire projection (`card.card` is stripped to `{ id }`) —
         // so the value is identical client- and server-side.
         ...dslLatentPiecesById(String(card.card.id ?? ""), board, latent),
+        // Issue #5163 (ADR 0151) — a standing lock IN PLAY is measured: the
+        // board term and `permanentRealisedValue` carry its worth beside this
+        // body (`restrictionSourceWorth`), so the body drops the Latent Floor
+        // exactly as the hand face does, and the two faces are one number.
+        ...(card.zone === "battlefield" && isStandingLockInstance(card)
+            ? { standingLockValue: 0 }
+            : {}),
     });
+}
+
+/** Issue #5163 — `declaresStandingLock` off the registry id that survives the
+ *  wire projection. */
+function isStandingLockInstance(card: CardInstanceState): boolean {
+    const def = tryGetDefinition(String(card.card.id ?? ""));
+    return def !== undefined && declaresStandingLock(def);
 }
 
 /** The latent board lens for one card in `player`'s hand, or `undefined` when
@@ -381,6 +397,16 @@ function latentBoardFor(
                 ),
             aggregateLoss: (changes) =>
                 sweptAggregateNetLoss(state, player.id, weights, seat, changes),
+            // Issue #5163 — the board face's own reading, on the board the
+            // card would leave behind (see `permanentRealisedValue`).
+            standingWorth: (board, perm) =>
+                2 *
+                restrictionSourceWorth(
+                    board,
+                    perm,
+                    weights,
+                    beginLayer7Pass(board)
+                ),
         },
         contextFreeLatentLens(weights.latent)
     );
@@ -515,7 +541,12 @@ function availableManaUnitsFor(
  *  of every step and phase (CR 500.5), so it is the least durable thing on the
  *  board. It stays in `availableManaUnitsFor`, where "can I pay for this right
  *  now" is the question being asked. */
-function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
+function manaSourceTermFor(
+    state: GameState,
+    player: PlayerState,
+    weights: EvalWeights,
+    pass: Layer7Pass
+): number {
     let total = 0;
     for (const perm of player.battlefield) {
         if (!hasManaAbility(perm, undefined, player.battlefield)) continue;
@@ -528,6 +559,10 @@ function manaSourceTermFor(player: PlayerState, weights: EvalWeights): number {
         // finding 1). The flat `permanentWeight` stays: the permanent IS there.
         if (finiteManaUsesRemaining(perm) > 0) continue;
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+        // Issue #5163 — CR 502.3: a source an untap lock keeps from
+        // untapping (Winter Orb beyond its cap, Stasis) has lost what this
+        // weight prices — that it comes back. Zero with no untap restriction.
+        total -= manaSourceLockDiscount(state, perm, weights, pass);
     }
     return total;
 }
@@ -1450,6 +1485,9 @@ export function permanentRealisedValue(
         hasManaAbility(perm, undefined, controller.battlefield)
     ) {
         total += perm.isTapped ? weights.tappedManaWeight : weights.manaWeight;
+        // Issue #5163 — the same lock discount `manaSourceTermFor` takes, so
+        // the lens prices a locked land at what it was still worth.
+        total -= manaSourceLockDiscount(state, perm, weights, pass);
     }
     return total;
 }
@@ -1690,7 +1728,7 @@ function playerTerms(
     // something forfeits nothing durable; it untaps next turn (CR 502.3), and
     // the option it gave up THIS turn is `flexibility`'s job, priced below off
     // `manaCensus.now`.
-    terms.mana = manaSourceTermFor(player, weights);
+    terms.mana = manaSourceTermFor(state, player, weights, pass);
     // CR 118.3 / 122.1 (issue #3530) — what the two-valued `mana` read above
     // cannot see: how many activations a counter-paid source has left. Zero on
     // a board of renewable sources.

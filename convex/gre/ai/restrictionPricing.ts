@@ -45,12 +45,27 @@
 //   - `collectUntapRestrictions` (`gre/phases.ts`), kept to `maxUntap: 0` —
 //     the untap restrictions the untap dispatcher itself hard-skips on.
 //
+// The MANA axis (issue #5163, ADR 0151 — a symmetric lock read by
+// Differential Reading). An untap restriction on MANA SOURCES (Winter Orb's
+// cap, Stasis's hard skip) takes away what the `mana` term prices a source
+// for: that it comes back every untap step (CR 502.3, issue #3377). A locked
+// source that sits TAPPED is dead mana until something else untaps it, and
+// loses its whole `tappedManaWeight`; one still UNTAPPED keeps exactly one
+// activation — the price of one use that does not come back,
+// `finiteManaUseWeight` (CR 118.3, issue #3530) — and loses the rest of its
+// `manaWeight`. Under a CAP (`maxUntap: k`) the k sources that lose the most
+// keep renewing — the steady state of an untap step that untaps k of them —
+// and the rest are locked. Per side, per source, counterfactually, exactly as
+// the creature axes: the source of the lock earns the opponent's locked mana
+// minus its controller's own, so the SIGN of a Winter Orb is the land count
+// of each side, read off the board at every leaf, never a fixed sign on the
+// card.
+//
 // OUT (by the issue, or by this module's reach — listed so nobody reads a
 // zero as a verdict): cost taxes (a mana-economy term, tracker issue #5156);
-// the board-dependent SIGN of a symmetric lock (Stasis) — the asymmetric
-// reading only, sign-correct by construction; keyword rows (issue #5152); an
-// untap CAP (`maxUntap: 1`, Smoke / Winter Orb — not a per-creature fact);
-// the `does-not-untap` keyword grant and the pay-to-untap escape (Thelon's
+// keyword rows (issue #5152); an untap CAP on CREATURES (`maxUntap: 1` over
+// creatures, Smoke — which creature untaps is not a per-creature fact; its
+// mana creatures ARE read by the mana axis); the `does-not-untap` keyword grant and the pay-to-untap escape (Thelon's
 // Curse), which are not `untap-restriction` statics; declared-set
 // restrictions ("can only attack alone"); a block restriction with a
 // `bypassCost` (Hipparion — the block is still legal for a price).
@@ -76,7 +91,11 @@ import { matchesPermanentFilter } from "../../cards/filters";
 import { tryGetDefinition } from "../../cards";
 import { declaresCombatRestrictionStaticEffect } from "../../cards/registry";
 import { collectAttackRestrictions, collectBlockRestrictions } from "../combat";
-import { isCreature } from "../constants";
+import {
+    finiteManaUsesRemaining,
+    hasManaAbility,
+    isCreature,
+} from "../constants";
 import { creatureAttackShareRaw, creatureBlockShareRaw } from "../creatureBody";
 import { getEffectivePT, type Layer7Pass } from "../layers";
 import { effectivePermanentView } from "../permanentView";
@@ -90,6 +109,23 @@ export type RestrictionShareWeights = {
     readonly cannotAttackShare: number;
     /** Fraction of a creature's block share lost when it cannot block. */
     readonly cannotBlockShare: number;
+    /** Issue #5163 — the `mana` term's own prices (`EvalWeights`): an
+     *  untapped renewable source, a tapped one, and one activation that does
+     *  not come back. The mana axis prices a locked source with exactly the
+     *  numbers the term priced it at, so nothing new is fitted. */
+    readonly manaWeight: number;
+    readonly tappedManaWeight: number;
+    readonly finiteManaUseWeight: number;
+};
+
+/** Issue #5163 — one untap restriction over one player's renewable mana
+ *  sources: the source permanent's id, its cap (`maxUntap`, 0 = hard skip)
+ *  and the sources it matches. Recorded only when it matches more sources
+ *  than its cap, i.e. when it locks something. */
+type ManaLock = {
+    readonly sourceId: string;
+    readonly maxUntap: number;
+    readonly matched: readonly CardInstanceState[];
 };
 
 /** What binds ONE creature, by source instance id. Weight-free, so the plan
@@ -120,9 +156,13 @@ type RestrictedEntry = {
 export type RestrictionPlan = {
     readonly state: GameState;
     readonly entries: ReadonlyMap<string, RestrictedEntry>;
+    /** Issue #5163 — per player id, the untap restrictions that lock some of
+     *  that player's renewable mana sources. */
+    readonly manaLocks: ReadonlyMap<string, readonly ManaLock[]>;
 };
 
 const EMPTY_ENTRIES: ReadonlyMap<string, RestrictedEntry> = new Map();
+const EMPTY_MANA_LOCKS: ReadonlyMap<string, readonly ManaLock[]> = new Map();
 
 function cardId(card: CardInstanceState): string | undefined {
     return (card.card as { id?: string }).id;
@@ -173,7 +213,7 @@ function buildRestrictionPlan(
             );
         })
     ) {
-        return { state, entries: EMPTY_ENTRIES };
+        return { state, entries: EMPTY_ENTRIES, manaLocks: EMPTY_MANA_LOCKS };
     }
 
     const entries = new Map<string, RestrictedEntry>();
@@ -210,13 +250,15 @@ function buildRestrictionPlan(
     // untap dispatcher's own collection (`collectUntapRestrictions`, every
     // gate applied and every host-/self-scoped filter already synthesized),
     // kept to the `maxUntap: 0` ones exactly as `computeHardSkipFilters` does.
+    const untapRestrictions = collectUntapRestrictions(state);
     const hardSkips: { sourceId: string; filter: PermanentFilter }[] =
-        collectUntapRestrictions(state)
+        untapRestrictions
             .filter((r) => r.restriction.maxUntap === 0)
             .map((r) => ({
                 sourceId: r.source.id,
                 filter: r.restriction.filter,
             }));
+    const manaLocks = buildManaLocks(state, untapRestrictions);
 
     // Probe views for the block axis: every creature with its EFFECTIVE power,
     // exactly as `validateBlockerEligibility` enriches both sides (power only,
@@ -343,7 +385,49 @@ function buildRestrictionPlan(
             });
         }
     }
-    return { state, entries };
+    return { state, entries, manaLocks };
+}
+
+/** Issue #5163 — CR 502.3: per player, every untap restriction that matches
+ *  more of that player's RENEWABLE mana sources than it lets untap. A finite
+ *  source (CR 118.3, a depletion land) is left out: the `mana` term does not
+ *  price it as renewable (`finiteManaUses` does, by its charges), so an untap
+ *  lock takes nothing from it that the evaluation counted. */
+function buildManaLocks(
+    state: GameState,
+    untapRestrictions: ReturnType<typeof collectUntapRestrictions>
+): ReadonlyMap<string, readonly ManaLock[]> {
+    if (untapRestrictions.length === 0) return EMPTY_MANA_LOCKS;
+    const out = new Map<string, ManaLock[]>();
+    for (const player of state.players) {
+        const sources = player.battlefield
+            .filter(
+                (perm) =>
+                    hasManaAbility(perm, undefined, player.battlefield) &&
+                    finiteManaUsesRemaining(perm) === 0
+            )
+            .map((perm) => ({
+                perm,
+                view: effectivePermanentView(state, perm),
+            }));
+        if (sources.length === 0) continue;
+        const locks: ManaLock[] = [];
+        for (const { source, restriction } of untapRestrictions) {
+            const matched = sources
+                .filter(({ view }) =>
+                    matchesPermanentFilter(view, restriction.filter)
+                )
+                .map(({ perm }) => perm);
+            if (matched.length <= restriction.maxUntap) continue;
+            locks.push({
+                sourceId: source.id,
+                maxUntap: restriction.maxUntap,
+                matched,
+            });
+        }
+        if (locks.length > 0) out.set(player.id, locks);
+    }
+    return out;
 }
 
 /** The plan for `state`, built on first read and kept on `pass`; rebuilt
@@ -391,6 +475,73 @@ function discountOf(
     );
 }
 
+/** Issue #5163 — what ONE locked mana source loses off its `mana` term
+ *  price: tapped, all of it (dead until something else untaps it); untapped,
+ *  all but the one activation it still holds. */
+function lockedManaLoss(
+    source: CardInstanceState,
+    shares: RestrictionShareWeights
+): number {
+    return source.isTapped
+        ? shares.tappedManaWeight
+        : Math.max(0, shares.manaWeight - shares.finiteManaUseWeight);
+}
+
+/** Issue #5163 — the ids of `locks`' locked mana sources, with the lock
+ *  source `exclude` treated as absent. A hard skip locks every source it
+ *  matches; a cap of k lets the k sources that lose the most keep renewing
+ *  (ties by id, so the reading is deterministic) and locks the rest. */
+function lockedManaSources(
+    locks: readonly ManaLock[],
+    shares: RestrictionShareWeights,
+    exclude?: string
+): Map<string, CardInstanceState> {
+    const locked = new Map<string, CardInstanceState>();
+    for (const lock of locks) {
+        if (lock.sourceId === exclude) continue;
+        const ranked =
+            lock.maxUntap === 0
+                ? lock.matched
+                : [...lock.matched].sort(
+                      (a, b) =>
+                          lockedManaLoss(b, shares) -
+                              lockedManaLoss(a, shares) ||
+                          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+                  );
+        for (const perm of ranked.slice(lock.maxUntap)) {
+            locked.set(perm.id, perm);
+        }
+    }
+    return locked;
+}
+
+function lockedManaTotal(
+    locked: ReadonlyMap<string, CardInstanceState>,
+    shares: RestrictionShareWeights
+): number {
+    let total = 0;
+    for (const perm of locked.values()) total += lockedManaLoss(perm, shares);
+    return total;
+}
+
+/** What an untap lock takes off `source`'s `mana` term price as a MANA
+ *  SOURCE (issue #5163): zero for a source nothing locks, which is every
+ *  source on a board with no untap restriction. Read by the `mana` term and
+ *  by `permanentRealisedValue`, so a locked land's removal is priced at what
+ *  it was still worth. */
+export function manaSourceLockDiscount(
+    state: GameState,
+    source: CardInstanceState,
+    shares: RestrictionShareWeights,
+    pass: Layer7Pass
+): number {
+    const locks = planFor(state, pass).manaLocks.get(source.controllerId);
+    if (!locks) return 0;
+    return lockedManaSources(locks, shares).has(source.id)
+        ? lockedManaLoss(source, shares)
+        : 0;
+}
+
 /** What `card`'s restrictions take off its realized body (issue #5154):
  *  zero for a creature nothing binds, which is every creature on a board with
  *  no restriction source. Read by `evaluateCreature`. */
@@ -420,8 +571,23 @@ export function restrictionSourceWorth(
     pass: Layer7Pass
 ): number {
     const plan = planFor(state, pass);
-    if (plan.entries.size === 0) return 0;
     let worth = 0;
+    // Issue #5163 — the mana axis: per side, the locked mana with this
+    // source minus without it, the opponent's a gain and the controller's own
+    // a loss. A Winter Orb beside two lands of its controller's and six of the
+    // opponent's earns the five the opponent cannot renew minus the one its
+    // controller cannot.
+    for (const [playerId, locks] of plan.manaLocks) {
+        if (!locks.some((lock) => lock.sourceId === source.id)) continue;
+        const taken =
+            lockedManaTotal(lockedManaSources(locks, shares), shares) -
+            lockedManaTotal(
+                lockedManaSources(locks, shares, source.id),
+                shares
+            );
+        worth += playerId === source.controllerId ? -taken : taken;
+    }
+    if (plan.entries.size === 0) return worth;
     for (const entry of plan.entries.values()) {
         if (entry.card.id === source.id) continue;
         if (

@@ -182,6 +182,45 @@ export interface LatentBoardInputs {
     returnedWorth: RealisedLoss;
     /** Issue #4874 — see `AggregateLoss`. */
     aggregateLoss: AggregateLoss;
+    /** Issue #5163 — the margin a PERMANENT's standing restrictions move on
+     *  `board` (`2 × restrictionSourceWorth`, the reading
+     *  `permanentRealisedValue` makes): read by `standingLockWorth` on the
+     *  board with the hand card entered. Omitted, the lens has no standing
+     *  reading and a lock in hand keeps its context-free valuation. */
+    standingWorth?: (board: GameState, perm: CardInstanceState) => number;
+}
+
+/** Issue #5163 — `state` with `card` moved from `casterId`'s hand onto
+ *  `casterId`'s battlefield, untapped and unattached: the board a permanent
+ *  spell in hand would leave behind once it resolved (CR 608.3), which is
+ *  where its standing worth is measured. */
+export function withCardEntered(
+    state: GameState,
+    casterId: string,
+    card: CardInstanceState
+): { state: GameState; perm: CardInstanceState } {
+    const perm: CardInstanceState = {
+        ...card,
+        zone: "battlefield",
+        controllerId: casterId,
+        isTapped: false,
+        attachedTo: undefined,
+    };
+    return {
+        perm,
+        state: {
+            ...state,
+            players: state.players.map((p) =>
+                p.id === casterId
+                    ? {
+                          ...p,
+                          hand: p.hand.filter((c) => c.id !== card.id),
+                          battlefield: [...p.battlefield, perm],
+                      }
+                    : p
+            ),
+        },
+    };
 }
 
 /** A lens that prices a card in hand against THIS board (issue #3398).
@@ -213,6 +252,7 @@ export function makeLatentBoardLens(
         realisedLoss,
         returnedWorth,
         aggregateLoss,
+        standingWorth,
     } = inputs;
     // A cast-time modal card declares its targets PER MODE (CR 700.2d), and
     // which mode will be chosen is not a fact this valuation has. Fall back
@@ -308,6 +348,19 @@ export function makeLatentBoardLens(
             measured = true;
             return total;
         },
+        // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
+        // the board the card would leave behind: the same per-leaf netting
+        // the board face reads, so the hand face and the board face of the
+        // lock are one number. Read only for a definition that declares a
+        // standing lock (`declaresStandingLock`, `cardValue.ts`).
+        ...(standingWorth
+            ? {
+                  standingLockWorth() {
+                      const entered = withCardEntered(state, casterId, card);
+                      return standingWorth(entered.state, entered.perm);
+                  },
+              }
+            : {}),
         measured: () => measured,
     };
 }

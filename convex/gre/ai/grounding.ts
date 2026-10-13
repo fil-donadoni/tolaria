@@ -111,6 +111,15 @@ export interface LatentLens {
      *  `$each` names during one side of `eachPlayerDifferential`. Absent on
      *  every other walk. */
     readonly eachPlayer?: EachPlayerSide;
+    /** Issue #5163 (ADR 0151) — the points a STANDING LOCK in hand (a
+     *  permanent whose static restrictions reach the whole battlefield —
+     *  Winter Orb, Stasis, Meekstone, Moat) would move the margin by once on
+     *  this board under the caster's control: the opponent's realised loss
+     *  minus the caster's own, the reading the board face makes at every
+     *  leaf. Negative when the lock hurts its caster more. Present only on a
+     *  lens attached to a real board; read by `dslLatentPieces`, whose
+     *  `latentValue` then drops the Latent Floor (a measured reading). */
+    standingLockWorth?(): number;
     /** True once `victimUnits` or `sweepUnits` has ANSWERED at least one slot off a REAL
      *  board — i.e. this script's board-affecting worth is MEASURED, not
      *  assumed from a representative victim.
