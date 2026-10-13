@@ -249,7 +249,7 @@ describe("restriction pricing — the restricted side (issue #5154)", () => {
 });
 
 describe("restriction pricing — the source's standing worth (issue #5154)", () => {
-    it("the removal lens ranks an opposing Moat above a plain 4-MV artifact when the Bot's board is grounded, and level with it when nothing is", () => {
+    it("the removal lens ranks an opposing Moat above a plain 4-MV artifact when the Bot's board is grounded, and below it when it grounds nothing", () => {
         const moat = inst(MOAT, "p2", "moat");
         const stone = inst(MIGHTSTONE, "p2", "stone");
         const grounded = board(
@@ -267,7 +267,13 @@ describe("restriction pricing — the source's standing worth (issue #5154)", ()
             [inst(SPRITES, "p1", "s1"), inst(SPRITES, "p1", "s2")],
             [moat, stone]
         );
+        // Issue #5163 (ADR 0151) — a Moat is a standing lock, MEASURED on
+        // every board: grounding nothing, it reads its own number — its
+        // presence alone — and no longer the Latent Floor the artifact keeps.
         expect(permanentRealisedValue(airborne, moat, W)).toBe(
+            W.permanentWeight
+        );
+        expect(permanentRealisedValue(airborne, moat, W)).toBeLessThan(
             permanentRealisedValue(airborne, stone, W)
         );
     });
