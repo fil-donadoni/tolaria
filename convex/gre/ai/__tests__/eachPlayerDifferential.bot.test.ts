@@ -33,6 +33,7 @@ import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { innocentBlood } from "../../../cards/sets/ody/black.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
+import { balance } from "../../../cards/sets/lea/white.cards";
 
 interface Side {
     hand?: readonly string[];
@@ -279,5 +280,63 @@ describe("a body the Differential cannot attribute keeps today's reading (issue 
         // Timetwister also shuffles each graveyard into its library — a
         // graveyard term the hand read does not cover.
         expectRepresentative(timetwister());
+    });
+});
+
+describe("a keep-N edict reads the members above the fewest (issue #5559)", () => {
+    const bal = balance().id;
+    const land = forest().id;
+    const bear = grizzlyBears().id;
+
+    it("Balance flips sign between five lands against two and two against five", () => {
+        // CR 701.21a — each player sacrifices the lands above the fewest any
+        // player controls. Five against two costs the caster three lands; the
+        // mirror costs the opponent three.
+        const ahead = readOnBoard(
+            bal,
+            { board: cards(5, land) },
+            { board: cards(2, land) }
+        );
+        const behind = readOnBoard(
+            bal,
+            { board: cards(2, land) },
+            { board: cards(5, land) }
+        );
+        expect(ahead.value).toBeLessThan(0);
+        expect(behind.value).toBeGreaterThan(0);
+        expect(ahead.measured && behind.measured).toBe(true);
+    });
+
+    it("reads ZERO on an even board", () => {
+        // Nobody is above the fewest: no step takes anything.
+        const even = readOnBoard(
+            bal,
+            { board: [land, land, bear], hand: [bear] },
+            { board: [land, land, bear], hand: [bear] }
+        );
+        expect(even.value).toBe(0);
+        expect(even.measured).toBe(true);
+    });
+
+    it("the caster's hand is counted without Balance itself", () => {
+        // One card beside Balance against one card: Balance is on the stack
+        // when the hands are counted, so the hands are even.
+        const even = readOnBoard(bal, { hand: [bear] }, { hand: [bear] });
+        expect(even.value).toBe(0);
+    });
+
+    it("a side gives up its CHEAPEST members above the fewest", () => {
+        // The opponent keeps its Shivan Dragon and sacrifices the Bears down
+        // to the caster's one creature: even against nothing taken from the
+        // caster, the reading is one Bears' worth — the Dragon's would be
+        // more.
+        const keepsBest = readOnBoard(
+            bal,
+            { board: [bear] },
+            { board: [bear, shivanDragon().id] }
+        );
+        const oneBear = readOnBoard(bal, {}, { board: [bear] });
+        expect(keepsBest.value).toBeGreaterThan(0);
+        expect(keepsBest.value).toBeCloseTo(oneBear.value!, 9);
     });
 });

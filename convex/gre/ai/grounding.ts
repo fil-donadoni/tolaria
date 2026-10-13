@@ -160,6 +160,17 @@ export interface EachPlayerSide {
      *  being valued left out, since casting it takes it out of the hand.
      *  Points. */
     handWorth(): number;
+    /** Issue #5559 — what this player loses when it discards the `count`
+     *  cards of its choice: the CHEAPEST `count` of the cards `handWorth`
+     *  sums, since the chooser keeps its best. Points. */
+    discardWorth(count: number): number;
+    /** Issue #5559 — `value` read off the board with `$each` bound to this
+     *  player: a literal, a `count` of this player's (or the fewest / all
+     *  players') battlefield or hand members, or a `difference` of two of
+     *  them. The card being valued is not counted in its caster's hand — it
+     *  is on the stack when the count is taken. `undefined` for a value the
+     *  board cannot ground, which voids the side. */
+    groundCount(value: EffectValue): number | undefined;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching
      *  `filter`: the cheapest ones — only a permanent's controller can
@@ -169,6 +180,20 @@ export interface EachPlayerSide {
         filter: EffectCardFilter | undefined,
         count: number
     ): number | undefined;
+}
+
+/** True for the `{ ref: "$each" }` forEach iteration variable used as a
+ *  PLAYER ref (issue #1521). Every catalogue card naming a player this way
+ *  does so inside a `forEach { set: "players" }` — an Earthquake / Flame
+ *  Rift / Fissure-style "deals N damage to each player" (CR 120.3), which
+ *  hits the caster too. The walker only evaluates a context-free `forEach`
+ *  body ONCE (a representative member, not once per real player), so a
+ *  valuer that saw this ref and guessed "self" (the generic `isSelf`
+ *  heuristic for an opaque ref) would score the whole symmetric effect as a
+ *  pure self-cost — wrong in the other direction from the bug this guards
+ *  against. Treated as its own case so the caller can score it neutral. */
+export function isEachPlayerRef(ref: EffectPlayerRef): boolean {
+    return typeof ref === "object" && "ref" in ref && ref.ref === "$each";
 }
 
 /** The lens a valuation with no board attached reads: the production weights,

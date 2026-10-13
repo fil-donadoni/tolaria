@@ -208,12 +208,15 @@ function isNonNegativeInt(value: unknown): boolean {
  *  EXACT pick count) or a `{ min, max }` range (an OPTIONAL pick count — "you
  *  may search…", "up to two…"). `min` is a non-negative int, `max` a
  *  positive int, `min <= max` — mirrors `PendingChoice.count`'s existing
- *  fixed-N / range union (`getPendingChoiceMin` / `getPendingChoiceMax`). */
+ *  fixed-N / range union (`getPendingChoiceMin` / `getPendingChoiceMax`).
+ *  Issue #5559 — or any non-literal `EffectValue`, a COMPUTED exact count
+ *  (Balance's "the rest" above the fewest any player controls). */
 function isChoiceCount(value: unknown): boolean {
     if (isPositiveInt(value)) return true;
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
         return false;
     }
+    if (!("min" in value) && !("max" in value)) return isEffectValue(value);
     const keys = Object.keys(value);
     if (keys.length !== 2 || !keys.includes("min") || !keys.includes("max")) {
         return false;
@@ -3822,6 +3825,7 @@ const isClassLevel = (value: unknown): boolean =>
 // (`bindingDeclaration(kind)`); these are the per-PREDICATE kinds.
 isEffectValue.fieldKind = "amount" as const;
 isNominationBound.fieldKind = "amount" as const;
+isChoiceCount.fieldKind = "amount" as const;
 isSignedEffectValue.fieldKind = "amount" as const;
 // The signed grammar's one wrapper around an amount (`EffectNegatedValue`).
 isSignedEffectValue.innerAmounts = ["negate"] as const;

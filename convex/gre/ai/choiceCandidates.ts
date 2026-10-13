@@ -1870,6 +1870,37 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
         });
     }
 
+    for (const given of cheapestPrefixSets(
+        state,
+        pool,
+        pick,
+        CHOICE_TOP_K - out.length
+    )) {
+        out.push({
+            key: `sacrifice-permanents:${given.setKey}`,
+            move: submit(given.cards),
+            hint: { materialGivenUp: given.worth },
+        });
+    }
+    return out;
+};
+
+/** The `pick`-member sets a chooser gives up from `pool`, at most `limit` of
+ *  them: one per distinct card IDENTITY leading a cheapest-first prefix
+ *  (issue #3377), never the 2^n subset lattice.
+ *
+ *  Distinct SETS, not distinct orders (review finding 2). The prefix walk
+ *  reaches the same set from several leads — measured, three of five branches
+ *  on a 5-creature pool at `count: 3` were one set in three orders — and
+ *  duplicates cost twice: top-K slots that carry nothing, and an in-tree split
+ *  of one set's UCB visits across siblings, which makes it look LESS explored
+ *  than a single-node rival with the same total. */
+function cheapestPrefixSets(
+    state: GameState,
+    pool: readonly CardInstanceState[],
+    pick: number,
+    limit: number
+): { cards: CardInstanceState[]; setKey: string; worth: number }[] {
     const ranked = pool
         .map((card) => ({
             card,
@@ -1881,17 +1912,12 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
                 a.worth - b.worth ||
                 (a.identity < b.identity ? -1 : a.identity > b.identity ? 1 : 0)
         );
-
+    const out: { cards: CardInstanceState[]; setKey: string; worth: number }[] =
+        [];
     const seen = new Set<string>();
-    // Distinct SETS, not distinct orders (review finding 2). The prefix walk
-    // below reaches the same set from several leads — measured, three of five
-    // branches on a 5-creature pool at `count: 3` were one set in three
-    // orders — and duplicates cost twice: top-K slots that carry nothing, and
-    // an in-tree split of one set's UCB visits across siblings, which makes it
-    // look LESS explored than a single-node rival with the same total.
     const seenSets = new Set<string>();
     for (const lead of ranked) {
-        if (out.length >= CHOICE_TOP_K) break;
+        if (out.length >= limit) break;
         if (seen.has(lead.identity)) continue;
         seen.add(lead.identity);
         const picked = [lead];
@@ -1901,18 +1927,84 @@ const sacrificePermanentsCandidates: ChoiceCandidateGenerator = (
             picked.push(other);
         }
         if (picked.length < pick) continue;
-        const setKey = stableSetIdentity(picked.map((p) => p.card));
+        const cards = picked.map((p) => p.card);
+        const setKey = stableSetIdentity(cards);
         if (seenSets.has(setKey)) continue;
         seenSets.add(setKey);
         out.push({
-            key: `sacrifice-permanents:${setKey}`,
-            move: submit(picked.map((p) => p.card)),
-            hint: {
-                materialGivenUp: picked.reduce((sum, p) => sum + p.worth, 0),
-            },
+            cards,
+            setKey,
+            worth: picked.reduce((sum, p) => sum + p.worth, 0),
         });
     }
     return out;
+}
+
+/** `keep-permanents` / `keep-hand` (CR 608.2d), issue #5559 — "choose N to
+ *  keep, then the rest go": Balance's three steps. With no generator the
+ *  settle could not get past the suspended keep, so a cast of Balance scored
+ *  the card gone from hand and nothing it does — every search held it, on
+ *  every board.
+ *
+ *  Keeping N is giving up the REST, so each candidate is the complement of
+ *  one {@link cheapestPrefixSets} set of the pool size minus N: the chooser
+ *  keeps its best and the answer set is the same cheapest-first containment
+ *  `sacrifice-permanents` reads. The pool is what the submit path accepts —
+ *  the allow-list, and on the battlefield the filter over the effective view
+ *  — so no emitted keep can throw mid-search. */
+function keepCandidates(
+    state: GameState,
+    choice: PendingChoice,
+    pool: readonly CardInstanceState[]
+): Omit<ChoiceCandidate, "prior">[] {
+    const keep = Math.min(getPendingChoiceMin(choice.count), pool.length);
+    if (keep <= 0) return [];
+    const submit = (cards: readonly CardInstanceState[]): Move => ({
+        kind: "resolution-choice",
+        stackItemId: choice.stackItemId,
+        step: choice.step,
+        choiceId: choice.choiceId,
+        cardInstanceIds: cards.map((c) => c.id),
+    });
+    const given = cheapestPrefixSets(
+        state,
+        pool,
+        pool.length - keep,
+        CHOICE_TOP_K
+    );
+    if (given.length === 0) {
+        return [{ key: `${choice.kind}:all`, move: submit(pool), hint: {} }];
+    }
+    return given.map((g) => {
+        const gone = new Set(g.cards.map((c) => c.id));
+        return {
+            key: `${choice.kind}:${g.setKey}`,
+            move: submit(pool.filter((c) => !gone.has(c.id))),
+            hint: { materialGivenUp: g.worth },
+        };
+    });
+}
+
+const keepPermanentsCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    const pool = owner.battlefield.filter(
+        (c) =>
+            (!allow || allow.has(c.id)) &&
+            (!choice.filter ||
+                matchesPermanentFilter(
+                    effectivePermanentView(state, c),
+                    choice.filter
+                ))
+    );
+    return keepCandidates(state, choice, pool);
+};
+
+const keepHandCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const owner = getPlayer(state, choice.zoneOwnerId ?? choice.playerId);
+    const allow = choice.candidateIds ? new Set(choice.candidateIds) : null;
+    const pool = allow ? owner.hand.filter((c) => allow.has(c.id)) : owner.hand;
+    return keepCandidates(state, choice, pool);
 };
 
 /** The applicability gate `choosePermanentsCandidates` declines on — ONE
@@ -2194,6 +2286,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // generator the settle cannot get past the suspended choice, so a probe
     // scores the entering body and never the sacrifice that pays for it.
     "sacrifice-permanents": sacrificePermanentsCandidates,
+    // CR 608.2d (issue #5559) — see `keepCandidates`: without a generator the
+    // settle stopped at Balance's first keep and never scored its sacrifices.
+    "keep-permanents": keepPermanentsCandidates,
+    "keep-hand": keepHandCandidates,
     // CR 608.2 (issue #3545) — see `choosePermanentsCandidates`: the settle
     // could not get past a suspended "choose [up to] N permanents", and the
     // minimal-legal default answered every "up to N" with nothing.

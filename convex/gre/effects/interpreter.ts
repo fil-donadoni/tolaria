@@ -105,7 +105,11 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../cards/types";
-import { legalTargetSlots, tallyMostCommonColors } from "../../cards/types";
+import {
+    isChoiceCountRange,
+    legalTargetSlots,
+    tallyMostCommonColors,
+} from "../../cards/types";
 import type { LookDistributeDestination } from "../types";
 import { getEventFieldRow } from "../../cards/mechanicsRegistry";
 import type { EventFieldFamily } from "../../cards/mechanicsRegistry";
@@ -6042,13 +6046,16 @@ export const OP_EXECUTORS: {
         let count: number | { min: number; max: number };
         if (searchWithNoHit) {
             count = { min: 0, max: 0 };
-        } else if (typeof op.count === "number") {
-            count = Math.min(op.count, available);
-            if (count <= 0) return;
-        } else {
+        } else if (isChoiceCountRange(op.count)) {
             const max = Math.min(op.count.max, available);
             if (max <= 0) return;
             count = { min: Math.min(op.count.min, max), max };
+        } else {
+            // Issue #5559 — a computed exact count is resolved once, here,
+            // as the choice is raised; an unresolvable or non-positive one
+            // raises no choice (CR 107.1b).
+            count = Math.min(resolveValue(ctx, op.count) ?? 0, available);
+            if (count <= 0) return;
         }
         // The binding name doubles as the choiceId by default: unique within
         // the script (validator-enforced) and stable across replays, so the
