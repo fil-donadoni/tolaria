@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS, findBladeScenario } from "../registry";
-import { AUDIT_THEMES, auditEntryProblems } from "../auditThemes";
+import { AUDIT_THEME_LIST, auditEntryProblems } from "../auditThemes";
 import type { AuditTheme } from "../auditThemes";
 
 describe("findBladeScenario (issue #1432)", () => {
@@ -36,7 +36,7 @@ describe("audit entries are honest about themselves (ADR 0149, issue #4923)", ()
     });
 
     const base = { label: "probe", tier: "stretch" as const };
-    const theme = Object.keys(AUDIT_THEMES)[0] as AuditTheme;
+    const theme = AUDIT_THEME_LIST[0];
 
     it("reds on a theme outside the closed list", () => {
         const audit = { theme: "not a theme" as AuditTheme };
@@ -83,10 +83,5 @@ describe("audit entries are honest about themselves (ADR 0149, issue #4923)", ()
 
     it("ignores entries without `audit`", () => {
         expect(auditEntryProblems(base)).toEqual([]);
-    });
-
-    it("describes every theme", () => {
-        for (const d of Object.values(AUDIT_THEMES))
-            expect(d.length).toBeGreaterThan(0);
     });
 });
