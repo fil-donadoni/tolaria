@@ -386,6 +386,28 @@ function latentBoardFor(
     );
 }
 
+/** Issue #5162 — the lens `evaluate`'s hand term values `card` in
+ *  `playerId`'s hand against, from that player's own seat: the production
+ *  wiring, for a reader that needs a script's OWN number on this board (the
+ *  hand term floors a measured reading at zero, `latentValue`). */
+export function handLatentLens(
+    state: GameState,
+    playerId: string,
+    card: CardInstanceState,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
+): LatentLens | undefined {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return undefined;
+    return latentBoardFor(
+        state,
+        player,
+        card,
+        weights,
+        "own",
+        beginLayer7Pass(state)
+    );
+}
+
 /** One player's material score split into its weighted contributions. Each
  *  field is the term's contribution to the score, so the terms sum to the
  *  player's `playerScore`. Surfaced by `evaluateBreakdown` for the DecisionTrace
