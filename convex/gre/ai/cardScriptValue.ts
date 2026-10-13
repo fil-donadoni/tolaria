@@ -1236,13 +1236,16 @@ const completeScriptCache = new WeakMap<CardDefinition, boolean>();
 /** Issue #5161 (ADR 0151) — is this definition a **Complete Script**: every
  *  Op of every script the latent reading walks (spell, modes, activated and
  *  triggered abilities, delayed templates) carries a declared beneficence
- *  (the issue #3006 census), and none is an "each player" reference? The
- *  condition under which `latentValue` trusts a context-free reading BELOW
- *  the Latent Floor, negative included.
+ *  (the issue #3006 census), none is an "each player" reference, and the
+ *  definition carries no clause the reading cannot see? The condition under
+ *  which `latentValue` trusts a context-free reading BELOW the Latent Floor
+ *  (down to 0).
  *
- *  Fail-closed throughout: one `neutral` Op, one `forEach` over players, one
- *  clause the reader cannot see (an imperative body with no shadow, an
- *  ability the non-creature reading skips) and the answer is false — the
+ *  Fail-closed throughout: one `neutral` Op, one symmetric reference
+ *  (`forEach` over players or every player's permanents, an `$event`
+ *  player), one clause the reader cannot see (a definition field outside
+ *  {@link LATENT_READ_KEYS}, an imperative body with no shadow, an ability
+ *  the non-creature reading skips) and the answer is false — the
  *  floor stands, exactly as before. A definition with no Op at all is not
  *  complete (a blank card IS the floor). No per-Op flag and no definition
  *  field: declaring a beneficence row is the only way a script completes.

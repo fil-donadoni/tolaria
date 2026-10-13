@@ -187,10 +187,11 @@ export function latentValue(chars: {
     dslSpellValueMeasured?: boolean;
     /** Issue #5161 (ADR 0151) — true when the card is a **Complete Script**
      *  (`isCompleteScript`): every Op its readable scripts carry has a
-     *  declared beneficence and none is an "each player" reference. Like a
-     *  measurement, it lifts the `base + MV` floor — and lifts it all the
-     *  way: a complete context-free reading is trusted negative included, so
-     *  a self-tax reads below a blank card of its mana value. */
+     *  declared beneficence, none is an "each player" reference and no clause
+     *  is unread. Like a measurement, it lowers the `base + MV` floor to 0: a
+     *  weak complete script reads below a blank card of its mana value, but
+     *  never below nothing — a card in hand is never cast at a loss, and a
+     *  negative reading made dumping a self-harm spell look like profit. */
     dslScriptComplete?: boolean;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
@@ -239,8 +240,8 @@ export function latentValue(chars: {
     // #1430) never drops BELOW its mana-value worth; a burn / removal spell
     // rises far above it. ADR 0151 (issue #5161) — the Latent Floor holds only
     // for a script both UNMEASURED and INCOMPLETE: a measured script reads its
-    // own number from 0 up (issue #3398, unchanged), a Complete Script reads
-    // its own number outright, negative included (no floor: `-Infinity`).
+    // own number from 0 up (issue #3398, unchanged), and so does a Complete
+    // Script read context-free (issue #5161).
     const fallback =
         chars.dslSpellValueMeasured || chars.dslScriptComplete
             ? 0
