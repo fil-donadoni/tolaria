@@ -654,13 +654,23 @@ function abilityScriptOpValue(
         // is what replaces a hand-written `aiEffects` shadow sketch of one arm.
         // Issue #5164 (ADR 0151) — a standing engine on every player's step
         // is read by Differential Reading against the board it stands on.
+        // With no board, or a board that could not answer, it reads NOTHING:
+        // a Symmetric Effect never carries a fixed sign (ADR 0151 §1), and
+        // the representative walk would read `$event.activePlayerId` as the
+        // controller — "its controller draws" on every board. The card then
+        // keeps its Latent Floor (unmeasured, incomplete).
+        const eachStepEngine =
+            ability.phaseScope === "each" &&
+            script !== undefined &&
+            isEachStepEngineScript(script);
         const engine =
-            engineLens && ability.phaseScope === "each" && script
+            eachStepEngine && engineLens
                 ? eachStepDifferentialValue(
                       script,
                       withLatentLens(abilityCtx, engineLens)
                   )
                 : undefined;
+        if (eachStepEngine && !engine) continue;
         const raw = engine
             ? engine
             : script

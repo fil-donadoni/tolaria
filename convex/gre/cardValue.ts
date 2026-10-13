@@ -96,7 +96,7 @@ import { creatureValueRaw, nonCreatureBodyRaw } from "./creatureBody";
 // `ai/opValuers.ts` — already documented there as "the biggest single-Op
 // swing in the basis") keeps the bound tied to an existing, principled
 // magnitude rather than an arbitrary new number.
-const MAX_LATENT_SCRIPT_VALUE = 300;
+export const MAX_LATENT_SCRIPT_VALUE = 300;
 
 /** Latent worth from a card's raw characteristics (ADR 0018), with the
  *  DSL-derived semantic layer wired in (PRD #1423, issue #1426), and the

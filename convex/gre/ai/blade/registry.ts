@@ -12581,7 +12581,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 })),
                 { name: "Grizzly Bears", owner: "opp", zone: "hand" },
                 // Both libraries hold spells beside the filler basics, so the
-                // extra card a turn is worth having (`drawWorth` reads the
+                // extra card a turn is worth having (`drawUnits` reads the
                 // library's mean card); the same mix on both sides — what
                 // separates the players is the room in hand.
                 ...(["me", "opp"] as const).flatMap((owner) =>
@@ -12612,7 +12612,7 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
                 },
             ],
         },
-        note: "Issue #5164. The anchor reading of the Howling Mine pair: the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawWorth`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Mine 20/20. NOT discriminating on its own — with `eachStepDifferentialValue` returning undefined (the netting skipped) the context-free \"its controller draws\" reading also prices the Mine above the Aeolipile, 20/20; the mirror entry below is the half that reds.",
+        note: "Issue #5164. The anchor reading of the Howling Mine pair: the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Mine 20/20. NOT discriminating on its own — with `eachStepDifferentialValue` returning undefined (the netting skipped) the context-free \"its controller draws\" reading also prices the Mine above the Aeolipile, 20/20; the mirror entry below is the half that reds.",
     },
     {
         // SYMMETRIC ENGINE, MIRROR (issue #5164, ADR 0151) — the board above

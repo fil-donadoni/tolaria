@@ -563,7 +563,7 @@ function isStepPlayerRef(ref: EffectPlayerRef): boolean {
  *  the sides summed — what the engine gives its controller minus what it
  *  gives the opponent, per firing. The caller multiplies by the recurrence
  *  (issue #5151). A `draw` is priced off the drawing side's own board
- *  (`EachPlayerSide.drawWorth`): Howling Mine feeds the player whose next
+ *  (`EachPlayerSide.drawUnits`): Howling Mine feeds the player whose next
  *  card is worth more to it — the better library, the hand the cleanup
  *  discard leaves room in. A life or damage Op is the same magnitude on
  *  every side and nets out beside a draw.
@@ -587,7 +587,9 @@ export function eachStepDifferentialValue(
         for (const op of script) {
             total = addValues(
                 total,
-                op.op === "draw" ? stepSideDraw(op, side) : valueOp(op, sideCtx)
+                op.op === "draw"
+                    ? stepSideDraw(op, side, sideCtx)
+                    : valueOp(op, sideCtx)
             );
         }
         for (const t of total.tags) tags.add(t);
@@ -606,13 +608,18 @@ export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return script.every(isStepSideOp) && script.some((op) => op.op === "draw");
 }
 
-/** Issue #5164 — one side's literal `draw`, priced off its board. */
+/** Issue #5164 — one side's literal `draw`, priced off its board at the
+ *  `draw` valuer's own unit. */
 function stepSideDraw(
     op: Extract<EffectOp, { op: "draw" }>,
-    side: EachPlayerSide
+    side: EachPlayerSide,
+    ctx: GroundingContext
 ): OpValue {
-    const worth = side.drawWorth(op.count as number);
-    return { points: side.own ? worth : -worth, tags: ["cardAdvantage"] };
+    const units = side.drawUnits(op.count as number);
+    return {
+        points: priced(ctx, "cardAdvantage", side.own ? units : -units),
+        tags: ["cardAdvantage"],
+    };
 }
 
 /** Issue #5164 — an Op of a standing each-step script the Differential

@@ -27,7 +27,8 @@ import {
     permanentRealisedValue,
 } from "../../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
-import { cardValueById } from "../../cardValue";
+import { cardValueById, MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
+import { nonCreatureBodyRaw } from "../../creatureBody";
 import { forest, howlingMine } from "../../../cards/sets/lea/colorless.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
@@ -88,6 +89,13 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         const fullHand = board({ hand: 7, mine: "board" }, { hand: 1 });
         expect(mineWorth(smallHand)).toBeGreaterThan(0);
         expect(mineWorth(fullHand)).toBeLessThan(0);
+        // A reading, not a sign function: one extra card a turn sits well
+        // inside the latent cap on both sides.
+        for (const s of [smallHand, fullHand]) {
+            expect(Math.abs(mineWorth(s))).toBeLessThan(
+                MAX_LATENT_SCRIPT_VALUE
+            );
+        }
     });
 
     it("the position score with the Mine beats the one without it only on the board it feeds", () => {
@@ -112,6 +120,12 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         );
         expect(mineWorth(better)).toBeGreaterThan(0);
         expect(mineWorth(worse)).toBeLessThan(0);
+        // Dragons outdraw Bears: the gap grows with the library gap.
+        const bears = board(
+            { hand: 2, library: BEAR, mine: "board" },
+            { hand: 2, library: FOREST }
+        );
+        expect(mineWorth(better)).toBeGreaterThan(mineWorth(bears));
     });
 
     it("hand face equals board face on the same board", () => {
@@ -130,11 +144,14 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
             board({ hand: 1, mine: "board" }, { hand: 7 })
         );
         expect(handFace).toBeGreaterThan(0);
+        expect(handFace).toBeLessThan(MAX_LATENT_SCRIPT_VALUE);
         expect(handFace).toBeCloseTo(boardFace, 6);
     });
 
-    it("context-free, the Mine keeps its pre-#5164 reading", () => {
-        // No board, no sides: a draft pick does not guess who the Mine feeds.
-        expect(cardValueById(MINE)).toBeGreaterThan(0);
+    it("context-free, the Mine carries no fixed sign: it reads as a blank card of its mana value", () => {
+        // ADR 0151 §1 — no board, no sides: a draft pick does not guess who
+        // the Mine feeds, so the engine reads nothing and the Latent Floor
+        // stands (the script is incomplete, issue #5161).
+        expect(cardValueById(MINE)).toBe(nonCreatureBodyRaw(2));
     });
 });

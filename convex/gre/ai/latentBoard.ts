@@ -47,7 +47,7 @@ import { effectivePermanentView } from "../permanentView";
 import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
-import { isLand } from "../constants";
+import { isLand, PLACEHOLDER_CARD_ID } from "../constants";
 import { effectiveMaxHandSize } from "../phases";
 import type { EvalWeights } from "./evalWeights";
 import type { EachPlayerSide, LatentLens, SweepOutcome } from "./grounding";
@@ -335,6 +335,8 @@ export function makeLatentBoardLens(
         },
         eachPlayerDifferential(valueSide) {
             let total = 0;
+            const boardDraw = () =>
+                boardLibraryMean(state, weights, returnedWorth);
             for (const player of state.players) {
                 const side = boardSide(
                     state,
@@ -343,7 +345,9 @@ export function makeLatentBoardLens(
                     card.id,
                     realisedLoss,
                     returnedWorth,
-                    denominator
+                    denominator,
+                    weights,
+                    boardDraw
                 );
                 total += valueSide(side);
                 // ADR 0151 — both sides or none: a side the board could not
@@ -391,7 +395,9 @@ function boardSide(
     valuedCardId: string,
     realisedLoss: RealisedLoss,
     returnedWorth: RealisedLoss,
-    denominator: number
+    denominator: number,
+    weights: EvalWeights,
+    boardDraw: () => number | undefined
 ): EachPlayerSide & { answered(): boolean } {
     let answered = false;
     // A read the board could not answer voids the whole side.
@@ -422,22 +428,29 @@ function boardSide(
             if (n === undefined) unreadable = true;
             return n;
         },
-        drawWorth(count) {
-            answered = true;
-            if (count <= 0 || player.library.length === 0) return 0;
-            let libraryWorth = 0;
-            for (const c of player.library) libraryWorth += returnedWorth(c);
-            const expected = libraryWorth / player.library.length;
-            const hand: number[] = [];
-            for (const c of player.hand) {
-                if (c.id !== valuedCardId) hand.push(returnedWorth(c));
+        drawUnits(count) {
+            const expected = libraryMean(
+                player.library,
+                weights,
+                returnedWorth
+            );
+            const scale = boardDraw();
+            const hand = handValues(player.hand, valuedCardId, returnedWorth);
+            // A hidden zone read as placeholders (a blind seat) has no worth
+            // to compare: the side is unreadable, never guessed.
+            if (expected === undefined || scale === undefined || !hand) {
+                unreadable = true;
+                return 0;
             }
+            answered = true;
+            const drawn = Math.min(count, player.library.length);
+            if (drawn <= 0 || scale <= 0) return 0;
             const withDraws = [...hand];
-            for (let i = 0; i < count; i++) withDraws.push(expected);
+            for (let i = 0; i < drawn; i++) withDraws.push(expected);
             // CR 514.1 / 402.2 — the cleanup discard keeps the player's best
             // cards up to the maximum hand size.
             const cap = effectiveMaxHandSize(player, state);
-            return keptWorth(withDraws, cap) - keptWorth(hand, cap);
+            return (keptWorth(withDraws, cap) - keptWorth(hand, cap)) / scale;
         },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
@@ -538,6 +551,73 @@ function groundZoneCount(
         return undefined;
     }
     return size * (spec.times ?? 1);
+}
+
+/** Issue #5164 — the mean context-free worth of `library`'s cards (its
+ *  order is hidden, its contents are not), `undefined` for an empty library
+ *  or one holding a placeholder (a hidden zone the seat cannot read).
+ *  Memoised per library array and weight vector: a search leaf reads the
+ *  same libraries for every board face and hand card that asks. */
+function libraryMean(
+    library: readonly CardInstanceState[],
+    weights: EvalWeights,
+    worth: RealisedLoss
+): number | undefined {
+    const hit = LIBRARY_MEAN_MEMO.get(library);
+    if (hit && hit.weights === weights) return hit.mean;
+    let mean: number | undefined;
+    if (library.length > 0 && !library.some(isPlaceholder)) {
+        let total = 0;
+        for (const c of library) total += worth(c);
+        mean = total / library.length;
+    }
+    LIBRARY_MEAN_MEMO.set(library, { weights, mean });
+    return mean;
+}
+
+const LIBRARY_MEAN_MEMO = new WeakMap<
+    readonly CardInstanceState[],
+    { weights: EvalWeights; mean: number | undefined }
+>();
+
+/** Issue #5164 — the board's mean library card: the unit a Differential
+ *  Reading's draws are counted in, so a draw of an average card is one
+ *  `cardAdvantage` unit and the side with the better library draws more.
+ *  `undefined` when any library is unreadable; 0 when every one is empty. */
+function boardLibraryMean(
+    state: GameState,
+    weights: EvalWeights,
+    worth: RealisedLoss
+): number | undefined {
+    let total = 0;
+    let readable = 0;
+    for (const player of state.players) {
+        if (player.library.length === 0) continue;
+        const mean = libraryMean(player.library, weights, worth);
+        if (mean === undefined) return undefined;
+        total += mean;
+        readable += 1;
+    }
+    return readable === 0 ? 0 : total / readable;
+}
+
+/** Issue #5164 — the context-free worth of each card of `hand` but the one
+ *  being valued, or `undefined` when the hand holds a placeholder. */
+function handValues(
+    hand: readonly CardInstanceState[],
+    valuedCardId: string,
+    worth: RealisedLoss
+): number[] | undefined {
+    const values: number[] = [];
+    for (const c of hand) {
+        if (isPlaceholder(c)) return undefined;
+        if (c.id !== valuedCardId) values.push(worth(c));
+    }
+    return values;
+}
+
+function isPlaceholder(c: CardInstanceState): boolean {
+    return String(c.card.id ?? "") === PLACEHOLDER_CARD_ID;
 }
 
 /** Issue #5164 — the summed worth of the `cap` best of `values`: what a
