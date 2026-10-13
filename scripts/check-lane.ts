@@ -1209,6 +1209,16 @@ export function changedPaths(
         .filter((p) => p.length > 0);
 }
 
+/** Paths the diff ADDS (not modifies) — what a new-file guard reads. */
+export function addedPaths(base: string, cwd: string): string[] {
+    return git(
+        ["diff", "-z", "--name-only", "--diff-filter=A", `${base}...HEAD`],
+        cwd
+    )
+        .split("\0")
+        .filter((p) => p.length > 0);
+}
+
 /** A file's text at a ref, or null when it does not exist there. */
 function showAt(ref: string, path: string, cwd: string): string | null {
     const r = spawnSync("git", ["show", `${ref}:${path}`], {
@@ -1288,7 +1298,7 @@ export function shellStdio(
  * "light" means is inherited automatically instead of drifting between two
  * copies of the same mechanism.
  */
-function shellRun(
+export function shellRun(
     command: string,
     cwd: string,
     json: boolean
