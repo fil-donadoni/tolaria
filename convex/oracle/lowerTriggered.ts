@@ -35,6 +35,7 @@ import {
 } from "./grammar/shared/triggerHead";
 import {
     declareTargets,
+    kickedValue,
     lowerSentence,
     SentenceWalk,
     type SiteAntecedents,
@@ -229,9 +230,25 @@ function pronounAntecedent(head: TriggerHeadIR): {
 /** CR 603.4 — the condition IR to the engine's shape. */
 function lowerCondition(
     condition: TriggerConditionIR,
-    head: TriggerHeadIR
+    head: TriggerHeadIR,
+    kickers: readonly KickerCost[]
 ): CompiledTriggerCondition | string {
     switch (condition.kind) {
+        case "kicked-permanent": {
+            // CR 702.33e/f — a NAMED kicker's payment record, read off the
+            // permanent entering. An unnamed "if it was kicked" is the
+            // aggregate tally, which no check-time gate expresses here.
+            if (head.kind !== "enters" || head.scope !== "self")
+                return '"if it was kicked" needs a head that fires when this permanent enters';
+            if (condition.kicked.kind !== "named")
+                return 'only "if it was kicked with its {A} kicker" is a check-time gate';
+            const value = kickedValue(condition.kicked, kickers);
+            if (!value.ok) return value.reason;
+            const paid = value.value as { additionalCostPaid?: string };
+            if (paid.additionalCostPaid === undefined)
+                return "a named kicker reads its own payment record";
+            return { kind: "kicker-paid", kickerId: paid.additionalCostPaid };
+        }
         case "controls":
             return {
                 kind: "controls",
@@ -298,7 +315,7 @@ export function lowerTriggeredAbility(input: {
         };
     const condition =
         input.condition !== undefined && !zoneCondition
-            ? lowerCondition(input.condition, input.head)
+            ? lowerCondition(input.condition, input.head, input.kickers ?? [])
             : undefined;
     if (typeof condition === "string") return { ok: false, reason: condition };
     const antecedents = headAntecedents(input.head);
@@ -365,7 +382,25 @@ export function lowerTriggeredAbility(input: {
             ...(declared.targetRequirement !== undefined
                 ? { targetRequirement: declared.targetRequirement }
                 : {}),
-            effects: ops,
+            effects:
+                condition?.kind === "kicker-paid"
+                    ? // CR 603.4 — the load-bearing resolution-time gate, which
+                      // also covers an ability COPY (CR 707.10) that never
+                      // re-ran the check-time condition.
+                      [
+                          {
+                              op: "if",
+                              predicate: {
+                                  left: {
+                                      additionalCostPaid: condition.kickerId,
+                                  },
+                                  op: "ge",
+                                  right: 1,
+                              },
+                              then: ops,
+                          },
+                      ]
+                    : ops,
         },
     };
 }

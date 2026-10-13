@@ -1544,6 +1544,44 @@ function lowerSentenceBody(
     const slots = walk.targets;
     switch (sentence.kind) {
         case "pump": {
+            if (sentence.perOtherAttacking !== undefined) {
+                // CR 508.1 — "other" excludes the SOURCE, so the pumped
+                // object must be the source for the tally to mean the same
+                // thing as the pump.
+                const target = objectSelector(sentence.subject, slots, site);
+                if (!target.ok) return target;
+                if (JSON.stringify(target.value) !== '{"ref":"$source"}')
+                    return unlowerable(
+                        '"for each other attacking" counts the pumped source'
+                    );
+                const subtype = sentence.perOtherAttacking;
+                const step = (n: number): EffectSignedValue => {
+                    if (n === 0) return 0;
+                    const count: EffectValue = {
+                        count: {
+                            zone: "battlefield",
+                            acrossAllPlayers: true,
+                            filter: {
+                                type: "Creature",
+                                subtype,
+                                isAttacking: true,
+                                excludeSource: true,
+                            },
+                            ...(Math.abs(n) > 1 ? { times: Math.abs(n) } : {}),
+                        },
+                    };
+                    return n < 0 ? { negate: count } : count;
+                };
+                return lowered([
+                    {
+                        op: "pump",
+                        target: target.value,
+                        power: step(sentence.power),
+                        toughness: step(sentence.toughness),
+                        duration: durationSpec(sentence.duration),
+                    },
+                ]);
+            }
             const power = pumpStep(sentence.power, sentence.perDomain === true);
             const toughness = pumpStep(
                 sentence.toughness,

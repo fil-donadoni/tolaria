@@ -506,6 +506,14 @@ export type EffectSentenceIR =
            * evidenced.
            */
           readonly perDomain?: true;
+          /**
+           * CR 508.1 + CR 613.4c — "… for each other attacking Goblin": each
+           * stat's printed step is a per-tally step, the tally being the
+           * attacking creatures of one subtype OTHER than the source. The
+           * subject is the source itself (lowering refuses another object,
+           * since "other" excludes the source, not the pumped creature).
+           */
+          readonly perOtherAttacking?: string;
       }
     | {
           /**
@@ -3094,6 +3102,8 @@ function playerSubject(span: string, ctx: unknown): PlayerRefIR | null {
 const PUMP = /^(.+) (gets|get) (an additional )?([+-]\d+)\/([+-]\d+) (.+)$/;
 /** CR 207.2c — the Domain tally a per-step pump scales by. */
 const PUMP_PER_DOMAIN = / for each basic land type among lands you control$/;
+/** CR 508.1 — the attacking-creature tally a pump scales by. */
+const PUMP_PER_OTHER_ATTACKING = / for each other attacking (\S+)$/;
 /** CR 205.1b — "All lands you control become 1/1 creatures until end of turn". */
 const ANIMATE = /^(.+) become (\d+)\/(\d+) creatures (.+)$/;
 /** CR 205.1b — the rider that keeps the animated set's types. */
@@ -4737,6 +4747,13 @@ function effectSentence(
                     span
                 );
         }
+        const perOther = tail.match(PUMP_PER_OTHER_ATTACKING);
+        if (perOther !== null) {
+            tail = tail.replace(PUMP_PER_OTHER_ATTACKING, "");
+            if (!CREATURE_SUBTYPES.has(perOther[1]!))
+                return fail(`"${perOther[1]}" is not a creature type`, span);
+            if (perDomain) return fail("a pump scales by one tally", span);
+        }
         const duration = durationRule.run(tail, ctx);
         if (!duration.ok) return duration;
         return ok({
@@ -4746,6 +4763,7 @@ function effectSentence(
             toughness,
             duration: duration.value,
             ...(perDomain ? { perDomain: true as const } : {}),
+            ...(perOther !== null ? { perOtherAttacking: perOther[1]! } : {}),
         } satisfies EffectSentenceIR);
     }
 

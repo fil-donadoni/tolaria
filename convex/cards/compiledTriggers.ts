@@ -64,7 +64,11 @@ import { phaseTrigger } from "./abilities/triggers/phaseTrigger";
 import { spellCastTrigger } from "./abilities/triggers/spellCastTrigger";
 import { tappedTrigger } from "./abilities/triggers/tappedTrigger";
 import { cycledTrigger } from "./abilities/cycling";
-import type { PermanentScope, TriggerScope } from "./abilities/triggers/shared";
+import {
+    additionalCostPaidCondition,
+    type PermanentScope,
+    type TriggerScope,
+} from "./abilities/triggers/shared";
 
 /**
  * CR 603.4 — an intervening-if condition, as data.
@@ -111,7 +115,15 @@ export type CompiledTriggerCondition =
      * second one-shot effect that exists only if the first exiled something,
      * so it is checked when the departure fires and never re-checked.
      */
-    | { readonly kind: "holds-exile-bundle" };
+    | { readonly kind: "holds-exile-bundle" }
+    /**
+     * CR 702.33f + CR 603.4 — "if it was kicked with its {R} kicker": the
+     * permanent's own payment record for ONE named kicker
+     * (`additionalCostPaidCondition`), decided from the source alone. Entered
+     * heads only: the record is a fact fixed as the spell was cast
+     * (CR 601.2b), read off the permanent that spell became (CR 702.33e).
+     */
+    | { readonly kind: "kicker-paid"; readonly kickerId: string };
 
 /** CR 205.2 — "to a creature": the damaged permanent's type. */
 const CREATURE_FILTER: PermanentFilter = { types: ["Creature"] };
@@ -256,6 +268,8 @@ function conditionHolds(
     self: PermanentView,
     state: TriggerStateView | undefined
 ): boolean {
+    if (condition.kind === "kicker-paid")
+        return additionalCostPaidCondition(condition.kickerId)(self);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
@@ -328,8 +342,19 @@ export function resolveCompiledTrigger(
     // and a `basic-land-types` condition reads "that player" off it, so one
     // closure
     // serves every head without a per-factory copy that could drift.
+    // CR 702.33f — a per-kicker gate is decided from the permanent alone, so it
+    // rides the factory's `conditionOnSelf` (a DECIDED gate the bot's value
+    // model can evaluate) instead of an opaque `condition` closure.
+    const kickerId =
+        descriptor.condition?.kind === "kicker-paid"
+            ? descriptor.condition.kickerId
+            : undefined;
+    if (kickerId !== undefined && head.kind !== "entered")
+        throw new Error(
+            `compiled trigger ${descriptor.id}: a kicker-paid condition needs an entered head`
+        );
     const gating =
-        descriptor.condition === undefined
+        descriptor.condition === undefined || kickerId !== undefined
             ? {}
             : (() => {
                   const condition = descriptor.condition;
@@ -355,6 +380,9 @@ export function resolveCompiledTrigger(
         case "entered":
             return enteredTrigger({
                 ...common,
+                ...(kickerId !== undefined
+                    ? { conditionOnSelf: additionalCostPaidCondition(kickerId) }
+                    : {}),
                 scope: head.scope,
                 ...(head.filter !== undefined ? { filter: head.filter } : {}),
             });

@@ -78,7 +78,13 @@ export type TriggerConditionIR =
           readonly kind: "basic-land-types";
           readonly player: "that-player";
           readonly atLeast: number;
-      };
+      }
+    /**
+     * CR 702.33e + CR 702.33f — "if it was kicked with its {R} kicker": the
+     * permanent the trigger is printed on came from a spell whose NAMED kicker
+     * was paid. Lowering resolves the printed cost to the card's kicker id.
+     */
+    | { readonly kind: "kicked-permanent"; readonly kicked: KickedRefIR };
 
 const ARTICLES: readonly string[] = ["a ", "an "];
 
@@ -381,3 +387,18 @@ export const kickedConditionRule: Rule<KickedRefIR> = kickedConditionRuleFor(
  */
 export const kickedPermanentConditionRule: Rule<KickedRefIR> =
     kickedConditionRuleFor("kicked permanent condition", new Set(["it"]));
+
+/**
+ * CR 702.33e — the permanent form as a trigger's intervening-if (CR 603.4):
+ * "When this creature enters, if it was kicked with its {R} kicker, …". The
+ * SLOT owns the check that the head fires on THIS permanent entering.
+ */
+export const kickedTriggerConditionRule: Rule<TriggerConditionIR> = rule(
+    "kicked trigger condition",
+    (span, ctx) => {
+        const kicked = kickedPermanentConditionRule.run(span, ctx);
+        return kicked.ok
+            ? ok({ kind: "kicked-permanent" as const, kicked: kicked.value })
+            : kicked;
+    }
+);
