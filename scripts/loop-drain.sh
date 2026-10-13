@@ -1338,7 +1338,7 @@ finish_lane() {
             if [ -n "$lissue" ] && [ "$_left_state" = "OPEN false true" ] &&
                 ! printf ' %s ' "$EXCLUDED_THIS_RUN" | grep -q " $lissue "; then
                 EXCLUDED_THIS_RUN="$EXCLUDED_THIS_RUN $lissue"
-                echo "loop-drain[warn]: pass $lpass left issue #${lissue} unclaimed and still ready-for-agent — excluding it for the rest of this run (owner work? relabel it ready-for-human)." >&2
+                echo "loop-drain[warn]: pass $lpass left issue #${lissue} unclaimed and still ready-for-agent — excluding it for the rest of this run (owner work → relabel it ready-for-human; blocked → wire blocked-by)." >&2
             else
                 no_progress_streak=$((no_progress_streak + 1))
                 if [ "$no_progress_streak" -ge 2 ]; then
@@ -1647,7 +1647,7 @@ done
 
 echo ""
 if [ -n "$EXCLUDED_THIS_RUN" ]; then
-    echo "loop-drain[warn]: excluded this run (left unclaimed, still ready-for-agent — owner work?):$(printf ' #%s' $EXCLUDED_THIS_RUN)" >&2
+    echo "loop-drain[warn]: excluded this run (left unclaimed, still ready-for-agent):$(printf ' #%s' $EXCLUDED_THIS_RUN)" >&2
 fi
 if [ "$BUDGET_ENABLED" -eq 1 ]; then
     _spend_summary="spent=${spent} budget=${BUDGET} ceiling=${CEILING}"

@@ -30,7 +30,7 @@ it and aborts again (issue #4752, issue #5564).
    the relabel takes it out of the NEXT run's queue.
 
 **Release as ONE act: `bun run queue:release N`** — when the pass claimed
-it (§2) — removes `in-progress` AND the `@me` assignee and writes the claim
+it (`SKILL.md` § 2. Claim + worktree) — removes `in-progress` AND the `@me` assignee and writes the claim
 journal's `released` row. A hand-typed `--remove-label in-progress` leaves the
 assignee, and the planner defers an assigned issue as "someone is working it"
 on every pass, forever — `deny-guard.sh` § 6b denies it. Then remove the
