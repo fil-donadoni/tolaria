@@ -259,7 +259,13 @@ describe("gold round-trip — precision", () => {
         // carries a `predicate` closure the projection cannot compare, while
         // the line is now compiled — the same move as the entries above, out of
         // "the compiler refuses it" and into this bucket.
-        expect(REPORT.incomparable.length).toBeLessThan(54);
+        //
+        // 53 -> 54 by issue #4570 (shroud statics): Sterling Grove's
+        // hand-written `permanent-guard` carries an `applies` closure the
+        // projection cannot compare, while "Other enchantments you control
+        // have shroud" is now compiled — the same move as the entries above,
+        // out of "the compiler refuses it" and into this bucket.
+        expect(REPORT.incomparable.length).toBeLessThan(55);
         expect(REPORT.incomparable.map((i) => i.name)).toContain("Onulet");
         for (const card of REPORT.incomparable) {
             expect(card.expected).toContain("[closure]");
