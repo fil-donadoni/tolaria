@@ -3388,7 +3388,9 @@ const PUT_UNDER_YOUR_CONTROL =
 const RETURN_OWN_PERMANENT =
     /^Return (an? .+ you control) to its owner(?:'|’)s hand$/;
 /** CR 701.26b — "Untap up to seven lands": a choice, not a target. */
-const UNTAP_UP_TO = /^Untap up to (\S+) (.+)$/;
+/** "up to one target creature" is a TARGET (CR 115.1) and stays with the
+ *  announced-subject path; only an unannounced noun phrase is a choice. */
+const UNTAP_UP_TO = /^Untap up to (\S+) (?!target )(.+)$/;
 const EXILE_GRAVEYARD = /^Exile (.+?)(?:'|’)s graveyard$/;
 const MILL_IMPERATIVE = /^Mill (\S+) cards?$/;
 /** CR 701.17a — "Target player mills three cards". */

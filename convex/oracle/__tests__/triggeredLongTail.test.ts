@@ -653,3 +653,18 @@ describe("the compiled kicker gate decides at the engine, per kicker (CR 603.4)"
         expect(red?.({} as unknown as PermanentView)).toBe(false);
     });
 });
+
+describe("an announced 'up to one target' untap is not the choice form", () => {
+    it("Zephyr Winder keeps compiling through the target path (CR 115.1)", () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Zephyr Winder",
+                manaCost: "{1}{U}",
+                typeLine: "Creature — Elemental",
+                oracleText:
+                    "Flying\nWhenever this creature deals combat damage to a player, untap up to one target creature.",
+            })
+        );
+        expect(outcome.state).not.toBe("unparsed");
+    });
+});
