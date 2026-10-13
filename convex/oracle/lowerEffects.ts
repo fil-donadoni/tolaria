@@ -2934,8 +2934,9 @@ function lowerSentenceBody(
                 {
                     op: "delayedTrigger",
                     timing: "next-upkeep",
-                    oracleText:
-                        "At the beginning of the next turn's upkeep, draw a card.",
+                    oracleText: sentence.imperative
+                        ? "Draw a card at the beginning of the next turn's upkeep."
+                        : "At the beginning of the next turn's upkeep, draw a card.",
                     effects: [{ op: "draw", player: "controller", count: 1 }],
                 },
             ]);

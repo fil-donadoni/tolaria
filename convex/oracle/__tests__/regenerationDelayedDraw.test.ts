@@ -64,44 +64,37 @@ describe("regeneration lock and delayed draw — golden fixtures", () => {
         );
     });
 
-    it("CR 603.7a — imperative delayed draw: Portent", () => {
+    it("CR 603.7a — imperative delayed draw: Flare", () => {
         const text =
-            "Look at the top three cards of your library, then put them back in any order. You may shuffle your library.\nDraw a card at the beginning of the next turn's upkeep.";
+            "Flare deals 1 damage to any target.\nDraw a card at the beginning of the next turn's upkeep.";
         const card = oracleCard({
-            name: "Portent",
-            manaCost: "{U}",
-            typeLine: "Sorcery",
+            name: "Flare",
+            manaCost: "{2}{R}",
+            typeLine: "Instant",
             oracleText: text,
-            oracleId: "e744dbb6-2d56-462a-8d49-d79c73944048",
             layout: "normal",
         });
-        const outcome = compileCard(card);
-        // The look/rearrange line is a separate gap; the delayed draw line is
-        // pinned by the Blessed Wine-shaped single-line card below.
-        expect(outcome.state).toBeDefined();
-    });
-
-    it("CR 603.7a — single-line imperative delayed draw: Blessed Wine", () => {
-        const text =
-            "You gain 2 life. Draw a card at the beginning of the next turn's upkeep.";
-        const outcome = compileCard(
-            oracleCard({
-                name: "Probe Wine",
-                manaCost: "{1}{W}",
-                typeLine: "Instant",
+        expect(sortKeys(compiledDefinition(card))).toEqual(
+            sortKeys({
+                name: "Flare",
+                types: ["Instant"],
+                manaCost: { X: 2, R: 1 },
                 oracleText: text,
-                layout: "normal",
+                effects: [
+                    { op: "dealDamage", amount: 1, to: { target: 0 } },
+                    {
+                        op: "delayedTrigger",
+                        timing: "next-upkeep",
+                        oracleText:
+                            "Draw a card at the beginning of the next turn's upkeep.",
+                        effects: [
+                            { op: "draw", player: "controller", count: 1 },
+                        ],
+                    },
+                ],
+                targetRequirement: { type: "any", count: 1 },
             })
         );
-        if (outcome.state === "unparsed")
-            throw new Error(JSON.stringify(outcome.gaps));
-        expect(outcome.definition.effects).toContainEqual({
-            op: "delayedTrigger",
-            timing: "next-upkeep",
-            oracleText:
-                "At the beginning of the next turn's upkeep, draw a card.",
-            effects: [{ op: "draw", player: "controller", count: 1 }],
-        });
     });
 });
 

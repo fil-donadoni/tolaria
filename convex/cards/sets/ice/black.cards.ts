@@ -1939,7 +1939,7 @@ export const mindRavel = defineCard(() => ({
             kind: "discard-hand",
             player: { target: 0 },
             zone: "hand",
-            count: { min: 0, max: 1 },
+            count: 1,
             prompt: "Mind Ravel: discard a card.",
             bind: "$picked",
         },
