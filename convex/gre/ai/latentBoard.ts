@@ -192,7 +192,7 @@ export interface LatentBoardInputs {
 
 /** Issue #5163 — `state` with `card` moved from `casterId`'s hand onto
  *  `casterId`'s battlefield, untapped and unattached: the board a permanent
- *  spell in hand would leave behind once it resolved (CR 608.3), which is
+ *  spell in hand would leave behind once it resolved (CR 608.3a), which is
  *  where its standing worth is measured. */
 export function withCardEntered(
     state: GameState,

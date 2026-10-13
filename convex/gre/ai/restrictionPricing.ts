@@ -52,7 +52,7 @@
 // source that sits TAPPED is dead mana until something else untaps it, and
 // loses its whole `tappedManaWeight`; one still UNTAPPED keeps exactly one
 // activation — the price of one use that does not come back,
-// `finiteManaUseWeight` (CR 118.3, issue #3530) — and loses the rest of its
+// `finiteManaUseWeight` (issue #3530) — and loses the rest of its
 // `manaWeight`. Under a CAP (`maxUntap: k`) the k sources that lose the most
 // keep renewing — the steady state of an untap step that untaps k of them —
 // and the rest are locked. Per side, per source, counterfactually, exactly as
@@ -390,7 +390,7 @@ function buildRestrictionPlan(
 
 /** Issue #5163 — CR 502.3: per player, every untap restriction that matches
  *  more of that player's RENEWABLE mana sources than it lets untap. A finite
- *  source (CR 118.3, a depletion land) is left out: the `mana` term does not
+ *  source (a depletion land, issue #3530) is left out: the `mana` term does not
  *  price it as renewable (`finiteManaUses` does, by its charges), so an untap
  *  lock takes nothing from it that the evaluation counted. */
 function buildManaLocks(
