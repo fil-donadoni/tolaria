@@ -1060,6 +1060,13 @@ export class SentenceWalk {
         readonly requirement: TargetRequirement;
     } | null = null;
 
+    /**
+     * CR 608.2c — an earlier sentence dealt damage to the ONE announced target
+     * (slot 0): the antecedent of "dealt damage this way". Set by the
+     * `deal-damage` lowering only.
+     */
+    damagedTarget = false;
+
     /** A destroy/exile/move sat behind a gate, so no live read of its target is safe. */
     gatedRemoval = false;
 
@@ -1796,6 +1803,12 @@ function lowerSentenceBody(
                     ? lowerThatCreatureController(walk)
                     : damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
+            const damaged = to.value as { target?: number };
+            if (
+                damaged.target === 0 &&
+                walk.targets.requirements().length === 1
+            )
+                walk.damagedTarget = true;
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
@@ -2831,6 +2844,7 @@ function lowerSentenceBody(
                 only.count !== 1 ||
                 only.zone !== undefined ||
                 only.announcedOnlyIfKicked === true ||
+                !walk.damagedTarget ||
                 walk.gatedRemoval
             )
                 return unlowerable(

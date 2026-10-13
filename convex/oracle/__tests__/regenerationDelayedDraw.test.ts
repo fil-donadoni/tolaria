@@ -105,6 +105,12 @@ describe("regeneration lock and delayed draw — refusals", () => {
         );
     });
 
+    it("refuses the lock when no earlier sentence damaged the target", () => {
+        expectUnparsed(
+            "Tap target creature. A creature dealt damage this way can't be regenerated this turn."
+        );
+    });
+
     it("refuses a two-card delayed draw (no printed body)", () => {
         expectUnparsed(
             "Draw two cards at the beginning of the next turn's upkeep."
