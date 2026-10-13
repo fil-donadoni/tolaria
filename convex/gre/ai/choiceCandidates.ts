@@ -1901,6 +1901,7 @@ function cheapestPrefixSets(
     pick: number,
     limit: number
 ): { cards: CardInstanceState[]; setKey: string; worth: number }[] {
+    if (pick <= 0) return [];
     const ranked = pool
         .map((card) => ({
             card,
@@ -1966,15 +1967,15 @@ function keepCandidates(
         choiceId: choice.choiceId,
         cardInstanceIds: cards.map((c) => c.id),
     });
+    if (keep >= pool.length) {
+        return [{ key: `${choice.kind}:all`, move: submit(pool), hint: {} }];
+    }
     const given = cheapestPrefixSets(
         state,
         pool,
         pool.length - keep,
         CHOICE_TOP_K
     );
-    if (given.length === 0) {
-        return [{ key: `${choice.kind}:all`, move: submit(pool), hint: {} }];
-    }
     return given.map((g) => {
         const gone = new Set(g.cards.map((c) => c.id));
         return {

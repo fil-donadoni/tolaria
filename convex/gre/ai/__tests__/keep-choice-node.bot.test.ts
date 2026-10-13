@@ -21,7 +21,7 @@ import {
     makePlayer,
     makeState,
 } from "../../../cards/__tests__/setup.helper";
-import type { PendingChoice } from "../../types";
+import type { PendingChoice } from "../../state";
 
 describe("keep choices as search nodes (issue #5559)", () => {
     it("a cast of Balance reaches the opponent's keep as a decision node", () => {

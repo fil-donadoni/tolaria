@@ -451,7 +451,10 @@ function boardSide(
 
 /** Issue #5559 — `value` grounded on the board with `$each` bound to
  *  `player` (`EachPlayerSide.groundCount`), or `undefined` for a shape the
- *  board cannot answer exactly. A `difference` may come out negative; the
+ *  board cannot answer exactly. Every step of a script is grounded against
+ *  the board BEFORE resolution: a later step's count does not see what an
+ *  earlier step removed (a land creature counted by both of Balance's
+ *  battlefield steps) — an accepted valuation approximation. A `difference` may come out negative; the
  *  consuming count clamps it (CR 107.1b). */
 function groundSideCount(
     state: GameState,
