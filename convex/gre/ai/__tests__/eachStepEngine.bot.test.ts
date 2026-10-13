@@ -2,7 +2,7 @@
 // #5164, ADR 0151, PRD #5160).
 //
 // The defect: Howling Mine's trigger acts on `$event.activePlayerId` — every
-// player in turn (CR 603.6a, `phaseScope: "each"`) — and the walker read it
+// player in turn (CR 603.2b, `phaseScope: "each"`) — and the walker read it
 // ONCE, as "the controller draws a card", times the recurrence (issue
 // #5151). So the Mine was worth the same extra card to its controller on
 // every board, including the one where the opponent is the only player with

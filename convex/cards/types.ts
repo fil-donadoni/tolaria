@@ -11920,7 +11920,7 @@ export interface TriggeredAbility {
      *  cumulative upkeep", Balduvian Shaman). Absent on every non-keyword
      *  trigger. */
     keyword?: string;
-    /** Issue #5164 — whose step a `phaseTrigger` fires on (CR 603.6a /
+    /** Issue #5164 — whose step a `phaseTrigger` fires on (CR 603.2b /
      *  500.1: "at the beginning of each player's upkeep" vs "your upkeep"),
      *  restated for non-engine readers exactly like `gate`: the Bot reads a
      *  standing `"each"` trigger as a Symmetric Effect (ADR 0151) — its

@@ -557,7 +557,7 @@ function isStepPlayerRef(ref: EffectPlayerRef): boolean {
 }
 
 /** Issue #5164 (ADR 0151) — the Differential Reading of a standing ENGINE:
- *  a `phaseScope: "each"` trigger fires on every player's step (CR 603.6a,
+ *  a `phaseScope: "each"` trigger fires on every player's step (CR 603.2b,
  *  500.1) and acts on whichever player's step it is, so on a real board its
  *  script is valued once per player with that player as the scoped one, and
  *  the sides summed — what the engine gives its controller minus what it
