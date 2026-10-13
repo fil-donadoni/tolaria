@@ -42,6 +42,15 @@ process.env.TOLARIA_MACHINE_PROBE ??= JSON.stringify({
     sessions: [],
 });
 
+// The health verdict store and the health runner (issue #5462, issue #5467):
+// every script a test spawns reads the LOCAL file store and no runner, whatever
+// `tolaria.config.json` says — a fixture repo has no GitHub origin to write a
+// commit status to, and a cadence test must not turn into the stale-verdict
+// fallback because the real config names the Huawei. A test that wants the
+// GitHub backend or a runner sets the variable itself.
+process.env.TOLARIA_VERDICT_STORE ??= "file";
+process.env.TOLARIA_HEALTH_RUNNER_PLATFORM ??= "";
+
 // Vitest re-runs this file for every test file, but modules it imports stay
 // cached in a non-isolated worker — so the walk lives in an imported module
 // and runs once per worker (issue #4484), not once per file.

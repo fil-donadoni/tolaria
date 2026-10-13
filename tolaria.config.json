@@ -5,7 +5,10 @@
         "release": "main"
     },
     "health": {
-        "verdictStore": "file"
+        "verdictStore": "github"
+    },
+    "healthRunner": {
+        "platform": "linux"
     },
     "ui-walk": {
         "gating": false
