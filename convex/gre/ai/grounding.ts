@@ -151,8 +151,9 @@ export interface EachPlayerSide {
     handWorth(): number;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching
-     *  `filter`: the cheapest ones, since the chooser keeps its best (CR
-     *  701.21a). `undefined` for a filter the lens cannot match exactly. */
+     *  `filter`: the cheapest ones — only a permanent's controller can
+     *  sacrifice it (CR 701.21a), and it keeps its best. `undefined` for a
+     *  filter the lens cannot match exactly. */
     sacrificeUnits(
         filter: EffectCardFilter | undefined,
         count: number
