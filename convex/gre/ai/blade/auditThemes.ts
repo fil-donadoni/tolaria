@@ -49,7 +49,7 @@ export function auditEntryProblems(
     if (scenario.audit === undefined) return [];
     const problems: string[] = [];
     const { theme } = scenario.audit;
-    if (!Object.hasOwn(AUDIT_THEMES, theme)) {
+    if (!(AUDIT_THEME_LIST as string[]).includes(theme)) {
         problems.push(
             `"${scenario.label}": audit theme "${theme}" is not in AUDIT_THEMES`
         );
