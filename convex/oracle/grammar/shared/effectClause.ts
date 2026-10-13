@@ -890,6 +890,17 @@ export type EffectSentenceIR =
      * `ModifierIR`, folded into the destroy before it.
      */
     | { readonly kind: "prevent-regeneration"; readonly subject: SubjectIR }
+    | {
+          /**
+           * CR 701.19c + CR 608.2h — "A creature dealt damage this way can't
+           * be regenerated this turn": the same lock as above, on the ONE
+           * target an earlier sentence of the ability damaged. The sentence
+           * carries no subject (anaphora); the lowering binds it to the single
+           * announced target and refuses every other site. Only the "this
+           * way" referent of a damaging sentence is read, nothing wider.
+           */
+          readonly kind: "prevent-regeneration-damaged";
+      }
     /**
      * CR 305.1 + CR 101.2 + CR 514.2 — "Target player can't play lands this
      * turn": a turn-scoped per-player land-play lock, on the announced player.
@@ -3351,7 +3362,7 @@ const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
 const DELAYED_DRAW_NEXT_UPKEEP =
-    /^You draw (\S+) cards? at the beginning of the next turn(?:'|’)s upkeep$/;
+    /^(?:You draw (\S+) cards?|Draw (a) card) at the beginning of the next turn(?:'|’)s upkeep$/;
 /** CR 201.4a — "Choose a card name" and its two printed restrictions. */
 /** CR 201.4 + CR 701.20a — the Cursed Scroll sentence, whole. */
 const NAME_THEN_REVEAL_RANDOM =
@@ -3762,6 +3773,9 @@ const COMBAT_RESTRICTION_WORDS: ReadonlyMap<string, CombatRestrictionIR> =
 const FORCED_BLOCK = /^(.+) blocks this creature this turn if able$/;
 /** CR 701.19c — the regeneration lock's printed form. */
 const CANT_BE_REGENERATED_THIS_TURN = /^(.+) can't be regenerated this turn$/;
+/** CR 701.19c + CR 608.2h — the lock on "a creature dealt damage this way". */
+const CANT_BE_REGENERATED_DAMAGED_THIS_WAY =
+    "A creature dealt damage this way can't be regenerated this turn";
 /** CR 101.2 + CR 601.2 — the opponents' whole-turn cast lock, whole. */
 const OPPONENTS_CANT_CAST = "Your opponents can't cast spells this turn";
 /**
@@ -5549,6 +5563,12 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── regeneration lock on what the ability just damaged (CR 701.19c) ───
+    if (span === CANT_BE_REGENERATED_DAMAGED_THIS_WAY)
+        return ok({
+            kind: "prevent-regeneration-damaged" as const,
+        } satisfies EffectSentenceIR);
+
     // ── regeneration lock (CR 701.19c) ─────────────────────────────────────
     const noRegen = span.match(CANT_BE_REGENERATED_THIS_TURN);
     if (noRegen !== null) {
@@ -6211,9 +6231,11 @@ function effectSentence(
     // ── delayed draw at the next upkeep (CR 603.7a) ────────────────────────
     const delayedDraw = span.match(DELAYED_DRAW_NEXT_UPKEEP);
     if (delayedDraw !== null) {
-        const count = readAmount(delayedDraw[1]!);
-        if (count === null)
-            return fail(`"${delayedDraw[1]}" is not a count`, span);
+        // The imperative "Draw a card at …" (Portent) is the same delayed
+        // trigger as "You draw a card at …" — the controller draws either way.
+        const printed = delayedDraw[1] ?? delayedDraw[2]!;
+        const count = readAmount(printed);
+        if (count === null) return fail(`"${printed}" is not a count`, span);
         return ok({
             kind: "delayed-draw-next-upkeep" as const,
             count,

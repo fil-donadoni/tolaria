@@ -2812,6 +2812,27 @@ function lowerSentenceBody(
                 );
             return lowered([{ op: "exileOnDeath", target: { target: 0 } }]);
         }
+        case "prevent-regeneration-damaged": {
+            // CR 701.19c + CR 608.2h — "a creature dealt damage this way" is
+            // the ONE target announced before it; the Op no-ops on a player,
+            // which is what "a creature" means for an "any target" spell.
+            const announced = slots.requirements();
+            const only = announced.length === 1 ? announced[0]! : null;
+            if (
+                only === null ||
+                (only.type !== "Creature" && only.type !== "any") ||
+                only.count !== 1 ||
+                only.zone !== undefined ||
+                only.announcedOnlyIfKicked === true ||
+                walk.gatedRemoval
+            )
+                return unlowerable(
+                    '"a creature dealt damage this way" names no single target announced before it (CR 608.2h)'
+                );
+            return lowered([
+                { op: "preventRegeneration", target: { target: 0 } },
+            ]);
+        }
         case "exile-self": {
             // CR 608.2n — the resolving spell, never an ability: on a
             // permanent the same words exile the permanent itself.
