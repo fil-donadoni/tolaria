@@ -20,6 +20,13 @@
             "needsSetup": false
         }
     ],
+    "Balance": [
+        {
+            "label": "keep-N edict: casts Balance at two lands and no creatures against five lands and two creatures",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Barbarian Ring": [
         {
             "label": "activation restriction: sacrifices Barbarian Ring at threshold for lethal",
