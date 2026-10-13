@@ -86,7 +86,7 @@ describe("regeneration lock and delayed draw — golden fixtures", () => {
                         op: "delayedTrigger",
                         timing: "next-upkeep",
                         oracleText:
-                            "Draw a card at the beginning of the next turn's upkeep.",
+                            "At the beginning of the next turn's upkeep, draw a card.",
                         effects: [
                             { op: "draw", player: "controller", count: 1 },
                         ],

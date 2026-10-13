@@ -1197,8 +1197,6 @@ export type EffectSentenceIR =
            */
           readonly kind: "delayed-draw-next-upkeep";
           readonly count: AmountIR;
-          /** The printed form: "Draw a card at …" (true) / "You draw …". */
-          readonly imperative: boolean;
       }
     | {
           /**
@@ -6241,7 +6239,6 @@ function effectSentence(
         return ok({
             kind: "delayed-draw-next-upkeep" as const,
             count,
-            imperative: delayedDraw[2] !== undefined,
         } satisfies EffectSentenceIR);
     }
 
