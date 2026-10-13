@@ -274,7 +274,7 @@ export type StaticClauseIR =
           readonly kind: "as-enters-discard";
           readonly filter: { readonly type: CardType };
       }
-    /** CR 702.18 / 115.4 — "You have shroud": the controller can't be the
+    /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
      *  target of spells or abilities. */
     | { readonly kind: "player-shroud" }
     /** CR 614.1a — "If <self> would be put into a graveyard from anywhere,
@@ -1963,8 +1963,8 @@ const asEntersDiscardRule: Rule<StaticClauseIR> = pattern(
 // ── Frame: player shroud (CR 702.18) ────────────────────────────────────────
 
 /**
- * "You have shroud." (Ivory Mask, Solitary Confinement.) CR 702.18b: a player
- * with shroud can't be the target of spells or abilities (CR 115.4 — players
+ * "You have shroud." (Ivory Mask, Solitary Confinement.) CR 702.18a: a player
+ * with shroud can't be the target of spells or abilities (CR 115.1 — players
  * are legal targets, so the keyword reaches them). The controller only:
  * "Players have shroud" and "Target player has shroud" name other holders and
  * differ from the anchored text.

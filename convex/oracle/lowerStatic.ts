@@ -585,7 +585,7 @@ export function lowerStaticClause(
                 ok: true,
                 lowered: { asEntersDiscard: { filter: clause.filter } },
             };
-        // CR 702.18b — the player-scoped guard is already the engine's own
+        // CR 702.18a — the player-scoped guard is already the engine's own
         // JSON-pure effect (`StaticPlayerGuard` carries no predicate).
         case "player-shroud":
             return {

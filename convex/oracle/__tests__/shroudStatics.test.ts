@@ -53,7 +53,7 @@ function clause(line: string): unknown {
     return parsed.value.clause;
 }
 
-describe("You have shroud — golden fixture (CR 702.18b)", () => {
+describe("You have shroud — golden fixture (CR 702.18a)", () => {
     it("Ivory Mask: a player-scoped guard", () => {
         const outcome = compileCard(IVORY_MASK);
         expect(outcome.state).toBe("ready");
@@ -134,7 +134,7 @@ describe("shroud statics — refusals (fail-closed neighbours)", () => {
         });
 });
 
-describe("a compiled player guard in the real engine (CR 702.18b)", () => {
+describe("a compiled player guard in the real engine (CR 702.18a)", () => {
     const MASK_ID = "compiled-ivory-mask-4570";
 
     function withMask<T>(fn: () => T): T {
