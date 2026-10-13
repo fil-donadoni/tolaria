@@ -1354,6 +1354,17 @@ describe("deny-guard — the claim is one locked act: queue:claim, never a hand-
         expect(denied(r)).toBe(false);
     });
 
+    it("allows the release that also drops pr-open — the shape `releaseEditArgs` emits (issue #5562)", () => {
+        const r = runHook(
+            DENY_GUARD,
+            bash(
+                "gh issue edit 4375 --remove-label in-progress --remove-label pr-open --remove-assignee @me",
+                issueWorktree
+            )
+        );
+        expect(denied(r)).toBe(false);
+    });
+
     it("allows an edit that adds some OTHER label", () => {
         const r = runHook(
             DENY_GUARD,

@@ -70,6 +70,7 @@ import { ALLOWLIST_PATH } from "./check-gaps";
 import { ALLOWLIST_COMMIT_SUBJECT } from "./gaps-sync";
 import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import type { BoardPriority } from "./lib/board-priority";
+import { releaseEditArgs } from "./lib/claim-labels";
 import { gh, netEnv } from "./lib/gh";
 import { HOLES_EXIT } from "./lib/grammar-residue";
 import { issueOfBranch } from "./lib/issue-worktree";
@@ -298,16 +299,7 @@ export function prSteps(pr: MergedPr, band: BoardPriority | null): Step[] {
         },
         {
             label: `release claim on issue #${n}`,
-            argv: [
-                "gh",
-                "issue",
-                "edit",
-                n,
-                "--remove-label",
-                "in-progress",
-                "--remove-assignee",
-                "@me",
-            ],
+            argv: ["gh", ...releaseEditArgs(issue)],
         },
         {
             label: `umbrella:detach ${n}`,

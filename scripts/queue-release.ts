@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // `bun run queue:release <N>` — release issue N as ONE act (issue #4752), the
-// inverse of `queue:claim`: remove `in-progress` AND the `@me` assignee, then
+// inverse of `queue:claim`: remove `in-progress` (and `pr-open`, issue #5562)
+// AND the `@me` assignee, then
 // append a `released` row to the claim journal. The decision and the row are
 // `lib/queue-claim.ts`; this file is the I/O.
 //

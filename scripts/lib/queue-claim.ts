@@ -22,6 +22,7 @@
 // behind a ten-minute health gate would be exactly the wait the light tier
 // exists to avoid.
 
+import { releaseEditArgs } from "./claim-labels";
 import { capRefusal, type Admission, type MachineScope } from "./queue-plan";
 
 // ── The decision ─────────────────────────────────────────────────────────────
@@ -320,18 +321,9 @@ export function parsePpidComm(
 // row together. `land`, `claim-sweep.sh` and `loop:doctor --release` already
 // remove both; this is the verb the abort path names.
 
-/** The `gh` edit that undoes `queue:claim`'s — both halves, never one. */
-export function releaseEditArgs(issue: number): string[] {
-    return [
-        "issue",
-        "edit",
-        String(issue),
-        "--remove-label",
-        "in-progress",
-        "--remove-assignee",
-        "@me",
-    ];
-}
+/** The `gh` edit that undoes `queue:claim`'s lives in `claim-labels.ts`
+ *  (issue #5562), so every release path removes the same labels. */
+export { releaseEditArgs };
 
 export interface ReleaseRow {
     ts: number;

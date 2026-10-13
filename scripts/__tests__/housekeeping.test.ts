@@ -250,6 +250,8 @@ describe("housekeeping.ts — the steps", () => {
                 "5457",
                 "--remove-label",
                 "in-progress",
+                "--remove-label",
+                "pr-open",
                 "--remove-assignee",
                 "@me",
             ],

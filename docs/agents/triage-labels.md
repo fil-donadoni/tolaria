@@ -29,6 +29,18 @@ still involved" excludes the queue label.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
 
+## Claim labels (scripts only, never typed by hand)
+
+| Label         | Set by                             | Removed by                                                 |
+| ------------- | ---------------------------------- | ---------------------------------------------------------- |
+| `in-progress` | `queue:claim` — the claim itself   | every release path (`releaseEditArgs`, `claim-sweep.sh`)   |
+| `pr-open`     | `land:ready`, beside `in-progress` | the same release paths, at merge (`housekeeping`) or abort |
+
+`pr-open` is the board's view of the claim journal's `pr-open` row (issue
+#5562): the PR is with the land-runner. It never replaces `in-progress`, which
+every queue reader keys "claimed" on. The PR itself carries `ready-to-land` /
+`land-failed`. Both label sets live in `scripts/lib/claim-labels.ts`.
+
 ## Every new issue is stamped at filing (issue #4457)
 
 **Every surface that creates an issue stamps it** — a skill, a script, a

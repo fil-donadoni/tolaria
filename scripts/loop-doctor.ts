@@ -27,6 +27,7 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, readFileSync, statSync } from "node:fs";
 import { ORIGIN_BASE } from "./lib/branches";
+import { releaseEditArgs } from "./lib/claim-labels";
 import { FAILED_LABEL, READY_LABEL } from "./lib/land-labels";
 import { orphanWorktrees } from "./lib/orphan-worktree";
 import { primaryCheckout } from "./lib/primary-checkout";
@@ -1187,19 +1188,10 @@ if (import.meta.main) {
         process.exit(0);
     }
     for (const { issue: n, verdict } of orphans) {
-        const ok = spawnSync(
-            "gh",
-            [
-                "issue",
-                "edit",
-                String(n),
-                "--remove-label",
-                "in-progress",
-                "--remove-assignee",
-                "@me",
-            ],
-            { stdio: "inherit", env: NET_ENV }
-        ).status;
+        const ok = spawnSync("gh", releaseEditArgs(n), {
+            stdio: "inherit",
+            env: NET_ENV,
+        }).status;
         if (ok === 0) {
             // Record BEFORE reporting, and never let a journal failure look
             // like a failed release: the label really did come off.

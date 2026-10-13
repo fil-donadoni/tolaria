@@ -6,7 +6,9 @@
  *   1. the PR is labelled `ready-to-land` (and loses `land-failed`, so a
  *      repaired PR re-queues with the same command);
  *   2. the claim journal gets the issue's `pr-open` row: the claim stands,
- *      but it holds no `sessions.cap` slot on this machine any more.
+ *      but it holds no `sessions.cap` slot on this machine any more;
+ *   3. the issue gets the `pr-open` label beside `in-progress`, so the board
+ *      shows the hand-off (issue #5562; every release path removes it).
  *
  * Refuses a PR that is not open or does not target the base branch — the
  * runner's `land` would refuse it anyway, an hour later, as a `land-failed`.
@@ -17,6 +19,7 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import { dirname } from "node:path";
 import { BASE_BRANCH } from "./lib/branches";
+import { prOpenEditArgs, PR_OPEN_LABEL } from "./lib/claim-labels";
 import { gh } from "./lib/gh";
 import { issueOfBranch } from "./lib/issue-worktree";
 import { labelArgs, READY_LABEL } from "./lib/land-runner";
@@ -54,6 +57,7 @@ function main(): void {
 
     const issue = issueOfBranch(view.headRefName);
     if (issue !== null) {
+        gh(prOpenEditArgs(issue));
         const ledger = claimLedgerPath(
             process.env.CLAUDE_PROJECT_DIR ?? primaryCheckout()
         );
@@ -73,7 +77,9 @@ function main(): void {
     }
     console.log(
         `land:ready: PR #${pr} labelled \`${READY_LABEL}\` — the land-runner lands it` +
-            (issue === null ? "" : `; issue #${issue}'s claim is now pr-open`)
+            (issue === null
+                ? ""
+                : `; issue #${issue} labelled \`${PR_OPEN_LABEL}\`, its claim is now pr-open`)
     );
 }
 

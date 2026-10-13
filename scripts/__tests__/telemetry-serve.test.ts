@@ -1087,6 +1087,8 @@ describe("telemetry-serve — the real driver operations' argv (#2628)", () => {
                 "2628",
                 "--remove-label",
                 "in-progress",
+                "--remove-label",
+                "pr-open",
                 "--remove-assignee",
                 "@me",
             ],
