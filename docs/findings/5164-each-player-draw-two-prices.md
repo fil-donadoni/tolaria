@@ -1,7 +1,8 @@
 ---
 title: An "each player draws" one-shot and a Howling Mine price the same draw two ways on one board
 discoveredBy: 5164
-status: draft
+status: triaged
+issue: 5573
 confidence: medium
 ---
 
