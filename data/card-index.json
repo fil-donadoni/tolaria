@@ -8920,6 +8920,16 @@
         "source": "compiled"
     },
     {
+        "name": "Carrier Pigeons",
+        "scryfallId": "5543b08d-d470-435e-83d9-a3a84c1cc2e6",
+        "oracleId": "2d30a634-43c6-4e78-ba10-7ef7ee17ac40",
+        "firstSet": "all",
+        "firstPrintId": "5543b08d-d470-435e-83d9-a3a84c1cc2e6",
+        "firstPrintSet": "all",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Carrion Ants",
         "scryfallId": "cbc0b009-3951-4aa3-985a-97139882da7e",
         "oracleId": "87bc6be7-4734-4a11-806e-e9e4f5616fe0",
@@ -20696,6 +20706,16 @@
         "source": "compiled"
     },
     {
+        "name": "Feral Instinct",
+        "scryfallId": "20dec7cf-2865-4642-9022-d3006fd7ac30",
+        "oracleId": "f8f3fc11-25b4-4a23-9d79-f380a14f0420",
+        "firstSet": "vis",
+        "firstPrintId": "20dec7cf-2865-4642-9022-d3006fd7ac30",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Feral Invocation",
         "scryfallId": "5c1f15a2-0058-4188-9696-385fa6974bd4",
         "oracleId": "5b3c069b-5bed-4b70-b04c-b7143a4a6e96",
@@ -20969,6 +20989,16 @@
         "firstPrintId": "3a790769-e76e-49e9-9d6d-05ce8e858243",
         "firstPrintSet": "tmp",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Fevered Strength",
+        "scryfallId": "13e53d6c-67f5-4d74-8205-6325c75d1d07",
+        "oracleId": "52512d7a-9b1c-4475-80aa-c95f4efa1015",
+        "firstSet": "all",
+        "firstPrintId": "13e53d6c-67f5-4d74-8205-6325c75d1d07",
+        "firstPrintSet": "all",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -27880,6 +27910,16 @@
         "firstPrintSet": "clu"
     },
     {
+        "name": "Headstone",
+        "scryfallId": "2fdae7fa-1076-4ff3-b771-fc3f5d9ba89f",
+        "oracleId": "cbf767d4-9be4-417a-bbf7-0c72ede727b4",
+        "firstSet": "hml",
+        "firstPrintId": "2fdae7fa-1076-4ff3-b771-fc3f5d9ba89f",
+        "firstPrintSet": "hml",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Headwater Sentries",
         "scryfallId": "2af2c338-f5e9-4596-9435-c6aa965ae541",
         "oracleId": "17aa790d-d16a-4a90-b8ba-cd50e62f02f0",
@@ -31928,6 +31968,16 @@
         "firstSet": "apc",
         "firstPrintId": "a010d2b1-960d-4032-a47a-61fe0998bee3",
         "firstPrintSet": "apc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Jinx",
+        "scryfallId": "f81fca41-2315-4d12-b05c-d921a4c3c19e",
+        "oracleId": "e6e1b51c-ba4b-4997-968a-751b4cba110f",
+        "firstSet": "hml",
+        "firstPrintId": "f81fca41-2315-4d12-b05c-d921a4c3c19e",
+        "firstPrintSet": "hml",
         "rarity": "common",
         "source": "compiled"
     },
@@ -40231,6 +40281,16 @@
         "firstPrintId": "3dfa866b-93e2-4365-91b0-f12d1f7c5395",
         "firstPrintSet": "shm",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Mystic Melting",
+        "scryfallId": "bf4ff91d-acc1-4be7-a327-58fcb036b452",
+        "oracleId": "850fe8ad-f6b8-4d01-a94b-2b69adc3d8f0",
+        "firstSet": "csp",
+        "firstPrintId": "bf4ff91d-acc1-4be7-a327-58fcb036b452",
+        "firstPrintSet": "csp",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -49804,6 +49864,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ritual of Steel",
+        "scryfallId": "21205189-0d00-44d5-9772-820e607dba25",
+        "oracleId": "0af91b63-a874-4184-8f8f-3871429fd1ad",
+        "firstSet": "mir",
+        "firstPrintId": "21205189-0d00-44d5-9772-820e607dba25",
+        "firstPrintSet": "mir",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Ritual of Subdual",
         "scryfallId": "5c5c01e7-8116-45fc-afc3-d52a31a635cb",
         "oracleId": "e0587218-206e-41ed-af3c-f06b7a668e90",
@@ -56884,6 +56954,16 @@
         "source": "compiled"
     },
     {
+        "name": "Solfatara",
+        "scryfallId": "c5d4bd6f-b019-4594-aa41-138fa58ba529",
+        "oracleId": "6053a192-fcf9-4b06-9f46-e84eaadaa882",
+        "firstSet": "vis",
+        "firstPrintId": "c5d4bd6f-b019-4594-aa41-138fa58ba529",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Solidarity",
         "scryfallId": "c5e1589a-ec4f-47a4-b758-ada7f49ffb8f",
         "oracleId": "7b094a2b-2b69-4a9b-9829-c1aabc53f75e",
@@ -60901,6 +60981,16 @@
         "firstPrintId": "f11cd406-c6ae-4018-ae45-4e5577aa82ae",
         "firstPrintSet": "akh",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Swift Maneuver",
+        "scryfallId": "1f97ef40-9d07-47fa-ad4b-45f26f7351c9",
+        "oracleId": "d7b5fb4b-8f3c-4143-9fb0-2e2544612528",
+        "firstSet": "csp",
+        "firstPrintId": "1f97ef40-9d07-47fa-ad4b-45f26f7351c9",
+        "firstPrintSet": "csp",
+        "rarity": "common",
         "source": "compiled"
     },
     {
