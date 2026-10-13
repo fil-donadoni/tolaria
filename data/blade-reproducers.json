@@ -1854,19 +1854,19 @@
                 "name": "Plains",
                 "owner": "me",
                 "zone": "battlefield",
-                "tapped": false
+                "tapped": true
             },
             {
                 "name": "Plains",
                 "owner": "me",
                 "zone": "battlefield",
-                "tapped": false
+                "tapped": true
             },
             {
                 "name": "Plains",
                 "owner": "me",
                 "zone": "battlefield",
-                "tapped": false
+                "tapped": true
             },
             {
                 "name": "Disenchant",
@@ -1877,13 +1877,13 @@
                 "name": "Mountain",
                 "owner": "opp",
                 "zone": "battlefield",
-                "tapped": false
+                "tapped": true
             },
             {
                 "name": "Mountain",
                 "owner": "opp",
                 "zone": "battlefield",
-                "tapped": false
+                "tapped": true
             },
             {
                 "name": "Winter Orb",
