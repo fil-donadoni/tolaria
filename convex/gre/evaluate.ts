@@ -360,7 +360,7 @@ export function cardValue(
  *  wire projection. */
 function isStandingLockInstance(card: CardInstanceState): boolean {
     const def = tryGetDefinition(String(card.card.id ?? ""));
-    return def !== undefined && declaresStandingLock(def);
+    return def != null && declaresStandingLock(def);
 }
 
 /** The latent board lens for one card in `player`'s hand, or `undefined` when

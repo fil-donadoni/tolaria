@@ -12306,6 +12306,67 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5154. Guards `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Moat's standing worth is the attack share it takes from the three Bears, read by `permanentRealisedValue` and the board term alike. Measured at 400 iterations over 20 seeds: the Moat 20/20 with the pricing; with `creatureRestrictionDiscount` and `restrictionSourceWorth` returning 0, the Launcher 20/20 (a plain Mightstone in its place was NOT discriminating — 20/20 Moat either way, the rollouts reach the freed attack; a scriptless Jayemdae Tome tied at 16/20).",
     },
+    {
+        // Issue #5163 (ADR 0151) — a SYMMETRIC lock read by Differential
+        // Reading. The bot holds Disenchant with five Plains against two
+        // Mountains, a Winter Orb and a Tawnos's Weaponry (a 2-MV artifact
+        // the Op vocabulary reads at its floor). The Orb locks four of the
+        // bot's five lands and one of the opponent's two: on THIS board it is
+        // the opponent's weapon, and the removal lens (`permanentRealisedValue`)
+        // ranks it above the artifact of the same mana value only through the
+        // mana axis of `restrictionSourceWorth` (`ai/restrictionPricing.ts`).
+        // Read context-free, the Orb is a generic 2-mana artifact and the
+        // pick between the two is noise.
+        label: "symmetric lock: Disenchant takes the Winter Orb that locks more of the bot's lands, not the 2-MV artifact (issue #5163)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Winter Orb on a board where the bot has more lands",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 5 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Mountain",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Winter Orb", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Winter Orb",
+                },
+            ],
+        },
+        note: "Issue #5163. Guards the mana axis of `restrictionSourceWorth` (`ai/restrictionPricing.ts`): the Orb's standing worth is the four renewals it takes from the bot minus the one it takes from the opponent, read by `permanentRealisedValue` and the board term alike. MEASURED_PLACEHOLDER",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
