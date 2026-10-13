@@ -12540,6 +12540,80 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5568. The same board with one tapped Island added: the controller pays {U} at upkeep, the Curse holds nothing and reads at its floor, so the 2-MV artifact outranks it. Without the escape reading this board is identical to the previous entry and the Curse is taken.",
     },
+    {
+        // SYMMETRIC ENGINE (issue #5164, ADR 0151). The bot holds Disenchant
+        // with two untapped Plains and seven Grizzly Bears beside it; the
+        // opponent holds ONE card and controls a Howling Mine and an
+        // Aeolipile (2 MV, its one ability sacrifices it as its cost, which
+        // the standing reading excludes — issue #5145 — so it sits at the
+        // `base + MV` floor). Every player draws an extra card off the Mine,
+        // but the bot's hand is full: its extra card is discarded at cleanup
+        // (CR 514.1) or replaces a better one, while the opponent's lands in
+        // an empty hand. The Mine is the opponent's engine; Disenchant it.
+        //
+        // WHY IT WAS WRONG. The Mine's trigger acts on whichever player's
+        // draw step it is, and the standing reading valued it ONCE, as "its
+        // controller draws a card" times the recurrence — the same extra card
+        // on every board. Read from the bot's seat that was a gift both
+        // players share; the removal lens priced the Mine at its floor-like
+        // context-free number, and nothing said the opponent was the one fed.
+        label: "symmetric engine: Disenchant takes the Howling Mine that feeds the opponent's empty hand, not the 2-MV artifact (issue #5164)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Howling Mine whose extra draw only the opponent has room in hand for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 7 }, () => ({
+                    name: "Grizzly Bears",
+                    owner: "me" as const,
+                    zone: "hand" as const,
+                })),
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                // Both libraries hold spells beside the filler basics, so the
+                // extra card a turn is worth having (`drawWorth` reads the
+                // library's mean card); the same mix on both sides — what
+                // separates the players is the room in hand.
+                ...(["me", "opp"] as const).flatMap((owner) =>
+                    Array.from({ length: 10 }, () => ({
+                        name: "Grizzly Bears",
+                        owner,
+                        zone: "library" as const,
+                    }))
+                ),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Howling Mine", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Howling Mine",
+                },
+            ],
+        },
+        note: "Issue #5164. Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) through the board face (`nonCreatureBodyValue`'s `standingEngineLens`, `evaluate.ts`): the Mine is worth what each player's extra draw is worth to that player (`EachPlayerSide.drawWorth`, `ai/latentBoard.ts`), the opponent's minus the bot's.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
