@@ -46,6 +46,9 @@ describe("preQueueSteps — the lane's own plan, filtered (issue #5554)", () => 
         const plan = classifyLane(files, files, related({}));
         const { run } = preQueueSteps(plan, [], files);
         expect(run.map((c) => c.id)).not.toContain("check:pr");
+        expect(run.map((c) => c.id)).toEqual(
+            expect.arrayContaining(["tsc[all]", "cr:lint", "format(diff)"])
+        );
         expect(run.map((c) => c.id)).toContain("check:gaps");
     });
 

@@ -17,7 +17,11 @@
  *
  * Pure: no I/O. `check-lane.ts` / `land-ready.ts` do the git and the shell.
  */
-import type { LanePlan, PlannedCheck } from "../check-lane";
+import {
+    fullLaneSecondsSteps,
+    type LanePlan,
+    type PlannedCheck,
+} from "../check-lane";
 
 /** Steps the lane plans that are NOT seconds-cost, by id, with the reason. */
 export const EXCLUDED_FROM_PRE_QUEUE: Readonly<Record<string, string>> = {
@@ -98,6 +102,7 @@ export function preQueueSteps(
 ): PreQueuePlan {
     const run: PlannedCheck[] = [];
     const skip: PreQueueSkip[] = [];
+    if (plan.lane === "full") run.push(...fullLaneSecondsSteps([...present]));
     for (const check of plan.run) {
         const why = notSecondsCost(check);
         if (why === null) run.push(check);

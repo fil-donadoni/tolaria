@@ -25,14 +25,13 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import {
     addedPaths,
     changedPaths,
     classifyLane,
     contentClasses,
     runPlan,
-    shellRun,
     type LanePlan,
     type RunResult,
 } from "./check-lane";
@@ -77,6 +76,25 @@ export function runPreQueue(deps: PreQueueDeps): {
     return { failed: failed?.id ?? null, result };
 }
 
+/** `gate.ts` exit 77: INFRA, nothing ran — never a red step. */
+const GATE_INFRA = 77;
+
+/** One command at the light tier; 77 aborts (re-issue), never reads as red. */
+function execLight(command: string, cwd: string): { ok: boolean; ms: number } {
+    const t0 = Date.now();
+    const r = spawnSync(
+        "bun",
+        [resolve(import.meta.dirname, "gate.ts"), "light", command],
+        { stdio: "inherit", cwd }
+    );
+    if (r.status === GATE_INFRA) {
+        throw new Error(
+            `\`${command}\` exited ${GATE_INFRA} (machine saturated, nothing ran) — not a red step; re-issue land:ready`
+        );
+    }
+    return { ok: r.status === 0, ms: Date.now() - t0 };
+}
+
 function git(args: string[]): string {
     const r = spawnSync("git", args, { encoding: "utf8" });
     if (r.status !== 0) throw new Error(`git ${args.join(" ")} failed`);
@@ -114,7 +132,7 @@ function preQueueGate(pr: number, headOid: string): void {
         plan,
         present,
         added: addedPaths(ORIGIN_BASE, cwd),
-        exec: (command) => shellRun(command, cwd, false),
+        exec: (command) => execLight(command, cwd),
         log: console.log,
     });
     const seconds = Math.round((Date.now() - t0) / 1000);
