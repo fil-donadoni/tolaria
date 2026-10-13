@@ -480,7 +480,13 @@ function main(): void {
         const swept = spawnSync(
             CLOSED_CLAIMS_STEP.argv[0]!,
             CLOSED_CLAIMS_STEP.argv.slice(1),
-            { cwd: primary, env: netEnv(process.env), encoding: "utf8" }
+            {
+                cwd: primary,
+                env: netEnv(process.env),
+                encoding: "utf8",
+                // A hung `gh` must not hold the lock past this run.
+                timeout: 300_000,
+            }
         );
         appendFileSync(logPath, `${swept.stdout ?? ""}${swept.stderr ?? ""}`);
         if (swept.status !== 0)
