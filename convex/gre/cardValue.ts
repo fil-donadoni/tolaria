@@ -17,7 +17,11 @@
 // (those genuinely need `GameState` — effective P/T through the layer system)
 // but now delegates their shared body math (`creatureValueRaw`, the latent
 // core) to this module so there is exactly one implementation.
-import type { CardDefinition, PermanentView } from "../cards/types";
+import type {
+    CardDefinition,
+    PermanentFilter,
+    PermanentView,
+} from "../cards/types";
 import { tryGetDefinition } from "../cards";
 import { isManaAbilityDefinition, manaValue } from "./constants";
 import {
@@ -339,14 +343,21 @@ function carriesStandingAbilityWorth(def: CardDefinition): boolean {
 }
 
 /** Issue #5163 (ADR 0151) — true for a non-creature, non-land PERMANENT whose
- *  static restrictions reach the whole battlefield rather than one host or
- *  itself: an untap restriction that is neither host- nor self-scoped
- *  (Winter Orb, Stasis, Meekstone) or a battlefield-scanned attack
- *  prohibition (Moat). Its worth is a Symmetric Effect's — the board decides
- *  its sign — so on a real board it is MEASURED (`standingLockValue`), and
- *  the same reading prices it in hand and on the battlefield. An Aura's
- *  host-scoped lock (Pacifism, Paralyze) is not one: in hand its host is
- *  not chosen yet. */
+ *  static effects are ALL standing locks the restriction pricing
+ *  (`ai/restrictionPricing.ts`) reads whole, reaching the whole battlefield
+ *  rather than one host or itself:
+ *   - an untap restriction neither host- nor self-scoped that is a hard skip
+ *     (Stasis, Meekstone) or a cap over lands (Winter Orb) — a cap over
+ *     creatures (Smoke) is not priced;
+ *   - a battlefield-scanned attack prohibition (Moat), unless the card makes
+ *     a choice as it enters (Teferi's Moat's colour), which the board a card
+ *     in hand would leave behind does not hold yet.
+ *  Any other static beside them (Elephant Grass's attack tax) is a clause the
+ *  pricing does not read, so the card is not measured and keeps its floor.
+ *  Its worth is a Symmetric Effect's — the board decides its sign — so on a
+ *  real board it is MEASURED (`standingLockValue`), and the same reading
+ *  prices it in hand and on the battlefield. A host-scoped lock (Merseine)
+ *  is not one: in hand its host is not chosen yet. */
 export function declaresStandingLock(def: CardDefinition): boolean {
     if (
         def.types.includes("Creature") ||
@@ -355,13 +366,27 @@ export function declaresStandingLock(def: CardDefinition): boolean {
     ) {
         return false;
     }
-    return (def.staticEffects ?? []).some(
-        (effect) =>
-            effect.kind === "global-attack-restriction" ||
-            (effect.kind === "untap-restriction" &&
-                !effect.appliesToHost &&
-                !effect.appliesToSelf)
+    const statics = def.staticEffects ?? [];
+    return (
+        statics.length > 0 &&
+        statics.every((effect) => {
+            if (effect.kind === "global-attack-restriction") {
+                return !def.entersWith?.asEnters?.length;
+            }
+            if (effect.kind !== "untap-restriction") return false;
+            if (effect.appliesToHost || effect.appliesToSelf) return false;
+            return effect.maxUntap === 0 || isLandOnlyFilter(effect.filter);
+        })
     );
+}
+
+/** A `PermanentFilter` naming exactly the Land type and nothing else. */
+function isLandOnlyFilter(filter: PermanentFilter): boolean {
+    const types = filter.types;
+    const onlyLand = Array.isArray(types)
+        ? types.length === 1 && types[0] === "Land"
+        : types === "Land";
+    return onlyLand && Object.keys(filter).length === 1;
 }
 
 /** Derive the two DSL-script value pieces from a `CardDefinition` (context-free

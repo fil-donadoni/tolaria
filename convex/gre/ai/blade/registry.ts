@@ -12327,18 +12327,26 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         spec: {
             cards: [
-                ...Array.from({ length: 5 }, () => ({
+                // The Orb's steady state: two Plains open (the one it
+                // untapped and one held back), three held down.
+                ...Array.from({ length: 2 }, () => ({
                     name: "Plains",
                     owner: "me" as const,
                     zone: "battlefield" as const,
                     tapped: false,
+                })),
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: true,
                 })),
                 { name: "Disenchant", owner: "me", zone: "hand" },
                 ...Array.from({ length: 2 }, () => ({
                     name: "Mountain",
                     owner: "opp" as const,
                     zone: "battlefield" as const,
-                    tapped: false,
+                    tapped: true,
                 })),
                 { name: "Winter Orb", owner: "opp", zone: "battlefield" },
                 {

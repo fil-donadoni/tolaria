@@ -65,6 +65,7 @@ import {
     getInstanceAiValue,
     tryGetDefinition,
 } from "../cards";
+import { declaresCombatRestrictionStaticEffect } from "../cards/registry";
 import { dangerClock, predictCombatOutcome } from "./dangerClock";
 import { castableHeldInteraction } from "./heldInteraction";
 import {
@@ -107,6 +108,7 @@ import {
     creatureRestrictionDiscount,
     manaSourceLockDiscount,
     restrictionSourceWorth,
+    standingLockMargin,
     type RestrictionShareWeights,
 } from "./ai/restrictionPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
@@ -359,7 +361,11 @@ export function cardValue(
 /** Issue #5163 — `declaresStandingLock` off the registry id that survives the
  *  wire projection. */
 function isStandingLockInstance(card: CardInstanceState): boolean {
-    const def = tryGetDefinition(String(card.card.id ?? ""));
+    const id = String(card.card.id ?? "");
+    // The registry precheck first: nearly no permanent declares a
+    // restriction static, and that answer is one `Set.has`.
+    if (!declaresCombatRestrictionStaticEffect(id)) return false;
+    const def = tryGetDefinition(id);
     return def != null && declaresStandingLock(def);
 }
 
@@ -389,7 +395,21 @@ function latentBoardFor(
                 cardValue(
                     state,
                     asReturnedToHand(perm),
-                    undefined,
+                    // Issue #5163 — a standing lock handed back is a lock in
+                    // hand, measured like one: on this board, where it already
+                    // stands, its worth is the margin it moves here.
+                    isStandingLockInstance(perm)
+                        ? {
+                              ...contextFreeLatentLens(weights.latent),
+                              standingLockWorth: () =>
+                                  standingLockMargin(
+                                      state,
+                                      perm,
+                                      weights,
+                                      pass
+                                  ),
+                          }
+                        : undefined,
                     weights.latent,
                     pass,
                     weights.latentCreatureDiscount,
@@ -400,8 +420,7 @@ function latentBoardFor(
             // Issue #5163 — the board face's own reading, on the board the
             // card would leave behind (see `permanentRealisedValue`).
             standingWorth: (board, perm) =>
-                2 *
-                restrictionSourceWorth(
+                standingLockMargin(
                     board,
                     perm,
                     weights,
@@ -1469,7 +1488,11 @@ export function permanentRealisedValue(
     // own, which is a gain — the same sign the worth already carries). So
     // `realisedLoss` of a Moat equals the margin its Disenchant actually
     // moves, as it does for a creature kill, instead of half of it.
-    total += 2 * restrictionSourceWorth(state, perm, weights, pass);
+    //
+    // Issue #5163 — plus the mana axis of an untap lock, ONCE: the locked
+    // sources' discount sits in their controllers' `mana` terms and nowhere
+    // else (`standingLockMargin`).
+    total += standingLockMargin(state, perm, weights, pass);
     const controller = state.players.find((p) => p.id === perm.controllerId);
     // CR 118.3 (issue #3530) — what a FINITE source's removal costs is its
     // remaining CHARGES, not a renewable source's price: destroying a depletion

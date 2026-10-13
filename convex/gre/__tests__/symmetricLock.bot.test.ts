@@ -18,7 +18,7 @@ import {
     makeState,
 } from "../../cards/__tests__/setup.helper";
 import { DEFAULT_EVAL_WEIGHTS } from "../ai/evalWeights";
-import { cardValueById } from "../cardValue";
+import { cardValueById, declaresStandingLock } from "../cardValue";
 import {
     cardValue,
     evaluate,
@@ -54,11 +54,27 @@ function inst(
 function lands(
     controllerId: string,
     count: number,
-    isTapped = false
+    isTapped = false,
+    from = 0
 ): CardInstanceState[] {
     return Array.from({ length: count }, (_, k) =>
-        inst(FOREST, controllerId, `${controllerId}-forest-${k}`, { isTapped })
+        inst(FOREST, controllerId, `${controllerId}-forest-${from + k}`, {
+            isTapped,
+        })
     );
+}
+
+/** The lock's steady state for one side: `untapped` lands still open (the
+ *  one the cap untapped, or the ones held back), the rest tapped. */
+function lockedLands(
+    controllerId: string,
+    untapped: number,
+    tapped: number
+): CardInstanceState[] {
+    return [
+        ...lands(controllerId, untapped),
+        ...lands(controllerId, tapped, true, untapped),
+    ];
 }
 
 function board(
@@ -102,20 +118,26 @@ function bothFaces(
 }
 
 describe("symmetric locks — Differential Reading per leaf (issue #5163)", () => {
-    it("CR 502.3: Winter Orb with the Bot at 2 lands vs 6 scores higher for the Bot than at 6 vs 2, same cards otherwise", () => {
-        // The lock's steady state: every land tapped, the Orb untapping one
-        // per side. The six-land side holds five dead lands, the two-land
-        // side one.
-        const orb = () => inst(ORB, "p1", "orb");
-        const short = board(
-            [...lands("p1", 2, true), orb()],
-            lands("p2", 6, true)
-        );
-        const long = board(
-            [...lands("p1", 6, true), orb()],
-            lands("p2", 2, true)
-        );
-        expect(evaluate(short, "p1")).toBeGreaterThan(evaluate(long, "p1"));
+    it("CR 502.3: under its controller's OWN lock an extra tapped land is never worth less than nothing (the mana axis is counted once)", () => {
+        for (const lockId of [ORB, STASIS]) {
+            const withLands = (n: number) =>
+                evaluate(
+                    board(
+                        [...lands("p1", n, true), inst(lockId, "p1", "lock")],
+                        lands("p2", 3, true)
+                    ),
+                    "p1"
+                );
+            expect(withLands(4)).toBeGreaterThan(withLands(3));
+        }
+    });
+
+    it("under a cap every matched land prices alike: no source's removal depends on its id", () => {
+        const orb = inst(ORB, "p1", "orb");
+        const four = lands("p2", 4, true);
+        const state = board([orb], four);
+        const values = four.map((l) => permanentRealisedValue(state, l, W));
+        for (const v of values) expect(v).toBeCloseTo(values[0], 9);
     });
 
     it("an untapped land under the Orb keeps the one activation it holds: the lock still moves the margin toward the short side, by less", () => {
@@ -176,24 +198,35 @@ describe("symmetric locks — Differential Reading per leaf (issue #5163)", () =
         expect(cardValueById(ORB)).toBeGreaterThan(0);
     });
 
-    it("removal lens: an opposing Winter Orb outranks a 2-MV artifact when the Bot has more lands, and not when it has fewer", () => {
+    it("removal lens: an opposing Winter Orb outranks a 2-MV artifact when the Bot has more lands under it, and not when it has fewer", () => {
         const orb = inst(ORB, "p2", "orb");
         const weaponry = inst(WEAPONRY, "p2", "weaponry");
-        const botAhead = board(lands("p1", 5), [
-            ...lands("p2", 2),
+        // The Orb's steady state: the long side has two lands open for the
+        // Disenchant and the rest held down; the short side is tapped out.
+        const botAhead = board(lockedLands("p1", 2, 5), [
+            ...lands("p2", 2, true),
             orb,
             weaponry,
         ]);
         expect(permanentRealisedValue(botAhead, orb, W)).toBeGreaterThan(
             permanentRealisedValue(botAhead, weaponry, W)
         );
-        const botBehind = board(lands("p1", 2), [
-            ...lands("p2", 5),
+        const botBehind = board(lockedLands("p1", 2, 0), [
+            ...lockedLands("p2", 2, 5),
             orb,
             weaponry,
         ]);
         expect(permanentRealisedValue(botBehind, orb, W)).toBeLessThan(
             permanentRealisedValue(botBehind, weaponry, W)
         );
+    });
+
+    it("a standing lock is a card whose every static the pricing reads whole: Smoke's creature cap, Elephant Grass's tax and Teferi's Moat's chosen colour keep the floor", () => {
+        for (const name of ["Winter Orb", "Stasis", "Meekstone", "Moat"]) {
+            expect(declaresStandingLock(getCardByName(name)), name).toBe(true);
+        }
+        for (const name of ["Smoke", "Elephant Grass", "Teferi's Moat"]) {
+            expect(declaresStandingLock(getCardByName(name)), name).toBe(false);
+        }
     });
 });

@@ -53,22 +53,32 @@
 // loses its whole `tappedManaWeight`; one still UNTAPPED keeps exactly one
 // activation — the price of one use that does not come back,
 // `finiteManaUseWeight` (issue #3530) — and loses the rest of its
-// `manaWeight`. Under a CAP (`maxUntap: k`) the k sources that lose the most
-// keep renewing — the steady state of an untap step that untaps k of them —
-// and the rest are locked. Per side, per source, counterfactually, exactly as
-// the creature axes: the source of the lock earns the opponent's locked mana
-// minus its controller's own, so the SIGN of a Winter Orb is the land count
-// of each side, read off the board at every leaf, never a fixed sign on the
-// card.
+// `manaWeight`. Under a CAP (`maxUntap: k`) over n matched sources, k of them
+// keep renewing each untap step and which k is the player's pick, so every
+// matched source carries the pool's share (n − k) / n of its loss — the pool
+// total is the n − k sources locked, and no source's price depends on its id.
+//
+// Unlike the creature axes, the mana axis is counted ONCE: the restricted
+// side's `mana` term carries the loss (`manaSourceLockDiscount`), and the
+// source's board term credits nothing for it. A locked land is still a land
+// to its controller (presence, plus what the lock leaves it); crediting the
+// source as well would price an extra land under its controller's own Orb
+// below nothing. The removal lens and the hand face read the netting once
+// (`manaLockSourceWorth`, inside `standingLockMargin`): the opponent's locked
+// mana minus the controller's own, so the SIGN of a Winter Orb is each side's
+// land count, read off the board at every leaf, never a fixed sign on the
+// card. Stasis skips the whole untap step (CR 502.3 is the reading of what it
+// keeps tapped; untap-step triggers are not priced).
 //
 // OUT (by the issue, or by this module's reach — listed so nobody reads a
 // zero as a verdict): cost taxes (a mana-economy term, tracker issue #5156);
 // keyword rows (issue #5152); an untap CAP on CREATURES (`maxUntap: 1` over
 // creatures, Smoke — which creature untaps is not a per-creature fact; its
-// mana creatures ARE read by the mana axis); the `does-not-untap` keyword grant and the pay-to-untap escape (Thelon's
-// Curse), which are not `untap-restriction` statics; declared-set
-// restrictions ("can only attack alone"); a block restriction with a
-// `bypassCost` (Hipparion — the block is still legal for a price).
+// mana creatures ARE read by the mana axis); the `does-not-untap` keyword
+// grant and the pay-to-untap escape (Thelon's Curse, Magnetic Mountain — the
+// lock is read as a hard skip); declared-set restrictions ("can only attack
+// alone"); a block restriction with a `bypassCost` (Hipparion — the block is
+// still legal for a price).
 //
 // One walk per leaf: the plan is built lazily on the layer-7 pass
 // (`Layer7Pass.restrictions`) the first time a creature is priced, like the
@@ -487,40 +497,36 @@ function lockedManaLoss(
         : Math.max(0, shares.manaWeight - shares.finiteManaUseWeight);
 }
 
-/** Issue #5163 — the ids of `locks`' locked mana sources, with the lock
- *  source `exclude` treated as absent. A hard skip locks every source it
- *  matches; a cap of k lets the k sources that lose the most keep renewing
- *  (ties by id, so the reading is deterministic) and locks the rest. */
-function lockedManaSources(
+/** Issue #5163 — the share of its loss each mana source matched by `locks`
+ *  carries, with the lock source `exclude` treated as absent: 1 under a hard
+ *  skip, (n − k) / n under a cap of k over n matched sources, the largest
+ *  share where two locks overlap. */
+function lockedManaShares(
     locks: readonly ManaLock[],
-    shares: RestrictionShareWeights,
     exclude?: string
-): Map<string, CardInstanceState> {
-    const locked = new Map<string, CardInstanceState>();
+): Map<string, { perm: CardInstanceState; share: number }> {
+    const out = new Map<string, { perm: CardInstanceState; share: number }>();
     for (const lock of locks) {
         if (lock.sourceId === exclude) continue;
-        const ranked =
-            lock.maxUntap === 0
-                ? lock.matched
-                : [...lock.matched].sort(
-                      (a, b) =>
-                          lockedManaLoss(b, shares) -
-                              lockedManaLoss(a, shares) ||
-                          (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-                  );
-        for (const perm of ranked.slice(lock.maxUntap)) {
-            locked.set(perm.id, perm);
+        const n = lock.matched.length;
+        const share = lock.maxUntap === 0 ? 1 : (n - lock.maxUntap) / n;
+        for (const perm of lock.matched) {
+            const prior = out.get(perm.id);
+            if (!prior || prior.share < share)
+                out.set(perm.id, { perm, share });
         }
     }
-    return locked;
+    return out;
 }
 
 function lockedManaTotal(
-    locked: ReadonlyMap<string, CardInstanceState>,
-    shares: RestrictionShareWeights
+    shares: ReadonlyMap<string, { perm: CardInstanceState; share: number }>,
+    weights: RestrictionShareWeights
 ): number {
     let total = 0;
-    for (const perm of locked.values()) total += lockedManaLoss(perm, shares);
+    for (const { perm, share } of shares.values()) {
+        total += share * lockedManaLoss(perm, weights);
+    }
     return total;
 }
 
@@ -537,9 +543,49 @@ export function manaSourceLockDiscount(
 ): number {
     const locks = planFor(state, pass).manaLocks.get(source.controllerId);
     if (!locks) return 0;
-    return lockedManaSources(locks, shares).has(source.id)
-        ? lockedManaLoss(source, shares)
-        : 0;
+    const entry = lockedManaShares(locks).get(source.id);
+    return entry ? entry.share * lockedManaLoss(source, shares) : 0;
+}
+
+/** Issue #5163 — the standing worth of `source` as a MANA lock: per side,
+ *  the locked mana with it minus without it, the opponent's a gain and the
+ *  controller's own a loss. A Winter Orb beside two lands of its
+ *  controller's and six of the opponent's earns the five renewals the
+ *  opponent loses minus the one its controller does. Counted once — read
+ *  only through `standingLockMargin`, never by the board term (see the
+ *  header). */
+export function manaLockSourceWorth(
+    state: GameState,
+    source: CardInstanceState,
+    shares: RestrictionShareWeights,
+    pass: Layer7Pass
+): number {
+    let worth = 0;
+    for (const [playerId, locks] of planFor(state, pass).manaLocks) {
+        if (!locks.some((lock) => lock.sourceId === source.id)) continue;
+        const taken =
+            lockedManaTotal(lockedManaShares(locks), shares) -
+            lockedManaTotal(lockedManaShares(locks, source.id), shares);
+        worth += playerId === source.controllerId ? -taken : taken;
+    }
+    return worth;
+}
+
+/** Issue #5163 — the margin `source`'s standing restrictions move on this
+ *  board: the creature axes twice (the source's own `permanents` credit plus
+ *  the restricted creatures' discount, issue #5154) and the mana axis once.
+ *  What its removal moves (`permanentRealisedValue`) and what it is worth in
+ *  hand once entered (`standingLockWorth`), so the two faces are one number. */
+export function standingLockMargin(
+    state: GameState,
+    source: CardInstanceState,
+    shares: RestrictionShareWeights,
+    pass: Layer7Pass
+): number {
+    return (
+        2 * restrictionSourceWorth(state, source, shares, pass) +
+        manaLockSourceWorth(state, source, shares, pass)
+    );
 }
 
 /** What `card`'s restrictions take off its realized body (issue #5154):
@@ -571,23 +617,8 @@ export function restrictionSourceWorth(
     pass: Layer7Pass
 ): number {
     const plan = planFor(state, pass);
+    if (plan.entries.size === 0) return 0;
     let worth = 0;
-    // Issue #5163 — the mana axis: per side, the locked mana with this
-    // source minus without it, the opponent's a gain and the controller's own
-    // a loss. A Winter Orb beside two lands of its controller's and six of the
-    // opponent's earns the five the opponent cannot renew minus the one its
-    // controller cannot.
-    for (const [playerId, locks] of plan.manaLocks) {
-        if (!locks.some((lock) => lock.sourceId === source.id)) continue;
-        const taken =
-            lockedManaTotal(lockedManaSources(locks, shares), shares) -
-            lockedManaTotal(
-                lockedManaSources(locks, shares, source.id),
-                shares
-            );
-        worth += playerId === source.controllerId ? -taken : taken;
-    }
-    if (plan.entries.size === 0) return worth;
     for (const entry of plan.entries.values()) {
         if (entry.card.id === source.id) continue;
         if (

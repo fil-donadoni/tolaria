@@ -183,8 +183,8 @@ export interface LatentBoardInputs {
     /** Issue #4874 — see `AggregateLoss`. */
     aggregateLoss: AggregateLoss;
     /** Issue #5163 — the margin a PERMANENT's standing restrictions move on
-     *  `board` (`2 × restrictionSourceWorth`, the reading
-     *  `permanentRealisedValue` makes): read by `standingLockWorth` on the
+     *  `board` (`standingLockMargin`, the reading `permanentRealisedValue`
+     *  makes): read by `standingLockWorth` on the
      *  board with the hand card entered. Omitted, the lens has no standing
      *  reading and a lock in hand keeps its context-free valuation. */
     standingWorth?: (board: GameState, perm: CardInstanceState) => number;
@@ -266,6 +266,7 @@ export function makeLatentBoardLens(
     const denominator = representativeVictimLoss(weights);
     const memo = new Map<number, number | undefined>();
     let measured = false;
+    let standingMemo: number | undefined;
 
     const compute = (slot: number): number | undefined =>
         unitsOf(slots[slot] ?? openEnded);
@@ -356,8 +357,20 @@ export function makeLatentBoardLens(
         ...(standingWorth
             ? {
                   standingLockWorth() {
-                      const entered = withCardEntered(state, casterId, card);
-                      return standingWorth(entered.state, entered.perm);
+                      // Memoised: the hand term and a reader of the card's
+                      // own number may both ask on one leaf.
+                      if (standingMemo === undefined) {
+                          const entered = withCardEntered(
+                              state,
+                              casterId,
+                              card
+                          );
+                          standingMemo = standingWorth(
+                              entered.state,
+                              entered.perm
+                          );
+                      }
+                      return standingMemo;
                   },
               }
             : {}),
