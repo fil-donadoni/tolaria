@@ -244,6 +244,10 @@ export const desertNomads = defineCard(() => ({
     ],
 }));
 
+/** CR 503.1a — the per-creature price of Magnetic Mountain's upkeep untap;
+ *  read by the static (the Brain prices the lock with it) and by the trigger. */
+const MAGNETIC_MOUNTAIN_ESCAPE_COST = { X: 4 } as const;
+
 // Magnetic Mountain (ARN) — "Blue creatures don't untap during their
 // controllers' untap steps. / At the beginning of each player's upkeep, that
 // player may choose any number of tapped blue creatures they control and pay
@@ -272,6 +276,7 @@ export const magneticMountain = defineCard(() => ({
                 "Blue creatures don't untap during their controllers' untap steps.",
             filter: { types: "Creature", colors: ["U"] },
             maxUntap: 0,
+            untapEscapeCost: MAGNETIC_MOUNTAIN_ESCAPE_COST,
         }),
     ],
     triggeredAbilities: [
@@ -311,8 +316,12 @@ export const magneticMountain = defineCard(() => ({
                 const paid = ctx.requestMayPay({
                     playerId: scopedPlayerId,
                     choiceId: `${scopedPlayerId}:mm-pay`,
-                    cost: { X: 4 * chosen.length },
-                    prompt: `Pay {${4 * chosen.length}} to untap ${chosen.length} blue creature(s)?`,
+                    cost: {
+                        X:
+                            (MAGNETIC_MOUNTAIN_ESCAPE_COST.X ?? 0) *
+                            chosen.length,
+                    },
+                    prompt: `Pay {${(MAGNETIC_MOUNTAIN_ESCAPE_COST.X ?? 0) * chosen.length}} to untap ${chosen.length} blue creature(s)?`,
                 });
                 if (paid === undefined) return; // suspend: awaiting the payment
                 if (paid) {

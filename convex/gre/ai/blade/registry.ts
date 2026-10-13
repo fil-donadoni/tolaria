@@ -12375,6 +12375,104 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5163. Guards the mana axis of the restriction pricing (`ai/restrictionPricing.ts`): the Orb takes the renewals of four of the bot's five lands and one of the opponent's two, counted once on the restricted side's `mana` term and read by the removal lens through `standingLockMargin`. Board in the lock's steady state (lands held down). Measured at 400 iterations over 20 seeds: the Orb 20/20; with the mana axis off (`buildManaLocks` empty), Tawnos's Weaponry 20/20. With only the lens netting off the Orb still wins 20/20 — the search reads the recovered renewals at the leaf.",
     },
+    {
+        label: "pay-to-untap escape: Disenchant takes the Thelon's Curse that holds the bot's tapped blue creature when the bot has no blue source (issue #5568)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                {
+                    name: "Water Elemental",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Thelon's Curse", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Thelon's Curse",
+                }),
+            describe: "Disenchant is cast on Thelon's Curse",
+        },
+        note: "Issue #5568. Guards the escape reading of `ai/restrictionPricing.ts`: with no blue source the {U} buy-out is unpayable, so the Curse holds the 5/4 whole and the removal lens ranks it above the 2-MV artifact. Discriminating pair with the next entry. A `predicate` entry, not `moves`: the escape is a pricing rule, not a weight, so no refit is owed.",
+    },
+    {
+        label: "pay-to-untap escape: Disenchant leaves the Thelon's Curse the bot can pay out of and takes the artifact (issue #5568)",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                // A blue source in the mana base: it untaps before the upkeep
+                // Thelon's Curse's {U} is paid in.
+                {
+                    name: "Island",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                {
+                    name: "Water Elemental",
+                    owner: "me",
+                    zone: "battlefield",
+                    tapped: true,
+                },
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Thelon's Curse", owner: "opp", zone: "battlefield" },
+                {
+                    name: "Tawnos's Weaponry",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            predicate: (move, state) =>
+                matchesMove(state, move, {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Tawnos's Weaponry",
+                }),
+            describe: "Disenchant is cast on Tawnos's Weaponry",
+        },
+        note: "Issue #5568. The same board with one tapped Island added: the controller pays {U} at upkeep, the Curse holds nothing and reads at its floor, so the 2-MV artifact outranks it. Without the escape reading this board is identical to the previous entry and the Curse is taken.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
