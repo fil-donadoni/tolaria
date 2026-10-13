@@ -47,6 +47,8 @@ import {
     STRUCTURAL_CONSTRUCTS,
     VALUED_OR_STRUCTURAL,
     addValues,
+    eachStepDifferentialValue,
+    isEachStepEngineScript,
     opBeneficence,
     valueEffectScript,
 } from "./opValuers";
@@ -550,7 +552,11 @@ function abilityScriptOpValue(
     def: CardDefinition,
     ctx: GroundingContext,
     self: PermanentView | undefined,
-    selection: AbilitySelection
+    selection: AbilitySelection,
+    /** Issue #5164 — the board a standing each-step ENGINE is read against
+     *  (`eachStepDifferentialValue`). Only such an engine reads it: every
+     *  other ability keeps `ctx`. */
+    engineLens?: LatentLens
 ): OpValue | undefined {
     let acc: OpValue | undefined;
     const abilities: {
@@ -561,6 +567,7 @@ function abilityScriptOpValue(
         gate?: TriggeredAbility["gate"];
         event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
+        phaseScope?: TriggeredAbility["phaseScope"];
         activateFromGraveyard?: boolean;
         activateFromHand?: boolean;
         etbAbility?: boolean;
@@ -645,13 +652,24 @@ function abilityScriptOpValue(
         // exactly as `modesScriptOpValue` does for a modal SPELL: the announcer
         // picks the mode, so the ability is worth the arm they would pick. This
         // is what replaces a hand-written `aiEffects` shadow sketch of one arm.
-        const raw = script
-            ? valueEffectScript(script, abilityCtx)
-            : bestModeCombinationOpValue(
-                  ability.modes,
-                  ability.modeSelection,
-                  abilityCtx
-              );
+        // Issue #5164 (ADR 0151) — a standing engine on every player's step
+        // is read by Differential Reading against the board it stands on.
+        const engine =
+            engineLens && ability.phaseScope === "each" && script
+                ? eachStepDifferentialValue(
+                      script,
+                      withLatentLens(abilityCtx, engineLens)
+                  )
+                : undefined;
+        const raw = engine
+            ? engine
+            : script
+              ? valueEffectScript(script, abilityCtx)
+              : bestModeCombinationOpValue(
+                    ability.modes,
+                    ability.modeSelection,
+                    abilityCtx
+                );
         if (!raw) continue;
         // CR 603.4 (issue #1936) — an ability that only fires under a
         // condition is not worth (or is not charged) its full script value.
@@ -1002,11 +1020,39 @@ export function dslAbilityScriptValue(
  *  `undefined` when the card carries no readable ability script. */
 export function dslStandingAbilityScriptValue(
     def: CardDefinition,
-    ctx: GroundingContext = contextFreeGrounding()
+    ctx: GroundingContext = contextFreeGrounding(),
+    /** Issue #5164 — see `abilityScriptOpValue`. */
+    engineLens?: LatentLens
 ): number | undefined {
-    const standing = abilityScriptOpValue(def, ctx, undefined, "standing");
+    const standing = abilityScriptOpValue(
+        def,
+        ctx,
+        undefined,
+        "standing",
+        engineLens
+    );
     return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
 }
+
+/** Issue #5164 (ADR 0151) — true when the card carries a standing ENGINE on
+ *  every player's step: a `phaseScope: "each"` trigger whose script
+ *  `eachStepDifferentialValue` reads per side. Memoised per definition — the
+ *  board face asks it for every non-creature permanent at every leaf, and
+ *  only such a card is worth a board lens there. */
+export function carriesEachStepEngine(def: CardDefinition): boolean {
+    let known = EACH_STEP_ENGINE_MEMO.get(def);
+    if (known === undefined) {
+        known = (def.triggeredAbilities ?? []).some((t) => {
+            if (t.phaseScope !== "each") return false;
+            const script = effectiveScript(t);
+            return script !== undefined && isEachStepEngineScript(script);
+        });
+        EACH_STEP_ENGINE_MEMO.set(def, known);
+    }
+    return known;
+}
+
+const EACH_STEP_ENGINE_MEMO = new WeakMap<CardDefinition, boolean>();
 
 /** One script-bearing site of a definition, in the shape every reader above
  *  takes: a script (real or shadow), per-mode scripts, or an imperative body

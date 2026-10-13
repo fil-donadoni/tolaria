@@ -535,14 +535,107 @@ function eachPlayerHandLeaves(side: EachPlayerSide): OpValue {
  *  board reads (`latent.eachPlayer`) both follow it. */
 function eachPlayerGrounding(
     ctx: GroundingContext,
-    side: EachPlayerSide
+    side: EachPlayerSide,
+    namesSide: (ref: EffectPlayerRef) => boolean = isEachPlayerRef
 ): GroundingContext {
     return {
         ...ctx,
         isSelf: (ref, cfAssumption) =>
-            isEachPlayerRef(ref) ? side.own : ctx.isSelf(ref, cfAssumption),
+            namesSide(ref) ? side.own : ctx.isSelf(ref, cfAssumption),
         latent: { ...ctx.latent, eachPlayer: side },
     };
+}
+
+/** Issue #5164 — the player a standing phase trigger's script names as the
+ *  one whose step it is (`phaseTrigger`'s scoped player, ADR 0049). */
+function isStepPlayerRef(ref: EffectPlayerRef): boolean {
+    return (
+        typeof ref === "object" &&
+        "ref" in ref &&
+        ref.ref === "$event.activePlayerId"
+    );
+}
+
+/** Issue #5164 (ADR 0151) — the Differential Reading of a standing ENGINE:
+ *  a `phaseScope: "each"` trigger fires on every player's step (CR 603.6a,
+ *  500.1) and acts on whichever player's step it is, so on a real board its
+ *  script is valued once per player with that player as the scoped one, and
+ *  the sides summed — what the engine gives its controller minus what it
+ *  gives the opponent, per firing. The caller multiplies by the recurrence
+ *  (issue #5151). A `draw` is priced off the drawing side's own board
+ *  (`EachPlayerSide.drawWorth`): Howling Mine feeds the player whose next
+ *  card is worth more to it — the better library, the hand the cleanup
+ *  discard leaves room in. A life or damage Op is the same magnitude on
+ *  every side and nets out beside a draw.
+ *
+ *  `undefined` — the representative reading stands — when no board is
+ *  attached, the script holds an Op this reading cannot attribute to the
+ *  scoped player alone (`isStepSideOp`), or no side read the board (a script
+ *  of life Ops alone, which `eachPlayerDifferentialValue` leaves standing for
+ *  the same reason). */
+export function eachStepDifferentialValue(
+    script: readonly EffectOp[],
+    ctx: GroundingContext
+): OpValue | undefined {
+    const lens = ctx.latent;
+    if (!lens.eachPlayerDifferential) return undefined;
+    if (!isEachStepEngineScript(script)) return undefined;
+    const tags = new Set<ValueTag>(["board-scaling"]);
+    const points = lens.eachPlayerDifferential((side) => {
+        const sideCtx = eachPlayerGrounding(ctx, side, isStepPlayerRef);
+        let total = ZERO_OP_VALUE;
+        for (const op of script) {
+            total = addValues(
+                total,
+                op.op === "draw" ? stepSideDraw(op, side) : valueOp(op, sideCtx)
+            );
+        }
+        for (const t of total.tags) tags.add(t);
+        return total.points;
+    });
+    if (points === undefined) return undefined;
+    tags.delete("self-cost");
+    return { points, tags: [...tags] };
+}
+
+/** Issue #5164 — true for a script `eachStepDifferentialValue` reads: every
+ *  Op attributable to the scoped player alone (`isStepSideOp`), and a draw
+ *  among them — the Op that reads the board (a script of life Ops alone
+ *  would read nothing off it). */
+export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
+    return script.every(isStepSideOp) && script.some((op) => op.op === "draw");
+}
+
+/** Issue #5164 — one side's literal `draw`, priced off its board. */
+function stepSideDraw(
+    op: Extract<EffectOp, { op: "draw" }>,
+    side: EachPlayerSide
+): OpValue {
+    const worth = side.drawWorth(op.count as number);
+    return { points: side.own ? worth : -worth, tags: ["cardAdvantage"] };
+}
+
+/** Issue #5164 — an Op of a standing each-step script the Differential
+ *  Reading prices for the scoped player alone: a literal `draw` (CR 121.1),
+ *  life gained or lost, damage to that player. Every Op must name the
+ *  scoped player — one naming a fixed player would be counted once per
+ *  side; anything else is fail-closed. */
+function isStepSideOp(op: EffectOp): boolean {
+    switch (op.op) {
+        case "draw":
+            return isStepPlayerRef(op.player) && typeof op.count === "number";
+        case "gainLife":
+        case "loseLife":
+            return isStepPlayerRef(op.player) && typeof op.amount === "number";
+        case "dealDamage":
+            return (
+                "player" in op.to &&
+                isStepPlayerRef(op.to.player) &&
+                typeof op.amount === "number"
+            );
+        default:
+            return false;
+    }
 }
 
 /** Issue #5162 — true for an Op of a `forEach { set: "players" }` body whose

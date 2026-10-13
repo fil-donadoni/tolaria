@@ -48,6 +48,7 @@ import { clearCardFieldsAt } from "../state/cardFieldLifecycle";
 import { liveSupertypesOf } from "../snow";
 import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { isLand } from "../constants";
+import { effectiveMaxHandSize } from "../phases";
 import type { EvalWeights } from "./evalWeights";
 import type { EachPlayerSide, LatentLens, SweepOutcome } from "./grounding";
 import { isEachPlayerRef } from "./grounding";
@@ -421,6 +422,23 @@ function boardSide(
             if (n === undefined) unreadable = true;
             return n;
         },
+        drawWorth(count) {
+            answered = true;
+            if (count <= 0 || player.library.length === 0) return 0;
+            let libraryWorth = 0;
+            for (const c of player.library) libraryWorth += returnedWorth(c);
+            const expected = libraryWorth / player.library.length;
+            const hand: number[] = [];
+            for (const c of player.hand) {
+                if (c.id !== valuedCardId) hand.push(returnedWorth(c));
+            }
+            const withDraws = [...hand];
+            for (let i = 0; i < count; i++) withDraws.push(expected);
+            // CR 514.1 / 402.2 — the cleanup discard keeps the player's best
+            // cards up to the maximum hand size.
+            const cap = effectiveMaxHandSize(player, state);
+            return keptWorth(withDraws, cap) - keptWorth(hand, cap);
+        },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
             if (filter === UNREADABLE_SWEEP_FILTER) {
@@ -520,6 +538,16 @@ function groundZoneCount(
         return undefined;
     }
     return size * (spec.times ?? 1);
+}
+
+/** Issue #5164 — the summed worth of the `cap` best of `values`: what a
+ *  hand of those cards holds after the cleanup discard (CR 514.1). */
+function keptWorth(values: readonly number[], cap: number): number {
+    if (values.length <= cap) return values.reduce((a, b) => a + b, 0);
+    const best = [...values].sort((a, b) => b - a);
+    let kept = 0;
+    for (let i = 0; i < cap; i++) kept += best[i];
+    return kept;
 }
 
 /** Issue #4773 — the realised loss a `forEach` over the battlefield takes

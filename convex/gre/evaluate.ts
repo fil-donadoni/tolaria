@@ -116,6 +116,7 @@ import {
 // permanent that carries them.
 import { isQuietFor, temporaryDefensiveKeywords } from "./ai/defensiveGrants";
 import { inertKeywordDiscount } from "./ai/keywordRelevance";
+import { carriesEachStepEngine } from "./ai/cardScriptValue";
 import {
     DEFAULT_EVAL_WEIGHTS,
     type EvalWeights,
@@ -355,6 +356,7 @@ export function cardValue(
         ...(card.zone === "battlefield" && isStandingLockInstance(card)
             ? { standingLockValue: 0 }
             : {}),
+        onBattlefield: card.zone === "battlefield",
     });
 }
 
@@ -1413,9 +1415,32 @@ function nonCreatureBodyValue(
     pass: Layer7Pass
 ): number {
     return (
-        cardValue(state, perm, undefined, weights.latent, pass) *
-        loyaltyRealizationRatio(perm)
+        cardValue(
+            state,
+            perm,
+            standingEngineLens(state, perm, weights, pass),
+            weights.latent,
+            pass
+        ) * loyaltyRealizationRatio(perm)
     );
+}
+
+/** Issue #5164 (ADR 0151) — the board a permanent carrying a standing
+ *  engine on every player's step (`carriesEachStepEngine`, Howling Mine) is
+ *  read against, from its controller's seat — the same lens its hand face
+ *  takes in the `hand` term, so the two faces are one number. `undefined`
+ *  for every other permanent: its board face stays context-free. */
+function standingEngineLens(
+    state: GameState,
+    perm: CardInstanceState,
+    weights: EvalWeights,
+    pass: Layer7Pass
+): LatentLens | undefined {
+    const def = tryGetDefinition(String(perm.card.id ?? ""));
+    if (!def || !carriesEachStepEngine(def)) return undefined;
+    const controller = state.players.find((p) => p.id === perm.controllerId);
+    if (!controller) return undefined;
+    return latentBoardFor(state, controller, perm, weights, "own", pass);
 }
 
 /** Issue #5155 — the standing worth of a LAND's non-mana abilities, the

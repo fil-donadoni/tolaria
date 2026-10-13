@@ -171,6 +171,16 @@ export interface EachPlayerSide {
      *  is on the stack when the count is taken. `undefined` for a value the
      *  board cannot ground, which voids the side. */
     groundCount(value: EffectValue): number | undefined;
+    /** Issue #5164 — what this player gains from drawing `count` more cards
+     *  on the hand term's scale: each card at the side's library-top
+     *  expectation (the mean CONTEXT-FREE `cardValue` of its library — the
+     *  order is hidden, the contents are not), kept only as far as the
+     *  cleanup discard lets it stay (CR 514.1 / 402.2: past the maximum hand
+     *  size the player keeps its best cards, so a drawn card into a full hand
+     *  is worth only what it beats). The card being valued is left out of the
+     *  hand, as in `handWorth`. Points; 0 from an empty library (the decking
+     *  term prices that draw). */
+    drawWorth(count: number): number;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching
      *  `filter`: the cheapest ones — only a permanent's controller can
