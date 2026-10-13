@@ -121,7 +121,7 @@ export type CompiledTriggerCondition =
      * permanent's own payment record for ONE named kicker
      * (`additionalCostPaidCondition`), decided from the source alone. Entered
      * heads only: the record is a fact fixed as the spell was cast
-     * (CR 601.2b), read off the permanent that spell became (CR 702.33e).
+     * (CR 601.2b), read off the permanent that spell became (CR 702.33f).
      */
     | { readonly kind: "kicker-paid"; readonly kickerId: string };
 
@@ -268,8 +268,6 @@ function conditionHolds(
     self: PermanentView,
     state: TriggerStateView | undefined
 ): boolean {
-    if (condition.kind === "kicker-paid")
-        return additionalCostPaidCondition(condition.kickerId)(self);
     if (state === undefined) return false;
     if (condition.kind === "holds-exile-bundle")
         return holdsExileBundle(event, self, state);
@@ -349,9 +347,12 @@ export function resolveCompiledTrigger(
         descriptor.condition?.kind === "kicker-paid"
             ? descriptor.condition.kickerId
             : undefined;
-    if (kickerId !== undefined && head.kind !== "entered")
+    if (
+        kickerId !== undefined &&
+        !(head.kind === "entered" && head.scope === "self")
+    )
         throw new Error(
-            `compiled trigger ${descriptor.id}: a kicker-paid condition needs an entered head`
+            `compiled trigger ${descriptor.id}: a kicker-paid condition needs a head that fires when this permanent enters`
         );
     const gating =
         descriptor.condition === undefined || kickerId !== undefined
