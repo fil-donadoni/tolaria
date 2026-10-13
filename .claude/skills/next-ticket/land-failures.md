@@ -1,7 +1,8 @@
 # /next-ticket — a repair pick: the land-runner's `land` went red
 
 Reached from `SKILL.md` § 0 when the pick is `repair` (`queue:plan`'s
-`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses. The
+`repair[0]`, first of all picks), or from § 5 when `land:ready` refuses (its pre-queue check red: the PR's own
+error, fixed in the authoring session, never handed to the runner). The
 land-runner (issue #5469) ran `land` on the PR, it exited red, and the runner
 relabelled the PR `ready-to-land` → `land-failed` with a comment carrying the
 lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
@@ -47,3 +48,13 @@ test; "not my test" is no exemption (ADR 0116).
 
 **Done when:** the fix is pushed and `land:ready` re-queued the PR — or § 6
 reports the failure, naming the line of the runner's comment that carried it.
+
+## `land:ready` refused: the pre-queue check (issue #5554)
+
+`land:ready` runs the lane's seconds-cost steps on the PR's worktree before it
+labels anything (`lib/pre-queue-steps.ts`: `check:lane`'s plan minus the
+whole-project vitest runs and `check:pr`, plus the PR's own tests and the
+structural guards a NEW file trips). Red → no `ready-to-land`, no `pr-open`
+row: fix it in this session, commit, push, re-run. Only a red you KNOW is
+base's: `TOLARIA_PREQUEUE_RED_OK=1 bun run land:ready <PR#>` — announced and
+commented on the PR.

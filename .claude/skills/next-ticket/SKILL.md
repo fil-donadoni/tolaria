@@ -198,6 +198,7 @@ lane, merge, seed, teardown). A session never runs `land` nor waits for it.
   heading; write "none owed" there when it is not. The runner seeds it.
 - Hand off: `bun run land:ready <PR#>` — PR labelled `ready-to-land`, claim
   `pr-open` (stands, no cap slot; released at merge).
+  Refused → `land-failures.md`.
 - **Gap issue**: `gap-holes.md` before the report.
 
 **Done when:** the PR is open and pushed, and `land:ready` reported it

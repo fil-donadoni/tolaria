@@ -447,6 +447,29 @@ function scopedCheck(
 }
 
 /**
+ * The seconds-cost slice of `check:pr` for a `full` diff (issue #5554): the
+ * lane delegates verbatim, so a pre-queue check that merely dropped `check:pr`
+ * would pass exactly the largest PRs with a type error. Same commands the
+ * `engine` lane plans for these ids.
+ */
+export function fullLaneSecondsSteps(presentPaths: string[]): PlannedCheck[] {
+    return [
+        scopedCheck(
+            "format(diff)",
+            "bunx prettier --check",
+            presentPaths.filter((p) => PRETTIER_EXTENSIONS.test(p))
+        ),
+        scopedCheck(
+            "lint(diff)",
+            "bunx eslint --no-warn-ignored",
+            presentPaths.filter((p) => ESLINT_EXTENSIONS.test(p))
+        ),
+        { id: "tsc[all]", command: "bun run check:ts" },
+        { id: "cr:lint", command: "bun run cr:lint" },
+    ].filter((c): c is PlannedCheck => c !== null);
+}
+
+/**
  * Build the lane plan from the changed paths.
  *
  * `presentPaths` defaults to `changedPaths` and exists for one reason: a
@@ -1205,6 +1228,16 @@ export function changedPaths(
 ): string[] {
     const filter = deleted ? [] : ["--diff-filter=d"];
     return git(["diff", "-z", "--name-only", ...filter, `${base}...HEAD`], cwd)
+        .split("\0")
+        .filter((p) => p.length > 0);
+}
+
+/** Paths the diff ADDS (not modifies) — what a new-file guard reads. */
+export function addedPaths(base: string, cwd: string): string[] {
+    return git(
+        ["diff", "-z", "--name-only", "--diff-filter=A", `${base}...HEAD`],
+        cwd
+    )
         .split("\0")
         .filter((p) => p.length > 0);
 }
