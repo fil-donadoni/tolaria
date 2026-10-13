@@ -7,6 +7,8 @@
 // so fail-closed is pinned, not assumed — ADR 0105 § 2).
 
 import { describe, expect, it } from "vitest";
+import { resolveCompiledTrigger } from "../../cards/compiledTriggers";
+import type { CardDefinition, PermanentView } from "../../cards/types";
 import { compileCard } from "../compile";
 import { sortKeys } from "../gates";
 import type { CompiledDefinition, OracleCard } from "../types";
@@ -624,5 +626,30 @@ describe("triggered long tail — refusals (fail-closed)", () => {
                 "Whenever this creature attacks, it gets +1/+0 until end of turn for each other attacking Banana."
             )
         ).toBe(true);
+    });
+});
+
+describe("the compiled kicker gate decides at the engine, per kicker (CR 603.4)", () => {
+    const thornscape = GOLDENS.find(
+        (g) => g.card.name === "Thornscape Battlemage"
+    )!;
+    const abilities = (
+        thornscape.expected as unknown as CardDefinition
+    ).compiledTriggeredAbilities!.map(resolveCompiledTrigger);
+
+    const paid = (kickerId: string) =>
+        ({ kickerPayments: { [kickerId]: 1 } }) as unknown as PermanentView;
+
+    it("each trigger fires only for its own kicker's payment", () => {
+        const [red, white] = abilities.map((a) => a.gate?.onSelf);
+        expect([red?.(paid("kicker-r")), red?.(paid("kicker-w"))]).toEqual([
+            true,
+            false,
+        ]);
+        expect([white?.(paid("kicker-w")), white?.(paid("kicker-r"))]).toEqual([
+            true,
+            false,
+        ]);
+        expect(red?.({} as unknown as PermanentView)).toBe(false);
     });
 });
