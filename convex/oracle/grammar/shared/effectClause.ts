@@ -850,17 +850,6 @@ export type EffectSentenceIR =
           readonly action: "tap" | "untap";
           readonly subject: SubjectIR;
       }
-    | {
-          /**
-           * CR 701.26b + CR 601.2c — "Untap up to three lands": no target is
-           * announced, so the controller picks AT RESOLUTION from every land
-           * on the battlefield (any controller) and the chosen ones untap.
-           */
-          readonly kind: "untap-up-to";
-          readonly max: number;
-          readonly word: string;
-          readonly types: readonly CardType[];
-      }
     | { readonly kind: "regenerate"; readonly subject: SubjectIR }
     | {
           /**
@@ -3358,8 +3347,6 @@ const DESTROY_TWO_TARGETS = /^Destroy (target .+?) and (target .+)$/;
  */
 const DAMAGE_THEN_GAIN =
     /^(.+ deals \S+ damage to .+) and (you gain \S+ life)$/;
-/** CR 701.26b — "Untap up to three lands" (Frantic Search): a resolution-time pick. */
-const UNTAP_UP_TO = /^Untap up to (\S+) (.+)$/;
 const COUNTERS = /^Put (\S+) (\S+) counters? on (.+)$/;
 const DISCARD_RANDOM = /^(.+) discards (\S+) cards? at random$/;
 /** CR 603.7a — "You draw a card at the beginning of the next turn's upkeep". */
@@ -5495,32 +5482,6 @@ function effectSentence(
             kind: "counter" as const,
             subject: subject.value,
             unlessPays: { kind: "per-domain" },
-        } satisfies EffectSentenceIR);
-    }
-
-    // ── untap up to N permanents, chosen on resolution (CR 701.26b) ────────
-    const untapUpTo = span.match(UNTAP_UP_TO);
-    if (untapUpTo !== null) {
-        const max = readNumberWord(untapUpTo[1]!);
-        if (max === null || max < 2)
-            return fail(`"${untapUpTo[1]}" is not a count`, span);
-        const described = descriptorRule.run(untapUpTo[2]!, ctx);
-        if (!described.ok) return described;
-        const { types, plural, ...rest } = described.value;
-        if (
-            plural !== true ||
-            types === undefined ||
-            Object.keys(rest).length > 0
-        )
-            return fail(
-                '"up to N" untaps a bare plural card type (a clause beyond it would be dropped)',
-                span
-            );
-        return ok({
-            kind: "untap-up-to" as const,
-            max,
-            word: untapUpTo[1]!,
-            types,
         } satisfies EffectSentenceIR);
     }
 

@@ -162,61 +162,6 @@ describe("damage to each player by their own count (CR 120.1, issue #4574)", () 
     });
 });
 
-describe("untap up to N, chosen on resolution (CR 701.26b, issue #4574)", () => {
-    const TEXT =
-        "Draw two cards, then discard two cards. Untap up to three lands.";
-
-    it("Frantic Search: a choice of up to three lands, then an untap of each", () => {
-        const { effects } = compiled(
-            card("Frantic Search", "{2}{U}", "Instant", TEXT)
-        );
-        expect(sortKeys(effects?.slice(3))).toEqual(
-            sortKeys([
-                {
-                    op: "choice",
-                    kind: "choose-permanents",
-                    player: "controller",
-                    zone: "battlefield",
-                    allControllers: true,
-                    filter: { type: "Land" },
-                    count: { min: 0, max: 3 },
-                    prompt: "Untap up to three lands.",
-                    bind: "$untap2",
-                },
-                {
-                    op: "forEach",
-                    select: { set: "bound", ref: "$untap2" },
-                    effects: [
-                        {
-                            op: "tapUntap",
-                            action: "untap",
-                            target: { ref: "$each" },
-                        },
-                    ],
-                },
-            ])
-        );
-        expect(effects?.slice(0, 3).map((op) => op.op)).toEqual([
-            "draw",
-            "choice",
-            "discard",
-        ]);
-    });
-
-    it.each([
-        ["an announced target", "Untap up to three target lands."],
-        [
-            "a clause the pick would drop",
-            "Untap up to three lands you control.",
-        ],
-        ["a singular noun", "Untap up to three land."],
-    ])("refuses %s", (_label, text) => {
-        expect(refused(card("Untap Neighbour", "{U}", "Instant", text))).toBe(
-            true
-        );
-    });
-});
-
 describe("announced-X token count (CR 107.3 + CR 111.1, issue #4574)", () => {
     const TEXT = "Create X 4/4 white Angel creature tokens with flying.";
 
