@@ -16,6 +16,7 @@ import {
     runnerSpecs,
     sanitizeHost,
     serializeDeclaration,
+    systemdRunnerPath,
     type Step,
     TOKEN_PLACEHOLDER,
 } from "../lib/github-runner";
@@ -66,7 +67,12 @@ function input(platform: "darwin" | "linux"): InstallInput {
                 : {},
         systemdTemplate:
             platform === "linux"
-                ? renderRunnerSystemdTemplate(systemdTpl, ROOT, "/usr/bin:/bin")
+                ? renderRunnerSystemdTemplate(
+                      systemdTpl,
+                      ROOT,
+                      "/usr/bin:/bin",
+                      () => true
+                  )
                 : null,
         convexPlist:
             platform === "darwin"
@@ -205,14 +211,51 @@ describe("runner units", () => {
         const out = renderRunnerSystemdTemplate(
             systemdTpl,
             ROOT,
-            "/usr/bin:/bin"
+            "/usr/bin:/bin",
+            () => true
         );
         expect(out).toContain(`ExecStart=${ROOT}/%i/run.sh`);
         expect(out).toContain("Restart=always");
         expect(out).toContain("KillMode=control-group");
-        expect(() => renderRunnerSystemdTemplate("__NOPE__", ROOT, "")).toThrow(
-            /unsubstituted/
+        expect(() =>
+            renderRunnerSystemdTemplate("__NOPE__", ROOT, "/bin", () => true)
+        ).toThrow(/unsubstituted/);
+    });
+
+    it("the systemd PATH is fixed, never the installing shell's", () => {
+        const path = systemdRunnerPath("/h", "/h/.local/share/mise/node/bin");
+        expect(path).toBe(
+            "/h/.local/bin:/h/.bun/bin:/h/.local/share/mise/node/bin:/usr/local/bin:/usr/bin:/bin"
         );
+        expect(() =>
+            renderRunnerSystemdTemplate(systemdTpl, ROOT, path, () => false)
+        ).toThrow(/node not resolvable/);
+        expect(() =>
+            renderRunnerSystemdTemplate(
+                systemdTpl,
+                ROOT,
+                "/a b:/bin",
+                () => true
+            )
+        ).toThrow(/whitespace/);
+        expect(() =>
+            renderRunnerSystemdTemplate(
+                systemdTpl,
+                ROOT,
+                "/a%h:/bin",
+                () => true
+            )
+        ).toThrow(/whitespace/);
+    });
+
+    it("darwin: a reload's bootstrap retries past launchd's teardown race", () => {
+        const inp = input("darwin");
+        const seen = installed(inp);
+        seen.runners[inp.runners[0].name].unitText = "old";
+        const boot = planInstall(inp, seen).find(
+            (s) => s.kind === "run" && s.argv[1] === "bootstrap"
+        );
+        expect(boot).toMatchObject({ retry: true });
     });
 });
 
@@ -339,6 +382,20 @@ describe("pause / resume / remove", () => {
             }
         });
     }
+
+    it("remove refuses a name that is not a runner name", () => {
+        for (const bad of ["../x", "/etc", "a/b", ""]) {
+            const steps = planRemove(
+                bad,
+                "darwin",
+                501,
+                "/h/Library/LaunchAgents",
+                ROOT,
+                fresh
+            );
+            expect(steps.every((s) => s.kind === "note")).toBe(true);
+        }
+    });
 
     it("remove unregisters with a removal token and deletes the directory", () => {
         const inp = input("darwin");

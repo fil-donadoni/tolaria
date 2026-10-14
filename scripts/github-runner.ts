@@ -41,6 +41,7 @@ import {
     sanitizeHost,
     serializeDeclaration,
     SYSTEMD_RUNNER_TEMPLATE,
+    systemdRunnerPath,
     systemdRunnerUnit,
     TARBALL_PLACEHOLDER,
     TOKEN_PLACEHOLDER,
@@ -251,10 +252,16 @@ function execute(steps: Step[], platform: RunnerPlatform, slug: string): void {
                             ? (tarball ?? die("no runner tarball fetched"))
                             : a
                 );
-                const r = spawnSync(argv[0], argv.slice(1), {
-                    cwd: s.cwd,
-                    stdio: "inherit",
-                });
+                const attempt = () =>
+                    spawnSync(argv[0], argv.slice(1), {
+                        cwd: s.cwd,
+                        stdio: "inherit",
+                    });
+                let r = attempt();
+                for (let i = 0; s.retry && r.status !== 0 && i < 10; i++) {
+                    Bun.sleepSync(1000);
+                    r = attempt();
+                }
                 if (r.status !== 0 && !s.okFail) {
                     die(
                         `step failed (exit ${r.status ?? r.error?.message}): ${s.argv.join(" ")}`
@@ -307,7 +314,8 @@ function main(): void {
     const slug = repoSlug(repo);
     const dryRun = flags.has("dry-run");
     const run = (steps: Step[]) => {
-        if (steps.length === 0) {
+        if (steps.every((s) => s.kind === "note")) {
+            for (const s of steps) console.log(describeStep(s));
             console.log("runner: nothing to do — this machine already matches");
         } else if (dryRun) {
             console.log(
@@ -377,7 +385,7 @@ function main(): void {
                             "utf8"
                         ),
                         RUNNER_ROOT,
-                        process.env.PATH ?? "/usr/bin:/bin"
+                        systemdRunnerPath(HOME, dirname(which("node")))
                     );
                 }
             } catch (e) {

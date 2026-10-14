@@ -13,6 +13,7 @@
 // reboot does not bring it back; the runner stays registered on GitHub (shown
 // offline). The marker is the truth: systemd cannot tell a never-enabled
 // instance from a disabled one.
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { renderLaunchdUnit, type LaunchdSubstitutions } from "./launchd-render";
 
@@ -126,12 +127,35 @@ export function renderRunnerPlist(
     );
 }
 
-/** The systemd template unit, shared by every runner on the machine. */
+/** The PATH a runner's systemd unit carries: FIXED dirs plus node's, never
+ *  the installing shell's PATH — `bun run` prepends a cwd-dependent
+ *  `node_modules/.bin`, and a drifting PATH would change the unit and
+ *  restart every runner on each re-run. */
+export function systemdRunnerPath(home: string, nodeBin: string): string {
+    return [
+        `${home}/.local/bin`,
+        `${home}/.bun/bin`,
+        nodeBin,
+        "/usr/local/bin",
+        "/usr/bin",
+        "/bin",
+    ].join(":");
+}
+
+/** The systemd template unit, shared by every runner on the machine. Throws
+ *  on a leftover placeholder, a PATH systemd would mangle (`%` is a
+ *  specifier, whitespace splits the assignment), or no `node` on it. */
 export function renderRunnerSystemdTemplate(
     template: string,
     runnerRoot: string,
-    path: string
+    path: string,
+    exists: (p: string) => boolean = existsSync
 ): string {
+    if (/[%\s]/.test(path) || /[%\s]/.test(runnerRoot)) {
+        throw new Error(
+            `'%' or whitespace in the unit's PATH or runner root: ${path} / ${runnerRoot}`
+        );
+    }
     const out = template
         .replaceAll("__RUNNER_ROOT__", () => runnerRoot)
         .replaceAll("__PATH__", () => path);
@@ -141,7 +165,16 @@ export function renderRunnerSystemdTemplate(
             `unsubstituted placeholder(s): ${[...new Set(left)].join(", ")}`
         );
     }
+    if (!path.split(":").some((d) => d && exists(join(d, "node")))) {
+        throw new Error(`node not resolvable on the unit's PATH: ${path}`);
+    }
     return out;
+}
+
+/** A runner name as `install` makes them; anything else (a `..`, a `/`) is
+ *  refused before a path is built from it. */
+export function isRunnerName(name: string): boolean {
+    return /^[a-z0-9][a-z0-9-]*$/.test(name);
 }
 
 // ── Plans ──────────────────────────────────────────────────────────────────
@@ -156,6 +189,9 @@ export type Step =
           argv: string[];
           cwd?: string;
           okFail?: boolean;
+          /** Retry a few seconds before failing: a `bootstrap` right after
+           *  a `bootout` can race launchd's teardown (EIO). */
+          retry?: boolean;
       }
     | { kind: "write"; why: string; path: string; content: string }
     | { kind: "mkdir"; why: string; path: string }
@@ -294,6 +330,7 @@ function launchdLoad(
             kind: "run",
             why: `start ${what}`,
             argv: ["launchctl", "bootstrap", `gui/${uid}`, plistPath],
+            retry: observed.running,
         });
     }
     return steps;
@@ -581,6 +618,14 @@ export function planRemove(
     runnerRoot: string,
     seen: ObservedMachine
 ): Step[] {
+    if (!isRunnerName(name)) {
+        return [
+            {
+                kind: "note",
+                why: `${JSON.stringify(name)} is not a runner name — nothing removed`,
+            },
+        ];
+    }
     const s = seen.runners[name] ?? EMPTY_RUNNER;
     const dir = join(runnerRoot, name);
     const steps: Step[] = [];
