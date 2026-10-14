@@ -42,7 +42,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("CR 502.3 — the OTHER player's untap step does not consume the mark", () => {
         const land = markedLand("p1");
-        const state = makeState({ phase: "BEGINNING", activePlayerId: "p2" });
+        const state = makeState({ phase: "UNTAP", activePlayerId: "p2" });
         state.players[0].battlefield = [land];
         untapStep(state);
         expect(state.players[0].battlefield).toContain(land);
@@ -51,7 +51,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("CR 502.3 / 502.4 — no stack item, no priority; the leaves-the-battlefield event is held for the next priority window", () => {
         const land = markedLand();
-        const state = makeState({ phase: "BEGINNING", activePlayerId: "p1" });
+        const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
         state.players[0].battlefield = [land];
         const priorityBefore = state.priorityPlayerId;
         untapStep(state);
@@ -66,7 +66,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
     it("CR 502.3 — unconditional: fires even when the permanent would not untap (skipNextUntap)", () => {
         const land = markedLand();
         land.skipNextUntap = true;
-        const state = makeState({ phase: "BEGINNING", activePlayerId: "p1" });
+        const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
         state.players[0].battlefield = [land];
         untapStep(state);
         expect(state.players[0].battlefield).not.toContain(land);
@@ -75,7 +75,7 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("CR 400.7 — a permanent that leaves and re-enters before the untap step is a new object and is NOT returned", () => {
         const land = markedLand();
-        const state = makeState({ phase: "BEGINNING", activePlayerId: "p1" });
+        const state = makeState({ phase: "UNTAP", activePlayerId: "p1" });
         state.players[0].battlefield = [land];
         removePermanentTo(state, "marked", "hand");
         const inHand = state.players[0].hand.find((c) => c.id === "marked")!;
@@ -90,7 +90,10 @@ describe("returnToHandAtNextUntap (CR 502.3)", () => {
 
     it("serialization — the mark survives a save round-trip", () => {
         const land = markedLand("p1");
-        const state = makeState({ phase: "MAIN1", activePlayerId: "p1" });
+        const state = makeState({
+            phase: "PRECOMBAT_MAIN",
+            activePlayerId: "p1",
+        });
         state.players[0].battlefield = [land];
         const expanded = expandState(compactState(state));
         expect(expanded.players[0].battlefield[0].returnToHandAtUntapOf).toBe(
