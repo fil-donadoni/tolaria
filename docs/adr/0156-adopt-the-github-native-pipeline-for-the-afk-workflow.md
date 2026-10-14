@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accepted, amended once (Amendment I, the gap review, same day) — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
 accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
 iteration of the workflow discussion ("arrivare a una soluzione che mi
 permetta di concentrarmi sul prodotto"). The repository stays **personal and
@@ -443,6 +443,159 @@ What the comparison says:
 - **Anthropic's `ralph-wiggum` plugin** (a Stop hook that keeps one session
   going until a completion promise) is a single-session loop; it has no place
   in a multi-issue AFK pipeline and is not adopted.
+
+## Amendment I (2026-10-14) — the gap review: what the cut-over must not drop
+
+Before the tickets were cut, the owner asked for a review of everything the
+old stack does that the new flow might silently drop, and of every metric it
+might worsen. Two inventories of the current machinery (about 160 duties of
+`land`, the land-runner, `land:ready`, health, release, housekeeping, the loop
+driver, the planner and claims, the hooks and the telemetry) were crossed with
+this record, and the owner ruled on each open point the same day. Where this
+section and the body above disagree, this section wins.
+
+### Design corrections
+
+- **Runners run as the owner's user, and every job works in a git worktree of
+  its machine's primary checkout** — never in an `actions/checkout` clone and
+  never under a dedicated system user (§8's dedicated user is withdrawn).
+  Thirty-two scripts resolve `primaryCheckout()` for the local Convex
+  deployment (`.convex`, 6.5 GB), `.env.local`, `convex/_generated`, the
+  telemetry, the merge drivers and the markers; a clone or another user breaks
+  all of them, plus Claude's login, `gh`'s auth, the passes' memory and the
+  browsers `check:ui` needs. The barriers of §8 are unchanged; the old loop
+  already ran as the owner with `--dangerously-skip-permissions`.
+- **Kept, because they protect rather than orchestrate:** `health-main` (one
+  re-run of a failed vitest project, INFRA classification, the evidence the
+  fixer reads); the verdict store's GitHub backend and the pivot; the
+  token-budget guard (`usage:window`), moved into the dispatcher, since the
+  subscription is the binding limit; the planner's admission stage (blocked,
+  HITL, lint actions, and the `Target files` overlap that keeps parallel PRs
+  apart — rebase conflicts are 12 of the 41 red landings measured
+  2026-10-06 → 14); the generated-artefact resolver and merge drivers; the
+  telemetry collection (hooks, ingest, `telemetry:budget`,
+  `telemetry:latency`), because GitHub sees runs and failures but not tokens,
+  allowance share or where a session's time goes.
+- **Retired after measurement:** the gate mutex and its waiters, and session
+  admission — 0 exit-77 INFRA results in 7,201 gate runs in 14 days, and one
+  `lane` runner per machine serialises heavy jobs by construction (vitest
+  worker caps stay as configuration; the shadow phase measures red lanes under
+  load and reinstates a load wait only if they appear); the reaper — 16
+  processes reaped in its life, all on its install day, and the runner kills a
+  job's processes at the job's end.
+- **The dashboard is simplified, not removed:** one page of trends —
+  throughput, failed landings by cause, RED episodes and time to green, flaky
+  tests, cost per issue from the passes' JSON (both machines), pass and queue
+  latency, runners — opened by `bun run cockpit` (ingest, serve, open the
+  browser). The "Now" view, its action buttons and `workflow:kpi` go: the
+  Actions tab is the "now".
+
+### The pass is dispatched, not just triggered
+
+A single `afk-dispatch` job (one at a time, so two machines never claim the
+same issue) runs on label events, a 30-minute sweep and every pass's end. It
+picks as many issues as there are free `pass` runners, claims each by label,
+and dispatches `afk-pass` with the issue and its model tier. It owns what the
+loop driver owned: the budget guard; a hold until the usage limit resets; a
+pause after three consecutive failed passes (one failure email, not fifty);
+no new pass while the base is RED except the fixer; resuming a dead pass — a
+claim with no live `afk-pass` run — from its pushed branch, and releasing an
+orphan. The kill switch is GitHub's own: disable the workflow from the Actions
+tab (any browser) or `gh workflow disable`. Every pass commits and pushes its
+work in progress and has an explicit timeout, so a killed job can be resumed.
+
+### Public logs
+
+On a public repository every signed-in GitHub user can read workflow logs and
+download artifacts. No job writes Claude's raw output to its log — transcripts
+stay on the machine; the job summary and the JSON artifact carry numbers only.
+Every job masks the `gh` token at its start. Third-party actions are pinned by
+full SHA and allow-listed in the repository settings; the structure guard
+fails on an unpinned `uses:` and on any self-hosted job reachable from an
+event an outsider can trigger.
+
+### Duties the new flow must carry
+
+- **Checks of the PR**, ported from `land`: the `check:ui` receipt, the
+  `## Preset scenario` refusal, the `## Retired rows` refusal, the robustness
+  baseline refusal, and the repair proof (a repair PR re-runs the RED
+  verdict's failing tests). The full lane also runs when the PR opens, on a
+  free GitHub-hosted runner, so a defect is found before the queue; the queue's
+  lane re-runs a failed vitest project once and records the flake.
+- **A fixup job** regenerates and pushes when a red lane's only cause is a
+  stale generated artefact (`check:oracle`, the blade card index, format) — no
+  tokens spent. `pr-refresh` also refreshes a queued PR as soon as the base
+  touches its files, not only once GitHub reports a conflict (GitHub and
+  Mergify do not run our merge drivers; 37 % of PRs touch a driven file).
+- **Post-merge, on every machine:** fast-forward the primary checkout (on the
+  MacBook `convex dev` serves the deployment from it, so a preset seed before
+  the fast-forward fails), remove the merged PR's worktree (the MacBook disk is
+  at 93 %), ingest telemetry; on the `seed` machine, seed the PR's preset
+  scenario after the fast-forward and `seed:preset --all` when the card sets
+  changed; on one machine, `housekeeping`. `gaps:sync` keeps pushing straight
+  to the base under a ruleset bypass for the owner; `deny-guard` forbids a
+  session to push to the base or release branch directly.
+- **Machine services on the MacBook:** `convex dev` as a launchd service (a
+  job's processes die with the job) and the runners under `caffeinate` (a
+  sleeping MacBook loses its jobs).
+- **Mergify's own queue PRs** are exempt from `trusted-author`: the gates are
+  queue-entry conditions on the original PR; the merge conditions require only
+  the lane.
+- **`/next-ticket` and its documents** are rewritten for the job context —
+  the claim is a label, the worktree is given, a repair reads the failed run's
+  log — and keep working in an attended terminal.
+
+### A RED base is repaired by a bounded ladder
+
+History, 2026-08-30 → 10-14: 24 RED episodes, median 2.5 h to green, five over
+12 h (60.7, 52.6, 33.0, 23.6, 14.6 h) — almost all of it waiting for the owner,
+because the old loop stopped on RED. Zero reverts. The ladder:
+
+1. **Detect early:** health also runs after merge batches on free
+   GitHub-hosted runners (offline part), so fewer PRs separate the last GREEN
+   from the RED.
+2. **Separate flaky from broken:** a RED that a fresh health run does not
+   reproduce closes as GREEN and files the flaky test.
+3. **Find the culprit without a model:** a bisect script runs the failing
+   tests between the last GREEN and the RED tip and names the PR.
+4. **Fix forward:** the headless fixer (issue #5589) runs on the machine that
+   saw the RED, with the failing tests, the culprit and the run's log; at most
+   two attempts of three hours; its PR must carry the repair proof and is the
+   only PR the queue admits.
+5. **Revert as the last resort — owner's decision of 2026-10-14:** when both
+   attempts fail or a second RED follows a repair, a revert PR of the culprit's
+   commit goes through the queue as a repair, and the culprit's issue reopens
+   with the evidence for a fresh pass. This amends CLAUDE.md's "fix-forward
+   FIRST": fix-forward stays first; an automated revert is admitted after it.
+6. **Stop:** a revert that cannot land (a later PR depends on the culprit) or
+   an unisolable failure stops the flow — one email, one `ready-for-human`
+   issue with the evidence, the queue held, no new passes.
+
+Target, read on the cockpit: at least 80 % of RED episodes back to green
+without the owner, p90 under 6 h.
+
+### Failed landings: what moves the number
+
+The 152 landings with logs since 2026-10-06 failed 41 times (27 %): 12 rebase
+conflicts, 10 refusals of a RED base, 20 red lanes (about 13 real defects, 4
+stale generated artefacts, about 3 environment or flaky), 2 other. Under the
+new flow a RED base holds a PR instead of failing it; the full lane at PR open
+catches the real defects before the queue; the fixup job absorbs the stale
+artefacts; the pinned toolchain and the one-time re-run absorb the
+environment and flaky class; overlap-aware picking and early refresh shrink the
+conflicts. Expected: from 27 % toward 5–10 %, nearly all real defects found
+before the queue — an estimate the shadow phase measures with the same
+taxonomy, which the weekly report and the cockpit then track.
+
+### Certain costs, accepted
+
+About one minute more per PR (job start); a new dependency (a Mergify outage
+stops landing — `land` stays in the tree for two weeks after the cut-over as
+the fallback); GitHub's failure emails carry no digest and no quiet hours
+(the dispatcher's pause bounds the burst); a fixed runner count replaces
+RAM-aware admission. The deletion shrinks accordingly: what stays is listed
+above, so the estimate drops from ~110k lines to ~60k, to be measured in
+phase 4.
 
 ## What would change the answer
 
