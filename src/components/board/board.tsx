@@ -3,6 +3,7 @@ import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { useDefinitionsResident } from "~/hooks/useDefinitionsResident";
 import { publicStateDefinitionIds } from "~/lib/publicStateDefinitionIds";
 import CatalogueLoadError from "~/components/ui/catalogue-load-error";
+import BoardCardsLoadingOverlay from "~/components/board/board-cards-loading-overlay";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -467,6 +468,13 @@ export default function Board({
                                     >
                                         <main className="flex h-full w-full flex-col relative overflow-hidden">
                                             <BoardBackground />
+                                            {/* The snapshot on screen is the
+                                                last resident one while the
+                                                live one's Sets install: no
+                                                click may land on it. */}
+                                            {!residence.ready && (
+                                                <BoardCardsLoadingOverlay />
+                                            )}
                                             <AutoPassController solo={solo} />
                                             {vsAi && (
                                                 <VsAiDriver
