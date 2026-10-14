@@ -859,6 +859,7 @@ claims_held_streak=0
 # Unattended repairs this run attempted (step 2b, issue #5589) — bounded by
 # `LOOP_FIX_ATTEMPTS` inside `health:fix --plan`, which reads this count.
 fix_attempts=0
+FIX_WAIT_SECS="${TOLARIA_LOOP_FIX_WAIT_SECS:-300}"
 # One string field of `health:status --json`'s flat one-line JSON (issue
 # #5462) — values carry no quotes, `health-main` strips them.
 _health_field() {
@@ -1542,7 +1543,9 @@ while :; do
                     # $CLAUDE_ARGS rides as ONE argument, split by health:fix
                     # as this driver splits it for its own passes.
                     if bun run --silent health:fix --headless "--claude-args=${CLAUDE_ARGS}" >&2; then
-                        echo "loop-drain: the repair of ${_h_short} LANDED — health confirms on its tip; resuming" >&2
+                        # Exit 0 is `landed` — or nothing left to fix by the
+                        # time it looked; the next tick re-reads the verdict.
+                        echo "loop-drain: health:fix finished clean for ${_h_short} (landed, or nothing left to fix) — re-reading the verdict and resuming" >&2
                     else
                         DRAIN_REASON="health-red"
                         echo "loop-drain[error]: the base tip is RED and the unattended repair did not land (stuck) — stopping; the RED stands. 'bun run health:status' shows the evidence and 'bun run health:fix' repairs it by hand. Verdict:" >&2
@@ -1553,7 +1556,9 @@ while :; do
                     ;;
                 wait:*)
                     echo "loop-drain: the base tip is RED (${_h_detail}) — ${_fix_plan#wait: }; no pass until health answers" >&2
-                    wait_tick "$running"
+                    # Health takes ~40 min: look again in minutes, never every
+                    # lane tick (each look is two GitHub reads).
+                    if [ "$running" -gt 0 ]; then wait_tick "$running"; else sleep "$FIX_WAIT_SECS"; fi
                     continue
                     ;;
             esac

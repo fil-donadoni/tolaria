@@ -78,6 +78,8 @@ import {
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
 /** The fixer's return channel, beside `last.json` and the `RED` marker. */
 export const VERDICT_FILE = "fix-verdict.json";
+/** How long a headless fixer may run before it is killed (issue #5589). */
+export const HEADLESS_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 /** What to type when there is no terminal to spawn into. */
 export const MANUAL_COMMAND = "bun run health:fix";
 
@@ -423,11 +425,14 @@ function main(): void {
     // repaired FIRST, and a repair refused because three sessions are stacking
     // work on that tip is the cap defeating its own purpose. The hook
     // announces and logs the override like any other.
-    spawnSync(
+    const spawned = spawnSync(
         "claude",
         claudeArgs(decision.sha, { headless, extra: extraClaudeArgs(argv) }),
         {
             stdio: headless ? ["ignore", "inherit", "inherit"] : "inherit",
+            // Unattended, a hung session must not hold the loop forever: past
+            // the bound it is killed, writes no verdict, and reads `stuck`.
+            ...(headless ? { timeout: HEADLESS_TIMEOUT_MS } : {}),
             cwd,
             env: {
                 ...process.env,
@@ -441,7 +446,12 @@ function main(): void {
         }
     );
 
-    const verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
+    let verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
+    if (verdict.outcome === "stuck" && spawned.error)
+        verdict = {
+            ...verdict,
+            note: `${verdict.note} (the session was ended: ${spawned.error.message})`,
+        };
     const unrecordedOutcome = record(verdict.outcome, {
         pr: verdict.pr,
         note: verdict.note,

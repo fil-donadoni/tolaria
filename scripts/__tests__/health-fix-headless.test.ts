@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -19,7 +19,7 @@ import {
     loopFixDecision,
     type FixAttempt,
 } from "../lib/health-fix-attempts";
-import type { GhRunner } from "../lib/health-verdict-store";
+import { HEALTH_DIR_REL, type GhRunner } from "../lib/health-verdict-store";
 import { DEFAULT_FIX_ATTEMPTS } from "../release";
 
 /**
@@ -215,5 +215,18 @@ describe("the fix-attempt record — on the pivot", () => {
         expect(store.read("b".repeat(40))?.outcome).toBe("stuck");
         expect(planLine(() => store, SHA, 0, NOW)).toMatch(/^wait: /);
         expect(planLine(() => store, "c".repeat(40), 0, NOW)).toBe("attempt");
+    });
+
+    it("file: a corrupt record stops the loop — never read as no attempt", () => {
+        dir = mkdtempSync(join(tmpdir(), "fix-attempts-"));
+        const store = fileFixAttemptStore(dir);
+        store.write({ sha: SHA, outcome: "stuck" });
+        writeFileSync(join(dir, HEALTH_DIR_REL, "fix-attempts.json"), "{torn");
+        expect(planLine(() => store, "c".repeat(40), 0, NOW)).toMatch(
+            /^stop: /
+        );
+        expect(() =>
+            store.write({ sha: SHA, outcome: "attempting" })
+        ).toThrow();
     });
 });

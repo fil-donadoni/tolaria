@@ -101,9 +101,13 @@ export function githubFixAttemptStore(opts: {
     return {
         backend: "github",
         read(sha) {
+            // The COMBINED status: the latest status per context, so a sha
+            // with 100+ statuses cannot push `health-fix` off a page.
             const r = run([
                 "api",
-                `repos/${opts.repo}/commits/${sha}/statuses?per_page=100`,
+                `repos/${opts.repo}/commits/${sha}/status`,
+                "--jq",
+                ".statuses",
             ]);
             if (r.status !== 0)
                 throw new Error(
@@ -149,20 +153,20 @@ export function githubFixAttemptStore(opts: {
 
 export function fileFixAttemptStore(root: string): FixAttemptStore {
     const path = join(root, HEALTH_DIR_REL, FIX_ATTEMPTS_FILE);
+    // A file that exists and does not parse THROWS: an unreadable record
+    // must stop the loop (`loopFixDecision`), never read as "no attempt" —
+    // nor be overwritten, dropping every other sha's record.
     const all = (): Record<string, FixAttempt> => {
-        try {
-            const doc = JSON.parse(readFileSync(path, "utf8")) as unknown;
-            return typeof doc === "object" && doc !== null
-                ? (doc as Record<string, FixAttempt>)
-                : {};
-        } catch {
-            return {};
-        }
+        if (!existsSync(path)) return {};
+        const doc = JSON.parse(readFileSync(path, "utf8")) as unknown;
+        if (typeof doc !== "object" || doc === null || Array.isArray(doc))
+            throw new Error(`${path} is not a JSON object`);
+        return doc as Record<string, FixAttempt>;
     };
     return {
         backend: "file",
         read(sha) {
-            return existsSync(path) ? (all()[sha] ?? null) : null;
+            return all()[sha] ?? null;
         },
         write(a) {
             mkdirSync(join(root, HEALTH_DIR_REL), { recursive: true });

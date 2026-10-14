@@ -46,7 +46,7 @@ import {
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH, CONFIG_PATH } from "./branches";
-import { evidenceMarker, failingFiles } from "./health-evidence";
+import { failingFiles, isEvidenceFor } from "./health-evidence";
 import type { HealthStatus } from "./health-verdict";
 
 /** Where the file backend lives, relative to the primary checkout. */
@@ -734,7 +734,7 @@ export function fileEvidenceStore(root: string): EvidenceStore {
         read(sha) {
             const p = join(dir, evidenceFileName(sha));
             const body = existsSync(p) ? readFileSync(p, "utf8") : null;
-            return body?.startsWith(evidenceMarker(sha)) ? body : null;
+            return isEvidenceFor(body, sha) ? body : null;
         },
     };
 }
@@ -770,8 +770,7 @@ export function githubEvidenceStore(opts: {
                 `repos/${opts.repo}/commits/${sha}/comments?per_page=100`,
             ]);
             // Oldest first: the newest evidence (a re-gated sha) wins.
-            const marker = evidenceMarker(sha);
-            const mine = list.filter((c) => c.body?.startsWith(marker));
+            const mine = list.filter((c) => isEvidenceFor(c.body, sha));
             return mine.length > 0
                 ? (mine[mine.length - 1].body ?? null)
                 : null;

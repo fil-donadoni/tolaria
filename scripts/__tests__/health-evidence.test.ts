@@ -125,6 +125,17 @@ describe("classifyFailure — a RED is never silently empty", () => {
         ).toBe("crash");
     });
 
+    it("a test NAME or console line about unhandled errors is not a crash", () => {
+        const out = [
+            " FAIL  |node-tooling| scripts/__tests__/x.test.ts > reports Unhandled Errors and Error: Channel closed",
+            "stdout | a passing test: Aborted (core dumped) is what the shell prints",
+            "AssertionError: expected 1 to be 2",
+        ].join("\n");
+        expect(classifyFailure({ ...base, output: out }).kind).toBe(
+            "assertion"
+        );
+    });
+
     it("gate: a non-test step with no failing test", () => {
         expect(
             classifyFailure({
@@ -233,6 +244,10 @@ describe("the evidence store — the pivot", () => {
         );
         expect(calls[0]).toContain(`repos/o/r/commits/${SHA}/comments`);
         expect(store.read(SHA)).toBe(`${evidenceMarker(SHA)}\nnew`);
+        // An abbreviated sha (the other machine has not fetched the tip).
+        expect(store.read(SHA.slice(0, 12))).toBe(
+            `${evidenceMarker(SHA)}\nnew`
+        );
         expect(store.read("0000")).toBeNull();
     });
 

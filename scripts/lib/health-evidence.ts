@@ -55,6 +55,19 @@ export function evidenceMarker(sha: string): string {
     return `<!-- tolaria-health-evidence sha=${sha} -->`;
 }
 
+/** Whether `body` is the evidence of `sha` — a full sha, or the abbreviated
+ *  one a reader on the other machine may hold before it fetched the tip. */
+export function isEvidenceFor(
+    body: string | null | undefined,
+    sha: string
+): boolean {
+    return (
+        sha.length >= 7 &&
+        /^[0-9a-f]+$/.test(sha) &&
+        (body ?? "").startsWith(`<!-- tolaria-health-evidence sha=${sha}`)
+    );
+}
+
 /** The pivot caps a comment at 65,536 characters; room for the header. */
 export const EVIDENCE_MAX = 60_000;
 
@@ -103,8 +116,10 @@ export function failingProjects(output: string): string[] {
 }
 
 /** Lines that say the run died rather than a test failing. */
+/** Anchored to the forms vitest, node and the shell print — never a bare
+ *  phrase, which a test NAME or a passing test's console output can carry. */
 const CRASH_LINE =
-    /^.*(?:Unhandled (?:Errors?|Rejection)|Worker exited unexpectedly|ERR_WORKER_\w+|JavaScript heap out of memory|Segmentation fault|Aborted \(core dumped\)|Error: Channel closed).*$|^\s*Killed\s*$/m;
+    /^.*⎯{3,}\s*Unhandled Errors?\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled errors?.*$|^\s*(?:Error: )?\[?vitest-pool\]?.*Worker exited unexpectedly.*$|^\s*Error: Worker exited unexpectedly.*$|^.*FATAL ERROR: .*JavaScript heap out of memory.*$|^\s*(?:Segmentation fault|Aborted \(core dumped\)|Killed)\b.*$/m;
 
 /** Every failed test timed out: vitest's per-test blocks, read whole. */
 function timeoutOnly(plain: string): boolean {

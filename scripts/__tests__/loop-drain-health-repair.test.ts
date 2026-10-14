@@ -83,9 +83,7 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
             "run --silent health:fix --headless --claude-args=--permission-mode x"
         );
         expect(r.stderr).toMatch(/attempting an unattended repair, 1 this run/);
-        expect(r.stderr).toMatch(
-            /LANDED — health confirms on its tip; resuming/
-        );
+        expect(r.stderr).toMatch(/finished clean for deadbeef .* resuming/);
         expect(r.stdout).toMatch(/reason=max-passes /);
         expect(passLogCount()).toBe(1);
     });
@@ -143,7 +141,10 @@ describe("loop-drain — the unattended repair of a RED tip (issue #5589)", () =
         );
         const r = run({
             args: ["--max-passes", "1", "--claude-args", "x"],
-            env: { TOLARIA_VERDICT_STORE: "file" },
+            env: {
+                TOLARIA_VERDICT_STORE: "file",
+                TOLARIA_LOOP_FIX_WAIT_SECS: "0",
+            },
         });
         expect(r.stderr).toMatch(
             /a repair landed on MacBook \(PR #7\); no pass until health answers/
