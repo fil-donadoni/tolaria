@@ -7224,4 +7224,128 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2h + CR 119.3 — "Exile target creature. Its controller gains life
+    // equal to its power": the recipient is the controller read off the
+    // snapshot the exile took, a player parameter that is a `ref` the canned
+    // smoke scenario cannot size (issue #4573).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b1544f21-7e98-461b-aed5-e748b0168c52",
+            name: "Swords to Plowshares",
+            manaCost: "{W}",
+            typeLine: "Instant",
+            oracleText:
+                "Exile target creature. Its controller gains life equal to its power.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Swords to Plowshares",
+            types: ["Instant"],
+            manaCost: { W: 1 },
+            oracleText:
+                "Exile target creature. Its controller gains life equal to its power.",
+            effects: [
+                { op: "exile", target: { target: 0 }, bind: "$that1" },
+                {
+                    op: "gainLife",
+                    player: { ref: "$that1.controller" },
+                    amount: { ref: "$that1.power" },
+                },
+            ],
+            targetRequirement: { type: "Creature", count: 1 },
+        },
+    },
+    // CR 201.2 + CR 404.1 — "Draw a card, then draw cards equal to the number
+    // of cards named {self} in all graveyards": a count over every player's
+    // graveyard filtered by an exact name, neither of which the canned smoke
+    // scenario can synthesise (issue #4573).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "1ca25379-d194-4670-a7bf-525ad11cf436",
+            name: "Accumulated Knowledge",
+            manaCost: "{1}{U}",
+            typeLine: "Instant",
+            oracleText:
+                "Draw a card, then draw cards equal to the number of cards named Accumulated Knowledge in all graveyards.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Accumulated Knowledge",
+            types: ["Instant"],
+            manaCost: { X: 1, U: 1 },
+            oracleText:
+                "Draw a card, then draw cards equal to the number of cards named Accumulated Knowledge in all graveyards.",
+            effects: [
+                { op: "draw", player: "controller", count: 1 },
+                {
+                    op: "draw",
+                    player: "controller",
+                    count: {
+                        count: {
+                            zone: "graveyard",
+                            acrossAllPlayers: true,
+                            filter: { name: "Accumulated Knowledge" },
+                        },
+                    },
+                },
+            ],
+        },
+    },
+    // CR 101.4 + CR 701.21a — "Each player chooses from among the permanents
+    // they control an artifact, a creature, an enchantment, and a land, then
+    // sacrifices the rest": `chooseCategorized` acts on `$each`, which the
+    // canned smoke scenario does not model (issue #4573).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b0479ca4-e925-4aa7-a4fa-f7e01f899ac5",
+            name: "Cataclysm",
+            manaCost: "{2}{W}{W}",
+            typeLine: "Sorcery",
+            oracleText:
+                "Each player chooses from among the permanents they control an artifact, a creature, an enchantment, and a land, then sacrifices the rest.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Cataclysm",
+            types: ["Sorcery"],
+            manaCost: { X: 2, W: 2 },
+            oracleText:
+                "Each player chooses from among the permanents they control an artifact, a creature, an enchantment, and a land, then sacrifices the rest.",
+            effects: [
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "chooseCategorized",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            categories: [
+                                {
+                                    label: "Artifact",
+                                    filter: { type: "Artifact" },
+                                },
+                                {
+                                    label: "Creature",
+                                    filter: { type: "Creature" },
+                                },
+                                {
+                                    label: "Enchantment",
+                                    filter: { type: "Enchantment" },
+                                },
+                                { label: "Land", filter: { type: "Land" } },
+                            ],
+                            onPicked: "keep",
+                            sweep: { action: "sacrifice" },
+                            prompt: "Choose an artifact, a creature, an enchantment, and a land to keep; the rest are sacrificed.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);
