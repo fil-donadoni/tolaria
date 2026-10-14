@@ -4,6 +4,7 @@ import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { buildDefine } from "./scripts/lib/build-define";
+import { cardSetsDevBundle } from "./scripts/lib/vite-card-sets-dev-bundle";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -109,6 +110,12 @@ export default defineConfig({
         },
     },
     plugins: [
+        // Dev server only (issue #5597): the 1070 Set modules the catalogue
+        // imports are served as ONE pre-bundled module instead of 1070
+        // revalidated requests per graph — page and Brain worker alike. The
+        // build already folds them into `card-catalogue` (below), so this
+        // plugin does not run there, nor under vitest.
+        cardSetsDevBundle(),
         // Issue #4854 — the same asymmetry as `./compiledPool` above, for the
         // ONE other `convex/` module the entry graph reaches that statically
         // imports the catalogue. `convex/formats.ts` imports `./cards` (the
