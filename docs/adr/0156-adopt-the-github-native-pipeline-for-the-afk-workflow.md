@@ -98,9 +98,9 @@ One pass = one job, `afk-pass.yml`, triggered by `issues: labeled` with
 `ready-for-agent` and by a 30-minute `schedule` sweep that picks the oldest
 unclaimed one (the backlog is 441 deep). Steps: claim by label, a worktree off
 the base branch, `claude -p "/next-ticket N"`, push, PR. Parallelism is **the
-number of runner instances registered per machine** — MacBook 3–4, Huawei 1–2,
-from the measured 1,900 MB per session (ADR 0154) — not a cap computed per
-pick. A pass that cannot act (usage limit, RED base, nothing to pick) exits 0
+number of `pass` runners registered** — on BOTH machines, sized by the Max
+subscription's usage limits (the two machines share one account) rather than
+by RAM — not a cap computed per pick. The machines have no fixed roles (§7). A pass that cannot act (usage limit, RED base, nothing to pick) exits 0
 with "nothing to do"; the next event or sweep fires again. This is the whole
 of PRD A's Hold: **a job that skips, re-fired by the scheduler**, with nothing
 long-running left to supervise but the runner service, whose liveness GitHub
@@ -116,10 +116,22 @@ what ADR 0154 §8 says a PR owes.
 
 ### 3. Landing is a merge queue
 
-Mergify (`.mergify.yml`, free for open source) queues a PR when it carries
-`ready-to-land` and `pr-check` is green: oldest first, `land-failed`
-repairs ahead, rebase onto the tip, re-check, merge — batch size 1 (the
-serial `land` of today), batches later if the queue backs up. A PR the queue
+Mergify (`.mergify.yml`, Open Source plan) queues a PR when it carries
+`ready-to-land` and `pr-check` is green: oldest first, rebase onto the tip,
+re-check, merge, with **two parallel (speculative) checks**, one per machine.
+The plan matrix on mergify.com/pricing, read 2026-10-14: the Open Source plan
+(public repositories) includes Merge Queue, Parallel Checks, Stacked PRs and
+PR Dependencies; it does NOT include Batch, PR Priorities, Pause, Two-Steps CI
+or Job Auto-Retry (the private-repo Free plan, ≤ 5 users, includes them all).
+A simulation fed by the measured lanes (142 lanes 2026-10-06 → 14: PASS mean
+5.4 min, FAIL mean 3.6 min, 14.8 % red; 1 min of job overhead per check)
+puts the ceiling at 7.4 merged PR/h for today's serial `land`, 8.3 for a
+serial queue, **16.0 with two parallel checks** and 22.9 with three; at
+10 PR/h arriving, two parallel checks hold the queue-to-merge wait at
+9.6 min p50 / 17 min p90, where today's serial land grows without bound.
+Batches add nothing at a 15 % red rate (a batch of 3 holds a bad PR 38 % of
+the time and is split), so the repository stays public and the plan Open
+Source. Without priorities a repair re-enters at the back of the queue. A PR the queue
 rejects is labelled `land-failed` with the reason as a comment; that label
 event re-fires `afk-pass` on its issue as the repair pick. The GitHub native
 queue replaces Mergify the day the repository moves to an organization, if
@@ -132,15 +144,16 @@ the claims journal, the reaper, `runner-units/`.
 ### 4. Post-merge, health, release are scheduled workflows
 
 - `post-merge.yml` on `push` to the base branch, one concurrency group:
-  scenario seed (MacBook runner, its Convex), `gaps:sync`, grammar residue,
+  scenario seed (`seed` runner: the machine holding the Convex deployment the
+  owner plays on, the MacBook today), `gaps:sync`, grammar residue,
   umbrella detach — the `housekeeping` and nightly crons that issue #5592 was
   to schedule.
-- `health.yml` on a 2-hour `schedule` and on dispatch, Huawei runner:
+- `health.yml` on a 2-hour `schedule` and on dispatch, any `lane` runner:
   `check:all` + `test` on the base tip; the result is a native commit status
   and a native failure email. `afk-pass` reads the status before picking;
   the repair is `/health-fix` as a job, dispatched once per RED tip.
-- `release.yml` on dispatch: the full gate including `check:ui --all` on the
-  Huawei, then fast-forward of the release branch, under a GitHub
+- `release.yml` on dispatch: the full gate including `check:ui --all` on a
+  `lane` runner with a Convex deployment, then fast-forward of the release branch, under a GitHub
   Environment. ADR 0116's green-at-release holds unchanged.
 
 ### 5. Observability is the Actions UI
@@ -162,6 +175,19 @@ one config block naming the project's own scripts (`check`, `test`,
 `release`, `seed`) and runner labels. What it brings: those scripts and one
 runner per machine. Nothing Tolaria-shaped — Convex, the browser walk, the
 blade — leaks into the template; it is named in the config and nowhere else.
+
+### 7. Two machines, one runner pool
+
+Topology B' (ADR 0154 §9) gave each machine a role because the
+orchestration was ours. With GitHub dispatching, both machines register the
+same runners and a job goes to the first free one; differences survive only
+where state lives, as runner labels: `pass` (a Claude session, both
+machines), `lane` (queue checks, health, release; both — they are the two
+parallel checks), `seed` (the machine holding the owner's Convex
+deployment). The owner stops the MacBook's runners while working on it and
+the Huawei carries the queue; the Huawei, always on, keeps it alive at night.
+`landRunner.platform`, `healthRunner.platform` and the shared verdict store
+retire with it.
 
 ### Budget
 
@@ -287,11 +313,13 @@ What the comparison says:
   write it: `afk-pass.yml` is a Ralph iteration whose `for` loop is the
   event scheduler, and the queue, the checks and the schedules are
   commodity.
-- **Two things Ralph has and this design adopts.** The **sandbox** as a
-  declared toolchain: the Linux runner runs the pass under a job `container:`
-  (the Docker Desktop sandbox on the MacBook once it carries Convex and the
-  browser — the "special image" Pocock mentions), which is the second answer
-  to the #5598 class after the declared setup steps. The **sigil and the
+- **Two ideas Ralph has and this design adopts, without its Docker.**
+  Isolation: every runner runs as a dedicated system user, and every job
+  declares its toolchain (bun, node, pinned) — the answer to the #5598
+  class. Docker is ruled out by the owner (2026-10-14): on the MacBook its VM
+  takes half the RAM by default (8 of 16 GB, on a machine already
+  RAM-bound) and slows small-file I/O through VirtioFS; on the Huawei nothing
+  is installed — one moving part fewer. The **sigil and the
   cap** as the pass contract: a pass exits 0 with "nothing to do" (the sigil)
   and the cap is runner count × subscription window, never a count inside a
   driver.
