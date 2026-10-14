@@ -49,6 +49,8 @@ export function useDefinitionsResident(
                 if (!cancelled) bump();
             },
             (cause: unknown) => {
+                // Loud: a silent hold is a board that never updates.
+                console.error("definition shards: install failed", cause);
                 if (!cancelled)
                     setFailed({
                         key: neededKey,

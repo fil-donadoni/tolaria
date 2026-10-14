@@ -473,7 +473,10 @@ export default function Board({
                                                 live one's Sets install: no
                                                 click may land on it. */}
                                             {!residence.ready && (
-                                                <BoardCardsLoadingOverlay />
+                                                <BoardCardsLoadingOverlay
+                                                    error={residence.error}
+                                                    onRetry={residence.retry}
+                                                />
                                             )}
                                             <AutoPassController solo={solo} />
                                             {vsAi && (
