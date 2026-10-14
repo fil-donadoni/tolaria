@@ -1,4 +1,4 @@
-import { beforeAll, describe, it, expect } from "vitest";
+import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import type { Plugin } from "vite";
@@ -121,16 +121,16 @@ describe("the catalogue is the only importer of a Set module", () => {
 
 describe("bundleCardSets — the Set boundary, over the real tree", () => {
     const setsRoot = path.join(ROOT, SETS_DIR) + path.sep;
-    let bundled: CardSetsBundle;
-    beforeAll(async () => {
-        bundled = await bundleCardSets(
+    // Built once, on the first test that asks — never at collection.
+    let pending: Promise<CardSetsBundle> | null = null;
+    const bundled = (): Promise<CardSetsBundle> =>
+        (pending ??= bundleCardSets(
             ROOT,
             rewriteCatalogueSetImports(catalogueSource).sets
-        );
-    });
+        ));
 
-    it("folds in Set modules only, and keeps everything else an external root-relative URL", () => {
-        const { modules, externals } = bundled;
+    it("folds in Set modules only, and keeps everything else an external root-relative URL", async () => {
+        const { modules, externals } = await bundled();
         expect(modules.length).toBeGreaterThan(0);
         for (const m of modules) expect(m.startsWith(setsRoot)).toBe(true);
         expect(externals.length).toBeGreaterThan(0);
@@ -145,7 +145,8 @@ describe("bundleCardSets — the Set boundary, over the real tree", () => {
         ).toBe(true);
     });
 
-    it("carries every hand-written definition the Set sources declare", () => {
+    it("carries every hand-written definition the Set sources declare", async () => {
+        const { code } = await bundled();
         const DECLARATION = /=\s*defineCard\(/g;
         const declared = sourceFiles(path.join(ROOT, SETS_DIR)).reduce(
             (n, file) =>
@@ -153,17 +154,18 @@ describe("bundleCardSets — the Set boundary, over the real tree", () => {
                 (readFileSync(file, "utf8").match(DECLARATION) ?? []).length,
             0
         );
-        expect((bundled.code.match(DECLARATION) ?? []).length).toBe(declared);
+        expect((code.match(DECLARATION) ?? []).length).toBe(declared);
     });
 
-    it("watches every Set source file — the empty shims included — and no test", () => {
-        expect([...bundled.watched].sort()).toEqual(
+    it("watches every Set source file — the empty shims included — and no test", async () => {
+        const { watched } = await bundled();
+        expect([...watched].sort()).toEqual(
             sourceFiles(path.join(ROOT, SETS_DIR)).sort()
         );
     });
 
-    it("maps back to the Set sources by the URL the dev server serves them under", () => {
-        const map = JSON.parse(bundled.map) as {
+    it("maps back to the Set sources by the URL the dev server serves them under", async () => {
+        const map = JSON.parse((await bundled()).map) as {
             sources: string[];
             sourcesContent?: (string | null)[];
         };
