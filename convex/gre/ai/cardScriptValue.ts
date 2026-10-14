@@ -1056,8 +1056,9 @@ export function dslStandingAbilityScriptValue(
  *  event of that player's step. The event's `phase` is the board's own — the
  *  `phaseTrigger` wrapper narrows its predicate on the event type alone,
  *  `matches` is what reads the phase. `undefined` when the trigger has no
- *  gate. A check-time `condition` (`gate`) with no `interveningIf` beside it
- *  is a predicate no reader can ask: `UNDECIDABLE_STEP_GATE`. A compiled
+ *  gate. An `{ onSelf }` gate is decided on the source. A check-time
+ *  `condition` (`{ undecidable }`) with no `interveningIf` beside it is a
+ *  predicate no reader can ask: `UNDECIDABLE_STEP_GATE`. A compiled
  *  intervening-if passes ONE predicate as both (`resolveCompiledTrigger`,
  *  CR 603.4 checks it twice), so its `interveningIf` decides it. */
 function stepGateOf(ability: {
@@ -1065,15 +1066,14 @@ function stepGateOf(ability: {
     interveningIf?: TriggeredAbility["interveningIf"];
 }): StepGate | typeof UNDECIDABLE_STEP_GATE | undefined {
     const predicate = ability.interveningIf;
-    if (!predicate) {
-        return ability.gate && "undecidable" in ability.gate
-            ? UNDECIDABLE_STEP_GATE
-            : undefined;
-    }
     const onSelf =
         ability.gate && "onSelf" in ability.gate
             ? ability.gate.onSelf
             : undefined;
+    if (!predicate) {
+        if (onSelf) return (_activePlayerId, self) => onSelf(self);
+        return ability.gate ? UNDECIDABLE_STEP_GATE : undefined;
+    }
     return (activePlayerId, self, state) =>
         (onSelf === undefined || onSelf(self)) &&
         predicate(

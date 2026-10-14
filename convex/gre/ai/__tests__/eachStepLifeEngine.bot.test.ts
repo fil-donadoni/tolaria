@@ -14,7 +14,8 @@
 // `permanentRealisedValue`, `cardValue` with the hand term's lens) over real
 // registry definitions, and asserts a direction, never a constant.
 import { describe, expect, it } from "vitest";
-import type { CardDefinition } from "../../../cards/types";
+import type { CardDefinition, EffectOp } from "../../../cards/types";
+import { UNDECIDABLE_TRIGGER_GATE } from "../../../cards/types";
 import type { CardInstanceState, GameState } from "../../state";
 import {
     makeInstance,
@@ -30,7 +31,10 @@ import {
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { cardValueById, MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
 import { nonCreatureBodyRaw } from "../../creatureBody";
-import { registeredDefinitions } from "../../../cards/registry";
+import {
+    registeredDefinitions,
+    withTemporaryDefinition,
+} from "../../../cards/registry";
 import {
     copperTablet,
     forest,
@@ -253,5 +257,56 @@ describe("a standing each-step life engine reads the board (issue #5574)", () =>
         expect(cardValueById(TABLET)).toBe(nonCreatureBodyRaw(2));
         expect(cardValueById(SANCTUARY)).toBe(nonCreatureBodyRaw(4));
         expect(cardValueById(BORDERS)).toBe(nonCreatureBodyRaw(4));
+    });
+
+    describe("fail-closed: a side the board cannot answer leaves the engine unread", () => {
+        /** Karma with its one trigger rewritten by `edit`, same id. */
+        function karmaVariant(
+            edit: (
+                t: NonNullable<CardDefinition["triggeredAbilities"]>[number]
+            ) => NonNullable<CardDefinition["triggeredAbilities"]>[number]
+        ): CardDefinition {
+            const def = karma();
+            return {
+                ...def,
+                triggeredAbilities: def.triggeredAbilities!.map(edit),
+            };
+        }
+        const helps = () =>
+            board(
+                KARMA,
+                { lands: forests(4), engine: "board" },
+                { lands: swamps(4) }
+            );
+
+        it("an amount no side can ground (a graveyard count) reads nothing and keeps the floor", () => {
+            const graveyardCount: EffectOp = {
+                op: "dealDamage",
+                amount: {
+                    count: {
+                        zone: "graveyard",
+                        controller: { ref: "$event.activePlayerId" },
+                    },
+                },
+                to: { player: { ref: "$event.activePlayerId" } },
+            };
+            const variant = karmaVariant((t) => ({
+                ...t,
+                effects: [graveyardCount],
+            }));
+            withTemporaryDefinition(variant, () => {
+                expect(engineWorth(helps())).toBe(nonCreatureBodyRaw(4));
+            });
+        });
+
+        it("a check-time condition with no intervening-if to ask reads nothing and keeps the floor", () => {
+            const variant = karmaVariant((t) => ({
+                ...t,
+                gate: UNDECIDABLE_TRIGGER_GATE,
+            }));
+            withTemporaryDefinition(variant, () => {
+                expect(engineWorth(helps())).toBe(nonCreatureBodyRaw(4));
+            });
+        });
     });
 });

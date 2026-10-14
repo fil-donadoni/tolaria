@@ -346,13 +346,17 @@ export function makeLatentBoardLens(
             // Issue #5574 — the source a step gate is asked about, built once
             // for both sides: the permanent itself on the board face, the card
             // entered under its caster on the hand face (the board it would
-            // stand on once it resolved, CR 608.3a).
+            // stand on once it resolved, CR 608.3a). UNTAPPED on both: the
+            // engine is a recurrence over future steps, and its controller's
+            // untap step untaps it (CR 502.3) — a Howling Mine tapped on this
+            // leaf still feeds the table next turn, and the two faces stay
+            // one number.
             let stepMemo: StepSource | undefined;
             const stepSource = (): StepSource => {
                 if (stepMemo === undefined) {
                     stepMemo =
                         card.zone === "battlefield"
-                            ? { state, perm: card }
+                            ? { state, perm: { ...card, isTapped: false } }
                             : withCardEntered(state, casterId, card);
                 }
                 return stepMemo;
