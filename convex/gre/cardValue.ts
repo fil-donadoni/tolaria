@@ -29,6 +29,7 @@ import {
     dslEtbAbilityInFlightValue,
     dslLatentDelayedTemplateValue,
     dslStandingAbilityScriptValue,
+    carriesEachStepEngine,
     etbSelfSacrificeWeight,
     isCompleteScript,
     type LatentCastRoute,
@@ -36,7 +37,11 @@ import {
     dslSpellScriptValue,
 } from "./ai";
 import type { LatentLens } from "./ai/grounding";
-import { contextFreeGrounding, withLatentLens } from "./ai/grounding";
+import {
+    contextFreeGrounding,
+    contextFreeLatentLens,
+    withLatentLens,
+} from "./ai/grounding";
 import {
     DEFAULT_EVAL_WEIGHTS,
     type LatentCreatureDiscounts,
@@ -91,7 +96,7 @@ import { creatureValueRaw, nonCreatureBodyRaw } from "./creatureBody";
 // `ai/opValuers.ts` — already documented there as "the biggest single-Op
 // swing in the basis") keeps the bound tied to an existing, principled
 // magnitude rather than an arbitrary new number.
-const MAX_LATENT_SCRIPT_VALUE = 300;
+export const MAX_LATENT_SCRIPT_VALUE = 300;
 
 /** Latent worth from a card's raw characteristics (ADR 0018), with the
  *  DSL-derived semantic layer wired in (PRD #1423, issue #1426), and the
@@ -208,6 +213,13 @@ export function latentValue(chars: {
      *  Undefined (no board, or not a lock) keeps the floor. Non-creature
      *  branch only. */
     standingLockValue?: number;
+    /** Issue #5164 (ADR 0151) — true when `dslStandingAbilityValue` was
+     *  MEASURED against a real board (a standing engine's Differential
+     *  Reading). The Latent Floor drops and, as a measured standing lock's
+     *  does (issue #5163), the reading keeps its sign on both faces — an
+     *  engine that feeds the opponent costs its controller in hand and in
+     *  play alike, down to `-MAX_LATENT_SCRIPT_VALUE`. */
+    dslStandingAbilityMeasured?: boolean;
     /** Issue #4758 — the share of the creature body its own ETB Ability
      *  sacrifices on entering (`etbSelfSacrificeWeight`): 1 for "sacrifice it
      *  unless it escaped", the gate's weight for an evoke sacrifice, 0 for
@@ -258,9 +270,17 @@ export function latentValue(chars: {
     // own number from 0 up (issue #3398, unchanged), and so does a Complete
     // Script read context-free (issue #5161).
     const fallback =
-        chars.dslSpellValueMeasured || chars.dslScriptComplete
+        chars.dslSpellValueMeasured ||
+        chars.dslStandingAbilityMeasured ||
+        chars.dslScriptComplete
             ? 0
             : nonCreatureBodyRaw(chars.manaValue);
+    // Issue #5164 — a measured standing reading is bounded below only by
+    // the mirror of the cap (see `dslStandingAbilityMeasured`): no single
+    // card may pin the reward band from either side.
+    const floor = chars.dslStandingAbilityMeasured
+        ? -MAX_LATENT_SCRIPT_VALUE
+        : fallback;
     // CR 603.7a (issue #3383) — the card's delayed-trigger templates. Added
     // INSIDE the `MAX_LATENT_SCRIPT_VALUE` clamp below, never after it: the cap
     // exists so no single hand card can pin the reward band (see its own doc),
@@ -297,7 +317,7 @@ export function latentValue(chars: {
     const standing = chars.dslStandingAbilityValue;
     if (standing !== undefined && chars.dslSpellValue === undefined) {
         return Math.max(
-            fallback,
+            floor,
             Math.min(standing + delayed, MAX_LATENT_SCRIPT_VALUE)
         );
     }
@@ -310,7 +330,7 @@ export function latentValue(chars: {
             chars.dslSpellValue + (standing ?? 0) + delayed,
             MAX_LATENT_SCRIPT_VALUE
         );
-        return Math.max(fallback, bounded);
+        return Math.max(floor, bounded);
     }
     // No spell and no standing reading: the card has nothing the floor could
     // be lifted for (a Complete Script always reads at least one), so the
@@ -418,6 +438,7 @@ export function dslLatentPieces(
     dslDelayedTemplateValue?: number;
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
+    dslStandingAbilityMeasured?: boolean;
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;
@@ -432,14 +453,44 @@ export function dslLatentPieces(
     // branch never reads `dslAbilityValue`, and the lens's `measured` flag
     // must stay its spell script's own.
     const abilityCtx = contextFreeGrounding(latent);
+    const dslAbilityValue = dslAbilityScriptValue(
+        def,
+        board && selfSacrificeWeight > 0 && def.types.includes("Creature")
+            ? withLatentLens(abilityCtx, board)
+            : abilityCtx
+    );
+    // Only a value the lens actually ANSWERED counts as measured — a
+    // board that could not resolve the card's target slots leaves the
+    // pre-#3398 representative valuation, floor included. Read BEFORE the
+    // standing reading below, whose engine differential answers on the same
+    // board and must not pass for the spell script's measurement.
+    const dslSpellValueMeasured =
+        dslSpellValue !== undefined && board?.measured() === true;
+    // Issue #5145 — only a NON-CREATURE PERMANENT reads it: a creature
+    // already carries its abilities in `dslAbilityValue`, and an
+    // instant/sorcery has no standing abilities on the battlefield to
+    // value (flashback-style grants are not a permanent's worth). A land
+    // reads it too (issue #5155) — its mana abilities are scored by the
+    // mana term, so the reader skips them, and only its utility abilities
+    // count.
+    const standingWorth = carriesStandingAbilityWorth(def);
+    // Issue #5164 (ADR 0151) — a standing engine on every player's step is
+    // read against this board (`eachStepDifferentialValue`), with its own
+    // measured flag.
+    const engine =
+        board && standingWorth && carriesEachStepEngine(def)
+            ? engineLensOf(board, latent)
+            : undefined;
+    const dslStandingAbilityValue = standingWorth
+        ? dslStandingAbilityScriptValue(
+              def,
+              contextFreeGrounding(latent),
+              engine
+          )
+        : undefined;
     return {
         dslSpellValue,
-        dslAbilityValue: dslAbilityScriptValue(
-            def,
-            board && selfSacrificeWeight > 0 && def.types.includes("Creature")
-                ? withLatentLens(abilityCtx, board)
-                : abilityCtx
-        ),
+        dslAbilityValue,
         // CR 603.7a (issue #3383) — the non-creature branch's own reading of
         // the card's delayed-trigger templates, discounted exactly as an
         // ability script is (they are a future, conditional payoff in the same
@@ -451,21 +502,9 @@ export function dslLatentPieces(
             contextFreeGrounding(latent)
         ),
         etbSelfSacrificeWeight: selfSacrificeWeight,
-        // Issue #5145 — only a NON-CREATURE PERMANENT reads it: a creature
-        // already carries its abilities in `dslAbilityValue`, and an
-        // instant/sorcery has no standing abilities on the battlefield to
-        // value (flashback-style grants are not a permanent's worth). A land
-        // reads it too (issue #5155) — its mana abilities are scored by the
-        // mana term, so the reader skips them, and only its utility abilities
-        // count.
-        dslStandingAbilityValue: carriesStandingAbilityWorth(def)
-            ? dslStandingAbilityScriptValue(def, contextFreeGrounding(latent))
-            : undefined,
-        // Only a value the lens actually ANSWERED counts as measured — a
-        // board that could not resolve the card's target slots leaves the
-        // pre-#3398 representative valuation, floor included.
-        dslSpellValueMeasured:
-            dslSpellValue !== undefined && board?.measured() === true,
+        dslStandingAbilityValue,
+        dslSpellValueMeasured,
+        dslStandingAbilityMeasured: engine?.measured() === true,
         // Issue #5161 (ADR 0151) — read by the NON-CREATURE branch only.
         dslScriptComplete: isCompleteScript(def),
         // Issue #5163 (ADR 0151) — a standing lock in hand, measured on the
@@ -474,6 +513,27 @@ export function dslLatentPieces(
         standingLockValue: declaresStandingLock(def)
             ? board?.standingLockWorth?.()
             : undefined,
+    };
+}
+
+/** Issue #5164 — the lens a standing engine is read against: the
+ *  context-free lens with `board`'s Differential Reading, under a measured
+ *  flag of its own. */
+function engineLensOf(board: LatentLens, latent: LatentWeights): LatentLens {
+    const differential = board.eachPlayerDifferential;
+    let measured = false;
+    return {
+        ...contextFreeLatentLens(latent),
+        ...(differential
+            ? {
+                  eachPlayerDifferential(valueSide) {
+                      const total = differential(valueSide);
+                      if (total !== undefined) measured = true;
+                      return total;
+                  },
+              }
+            : {}),
+        measured: () => measured,
     };
 }
 
@@ -494,6 +554,7 @@ export function dslLatentPiecesById(
     dslDelayedTemplateValue?: number;
     dslStandingAbilityValue?: number;
     dslSpellValueMeasured?: boolean;
+    dslStandingAbilityMeasured?: boolean;
     dslScriptComplete?: boolean;
     standingLockValue?: number;
     etbSelfSacrificeWeight?: number;

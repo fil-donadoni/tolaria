@@ -1866,6 +1866,181 @@
             "opp": 3
         }
     },
+    "symmetric engine: Disenchant takes the Howling Mine that feeds the opponent's empty hand, not the 2-MV artifact (issue #5164)": {
+        "cards": [
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "me",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "library"
+            },
+            {
+                "name": "Aeolipile",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Howling Mine",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "symmetric lock: Disenchant takes the Winter Orb that locks more of the bot's lands, not the 2-MV artifact (issue #5163)": {
         "cards": [
             {

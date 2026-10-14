@@ -11883,6 +11883,16 @@ export const UNDECIDABLE_TRIGGER_GATE: TriggerGate = Object.freeze({
     undecidable: true as const,
 });
 
+/** Whose step a phase-anchored trigger fires on, relative to its source:
+ *  its controller's, every player's, each opponent's, or (an Aura) the
+ *  enchanted permanent's controller's. The ONE spelling — `TriggerScope`
+ *  (`cards/abilities/triggers/shared.ts`) aliases it. */
+export type PhaseTriggerScope =
+    | "your"
+    | "each"
+    | "opponents"
+    | "host-controller";
+
 export interface TriggeredAbility {
     id: string;
     /** Oracle text shown on the stack and in context menus. */
@@ -11910,6 +11920,14 @@ export interface TriggeredAbility {
      *  cumulative upkeep", Balduvian Shaman). Absent on every non-keyword
      *  trigger. */
     keyword?: string;
+    /** Issue #5164 — whose step a `phaseTrigger` fires on (CR 603.2b /
+     *  500.1: "at the beginning of each player's upkeep" vs "your upkeep"),
+     *  restated for non-engine readers exactly like `gate`: the Bot reads a
+     *  standing `"each"` trigger as a Symmetric Effect (ADR 0151) — its
+     *  `$event.activePlayerId` is every player in turn. Stamped by
+     *  `phaseTrigger`; never consulted by the engine (`matches` is the
+     *  authority). */
+    phaseScope?: PhaseTriggerScope;
     /** Which event kind(s) can fire this ability — used to index-filter before
      *  `matches()`. A scalar for the common single-event case; an ARRAY when a
      *  single Oracle sentence spans several engine events (CR 603.2), e.g.

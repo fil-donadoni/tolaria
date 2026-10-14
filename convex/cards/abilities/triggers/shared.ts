@@ -37,6 +37,7 @@ import type {
     PermanentEnteredEvent,
     PermanentView,
     PhaseBeginEvent,
+    PhaseTriggerScope,
     TargetSelection,
     TriggeredAbility,
     TriggerStateView,
@@ -62,7 +63,7 @@ import {
 /** Who the trigger cares about — drives both the `matches()` filter and the
  *  `scopedPlayerId` passed to the per-card resolve body. See
  *  `phaseTrigger.ts` for the per-scope contract. */
-export type TriggerScope = "your" | "each" | "opponents" | "host-controller";
+export type TriggerScope = PhaseTriggerScope;
 
 /** Resolves a `TriggerScope` against the current PHASE_BEGIN event.
  *  Returns the playerId the trigger is "about", or `null` if the scope

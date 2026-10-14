@@ -3,6 +3,7 @@
 // Cards are classified by the colour identity of their mana cost (CR 202.2):
 // lands and colourless artifacts (no coloured cost) live in colorless.ts.
 import { defineCard } from "../../../../convex/cards/types";
+import { phaseTrigger } from "../../abilities/triggers/phaseTrigger";
 
 // Squee, Goblin Nabob — {2}{R} Legendary Creature. "At the beginning of your
 // upkeep, you may return this card from your graveyard to your hand." (CR
@@ -24,16 +25,13 @@ export const squeeGoblinNabob = defineCard(() => ({
     power: 1,
     toughness: 1,
     triggeredAbilities: [
-        {
+        phaseTrigger({
             id: "squee-goblin-nabob-upkeep-return",
             oracleText:
                 "At the beginning of your upkeep, you may return this card from your graveyard to your hand.",
-            event: "PHASE_BEGIN",
+            phase: "UPKEEP",
+            scope: "your",
             zone: "graveyard",
-            matches: (event, self) =>
-                event.type === "PHASE_BEGIN" &&
-                event.phase === "UPKEEP" &&
-                event.activePlayerId === self.controllerId,
             effects: [
                 {
                     op: "mayPay",
@@ -53,6 +51,6 @@ export const squeeGoblinNabob = defineCard(() => ({
                     ],
                 },
             ],
-        },
+        }),
     ],
 }));

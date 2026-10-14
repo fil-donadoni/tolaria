@@ -140,6 +140,7 @@ export function phaseTrigger(args: PhaseTriggerArgs): TriggeredAbility {
             id: args.id,
             oracleText: args.oracleText,
             event: "PHASE_BEGIN",
+            phaseScope: args.scope,
             ...(args.zone ? { zone: args.zone } : {}),
             ...(args.targetRequirement
                 ? { targetRequirement: args.targetRequirement }
