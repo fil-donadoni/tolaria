@@ -396,8 +396,9 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     // 0.25 (issue #5560): a refilled hand is played out over several turns
     // and a sacrificed creature replaced within a few, so the held card is
     // credited about one turn's share of the swing. The trust region (±50%)
-    // must reach the band the Wheel pair needs: 0.8 cannot (the seven-card
-    // Wheel passes on seeds up to 0.4, measured).
+    // must reach the band the Wheel pair needs, measured ≤ 0.3: the 0.8 of
+    // `recoverableSweepFraction` cannot (the seven-card Wheel passes on every
+    // seed at 0.8, on two of five at 0.5, on one at 0.4).
     heldDifferentialFraction: 0.25,
     permanentWeight: 5,
     manaWeight: 12,
