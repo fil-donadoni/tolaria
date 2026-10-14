@@ -257,6 +257,14 @@ describe("refusals — every neighbour the board-derived descriptor cannot carry
             "{T}: Add one mana of any type that a land an opponent controls could produce.",
         ],
         [
+            "a type noun beside a subtype noun (the filter would AND an or-list)",
+            "{T}: Add {G} for each artifact or Elf you control.",
+        ],
+        [
+            "the any-TYPE read of a type-or-subtype or-list",
+            "{T}: Add one mana of any type that a Forest or artifact you control could produce.",
+        ],
+        [
             "the any-TYPE read of a sacrificed land (not on the battlefield at resolution)",
             "{T}, Sacrifice a land: Add one mana of any type the sacrificed land could produce.",
         ],
@@ -265,5 +273,56 @@ describe("refusals — every neighbour the board-derived descriptor cannot carry
             land("Refusal Fixture", oracleText, "refusal-fixture")
         );
         expect(outcome.state).toBe("unparsed");
+    });
+});
+
+// CR 608.2h / 605.1a — the count is read on the {T} route only, and only a cost
+// that moves no permanent leaves the counted board as the effect sees it. Each
+// neighbour below would compile to a definition the engine scales wrongly (or
+// not at all), so the lowering refuses it.
+describe("refusals — a board count behind a cost the tap route cannot count right", () => {
+    it.each([
+        [
+            "a self-sacrifice with no {T} (the unit, never the count, is deposited)",
+            "Sacrifice this artifact: Add {C} for each artifact you control.",
+        ],
+        [
+            "{T} plus a self-sacrifice (the source would count itself)",
+            "{T}, Sacrifice this artifact: Add {C} for each artifact you control.",
+        ],
+        [
+            "a filtered give-up leg (counted before the victim leaves)",
+            "Sacrifice a creature: Add {B} for each creature you control.",
+        ],
+        [
+            "a mana-only cost (the no-tap route never reads the count)",
+            "{1}: Add {G} for each creature you control.",
+        ],
+    ])("%s stays unparsed", (_label, oracleText) => {
+        const outcome = compileCard(
+            oracleCard({
+                oracleId: "cost-shape-fixture",
+                name: "Cost Shape Fixture",
+                manaCost: "{3}",
+                typeLine: "Artifact",
+                oracleText,
+                power: undefined,
+                toughness: undefined,
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+    });
+
+    it("{T} beside a life leg is counted on the tap route and stays ready", () => {
+        const compiled = compiledOf(
+            land(
+                "Cost Shape Fixture",
+                "{T}, Pay 1 life: Add {G} for each creature you control.",
+                "cost-shape-fixture-life"
+            )
+        );
+        expect(compiled.activatedAbilities?.[0]?.manaAmountSource).toEqual({
+            filter: { types: ["Creature"], controllerRelation: "you" },
+        });
     });
 });

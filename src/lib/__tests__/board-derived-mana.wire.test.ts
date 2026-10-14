@@ -29,6 +29,7 @@ import {
 const PRIEST_OF_TITANIA: CardDefinition = {
     id: "test-5195-wire-priest-of-titania",
     name: "Priest of Titania",
+    rarity: "common",
     oracleText: "{T}: Add {G} for each Elf on the battlefield.",
     manaCost: { X: 1, G: 1 },
     types: ["Creature"],
@@ -50,6 +51,7 @@ const PRIEST_OF_TITANIA: CardDefinition = {
 const CABAL_STRONGHOLD: CardDefinition = {
     id: "test-5195-wire-cabal-stronghold",
     name: "Cabal Stronghold",
+    rarity: "rare",
     oracleText:
         "{T}: Add {C}.\n{3}, {T}: Add {B} for each basic Swamp you control.",
     manaCost: {},
@@ -82,6 +84,7 @@ const CABAL_STRONGHOLD: CardDefinition = {
 const REFLECTING_POOL: CardDefinition = {
     id: "test-5195-wire-reflecting-pool",
     name: "Reflecting Pool",
+    rarity: "rare",
     oracleText:
         "{T}: Add one mana of any type that a land you control could produce.",
     manaCost: {},

@@ -747,7 +747,11 @@ export function getFixedManaAmount(
         battlefield: readonly CardInstanceState[];
     }>
 ): number {
-    if (controllerBattlefield) {
+    // CR 305.6 (issue #5195) — when a basic land type names the colour, the
+    // fixed tap is the INTRINSIC "{T}: Add [symbol]", one mana; a scaled
+    // activated ability beside it (Gaea's Cradle under Urborg) is a different
+    // ability and never sets this amount.
+    if (controllerBattlefield && getBasicLandMana(card) === null) {
         const dynamic = getDynamicManaProduced(
             card,
             controllerBattlefield,
@@ -883,10 +887,12 @@ export function getDynamicManaProduced(
 }
 
 /** The first fixed-output (`manaProduced`) mana ability paid by tapping and/or
- *  sacrificing its source — the ability the fixed tap branches act on. ONE
- *  probe behind `getActivatedManaColor`, `getActivatedManaProduced` and
- *  `getDynamicManaProduced`, so the colour a fixed tap adds and the amount it
- *  adds always name the same ability. */
+ *  sacrificing its source — the ability the fixed tap branches act on when no
+ *  basic land type supplies the colour. ONE probe behind
+ *  `getActivatedManaColor`, `getActivatedManaProduced` and
+ *  `getDynamicManaProduced`, so those three never name different abilities.
+ *  When `getBasicLandMana` DOES name the colour, the tap is the intrinsic
+ *  ability (CR 305.6) and `getFixedManaAmount` ignores this one's count. */
 function fixedOutputManaAbility(
     card: CardInstanceState
 ): ActivatedAbility | null {
@@ -1251,14 +1257,17 @@ function boardDerivedManaColors(
     depth: number
 ): Set<Color> {
     const colors = new Set<Color>();
-    for (const { permanent, liveColors } of boardPermanentsMatching(
+    for (const permanent of boardPermanentsMatching(
         source.filter,
         self,
         controllerId,
         battlefields
     )) {
         if (source.colors === "isColor") {
-            for (const c of liveColors) colors.add(c);
+            // CR 105.3 / 613.1e — the permanent's LIVE colours, the same read
+            // a `colors` clause of the filter matched against.
+            for (const c of STATIC_EFFECT_CTX.getColors(permanent))
+                colors.add(c);
             continue;
         }
         // CR 106.4 (issue #1941) — DESCRIPTOR-aware: a contributing
@@ -1287,8 +1296,10 @@ function boardDerivedManaColors(
  *  Each permanent is matched against a LAYER-AWARE view: live colours
  *  (`STATIC_EFFECT_CTX.getColors`, CR 105.3 / 613.1e), live supertypes
  *  (`liveSupertypesOf`, CR 613.1d) and live effective P/T, through the single
- *  `matchesPermanentFilter` authority. `liveColors` is handed back so the
- *  `"isColor"` derivation reads the same colours the filter matched on. */
+ *  `matchesPermanentFilter` authority. Colours and P/T are LAZY: a layer walk
+ *  per permanent is paid only by a filter that reads them, so "for each
+ *  creature you control" (Gaea's Cradle, read inside the Bot's mana census)
+ *  stays a type check per permanent. */
 function boardPermanentsMatching(
     filter: PermanentFilter,
     self: CardInstanceState,
@@ -1298,7 +1309,7 @@ function boardPermanentsMatching(
         battlefield: readonly CardInstanceState[];
     }>,
     continuousEffects?: readonly ContinuousEffect[]
-): { permanent: CardInstanceState; liveColors: readonly Color[] }[] {
+): CardInstanceState[] {
     const layerView = manaLayerView(battlefields, continuousEffects);
     const ctx = {
         selfInstanceId: self.id,
@@ -1307,23 +1318,28 @@ function boardPermanentsMatching(
         selfControllerId: controllerId,
         supertypesOf: liveSupertypesOf,
     };
-    const matched: {
-        permanent: CardInstanceState;
-        liveColors: readonly Color[];
-    }[] = [];
+    const matched: CardInstanceState[] = [];
     for (const { battlefield } of battlefields) {
         for (const permanent of battlefield) {
-            const liveColors = STATIC_EFFECT_CTX.getColors(permanent);
-            const pt = withEffectivePT(permanent, layerView);
+            let liveColors: readonly Color[] | undefined;
+            let pt: PermanentView | undefined;
             const view: MatchablePermanent = {
                 ...permanent,
                 staticAbilities: permanent.staticAbilities ?? [],
-                colors: liveColors,
-                power: pt.power,
-                toughness: pt.toughness,
+                get colors() {
+                    return (liveColors ??=
+                        STATIC_EFFECT_CTX.getColors(permanent)) as Color[];
+                },
+                get power() {
+                    return (pt ??= withEffectivePT(permanent, layerView)).power;
+                },
+                get toughness() {
+                    return (pt ??= withEffectivePT(permanent, layerView))
+                        .toughness;
+                },
             };
             if (matchesPermanentFilter(view, filter, ctx))
-                matched.push({ permanent, liveColors });
+                matched.push(permanent);
         }
     }
     return matched;

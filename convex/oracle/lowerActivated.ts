@@ -233,6 +233,16 @@ const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "tapOtherFilter",
 ]);
 
+/** Cost legs a board-counted mana amount (`manaAmountSource`) may carry: the
+ *  {T} that routes it to the tap mutations, and the legs that move no
+ *  permanent, so the board the count reads is the board the ability resolves
+ *  on (CR 608.2h). See `lowerManaAbility`. */
+const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
+    "tap",
+    "mana",
+    "life",
+]);
+
 /**
  * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
  * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
@@ -320,6 +330,30 @@ export function lowerManaAbility(input: {
             return {
                 ok: false,
                 reason: `mana ability cost leg "${unpayableHere[0]}" has no payment site on the CR 605.1a stackless path: with no tap, sacrifice or filtered give-up leg the ability routes to activateManaAbility, which pays only mana and tapOtherFilter`,
+            };
+        }
+    }
+    // CR 608.2h / 605.1a (issue #5195) — a board COUNT is read by the tap
+    // route alone (`getManaTapOptionsDetailed` → `tapUntap` /
+    // `tapSourceIntoPayment`), and only a cost that leaves the board as it
+    // was is counted right: a self-sacrifice or a filtered give-up leg is
+    // counted BEFORE the permanent leaves (the effect, applied after costs
+    // are paid, would not see it), and the no-tap route (`activateManaAbility`)
+    // never reads `manaAmountSource` at all. So the count admits {T} plus the
+    // legs that move no permanent — mana and life — and refuses the rest.
+    if (input.produces.kind === "for-each") {
+        const legs = Object.keys(cost.value);
+        const unscalable = legs.filter(
+            (leg) => !BOARD_COUNT_COST_LEGS.has(leg)
+        );
+        if (cost.value.tap !== true || unscalable.length > 0) {
+            return {
+                ok: false,
+                reason: `a board-counted mana amount is scaled on the {T} route only, beside mana and life legs: ${
+                    cost.value.tap !== true
+                        ? "this cost has no {T}"
+                        : `"${unscalable[0]}" changes or bypasses the counted board`
+                }`,
             };
         }
     }

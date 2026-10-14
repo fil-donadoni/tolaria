@@ -18,15 +18,19 @@
 // discipline.
 
 import { describe, expect, it } from "vitest";
-import { tapUntap } from "../game";
+import { tapSourceIntoPayment, tapUntap } from "../game";
 import type { CardDefinition } from "../cards/types";
-import { withTemporaryDefinitionAsync } from "../cards/registry";
+import {
+    withTemporaryDefinition,
+    withTemporaryDefinitionAsync,
+} from "../cards/registry";
 import {
     makeInstance,
     makePlayer,
     makeState,
 } from "../cards/__tests__/setup.helper";
 import { forest, swamp } from "../cards/sets/lea/colorless.cards";
+import { gaeasCradle } from "../cards/sets/usg/colorless.cards";
 import { llanowarElves } from "../cards/sets/lea/green.cards";
 import type { CardInstanceState, GameState } from "../gre/state";
 import type { Id } from "../_generated/dataModel";
@@ -61,6 +65,7 @@ const runTapUntap = (
 const PRIEST_OF_TITANIA: CardDefinition = {
     id: "test-5195-tap-priest-of-titania",
     name: "Priest of Titania",
+    rarity: "common",
     oracleText: "{T}: Add {G} for each Elf on the battlefield.",
     manaCost: { X: 1, G: 1 },
     types: ["Creature"],
@@ -82,6 +87,7 @@ const PRIEST_OF_TITANIA: CardDefinition = {
 const CABAL_STRONGHOLD: CardDefinition = {
     id: "test-5195-tap-cabal-stronghold",
     name: "Cabal Stronghold",
+    rarity: "rare",
     oracleText:
         "{T}: Add {C}.\n{3}, {T}: Add {B} for each basic Swamp you control.",
     manaCost: {},
@@ -237,4 +243,39 @@ describe("tapUntap — Cabal Stronghold's two mana abilities (CR 605.1a)", () =>
             expect(player.manaPool.B).toBe(2);
             expect(player.manaPool.C ?? 0).toBe(0);
         }));
+});
+
+describe("tapSourceIntoPayment — the payment-tap path counts the whole battlefield too", () => {
+    it("Priest of Titania tapped while paying adds {G} per Elf, the opponent's included", () =>
+        withTemporaryDefinition(PRIEST_OF_TITANIA, () => {
+            const state = stateOf(
+                [on(PRIEST_OF_TITANIA.id, "p1", "priest")],
+                [on(llanowarElves().id, "p2"), on(llanowarElves().id, "p2")]
+            );
+            const player = state.players[0];
+            const priest = player.battlefield[0];
+            const tapped: string[] = [];
+            tapSourceIntoPayment(state, player, priest, undefined, tapped);
+            expect(player.manaPool.G).toBe(3);
+            expect(priest.isTapped).toBe(true);
+            expect(tapped).toEqual(["priest"]);
+        }));
+});
+
+describe("tapUntap — a basic land type's intrinsic tap beside a count (CR 305.6)", () => {
+    it("an empty Gaea's Cradle that is also a Swamp adds one {B}", async () => {
+        const cradle = makeInstance(gaeasCradle().id, {
+            id: "cradle",
+            controllerId: "p1",
+            ownerId: "p1",
+            subtypes: ["Swamp"],
+        });
+        const stub = makeMutationCtx("p1", [
+            gameStateSeed(stateOf([cradle], [])),
+        ]);
+        await runTapUntap(stub.ctx, { cardInstanceId: "cradle" });
+        const player = stub.state().players[0];
+        expect(player.manaPool.B).toBe(1);
+        expect(player.manaPool.G ?? 0).toBe(0);
+    });
 });

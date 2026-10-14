@@ -2012,10 +2012,13 @@ export interface ActivatedAbility {
      *  the descriptor's `filter` currently matches. The amount analog of
      *  {@link manaColorSource}, sharing its permanent matcher.
      *
-     *  Evaluated by `boardDerivedManaCount` (`gre/constants.ts`) through the
-     *  one `getDynamicManaProduced` authority every consumer already reads —
-     *  the tap mutations, the auto-tap solver, the castability probe and the
-     *  client tap list — so the count tracks the board at activation time.
+     *  Evaluated by `boardDerivedManaCount` (`gre/constants.ts`) through
+     *  `getAbilityDynamicManaProduced`, which the TAP route reads — the
+     *  unified option list (`getManaTapOptionsDetailed`: the tap mutations,
+     *  the auto-tap solver, the castability probe, the client tap list) — so
+     *  the count tracks the board at activation time. Only a {T} cost whose
+     *  other legs move no permanent (mana, life) reaches that route counted
+     *  right, so the grammar emits it on no other (`lowerManaAbility`).
      *
      *  JSON-pure (ADR 0046), so a compiled definition can carry it where the
      *  `manaAmount` closure cannot. When both are present the descriptor

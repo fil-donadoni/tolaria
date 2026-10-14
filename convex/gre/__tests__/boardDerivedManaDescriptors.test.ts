@@ -53,11 +53,15 @@ import {
     swamp,
 } from "../../cards/sets/lea/colorless.cards";
 import { grizzlyBears, llanowarElves } from "../../cards/sets/lea/green.cards";
-import { fellwarStone } from "../../cards/sets/drk/colorless.cards";
+import {
+    cityOfShadows,
+    fellwarStone,
+} from "../../cards/sets/drk/colorless.cards";
 
 const PRIEST_OF_TITANIA: CardDefinition = {
     id: "test-5195-priest-of-titania",
     name: "Priest of Titania",
+    rarity: "common",
     oracleText: "{T}: Add {G} for each Elf on the battlefield.",
     manaCost: { X: 1, G: 1 },
     types: ["Creature"],
@@ -79,6 +83,7 @@ const PRIEST_OF_TITANIA: CardDefinition = {
 const CABAL_STRONGHOLD: CardDefinition = {
     id: "test-5195-cabal-stronghold",
     name: "Cabal Stronghold",
+    rarity: "rare",
     oracleText:
         "{T}: Add {C}.\n{3}, {T}: Add {B} for each basic Swamp you control.",
     manaCost: {},
@@ -111,6 +116,7 @@ const CABAL_STRONGHOLD: CardDefinition = {
 const REFLECTING_POOL: CardDefinition = {
     id: "test-5195-reflecting-pool",
     name: "Reflecting Pool",
+    rarity: "rare",
     oracleText:
         "{T}: Add one mana of any type that a land you control could produce.",
     manaCost: {},
@@ -354,5 +360,49 @@ describe('CR 106.7 — "could produce" reads a scaled ability at its CURRENT cou
         const stone = on(fellwarStone().id, "p1");
         const state = board([stone], [on(gaeasCradle().id, "p2")]);
         expect(getManaTapOptions(stone, "p1", bf(state))).toEqual([]);
+    });
+});
+
+describe("CR 106.7 — the count-aware read covers the hand-written closures and nested reads", () => {
+    it("a City of Shadows with no storage counter could produce no {C}, so a Reflecting Pool offers none", () =>
+        withDefinitions([REFLECTING_POOL], () => {
+            const pool = on(REFLECTING_POOL.id, "p1");
+            const city = on(cityOfShadows().id, "p1");
+            const state = board([pool, city, on(forest().id, "p1")]);
+            expect(getManaTapOptions(pool, "p1", bf(state))).toEqual([
+                { G: 1 },
+            ]);
+        }));
+
+    it("a colour read of an opponent's Reflecting Pool never yields {C}, though the Pool itself could produce it (CR 106.1a)", () =>
+        withDefinitions([REFLECTING_POOL, CABAL_STRONGHOLD], () => {
+            const stone = on(fellwarStone().id, "p1");
+            const state = board(
+                [stone],
+                [
+                    on(REFLECTING_POOL.id, "p2"),
+                    on(CABAL_STRONGHOLD.id, "p2"),
+                    on(forest().id, "p2"),
+                ]
+            );
+            expect(getManaTapOptions(stone, "p1", bf(state))).toEqual([
+                { G: 1 },
+            ]);
+        }));
+});
+
+describe("CR 305.6 — a basic land type's intrinsic tap is never scaled by a count beside it", () => {
+    it("an empty Gaea's Cradle that is also a Swamp taps for exactly one {B}", () => {
+        // A type-changing effect (Urborg, Tomb of Yawgmoth) made it a Swamp.
+        const cradle = makeInstance(gaeasCradle().id, {
+            id: "cradle-swamp",
+            controllerId: "p1",
+            ownerId: "p1",
+            subtypes: ["Swamp"],
+        });
+        const state = board([cradle]);
+        const mine = state.players[0].battlefield;
+        expect(getManaTapOptions(cradle, "p1", bf(state))).toEqual([{ B: 1 }]);
+        expect(getFixedManaAmount(cradle, "B", mine)).toBe(1);
     });
 });

@@ -1228,6 +1228,20 @@ export function boardManaFilterFromDescriptor(
             "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
             (descriptor.subtypes ?? []).join(" ")
         );
+    // CR 205.3 — a type noun beside a subtype noun is EITHER an or-list
+    // ("artifact or Elf") OR a subtype-qualified type; the descriptor does not
+    // record which, and `PermanentFilter` ANDs its `types` and `subtypes`, so
+    // "for each artifact or Elf you control" would count artifact Elves only.
+    if (
+        (descriptor.types?.length ?? 0) > 0 &&
+        (descriptor.subtypes?.length ?? 0) > 0
+    )
+        return fail(
+            "a card type beside a subtype: the filter cannot say whether they are AND or OR (CR 205.3)",
+            [...(descriptor.types ?? []), ...(descriptor.subtypes ?? [])].join(
+                " "
+            )
+        );
     if (scope === "you" && descriptor.controller !== "you")
         return fail(
             'a board-derived mana descriptor reads "you control"',
