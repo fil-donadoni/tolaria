@@ -153,6 +153,13 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/machine-pins.test.ts",
         admits: /^scripts\/.*\.ts$|^vitest\.setup\.node\.ts$/,
     },
+    // health-main.ts (spawned, never imported) and the /health-fix skill's
+    // prose — the RED evidence is read from the store, never a log path
+    // (issue #5589). Measured: 352 ms of tests, ~5.9 s wall-clock.
+    {
+        test: "scripts/__tests__/health-evidence-pivot.test.ts",
+        admits: /^scripts\/health-main\.ts$|^\.claude\/skills\/health-fix\/SKILL\.md$/,
+    },
     // convex/manual.ts and convex/manual/
     {
         test: "scripts/__tests__/manual-boundary.test.ts",
