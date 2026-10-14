@@ -536,8 +536,11 @@ function valueEachPlayerSide(
 class EachPlayerHand {
     readonly steps: HandStep[] = [];
     private readonly bound = new Map<string, number>();
+    private readonly side: EachPlayerSide;
 
-    constructor(private readonly side: EachPlayerSide) {}
+    constructor(side: EachPlayerSide) {
+        this.side = side;
+    }
 
     /** The hand's size after the steps so far; `undefined` when the board
      *  cannot ground it, which voids the side (`groundCount`). */
