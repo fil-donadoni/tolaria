@@ -7,7 +7,7 @@
 //
 // PURE — no React, no Convex client. The server re-validates at game start
 // (ADR 0074); this is the client's pre-flight, never its authority.
-import { FORMAT_IDS, validateDeck, type FormatId } from "@convex/formats";
+import { FORMAT_RULES, validateDeck, type FormatId } from "@convex/formats";
 import type { UserLobbyDeck } from "./deckTypes";
 import { parseDecklist, type EarliestPrintRows } from "./deckImport";
 import { computeDeckColors } from "./deckColors";
@@ -26,27 +26,13 @@ export type StrictImportResult =
     | { ok: true; payload: ImportedDeckPayload }
     | { ok: false; errors: string[] };
 
-/** Formats a pasted list cannot be: Limited is bound to an Event, and Tabletop
- *  (`manual`) resolves names through the Full Catalogue, which this strict
- *  import does not load — it would refuse every card the GRE lacks. */
-export const IMPORT_EXCLUDED_FORMATS: readonly FormatId[] = [
-    "limited",
-    "manual",
-];
-
-/** The Formats a Freeform Match Format lets the player import into. */
-export const IMPORT_FORMAT_CHOICES: readonly FormatId[] = FORMAT_IDS.filter(
-    (f) => !IMPORT_EXCLUDED_FORMATS.includes(f)
-);
-
-/** The imported deck's Format: the Match Format itself, except under Freeform,
- *  where the player's select decides (story 46). */
-export function importFormat(
-    matchFormat: FormatId,
-    chosen: FormatId
-): FormatId {
-    return matchFormat === "freeform" ? chosen : matchFormat;
-}
+// The Format choices live in the catalogue-free `./matchSetupImportFormats`
+// (issue #5584); re-exported so this module stays the import's one surface.
+export {
+    IMPORT_EXCLUDED_FORMATS,
+    IMPORT_FORMAT_CHOICES,
+    importFormat,
+} from "./matchSetupImportFormats";
 
 /**
  * Parse `text` strictly into a deck of `format`. Refused — with every reason —
@@ -84,6 +70,37 @@ export function strictImportDeck(
             sideboard: parsed.sideboard,
         },
     };
+}
+
+/** Fetches the earliest `cardPrints` row per Card ID inside `allowedSets`
+ *  (`useEarliestPrintFetcher`, issue #5106). */
+export type FetchEarliestPrints = (
+    cardIds: string[],
+    allowedSets: readonly string[]
+) => Promise<EarliestPrintRows>;
+
+/**
+ * The Import deck dialog's whole import: parse once for the Card IDs, fetch
+ * the earliest legal printing of each when the Format restricts its Sets
+ * (issue #5106), then import strictly. Here, not in the dialog, so the dialog
+ * imports nothing that reads the catalogue: it loads this module on demand
+ * (`./strictImportLoader`, issue #5584).
+ */
+export async function strictImportWithPrintings(
+    name: string,
+    text: string,
+    format: FormatId,
+    fetchEarliest: FetchEarliestPrints
+): Promise<StrictImportResult> {
+    const allowedSets = FORMAT_RULES[format].allowedSets;
+    const first = parseDecklist(text, format);
+    const earliest = allowedSets
+        ? await fetchEarliest(
+              [...first.cards, ...first.sideboard].map((c) => c.cardId),
+              allowedSets
+          )
+        : undefined;
+    return strictImportDeck(name, text, format, earliest);
 }
 
 /**

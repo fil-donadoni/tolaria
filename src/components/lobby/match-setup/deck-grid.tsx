@@ -15,7 +15,7 @@ import {
     type DeckGridFormat,
     type DeckGridOrigin,
 } from "~/lib/matchSetupDeckGrid";
-import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupDeckImport";
+import { IMPORT_EXCLUDED_FORMATS } from "~/lib/matchSetupImportFormats";
 import DeckGridSection from "./deck-grid-section";
 import ImportDeckAction from "./import-deck-action";
 import SetupChoice from "./setup-choice";

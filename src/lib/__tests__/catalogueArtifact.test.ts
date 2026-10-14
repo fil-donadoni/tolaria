@@ -32,6 +32,7 @@ import type { CardDefinition } from "@convex/cards/types";
 import {
     catalogueArtifactUrl,
     hydrateCatalogue,
+    isCatalogueHydrated,
     resetCatalogueHydrationForTests,
 } from "../catalogueArtifact";
 
@@ -174,6 +175,8 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
         );
         await expect(hydrateCatalogue()).rejects.toThrow("offline");
         expect(tryGetDefinition(PACKED.ids[0]!)).toBeNull();
+        // The gate may not skip its loading screen on a failed fetch.
+        expect(isCatalogueHydrated()).toBe(false);
     });
 });
 
@@ -182,7 +185,10 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
         const fetchMock = servePacked();
         vi.stubGlobal("fetch", fetchMock);
 
+        expect(isCatalogueHydrated()).toBe(false);
         await expect(hydrateCatalogue()).resolves.toBe(PACKED.ids.length);
+        // What lets the gate render its children on the first frame (#5584).
+        expect(isCatalogueHydrated()).toBe(true);
 
         expect(fetchMock).toHaveBeenCalledWith(
             catalogueArtifactUrl(),

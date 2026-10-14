@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { hydrateCatalogue } from "@/lib/catalogueArtifact";
+import { hydrateCatalogue, isCatalogueHydrated } from "@/lib/catalogueArtifact";
 import LoadingScreen from "@/components/ui/loading-screen";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,9 @@ import AmbientPageGround from "@/components/ui/ambient-page-ground";
  */
 export default function CatalogueGate({ children }: { children: ReactNode }) {
     const [error, setError] = useState<Error | null>(null);
-    const [ready, setReady] = useState(false);
+    // Already resident (the Setup flow prefetches it, issue #5584): no
+    // loading frame at all.
+    const [ready, setReady] = useState(isCatalogueHydrated);
     const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {

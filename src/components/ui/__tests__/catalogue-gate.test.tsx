@@ -8,7 +8,11 @@ import {
 } from "@testing-library/react";
 
 const hydrateCatalogue = vi.fn<() => Promise<number>>();
-vi.mock("@/lib/catalogueArtifact", () => ({ hydrateCatalogue }));
+const isCatalogueHydrated = vi.fn<() => boolean>(() => false);
+vi.mock("@/lib/catalogueArtifact", () => ({
+    hydrateCatalogue,
+    isCatalogueHydrated,
+}));
 
 const { default: CatalogueGate } = await import("../catalogue-gate");
 
@@ -25,6 +29,7 @@ const { default: CatalogueGate } = await import("../catalogue-gate");
 afterEach(() => {
     cleanup();
     vi.clearAllMocks();
+    isCatalogueHydrated.mockReturnValue(false);
 });
 
 const CHILD = <p>catalogue consumer</p>;
@@ -47,6 +52,17 @@ describe("CatalogueGate", () => {
         await waitFor(() =>
             expect(screen.getByText("catalogue consumer")).toBeTruthy()
         );
+        expect(screen.queryByText("Loading cards...")).toBeNull();
+    });
+
+    it("renders its children on the first frame when the catalogue is already resident (issue #5584)", () => {
+        isCatalogueHydrated.mockReturnValue(true);
+        hydrateCatalogue.mockResolvedValue(2278);
+
+        render(<CatalogueGate>{CHILD}</CatalogueGate>);
+
+        // Synchronously: no loading screen in between.
+        expect(screen.getByText("catalogue consumer")).toBeTruthy();
         expect(screen.queryByText("Loading cards...")).toBeNull();
     });
 

@@ -111,6 +111,10 @@ const matchSetupRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/play/constructed",
     component: lazyRouteComponent(() => import("./routes/match-setup.route")),
+    // Light (issue #5584): the flow renders without the card catalogue; its
+    // Import deck loads it on demand, and it warms the catalogue for Start
+    // match at idle (`useStartMatchPrefetch`).
+    staticData: { lightSurface: true },
 });
 
 const gameRoute = createRoute({

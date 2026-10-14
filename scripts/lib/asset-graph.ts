@@ -59,16 +59,20 @@ export const HEAVY_CHUNK_PREFIXES = ["card-catalogue-"] as const;
 export const ENGINE_SENTINEL = "Target spell is no longer on the stack";
 
 /** The route chunks a "light surface" adds on top of the entry. The login page
- *  is the entry alone; the lobby is the entry plus its own route chunk. */
+ *  is the entry alone; the lobby is the entry plus its own route chunk; the
+ *  Constructed Setup flow likewise, its Import deck loading the catalogue on
+ *  demand (issue #5584). */
 export const LIGHT_SURFACES: Record<string, string[]> = {
     login: [],
     lobby: ["lobby.route-"],
+    "match-setup": ["match-setup.route-"],
 };
 
-/** Hashed asset files of the compiled catalogue — the one-file artifact the
- *  gate fetches (`src/lib/catalogueArtifact.ts`) and the full-catalogue gzip. */
+/** Hashed asset files of the compiled catalogue — the packed corpus the gate
+ *  fetches (`src/lib/catalogueArtifact.ts`, `packed-corpus-<hash>.json` since
+ *  issue #4861; `catalogue-<hex>.json` before it) and the full-catalogue gzip. */
 const CATALOGUE_ASSET =
-    /(?:^|["'/])(?:full-)?catalogue-[0-9a-f]{8,}[^"']*\.(?:json|gz)/;
+    /(?:^|["'/])(?:(?:full-)?catalogue-[0-9a-f]{8,}|packed-corpus-[\w-]{8,})[^"']*\.(?:json|gz)/;
 
 export interface LightSurfaceViolation {
     surface: string;

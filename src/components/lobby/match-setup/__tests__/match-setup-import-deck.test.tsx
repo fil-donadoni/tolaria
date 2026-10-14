@@ -35,6 +35,20 @@ vi.mock("~/hooks/useUserDecks", () => ({
 vi.mock("~/lib/useEarliestPrintFetcher", () => ({
     useEarliestPrintFetcher: () => async () => new Map(),
 }));
+// The dialog loads the parser and the catalogue when it opens (issue #5584).
+// The test graph already holds the catalogue, so the load is the parser alone
+// — gated on `release` so a test can observe the loading state.
+let release: () => void = () => {};
+let loaded: Promise<void> = Promise.resolve();
+let loadFailure: Error | null = null;
+vi.mock("~/lib/strictImportLoader", () => ({
+    loadedStrictImport: () => null,
+    loadStrictImport: async () => {
+        await loaded;
+        if (loadFailure) throw loadFailure;
+        return await import("~/lib/matchSetupDeckImport");
+    },
+}));
 
 function Harness({ initial }: { initial: MatchSetup }) {
     const [setup, setSetup] = useState(initial);
@@ -80,7 +94,11 @@ async function importList(name: string, list: string) {
     fireEvent.change(screen.getByLabelText("Decklist"), {
         target: { value: list },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+    const importButton = screen.getByRole("button", { name: "Import" });
+    await waitFor(() =>
+        expect(importButton.hasAttribute("disabled")).toBe(false)
+    );
+    fireEvent.click(importButton);
 }
 
 const selected = (id: string) =>
@@ -92,6 +110,8 @@ beforeEach(() => {
     localStorage.clear();
     created.mockClear();
     nextId = 0;
+    loaded = Promise.resolve();
+    loadFailure = null;
 });
 
 describe("Import deck", () => {
@@ -136,6 +156,43 @@ describe("Import deck", () => {
                 .querySelector('[data-setup-choice="mirror"]')
                 ?.getAttribute("aria-pressed")
         ).toBe("false");
+    });
+
+    it("loads the parser when the dialog opens: Import waits for it, with a loading status", async () => {
+        loaded = new Promise((resolve) => {
+            release = resolve;
+        });
+        render(<Harness initial={base({})} />);
+        fireEvent.click(screen.getByRole("button", { name: "Import deck" }));
+        fireEvent.change(screen.getByLabelText("Decklist"), {
+            target: { value: `4 ${NAME}` },
+        });
+        expect(screen.getByRole("status").textContent).toBe("Loading cards…");
+        const importButton = screen.getByRole("button", { name: "Import" });
+        expect(importButton.hasAttribute("disabled")).toBe(true);
+        release();
+        await waitFor(() =>
+            expect(importButton.hasAttribute("disabled")).toBe(false)
+        );
+        expect(screen.queryByRole("status")).toBeNull();
+    });
+
+    it("a failed load is named, and Import stays disabled", async () => {
+        loadFailure = new Error("catalogue artifact: HTTP 503");
+        render(<Harness initial={base({})} />);
+        fireEvent.click(screen.getByRole("button", { name: "Import deck" }));
+        fireEvent.change(screen.getByLabelText("Decklist"), {
+            target: { value: `4 ${NAME}` },
+        });
+        expect(
+            await screen.findByText("catalogue artifact: HTTP 503")
+        ).toBeTruthy();
+        expect(
+            screen
+                .getByRole("button", { name: "Import" })
+                .hasAttribute("disabled")
+        ).toBe(true);
+        expect(created).not.toHaveBeenCalled();
     });
 
     it("Tabletop offers no Import deck (no Full Catalogue resolver here)", () => {

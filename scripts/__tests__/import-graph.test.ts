@@ -6,8 +6,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import viteConfig from "../../vite.config";
+import type { Plugin } from "vite";
 import {
     APP_ALIASES,
+    BROWSER_SEAMS,
     createImportGraph,
     importSpecifiers,
     typeOnlySpecifiers,
@@ -151,6 +153,51 @@ describe("createImportGraph — closureOf", () => {
     });
 });
 
+describe("createImportGraph — static closure and seams (issue #5584)", () => {
+    const root = fixtureTree({
+        "src/routes/setup.route.tsx": `import { dialog } from "../dialog";\nimport { rules } from "@convex/formats";\n`,
+        "src/dialog.ts": `export const dialog = () => import("./parser");\nconst w = new Worker(new URL("./worker.ts", import.meta.url));\n`,
+        "src/parser.ts": `export const parse = 1;\n`,
+        "src/worker.ts": `export const w = 1;\n`,
+        "convex/formats.ts": `import { meta } from "./cards";\nexport const rules = meta;\n`,
+        "convex/cards/index.ts": `export const meta = 1;\n`,
+        "src/stub.ts": `export const meta = null;\n`,
+    });
+
+    it("a static closure leaves out import() and new URL(…, import.meta.url)", () => {
+        const graph = createImportGraph({ root });
+        const all = graph.closureOf("src/routes/setup.route.tsx");
+        expect(all).toContain("src/parser.ts");
+        expect(all).toContain("src/worker.ts");
+        const statics = graph.closureOf("src/routes/setup.route.tsx", {
+            staticOnly: true,
+        });
+        expect(statics).toContain("src/dialog.ts");
+        expect(statics).not.toContain("src/parser.ts");
+        expect(statics).not.toContain("src/worker.ts");
+    });
+
+    it("a seam substitutes one importer's specifier, and only when passed", () => {
+        const plain = createImportGraph({ root });
+        expect(plain.closureOf("src/routes/setup.route.tsx")).toContain(
+            "convex/cards/index.ts"
+        );
+        const seamed = createImportGraph({
+            root,
+            seams: [
+                {
+                    importer: "convex/formats.ts",
+                    specifier: "./cards",
+                    replacement: "src/stub.ts",
+                },
+            ],
+        });
+        const closure = seamed.closureOf("src/routes/setup.route.tsx");
+        expect(closure).toContain("src/stub.ts");
+        expect(closure).not.toContain("convex/cards/index.ts");
+    });
+});
+
 describe("APP_ALIASES", () => {
     it("is vite.config.ts's resolve.alias, in order, made repo-relative", () => {
         const vite = (viteConfig.resolve?.alias ?? []) as ImportAlias[];
@@ -164,5 +211,30 @@ describe("APP_ALIASES", () => {
                 replacement,
             }))
         );
+    });
+});
+
+describe("BROWSER_SEAMS", () => {
+    it("is what vite.config.ts's resolveId plugins return for each seam (issue #5584)", () => {
+        const plugins = (viteConfig.plugins ?? []).flat() as Plugin[];
+        type ResolveId = (source: string, importer?: string) => unknown;
+        const resolve = (source: string, importer: string) =>
+            plugins
+                .map((p) =>
+                    typeof p?.resolveId === "function"
+                        ? (p.resolveId as ResolveId)(source, importer)
+                        : null
+                )
+                .find((r) => typeof r === "string") as string | undefined;
+        expect(BROWSER_SEAMS.length).toBeGreaterThan(0);
+        for (const seam of BROWSER_SEAMS) {
+            const resolved = resolve(
+                seam.specifier,
+                path.join(REPO_ROOT, seam.importer)
+            );
+            expect(resolved && path.relative(REPO_ROOT, resolved)).toBe(
+                seam.replacement
+            );
+        }
     });
 });
