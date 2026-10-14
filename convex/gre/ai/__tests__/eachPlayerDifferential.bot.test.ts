@@ -34,6 +34,7 @@ import { forest } from "../../../cards/sets/lea/colorless.cards";
 import { innocentBlood } from "../../../cards/sets/ody/black.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 import { balance } from "../../../cards/sets/lea/white.cards";
+import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
 
 interface Side {
     hand?: readonly string[];
@@ -45,7 +46,8 @@ interface Side {
 function readOnBoard(
     cardId: string,
     own: Side,
-    opp: Side
+    opp: Side,
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): { value: number | undefined; measured: boolean } {
     const at = (pid: string, ids: readonly string[] = [], zone = "hand") =>
         ids.map((id) =>
@@ -72,7 +74,7 @@ function readOnBoard(
             }),
         ],
     });
-    const lens = handLatentLens(state, "p1", held)!;
+    const lens = handLatentLens(state, "p1", held, weights)!;
     const value = dslSpellScriptValue(getDefinition(cardId), lens);
     return { value, measured: lens.measured() };
 }
@@ -338,5 +340,27 @@ describe("a keep-N edict reads the members above the fewest (issue #5559)", () =
         const oneBear = readOnBoard(bal, {}, { board: [bear] });
         expect(keepsBest.value).toBeGreaterThan(0);
         expect(keepsBest.value).toBeCloseTo(oneBear.value!, 9);
+    });
+});
+
+describe("a held Differential is a fitted fraction of the swing (issue #5560)", () => {
+    it("scales Wheel of Fortune's reading by `heldDifferentialFraction`", () => {
+        // Credited in full, the held price IS what the cast realises, and
+        // casting ties holding at one ply: the Bot passed a Wheel against a
+        // seven-card hand on every seed. The hand credits a fraction.
+        const wheel = wheelOfFortune().id;
+        const bear = grizzlyBears().id;
+        const opp = { hand: cards(7, bear) };
+        const full = readOnBoard(wheel, {}, opp, {
+            ...DEFAULT_EVAL_WEIGHTS,
+            heldDifferentialFraction: 1,
+        });
+        const held = readOnBoard(wheel, {}, opp);
+        expect(full.value).toBeGreaterThan(0);
+        expect(held.value).toBeCloseTo(
+            DEFAULT_EVAL_WEIGHTS.heldDifferentialFraction * full.value!,
+            9
+        );
+        expect(held.value).toBeLessThan(full.value!);
     });
 });

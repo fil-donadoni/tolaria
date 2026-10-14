@@ -543,7 +543,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardEngineWeight: 60,
     graveyardReachFraction: 0.160942,
     recoverableSweepFraction: 0.8,
-    heldDifferentialFraction: 0.8,
+    heldDifferentialFraction: 0.25,
     latentCreatureDiscount: 0.693183,
     latentFlashCreatureDiscount: 0.805166,
     cannotAttackShare: 0.75,

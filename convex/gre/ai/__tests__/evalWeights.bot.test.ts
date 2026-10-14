@@ -76,6 +76,18 @@ describe("DEFAULT_EVAL_WEIGHTS (issue #2683)", () => {
         ).toBeLessThanOrEqual(1);
     });
 
+    it("credits a held each-player Differential at a FRACTION of it (issue #5560)", () => {
+        // `heldDifferentialFraction` scales a `$each` one-shot's Differential
+        // Reading in hand. At 1 the held price equals what the cast realises
+        // and casting ties holding (the Bot passed a seven-card Wheel of
+        // Fortune on every seed); at 0 the card held is worth nothing. No fit
+        // band bounds a single weight, so the range is asserted here.
+        expect(DEFAULT_EVAL_WEIGHTS.heldDifferentialFraction).toBeGreaterThan(
+            0
+        );
+        expect(DEFAULT_EVAL_WEIGHTS.heldDifferentialFraction).toBeLessThan(1);
+    });
+
     it("prices a creature in hand strictly below the same creature in play (issue #149, issue #4882)", () => {
         // `latentCreatureDiscount` is the share of a creature's realized body
         // a copy in hand is worth. At 1 or above, holding a creature is worth
