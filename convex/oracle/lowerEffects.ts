@@ -20,6 +20,7 @@ import {
 import type {
     EffectObjectSelector,
     EffectOp,
+    CardSupertype,
     CardType,
     Color,
     EffectCardFilter,
@@ -310,15 +311,34 @@ function lowerCountedSet(
             filter: { name: site.selfName },
         });
     const { descriptor } = set;
-    if (descriptor.controller !== "you")
+    // CR 404.1 — "the number of creature cards in your graveyard": the
+    // controller's graveyard, narrowed by card type. Any other owner ("a
+    // graveyard", "target player's") or clause is refused, not dropped.
+    const inGraveyard = descriptor.zone === "graveyard";
+    if (inGraveyard && descriptor.zoneOwner !== "you")
+        return unlowerable('a counted graveyard must be "your graveyard"');
+    if (!inGraveyard && descriptor.controller !== "you")
         return unlowerable('a counted set must be permanents "you control"');
     const filter: EffectCardFilter = {};
     for (const [key, value] of Object.entries(descriptor)) {
         // `plural` is the noun's number ("the number of Mountains"), not a
-        // clause: it narrows nothing about what is counted.
-        if (value === undefined || key === "controller" || key === "plural")
+        // clause: it narrows nothing about what is counted. `zone`,
+        // `zoneOwner` and `card` are the graveyard phrase, checked above.
+        if (
+            value === undefined ||
+            key === "controller" ||
+            key === "plural" ||
+            (inGraveyard &&
+                (key === "zone" || key === "zoneOwner" || key === "card"))
+        )
             continue;
         if (key === "types") filter.type = [...(value as CardType[])];
+        // CR 205.4a — "nonbasic": `EffectCardFilter.excludeSupertype`.
+        else if (key === "excludeSupertypes")
+            filter.excludeSupertype =
+                (value as CardSupertype[]).length === 1
+                    ? (value as CardSupertype[])[0]!
+                    : [...(value as CardSupertype[])];
         else if (key === "subtypes" && (value as string[]).length === 1)
             filter.subtype = (value as string[])[0]!;
         // CR 205.3m (issue #3721) — "for each permanent you control of that
@@ -332,7 +352,11 @@ function lowerCountedSet(
                 `a "${key}" clause has no resolution-time count here`
             );
     }
-    return lowered({ zone: "battlefield", controller: "controller", filter });
+    return lowered({
+        zone: inGraveyard ? "graveyard" : "battlefield",
+        controller: "controller",
+        filter,
+    });
 }
 
 /**
@@ -1776,6 +1800,33 @@ function lowerSentenceBody(
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
         }
+        case "deal-damage-each-player-count": {
+            // CR 101.4 + CR 120.1 — a `forEach` over the players (APNAP), each
+            // dealt the count of the set THEY control, scaled by `times`.
+            const spec = lowerCountedSet(sentence.set, slots, site);
+            if (!spec.ok) return spec;
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    effects: [
+                        {
+                            op: "dealDamage",
+                            amount: {
+                                count: {
+                                    ...spec.value,
+                                    controller: { ref: "$each" },
+                                    ...(sentence.times === 1
+                                        ? {}
+                                        : { times: sentence.times }),
+                                },
+                            },
+                            to: { player: { ref: "$each" } },
+                        },
+                    ],
+                },
+            ]);
+        }
         case "deal-damage-divided": {
             // CR 120.1 / 608.2h — the same dealer rule as `deal-damage`.
             if (sentence.sourceIsPronoun === true && !pronounIsSource(site))
@@ -2286,7 +2337,7 @@ function lowerSentenceBody(
         case "each-player-puts":
             return lowerEachPlayerPuts(sentence, site);
         case "create-token":
-            return lowerCreateToken(sentence, walk);
+            return lowerCreateToken(sentence, walk, site);
         case "optional": {
             // CR 603.2 — an optional triggered ability's controller chooses on
             // resolution, and declining does NOTHING. That is a cost-free
@@ -3779,7 +3830,8 @@ function lowerEachPlayerPuts(
  */
 function lowerCreateToken(
     sentence: Extract<EffectSentenceIR, { kind: "create-token" }>,
-    walk: SentenceWalk
+    walk: SentenceWalk,
+    site: SiteOptions
 ): Lowered<EffectOp[]> {
     const { token, count } = sentence;
     // CR 702.1 — a keyword the engine does not implement is a token that
@@ -3806,6 +3858,13 @@ function lowerCreateToken(
     };
     if (count.kind === "fixed") {
         if (count.value !== 1) op.count = count.value;
+        return lowered([op]);
+    }
+    if (count.kind === "announced-x") {
+        // CR 107.3 — the count is the spell's own announced X.
+        const x = lowerAmount({ kind: "x" }, site);
+        if (!x.ok) return x;
+        op.count = x.value;
         return lowered([op]);
     }
     const actedOn = walk.actedOn;
