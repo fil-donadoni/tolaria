@@ -6246,6 +6246,16 @@
         "source": "compiled"
     },
     {
+        "name": "Blood Feud",
+        "scryfallId": "634d59b8-6046-4796-95c5-eec75a239986",
+        "oracleId": "fc401d42-80fa-4a17-937a-c230e9317543",
+        "firstSet": "dka",
+        "firstPrintId": "634d59b8-6046-4796-95c5-eec75a239986",
+        "firstPrintSet": "dka",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Blood Glutton",
         "scryfallId": "28ff52a2-4223-4551-b388-b4dd21cc1437",
         "oracleId": "065b8e5e-874e-4de3-9f12-41e4b1604561",
@@ -10514,6 +10524,16 @@
         "source": "compiled"
     },
     {
+        "name": "Clash of Titans",
+        "scryfallId": "ca10e2b8-a317-4c98-a866-43bf274e82cb",
+        "oracleId": "198c05ca-fb2d-4f15-a28f-1dad36466a4f",
+        "firstSet": "iko",
+        "firstPrintId": "ca10e2b8-a317-4c98-a866-43bf274e82cb",
+        "firstPrintSet": "iko",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Clattering Augur",
         "scryfallId": "a22dd28d-eb65-410a-af17-51b5064c6033",
         "oracleId": "d88f249f-5bf1-448a-91d1-f81538dfd475",
@@ -11655,6 +11675,16 @@
         "firstPrintId": "848672be-b1cd-40ef-a7ed-ce1620aebd2e",
         "firstPrintSet": "sth",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Contested Cliffs",
+        "scryfallId": "8d6363ea-3814-4014-ad9e-1066c72d907c",
+        "oracleId": "b891a683-2ebc-4e9c-b402-5dd9c1b42b69",
+        "firstSet": "ons",
+        "firstPrintId": "8d6363ea-3814-4014-ad9e-1066c72d907c",
+        "firstPrintSet": "ons",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -15853,6 +15883,16 @@
         "firstPrintId": "2b3ba275-0671-4328-a337-9de498ec2d99",
         "firstPrintSet": "trc",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Dissension in the Ranks",
+        "scryfallId": "2c1b563a-7856-40bf-954a-a0110ed4880d",
+        "oracleId": "717266b6-2bbc-4a04-8f30-e3eaf0283acd",
+        "firstSet": "soi",
+        "firstPrintId": "2c1b563a-7856-40bf-954a-a0110ed4880d",
+        "firstPrintSet": "soi",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -20673,6 +20713,16 @@
         "firstPrintId": "a42d3066-f4ec-4d28-83ab-e48141206c72",
         "firstPrintSet": "rtr",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Fend Off",
+        "scryfallId": "a64d7a33-986d-45ad-8662-7bca80d3628d",
+        "oracleId": "fa8f3827-8cd9-4896-ab0c-26fecacceb40",
+        "firstSet": "uds",
+        "firstPrintId": "a64d7a33-986d-45ad-8662-7bca80d3628d",
+        "firstPrintSet": "uds",
+        "rarity": "common",
         "source": "compiled"
     },
     {
@@ -29156,6 +29206,16 @@
         "source": "compiled"
     },
     {
+        "name": "Horn of Deafening",
+        "scryfallId": "17eff8d9-86de-4f19-bf00-5f20dc1373d4",
+        "oracleId": "50a1c14a-003f-424b-bb8e-2e2d51465a90",
+        "firstSet": "leg",
+        "firstPrintId": "17eff8d9-86de-4f19-bf00-5f20dc1373d4",
+        "firstPrintSet": "leg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Horn of Ramos",
         "scryfallId": "6b17f541-8e9d-43b0-b688-e3f2e7fa55c8",
         "oracleId": "3b9bcf88-7304-48c5-bd46-3e37a93967a5",
@@ -33522,6 +33582,16 @@
         "source": "compiled"
     },
     {
+        "name": "Kor Haven",
+        "scryfallId": "3d5529ca-5c20-4dfd-8595-96d6dfa6debe",
+        "oracleId": "276cece9-f9f2-46e6-ae76-daddaa2fb9ab",
+        "firstSet": "nem",
+        "firstPrintId": "3d5529ca-5c20-4dfd-8595-96d6dfa6debe",
+        "firstPrintSet": "nem",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Kor Line-Slinger",
         "scryfallId": "068943d2-c456-42a3-8088-3e4923bf6d74",
         "oracleId": "1a852283-42d4-4197-91b9-5c952c7325ca",
@@ -33975,6 +34045,16 @@
         "firstPrintId": "32f209d6-c194-4208-864d-f8a44b88997f",
         "firstPrintSet": "lrw",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Lady Evangela",
+        "scryfallId": "f3e122e9-ffa3-48dd-94d6-8f2886668e59",
+        "oracleId": "8800d672-424b-4a7b-886f-7eb9d7a56cfe",
+        "firstSet": "leg",
+        "firstPrintId": "f3e122e9-ffa3-48dd-94d6-8f2886668e59",
+        "firstPrintSet": "leg",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -45036,6 +45116,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Pit Fight",
+        "scryfallId": "3624332e-60fc-4819-a0f1-d7ec41c6518b",
+        "oracleId": "ef4b0ced-70a1-41d8-9aed-34e75f979c5f",
+        "firstSet": "gtc",
+        "firstPrintId": "3624332e-60fc-4819-a0f1-d7ec41c6518b",
+        "firstPrintSet": "gtc",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Pit Raptor",
         "scryfallId": "e37cd150-1064-43b7-919b-8922d8a18f21",
         "oracleId": "92cdcafc-ffeb-436d-b2bd-d6ad895d0e08",
@@ -51150,6 +51240,16 @@
         "firstSet": "drk",
         "firstPrintId": "0d48fb47-1bed-4791-a014-504515f3d36f",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Safeguard",
+        "scryfallId": "2c8e174c-7abb-4a93-aa1d-8c2a2e815ba6",
+        "oracleId": "e310c3ab-a729-404d-944f-9b477258495c",
+        "firstSet": "tmp",
+        "firstPrintId": "2c8e174c-7abb-4a93-aa1d-8c2a2e815ba6",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Safehold Duo",
@@ -64986,6 +65086,16 @@
         "firstPrintSet": "pls"
     },
     {
+        "name": "Triangle of War",
+        "scryfallId": "4c1d7d4d-bed7-4d28-a304-ad33f42e9831",
+        "oracleId": "6d4daf9c-e2f4-4d0e-b2e4-ded04d644b11",
+        "firstSet": "vis",
+        "firstPrintId": "4c1d7d4d-bed7-4d28-a304-ad33f42e9831",
+        "firstPrintSet": "vis",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Tribal Flames",
         "scryfallId": "9b32531e-c759-4603-abd0-1724e8df70db",
         "oracleId": "c82eda61-d195-49c9-8ff0-a78dfa650689",
@@ -65781,6 +65891,16 @@
         "firstPrintId": "86d0ee03-a8c6-4f37-9885-60a26a2e2728",
         "firstPrintSet": "soi",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Ulvenwald Tracker",
+        "scryfallId": "46199391-a4f5-4532-b89c-b7691b229bd0",
+        "oracleId": "63a37c08-7e38-4fe2-9a71-cc4604c4f831",
+        "firstSet": "avr",
+        "firstPrintId": "46199391-a4f5-4532-b89c-b7691b229bd0",
+        "firstPrintSet": "avr",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
