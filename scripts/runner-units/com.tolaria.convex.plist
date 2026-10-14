@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The local Convex backend as a launchd agent (MacBook, ADR 0156 Amendment I,
+  issue #5634): `convex dev --local` in the primary checkout, as
+  `convex:ensure` would start it, but owned by launchd — up at login,
+  restarted when it dies. A runner's job cannot own it: a job's processes die
+  with the job. The Huawei's counterpart is tolaria-convex.service. Installed
+  by `bun run runner install` (docs/guides/github-pipeline.md § Install);
+  __REPO__, __BUN__, __NODE_BIN__ and __HOME__ are substituted at install
+  time (Convex's node actions need node on the PATH).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tolaria.convex</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__BUN__</string>
+        <string>x</string>
+        <string>convex</string>
+        <string>dev</string>
+        <string>--local</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+    <key>ExitTimeOut</key>
+    <integer>30</integer>
+    <key>StandardInPath</key>
+    <string>/dev/null</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TOLARIA_OWNER</key>
+        <string>unit:com.tolaria.convex</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.cache/tolaria/convex/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.cache/tolaria/convex/agent.log</string>
+</dict>
+</plist>

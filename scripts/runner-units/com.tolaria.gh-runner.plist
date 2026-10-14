@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  One self-hosted GitHub Actions runner as a launchd agent (MacBook, ADR 0156
+  §7 and Amendment I, issue #5634): the owner's user, up at login, restarted
+  when it dies. Rendered and installed per runner by
+  `bun run runner install` (docs/guides/github-pipeline.md § Install);
+  __RUNNER_NAME__ and __RUNNER_DIR__ are substituted per runner, then __REPO__,
+  __BUN__, __NODE_BIN__ and __HOME__ as for every plist here. `caffeinate -i -s`
+  keeps the machine awake while the runner lives: a job's processes die with
+  the job, and a sleeping MacBook fails every job in flight. The `unit:` tag
+  keeps the reaper off the job trees.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.tolaria.gh-runner.__RUNNER_NAME__</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-s</string>
+        <string>__RUNNER_DIR__/run.sh</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__RUNNER_DIR__</string>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+    <key>ExitTimeOut</key>
+    <integer>60</integer>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>__HOME__</string>
+        <key>PATH</key>
+        <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <key>TOLARIA_OWNER</key>
+        <string>unit:com.tolaria.gh-runner.__RUNNER_NAME__</string>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__HOME__/.cache/tolaria/gh-runner/__RUNNER_NAME__.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/.cache/tolaria/gh-runner/__RUNNER_NAME__.log</string>
+</dict>
+</plist>

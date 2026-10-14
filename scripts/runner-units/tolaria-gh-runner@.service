@@ -1,0 +1,27 @@
+# One self-hosted GitHub Actions runner as a systemd user service (Huawei,
+# ADR 0156 §7 and Amendment I, issue #5634): the instance name is the runner's
+# name, its directory __RUNNER_ROOT__/<name>. The owner's user, up at boot with
+# nobody logged in (linger), restarted when it dies. Installed by
+# `bun run runner install` (docs/guides/github-pipeline.md § Install);
+# __RUNNER_ROOT__ and __PATH__ are substituted at install time.
+[Unit]
+Description=Tolaria GitHub Actions runner %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__RUNNER_ROOT__/%i
+ExecStart=__RUNNER_ROOT__/%i/run.sh
+StandardInput=null
+Restart=always
+RestartSec=30
+TimeoutStopSec=60
+# The cgroup kill: a job's whole tree dies with the unit.
+KillMode=control-group
+Environment=PATH=__PATH__
+# A unit's tree is the unit's to end: the reaper never reaps on a `unit:` tag.
+Environment=TOLARIA_OWNER=unit:%n
+
+[Install]
+WantedBy=default.target
