@@ -62,9 +62,10 @@ From the primary checkout:
 ```bash
 mkdir -p ~/.cache/tolaria/reaper ~/.cache/tolaria/land-runner
 for u in reaper land-runner; do   # land-runner: omit on a machine that does not merge
+    out=~/Library/LaunchAgents/com.tolaria.$u.plist
     bun scripts/launchd-render.ts scripts/runner-units/com.tolaria.$u.plist \
-        > ~/Library/LaunchAgents/com.tolaria.$u.plist || break
-    launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.tolaria.$u.plist
+        > "$out.tmp" && mv "$out.tmp" "$out" || break
+    launchctl bootstrap "gui/$(id -u)" "$out"
     launchctl print "gui/$(id -u)/com.tolaria.$u" | grep -E 'state|last exit'
 done
 ```
@@ -72,7 +73,7 @@ done
 `scripts/launchd-render.ts` substitutes `__REPO__`, `__BUN__`, `__HOME__` and
 `__NODE_BIN__` (the directory of `command -v node`: launchd's PATH does not
 carry nvm/mise, and `land`'s `convex codegen` dies with `env: node: No such
-file or directory` without it, issue #5598). It exits 1 with nothing written
+file or directory` without it, issue #5598). It exits 1, and the installed plist is left untouched,
 when a placeholder is left over or `node` is not on the rendered PATH. Verify
 the live agent: `ps eww -p <pid> | tr ' ' '\n' | grep ^PATH=` shows the node
 directory.

@@ -25,10 +25,10 @@ export function renderLaunchdUnit(
     exists: (p: string) => boolean = existsSync
 ): string {
     const out = template
-        .replaceAll("__REPO__", subs.repo)
-        .replaceAll("__BUN__", subs.bun)
-        .replaceAll("__NODE_BIN__", subs.nodeBin)
-        .replaceAll("__HOME__", subs.home);
+        .replaceAll("__REPO__", () => subs.repo)
+        .replaceAll("__BUN__", () => subs.bun)
+        .replaceAll("__NODE_BIN__", () => subs.nodeBin)
+        .replaceAll("__HOME__", () => subs.home);
     const left = out.match(PLACEHOLDER);
     if (left) {
         throw new Error(
