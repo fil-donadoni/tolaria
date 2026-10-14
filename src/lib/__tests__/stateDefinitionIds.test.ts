@@ -55,7 +55,9 @@ describe("stateDefinitionIds", () => {
         expect(
             stateDefinitionIds({
                 players: [
-                    player({ battlefield: [card("face-down:2-2-vanilla", "real")] }),
+                    player({
+                        battlefield: [card("face-down:2-2-vanilla", "real")],
+                    }),
                 ],
             })
         ).toEqual(["face-down:2-2-vanilla", "real"]);

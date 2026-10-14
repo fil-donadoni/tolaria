@@ -51,7 +51,8 @@ export const SET_MODULES_MODULE = "convex/cards/setModules.ts";
 export const SETS_DIR = "convex/cards/sets";
 /** The browser seam, the one importer of the chunk loader, and how it spells
  *  the specifier (`src/lib/catalogue/set-modules.browser.ts`). */
-export const SET_MODULES_BROWSER_SEAM = "src/lib/catalogue/set-modules.browser.ts";
+export const SET_MODULES_BROWSER_SEAM =
+    "src/lib/catalogue/set-modules.browser.ts";
 export const SET_CHUNK_LOADER_SPECIFIER = "./set-chunk-loader";
 
 /** One `import * as <name> from "./sets/<dir>/index.cards";` of the server's
@@ -67,7 +68,8 @@ const SET_IMPORT_LINE =
     /^import \* as ([A-Za-z_$][\w$]*) from "\.\/sets\/([a-z0-9]+)\/index\.cards";$/gm;
 // `{ code: "<code>", exports: <name> }` — the Set code each namespace is
 // listed under (`5dn` is `fifthDawn`).
-const SET_CODE_ENTRY = /\{ code: "([a-z0-9]+)", exports: ([A-Za-z_$][\w$]*) \}/g;
+const SET_CODE_ENTRY =
+    /\{ code: "([a-z0-9]+)", exports: ([A-Za-z_$][\w$]*) \}/g;
 
 /**
  * The Set list of the server module: every namespace import, each with the
@@ -132,7 +134,9 @@ export function cardSetsEntrySource(
  *  same contract as `src/lib/catalogue/set-chunk-loader.ts`, which it
  *  replaces: one Set's exports per code, a rejection for a code the server
  *  module does not list. */
-export function cardSetsLoaderSource(sets: readonly SetNamespaceImport[]): string {
+export function cardSetsLoaderSource(
+    sets: readonly SetNamespaceImport[]
+): string {
     const byCode = Object.fromEntries(sets.map((s) => [s.dir, s.name]));
     return [
         `const byCode = ${JSON.stringify(byCode)};`,

@@ -24,6 +24,7 @@ const amassCore = "/repo/convex/cards/abilities/amassCore.ts"; // via amass
 const equipment = "/repo/convex/cards/abilities/equipment.ts"; // two Sets
 const defineCard = "/repo/convex/cards/defineCard.ts"; // the app too
 const loader = "/repo/src/lib/catalogue/set-chunk-loader.ts";
+const lazyHelper = "/repo/convex/gre/lazyHelper.ts"; // import()ed by ltr
 const cyclicA = "/repo/convex/gre/cyclicA.ts";
 const cyclicB = "/repo/convex/gre/cyclicB.ts";
 
@@ -49,6 +50,7 @@ const g = graph({
     [amassCore]: { importers: [amass] },
     [equipment]: { importers: [ltrBlack, drkBlue] },
     [defineCard]: { importers: [ltrBlack, "/repo/src/lib/x.ts"] },
+    [lazyHelper]: { dynamic: [ltrBlack] },
     [cyclicA]: { importers: [cyclicB, ltrRed] },
     [cyclicB]: { importers: [cyclicA] },
 });
@@ -56,9 +58,9 @@ const g = graph({
 describe("setCodeOf", () => {
     it("reads the Set code off a Set module's id, and nothing off another", () => {
         expect(setCodeOf(ltrBlack)).toBe("ltr");
-        expect(setCodeOf(`C:\\repo\\convex\\cards\\sets\\5dn\\index.cards.ts`)).toBe(
-            "5dn"
-        );
+        expect(
+            setCodeOf(`C:\\repo\\convex\\cards\\sets\\5dn\\index.cards.ts`)
+        ).toBe("5dn");
         expect(setCodeOf(amass)).toBeUndefined();
     });
 });
@@ -78,6 +80,10 @@ describe("owningSet", () => {
         expect(owningSet(equipment, g)).toBeUndefined();
     });
 
+    it("a module a Set reaches only through import() is nobody's — it is its own lazy boundary", () => {
+        expect(owningSet(lazyHelper, g)).toBeUndefined();
+    });
+
     it("a module the app reaches is nobody's", () => {
         expect(owningSet(defineCard, g)).toBeUndefined();
     });
@@ -88,7 +94,12 @@ describe("owningSet", () => {
     });
 
     it("a module nobody imports, or one the bundler cannot describe, is nobody's", () => {
-        expect(owningSet("/repo/convex/entry.ts", graph({ "/repo/convex/entry.ts": {} }))).toBeUndefined();
+        expect(
+            owningSet(
+                "/repo/convex/entry.ts",
+                graph({ "/repo/convex/entry.ts": {} })
+            )
+        ).toBeUndefined();
         expect(owningSet("/repo/convex/unknown.ts", g)).toBeUndefined();
     });
 });

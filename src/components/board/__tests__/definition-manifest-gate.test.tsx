@@ -17,9 +17,15 @@ import type { Id } from "@convex/_generated/dataModel";
  *   - a failed load is named and retried.
  */
 
-const rows = new Map<string, { entries: { definitionId: string; setCode: string }[] } | null | undefined>();
+const rows = new Map<
+    string,
+    { entries: { definitionId: string; setCode: string }[] } | null | undefined
+>();
 vi.mock("~/hooks/useResilientQuery", () => ({
-    useResilientQuery: (_query: unknown, args: { playerId: string } | "skip") => ({
+    useResilientQuery: (
+        _query: unknown,
+        args: { playerId: string } | "skip"
+    ) => ({
         data: args === "skip" ? undefined : rows.get(args.playerId),
     }),
 }));
@@ -34,12 +40,14 @@ vi.mock("~/lib/catalogue/definitionShards", () => ({
 const hydrateCatalogue = vi.fn<() => Promise<number>>();
 vi.mock("~/lib/catalogueArtifact", () => ({ hydrateCatalogue }));
 
-const { default: DefinitionManifestGate } = await import(
-    "../definition-manifest-gate"
-);
+const { default: DefinitionManifestGate } =
+    await import("../definition-manifest-gate");
 
 const gameId = "game1" as Id<"games">;
-const entry = (setCode: string) => ({ definitionId: `${setCode}-card`, setCode });
+const entry = (setCode: string) => ({
+    definitionId: `${setCode}-card`,
+    setCode,
+});
 const CHILD = <p>the board</p>;
 
 function renderGate(playerId: string, seatIds: string[]) {
@@ -79,9 +87,7 @@ describe("DefinitionManifestGate", () => {
         rows.set("p2", null); // the opponent's seat: not ours
         renderGate("p1", ["p1", "p2"]);
         expect(screen.queryByText("the board")).toBeNull();
-        await waitFor(() =>
-            expect(screen.getByText("the board")).toBeTruthy()
-        );
+        await waitFor(() => expect(screen.getByText("the board")).toBeTruthy());
         expect(installSets).toHaveBeenCalledTimes(1);
         expect([...installSets.mock.calls[0]![0]]).toEqual(["lea", "leb"]);
         expect(hydrateCatalogue).not.toHaveBeenCalled();
@@ -122,7 +128,11 @@ describe("DefinitionManifestGate", () => {
         );
         rows.set("p1", { entries: [entry("lea"), entry("arn")] });
         view.rerender(
-            <DefinitionManifestGate gameId={gameId} playerId="p1" seatIds={["p1"]}>
+            <DefinitionManifestGate
+                gameId={gameId}
+                playerId="p1"
+                seatIds={["p1"]}
+            >
                 {CHILD}
             </DefinitionManifestGate>
         );

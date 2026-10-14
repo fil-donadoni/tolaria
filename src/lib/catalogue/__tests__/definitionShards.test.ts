@@ -81,7 +81,9 @@ describe("which Sets a set of definition ids needs", () => {
 
     it("a hand-written id needs its home Set; a compiled row, a token or a sentinel needs none", () => {
         expect(setNeededBy(handWritten)).toBe(handWrittenSet);
-        expect(setNeededBy(handWritten)).toBe(handWrittenSetCodeOf(handWritten));
+        expect(setNeededBy(handWritten)).toBe(
+            handWrittenSetCodeOf(handWritten)
+        );
         expect(setNeededBy("face-down:2-2-vanilla")).toBeUndefined();
         expect(setNeededBy("not-a-card")).toBeUndefined();
     });

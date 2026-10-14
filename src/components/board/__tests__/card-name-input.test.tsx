@@ -12,17 +12,14 @@ import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 // every Set to be resident. Here it already is, so the gate is transparent;
 // the "not yet" half is its own block below.
 const isCatalogueHydrated = vi.fn(() => true);
-const hydrateCatalogue = vi.fn<() => Promise<number>>(() =>
-    Promise.resolve(0)
-);
+const hydrateCatalogue = vi.fn<() => Promise<number>>(() => Promise.resolve(0));
 vi.mock("~/lib/catalogueArtifact", () => ({
     isCatalogueHydrated,
     hydrateCatalogue,
 }));
 
-const { default: CardNameInput } = await import(
-    "~/components/board/card-name-input"
-);
+const { default: CardNameInput } =
+    await import("~/components/board/card-name-input");
 
 afterEach(() => {
     cleanup();

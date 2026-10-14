@@ -50,15 +50,11 @@ export default function DefinitionManifestGate({
     // order fixed whatever the array holds.
     const first = useResilientQuery(
         api.gameReads.getDefinitionManifest,
-        seatIds[0] !== undefined
-            ? { gameId, playerId: seatIds[0] }
-            : "skip"
+        seatIds[0] !== undefined ? { gameId, playerId: seatIds[0] } : "skip"
     );
     const second = useResilientQuery(
         api.gameReads.getDefinitionManifest,
-        seatIds[1] !== undefined
-            ? { gameId, playerId: seatIds[1] }
-            : "skip"
+        seatIds[1] !== undefined ? { gameId, playerId: seatIds[1] } : "skip"
     );
     const firstRow = first.data;
     const secondRow = second.data;
@@ -116,7 +112,8 @@ export default function DefinitionManifestGate({
     // Ready once the current Manifest's Sets (or, on fallback, everything)
     // have been installed; a widened Manifest holds the board again until
     // its new Sets are in.
-    const ready = resident !== null && (resident === "*" || resident === codesKey);
+    const ready =
+        resident !== null && (resident === "*" || resident === codesKey);
     if (!ready) return <LoadingScreen message="Loading cards..." />;
     return <>{children}</>;
 }

@@ -54,11 +54,7 @@ export function owningSet(
     memo.set(moduleId, undefined);
     const info = graph.getModuleInfo(moduleId);
     let owner: string | undefined;
-    if (
-        info !== null &&
-        
-        info.importers.length > 0
-    ) {
+    if (info !== null && info.importers.length > 0) {
         for (const importer of info.importers) {
             const code = owningSet(importer, graph, memo);
             if (code === undefined || (owner !== undefined && code !== owner)) {

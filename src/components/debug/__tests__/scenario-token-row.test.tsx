@@ -19,12 +19,10 @@ vi.mock("~/lib/catalogueArtifact", () => ({
     hydrateCatalogue: () => Promise.resolve(0),
 }));
 
-const { default: DebugScenarioCardFields } = await import(
-    "../debug-scenario-card-fields"
-);
-const { default: DebugCardNameField } = await import(
-    "../debug-card-name-field"
-);
+const { default: DebugScenarioCardFields } =
+    await import("../debug-scenario-card-fields");
+const { default: DebugCardNameField } =
+    await import("../debug-card-name-field");
 import {
     cardToDraft,
     draftToCard,

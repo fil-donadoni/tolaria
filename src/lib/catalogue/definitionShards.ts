@@ -63,7 +63,8 @@ export function setsNeededFor(definitionIds: Iterable<string>): string[] {
  *  resident or in flight Sets cost nothing; a rejection is not memoised. */
 export async function installSets(codes: Iterable<string>): Promise<void> {
     const loads: Promise<unknown>[] = [];
-    for (const code of new Set(codes)) loads.push(setModuleSource.install(code));
+    for (const code of new Set(codes))
+        loads.push(setModuleSource.install(code));
     await Promise.all(loads);
 }
 

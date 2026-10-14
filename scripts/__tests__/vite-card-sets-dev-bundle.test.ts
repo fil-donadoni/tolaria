@@ -118,7 +118,8 @@ describe("a Set module has exactly its two importers", () => {
             )
             .map((abs) => path.relative(ROOT, abs).split(path.sep).join("/"))
             .filter(
-                (rel) => !rel.startsWith(setsPrefix) && !/\.test\.tsx?$/.test(rel)
+                (rel) =>
+                    !rel.startsWith(setsPrefix) && !/\.test\.tsx?$/.test(rel)
             )
             .filter(
                 (rel) =>
@@ -131,7 +132,10 @@ describe("a Set module has exactly its two importers", () => {
                         "convex/cards/sets/${"
                     )
             );
-        expect(importers.sort()).toEqual([SET_MODULES_MODULE, SET_CHUNK_LOADER]);
+        expect(importers.sort()).toEqual([
+            SET_MODULES_MODULE,
+            SET_CHUNK_LOADER,
+        ]);
     });
 
     it("the chunk loader spells one template import of a Set's barrel", () => {

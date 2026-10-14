@@ -45,7 +45,9 @@ function install(code: string): Promise<SetModuleExports> {
     if (inFlight !== undefined) return inFlight;
     if (!known.has(code)) {
         return Promise.reject(
-            new Error(`Unknown Set module: ${code} (not in the Definition Index)`)
+            new Error(
+                `Unknown Set module: ${code} (not in the Definition Index)`
+            )
         );
     }
     const load = loadSetModule(code).then(
