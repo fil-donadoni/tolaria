@@ -3541,8 +3541,8 @@ const OP_ASSERTORS: AssertorTable = {
         };
     },
     // `phaseOut` (CR 702.26b, issue #4573) — the permanent is off every
-    // battlefield and inside a phased-out bundle (CR 702.26d: it has not left
-    // the game, only the battlefield).
+    // battlefield and inside a phased-out bundle (CR 702.26d: phasing is no
+    // zone change; it is only treated as not on the battlefield).
     phaseOut(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "phaseOut" }>;
         const permId = subjectPermanentId(scenario, op.target);

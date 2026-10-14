@@ -302,14 +302,38 @@ describe("refusals: the neighbours each rule must not read", () => {
         );
     });
 
-    it('"that creature\'s controller" behind a destroyed ARTIFACT', () => {
+    it('"that creature\'s controller" behind a destroyed CREATURE (noun/type mismatch)', () => {
         refused(
             instant(
                 "Test",
                 "{G}",
-                "Destroy target artifact. That creature's controller gains life equal to its mana value."
+                "Destroy target creature. That artifact's controller gains life equal to its mana value."
             )
         );
+    });
+
+    it('"its controller" of a card in a graveyard (no controller, CR 109.4)', () => {
+        refused(
+            instant(
+                "Test",
+                "{W}",
+                "Exile target creature card from a graveyard. Its controller gains life equal to its mana value."
+            )
+        );
+    });
+
+    it('"its controller" loses life: only the gain is fixtured', () => {
+        refused(
+            instant(
+                "Test",
+                "{W}",
+                "Exile target creature. Its controller loses life equal to its power."
+            )
+        );
+    });
+
+    it('"Draw a card, then draw two cards" is not the counted chain', () => {
+        refused(instant("Test", "{1}{U}", "Draw a card, then draw two cards."));
     });
 
     it('"its controller" behind two announced targets', () => {

@@ -12460,6 +12460,33 @@ describe("Effect Script Op: phaseOut (CR 702.26, issue #4573)", () => {
         expect(state.phasedOut).toBeUndefined();
     });
 
+    // CR 702.26b — a permanent that phases out is removed from combat, so it
+    // is not still attacking when it phases back in.
+    it("removes an attacking creature from combat (CR 702.26b)", () => {
+        const id = registerScript("test-op-phaseout-combat", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const atk = makeInstance(BEAR_ID, {
+            id: "poatk",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [atk] }),
+            ],
+        });
+        state.combat = {
+            attackerIds: ["poatk"],
+            blockerAssignments: {},
+        } as unknown as GameState["combat"];
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "poatk" }]);
+        resolveTopOfStack(state);
+        expect(state.combat!.attackerIds).toEqual([]);
+        expect(state.phasedOut![0].cards[0].isAttacking).toBeFalsy();
+    });
+
     // CR 608.2b — an announced target missing at resolution skips the Op.
     it("is skipped when the announced target is missing (CR 608.2b)", () => {
         const id = registerScript("test-op-phaseout-missing", [

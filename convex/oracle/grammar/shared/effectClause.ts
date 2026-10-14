@@ -3267,8 +3267,7 @@ const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
  *  because the same clause shape prints all three; which noun may take which
  *  characteristic is `readActedOnCharacteristic`'s. */
 /** CR 109.4 — "Its controller" / "That artifact's controller", a life recipient. */
-const ACTED_ON_CONTROLLER =
-    /^(?:Its|That (artifact|creature|land|enchantment)'s) controller$/;
+const ACTED_ON_CONTROLLER = /^(?:Its|That (artifact)'s) controller$/;
 const LIFE_EQUAL_ACTED_ON = new RegExp(
     `^(.+) (gain|gains|lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} ${actedOnCharacteristicGroup(["manaValue", "power", "toughness"])}$`
 );
@@ -5065,6 +5064,8 @@ function effectSentence(
             );
         const set = numberOfSetRule.run(damageCount[3]!, ctx);
         if (!set.ok) return set;
+        if (set.value.kind !== "permanents")
+            return fail("damage counts a permanent set only", span);
         const to = subjectRule.run(damageCount[2]!, ctx);
         if (!to.ok) return to;
         return ok({
@@ -5654,6 +5655,12 @@ function effectSentence(
     const lifeActedOn = span.match(LIFE_EQUAL_ACTED_ON);
     if (lifeActedOn !== null) {
         const controller = lifeActedOn[1]!.match(ACTED_ON_CONTROLLER);
+        // Only the gain is fixtured (Swords to Plowshares, Crumble).
+        if (
+            (controller !== null || lifeActedOn[1] === "Its controller") &&
+            !lifeActedOn[2]!.startsWith("gain")
+        )
+            return fail("an acted-on controller only gains life", span);
         const player: PlayerRefIR | null =
             controller === null
                 ? playerSubject(lifeActedOn[1]!, ctx)

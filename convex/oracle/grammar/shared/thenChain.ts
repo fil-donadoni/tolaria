@@ -116,7 +116,8 @@ function readDrawThenDraw(
         head.value.role !== "effect" ||
         head.value.effect.kind !== "draw" ||
         tail.value.role !== "effect" ||
-        tail.value.effect.kind !== "draw"
+        tail.value.effect.kind !== "draw" ||
+        tail.value.effect.count.kind !== "counted"
     )
         return fail('"Draw …, then draw …" chains two draws', span);
     return ok({

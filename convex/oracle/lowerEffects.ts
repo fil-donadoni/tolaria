@@ -3680,6 +3680,9 @@ function lowerActedOnController(
         walk.gatedRemoval ||
         actedOn === null ||
         actedOn.requirement !== only ||
+        // CR 109.4 — only a battlefield permanent has a controller; a card in
+        // a graveyard snapshots its owner there.
+        (only.zone !== undefined && only.zone !== "battlefield") ||
         (noun !== "it" &&
             announcedTypes(only).join() !==
                 noun.charAt(0).toUpperCase() + noun.slice(1))
