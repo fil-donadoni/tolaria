@@ -184,6 +184,7 @@ describe("a source of your choice — refused neighbours (fail-closed)", () => {
         "{1}: The next time a creature source of your choice would deal damage to you this turn, prevent that damage.",
         "{1}: The next time a nonblack source of your choice would deal damage to you this turn, prevent that damage.",
         "{1}: The next time a white, blue or red source of your choice would deal damage to you this turn, prevent that damage.",
+        "{1}: The next time a white or blue or red source of your choice would deal damage to you this turn, prevent that damage.",
         // A partial prevention is another effect.
         "{1}: The next time a source of your choice would deal damage to you this turn, prevent half that damage, rounded down.",
     ])("%s", (text) => {
