@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
+import { useDefinitionsResident } from "~/hooks/useDefinitionsResident";
+import { stateDefinitionIds } from "~/lib/stateDefinitionIds";
+import CatalogueLoadError from "~/components/ui/catalogue-load-error";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -189,26 +192,20 @@ export default function Board({
 
     const players = state?.players;
     const stack = state?.stack;
+    // Every definition the state names (ADR 0026: the viewer's known library
+    // cards included) — what the board preloads art for, and what must be
+    // RESIDENT before it renders (issue #5615): a card outside the game's
+    // Definition Manifest (a debug placement, a card fetched from outside the
+    // game) loads its Set on demand with the board held back, never a throw
+    // out of `getDefinition` mid-render.
+    const stateIds = useMemo(
+        () => (players ? stateDefinitionIds({ players, stack }) : null),
+        [players, stack]
+    );
+    const residence = useDefinitionsResident(stateIds);
     useEffect(() => {
-        if (!players) return;
-        const ids: string[] = [];
-        for (const p of players) {
-            for (const c of p.battlefield) ids.push(c.card.id);
-            for (const c of p.graveyard) ids.push(c.card.id);
-            for (const c of p.exile) ids.push(c.card.id);
-            for (const c of p.hand) if (c) ids.push(c.card.id);
-            if (Array.isArray(p.library)) {
-                for (const c of p.library) ids.push(c.card.id);
-            } else {
-                // ADR 0026 — preload art for the viewer's known library cards.
-                for (const k of p.library.known ?? []) {
-                    ids.push(k.card.card.id);
-                }
-            }
-        }
-        if (stack) for (const c of stack) ids.push(c.card.id);
-        preloadCardImages(ids);
-    }, [players, stack]);
+        if (stateIds) preloadCardImages(stateIds);
+    }, [stateIds]);
 
     // Publish --right-piles-w to the document root while the board is mounted
     // so portal'd dialogs (rendered to document.body, outside data-board-root)
@@ -311,6 +308,21 @@ export default function Board({
         return (
             <div className="flex h-full items-center justify-center text-white">
                 Loading...
+            </div>
+        );
+    }
+    if (residence.error) {
+        return (
+            <CatalogueLoadError
+                error={residence.error}
+                onRetry={residence.retry}
+            />
+        );
+    }
+    if (!residence.ready) {
+        return (
+            <div className="flex h-full items-center justify-center text-white">
+                Loading cards...
             </div>
         );
     }

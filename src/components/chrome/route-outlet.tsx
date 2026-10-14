@@ -6,6 +6,7 @@ import LoadingScreen from "~/components/ui/loading-screen";
 // #4854). The frame loads it (`~/lib/catalogueGateLoader`) without suspending
 // once it is in memory (issue #5584).
 import CatalogueGateFrame from "./catalogue-gate-frame";
+import { routeCatalogueNeed } from "~/lib/routeCatalogueNeed";
 
 /**
  * The shell's `<Outlet />`, with the card catalogue gate mounted around it when
@@ -15,21 +16,16 @@ import CatalogueGateFrame from "./catalogue-gate-frame";
  * Gated BY DEFAULT: a route is held back until `getDefinition` is synchronous
  * unless EVERY non-root match declares `staticData: { lightSurface: true }`
  * (`src/router.tsx`). A forgotten flag costs a loading screen; the inverse
- * would cost a card-less board.
+ * would cost a card-less board. A route declaring `catalogue: "game"` gets
+ * the packed corpus only and loads the Sets of its Definition Manifest itself
+ * (issue #5615) — every other gated route gets the whole catalogue.
  */
 export default function RouteOutlet() {
-    const needsCatalogue = useMatches({
-        select: (matches) =>
-            matches.some(
-                (match) =>
-                    match.routeId !== "__root__" &&
-                    match.staticData.lightSurface !== true
-            ),
-    });
-    if (!needsCatalogue) return <Outlet />;
+    const need = useMatches({ select: routeCatalogueNeed });
+    if (need === "none") return <Outlet />;
     return (
         <Suspense fallback={<LoadingScreen message="Loading cards..." />}>
-            <CatalogueGateFrame>
+            <CatalogueGateFrame mode={need}>
                 <Outlet />
             </CatalogueGateFrame>
         </Suspense>

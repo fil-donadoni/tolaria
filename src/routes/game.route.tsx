@@ -6,6 +6,7 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
+import DefinitionManifestGate from "~/components/board/definition-manifest-gate";
 import ManualBoardContainer from "~/components/board/manual-board-container";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
@@ -162,14 +163,24 @@ export default function GameRoute() {
         }
 
         return (
-            // The provider owns the sheet's open flag (issue #3493) and sits
-            // ABOVE the column because the board area and the sheet are
-            // siblings: the sheet is `position: fixed`, so the only way it can
-            // stop covering the board at desktop widths is for the board area
-            // to give up the width. `enabled` keeps a non-tester's board free
-            // of a push for a sheet they cannot open — the flag is persisted
-            // per device, so a tester session on this browser would otherwise
-            // reach across to them.
+            // The game downloads only its own cards (issue #5615): the route's
+            // catalogue gate brought the packed corpus; this one installs the
+            // Sets of the game's Definition Manifest before anything below
+            // reads a definition — the board, the driver, the debug sheet.
+            <DefinitionManifestGate
+                key={gameId}
+                gameId={gameId}
+                playerId={playerId}
+                seatIds={game.players.map((p) => p.id)}
+            >
+            {/* The provider owns the sheet's open flag (issue #3493) and sits
+                ABOVE the column because the board area and the sheet are
+                siblings: the sheet is `position: fixed`, so the only way it can
+                stop covering the board at desktop widths is for the board area
+                to give up the width. `enabled` keeps a non-tester's board free
+                of a push for a sheet they cannot open — the flag is persisted
+                per device, so a tester session on this browser would otherwise
+                reach across to them. */}
             <DebugSheetProvider enabled={showDebugSheet}>
                 <div className="flex h-dvh flex-col">
                     <SurfaceReadyMarker />
@@ -215,6 +226,7 @@ export default function GameRoute() {
                     )}
                 </div>
             </DebugSheetProvider>
+            </DefinitionManifestGate>
         );
     }
 

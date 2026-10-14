@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getChooseableCardNames } from "@convex/cards/catalogue";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { hydrateCatalogue, isCatalogueHydrated } from "~/lib/catalogueArtifact";
 
 /** Autocomplete name input for a `name-card` pending choice (CR 202.3 — "chooses
  *  a card name", Petra Sphinx). The chooser types a card name; the field
@@ -18,6 +19,30 @@ export default function CardNameInput({
     onSubmit: (cardName: string) => void;
 }) {
     const [value, setValue] = useState("");
+    // CR 202.3 — the chooser may name ANY card, so this prompt is a
+    // WHOLE-CATALOGUE surface on a route that otherwise holds only its game's
+    // Sets (issue #5615): the candidate list is read off the Definition Index
+    // (no definition needed), but the server's check of the name
+    // (`isLegalNamedCard`) reads the definition for a twin name, a name
+    // restriction or an as-enters filter — so the submit waits until every
+    // Set is resident, which the prompt's opening starts loading.
+    const [whole, setWhole] = useState(isCatalogueHydrated);
+    useEffect(() => {
+        let cancelled = false;
+        hydrateCatalogue().then(
+            () => {
+                if (!cancelled) setWhole(true);
+            },
+            () => {
+                // Left as is: the server re-validates the name either way, and
+                // a submit that waits forever is worse than one it refuses.
+                if (!cancelled) setWhole(true);
+            }
+        );
+        return () => {
+            cancelled = true;
+        };
+    }, []);
     // The whole implemented registry is the candidate set (CR 202.3 — name ANY
     // card; here, any card we model), PLUS every inset spell's alternative name
     // (CR 715.5 — "if … the player wants to choose an adventurer card's
@@ -35,7 +60,7 @@ export default function CardNameInput({
 
     const trimmed = value.trim();
     const canonical = canonicalByLower.get(trimmed.toLowerCase());
-    const isValid = canonical !== undefined;
+    const isValid = canonical !== undefined && whole;
 
     // Exact match first, then prefix matches, then substring, capped for the UI.
     // The exact match MUST NOT be dropped: many card names are substrings of
@@ -106,7 +131,7 @@ export default function CardNameInput({
             >
                 Name it
             </Button>
-            {trimmed.length > 0 && !isValid && (
+            {trimmed.length > 0 && canonical === undefined && (
                 <p className="text-[11px] text-text-disabled text-center">
                     No implemented card by that name
                 </p>

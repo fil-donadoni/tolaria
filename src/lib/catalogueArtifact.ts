@@ -46,8 +46,16 @@ export function catalogueArtifactUrl(): string {
 }
 
 let corpus: Promise<number> | null = null;
+let corpusHydrated = false;
 let hydration: Promise<number> | null = null;
 let hydrated = false;
+
+/** Whether the packed corpus is installed in this graph:
+ *  `hydrateCompiledCorpus()` has resolved. The game route's gate renders on
+ *  the FIRST frame when the Setup flow's prefetch already fetched it. */
+export function isCompiledCorpusHydrated(): boolean {
+    return corpusHydrated;
+}
 
 /** Whether the WHOLE catalogue is installed in this graph:
  *  `hydrateCatalogue()` has resolved. Lets the gate render its children on
@@ -112,7 +120,9 @@ async function fetchCatalogue(): Promise<number> {
     if (!isPackedCorpus(packed)) {
         throw new Error(`catalogue artifact ${url} is not a packed corpus`);
     }
-    return registerPackedCorpus(packed);
+    const installed = registerPackedCorpus(packed);
+    corpusHydrated = true;
+    return installed;
 }
 
 /** The fields the decoder and the index read, present and non-empty — a
@@ -140,6 +150,7 @@ function isPackedCorpus(value: unknown): value is PackedCorpus {
  *  Production has exactly one hydration per graph and never needs this. */
 export function resetCatalogueHydrationForTests(): void {
     corpus = null;
+    corpusHydrated = false;
     hydration = null;
     hydrated = false;
 }

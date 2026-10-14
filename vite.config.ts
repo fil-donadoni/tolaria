@@ -115,12 +115,12 @@ export default defineConfig({
                 // chunk's only static importers are Set chunks and the
                 // asset-graph check keys on one prefix.
                 chunkFileNames: (chunk) => {
-                    const set =
-                        chunk.facadeModuleId !== null &&
-                        SET_MODULE_ID.exec(chunk.facadeModuleId);
-                    return set
-                        ? `assets/card-set-${set[1]}-[hash].js`
-                        : "assets/[name]-[hash].js";
+                    const set = chunk.facadeModuleId
+                        ? SET_MODULE_ID.exec(chunk.facadeModuleId)?.[1]
+                        : undefined;
+                    return set === undefined
+                        ? "assets/[name]-[hash].js"
+                        : `assets/card-set-${set}-[hash].js`;
                 },
                 codeSplitting: {
                     // A group captures ONLY the modules it tests, never their
@@ -155,8 +155,10 @@ export default defineConfig({
                         },
                         {
                             name: (id) => {
-                                const set = SET_MODULE_ID.exec(id);
-                                return set ? `card-set-${set[1]}` : undefined;
+                                const set = SET_MODULE_ID.exec(id)?.[1];
+                                return set === undefined
+                                    ? undefined
+                                    : `card-set-${set}`;
                             },
                             test: SET_MODULE_ID,
                             priority: 10,
