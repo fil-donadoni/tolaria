@@ -355,11 +355,9 @@ export function makeLatentBoardLens(
                 if (!side.answered()) return undefined;
             }
             measured = true;
-            // Issue #5560 — the HELD price of the swing, a fitted fraction of
-            // it: credited in full, it equals what the cast realises and
-            // casting ties holding (`EvalWeights.heldDifferentialFraction`).
-            return total * weights.heldDifferentialFraction;
+            return total;
         },
+        heldDifferentialFraction: weights.heldDifferentialFraction,
         // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
         // the board the card would leave behind: the same per-leaf netting
         // the board face reads, so the hand face and the board face of the

@@ -164,3 +164,24 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         expect(cardValueById(MINE)).toBe(nonCreatureBodyRaw(2));
     });
 });
+
+describe("a standing engine is not a held one-shot (issue #5560)", () => {
+    it("the Mine's reading ignores `heldDifferentialFraction` on both faces", () => {
+        // The fraction discounts a ONE-SHOT's swing that decays once cast;
+        // an each-step engine recurs on the board face, and its two faces
+        // are one number (issue #5164) — scaling the shared Differential
+        // would shrink both.
+        const full = { ...DEFAULT_EVAL_WEIGHTS, heldDifferentialFraction: 1 };
+        const onBoard = board({ hand: 1, mine: "board" }, { hand: 7 });
+        const mine = onBoard.players[0].battlefield[0];
+        expect(permanentRealisedValue(onBoard, mine)).toBeCloseTo(
+            permanentRealisedValue(onBoard, mine, full),
+            9
+        );
+        const inHand = board({ hand: 1, mine: "hand" }, { hand: 7 });
+        const held = inHand.players[0].hand.find((c) => c.card.id === MINE)!;
+        const read = (w: typeof full) =>
+            cardValue(inHand, held, handLatentLens(inHand, "p1", held, w));
+        expect(read(DEFAULT_EVAL_WEIGHTS)).toBeCloseTo(read(full), 9);
+    });
+});

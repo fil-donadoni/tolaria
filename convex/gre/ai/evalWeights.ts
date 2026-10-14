@@ -249,8 +249,8 @@ export type EvalWeights = {
      *  their loss does not decay, and their pricing is unchanged. */
     recoverableSweepFraction: number;
     /** Issue #5560 (ADR 0151) — fraction of a `$each` one-shot's
-     *  Differential Reading (`LatentLens.eachPlayerDifferential`,
-     *  `ai/latentBoard.ts`) a card in hand is credited with: the
+     *  Differential Reading (`eachPlayerDifferentialValue`,
+     *  `ai/opValuers.ts`) a card in hand is credited with: the
      *  `recoverableSweepFraction` pattern, for a swing that decays the same
      *  way. The search resolves the cast through the real GRE, so casting
      *  moves the margin by what the resolution realises minus the card's hand
@@ -260,7 +260,9 @@ export type EvalWeights = {
      *  hand is played out over turns, a sacrificed creature is replaced — so
      *  a FRACTION below 1 makes it worth most when taken now. A negative
      *  reading stays floored at zero in hand (`latentValue`): the card held is
-     *  an option, and casting it realises the loss the floor declines. */
+     *  an option, and casting it realises the loss the floor declines. A
+     *  standing each-step engine's Differential (issue #5164) is NOT scaled:
+     *  it recurs, and its hand and board faces are one number. */
     heldDifferentialFraction: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
