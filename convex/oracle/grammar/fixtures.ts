@@ -6740,4 +6740,488 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 702.33e + CR 702.33f + CR 603.4 — "When this creature enters, if it was kicked with its {R} kicker, …": a check-time gate on ONE named kicker plus the resolution-time `additionalCostPaid` branch. Exhibits a kicker-payment amount the canned smoke scenario casts unkicked (issue #4571).
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Thornscape Battlemage",
+            manaCost: "{2}{G}",
+            typeLine: "Creature — Elf Wizard",
+            oracleText:
+                "Kicker {R} and/or {W} (You may pay an additional {R} and/or {W} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.\nWhen this creature enters, if it was kicked with its {W} kicker, destroy target artifact.",
+            power: "2",
+            toughness: "2",
+            oracleId: "8d4d6806-cb01-49e3-91cc-fb0e7f7a8684",
+            layout: "normal",
+        },
+        expected: {
+            name: "Thornscape Battlemage",
+            types: ["Creature"],
+            subtypes: ["Elf", "Wizard"],
+            manaCost: { X: 2, G: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Kicker {R} and/or {W} (You may pay an additional {R} and/or {W} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.\nWhen this creature enters, if it was kicked with its {W} kicker, destroy target artifact.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "thornscape-battlemage-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {R} kicker, it deals 2 damage to any target.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-r" },
+                    targetRequirement: { type: "any", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-r" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "dealDamage",
+                                    amount: 2,
+                                    to: { target: 0 },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "thornscape-battlemage-trigger-2",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {W} kicker, destroy target artifact.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-w" },
+                    targetRequirement: { type: "Artifact", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-w" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                { id: "kicker-r", description: "Kicker {R}", mana: { R: 1 } },
+                { id: "kicker-w", description: "Kicker {W}", mana: { W: 1 } },
+            ],
+        },
+    },
+    // CR 701.26b + CR 109.2 — "untap up to seven lands": a `choice` over every battlefield with a ranged runtime pick, then a `forEach` over the picks. Exhibits a runtime `count` and a runtime-selected set the canned generator does not size (issue #4571).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Palinchron",
+            manaCost: "{5}{U}{U}",
+            typeLine: "Creature — Illusion",
+            oracleText:
+                "Flying\nWhen this creature enters, untap up to seven lands.\n{2}{U}{U}: Return this creature to its owner's hand.",
+            power: "4",
+            toughness: "5",
+            oracleId: "0023888e-7bec-43e0-8dee-d1a4eb94b372",
+            layout: "normal",
+        },
+        expected: {
+            name: "Palinchron",
+            types: ["Creature"],
+            subtypes: ["Illusion"],
+            manaCost: { X: 5, U: 2 },
+            power: 4,
+            toughness: 5,
+            oracleText:
+                "Flying\nWhen this creature enters, untap up to seven lands.\n{2}{U}{U}: Return this creature to its owner's hand.",
+            staticAbilities: ["flying"],
+            activatedAbilities: [
+                {
+                    id: "palinchron-ability",
+                    oracleText:
+                        "{2}{U}{U}: Return this creature to its owner's hand.",
+                    cost: { mana: { X: 2, U: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "moveZone",
+                            target: { ref: "$source" },
+                            to: "hand",
+                        },
+                    ],
+                },
+            ],
+            compiledTriggeredAbilities: [
+                {
+                    id: "palinchron-trigger",
+                    oracleText:
+                        "When this creature enters, untap up to seven lands.",
+                    head: { kind: "entered", scope: "self" },
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "choose-permanents",
+                            player: "controller",
+                            zone: "battlefield",
+                            allControllers: true,
+                            filter: { type: "Land" },
+                            count: { min: 0, max: 7 },
+                            prompt: "Untap up to seven lands.",
+                            bind: "$untapped1",
+                        },
+                        {
+                            op: "forEach",
+                            select: { set: "bound", ref: "$untapped1" },
+                            effects: [
+                                {
+                                    op: "tapUntap",
+                                    action: "untap",
+                                    target: { ref: "$each" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 107.1b + CR 107.3 — "you gain X life, where X is the number of cards in your hand minus 4": a `difference` of a hand count and a constant, an arithmetic combination the canned predictor does not size (issue #4571).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Ivory Tower",
+            manaCost: "{1}",
+            typeLine: "Artifact",
+            oracleText:
+                "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+            oracleId: "d416a4ed-9f16-4a8b-8aee-03c630e1eb6c",
+            layout: "normal",
+        },
+        expected: {
+            name: "Ivory Tower",
+            types: ["Artifact"],
+            manaCost: { X: 1 },
+            oracleText:
+                "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "ivory-tower-trigger",
+                    oracleText:
+                        "At the beginning of your upkeep, you gain X life, where X is the number of cards in your hand minus 4.",
+                    head: { kind: "phase", phase: "UPKEEP", scope: "your" },
+                    effects: [
+                        {
+                            op: "gainLife",
+                            player: "controller",
+                            amount: {
+                                difference: {
+                                    from: {
+                                        count: {
+                                            zone: "hand",
+                                            controller: "controller",
+                                        },
+                                    },
+                                    minus: 4,
+                                },
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 508.1 + CR 613.4c — "it gets +2/+0 until end of turn for each other attacking Goblin": a `pump` whose power is a scaled `count` of attacking creatures excluding the source, an amount the canned generator does not model (issue #4571).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Goblin Piledriver",
+            manaCost: "{1}{R}",
+            typeLine: "Creature — Goblin Warrior",
+            oracleText:
+                "Protection from blue (This creature can't be blocked, targeted, dealt damage, or enchanted by anything blue.)\nWhenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
+            power: "1",
+            toughness: "2",
+            oracleId: "4d74d12b-1ffb-482f-8bac-635a8d4d32e9",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Piledriver",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Warrior"],
+            manaCost: { X: 1, R: 1 },
+            power: 1,
+            toughness: 2,
+            oracleText:
+                "Protection from blue (This creature can't be blocked, targeted, dealt damage, or enchanted by anything blue.)\nWhenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
+            staticAbilities: ["protection from blue"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "goblin-piledriver-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$source" },
+                            power: {
+                                count: {
+                                    zone: "battlefield",
+                                    acrossAllPlayers: true,
+                                    filter: {
+                                        type: "Creature",
+                                        subtype: "Goblin",
+                                        isAttacking: true,
+                                        excludeSource: true,
+                                    },
+                                    times: 2,
+                                },
+                            },
+                            toughness: 0,
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // CR 702.33f — the {G} and {U} kicker ids of the same per-kicker gate (a smoke form is keyed by the kicker id it reads), so the Battlemage cycle's other kickers clear too (issue #4571).
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Sunscape Battlemage",
+            manaCost: "{2}{W}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "Kicker {1}{G} and/or {2}{U} (You may pay an additional {1}{G} and/or {2}{U} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {1}{G} kicker, destroy target creature with flying.\nWhen this creature enters, if it was kicked with its {2}{U} kicker, draw two cards.",
+            power: "2",
+            toughness: "2",
+            oracleId: "c8fd2232-e499-4889-a2ca-e486ea87d02b",
+            layout: "normal",
+        },
+        expected: {
+            name: "Sunscape Battlemage",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { X: 2, W: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Kicker {1}{G} and/or {2}{U} (You may pay an additional {1}{G} and/or {2}{U} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {1}{G} kicker, destroy target creature with flying.\nWhen this creature enters, if it was kicked with its {2}{U} kicker, draw two cards.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "sunscape-battlemage-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {1}{G} kicker, destroy target creature with flying.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-g" },
+                    targetRequirement: {
+                        type: "Creature",
+                        count: 1,
+                        requireAbility: "flying",
+                    },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-g" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+                {
+                    id: "sunscape-battlemage-trigger-2",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {2}{U} kicker, draw two cards.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-u" },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-u" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                { op: "draw", player: "controller", count: 2 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "kicker-g",
+                    description: "Kicker {1}{G}",
+                    mana: { X: 1, G: 1 },
+                },
+                {
+                    id: "kicker-u",
+                    description: "Kicker {2}{U}",
+                    mana: { X: 2, U: 1 },
+                },
+            ],
+        },
+    },
+    // CR 702.33f — the {B} and {G} kicker ids of the per-kicker gate (issue #4571).
+    {
+        rule: "kicked trigger condition",
+        card: {
+            name: "Thunderscape Battlemage",
+            manaCost: "{2}{R}",
+            typeLine: "Creature — Human Wizard",
+            oracleText:
+                "Kicker {1}{B} and/or {G} (You may pay an additional {1}{B} and/or {G} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.\nWhen this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
+            power: "2",
+            toughness: "2",
+            oracleId: "9aa66e7d-d5e3-4c48-9c68-b61ff2af0b1a",
+            layout: "normal",
+        },
+        expected: {
+            name: "Thunderscape Battlemage",
+            types: ["Creature"],
+            subtypes: ["Human", "Wizard"],
+            manaCost: { X: 2, R: 1 },
+            power: 2,
+            toughness: 2,
+            oracleText:
+                "Kicker {1}{B} and/or {G} (You may pay an additional {1}{B} and/or {G} as you cast this spell.)\nWhen this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.\nWhen this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
+            compiledTriggeredAbilities: [
+                {
+                    id: "thunderscape-battlemage-trigger",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {1}{B} kicker, target player discards two cards.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-b" },
+                    targetRequirement: { type: "player", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-b" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [
+                                {
+                                    op: "choice",
+                                    kind: "discard-hand",
+                                    player: { target: 0 },
+                                    zone: "hand",
+                                    count: 2,
+                                    prompt: "Discard two cards.",
+                                    bind: "$discard1",
+                                },
+                                {
+                                    op: "discard",
+                                    player: { target: 0 },
+                                    cards: { ref: "$discard1" },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    id: "thunderscape-battlemage-trigger-2",
+                    oracleText:
+                        "When this creature enters, if it was kicked with its {G} kicker, destroy target enchantment.",
+                    head: { kind: "entered", scope: "self" },
+                    condition: { kind: "kicker-paid", kickerId: "kicker-g" },
+                    targetRequirement: { type: "Enchantment", count: 1 },
+                    effects: [
+                        {
+                            op: "if",
+                            predicate: {
+                                left: { additionalCostPaid: "kicker-g" },
+                                op: "ge",
+                                right: 1,
+                            },
+                            then: [{ op: "destroy", target: { target: 0 } }],
+                        },
+                    ],
+                },
+            ],
+            kickers: [
+                {
+                    id: "kicker-b",
+                    description: "Kicker {1}{B}",
+                    mana: { X: 1, B: 1 },
+                },
+                { id: "kicker-g", description: "Kicker {G}", mana: { G: 1 } },
+            ],
+        },
+    },
+    // CR 508.1 + CR 613.4c — "it gets +1/+1 until end of turn for each other attacking Kavu": the same scaled-count pump on BOTH stats (the smoke form differs from the +2/+0 power-only one), clearing Kavu Mauler (issue #4571).
+    {
+        rule: "effect clause",
+        card: {
+            name: "Kavu Mauler",
+            manaCost: "{4}{G}{G}",
+            typeLine: "Creature — Kavu",
+            oracleText:
+                "Trample\nWhenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+            power: "4",
+            toughness: "4",
+            oracleId: "6ffbcaba-5437-4fb6-a2d6-e94b1e6dc1d2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Kavu Mauler",
+            types: ["Creature"],
+            subtypes: ["Kavu"],
+            manaCost: { X: 4, G: 2 },
+            power: 4,
+            toughness: 4,
+            oracleText:
+                "Trample\nWhenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+            staticAbilities: ["trample"],
+            compiledTriggeredAbilities: [
+                {
+                    id: "kavu-mauler-trigger",
+                    oracleText:
+                        "Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu.",
+                    head: { kind: "attacks" },
+                    effects: [
+                        {
+                            op: "pump",
+                            target: { ref: "$source" },
+                            power: {
+                                count: {
+                                    zone: "battlefield",
+                                    acrossAllPlayers: true,
+                                    filter: {
+                                        type: "Creature",
+                                        subtype: "Kavu",
+                                        isAttacking: true,
+                                        excludeSource: true,
+                                    },
+                                },
+                            },
+                            toughness: {
+                                count: {
+                                    zone: "battlefield",
+                                    acrossAllPlayers: true,
+                                    filter: {
+                                        type: "Creature",
+                                        subtype: "Kavu",
+                                        isAttacking: true,
+                                        excludeSource: true,
+                                    },
+                                },
+                            },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
 ]);

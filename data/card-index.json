@@ -9544,6 +9544,16 @@
         "source": "compiled"
     },
     {
+        "name": "Champion of Dusk",
+        "scryfallId": "507a4fb1-d27b-4393-9eed-48fe05b367d8",
+        "oracleId": "5f7f0a38-fb7e-4ee8-a712-9aa911f17dae",
+        "firstSet": "rix",
+        "firstPrintId": "507a4fb1-d27b-4393-9eed-48fe05b367d8",
+        "firstPrintSet": "rix",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Chandra, Torch of Defiance",
         "scryfallId": "ff8086cd-b868-4f4e-823e-2635ad7ebc07",
         "oracleId": "12cc800c-c7be-4811-8207-fd01a99cc892",
@@ -25924,6 +25934,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Graveborn Muse",
+        "scryfallId": "aa432e4e-ff23-4ad2-8d0a-403efee86f11",
+        "oracleId": "d2a65ff4-ab82-42f7-9d90-feb29132121e",
+        "firstSet": "lgn",
+        "firstPrintId": "aa432e4e-ff23-4ad2-8d0a-403efee86f11",
+        "firstPrintSet": "lgn",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Gravedigger",
         "scryfallId": "b979d70e-d514-420f-886c-f60e2bb1861f",
         "oracleId": "1a2030cc-d7ee-4059-b2d7-fb95ea8e267b",
@@ -26064,6 +26084,16 @@
         "firstSet": "leg",
         "firstPrintId": "cd860a1d-aa17-4579-b9b1-d101d2416387",
         "firstPrintSet": "leg"
+    },
+    {
+        "name": "Great Whale",
+        "scryfallId": "58a2acf1-dad8-4f93-a34e-891e5178a48f",
+        "oracleId": "c43ce30a-0346-479d-8dbc-56c3872ff82a",
+        "firstSet": "usg",
+        "firstPrintId": "58a2acf1-dad8-4f93-a34e-891e5178a48f",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Great-Horn Krushok",
@@ -37940,6 +37970,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Minions' Murmurs",
+        "scryfallId": "d6438a3b-6acb-4b49-8a46-9db80811d17c",
+        "oracleId": "fd755ec1-6727-4165-a7fd-5d9b59754ada",
+        "firstSet": "fut",
+        "firstPrintId": "d6438a3b-6acb-4b49-8a46-9db80811d17c",
+        "firstPrintSet": "fut",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Minister of Impediments",
         "scryfallId": "96aada87-a880-4d33-8694-9fbc74211755",
         "oracleId": "5a51a0ee-bc81-4c42-bb17-a41cea957d9a",
@@ -42784,6 +42824,16 @@
         "firstPrintSet": "ice"
     },
     {
+        "name": "Palinchron",
+        "scryfallId": "5621db3f-a9e7-4350-9c6a-0ba04a628947",
+        "oracleId": "0023888e-7bec-43e0-8dee-d1a4eb94b372",
+        "firstSet": "ulg",
+        "firstPrintId": "5621db3f-a9e7-4350-9c6a-0ba04a628947",
+        "firstPrintSet": "ulg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Palladia-Mors",
         "scryfallId": "ad64874d-ce33-4e0a-bcca-723f129ef415",
         "oracleId": "d7121ac7-e425-46cd-b006-1af391d97f87",
@@ -43266,6 +43316,16 @@
         "firstSet": "drk",
         "firstPrintId": "2fb5926f-9988-4bc0-b2b7-e286db208310",
         "firstPrintSet": "drk"
+    },
+    {
+        "name": "Peregrine Drake",
+        "scryfallId": "4951863f-1c16-4d09-ba9a-f57dc3d81a20",
+        "oracleId": "0bd67481-6bd9-48d6-92bd-8933b5ea1eae",
+        "firstSet": "usg",
+        "firstPrintId": "4951863f-1c16-4d09-ba9a-f57dc3d81a20",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
     },
     {
         "name": "Peregrine Griffin",
@@ -48486,6 +48546,16 @@
         "firstSet": "inv",
         "firstPrintId": "04116b38-8fb1-47c6-b68d-060d0fc4a60d",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Rewind",
+        "scryfallId": "9e51c4fb-fb29-4b1c-b78e-1fadf94fc9a5",
+        "oracleId": "bb27bfdf-fe8d-45bd-ad62-8118dce06eda",
+        "firstSet": "usg",
+        "firstPrintId": "9e51c4fb-fb29-4b1c-b78e-1fadf94fc9a5",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Reya Dawnbringer",
@@ -55520,6 +55590,16 @@
         "firstPrintSet": "kld"
     },
     {
+        "name": "Snap",
+        "scryfallId": "f7e0549e-2d23-4ea8-b8d1-ae21af2c9091",
+        "oracleId": "ac914d98-221e-426c-8a50-342896b15f9e",
+        "firstSet": "ulg",
+        "firstPrintId": "f7e0549e-2d23-4ea8-b8d1-ae21af2c9091",
+        "firstPrintSet": "ulg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Snapback",
         "scryfallId": "de9135ba-9b6a-4443-a1c4-882f9bfae626",
         "oracleId": "e88de17c-086d-4e2a-b5b2-2f9f57ca7c0f",
@@ -59363,6 +59443,16 @@
         "firstPrintId": "a9d6bd19-77c9-4a1a-a2d5-6f9737693fea",
         "firstPrintSet": "inv",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Sunscape Battlemage",
+        "scryfallId": "a85e590f-0a4a-4ad0-b8ef-d3a18edadc05",
+        "oracleId": "c8fd2232-e499-4889-a2ca-e486ea87d02b",
+        "firstSet": "pls",
+        "firstPrintId": "a85e590f-0a4a-4ad0-b8ef-d3a18edadc05",
+        "firstPrintSet": "pls",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -63357,6 +63447,16 @@
         "firstPrintId": "edad0276-45d1-45e5-a6b1-1cd2a99b4f2c",
         "firstPrintSet": "ths",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Treachery",
+        "scryfallId": "613694aa-b169-400d-8063-2b83d8303611",
+        "oracleId": "8ed57194-7508-4aef-9373-64f7e80612d8",
+        "firstSet": "uds",
+        "firstPrintId": "613694aa-b169-400d-8063-2b83d8303611",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
         "source": "compiled"
     },
     {

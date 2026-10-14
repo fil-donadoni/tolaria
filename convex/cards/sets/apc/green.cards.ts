@@ -92,7 +92,6 @@ export const gaeasBalance = defineCard(() => ({
 // The Goblin Piledriver shape (`ons/red.cards.ts`): a `pump` on `$source` whose power
 // AND toughness are the `count` of attacking Kavu excluding the source itself.
 // `acrossAllPlayers` because the Oracle line scopes the count to no controller.
-// hand-tail: Whenever this creature attacks, it gets +1/+1 until end of turn for each other attacking Kavu. (#4337)
 export const kavuMauler = defineCard(() => ({
     id: "79adc3af-5fa3-4cb6-9bbc-52ede0c69263", // APC 80
     rarity: "rare",

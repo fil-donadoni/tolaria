@@ -55,7 +55,11 @@ import {
     terminated,
     type Rule,
 } from "../../rule";
-import { conditionRule, type TriggerConditionIR } from "../shared/condition";
+import {
+    conditionRule,
+    kickedTriggerConditionRule,
+    type TriggerConditionIR,
+} from "../shared/condition";
 import {
     assembleSentences,
     assemblyTrace,
@@ -116,7 +120,7 @@ const plainTail: Rule<TailIR> = rule("trigger effects", (span, ctx) => {
 const conditionalTail: Rule<TailIR> = pair(
     "conditional trigger tail",
     ", ",
-    conditionRule,
+    oneOf("trigger condition", [conditionRule, kickedTriggerConditionRule]),
     plainTail,
     (condition, tail): TailIR => ({ ...tail, condition })
 );
@@ -130,7 +134,14 @@ const conditionalTailNoPronoun: Rule<TailIR> = rule(
     "conditional trigger tail",
     (span, ctx) => {
         const parsed = conditionalTail.run(span, ctx);
-        if (parsed.ok && parsed.value.boundPronoun)
+        // CR 702.33e — "if it was kicked …, it deals 2 damage": the
+        // condition's "it" IS the permanent the head names, so it displaces
+        // no referent and the tail's "it" keeps naming the source.
+        if (
+            parsed.ok &&
+            parsed.value.boundPronoun &&
+            parsed.value.condition?.kind !== "kicked-permanent"
+        )
             return fail(
                 '"it" after an intervening-if clause may name the condition, not the source',
                 span
@@ -189,6 +200,19 @@ const triggeredBody: Rule<SlotIR> = rule("triggered body", (span, ctx) => {
     )
         return fail(
             '"If it was kicked" needs a head that fires when this permanent enters',
+            span
+        );
+    // CR 702.33e — the same holds for the intervening-if form: "it" is the
+    // permanent this trigger is printed on, entering.
+    if (
+        parsed.value.tail.condition?.kind === "kicked-permanent" &&
+        !(
+            parsed.value.head.kind === "enters" &&
+            parsed.value.head.scope === "self"
+        )
+    )
+        return fail(
+            '"if it was kicked" needs a head that fires when this permanent enters',
             span
         );
     // CR 602.5 — there is no activation to restrict on a trigger, so a

@@ -1270,6 +1270,36 @@ export function ownPermanentChoiceFilterFromDescriptor(
     return ok(filter);
 }
 
+/**
+ * Descriptor → the `choice` Op's battlefield filter for "untap up to N lands"
+ * (CR 701.26b): the chooser picks from EVERY player's battlefield, because the
+ * phrase prints no "you control" (CR 109.2).
+ *
+ * Accepts exactly a plural permanent type or type list and refuses every other
+ * clause, "you control" included: that is a different pool (the chooser's own),
+ * and reading it here would widen or narrow the legal picks silently.
+ */
+export function unqualifiedPermanentChoiceFilter(
+    descriptor: DescriptorIR
+): RuleResult<EffectCardFilter> {
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined) continue;
+        if (!["types", "plural"].includes(field))
+            return fail(
+                `"${field}" is not expressible as an all-battlefields choice filter`,
+                field
+            );
+    }
+    const types = descriptor.types;
+    if (
+        descriptor.plural !== true ||
+        types === undefined ||
+        !types.every((t) => SACRIFICABLE_TYPES.has(t))
+    )
+        return fail("the choice names plural permanent types", "types");
+    return ok({ type: types.length === 1 ? types[0]! : [...types] });
+}
+
 /** "creatures they control", "creatures and planeswalkers that player controls". */
 const SUPERLATIVE_SET = /^(.+) (?:they control|that player controls)$/;
 

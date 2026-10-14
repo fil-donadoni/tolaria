@@ -55,7 +55,6 @@ export const lavaDart = defineCard(() => ({
 // Goblin attacking is a Goblin attacking whoever controls it (nothing in the
 // Oracle line scopes the count to permanents you control).
 //
-// compiler-gap: Whenever this creature attacks, it gets +2/+0 until end of turn for each other attacking Goblin. (#2693)
 export const goblinPiledriver = defineCard(() => ({
     id: "f6c4df1f-f148-42ec-8e22-e7114216927d", // ONS 205
     rarity: "rare",
