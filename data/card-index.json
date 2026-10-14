@@ -27398,6 +27398,16 @@
         "source": "compiled"
     },
     {
+        "name": "Haazda Shield Mate",
+        "scryfallId": "8940e8c6-1423-4dbf-89c8-9055bf15d4ec",
+        "oracleId": "49b689a3-9197-4a04-a62f-218b245d6e23",
+        "firstSet": "dis",
+        "firstPrintId": "8940e8c6-1423-4dbf-89c8-9055bf15d4ec",
+        "firstPrintSet": "dis",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Hag of Death's Legion",
         "scryfallId": "9079b01a-d595-4085-9e75-59e31827efeb",
         "oracleId": "040cbd08-7c8c-46c4-9ab6-d7ec0c43f9d2",
@@ -49626,6 +49636,16 @@
         "source": "compiled"
     },
     {
+        "name": "Righteous Aura",
+        "scryfallId": "fed82843-2853-42d3-bcf6-b831032b7a69",
+        "oracleId": "5bf93d4f-be59-4aa7-83d5-7c35d1f07fae",
+        "firstSet": "vis",
+        "firstPrintId": "fed82843-2853-42d3-bcf6-b831032b7a69",
+        "firstPrintSet": "vis",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Righteous Avengers",
         "scryfallId": "d96b463e-9579-4e7b-87c2-342527b91e7c",
         "oracleId": "e7c07e41-3654-47da-afe3-88aae4c034b6",
@@ -50876,6 +50896,76 @@
         "firstSet": "lci",
         "firstPrintId": "06d47a3b-dc66-48d8-981b-dde0ccc34ad5",
         "firstPrintSet": "lci",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Artifacts",
+        "scryfallId": "e18cce33-92be-4189-9f99-cb47bd617fd2",
+        "oracleId": "469c4b77-733e-472b-aeae-6015b409beb2",
+        "firstSet": "usg",
+        "firstPrintId": "e18cce33-92be-4189-9f99-cb47bd617fd2",
+        "firstPrintSet": "usg",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Black",
+        "scryfallId": "3f69050b-c54d-43f2-8348-2801c365dc4c",
+        "oracleId": "b027302f-80c2-441d-a9fd-bbe64bf5cf8a",
+        "firstSet": "usg",
+        "firstPrintId": "3f69050b-c54d-43f2-8348-2801c365dc4c",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Blue",
+        "scryfallId": "85f4ed3a-1851-49b1-baac-fdc8c00b6b71",
+        "oracleId": "092dd5be-da62-4198-b7fa-0813f075047c",
+        "firstSet": "usg",
+        "firstPrintId": "85f4ed3a-1851-49b1-baac-fdc8c00b6b71",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Green",
+        "scryfallId": "905712b2-3177-4935-bca1-6990439b8d78",
+        "oracleId": "c7fca3f3-b48e-4ac5-be31-ce7ae3c7432c",
+        "firstSet": "usg",
+        "firstPrintId": "905712b2-3177-4935-bca1-6990439b8d78",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Lands",
+        "scryfallId": "4e874700-8002-41e7-8861-b4ce29ba6d9e",
+        "oracleId": "605dd1b5-8946-4bd0-b31b-e99bf63a1bc4",
+        "firstSet": "usg",
+        "firstPrintId": "4e874700-8002-41e7-8861-b4ce29ba6d9e",
+        "firstPrintSet": "usg",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: Red",
+        "scryfallId": "2916023b-cf67-443f-9ac7-f03313f9d3b7",
+        "oracleId": "9b3f6b29-675a-4153-9582-03318851b20e",
+        "firstSet": "usg",
+        "firstPrintId": "2916023b-cf67-443f-9ac7-f03313f9d3b7",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rune of Protection: White",
+        "scryfallId": "6408417e-aca3-43f3-9eea-fed5a402d8ab",
+        "oracleId": "6f214a42-e38f-4923-8afc-832efdde7975",
+        "firstSet": "usg",
+        "firstPrintId": "6408417e-aca3-43f3-9eea-fed5a402d8ab",
+        "firstPrintSet": "usg",
         "rarity": "common",
         "source": "compiled"
     },

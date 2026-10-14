@@ -27,7 +27,6 @@ import { isGuardedAgainst } from "../../../../gre/permanentGuard";
 import { validateBlockerEligibility } from "../../../../gre/combat";
 import { applyAllCombatDamage } from "../../../../gre/phases";
 import type { CardType } from "../../../types";
-import { vanilla } from "./set.helper";
 import { getDefinition } from "../../../index";
 
 const ornithopter = getDefinition("59cc9bdb-7cf2-4795-bac7-ffff605c9eb0");
@@ -39,9 +38,6 @@ const argivianArchaeologist = getDefinition(
 const triskelion = getDefinition("a79c99e1-722a-44b6-8fa3-2be3f0c193d8");
 const argivianBlacksmith = getDefinition(
     "5f604338-5ee4-4c47-ad5a-5c805c96c8de"
-);
-const circleOfProtectionArtifacts = getDefinition(
-    "22ebd5a3-fef8-4097-b038-89a6cb38227d"
 );
 const artifactWard = getDefinition("b3a5101a-ec66-4658-950c-9ad49c29b836");
 const martyrsOfKorlis = getDefinition("bde037b9-4947-4ff7-8ea4-e9f1a7e4ab88");
@@ -99,66 +95,6 @@ describe("Argivian Blacksmith (prevent next 2 to target creature, CR 615.1)", ()
             targetId: "robot",
             remaining: 2,
         });
-    });
-});
-
-// Circle of Protection: Artifacts (CR 615.1 source-prevention via COP factory)
-describe("Circle of Protection: Artifacts (CR 615.1)", () => {
-    it("registers an end-of-turn prevention against the chosen artifact source", () => {
-        const cop = makeInstance(circleOfProtectionArtifacts.id, { id: "cop" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2"),
-            ],
-        });
-        // Chosen source: an artifact permanent that would damage p1.
-        const robot = makeInstance(ornithopter.id, {
-            id: "robot",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        state.players[1].battlefield.push(robot);
-        resolveActivated(state, cop, "cop-prevent", [
-            { type: "permanent", id: "robot" },
-        ]);
-        expect(state.preventionEffects).toEqual([
-            {
-                sourceInstanceId: "robot",
-                playerId: "p1",
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
-    });
-
-    it("the COP ability lists artifact permanents as legal sources, not creatures", () => {
-        const cop = makeInstance(circleOfProtectionArtifacts.id, { id: "cop" });
-        const robot = makeInstance(ornithopter.id, {
-            id: "robot",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const bear = vanilla("bear", 2, 2, {
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2", { battlefield: [robot, bear] }),
-            ],
-        });
-        const ability = circleOfProtectionArtifacts.activatedAbilities!.find(
-            (a) => a.id === "cop-prevent"
-        )!;
-        const legal = getLegalTargets(
-            state,
-            ability.targetRequirement!,
-            NO_TARGETING_SOURCE,
-            "p1"
-        ).map((t) => t.id);
-        expect(legal).toContain("robot");
-        expect(legal).not.toContain("bear");
     });
 });
 

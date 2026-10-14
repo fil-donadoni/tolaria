@@ -437,6 +437,22 @@ function readChoiceZone(
             // eligible snapshot.
             cards = owner.graveyard;
             break;
+        case "battlefield-or-stack": {
+            // CR 609.7a (issue #5601) — "a source of your choice": a permanent
+            // of either seat or a spell on the stack, all public. The
+            // `candidateIds` allow-list (the server's filtered pool) is the
+            // authority AND the order — topmost spell first — so the
+            // minimal-legal answer names the spell about to resolve.
+            const byId = new Map<string, SlimCardInstance>();
+            for (const c of state.players.flatMap((p) => p.battlefield))
+                byId.set(c.id, c);
+            for (const s of state.stack) byId.set(s.id, s);
+            cards = (head.candidateIds ?? []).flatMap((id) => {
+                const c = byId.get(id);
+                return c ? [c] : [];
+            });
+            break;
+        }
         case "exile":
             // Dauthi Voidwalker (CR 601.3, issue #1156) — choose an exiled
             // card an opponent owns with a void counter. Exile is a public

@@ -1135,8 +1135,10 @@ export const glimmeringAngel = defineCard(() => ({
 // CR 615.1a — the shield is recipient-scoped (`to: { player: "controller" }`):
 // the chosen source's damage to anything other than you is untouched.
 //
-// DIVERGENCE (tracked-by: #3732) — the DSL `choice` reaches permanents only;
-// CR 609.7a also allows a spell on the stack as the source.
+// DIVERGENCE (tracked-by: #3732) — this pick is the battlefield-only
+// `choose-permanents`, so a spell on the stack cannot be chosen (CR 609.7a
+// allows one): the `pick-source` choice that reaches the stack (issue #5601)
+// filters by literal colours, not yet by the mana spent.
 //
 // hand-tail: "Prevent all damage that would be dealt to you this turn by a source of your choice that shares a color with the mana spent on this activation cost." (#4596)
 export const protectiveSphere = defineCard(() => ({

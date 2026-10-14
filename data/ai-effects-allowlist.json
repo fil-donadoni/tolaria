@@ -2044,13 +2044,6 @@
     },
     {
         "class": "ability",
-        "cardId": "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
-        "name": "Pentagram of the Ages",
-        "abilityId": "pentagram-of-the-ages-prevent",
-        "note": "no honest shadow script: pre-existing ability-level resolve()/resolveSteps ability, scope extension tracked by #1519"
-    },
-    {
-        "class": "ability",
         "cardId": "caf9cef4-0f2d-478a-b119-fe1967687f74",
         "name": "Personal Incarnation",
         "abilityId": "pinc-ltb",

@@ -8,6 +8,7 @@ import type {
     LibraryDestination,
     LookDistributeDestination,
     LookDistributeKeepTo,
+    PendingChoiceZone,
 } from "../gre/types";
 
 // A hand-written Card Definition as a memoised factory (issue #4857): Set
@@ -2389,7 +2390,11 @@ export interface AnimateSpec {
 // Defined in `./filters.ts` (single source of truth, ADR 0002). Re-exported
 // here for back-compat with existing imports from `convex/cards/types`.
 
-import type { PermanentFilter, SpellFilter } from "./filters";
+import type {
+    DamageSourceFilter,
+    PermanentFilter,
+    SpellFilter,
+} from "./filters";
 import type { ContinuousEffect } from "../gre/continuousEffects";
 export type { PermanentFilter, SpellFilter } from "./filters";
 
@@ -5482,6 +5487,23 @@ export interface SpellContext {
         playerId: string,
         duration: DurationSpec
     ) => void;
+    /** CR 609.7a (issue #5601) — the ids a player may choose as "a source of
+     *  damage": every spell on the stack (topmost first), then every
+     *  permanent on the battlefield, narrowed by `filter` against each
+     *  object's current colours and types. Not targeting (CR 115.1): shroud,
+     *  hexproof and protection remove no candidate. Single authority:
+     *  `damageSourceChoiceIds` (`gre/damageSourceChoice.ts`). */
+    getDamageSourceChoiceIds: (filter?: DamageSourceFilter) => string[];
+    /** CR 612 (issue #5601) — the colour a colour word in the RESOLVING
+     *  object's own text names now: `color` read through the colour-word text
+     *  changes on the stack item. An activated ability's stack item carries
+     *  its source's changes as they stood when it was put on the stack
+     *  (CR 113.7a — independent of its source from then on), so Sleight of
+     *  Mind turning a Circle of Protection: White's "white" into "red" makes
+     *  its source choice a red one. Colourless has no word and passes
+     *  through. Single authority: `substituteColorFilter`
+     *  (`gre/textChanges.ts`). */
+    substituteColorWord: (color: Color) => Color;
     /** Records a damage-prevention shield on `target` that absorbs up to
      *  `amount` total damage from any source (CR 615.1, 615.6). Each damage
      *  event reduces the shield by the absorbed amount; an event whose damage
@@ -6375,7 +6397,7 @@ export interface SpellContext {
         // submitted subset is pile A; the zone-minus-submission remainder is
         // pile B) — no bespoke primitive needed, "generalize don't add".
         kind: ZonePickKind | "divide-piles";
-        zone: "battlefield" | "hand" | "library" | "graveyard" | "exile";
+        zone: PendingChoiceZone;
         filter?: PermanentFilter;
         count: number | { min: number; max: number };
         prompt: string;
@@ -14771,7 +14793,15 @@ export type EffectChoiceKind =
     // `choice.candidates` is legal for `zone: "library"` only with this kind,
     // and only when every candidate names a picks binding an earlier Op in the
     // same script both BOUND and REVEALED.
-    | "choose-library-card";
+    | "choose-library-card"
+    // "A source of your choice" (CR 609.7a, issue #5601) — pick ONE object
+    // from `zone: "battlefield-or-stack"`: any permanent, or any spell on the
+    // stack. Not a target (CR 115.1), so shroud/hexproof/protection bar no
+    // candidate. `filter` narrows by `color` / `type` only (the two axes the
+    // printed qualifiers use — "a red source", "an artifact source"); the
+    // picks binding holds the chosen id, which may be a STACK object, and is
+    // read by `preventDamage`'s `"next-from-source"` mode.
+    | "pick-source";
 
 /** One mode of an `optionChoice` Op (ADR 0045, issue #849) — a labelled
  *  sub-effect-list. The chooser picks one mode; the interpreter then runs that
@@ -17320,6 +17350,34 @@ export type EffectOp =
            *  card scopes a source shield to one permanent. */
           to?: { player: EffectPlayerRef };
       }
+    /** `"next-from-source"` (CR 609.7 / 615.1a, issue #5601) →
+     *  `preventNextDamageFromSource`: "The next time <source> would deal
+     *  damage to <player> this turn, prevent that damage" (Circle of
+     *  Protection, Pentagram of the Ages). ONE damage event from the chosen
+     *  source to ONE player is prevented, whatever its size, and the shield
+     *  is used up (CR 615.6 — prevented damage never happens); the same
+     *  source's damage to anything else, and its later damage to that
+     *  player, are untouched. That is the difference from `"all-from-source"`
+     *  with `to`, which prevents ALL of that source's damage to the player
+     *  for the turn.
+     *
+     *  `source` is a bare PICKS ref — the binding of a `choice` Op of
+     *  `kind: "pick-source"` — and is read as the raw chosen id with NO
+     *  presence recheck: CR 609.7a lets the choice be a spell on the stack,
+     *  which no battlefield-scoped object selector resolves, and the shield
+     *  is keyed on that id (a permanent spell keeps it as it resolves, so
+     *  the shield follows it onto the battlefield — CR 609.7a's last
+     *  sentence). An uncaptured binding (no legal source) skips the Op.
+     *  `to` is resolved ONCE as the effect is created (CR 608.2 — "you" is
+     *  the resolving controller). `duration` scopes the unused shield
+     *  (`{ phase: "end-of-turn" }` for "this turn"). */
+    | {
+          op: "preventDamage";
+          mode: "next-from-source";
+          source: { ref: string };
+          to: { player: EffectPlayerRef };
+          duration: DurationSpec;
+      }
     /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
      *  FILTER-scoped shield and no target named at all: prevent all damage
      *  every source matching `match` would deal this turn (Radiant Kavu:
@@ -18184,7 +18242,9 @@ export type EffectOp =
           /** The chooser. Defaults to also being the owner of the zone picked
            *  from (Mind Rot, Innocent Blood — the common case). */
           player: EffectPlayerRef;
-          zone: "battlefield" | "hand" | "library" | "graveyard" | "exile";
+          /** `"battlefield-or-stack"` is `kind: "pick-source"`'s pool and
+           *  only its (CR 609.7a — see `PendingChoiceZone`). */
+          zone: PendingChoiceZone;
           /** Owner of the zone picked from, when it differs from the chooser
            *  (issue #920 generalization). Maps 1:1 onto the `zoneOwnerId`
            *  parameter `SpellContext.requestChoice` already accepts and

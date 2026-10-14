@@ -36,7 +36,10 @@ import {
     pendingCastHasImprovise,
     displayCardId,
 } from "~/lib/card-utils";
-import { pendingChoiceRoutesToBattlefield } from "~/lib/pending-choice-labels";
+import {
+    pendingChoiceRoutesToBattlefield,
+    pendingChoiceSpansAllBattlefields,
+} from "~/lib/pending-choice-labels";
 import {
     isBarredByRequiredTargetChoice,
     isUntargetableByPending,
@@ -427,7 +430,7 @@ export function useBattlefieldInteraction(player: Player) {
     const isSelectingChoice =
         isViewerChoosing &&
         pendingChoiceRoutesToBattlefield(activeChoice!) &&
-        (activeChoice!.allControllers === true ||
+        (pendingChoiceSpansAllBattlefields(activeChoice!) ||
             choiceZoneOwnerId === player.id);
 
     // Unified sacrifice picker (CR 701.21a). Active whenever a SacrificeSelection

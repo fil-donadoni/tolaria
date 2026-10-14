@@ -105,6 +105,7 @@ import type {
     TargetSelection,
     TokenSpec,
 } from "../../cards/types";
+import type { DamageSourceFilter } from "../../cards/filters";
 import {
     isChoiceCountRange,
     legalTargetSlots,
@@ -1078,6 +1079,40 @@ function resolveScaledOperand(
  *  the exact bug class the `any` mapping note below records. A sentinel in
  *  the return type makes every caller handle it or fail to compile. */
 const UNMATCHABLE_FILTER = "unmatchable-filter" as const;
+
+/** CR 609.7a (issue #5601) — maps a `pick-source` choice's `EffectCardFilter`
+ *  onto the `DamageSourceFilter` its pool is read through. The validator
+ *  admits only a literal `color` (one colour, or an array meaning "any of
+ *  them") and `type`; anything else — a dynamic colour ref, a filter key the
+ *  stack side has no reading for — is UNMATCHABLE here, never dropped (a
+ *  dropped constraint would offer every source: fail-open). */
+function toDamageSourceFilter(
+    ctx: SpellContext,
+    filter: EffectCardFilter | undefined
+): DamageSourceFilter | undefined | typeof UNMATCHABLE_FILTER {
+    if (!filter) return undefined;
+    if (Object.keys(filter).some((key) => key !== "color" && key !== "type"))
+        return UNMATCHABLE_FILTER;
+    const { color, type } = filter;
+    if (
+        color !== undefined &&
+        typeof color !== "string" &&
+        !Array.isArray(color)
+    )
+        return UNMATCHABLE_FILTER;
+    // CR 612 — the colour is a colour WORD of this ability's text, so a
+    // text change (Sleight of Mind) re-points it.
+    const colors =
+        color === undefined
+            ? undefined
+            : (Array.isArray(color) ? color : [color]).map((c) =>
+                  ctx.substituteColorWord(c)
+              );
+    return {
+        ...(colors === undefined ? {} : { colors }),
+        ...(type === undefined ? {} : { types: type }),
+    };
+}
 
 /** Maps the JSON-pure `EffectCardFilter` onto the engine's `PermanentFilter`
  *  shape (shared by the `count` construct and the `choice` Op's battlefield
@@ -2375,6 +2410,20 @@ function choiceCandidates(
         (op.zone !== "battlefield" || op.candidates || op.allControllers)
     ) {
         return { available: 0, candidateIds: [] };
+    }
+    if (op.zone === "battlefield-or-stack") {
+        // CR 609.7a (issue #5601) — "a source of your choice": every
+        // permanent and every spell on the stack, narrowed by the printed
+        // qualifier, decided ONCE as the choice is raised and carried as the
+        // explicit allow-list the submit validator, the client and the Bot
+        // all read. Never a target (CR 115.1): the pool ignores shroud,
+        // hexproof and protection.
+        const filter = toDamageSourceFilter(ctx, op.filter);
+        if (filter === UNMATCHABLE_FILTER) {
+            return { available: 0, candidateIds: [] };
+        }
+        const ids = ctx.getDamageSourceChoiceIds(filter);
+        return { available: ids.length, candidateIds: ids };
     }
     if (op.zone === "battlefield") {
         // CR 601.2c / 608.2 — `candidates` narrows the pick to specific
@@ -5178,6 +5227,29 @@ export const OP_EXECUTORS: {
             });
             return;
         }
+        if (op.mode === "next-from-source") {
+            // CR 609.7a / 615.1a (issue #5601) — "the next time <the chosen
+            // source> would deal damage to <player> this turn, prevent that
+            // damage": one shield per picked id, used up by the first damage
+            // event from that source to that player. The id is read RAW from
+            // the picks binding, never re-resolved through the battlefield:
+            // the chosen source may be a spell on the stack, and the shield
+            // is keyed on its instance id (`dealDamage` sources a spell's
+            // damage from that same id). An uncaptured binding — no legal
+            // source was there to choose — creates no shield.
+            const sourceIds = resolvePicks(ctx, op.source);
+            if (!sourceIds || sourceIds.length === 0) return;
+            const playerId = resolvePlayerRef(ctx, op.to.player);
+            if (playerId === undefined) return;
+            for (const sourceId of sourceIds) {
+                ctx.preventNextDamageFromSource(
+                    sourceId,
+                    playerId,
+                    op.duration
+                );
+            }
+            return;
+        }
         if (op.mode === "next-n-divided") {
             // CR 615.1 / 601.2d / 120.4 (issue #1955) — the DIVIDED sibling of
             // "next-n": one prevent-the-next-N shield per announced target,
@@ -6087,7 +6159,12 @@ export const OP_EXECUTORS: {
             choiceId,
             kind: op.kind,
             zone: op.zone,
-            filter: pickFilter,
+            // A `battlefield-or-stack` pool is wholly carried by its
+            // `candidateIds`; a `PermanentFilter` has no reading for a spell
+            // on the stack, so none rides the PendingChoice there.
+            ...(op.zone === "battlefield-or-stack"
+                ? {}
+                : { filter: pickFilter }),
             count,
             prompt: op.prompt,
             // A no-hit library search carries an EMPTY allow-list, so the

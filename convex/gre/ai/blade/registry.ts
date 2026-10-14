@@ -13412,6 +13412,59 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5161, the ordering twin of the entry above: the hand order reversed, so the answer is the valuation's and not the enumeration order's.",
     },
+    {
+        // CR 609.7a (issue #5601) — "a source of your choice" may be a SPELL
+        // on the stack. The opponent's Lightning Bolt reaches the stack through
+        // the real cast pipeline, aimed at the bot; the bot answers with its
+        // Circle of Protection: Red through the real activation path, and
+        // `resolve-top` resolves the Circle's ability, which is what OPENS the
+        // live `pick-source` choice. The other red source on the board is a
+        // summoning-sick Gray Ogre that can deal the bot no damage this turn,
+        // so only the Bolt is worth a shield.
+        label: "source of your choice: shields itself from the burn spell on the stack, not an idle red creature",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                { name: "Lightning Bolt", owner: "me", zone: "hand" },
+                { name: "Mountain", owner: "me", zone: "battlefield" },
+                {
+                    name: "Gray Ogre",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Circle of Protection: Red",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 3,
+            landCount: 0,
+            libraryCount: 20,
+            // The Circle's {1}, floating: a setup `activate` cannot walk a
+            // tap-to-pay decision forward.
+            manaPool: { opp: { W: 1 } },
+        },
+        setup: [
+            { kind: "cast", card: "Lightning Bolt", by: "me", target: "opp" },
+            {
+                kind: "activate",
+                card: "Circle of Protection: Red",
+                controller: "opp",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Lightning Bolt" }],
+        },
+        note: "Issue #5601. The root decision is the live CR 609.7a source choice, reached by really casting the Bolt and really activating and resolving the Circle: its pool spans the stack (the Bolt) and the battlefield (the Ogre). Proof-of-failure: dropping the stack's spells from `damageSourceChoicePool` (`gre/damageSourceChoice.ts`) leaves the Ogre as the only answer and the entry reds.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the

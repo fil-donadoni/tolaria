@@ -471,6 +471,30 @@ describe("board battlefield choice parity (#279, CR 608.2)", () => {
         fireEvent.click(spatialCard(own.container, "mybear"));
         expect(bufferToggle).toHaveBeenCalledWith("mybear");
     });
+
+    // CR 609.7a (issue #5601) — "a source of your choice": every permanent is
+    // in the pool (beside the stack's spells), and the server's `candidateIds`
+    // allow-list — the printed qualifier — decides which are clickable.
+    it("(c-source) a source pick is interactive on every battlefield, gated by its candidateIds", () => {
+        const me = makePlayer("me", []);
+        const opp = makePlayer("opp", [
+            creature("red-src", "opp"),
+            creature("white-src", "opp"),
+        ]);
+        const ctx = choiceCtx({
+            kind: "pick-source",
+            zone: "battlefield-or-stack",
+            candidateIds: ["red-src"],
+        });
+
+        const { container } = renderSpatialBf(opp, [me, opp], ctx);
+        fireEvent.click(spatialCard(container, "red-src"));
+        expect(bufferToggle).toHaveBeenCalledWith("red-src");
+
+        bufferToggle.mockClear();
+        fireEvent.click(spatialCard(container, "white-src"));
+        expect(bufferToggle).not.toHaveBeenCalled();
+    });
 });
 
 describe("board hand choice parity (#279, CR 608.2)", () => {

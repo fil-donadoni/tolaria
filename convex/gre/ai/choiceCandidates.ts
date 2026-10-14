@@ -2235,6 +2235,55 @@ const choosePermanentsCandidates: ChoiceCandidateGenerator = (
     return out;
 };
 
+/** `pick-source` (CR 609.7a), issue #5601 — "a source of your choice": ONE
+ *  permanent of either seat or ONE spell on the stack, never targeted (the
+ *  Circle of Protection cycle, Pentagram of the Ages). With no generator the
+ *  choice was no decision node, so a probe of the activation stopped at the
+ *  suspended pick and never scored the shield it buys — and the Circle,
+ *  whose source used to be an announced TARGET the search saw, would have
+ *  read as {1} spent for nothing.
+ *
+ *  The pool is `eligibleZonePickCards` — the authority the submit path
+ *  validates against (the CR 609.7a pool and its filtered allow-list). One
+ *  singleton per candidate, because the answer is exactly one source; the
+ *  search scores which shield is worth having. Ownership only orders the
+ *  `CHOICE_TOP_K` budget — the opponent's objects first, the chooser's own
+ *  after, each in the pool's topmost-spell-first order — it never filters.
+ *  Two permanents of one identity are one answer; a spell keys on its stack
+ *  position as well, since two copies of one spell can aim at different
+ *  things. No `hint`: a pick gives up and gains no material of its own. */
+const pickSourceCandidates: ChoiceCandidateGenerator = (state, choice) => {
+    const chooserId = choice.playerId;
+    const pool = eligibleZonePickCards(state, choice);
+    const ordered = [
+        ...pool.filter((c) => c.controllerId !== chooserId),
+        ...pool.filter((c) => c.controllerId === chooserId),
+    ];
+    const out: Omit<ChoiceCandidate, "prior">[] = [];
+    const seen = new Set<string>();
+    for (const card of ordered) {
+        if (out.length >= CHOICE_TOP_K) break;
+        const stackIndex = state.stack.findIndex((s) => s.id === card.id);
+        const identity =
+            stackIndex >= 0
+                ? `spell@${stackIndex} ${card.controllerId === chooserId ? "mine" : "theirs"}:${stableCardIdentity(card)}`
+                : sidedPickIdentity(state, card, chooserId);
+        if (seen.has(identity)) continue;
+        seen.add(identity);
+        out.push({
+            key: `pick-source:${identity}`,
+            move: {
+                kind: "resolution-choice",
+                stackItemId: choice.stackItemId,
+                step: choice.step,
+                choiceId: choice.choiceId,
+                cardInstanceIds: [card.id],
+            },
+        });
+    }
+    return out;
+};
+
 /** The registry: choice kind → candidate generator. A kind with NO generator is
  *  not yet an in-tree decision node — the search treats it exactly as before
  *  (no decider, playout stops there), so adding a tranche is purely additive. */
@@ -2295,6 +2344,10 @@ export const CHOICE_CANDIDATE_GENERATORS: Partial<
     // could not get past a suspended "choose [up to] N permanents", and the
     // minimal-legal default answered every "up to N" with nothing.
     "choose-permanents": choosePermanentsCandidates,
+    // CR 609.7a (issue #5601) — see `pickSourceCandidates`: without a
+    // generator the settle stopped at the source pick and never scored the
+    // shield the Circle of Protection buys.
+    "pick-source": pickSourceCandidates,
 };
 
 /** Per-kind APPLICABILITY predicate, read from the `PendingChoice` alone.

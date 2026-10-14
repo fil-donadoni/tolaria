@@ -1170,9 +1170,17 @@ function collectOps(node: unknown, out: EffectOp[]): void {
  *  the ability's OWN source, which the `sacrifice` valuer prices as
  *  `SAC_SELF_COST` (the pay-or-lose penalty of a cumulative upkeep or an
  *  echo). A sacrifice over picks — an edict, or a cost the controller wants
- *  to pay — stays neutral and keeps the floor. */
+ *  to pay — stays neutral and keeps the floor.
+ *
+ *  A `pick-source` choice (CR 609.7a, issue #5601) is a binder too, and only
+ *  that kind: the chooser freely names the source a following shield reads
+ *  (`preventDamage` `"next-from-source"`), so the stake is the shield's. It
+ *  keeps the Circle of Protection cycle exactly as complete as it was while
+ *  a one-Op `aiEffects` shadow priced that same shield. The other free-pick
+ *  kinds are not looked through: their readers are not one shape. */
 function isPricedNeutralOp(op: EffectOp): boolean {
     if (BINDING_ONLY_OPS.has(op.op)) return true;
+    if (op.op === "choice" && op.kind === "pick-source") return true;
     return (
         op.op === "sacrifice" &&
         op.permanents === undefined &&

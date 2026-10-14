@@ -90,6 +90,7 @@ export default function StackRow({
     order,
     isTop,
     isTargetable,
+    isSelected = false,
     onSelect,
     onHoverSeed,
     dimmed,
@@ -104,6 +105,10 @@ export default function StackRow({
     order: number;
     isTop: boolean;
     isTargetable: boolean;
+    /** Picked into the open choice's buffer — a CR 609.7a "source of your
+     *  choice" pick of this spell (issue #5601). Reads as the `selected`
+     *  role (ADR 0103 §8) rather than the targetable one. */
+    isSelected?: boolean;
     onSelect: () => void;
     onHoverSeed: (seeding: boolean) => void;
     /** Dimmed out of the hovered arrow relationship (combat-read dimming). */
@@ -217,10 +222,13 @@ export default function StackRow({
                         ? "border-accent/50 bg-accent-soft/40"
                         : "border-border-strong"
                 } ${
-                    isTargetable
-                        ? "cursor-pointer ring-2 ring-signal-target/60 hover:ring-signal-target-strong"
-                        : "cursor-default"
+                    isSelected
+                        ? "cursor-pointer ring-2 ring-signal-self"
+                        : isTargetable
+                          ? "cursor-pointer ring-2 ring-signal-target/60 hover:ring-signal-target-strong"
+                          : "cursor-default"
                 }`}
+                data-choice-selected={isSelected ? "true" : undefined}
             >
                 <span className="relative block w-16 shrink-0 self-start">
                     {kind ? (

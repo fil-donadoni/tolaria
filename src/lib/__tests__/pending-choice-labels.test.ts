@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
+    isStackChoiceCandidate,
     pendingChoiceRoutesToBattlefield,
     pendingChoiceRequiresBoardTap,
+    pendingChoiceSpansAllBattlefields,
 } from "../pending-choice-labels";
 import type { PendingChoice } from "~/types/game";
 
@@ -203,5 +205,48 @@ describe("pendingChoiceRequiresBoardTap (issue #1813, review fixup #1823 finding
                 })
             )
         ).toBe(false);
+    });
+});
+
+// CR 609.7a (issue #5601) — the "source of your choice" pool: every permanent,
+// whoever controls it, and every spell on the stack.
+describe("the battlefield-or-stack source pool (issue #5601)", () => {
+    const sourcePick = (over: Partial<PendingChoice> = {}) =>
+        choice({
+            kind: "pick-source",
+            zone: "battlefield-or-stack",
+            candidateIds: ["bolt", "ogre"],
+            ...over,
+        });
+
+    it("routes battlefield clicks, on every player's battlefield", () => {
+        expect(pendingChoiceRoutesToBattlefield(sourcePick())).toBe(true);
+        expect(pendingChoiceSpansAllBattlefields(sourcePick())).toBe(true);
+        expect(
+            pendingChoiceSpansAllBattlefields(
+                choice({ kind: "choose-permanents", zone: "battlefield" })
+            )
+        ).toBe(false);
+    });
+
+    it("offers a stack object only to the chooser, and only off the allow-list", () => {
+        expect(isStackChoiceCandidate(sourcePick(), "me", "bolt")).toBe(true);
+        expect(isStackChoiceCandidate(sourcePick(), "me", "growth")).toBe(
+            false
+        );
+        expect(isStackChoiceCandidate(sourcePick(), "opp", "bolt")).toBe(false);
+        // A battlefield-only pick never reaches the stack.
+        expect(
+            isStackChoiceCandidate(
+                choice({
+                    kind: "choose-permanents",
+                    zone: "battlefield",
+                    candidateIds: ["bolt"],
+                }),
+                "me",
+                "bolt"
+            )
+        ).toBe(false);
+        expect(isStackChoiceCandidate(undefined, "me", "bolt")).toBe(false);
     });
 });

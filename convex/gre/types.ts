@@ -31,6 +31,21 @@ export type Phase =
     | "END_STEP"
     | "CLEANUP";
 
+/** Where a zone-pick Pending Choice's candidates live — one shared union for
+ *  `PendingChoice.zone`, `SpellContext.requestChoice` and the `choice` Op.
+ *  Five are zones (CR 400.1). `"battlefield-or-stack"` is not one zone but
+ *  the pool CR 609.7a lets a player choose "a source of damage" from — every
+ *  permanent and every spell on the stack (issue #5601, issue #3731); its
+ *  single authority is `damageSourceChoicePool` (`gre/damageSourceChoice.ts`)
+ *  and it always travels with an explicit `candidateIds` allow-list. */
+export type PendingChoiceZone =
+    | "battlefield"
+    | "hand"
+    | "library"
+    | "graveyard"
+    | "exile"
+    | "battlefield-or-stack";
+
 /** Pending-choice family taxonomy (see `state.ts` `PendingChoice` for the
  *  full doc). Lives here so it can be imported by both `cards/types.ts`
  *  (typing `SpellContext.requestChoice`) and `gre/state.ts` (typing

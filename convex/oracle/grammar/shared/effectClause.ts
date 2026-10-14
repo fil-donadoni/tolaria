@@ -74,6 +74,7 @@ import {
 } from "./massSubject";
 import {
     COLOR_WORDS,
+    TYPE_NOUNS,
     descriptorRule,
     dividedTargetsRule,
     narrowedStackRequirement,
@@ -740,6 +741,27 @@ export type EffectSentenceIR =
           readonly kind: "prevent-next-damage";
           readonly amount: number;
           readonly to: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
+          /**
+           * CR 609.7a / 615.1a — "The next time a[n] <qualifier> source of
+           * your choice would deal damage to you this turn, prevent that
+           * damage."
+           *
+           * The source is CHOSEN as the effect is created, never targeted:
+           * any permanent or any spell on the stack, narrowed by the printed
+           * qualifier — one colour word, two joined by "or" (either colour
+           * qualifies), or the card type "artifact" / "land"; nothing for "a
+           * source of your choice". ONE damage event from it to you is
+           * prevented. `phrase` is the printed "<qualifier> source", read
+           * back into the choice prompt; `duration` is the printed "this
+           * turn".
+           */
+          readonly kind: "prevent-next-damage-from-chosen-source";
+          readonly colors?: readonly Color[];
+          readonly cardType?: CardType;
+          readonly phrase: string;
           readonly duration: DurationIR;
       }
     | {
@@ -3763,6 +3785,47 @@ const PREVENT_NEXT_DAMAGE =
     /^Prevent the next (\d+) damage that would be dealt to (.+?) (this turn)$/;
 
 /**
+ * CR 609.7a / 615.1a — a chosen-source shield on "you", whole. The qualifier
+ * runs up to "source of your choice" and is read by `chosenSourceQualifier`;
+ * the recipient is "you" and nothing else — "to any target", "to target
+ * creature" and the recipient-less "would deal damage this turn" are other
+ * shields under their own gaps; the trailing duration is read by the duration
+ * rule itself.
+ */
+const PREVENT_NEXT_DAMAGE_FROM_CHOSEN_SOURCE =
+    /^The next time an? (?:(.+?) )?source of your choice would deal damage to you (this turn), prevent that damage$/;
+
+/**
+ * CR 609.7a — the card types a chosen-source qualifier is read for: the two
+ * the corpus prints ("an artifact source", "a land source"). Any other noun is
+ * refused, not guessed.
+ */
+const CHOSEN_SOURCE_TYPE_WORDS: ReadonlySet<string> = new Set([
+    "artifact",
+    "land",
+]);
+
+/**
+ * CR 609.7a / 105.1 / 205.2a — the qualifier on "a <qualifier> source of your
+ * choice", for exactly the forms the corpus prints: one colour word, two joined
+ * by "or" (either colour qualifies), or a card type in
+ * `CHOSEN_SOURCE_TYPE_WORDS`. Anything else — three colours, "nonblack", a
+ * type and a colour together — is null, and the sentence is refused.
+ */
+function chosenSourceQualifier(
+    text: string
+): { colors: Color[] } | { cardType: CardType } | null {
+    const colors = text.split(" or ").map((word) => COLOR_WORDS.get(word));
+    if (colors.length <= 2 && colors.every((c) => c !== undefined)) {
+        return { colors: colors as Color[] };
+    }
+    const cardType = CHOSEN_SOURCE_TYPE_WORDS.has(text)
+        ? TYPE_NOUNS.get(text)?.[0]
+        : undefined;
+    return cardType === undefined ? null : { cardType };
+}
+
+/**
  * CR 615.7 — the announced recipients a prevention shield is read for: "any
  * target", or a single bare "target creature". The creature requirement must
  * carry NOTHING beyond `type` and `count` — a qualifier the subject rule reads
@@ -5082,6 +5145,27 @@ function effectSentence(
             kind: "prevent-next-damage" as const,
             amount: Number(preventNext[1]),
             to: to.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── the next damage from a source of your choice (CR 609.7a) ───────────
+    const chosenSource = span.match(PREVENT_NEXT_DAMAGE_FROM_CHOSEN_SOURCE);
+    if (chosenSource !== null) {
+        const printed = chosenSource[1];
+        const qualifier =
+            printed === undefined ? {} : chosenSourceQualifier(printed);
+        if (qualifier === null)
+            return fail(
+                `a source of your choice is read for one colour, two colours joined by "or", "artifact" or "land" only, not "${printed}" (CR 609.7a)`,
+                span
+            );
+        const duration = durationRule.run(chosenSource[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "prevent-next-damage-from-chosen-source" as const,
+            ...qualifier,
+            phrase: printed === undefined ? "source" : `${printed} source`,
             duration: duration.value,
         } satisfies EffectSentenceIR);
     }

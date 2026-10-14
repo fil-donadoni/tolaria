@@ -309,6 +309,60 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
+    // CR 609.7a / 615.1a (issue #5601) — "The next time a <qualifier> source
+    // of your choice would deal damage to you this turn, prevent that damage".
+    // Exhibits the shield reading the `pick-source` choice's binding: the
+    // canned smoke scenario cannot make the choice, so this fixture is the
+    // evidence that the script the grammar emits is the one the hand-written
+    // catalogue writes (the Circle of Protection cycle also round-trips,
+    // Guard C).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "df2738fe-9cd1-4347-8808-105fcfde1190",
+            name: "Circle of Protection: Red",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: Red",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-red-ability",
+                    oracleText:
+                        "{1}: The next time a red source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: "R" },
+                            count: 1,
+                            prompt: "Choose a red source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     // CR 614.9 (issue #3810) — "The next N damage that would be dealt to
     // <recipient> this turn is dealt to <other recipient> instead". Exhibits
     // the "budget is the announced {X}" form: the canned smoke scenario cannot

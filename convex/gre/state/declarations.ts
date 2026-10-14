@@ -53,6 +53,7 @@ import type {
     LookDistributeKeepTo,
     ManaRestriction,
     PendingChoiceKind,
+    PendingChoiceZone,
     Phase,
     PhaseReturnCondition,
     RandomKind,
@@ -3161,8 +3162,11 @@ export type PendingChoice = {
      *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
      *  graveyard is a public zone, so the submit-validator gates eligibility on
      *  `candidateIds` rather than a hidden-zone snapshot. `exile` (issue
-     *  #1156 — Dauthi Voidwalker) is the same public-zone shape. */
-    zone?: "battlefield" | "hand" | "library" | "graveyard" | "exile";
+     *  #1156 — Dauthi Voidwalker) is the same public-zone shape.
+     *  `battlefield-or-stack` (CR 609.7a, issue #5601) is the `pick-source`
+     *  pool — permanents AND spells on the stack — and, like `graveyard`,
+     *  always carries `candidateIds` (never a `filter`). */
+    zone?: PendingChoiceZone;
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;

@@ -107,6 +107,7 @@ export const circleOfProtectionArtifacts = defineCard(() =>
         oracleText:
             "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
         source: { kind: "artifact", word: "artifact" },
+        activationCost: { X: 2 },
     })
 );
 

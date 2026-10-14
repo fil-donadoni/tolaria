@@ -198,7 +198,8 @@ import {
 import { spliceMergedEffects } from "./splice";
 import { matchesPermanentFilter, matchesSpellFilter } from "../cards/filters";
 import { getEffectiveColors } from "../cards/effectiveColors";
-import type { SpellFilter } from "../cards/filters";
+import type { DamageSourceFilter, SpellFilter } from "../cards/filters";
+import { damageSourceChoiceIds } from "./damageSourceChoice";
 import { castProhibitionReason } from "../cards/castRestrictions";
 // CR 307.1 / 117.1a / 601.3a (issue #2473) — the shared "cast off sorcery
 // timing" snapshot predicate, called only inside function bodies below
@@ -306,7 +307,11 @@ import {
     markAttacking,
     markDeclaredBlockers,
 } from "./combat";
-import { colorWordsPresent, landTypesPresent } from "./textChanges";
+import {
+    colorWordsPresent,
+    landTypesPresent,
+    substituteColorFilter,
+} from "./textChanges";
 import { randomInt, seededShuffle } from "./rng";
 import {
     applyCounterPlacedReplacements,
@@ -11653,6 +11658,14 @@ export function buildSpellContext(
                 },
             ];
         },
+        getDamageSourceChoiceIds(filter?: DamageSourceFilter): string[] {
+            // CR 609.7a — the `pick-source` pool, read from its one authority.
+            return damageSourceChoiceIds(state, filter);
+        },
+        substituteColorWord(color: Color): Color {
+            // CR 612 / 113.7a — the stack item's OWN text-change ledger.
+            return substituteColorFilter(item, color);
+        },
         addDamageRedirectionShield(shield): void {
             const resolved = resolveDuration(
                 shield.duration,
@@ -15888,6 +15901,17 @@ export function buildSpellContext(
                 collect(mode.targetRequirement);
             for (const ability of def?.activatedAbilities ?? []) {
                 collect(ability.targetRequirement);
+                // CR 609.7a (issue #5601) — "a <color> source of your choice"
+                // is a resolution-time `pick-source` choice, its colour word
+                // the choice filter's literal colour (Circle of Protection).
+                for (const op of ability.effects ?? []) {
+                    if (op.op !== "choice" || op.kind !== "pick-source")
+                        continue;
+                    const color = op.filter?.color;
+                    if (typeof color === "string") extraColorCodes.push(color);
+                    else if (Array.isArray(color))
+                        extraColorCodes.push(...color);
+                }
             }
             return colorWordsPresent(instance, extraColorCodes);
         },
