@@ -165,10 +165,13 @@ describe("bundleCardSets — the Set boundary, over the real tree", () => {
     it("maps back to the Set sources by the URL the dev server serves them under", () => {
         const map = JSON.parse(bundled.map) as {
             sources: string[];
-            sourcesContent?: unknown;
+            sourcesContent?: (string | null)[];
         };
-        expect(map.sourcesContent).toBeUndefined();
         expect(map.sources.length).toBeGreaterThan(0);
+        // Carried, so Vite has no source to read back from disk.
+        expect(map.sourcesContent?.every((c) => typeof c === "string")).toBe(
+            true
+        );
         for (const source of map.sources) {
             expect(source.startsWith(`/${SETS_DIR}/`)).toBe(true);
         }

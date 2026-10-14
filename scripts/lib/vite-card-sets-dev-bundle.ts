@@ -117,9 +117,10 @@ export function isInsideSets(root: string, file: string): boolean {
 
 export interface CardSetsBundle {
     code: string;
-    /** Without `sourcesContent` (6.2 MB → 1.0 MB inline per graph load):
-     *  DevTools reads each Set source from the dev server, by the root-relative
-     *  URL `sources` names. */
+    /** With `sourcesContent`: Vite fills in any source a map leaves out by
+     *  reading it from disk, and warns when the path is not one, so a map
+     *  without it saves nothing. `sources` are the root-relative URLs the Set
+     *  files have in the dev server. */
     map: string;
     /** Root-relative URLs the bundle imports (everything outside the Sets). */
     externals: string[];
@@ -183,7 +184,6 @@ export async function bundleCardSets(
             format: "esm",
             // `hidden`: Vite inlines the map it is handed; no comment of ours.
             sourcemap: "hidden",
-            sourcemapExcludeSources: true,
             sourcemapPathTransform: (relative, mapPath) =>
                 `/${path
                     .relative(
