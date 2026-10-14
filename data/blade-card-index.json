@@ -126,6 +126,11 @@
             "needsSetup": false
         },
         {
+            "label": "symmetric life engine: Disenchant takes the Karma burning the bot's Swamps, not the 2-MV artifact (issue #5574)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "symmetric lock: Disenchant takes the Winter Orb that locks more of the bot's lands, not the 2-MV artifact (issue #5163)",
             "tier": "must",
             "needsSetup": false
