@@ -162,6 +162,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     moveZone: false,
     preventDamage: false,
     redirectDamage: false,
+    phaseOut: false,
     preventRegeneration: false,
     pump: false,
     randomExileToHand: false,

@@ -118,7 +118,10 @@ export interface DescriptorIR {
     readonly toughnessFilter?: { readonly min?: number; readonly max?: number };
     readonly mvFilter?: {
         readonly min?: number;
-        readonly max?: number;
+        /** CR 107.3 — a number, or "X" for "with mana value X or less": the
+         *  X the ability's own cost announced, resolved when the target is
+         *  chosen. */
+        readonly max?: number | "X";
         /** CR 107.3 — "with mana value X": the X the ability's own cost
          *  announced, resolved when the target is chosen. */
         readonly equals?: "X";
@@ -225,7 +228,7 @@ export interface DescriptorState {
     excludeAbility?: string;
     powerFilter?: { min?: number; max?: number };
     toughnessFilter?: { min?: number; max?: number };
-    mvFilter?: { min?: number; max?: number; equals?: "X" };
+    mvFilter?: { min?: number; max?: number | "X"; equals?: "X" };
     zone?: "graveyard";
     zoneOwner?: "you" | "any";
     card?: true;
@@ -474,6 +477,8 @@ const COMPARISON =
     /^ with (power|toughness|mana value) (\d+) or (less|greater)$/;
 /** CR 107.3 — `"with mana value X"`: the announced X, not a printed number. */
 const MANA_VALUE_X = /^ with mana value X$/;
+/** CR 107.3 — `"with mana value X or less"`: an upper bound at the announced X. */
+const MANA_VALUE_X_OR_LESS = /^ with mana value X or less$/;
 
 /** `"with flying"` / `"without flying"` (CR 702). */
 function readKeywordQualifier(
@@ -544,6 +549,11 @@ function readComparison(
     if (MANA_VALUE_X.test(head.slice(at))) {
         if (into.mvFilter !== undefined) return "error";
         into.mvFilter = { equals: "X" };
+        return head.slice(0, at);
+    }
+    if (MANA_VALUE_X_OR_LESS.test(head.slice(at))) {
+        if (into.mvFilter !== undefined) return "error";
+        into.mvFilter = { max: "X" };
         return head.slice(0, at);
     }
     const match = head.slice(at).match(COMPARISON);

@@ -848,7 +848,7 @@ function castPermissionClassFilter(
         );
     // CR 107.3 — "mana value X" names the announced X, which the filter has no
     // field for; dropping it would widen the permission to every card.
-    if (value.mvFilter?.equals !== undefined)
+    if (value.mvFilter?.equals !== undefined || value.mvFilter?.max === "X")
         return fail(
             "a mana-value X is not expressible as a cast-permission filter (CR 107.3)",
             JSON.stringify(value.mvFilter)

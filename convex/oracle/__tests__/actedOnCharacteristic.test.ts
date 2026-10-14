@@ -312,11 +312,6 @@ describe("acted-on characteristic — refusals stay fail-closed (issue #4248)", 
             "Destroy target creature. You gain life equal to that permanent's toughness.",
             "no slot consumed the line",
         ],
-        [
-            '"its controller" is a different recipient (Swords to Plowshares\' wording)',
-            "Destroy target creature. Its controller gains life equal to its power.",
-            "no slot consumed the line",
-        ],
     ];
 
     for (const [what, line, reason] of REFUSED)

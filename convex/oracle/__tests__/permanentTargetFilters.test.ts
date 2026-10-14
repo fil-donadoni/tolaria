@@ -378,9 +378,9 @@ describe("Permanent target filters — refused neighbours", () => {
             "Sorcery",
         ],
         [
-            "mana value X as a ceiling",
-            "{X}: Destroy target creature with mana value X or less.",
-            "Creature — Bear",
+            "mana value X as a ceiling on a spell that announces no X",
+            "Destroy target creature with mana value X or less.",
+            "Instant",
         ],
         [
             "mana value X on a spell that announces no X",

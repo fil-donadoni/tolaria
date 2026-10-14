@@ -5249,6 +5249,15 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
+    // CR 702.26b (issue #4573) — phase the permanent out until its controller's
+    // next untap step. A thin skin over the single SpellContext primitive
+    // `phaseOut`, ONE execution path (ADR 0045). Skipped when the referenced
+    // permanent is gone (CR 608.2b); a non-permanent selection is a no-op.
+    phaseOut(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (target?.type !== "permanent") return;
+        ctx.phaseOut(target.id, { returnOn: { kind: "untap-cycle" } });
+    },
     // CR 701.19c (issue #1283) — the inverse of `regenerate`: flag the creature
     // so it can't be regenerated for the rest of the turn. `$source` resolves
     // to the source's own selection, so the single setTarget primitive covers

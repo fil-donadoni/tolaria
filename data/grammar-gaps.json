@@ -38,11 +38,6 @@
             "issue": 4532
         },
         {
-            "key": "(op) › chooseCategorized",
-            "op": "chooseCategorized",
-            "issue": 5166
-        },
-        {
             "key": "(op) › coinFlip",
             "op": "coinFlip",
             "issue": 4537
@@ -1147,7 +1142,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › As many times as you choose, you may pay N life, put those cards on the bottom of your library in any order, then look at the top five cards of your library",
-            "issue": 4573
+            "issue": 5603
         },
         {
             "kind": "grammar",
@@ -1402,7 +1397,7 @@
         {
             "kind": "grammar",
             "key": "spell › effect clause › Then that permanent's controller may sacrifice a land of their choice",
-            "issue": 4573
+            "issue": 5604
         },
         {
             "kind": "grammar",

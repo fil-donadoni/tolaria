@@ -60,9 +60,10 @@ export function readThenChain(
     ctx: unknown,
     readTail: (tail: string) => RuleResult<SentenceIR>
 ): RuleResult<SentenceIR> | null {
-    if (!span.startsWith("Create ")) return null;
     const at = span.indexOf(THEN);
     if (at === -1) return null;
+    if (span.startsWith("Draw ")) return readDrawThenDraw(span, at, readTail);
+    if (!span.startsWith("Create ")) return null;
     const created = createTokenRule.run(span.slice(0, at), ctx);
     if (!created.ok) return created;
     const tailSpan = span.slice(at + THEN.length);
@@ -87,5 +88,40 @@ export function readThenChain(
     return ok({
         role: "then-chain" as const,
         effects: [head, tail.value.effect],
+    });
+}
+
+/**
+ * CR 121.1 + CR 608.2c — "Draw a card, then draw cards equal to <count>": two
+ * draws in printed order, the second reading a count the first has already
+ * changed (the tail resolves AFTER the head, as a full stop would).
+ *
+ * The head and the tail must BOTH be draws. The loot ("Draw a card, then
+ * discard a card") and the put-back ("Draw a card, then put a card from your
+ * hand on top") are exact shapes of their own, read by the sentence grammar,
+ * and a draw head with any other tail is not this chain.
+ */
+function readDrawThenDraw(
+    span: string,
+    at: number,
+    readTail: (tail: string) => RuleResult<SentenceIR>
+): RuleResult<SentenceIR> | null {
+    const tailSpan = span.slice(at + THEN.length);
+    if (!tailSpan.startsWith("draw ")) return null;
+    const head = readTail(span.slice(0, at));
+    if (!head.ok) return head;
+    const tail = readTail(tailSpan[0]!.toUpperCase() + tailSpan.slice(1));
+    if (!tail.ok) return tail;
+    if (
+        head.value.role !== "effect" ||
+        head.value.effect.kind !== "draw" ||
+        tail.value.role !== "effect" ||
+        tail.value.effect.kind !== "draw" ||
+        tail.value.effect.count.kind !== "counted"
+    )
+        return fail('"Draw …, then draw …" chains two draws', span);
+    return ok({
+        role: "then-chain" as const,
+        effects: [head.value.effect, tail.value.effect],
     });
 }

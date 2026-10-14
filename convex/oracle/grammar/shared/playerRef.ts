@@ -51,7 +51,15 @@ export type PlayerRefIR =
      * prints no other verb under it that a fixture pins), so every other verb
      * keeps refusing the phrase. The lowering resolves the referent.
      */
-    | { readonly kind: "that-creature-controller" };
+    | { readonly kind: "that-creature-controller" }
+    /**
+     * CR 109.4 + CR 608.2h — "its controller" / "that artifact's controller":
+     * the controller of the ONE object the sentence before acted on. Never in
+     * `PHRASES`: only the life recipient reads it (`effectClause.ts`), so every
+     * other verb keeps refusing the phrase. `noun` is "it" or the card type
+     * the phrase names, which the lowering checks against the acted-on object.
+     */
+    | { readonly kind: "acted-on-controller"; readonly noun: string };
 
 const PHRASES: ReadonlyMap<string, PlayerRefIR> = new Map<string, PlayerRefIR>([
     ["you", { kind: "you" }],

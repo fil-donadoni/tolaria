@@ -6820,6 +6820,9 @@ export function phaseOutPermanent(
 ): string | null {
     const host = findOnBattlefield(state, permanentId);
     if (!host) return null;
+    // CR 702.26b — "A permanent that phases out is removed from combat", so it
+    // cannot come back still flagged as attacking or blocking.
+    removePermanentFromCombat(state, permanentId);
     // CR 702.26d indirect phasing — collect every permanent attached to the
     // host (Auras and Equipment) across all battlefields. They phase as a unit.
     const attached: CardInstanceState[] = [];

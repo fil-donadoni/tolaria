@@ -48,6 +48,7 @@ import {
     processPendingActionTriggers,
     numberChoiceRange,
     isManaPaymentChoiceWindow,
+    phaseInUntapCycleBundles,
 } from "../../state";
 import type {
     CardInstanceState,
@@ -12333,6 +12334,182 @@ describe("Effect Script Op: regenerate (CR 701.19, issue #846)", () => {
         );
         expect(slim).toBeDefined();
         expect(slim!.isTapped).toBe(true);
+    });
+});
+
+describe("Effect Script Op: phaseOut (CR 702.26, issue #4573)", () => {
+    function bearState(id = "po1") {
+        const bear = makeInstance(BEAR_ID, { controllerId: "p2", id });
+        return makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [bear] }),
+            ],
+        });
+    }
+
+    // CR 702.26b + CR 702.26d — the announced permanent leaves the
+    // battlefield into a phased-out bundle; nothing "leaves", so no event.
+    it("phases the announced permanent out, silently, until its controller's untap step", () => {
+        const id = registerScript("test-op-phaseout-target", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const state = bearState();
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "po1" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.phasedOut).toHaveLength(1);
+        expect(state.phasedOut![0].cards.map((c) => c.id)).toEqual(["po1"]);
+        expect(state.phasedOut![0].returnOn).toEqual({ kind: "untap-cycle" });
+    });
+
+    // CR 702.26g — an Aura attached to the host phases out with it.
+    it("takes the attached Aura out with its host (CR 702.26g)", () => {
+        const id = registerScript("test-op-phaseout-aura", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const state = bearState("po2");
+        state.players[1].battlefield.push(
+            makeInstance(BEAR_ID, {
+                id: "poAura",
+                controllerId: "p2",
+                attachedTo: "po2",
+            })
+        );
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "po2" }]);
+        resolveTopOfStack(state);
+        expect(state.players[1].battlefield).toHaveLength(0);
+        expect(state.phasedOut![0].cards.map((c) => c.id).sort()).toEqual([
+            "po2",
+            "poAura",
+        ]);
+    });
+
+    // The construct combinations: a forEach over the battlefield feeds `$each`
+    // to the Op, so every member phases out as its own bundle.
+    it("phases out each member of a forEach sweep ($each)", () => {
+        const id = registerScript("test-op-phaseout-foreach", [
+            {
+                op: "forEach",
+                select: {
+                    set: "permanents",
+                    zone: "battlefield",
+                    controller: "controller",
+                },
+                effects: [{ op: "phaseOut", target: { ref: "$each" } }],
+            },
+        ]);
+        const a = makeInstance(BEAR_ID, { id: "poa", controllerId: "p1" });
+        const b = makeInstance(BEAR_ID, { id: "pob", controllerId: "p1" });
+        const state = makeState({
+            players: [
+                makePlayer("p1", { battlefield: [a, b] }),
+                makePlayer("p2"),
+            ],
+        });
+        pushSpell(state, id, "p1");
+        resolveTopOfStack(state);
+        expect(state.players[0].battlefield).toHaveLength(0);
+        expect(state.phasedOut).toHaveLength(2);
+    });
+
+    // An `if` gate decides whether the Op runs at all.
+    it("runs only when its if-gate holds", () => {
+        const gated = (amount: number) =>
+            registerScript(`test-op-phaseout-if-${amount}`, [
+                {
+                    op: "if",
+                    predicate: {
+                        left: {
+                            count: {
+                                zone: "battlefield",
+                                acrossAllPlayers: true,
+                            },
+                        },
+                        op: "ge",
+                        right: amount,
+                    },
+                    then: [{ op: "phaseOut", target: { target: 0 } }],
+                },
+            ]);
+        const open = bearState("po3");
+        pushSpell(open, gated(1), "p1", [{ type: "permanent", id: "po3" }]);
+        resolveTopOfStack(open);
+        expect(open.phasedOut).toHaveLength(1);
+        const shut = bearState("po4");
+        pushSpell(shut, gated(5), "p1", [{ type: "permanent", id: "po4" }]);
+        resolveTopOfStack(shut);
+        expect(shut.phasedOut).toBeUndefined();
+        expect(shut.players[1].battlefield).toHaveLength(1);
+    });
+
+    // CR 702.26a — it returns at its controller's NEXT untap step, not the
+    // untap step of the turn it phased out on.
+    it("phases back in at the controller's next untap step, not this turn's", () => {
+        const id = registerScript("test-op-phaseout-return", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const state = bearState("po5");
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "po5" }]);
+        resolveTopOfStack(state);
+        phaseInUntapCycleBundles(state, "p2");
+        expect(state.players[1].battlefield).toHaveLength(0);
+        state.turn += 1;
+        phaseInUntapCycleBundles(state, "p2");
+        expect(state.players[1].battlefield.map((c) => c.id)).toEqual(["po5"]);
+        expect(state.phasedOut).toBeUndefined();
+    });
+
+    // CR 702.26b — a permanent that phases out is removed from combat, so it
+    // is not still attacking when it phases back in.
+    it("removes an attacking creature from combat (CR 702.26b)", () => {
+        const id = registerScript("test-op-phaseout-combat", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const atk = makeInstance(BEAR_ID, {
+            id: "poatk",
+            controllerId: "p2",
+            isAttacking: true,
+        });
+        const state = makeState({
+            players: [
+                makePlayer("p1"),
+                makePlayer("p2", { battlefield: [atk] }),
+            ],
+        });
+        state.combat = {
+            attackerIds: ["poatk"],
+            blockerAssignments: {},
+        } as unknown as GameState["combat"];
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "poatk" }]);
+        resolveTopOfStack(state);
+        expect(state.combat!.attackerIds).toEqual([]);
+        expect(state.phasedOut![0].cards[0].isAttacking).toBeFalsy();
+    });
+
+    // CR 608.2b — an announced target missing at resolution skips the Op.
+    it("is skipped when the announced target is missing (CR 608.2b)", () => {
+        const id = registerScript("test-op-phaseout-missing", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const state = makeState();
+        pushSpell(state, id, "p1", []);
+        expect(() => resolveTopOfStack(state)).not.toThrow();
+        expect(state.phasedOut).toBeUndefined();
+    });
+
+    // Wire format: the client sees no phased-out permanent on any battlefield.
+    it("the phased-out permanent is absent from the projected battlefield (wire format)", () => {
+        const id = registerScript("test-op-phaseout-wire", [
+            { op: "phaseOut", target: { target: 0 } },
+        ]);
+        const state = bearState("pow1");
+        pushSpell(state, id, "p1", [{ type: "permanent", id: "pow1" }]);
+        resolveTopOfStack(state);
+        const projected = projectPublicState(state, 1, "p1");
+        expect(
+            projected.players[1].battlefield.find((c) => c.id === "pow1")
+        ).toBeUndefined();
     });
 });
 

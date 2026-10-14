@@ -2396,6 +2396,21 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "phaseOut":
+            // CR 702.26b (issue #4573) — the permanent leaves the battlefield
+            // silently into a phased-out bundle; observable in the same
+            // resolution on an announced permanent slot or an ability's own
+            // source. A `$each` target is not modelled.
+            if (!subjectModelled(req, op.target)) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "phaseOut" targets $source/$each — covered by the card's own per-card test`
+                );
+                return;
+            }
+            recordSubject(req, op.target);
+            return;
         case "preventRegeneration":
             // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
             // `cantBeRegeneratedThisTurn` flag on the target creature,
@@ -3521,6 +3536,33 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: actual === expected,
                     detail: `regenerationShields ${actual}, expected ${expected}`,
+                };
+            },
+        };
+    },
+    // `phaseOut` (CR 702.26b, issue #4573) — the permanent is off every
+    // battlefield and inside a phased-out bundle (CR 702.26d: phasing is no
+    // zone change; it is only treated as not on the battlefield).
+    phaseOut(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "phaseOut" }>;
+        const permId = subjectPermanentId(scenario, op.target);
+        if (permId === undefined) return null;
+        const onBattlefield = pre.players
+            .flatMap((p) => p.battlefield)
+            .some((c) => c.id === permId);
+        if (!onBattlefield) return null;
+        return {
+            label: `permanent ${permId} phased out`,
+            check: (post) => {
+                const stillThere = post.players
+                    .flatMap((p) => p.battlefield)
+                    .some((c) => c.id === permId);
+                const phased = (post.phasedOut ?? []).some((bundle) =>
+                    bundle.cards.some((c) => c.id === permId)
+                );
+                return {
+                    ok: !stillThere && phased,
+                    detail: `on battlefield ${stillThere}, phased out ${phased}`,
                 };
             },
         };

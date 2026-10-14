@@ -216,6 +216,7 @@
         "code": "suspends-for-input",
         "reason": "Op \"payVariableMana\" suspends for a variable mana-payment nomination — covered by the Op's interpreter tests"
     },
+    "phaseOut": "runs",
     "preventDamage": {
         "code": "dormant-shield",
         "reason": "Op \"preventDamage\" registers a dormant shield (no same-resolution damage event) — covered by the Op's interpreter tests"

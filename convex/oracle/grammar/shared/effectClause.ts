@@ -1454,6 +1454,36 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 702.26b — "Target artifact, creature, or land phases out": one
+           * announced permanent phases out until its controller's next untap
+           * step. A sweep or a pronoun is not read (nothing prints it yet).
+           */
+          readonly kind: "phase-out";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
+           * CR 101.4 + CR 701.21a — "Each player chooses from among the
+           * permanents they control an artifact, a creature, an enchantment,
+           * and a land, then sacrifices the rest": every player (APNAP order)
+           * keeps one permanent per listed type — one permanent may answer
+           * several of them — and every player then sacrifices the rest, only
+           * after all the choices are made.
+           */
+          readonly kind: "keep-one-of-each-permanent-type";
+          readonly types: readonly CardType[];
+      }
+    | {
+          /**
+           * CR 701.22a — "Scry N": the controller looks at the top N cards of
+           * their library, puts any number on the bottom and the rest back on
+           * top in any order. One sentence, one action.
+           */
+          readonly kind: "scry";
+          readonly count: AmountIR;
+      }
+    | {
+          /**
            * CR 121.1 + CR 701.9a — "Draw N cards, then discard M cards": the
            * controller draws, then discards cards of their choice. One
            * sentence, two actions in printed order; the discard is a CHOICE
@@ -1577,6 +1607,11 @@ export type LibraryRouteIR =
               | "bottom-any-order"
               | "bottom-random-order"
               | "graveyard";
+          /**
+           * "… and the OTHER on the bottom": the rest is exactly one card, so
+           * the window must be two cards wide (CR 401.4 — one kept, one left).
+           */
+          readonly other?: true;
       };
 
 /** Where a `reveal-until` sentence sends a card (the Op's own vocabulary). */
@@ -2601,6 +2636,12 @@ function foldLibraryRoute(
         return '"revealed this way" follows a look, not a reveal (CR 701.20a)';
     if (route.kind === "take" && window.reveal)
         return "a pick from a revealed window is not in this grammar";
+    if (
+        route.kind === "take" &&
+        route.other === true &&
+        !(window.count.kind === "fixed" && window.count.value === 2)
+    )
+        return '"the other" names the single card left of a two-card window';
     return {
         kind: "look-distribute",
         reveal: window.reveal,
@@ -3161,6 +3202,8 @@ const BASIC_LAND_TYPE_LEGS: ReadonlyMap<string, string> = new Map(
 );
 const DRAW_SELF = /^Draw (\S+) cards?$/;
 const DRAW_PLAYER = /^(.+) draws (\S+) cards?$/;
+/** CR 121.1 + CR 107.1 — "Draw cards equal to the number of <set>". */
+const DRAW_EQUAL_COUNT = /^Draw cards equal to (the number of .+)$/;
 const LIFE = /^(.+) (gain|gains|lose|loses) (\S+|that much) life$/;
 /**
  * CR 107.3 — "<effect>, where X is <count>": the head sentence prints X and the
@@ -3223,6 +3266,8 @@ const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
  *  life equal to its power" (Chastise). The characteristic is a capture group
  *  because the same clause shape prints all three; which noun may take which
  *  characteristic is `readActedOnCharacteristic`'s. */
+/** CR 109.4 — "Its controller" / "That artifact's controller", a life recipient. */
+const ACTED_ON_CONTROLLER = /^(?:Its|That (artifact)'s) controller$/;
 const LIFE_EQUAL_ACTED_ON = new RegExp(
     `^(.+) (gain|gains|lose|loses) life equal to ${actedOnNounGroup(["it", "card", "permanent"])} ${actedOnCharacteristicGroup(["manaValue", "power", "toughness"])}$`
 );
@@ -3541,6 +3586,20 @@ const SHUFFLE_GRAVEYARD_BACK =
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
+/** CR 702.26b — "<target> phases out". */
+const PHASES_OUT = /^(Target .+) phases out$/;
+/** CR 101.4 — the keep-one-of-each edict, over a list of permanent types. */
+const KEEP_ONE_OF_EACH_TYPE =
+    /^Each player chooses from among the permanents they control (.+), then sacrifices the rest$/;
+/** CR 205.2a — the permanent types the edict's list names, singular. */
+const KEEP_TYPE_NOUNS: ReadonlyMap<string, CardType> = new Map([
+    ["an artifact", "Artifact"],
+    ["a creature", "Creature"],
+    ["an enchantment", "Enchantment"],
+    ["a land", "Land"],
+]);
+/** CR 701.22a — "Scry N": the controller looks at their own library's top N. */
+const SCRY_IMPERATIVE = /^Scry (\S+)$/;
 /** CR 401.4 — the same reorder, looked at by the previous sentence's player. */
 const LIBRARY_REORDER_THAT_PLAYER =
     /^That player looks at the top (\S+) cards of your library, then puts them back in any order$/;
@@ -3550,6 +3609,10 @@ const ROUTE_ALL_OF_SUBTYPE =
 /** The routing half, a pick: "Put one of them into your hand and the rest …". */
 const ROUTE_TAKE =
     /^Put (\S+) of (?:them|those cards) into your hand and the rest (on the bottom of your library in any order|on the bottom of your library in a random order|into your graveyard)$/;
+
+/** The two-card window's routing: "Put one of them into your hand and the other on the bottom of your library". */
+const ROUTE_TAKE_OTHER =
+    /^Put one of them into your hand and the other on the bottom of your library$/;
 
 const ROUTE_REST: ReadonlyMap<
     string,
@@ -4539,6 +4602,16 @@ function libraryHalf(span: string) {
             route: { kind: "all-of-subtype" as const, subtype: all[1]! },
         } satisfies SentenceIR);
     }
+    if (ROUTE_TAKE_OTHER.test(span))
+        return ok({
+            role: "library-route" as const,
+            route: {
+                kind: "take" as const,
+                count: { kind: "fixed" as const, value: 1 },
+                rest: "bottom-any-order" as const,
+                other: true as const,
+            },
+        } satisfies SentenceIR);
     const take = span.match(ROUTE_TAKE);
     if (take !== null) {
         const count = readAmount(take[1]!);
@@ -4795,6 +4868,7 @@ function effectSentence(
         gainsAt !== -1 &&
         !LIFE.test(span) &&
         !LIFE_FOR_EACH.test(span) &&
+        !LIFE_EQUAL_ACTED_ON.test(span) &&
         !DRAIN.test(span)
     ) {
         const subjectSpan = span.slice(0, gainsAt);
@@ -4990,6 +5064,8 @@ function effectSentence(
             );
         const set = numberOfSetRule.run(damageCount[3]!, ctx);
         if (!set.ok) return set;
+        if (set.value.kind !== "permanents")
+            return fail("damage counts a permanent set only", span);
         const to = subjectRule.run(damageCount[2]!, ctx);
         if (!to.ok) return to;
         return ok({
@@ -5222,6 +5298,23 @@ function effectSentence(
             kind: "draw" as const,
             player: { kind: "you" as const },
             count,
+        } satisfies EffectSentenceIR);
+    }
+    const drawCount = span.match(DRAW_EQUAL_COUNT);
+    if (drawCount !== null) {
+        const set = numberOfSetRule.run(drawCount[1]!, ctx);
+        if (!set.ok) return set;
+        // Only the name count is fixtured; a permanent count would draw
+        // through a set no golden reads back.
+        if (set.value.kind !== "named-self-in-all-graveyards")
+            return fail(
+                "a draw reads a name count over the graveyards only",
+                span
+            );
+        return ok({
+            kind: "draw" as const,
+            player: { kind: "you" as const },
+            count: { kind: "counted" as const, times: 1, set: set.value },
         } satisfies EffectSentenceIR);
     }
     const drawPlayer = span.match(DRAW_PLAYER);
@@ -5561,7 +5654,20 @@ function effectSentence(
     // acting Op took (CR 608.2h), for a gain as well as a loss.
     const lifeActedOn = span.match(LIFE_EQUAL_ACTED_ON);
     if (lifeActedOn !== null) {
-        const player = playerSubject(lifeActedOn[1]!, ctx);
+        const controller = lifeActedOn[1]!.match(ACTED_ON_CONTROLLER);
+        // Only the gain is fixtured (Swords to Plowshares, Crumble).
+        if (
+            (controller !== null || lifeActedOn[1] === "Its controller") &&
+            !lifeActedOn[2]!.startsWith("gain")
+        )
+            return fail("an acted-on controller only gains life", span);
+        const player: PlayerRefIR | null =
+            controller === null
+                ? playerSubject(lifeActedOn[1]!, ctx)
+                : {
+                      kind: "acted-on-controller" as const,
+                      noun: controller[1] ?? "it",
+                  };
         if (player === null)
             return fail(`"${lifeActedOn[1]}" is not a player`, span);
         const amount = readActedOnCharacteristic(
@@ -5899,6 +6005,48 @@ function effectSentence(
             library: { kind: "you" as const },
             looker: "that-player" as const,
         } satisfies EffectSentenceIR);
+    }
+
+    // ── keep one of each permanent type, sacrifice the rest (CR 101.4) ─────
+    const keepEach = span.match(KEEP_ONE_OF_EACH_TYPE);
+    if (keepEach !== null) {
+        const nouns = keepEach[1]!.replace(/, and /, ", ").split(", ");
+        const types = nouns.map((noun) => KEEP_TYPE_NOUNS.get(noun));
+        // Exactly the four printed, in print order: a shorter list would
+        // sacrifice a type the card never named a keeper for.
+        if (
+            types.some((type) => type === undefined) ||
+            types.join() !== "Artifact,Creature,Enchantment,Land"
+        )
+            return fail(
+                `"${keepEach[1]}" is not the artifact, creature, enchantment and land list`,
+                span
+            );
+        return ok({
+            kind: "keep-one-of-each-permanent-type" as const,
+            types: types as CardType[],
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── phase out (CR 702.26b) ──────────────────────────────────────────────
+    const phasesOut = span.match(PHASES_OUT);
+    if (phasesOut !== null) {
+        const subject = subjectRule.run(phasesOut[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (subject.value.kind !== "target")
+            return fail("only an announced target phases out", span);
+        return ok({
+            kind: "phase-out" as const,
+            subject: subject.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── scry (CR 701.22a) ───────────────────────────────────────────────────
+    const scry = span.match(SCRY_IMPERATIVE);
+    if (scry !== null) {
+        const count = readAmount(scry[1]!);
+        if (count === null) return fail(`"${scry[1]}" is not a count`, span);
+        return ok({ kind: "scry" as const, count } satisfies EffectSentenceIR);
     }
 
     // ── create tokens (CR 111.1) ───────────────────────────────────────────
