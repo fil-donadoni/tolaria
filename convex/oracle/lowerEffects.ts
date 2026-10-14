@@ -301,6 +301,14 @@ function lowerCountedSet(
             ? lowered({ zone: "hand", controller: controller.value })
             : controller;
     }
+    // CR 201.2 + CR 404.1 — the cards bearing this card's own name, in every
+    // graveyard.
+    if (set.kind === "named-self-in-all-graveyards")
+        return lowered({
+            zone: "graveyard",
+            acrossAllPlayers: true,
+            filter: { name: site.selfName },
+        });
     const { descriptor } = set;
     if (descriptor.controller !== "you")
         return unlowerable('a counted set must be permanents "you control"');
@@ -1216,7 +1224,11 @@ function selectorsFor(
         );
     // CR 107.3 — "with mana value X" reads the X the source announced; a
     // source with no {X} would silently read 0.
-    if (subject.requirement.mvFilter?.equals === "X" && !site.allowX)
+    if (
+        (subject.requirement.mvFilter?.equals === "X" ||
+            subject.requirement.mvFilter?.max === "X") &&
+        !site.allowX
+    )
         return unlowerable(
             "a target filter reads X but its source announces no {X} (CR 107.3)"
         );
@@ -1496,6 +1508,10 @@ function playerRef(
         case "that-creature-controller":
             return unlowerable(
                 '"that creature\'s controller" is read only as a damage recipient'
+            );
+        case "acted-on-controller":
+            return unlowerable(
+                '"its controller" is read only as a life recipient'
             );
     }
 }
@@ -2148,7 +2164,10 @@ function lowerSentenceBody(
             return lowered([{ op: "attach", target: target.value }]);
         }
         case "life": {
-            const player = playerRef(sentence.player, slots, site);
+            const player =
+                sentence.player.kind === "acted-on-controller"
+                    ? lowerActedOnController(sentence.player.noun, walk)
+                    : playerRef(sentence.player, slots, site);
             if (!player.ok) return player;
             const amount = lowerLifeAmount(sentence.amount, walk, site);
             if (!amount.ok) return amount;
@@ -3150,6 +3169,46 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        case "keep-one-of-each-permanent-type":
+            // CR 101.4 — every player's pick is made (APNAP order) before any
+            // sacrifice: `simultaneous`. CR 701.21a — the sweep sacrifices
+            // every permanent the chooser controls that was not kept; one
+            // permanent may answer several types (the Op's cover rule).
+            return lowered([
+                {
+                    op: "forEach",
+                    select: { set: "players" },
+                    simultaneous: true,
+                    effects: [
+                        {
+                            op: "chooseCategorized",
+                            player: { ref: "$each" },
+                            zone: "battlefield",
+                            categories: sentence.types.map((type) => ({
+                                label: type,
+                                filter: { type },
+                            })),
+                            onPicked: "keep",
+                            sweep: { action: "sacrifice" },
+                            prompt: "Choose an artifact, a creature, an enchantment, and a land to keep; the rest are sacrificed.",
+                        },
+                    ],
+                },
+            ]);
+        case "scry": {
+            // CR 701.22a — look at the top N, any number to the bottom, the
+            // rest back on top in any order: `scryReorder` to the bottom.
+            const count = lowerAmount(sentence.count, site);
+            if (!count.ok) return count;
+            return lowered([
+                {
+                    op: "scryReorder",
+                    player: "controller",
+                    count: count.value,
+                    destination: "library-bottom",
+                },
+            ]);
+        }
         case "kicked": {
             // CR 702.33g — a kicked limit swap emits no Op: the announcement
             // itself is swapped, and the counter in front runs unchanged.
@@ -3591,6 +3650,39 @@ function lowerThatCreatureController(
     const bind = actedOn.op.bind ?? walk.nextBind("that");
     actedOn.op.bind = bind;
     return lowered({ player: { ref: `${bind}.controller` } });
+}
+
+/**
+ * CR 109.4 + CR 608.2h — "its controller" / "that artifact's controller" as a
+ * life recipient: the controller of the one announced object the sentence
+ * before acted on, read from the `bind` snapshot the acting Op took (the
+ * object has left the battlefield by now). `noun` is "it" or a card type,
+ * which must be the type of the one announced target.
+ */
+function lowerActedOnController(
+    noun: string,
+    walk: SentenceWalk
+): Lowered<EffectPlayerRef> {
+    const announced = walk.targets.requirements();
+    const only = announced.length === 1 ? announced[0]! : null;
+    const actedOn = walk.actedOn;
+    if (
+        only === null ||
+        only.count !== 1 ||
+        only.announcedOnlyIfKicked === true ||
+        walk.gatedRemoval ||
+        actedOn === null ||
+        actedOn.requirement !== only ||
+        (noun !== "it" &&
+            announcedTypes(only).join() !==
+                noun.charAt(0).toUpperCase() + noun.slice(1))
+    )
+        return unlowerable(
+            `"${noun === "it" ? "its" : `that ${noun}'s`} controller" names no single object announced and acted on before it (CR 608.2h)`
+        );
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    return lowered({ ref: `${bind}.controller` });
 }
 
 /** Remember the announced object a sentence acted on (see `actedOn`). */

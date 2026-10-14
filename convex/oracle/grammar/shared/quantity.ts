@@ -20,6 +20,7 @@
  */
 
 import { fail, ok, rule, type Rule, subGrammar } from "../../rule";
+import { SELF_MARKER } from "../../normalize";
 import type { PlayerRefIR } from "./playerRef";
 import { descriptorRule, type DescriptorIR } from "./targetFilter";
 
@@ -110,7 +111,16 @@ export const quantityRule: Rule<QuantityIR> = subGrammar(
  */
 export type CountedSetIR =
     | { readonly kind: "permanents"; readonly descriptor: DescriptorIR }
-    | { readonly kind: "cards-in-hand"; readonly player: PlayerRefIR };
+    | { readonly kind: "cards-in-hand"; readonly player: PlayerRefIR }
+    /**
+     * CR 201.2 + CR 404.1 — "the number of cards named {self} in all
+     * graveyards": the cards, in every player's graveyard, bearing the name of
+     * the card that prints the phrase.
+     */
+    | { readonly kind: "named-self-in-all-graveyards" };
+
+/** CR 201.2 + CR 404.1 — a name count over every graveyard. */
+const NAMED_SELF_IN_ALL_GRAVEYARDS = `the number of cards named ${SELF_MARKER} in all graveyards`;
 
 /** CR 402.3 — the two hands a count is printed over. */
 const CARDS_IN_HAND = /^for each card in (your|target opponent's) hand$/;
@@ -160,6 +170,8 @@ export const numberOfSetRule: Rule<CountedSetIR> = subGrammar(
     rule<CountedSetIR>("number of set", (span, ctx) => {
         if (!span.startsWith("the number of "))
             return fail('not a "the number of" phrase', span);
+        if (span === NAMED_SELF_IN_ALL_GRAVEYARDS)
+            return ok({ kind: "named-self-in-all-graveyards" as const });
         const descriptor = descriptorRule.run(
             span.slice("the number of ".length),
             ctx
