@@ -5,10 +5,11 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { buildDefine } from "./scripts/lib/build-define";
 import { cardSetsDevBundle } from "./scripts/lib/vite-card-sets-dev-bundle";
-
-/** A module of one hand-written Set: `convex/cards/sets/<code>/…`, the code
- *  captured. The chunk group below names its chunk `card-set-<code>`. */
-const SET_MODULE_ID = /convex[\\/]cards[\\/]sets[\\/]([a-z0-9]+)[\\/]/;
+import {
+    cardSetChunkName,
+    setChunkName,
+    setCodeOf,
+} from "./scripts/lib/vite-card-set-chunks";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -102,25 +103,18 @@ export default defineConfig({
                 // chunk (~1.63 MB raw / 443 KB gzip) that the catalogue glue
                 // imported statically. The asset-graph check keys on the
                 // prefix (`scripts/lib/asset-graph.ts` → `SET_CHUNK_PREFIX`).
-                // Evaluation order is kept strict: a Set chunk's shared
-                // helpers (`convex/cards/abilities/**`, the registry) sit in
-                // chunks of their own that every Set chunk imports one way,
-                // and the runtime evaluates an import before its importer.
-                strictExecutionOrder: true,
                 // A chunk whose entry is a Set's barrel is named after the
-                // Set too: Rolldown gives some dynamically imported barrels a
-                // small facade chunk (`index.cards-<hash>.js`, re-exporting
-                // the Set chunk) that the loader imports first. Named
-                // `card-set-<code>` like the chunk it fronts, so the Set
-                // chunk's only static importers are Set chunks and the
-                // asset-graph check keys on one prefix.
+                // Set too, should the bundler ever front a Set chunk with a
+                // facade (`index.cards-<hash>.js`): the Set chunk's only
+                // static importers stay Set chunks, and the asset-graph check
+                // keys on one prefix.
                 chunkFileNames: (chunk) => {
                     const set = chunk.facadeModuleId
-                        ? SET_MODULE_ID.exec(chunk.facadeModuleId)?.[1]
+                        ? setCodeOf(chunk.facadeModuleId)
                         : undefined;
                     return set === undefined
                         ? "assets/[name]-[hash].js"
-                        : `assets/card-set-${set}-[hash].js`;
+                        : `assets/${setChunkName(set)}-[hash].js`;
                 },
                 codeSplitting: {
                     // A group captures ONLY the modules it tests, never their
@@ -144,9 +138,12 @@ export default defineConfig({
                     //    not absorbed into `card-catalogue`, which would make
                     //    the entry statically import the 475 KB catalogue
                     //    chunk for one `tryGetDefinition`;
-                    //  - `card-set-<code>` takes one Set's modules; what two
-                    //    Sets share (`drk` imports a `leg` helper) stays in
-                    //    the Set that declares it, imported chunk to chunk.
+                    //  - `card-set-<code>` takes one Set's modules and the
+                    //    helpers only that Set reaches (`cardSetChunkName`);
+                    //    what two Sets share (`drk` imports a `leg` helper)
+                    //    stays in the Set that declares it, imported chunk to
+                    //    chunk, and a helper many Sets share sits in a chunk
+                    //    of its own that each imports one way.
                     groups: [
                         {
                             name: "card-registry",
@@ -154,13 +151,10 @@ export default defineConfig({
                             priority: 20,
                         },
                         {
-                            name: (id) => {
-                                const set = SET_MODULE_ID.exec(id)?.[1];
-                                return set === undefined
-                                    ? undefined
-                                    : `card-set-${set}`;
-                            },
-                            test: SET_MODULE_ID,
+                            name: cardSetChunkName,
+                            // Every engine module is a candidate; the name
+                            // decides, by who imports it.
+                            test: /convex[\\/]/,
                             priority: 10,
                         },
                     ],

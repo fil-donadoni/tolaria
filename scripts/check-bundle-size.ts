@@ -73,10 +73,10 @@ interface Budget {
 
 const BUDGETS: Budget[] = [
     // measured 440,553 B (issue #3053) as ONE `card-catalogue` chunk; since
-    // issue #5615 the Sets are one chunk each (`card-set-<code>`, 161 files
-    // with the facades) and the row bounds their SUM — 448,078 B gzip on the
-    // same tree, so the split cost ~7.5 KB of per-chunk overhead and the
-    // ceiling stays where it was.
+    // issue #5615 the Sets are one chunk each (`card-set-<code>`, 146 files)
+    // and the row bounds their SUM — 436,709 B gzip on the same tree (the
+    // helpers many Sets share moved to chunks of their own), so the ceiling
+    // stays where it was.
     { prefix: SET_CHUNK_PREFIX, scope: "sum", gzipBudgetBytes: 490_000 },
     // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
     // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time
@@ -102,7 +102,7 @@ const BUDGETS: Budget[] = [
     // sweeps off the board (`ai/latentBoard.ts`, `ai/opValuers.ts`); the
     // `card-catalogue` row did not move, so the pool is not back.
     //
-    // #5615: RE-ANCHORED to 723,628 B. The worker is an `iife` bundle, which
+    // #5615: RE-ANCHORED to 723,677 B. The worker is an `iife` bundle, which
     // Vite builds with code splitting off, so the catalogue's new per-Set
     // `import()` (`src/lib/catalogue/set-chunk-loader.ts`) is INLINED there:
     // the same 146 Sets as before, now each behind a lazy module wrapper plus
