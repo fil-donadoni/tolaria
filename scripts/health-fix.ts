@@ -27,7 +27,17 @@
 //                                  would block on its first question. This
 //                                  closes an OBSERVED hole: the session that
 //                                  found issue #3187 ran `release` from
-//                                  inside another Claude session.
+//                                  inside another Claude session. Waived by
+//                                  `--headless` (issue #5589): the session
+//                                  is `claude -p` on `/health-fix <sha>
+//                                  --headless`, where ambiguity is `stuck`
+//                                  instead of a question.
+//
+// Headless is the unattended loop's repair (`loop-drain.sh` step 2b): it
+// asks `--plan <sha> --attempts N` first (`loopFixDecision`), and every
+// attempt is recorded on the verdict's pivot (`lib/health-fix-attempts.ts`)
+// — `attempting` before the spawn, the parsed verdict after — so the other
+// machine sees what was tried and never tries it again.
 //
 // The return channel is a FILE, not an exit code: an interactive `claude`
 // exits 0 whatever happened inside it, so `/health-fix` writes
@@ -50,7 +60,15 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import type { HealthStatus } from "./lib/health-verdict";
 import { OVER_CAP_ENV } from "./lib/machine-admission";
 import {
+    fixAttemptStore,
+    LOOP_FIX_ATTEMPTS,
+    loopFixDecision,
+    type FixAttemptStore,
+    type LoopFixDecision,
+} from "./lib/health-fix-attempts";
+import {
     lineageBlocks,
+    machineName,
     readVerdictLineage,
     verdictStore,
     type VerdictStore,
@@ -60,6 +78,8 @@ import {
 export const HEALTH_DIR = join(".claude", "telemetry", "health");
 /** The fixer's return channel, beside `last.json` and the `RED` marker. */
 export const VERDICT_FILE = "fix-verdict.json";
+/** How long a headless fixer may run before it is killed (issue #5589). */
+export const HEADLESS_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 /** What to type when there is no terminal to spawn into. */
 export const MANUAL_COMMAND = "bun run health:fix";
 
@@ -97,6 +117,9 @@ export interface SpawnInputs {
     tip: string;
     /** Is stdin a terminal — i.e. is there a human to grill? */
     interactive: boolean;
+    /** `--headless` (issue #5589): no human is expected — the fixer's
+     *  ambiguity is `stuck`, so no terminal is needed. */
+    headless?: boolean;
 }
 
 export function verdictPath(root: string): string {
@@ -113,7 +136,7 @@ export function verdictPath(root: string): string {
  * genuinely something a human would be asked about.
  */
 export function spawnDecision(input: SpawnInputs): SpawnDecision {
-    const { redMarker, last, tip, interactive } = input;
+    const { redMarker, last, tip, interactive, headless } = input;
     if (!redMarker) {
         return {
             kind: "refuse",
@@ -142,10 +165,10 @@ export function spawnDecision(input: SpawnInputs): SpawnDecision {
             nothingToFix: false,
         };
     }
-    if (!interactive) {
+    if (!interactive && !headless) {
         return {
             kind: "refuse",
-            reason: `stdin is not a terminal — a fixer would grill into a void. Run '${MANUAL_COMMAND}' from a terminal`,
+            reason: `stdin is not a terminal — a fixer would grill into a void. Run '${MANUAL_COMMAND}' from a terminal, or '${MANUAL_COMMAND} --headless' unattended`,
             nothingToFix: false,
         };
     }
@@ -205,9 +228,59 @@ export function parseVerdict(
     return { sha: expectedSha, outcome: "landed", pr, note };
 }
 
-/** The argv that spawns the fixer session on the skill. */
-export function claudeArgs(sha: string): string[] {
-    return [`/health-fix ${sha}`];
+/** The argv that spawns the fixer session on the skill: interactive, or
+ *  `claude -p` on the skill's headless mode with the caller's extra flags
+ *  (the loop's `--claude-args`: permission mode, model). */
+export function claudeArgs(
+    sha: string,
+    opts: { headless?: boolean; extra?: readonly string[] } = {}
+): string[] {
+    if (!opts.headless) return [`/health-fix ${sha}`];
+    return ["-p", `/health-fix ${sha} --headless`, ...(opts.extra ?? [])];
+}
+
+/** `--claude-args="<flags>"`: passed to `claude` (headless only), split on
+ *  whitespace — the same word-splitting `loop-drain.sh` gives its own
+ *  unquoted `$CLAUDE_ARGS`. */
+export function extraClaudeArgs(argv: readonly string[]): string[] {
+    const a = argv.find((x) => x.startsWith("--claude-args="));
+    return a
+        ? a.slice("--claude-args=".length).split(/\s+/).filter(Boolean)
+        : [];
+}
+
+/** `--plan <sha> --attempts N`: the loop's decision for a standing RED, one
+ *  line — `attempt`, `wait: <why>` or `stop: <why>`. Exported for tests. */
+export function planLine(
+    store: () => FixAttemptStore,
+    sha: string,
+    attemptsThisRun: number,
+    now = Date.now()
+): string {
+    let d: LoopFixDecision;
+    try {
+        d = loopFixDecision({
+            record: store().read(sha),
+            attemptsThisRun,
+            max: LOOP_FIX_ATTEMPTS,
+            now,
+        });
+    } catch (err) {
+        d = loopFixDecision({
+            record: null,
+            error: (err as Error).message,
+            attemptsThisRun,
+            max: LOOP_FIX_ATTEMPTS,
+            now,
+        });
+    }
+    return d.kind === "attempt" ? "attempt" : `${d.kind}: ${d.why}`;
+}
+
+function flagValue(argv: readonly string[], flag: string): string | undefined {
+    const i = argv.indexOf(flag);
+    const v = i === -1 ? undefined : argv[i + 1];
+    return v && !v.startsWith("-") ? v : undefined;
 }
 
 function git(args: string[], cwd: string): string {
@@ -260,6 +333,19 @@ function readVerdictFile(root: string): string | null {
 
 function main(): void {
     const cwd = process.cwd();
+    const argv = process.argv.slice(2);
+    const own = argv;
+    if (own.includes("--plan")) {
+        const sha = flagValue(own, "--plan");
+        const attempts = Number(flagValue(own, "--attempts") ?? "0");
+        if (!sha || !Number.isInteger(attempts) || attempts < 0) {
+            console.error("health:fix: usage: --plan <sha> [--attempts <n>]");
+            process.exit(2);
+        }
+        console.log(planLine(() => fixAttemptStore(cwd), sha, attempts));
+        return;
+    }
+    const headless = own.includes("--headless");
     // Same test `release.ts` uses: `--git-common-dir` is relative only in the
     // primary checkout, and the health telemetry lives there.
     if (git(["rev-parse", "--git-common-dir"], cwd) !== ".git") {
@@ -285,6 +371,7 @@ function main(): void {
         last: red.last,
         tip,
         interactive: process.stdin.isTTY === true,
+        headless,
     });
 
     if (decision.kind === "refuse") {
@@ -300,19 +387,79 @@ function main(): void {
     // be read as this round's answer.
     rmSync(verdictPath(cwd), { force: true });
 
+    // The attempt, on the pivot BEFORE the spawn (issue #5589): the other
+    // machine must see it is being tried. Unattended, a record that cannot
+    // be written is a refusal — a second fixer elsewhere is the failure it
+    // prevents; a human at a terminal is warned and goes on.
+    const attempts = fixAttemptStore(cwd);
+    const record = (
+        outcome: "attempting" | "landed" | "stuck",
+        extra: { pr?: number; note?: string } = {}
+    ): string | null => {
+        try {
+            attempts.write({
+                sha: decision.sha,
+                outcome,
+                machine: machineName(),
+                at: new Date().toISOString(),
+                ...extra,
+            });
+            return null;
+        } catch (err) {
+            return (err as Error).message;
+        }
+    };
+    const unrecorded = record("attempting", {
+        note: headless ? "headless" : "interactive",
+    });
+    if (unrecorded !== null) {
+        console.error(
+            `health:fix: the fix attempt could not be recorded on the pivot — ${unrecorded}`
+        );
+        if (headless) process.exit(1);
+    }
+
     // stdio inherited: the session is genuinely interactive, which is the
     // whole point of the TTY refusal above.
     // The fixer is admitted past the session cap (issue #4966): a RED tip is
     // repaired FIRST, and a repair refused because three sessions are stacking
     // work on that tip is the cap defeating its own purpose. The hook
     // announces and logs the override like any other.
-    spawnSync("claude", claudeArgs(decision.sha), {
-        stdio: "inherit",
-        cwd,
-        env: { ...process.env, [OVER_CAP_ENV]: "1" },
-    });
+    const spawned = spawnSync(
+        "claude",
+        claudeArgs(decision.sha, { headless, extra: extraClaudeArgs(argv) }),
+        {
+            stdio: headless ? ["ignore", "inherit", "inherit"] : "inherit",
+            // Unattended, a hung session must not hold the loop forever: past
+            // the bound it is killed, writes no verdict, and reads `stuck`.
+            ...(headless ? { timeout: HEADLESS_TIMEOUT_MS } : {}),
+            cwd,
+            env: {
+                ...process.env,
+                [OVER_CAP_ENV]: "1",
+                // `claude -p` must not end its turn waiting on background
+                // work, as the loop's own passes (`loop-drain.sh`).
+                ...(headless
+                    ? { CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: "0" }
+                    : {}),
+            },
+        }
+    );
 
-    const verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
+    let verdict = parseVerdict(readVerdictFile(cwd), decision.sha);
+    if (verdict.outcome === "stuck" && spawned.error)
+        verdict = {
+            ...verdict,
+            note: `${verdict.note} (the session was ended: ${spawned.error.message})`,
+        };
+    const unrecordedOutcome = record(verdict.outcome, {
+        pr: verdict.pr,
+        note: verdict.note,
+    });
+    if (unrecordedOutcome !== null)
+        console.error(
+            `health:fix: the fix outcome could not be recorded on the pivot — ${unrecordedOutcome}`
+        );
     if (verdict.outcome === "landed") {
         console.log(
             `health:fix: LANDED @ ${verdict.sha.slice(0, 8)}${verdict.pr ? ` (PR #${verdict.pr})` : ""}${verdict.note ? ` — ${verdict.note}` : ""}`

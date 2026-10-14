@@ -2,14 +2,18 @@
 name: health-fix
 description: "Repair a RED base tip: reproduce, fix forward, land, record the verdict."
 disable-model-invocation: true
-argument-hint: "<base-tip-sha>"
+argument-hint: "<base-tip-sha> [--headless]"
 ---
 
 # /health-fix — turn a RED verdict into a landed repair
 
 `$1` is the base tip that went red. `bun run health:fix` passes it (PRD issue
 #3197); typed by hand without it, read it from `bun run health:status` and
-confirm it is the sha the RED marker names — never guess.
+confirm it is the sha the RED verdict names — never guess.
+
+**`$2` = `--headless`** (issue #5589): you are `claude -p` for the unattended
+loop — read `headless.md` beside this file first: every **grill** below is
+`stuck`, and § 6's `land` runs through `gate:run`.
 
 You were spawned because the full offline gate (ADR 0116) failed on that tip
 and everything downstream is blocked: `release` refuses, `land` warns,
@@ -23,10 +27,8 @@ closes the class of the failure**, and a verdict file saying which.
    and the marker stays standing.
 2. **Never invoke `bun run release`.** The loop belongs to the caller. A fixer
    that re-entered release would escape the bound on rounds.
-3. **Grill on ambiguity, one question per turn.** You are interactive by
-   construction — `health:fix` refuses to spawn without a TTY precisely so you
-   can ask. Not being able to formulate the class guard is itself such an
-   ambiguity.
+3. **Grill on ambiguity, one question per turn** (headless: `stuck`). Not
+   being able to formulate the class guard is itself such an ambiguity.
 4. **A green suite is not the deliverable.** The fix plus the class guard is.
    A red you made disappear without understanding is a `stuck`.
 
@@ -38,23 +40,18 @@ that is where the health telemetry lives. **Write its absolute path down now**
 standing in, and a shell variable does not survive from one command to the
 next.
 
-```bash
-cat .claude/telemetry/health/last.json   # { sha, status:"red", failedStep, log, … }
-```
-
-`failedStep` is one of `worktree:init`, `check:all`, `test` — the gate stops at
-the first one that fails. Take the **full 40-char** sha from that record
-(`jq -r .sha`) if you were not handed one: `health:status` prints an abbreviated
-sha, and § 7's verdict is compared for exact equality against the full tip.
-
-The log is appended per step and is large: read it surgically, never `cat`.
+The RED may come from the OTHER machine (batch health runs on the Huawei).
+Its evidence is on the **pivot** (issue #5589), readable from either:
 
 ```bash
-grep -nE '^===== |FAIL|✗|Error|error TS|failed' "$(jq -r .log .claude/telemetry/health/last.json)" | head -40
+bun run health:status --evidence $1   # step, failure kind, projects, files, FAIL blocks, output tail
 ```
 
-Then `sed -n 'A,Bp' <log>` around the hits. The log is where the failure was
-observed once; it is **not** a diagnosis.
+Never `last.json`'s `log`: a path on the machine that ran the gate. The
+`failure:` kinds, and what to do when the command exits 1 (no evidence
+published): `evidence.md` beside this file. Take the **full 40-char** sha
+(`git rev-parse`): § 7's verdict is compared for exact equality. The evidence
+is where the failure was observed once; it is **not** a diagnosis.
 
 ## 1. Reproduce — only the failing step, at that tip
 
@@ -86,17 +83,17 @@ state does not survive between commands. Narrow before you run:
 Tear the worktree down when the diagnosis is done:
 `git worktree remove --force ../tolaria-health-repro`.
 
-**The step passes at the tip?** Then the red was not in the tree — a flake,
-machine state, a stale artifact. Do not invent a fix for something you never
-saw fail: grill the maintainer with what you observed. That is an ambiguity,
-and its likely outcome is `stuck`.
+**The step passes at the tip?** Then the red was not in the tree, or not on
+THIS machine: a flake, a stale artifact, a platform difference (issue
+#5590). Never invent a fix for something you never saw fail: grill with
+what you observed (headless: `stuck`).
 
 ## 2. Diagnose, then ask or proceed
 
 State the cause in one sentence and check it against the observed red. Grill
 whenever the cause or the repair is genuinely ambiguous — two plausible causes,
 a fix that trades one invariant for another, or a class you cannot yet name.
-One question per turn, no previews.
+One question per turn, no previews. Headless: the same ambiguity is `stuck`.
 
 ## 3. Open a GitHub issue, take a worktree
 

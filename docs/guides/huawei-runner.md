@@ -358,6 +358,18 @@ health` on the Huawei to confirm it sooner. The runner never
 claims, lands, seeds a scenario or opens a `health:fix` issue. On a
 [second RED](#g-second-red) it stops gating and notifies the owner once.
 
+**A RED carries its evidence to the MacBook** (issue #5589). `health-main`
+publishes it as a commit comment on the gated sha: the failing step, the
+failure kind (`assertion`, `timeout`, `crash`, `gate`, `unparsed`), the
+vitest projects and files, the FAIL blocks and the output tail. The commit
+status's link points at it, and its description carries `failure:` and
+`tests:`. Read it from either machine with `bun run health:status` (a
+summary) or `bun run health:status --evidence` (the whole body). The log
+under `.claude/telemetry/health/` stays on the Huawei, and nothing on the
+MacBook reads it. On the MacBook, `loop:afk` repairs the RED with one
+headless `health:fix` per tip. The attempt is recorded as a `health-fix`
+commit status on the red sha, so both machines see what was tried.
+
 ### Turning it on — the order matters
 
 Do the steps in this order:
@@ -386,7 +398,7 @@ stale, and the MacBook gates it locally and sends a notification.
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Toolchain          | `mise exec` in the primary checkout, as for [`tolaria-convex`](#convex-on-the-huawei): Node at the repo's pin, bun from the global mise config                                                                                                                                     |
 | Convex deployment  | The primary checkout's `.env.local`: `VITE_CONVEX_URL=http://127.0.0.1:3210`, `CONVEX_DEPLOYMENT=local:<name>`, served by the [`tolaria-convex` unit](#convex-on-the-huawei). The service starts after it. If the deployment is down, health records `infra` at `preflight:convex` |
-| GitHub             | `gh` logged in as the owner (`~/.config/gh`). It writes the commit status                                                                                                                                                                                                          |
+| GitHub             | `gh` logged in as the owner (`~/.config/gh`). It writes the commit status and, on a RED, the evidence comment                                                                                                                                                                      |
 | Push notification  | `TOLARIA_NOTIFY_CMD` in `~/.config/tolaria/runner.env` (optional). It runs with `sh -c` and gets the message as `$1`, e.g. `curl -s -d "$1" ntfy.sh/<topic>`. Without it the runner uses `notify-send`, which only reaches a logged-in desktop                                     |
 | The runner's state | `.claude/telemetry/health/runner.json` in the primary checkout: the last fire (the dedup stamp) and the second RED already notified                                                                                                                                                |
 | The machine        | Everything in [Set up the Huawei](#set-up-the-huawei-for-the-batch-gates). Machine admission waits on PSI before the heavy gate                                                                                                                                                    |
@@ -443,6 +455,7 @@ gh api "repos/{owner}/{repo}/commits/$(git rev-parse origin/staging)/statuses" -
 | Verdicts are `infra` at `preflight:convex`                       | The deployment is down: see [Convex on the Huawei § Prove it](#prove-it-1)                                                                                                                                                                                    |
 | Verdicts are `infra` at `preflight:machine`                      | PSI stayed over the cut-off past `machine.waitMaxS`. Run `bun run machine` and find the load                                                                                                                                                                  |
 | The MacBook notifies "health runner silent"                      | A batch has been due for 6 h with no GREEN or RED since (an `infra` does not count). Check `systemctl --user status tolaria-health.timer` and `journalctl --user -u tolaria-health.service` on the Huawei. The MacBook's own run has already gated that batch |
+| `health:status` says `evidence: none published`                  | The publish failed: `journalctl --user -u tolaria-health.service` shows `the RED evidence could not be published` with `gh`'s error. The verdict still carries `failure:` and `tests:`. The log exists only on the Huawei                                     |
 | `nothing to do` on the Huawei                                    | `healthRunner.platform` is absent or names another platform in the primary checkout's `tolaria.config.json`. Pull the base                                                                                                                                    |
 
 ## The crons

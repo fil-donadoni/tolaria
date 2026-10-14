@@ -53,6 +53,9 @@ export const DOC_GATE_TESTS = [
     // point of the guard is that they cannot drift — so the lane that merges
     // an edit to either has to be the lane that re-runs it.
     "scripts/__tests__/gate-rule-parity.test.ts",
+    // `/health-fix` § 0 must read the RED evidence from the pivot, never a
+    // machine-local log path (issue #5589) — a skill edit alone can break it.
+    "scripts/__tests__/health-evidence-pivot.test.ts",
     "scripts/__tests__/project-skills.test.ts",
     "scripts/__tests__/resident-context-budget.test.ts",
     "scripts/__tests__/skill-invocation.test.ts",

@@ -20,9 +20,11 @@
  * recorded as one, never dropped as an ordinary flake; the run's `headroom:`
  * line (`lib/test-headroom.ts`) names how close it ran.
  *
- * Node builtins plus `lib/health-step.ts` and `lib/machine-admission.ts` —
+ * Node builtins plus `lib/health-step.ts`, `lib/health-evidence.ts` and
+ * `lib/machine-admission.ts` —
  * `health-main.ts` carries the same constraint.
  */
+import { ANY_FAIL_LINE, failLines, stripAnsi } from "./health-evidence";
 import type { HealthStep, StepResult } from "./health-step";
 import { timeoutOnlyFailure } from "./machine-admission";
 
@@ -44,23 +46,20 @@ function startLine(marker: string): RegExp {
     return new RegExp(`^\\$ bun scripts/gate\\.ts \\w+ '.*${esc}`, "m");
 }
 
-const TAGGED_FAIL =
-    /^\s*(?:[❯>×✗]\s*)?FAIL\s+\|([^|\n]+)\|\s+\S+\.(?:test|spec)\.[cm]?[jt]sx?\b/gm;
-const ANY_FAIL = /^\s*(?:[❯>×✗]\s*)?FAIL\s+\S/gm;
-
-function plainOf(output: string): string {
-    // eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
-    return output.replace(/\u001b\[[0-9;]*m/g, "");
-}
+const plainOf = stripAnsi;
 
 /** The vitest projects with a failing test in `output`, sorted, unique — or
- *  null when some failure carries no project tag (so no retry can cover it). */
+ *  null when some failure carries no project tag (so no retry can cover it).
+ *  Both label forms count (`lib/health-evidence.ts`, issue #5589): a
+ *  coloured run prints ` proj ` where a plain one prints `|proj|`, and
+ *  reading only the second left a coloured RED unretried. */
 export function failedVitestProjects(output: string): string[] | null {
     const plain = plainOf(output);
+    const lines = failLines(plain);
     const projects = new Set<string>();
-    for (const m of plain.matchAll(TAGGED_FAIL)) projects.add(m[1].trim());
-    const tagged = [...plain.matchAll(TAGGED_FAIL)].length;
-    const any = [...plain.matchAll(ANY_FAIL)].length;
+    for (const l of lines) if (l.project) projects.add(l.project);
+    const tagged = lines.filter((l) => l.project).length;
+    const any = [...plain.matchAll(ANY_FAIL_LINE)].length;
     if (projects.size === 0 || tagged !== any) return null;
     return [...projects].sort();
 }
@@ -95,7 +94,7 @@ export type RetryCause = "timeout" | "assertion";
 
 /** The cause of a failed `test` step's output. */
 export function retryCauseOf(output: string): RetryCause {
-    return timeoutOnlyFailure(output) ? "timeout" : "assertion";
+    return timeoutOnlyFailure(plainOf(output)) ? "timeout" : "assertion";
 }
 
 /** `test (retry: bot-node, timeout)` — the step field a retried verdict
