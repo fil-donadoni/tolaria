@@ -24,7 +24,7 @@ const amassCore = "/repo/convex/cards/abilities/amassCore.ts"; // via amass
 const equipment = "/repo/convex/cards/abilities/equipment.ts"; // two Sets
 const defineCard = "/repo/convex/cards/defineCard.ts"; // the app too
 const loader = "/repo/src/lib/catalogue/set-chunk-loader.ts";
-const lazyHelper = "/repo/convex/gre/lazyHelper.ts"; // import()ed by ltr
+const lazyHelper = "/repo/convex/gre/lazyHelper.ts"; // ltr, static and import()ed
 const cyclicA = "/repo/convex/gre/cyclicA.ts";
 const cyclicB = "/repo/convex/gre/cyclicB.ts";
 
@@ -50,7 +50,7 @@ const g = graph({
     [amassCore]: { importers: [amass] },
     [equipment]: { importers: [ltrBlack, drkBlue] },
     [defineCard]: { importers: [ltrBlack, "/repo/src/lib/x.ts"] },
-    [lazyHelper]: { dynamic: [ltrBlack] },
+    [lazyHelper]: { importers: [ltrRed], dynamic: [ltrBlack] },
     [cyclicA]: { importers: [cyclicB, ltrRed] },
     [cyclicB]: { importers: [cyclicA] },
 });
@@ -80,7 +80,7 @@ describe("owningSet", () => {
         expect(owningSet(equipment, g)).toBeUndefined();
     });
 
-    it("a module a Set reaches only through import() is nobody's — it is its own lazy boundary", () => {
+    it("a module a Set also reaches through import() is nobody's — it is its own lazy boundary", () => {
         expect(owningSet(lazyHelper, g)).toBeUndefined();
     });
 
