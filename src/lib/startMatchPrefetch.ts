@@ -14,7 +14,7 @@
 // Not the Brain worker: it can only be warmed by spawning it, which starts the
 // Bot's own catalogue load in a second graph (PRD #5602 owns its delivery).
 
-import { loadCatalogueGate } from "./catalogueGateLoader";
+import { prefetchCatalogueGate } from "./catalogueGateLoader";
 
 /** Run `task` when the browser is idle (`requestIdleCallback`, else after a
  *  short delay). Returns the cancel. */
@@ -34,7 +34,7 @@ export async function prefetchStartMatch(
 ): Promise<void> {
     await Promise.allSettled([
         import("./catalogueArtifact").then((m) => m.hydrateCatalogue()),
-        loadCatalogueGate(),
+        prefetchCatalogueGate(),
         preloadGameRoute(),
     ]);
 }

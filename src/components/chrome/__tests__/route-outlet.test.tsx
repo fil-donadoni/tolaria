@@ -65,6 +65,10 @@ describe("which real routes opt out of the gate", () => {
         expect(lightSurface("/")).toBe(true);
     });
 
+    it("the Constructed Setup flow is a light surface (issue #5584)", () => {
+        expect(lightSurface("/play/constructed")).toBe(true);
+    });
+
     it.each([
         "/game",
         "/decks/create",

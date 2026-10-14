@@ -12,10 +12,19 @@ import type * as StrictImport from "./matchSetupDeckImport";
 
 export type StrictImportModule = typeof StrictImport;
 
+let loaded: StrictImportModule | null = null;
+
+/** The parser, once a load has completed — what a reopened dialog starts
+ *  from instead of showing "Loading cards…" again for a tick. */
+export function loadedStrictImport(): StrictImportModule | null {
+    return loaded;
+}
+
 export async function loadStrictImport(): Promise<StrictImportModule> {
     const [strictImport] = await Promise.all([
         import("./matchSetupDeckImport"),
         import("./catalogueArtifact").then((m) => m.hydrateCatalogue()),
     ]);
+    loaded = strictImport;
     return strictImport;
 }

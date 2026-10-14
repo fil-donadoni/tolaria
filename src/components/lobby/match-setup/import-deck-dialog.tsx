@@ -26,6 +26,7 @@ import {
 } from "~/lib/matchSetupImportFormats";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
 import {
+    loadedStrictImport,
     loadStrictImport,
     type StrictImportModule,
 } from "~/lib/strictImportLoader";
@@ -56,7 +57,9 @@ export default function ImportDeckDialog({
     const [chosen, setChosen] = useState<FormatId>("freeform");
     const [errors, setErrors] = useState<string[]>([]);
     const [busy, setBusy] = useState(false);
-    const [importer, setImporter] = useState<StrictImportModule | null>(null);
+    const [importer, setImporter] = useState<StrictImportModule | null>(
+        loadedStrictImport
+    );
     const [loadError, setLoadError] = useState<string | null>(null);
     const { create } = useUserDeckMutations();
     const fetchEarliest = useEarliestPrintFetcher();
