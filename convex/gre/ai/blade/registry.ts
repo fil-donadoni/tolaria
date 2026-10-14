@@ -13465,6 +13465,67 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5601. The root decision is the live CR 609.7a source choice, reached by really casting the Bolt and really activating and resolving the Circle: its pool spans the stack (the Bolt) and the battlefield (the Ogre). Proof-of-failure: dropping the stack's spells from `damageSourceChoicePool` (`gre/damageSourceChoice.ts`) leaves the Ogre as the only answer and the entry reds.",
     },
+    {
+        // CR 609.7a (issue #5601) — the preference twin of the entry above,
+        // asked by issue #3731: the threatening source is NOT the first
+        // candidate. The opponent attacks with a Gray Ogre; its summoning-sick
+        // Mons's Goblin Raiders, listed first on its battlefield, is the first
+        // candidate in the pool and the one a minimal-legal answer names. The
+        // bot activates its Circle in the defender's window of the declare-
+        // attackers step and resolves it: only the search's valuation of the
+        // shield picks the Ogre — the one red source about to deal it damage.
+        label: "source of your choice: shields itself from the attacking red creature, not the first red one listed",
+        classification: { kind: "absolute" },
+        spec: {
+            cards: [
+                {
+                    name: "Mons's Goblin Raiders",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: true,
+                },
+                {
+                    name: "Gray Ogre",
+                    owner: "me",
+                    zone: "battlefield",
+                    summoningSick: false,
+                },
+                {
+                    name: "Circle of Protection: Red",
+                    owner: "opp",
+                    zone: "battlefield",
+                },
+            ],
+            phase: "DECLARE_ATTACKERS",
+            turn: 5,
+            landCount: 0,
+            libraryCount: 20,
+            // The Circle's {1}, floating: a setup `activate` cannot walk a
+            // tap-to-pay decision forward.
+            manaPool: { opp: { W: 1 } },
+        },
+        setup: [
+            {
+                kind: "declare-attackers",
+                cards: ["Gray Ogre"],
+                haltForDefenderResponse: true,
+            },
+            {
+                kind: "activate",
+                card: "Circle of Protection: Red",
+                controller: "opp",
+            },
+            { kind: "resolve-top" },
+        ],
+        bot: "opp",
+        budget: { iterations: 200 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            moves: [{ kind: "resolution-choice", card: "Gray Ogre" }],
+        },
+        note: "Issue #5601, the preference twin of the entry above (issue #3731: a threatening source over the first candidate). The Raiders are the first candidate and the minimal-legal answer; the attacking Ogre is the threat. Proof-of-failure: `pickSourceCandidates` (`gre/ai/choiceCandidates.ts`) offering only its first candidate leaves the Raiders as the answer and the entry reds.",
+    },
 ];
 
 /** "The bot answered the ENGINE-RAISED target selection with a submission the
