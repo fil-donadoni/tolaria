@@ -65,9 +65,11 @@ What `install` does, per [runner](#g-runner), only where the machine differs:
 3. installs its [user service](#g-user-service) and starts it — unless the
    runner is [paused](#g-pause), in which case it stays stopped.
 
-**Idempotent**: a second run on an unchanged machine prints
-`nothing to do — this machine already matches`. A changed unit template is
-rewritten and its service restarted. A [runner](#g-runner) installed but no
+**Idempotent**: a second run on an unchanged machine changes nothing and
+prints `nothing to do — this machine already matches` (after any standing
+notes: [linger](#g-linger) off, a runner not declared). A changed unit
+template is rewritten and its service restarted — **which kills a job in
+flight on it**; check `bun run runner status` first. A [runner](#g-runner) installed but no
 longer declared (you lowered `--pass`) is reported, never removed silently:
 `bun run runner remove <name>` stops it, unregisters it from GitHub and
 deletes its directory. Changing a registered runner's
@@ -102,8 +104,10 @@ Check one: `launchctl print "gui/$(id -u)/com.tolaria.gh-runner.<name>" | grep -
   (`scripts/runner-units/tolaria-gh-runner@.service`); each
   [runner](#g-runner) is an instance, `tolaria-gh-runner@<name>.service`.
   `Restart=always`, and `KillMode=control-group` ends a job's whole tree with
-  the unit. `PATH` is the one `install` ran with — run it from a shell where
-  `bun` and `node` resolve.
+  the unit. `PATH` is fixed — `~/.local/bin`, `~/.bun/bin`, the directory
+  of `command -v node`, `/usr/local/bin`, `/usr/bin`, `/bin` — never the
+  installing shell's, so a re-run from another directory does not rewrite
+  the unit; `install` refuses when `node` is not on it.
 - **[Linger](#g-linger)** keeps the services up with nobody logged in;
   `install` notes when it is off: `sudo loginctl enable-linger "$USER"`.
 - The Huawei keeps its existing Convex unit, `tolaria-convex.service`
@@ -126,8 +130,10 @@ bun run runner resume   # start them again
 [user service](#g-user-service) (`launchctl disable` + `bootout`;
 `systemctl --user disable --now`), so neither a login nor a reboot brings it
 back, and a later `install` leaves it stopped. `resume` reverses both. Both
-accept `--dry-run`. **A job running at pause time is killed** — GitHub marks
-it failed and the next event or sweep re-fires it. `pause` never touches the
+accept `--dry-run`. **A job running at pause time is killed**, with no
+busy check — GitHub marks it failed. Look at `bun run runner status` (the
+`busy` column) before pausing in the middle of a Claude
+[pass](#g-pass). `pause` never touches the
 [Convex agent](#g-convex-agent).
 
 ## Repository settings checklist (ADR 0156 §8)
