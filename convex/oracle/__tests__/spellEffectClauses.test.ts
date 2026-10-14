@@ -337,6 +337,17 @@ describe("refusals: the neighbours each rule must not read", () => {
         refused(instant("Test", "{1}{U}", "Each creature phases out."));
     });
 
+    it("a well-formed list of only three of the four types", () => {
+        refused(
+            instant(
+                "Test",
+                "{2}{W}{W}",
+                "Each player chooses from among the permanents they control an artifact, a creature, and a land, then sacrifices the rest.",
+                "Sorcery"
+            )
+        );
+    });
+
     it("an edict listing fewer types than the four printed", () => {
         refused(
             instant(
