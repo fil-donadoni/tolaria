@@ -104,6 +104,7 @@ export function everyOptionalCardField(): EveryOptionalCardField {
         sourceTappedPTMods: [{ power: 1, toughness: 1, sourceId: "src-6" }],
         untapLockedBy: ["src-7"],
         skipNextUntap: true,
+        returnToHandAtUntapOf: "p1",
         canAttackDespiteDefenderThisTurn: true,
         counters: { "+1/+1": 2 },
         classLevel: 2,
