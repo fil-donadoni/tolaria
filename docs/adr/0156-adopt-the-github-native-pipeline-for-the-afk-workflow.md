@@ -176,8 +176,7 @@ Retired by this section: `land.ts` (but its resolver and RED rule, above),
 - `post-merge.yml` on `push` to the base branch, one concurrency group:
   scenario seed (`seed` runner: the machine holding the Convex deployment the
   owner plays on, the MacBook today), `gaps:sync`, grammar residue,
-  umbrella detach — the `housekeeping` and nightly crons that issue #5592 was
-  to schedule.
+  umbrella detach, and `health:nightly` on a nightly schedule — the `housekeeping` and nightly crons issue #5592 put on Huawei systemd timers.
 - `health.yml` on a 2-hour `schedule` and on dispatch, any `lane` runner:
   `check:all` + `test` on the base tip; the result is a native commit status
   and a native failure email. `afk-pass` reads the status before picking;
@@ -335,21 +334,16 @@ PRD A, no PRD B, no new workflow feature). Each phase names what proves it.
 - **Phase 0 — freeze, runners, the missing crons.** Register `pass`, `lane`
   and `seed` runners on both machines under a dedicated system user, as user
   services; repository settings of §8; `TRUSTED_AUTHORS`; `pr-check.yml` as an
-  advisory check. `post-merge.yml` runs `housekeeping` on every push and
-  `health:nightly` on a nightly schedule at once — nothing schedules them
-  today (issue #5592, superseded). Measure a lane on a GitHub-hosted runner.
-  Proof: every open PR shows the check; one deliberate red is red;
-  `gaps:sync` runs after a merge.
+  advisory check. Measure a lane on a GitHub-hosted runner. Proof: every open PR shows the check; one deliberate red is red.
 - **Phase 1 — the queue.** `pr-gate.yml` (`trusted-author`, `base-health`),
   `pr-refresh.yml`, the `check:ui` receipt and preset-scenario checks in
   `pr-check.yml`; `.mergify.yml` with two parallel checks, in shadow (acts
   only on a `queue:shadow` label), then cut-over: `land:ready` becomes the
-  label, the land-runner stops (issues #5598 and #5599 superseded). Proof:
+  label, the land-runner stops, with its launchd agent and failure notification (issues #5598, #5599). Proof:
   20 PRs merged by the queue; failed-land share ≤ today's; a rejected PR
   carries `land-failed` and re-fires its pass; a conflicting generated file
   is regenerated without a pass; a RED base holds a non-repair PR.
-- **Phase 2 — the schedules.** `health.yml`, `release.yml`; retire runner
-  units, crons, verdict store, health cadence, `release.ts`. Proof: one RED
+- **Phase 2 — the schedules.** `post-merge.yml` (seed, ingest, `housekeeping` on every push; `health:nightly` on a nightly schedule — replacing the Huawei timers of issue #5592), `health.yml`, `release.yml`; retire runner units, crons, verdict store, health cadence, `release.ts`. Proof: one RED
   tip visible as a status and an email, and the queue held by it; one release
   through the workflow.
 - **Phase 3 — the pass.** `afk-pass.yml`; retire `loop-drain.sh`,
