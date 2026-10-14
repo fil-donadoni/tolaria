@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { issueWorktree } from "../lib/issue-worktree";
+import { botAuditSuggestion } from "../lib/bot-audit-suggestion";
 import { join, resolve } from "node:path";
 import {
     refusalReason,
@@ -26,6 +27,7 @@ import {
     recordLandingStep,
     healthDetachStep,
     telemetryIngestStep,
+    botAuditSuggestionStep,
     lockedEnv,
     laneStep,
     greenLaneRunOf,
@@ -913,7 +915,7 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
      * (then the teardown). The GitHub-bound steps live in the hourly
      * `housekeeping` cron (`scripts/housekeeping.ts`).
      */
-    it("pins the post-merge list at FIVE steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
+    it("pins the post-merge list at SIX steps before the teardown, none of them GitHub-bound (issue #5457)", () => {
         const steps = postMergeHousekeepingSteps({
             ...housekeeping,
             teardown: false,
@@ -924,6 +926,7 @@ describe("land.ts — post-merge housekeeping is the same list in both paths", (
             seedScenarioStep("/repo", 4159),
             telemetryIngestStep("/repo"),
             healthDetachStep("/repo"),
+            botAuditSuggestionStep("/repo"),
         ]);
         for (const cmd of [
             buildLockedCommand(locked),
@@ -2298,5 +2301,68 @@ describe("land.ts — no preflight (ADR 0154 §5, issue #5457)", () => {
         expect(issued).toBeGreaterThan(-1);
         expect(issued).toBeLessThan(main.indexOf("parseArgs(argv)"));
         expect(main).toMatch(/lockedEnv\(process\.env, issuedAt\)/);
+    });
+});
+
+/**
+ * ADR 0149 §6, issue #4924 — `land` suggests a `/bot-audit` after a landing
+ * that moved the fitted weights or brought a new set. A line, never a gate.
+ */
+describe("bot audit suggestion line (issue #4924)", () => {
+    const weights = "M\tconvex/gre/ai/evalWeights.ts\n";
+    const newSet =
+        "A\tconvex/cards/sets/xyz/red.cards.ts\nA\tconvex/cards/sets/xyz/index.cards.ts\n";
+    const docs = "M\tdocs/PROJECT.md\nM\tCLAUDE.md\n";
+
+    it("prints 'weights moved' for a diff touching the weights module", () => {
+        expect(botAuditSuggestion(weights)).toBe(
+            "bot audit suggested: weights moved"
+        );
+    });
+
+    it("prints 'new set <code>' for a diff adding a set file", () => {
+        expect(botAuditSuggestion(newSet)).toBe(
+            "bot audit suggested: new set xyz"
+        );
+    });
+
+    it("prints nothing for a docs-only diff, nor for an edit inside an existing set", () => {
+        expect(botAuditSuggestion(docs)).toBeNull();
+        expect(
+            botAuditSuggestion("M\tconvex/cards/sets/aer/red.cards.ts\n")
+        ).toBeNull();
+        expect(
+            botAuditSuggestion(
+                "A\tconvex/cards/sets/aer/tokens.cards.ts\nR100\tconvex/cards/sets/aer/a.ts\tconvex/cards/sets/aer/b.ts\n"
+            )
+        ).toBeNull();
+    });
+
+    it("runs after the landing record, last of the shared list, and cannot fail the shell", () => {
+        const steps = postMergeHousekeepingSteps({
+            branch: "feat/issue-4924",
+            pr: 4924,
+            primaryCheckout: "/repo",
+            worktree: null,
+            teardown: false,
+        });
+        expect(steps.indexOf(botAuditSuggestionStep("/repo"))).toBeGreaterThan(
+            steps.indexOf(recordLandingStep("/repo"))
+        );
+        expect(botAuditSuggestionStep("/repo")).toMatch(/; true\)$/);
+    });
+
+    it("the CLI half prints the line on stdout and exits 0, or prints nothing", () => {
+        const run = (input: string) =>
+            spawnSync("bun", ["scripts/lib/bot-audit-suggestion.ts"], {
+                input,
+                encoding: "utf8",
+            });
+        const hit = run(weights);
+        expect(hit.status).toBe(0);
+        expect(hit.stdout).toBe("bot audit suggested: weights moved\n");
+        const miss = run(docs);
+        expect(miss.status).toBe(0);
+        expect(miss.stdout).toBe("");
     });
 });

@@ -351,6 +351,7 @@ const PR_MERGE = resolve(__dirname, "pr-merge.ts");
  */
 const HEALTH_CADENCE_REL = "scripts/health-cadence.ts";
 const TELEMETRY_INGEST_REL = "scripts/telemetry-ingest.ts";
+const BOT_AUDIT_SUGGESTION_REL = "scripts/lib/bot-audit-suggestion.ts";
 /** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
 const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
@@ -1089,6 +1090,24 @@ export function telemetryIngestStep(primaryCheckout: string): string {
 }
 
 /**
+ * Print the `/bot-audit` suggestion (ADR 0149 §6, issue #4924) when the
+ * landed squash touched the fitted weights or added a set. A line, nothing
+ * more: `; true` and a stderr-silent fallback so it can never change `land`'s
+ * exit code. Reads the diff of the tip the squash produced (`ORIGIN_BASE~1..`)
+ * (the recovery path runs it unlocked: a base that moved since the merge
+ * suggests from the wrong squash — a printed line only). From the PRIMARY
+ * checkout, by a RELATIVE path, for the reason
+ * `HEALTH_CADENCE_REL` gives.
+ */
+export function botAuditSuggestionStep(primaryCheckout: string): string {
+    return (
+        `(cd ${shQuote(primaryCheckout)} && ` +
+        `git diff --name-status ${ORIGIN_BASE}~1 ${ORIGIN_BASE} 2>/dev/null | ` +
+        `bun ${shQuote(BOT_AUDIT_SUGGESTION_REL)} 2>/dev/null; true)`
+    );
+}
+
+/**
  * Register the PR's preset scenario in the local Convex deployment (ADR 0044)
  * — the step ADR 0110 dropped when it retired the orchestrator and CLAUDE.md
  * § step 7 still names. In the PRIMARY checkout (a linked worktree has no
@@ -1181,6 +1200,9 @@ export function postMergeHousekeepingSteps(
     // running after it.
     steps.push(telemetryIngestStep(opts.primaryCheckout));
     steps.push(healthDetachStep(opts.primaryCheckout));
+    // After the landing record, and last of the visible output: a suggestion
+    // the owner reads, never a gate (ADR 0149 §6).
+    steps.push(botAuditSuggestionStep(opts.primaryCheckout));
     // Ref cleanup — cosmetic, not gating. `(… || true)` so a failure here
     // (stale remote state, an already-deleted branch, …) can never turn
     // a MERGED PR's landing into a reported failure.
