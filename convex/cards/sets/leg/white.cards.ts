@@ -1567,9 +1567,9 @@ export const wallOfCaltrops = defineCard(() => ({
 
 // Greater Realm of Preservation — "{1}{W}: The next time a black or red source
 // of your choice would deal damage to you this turn, prevent that damage."
-// (CR 615.1, 615.6 — one-shot prevention shield scheduled against a chosen
-// source; CR 202.2 — the choice is restricted to sources that are black OR red
-// via `colorFilterAny`.) Built from the shared `makeCircleOfProtection` factory
+// (CR 615.1, 615.6 — one-shot prevention shield against a chosen source;
+// CR 202.2 — the choice, and the shield's recheck, take a source that is black
+// OR red.) Built from the shared `makeCircleOfProtection` factory
 // with the multi-color source variant and {1}{W} enchantment / activation costs.
 export const greaterRealmOfPreservation = defineCard(() =>
     makeCircleOfProtection({

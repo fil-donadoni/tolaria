@@ -1945,6 +1945,12 @@ function lowerSentenceBody(
                       }),
                 ...(cardType === undefined ? {} : { type: cardType }),
             };
+            // CR 609.7b — the same qualifier, rechecked by the shield when
+            // the chosen source would deal damage.
+            const match = {
+                ...(colors === undefined ? {} : { colors: [...colors] }),
+                ...(cardType === undefined ? {} : { cardType }),
+            };
             const article = /^[aeiou]/.test(sentence.phrase) ? "an" : "a";
             return lowered([
                 {
@@ -1963,6 +1969,7 @@ function lowerSentenceBody(
                     source: { ref: bind },
                     to: { player: "controller" },
                     duration: durationSpec(sentence.duration),
+                    ...(Object.keys(match).length === 0 ? {} : { match }),
                 },
             ]);
         }

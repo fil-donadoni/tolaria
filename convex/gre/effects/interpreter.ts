@@ -5241,11 +5241,30 @@ export const OP_EXECUTORS: {
             if (!sourceIds || sourceIds.length === 0) return;
             const playerId = resolvePlayerRef(ctx, op.to.player);
             if (playerId === undefined) return;
+            // CR 609.7b — the qualifier the shield rechecks, its colour
+            // words read through this ability's text changes (CR 612) once,
+            // as the effect is created — the same reading the choice made.
+            const match =
+                op.match === undefined
+                    ? undefined
+                    : {
+                          ...(op.match.colors === undefined
+                              ? {}
+                              : {
+                                    colors: op.match.colors.map((c) =>
+                                        ctx.substituteColorWord(c)
+                                    ),
+                                }),
+                          ...(op.match.cardType === undefined
+                              ? {}
+                              : { cardType: op.match.cardType }),
+                      };
             for (const sourceId of sourceIds) {
                 ctx.preventNextDamageFromSource(
                     sourceId,
                     playerId,
-                    op.duration
+                    op.duration,
+                    match
                 );
             }
             return;

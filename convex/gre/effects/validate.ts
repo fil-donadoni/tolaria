@@ -5624,8 +5624,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             } else if (entry.mode === "next-from-source") {
                 // CR 609.7a / 615.1a (issue #5601) — the chosen source is a
                 // bare picks ref (a `pick-source` choice's binding; its family
-                // is checked by the ordered ref pass), the recipient a PLAYER.
-                requireFields(["source", "to", "duration"]);
+                // is checked by the ordered ref pass), the recipient a PLAYER;
+                // `match` is the CR 609.7b recheck, a SOURCE match.
+                requireFields(["source", "to", "duration"], ["match"]);
+                if (has("match") && !isSourceShieldMatch(entry.match)) {
+                    errors.push(
+                        'mode "next-from-source" takes a SOURCE match ' +
+                            "({ colors?, cardType? })"
+                    );
+                }
                 if (has("source") && !isBarePicksRef(entry.source)) {
                     errors.push(
                         'mode "next-from-source" takes `source: { ref }` naming a pick-source choice\'s picks binding'

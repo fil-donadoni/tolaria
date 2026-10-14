@@ -451,10 +451,11 @@ export function makeTriome(args: {
  *     (Greater Realm of Preservation): a source of ANY of `colors`.
  *   - `{ kind: "artifact"; word }` — COP: Artifacts: an artifact source.
  *
- *  CR 615.1a / 615.6 — the shield is keyed on the chosen source's instance
- *  id, so the qualifier only gates the choice: once picked, that exact
- *  source's next damage to you is prevented regardless of any later colour
- *  change. If no source qualifies, nothing is chosen and no shield is made. */
+ *  CR 615.1a / 609.7b — the shield is keyed on the chosen source's instance
+ *  id and carries the same qualifier as its `match`, RECHECKED when that
+ *  source would deal damage: a red source turned green deals its damage and
+ *  the shield is not used up. If no source qualifies, nothing is chosen and
+ *  no shield is made. */
 type CopSourceFilter =
     | { kind: "color"; color: Color; word: string }
     | { kind: "color-any"; colors: ReadonlyArray<Color>; word: string }
@@ -508,6 +509,13 @@ export function makeCircleOfProtection(args: {
             : source.kind === "color-any"
               ? { color: [...source.colors] }
               : { color: source.color };
+    // CR 609.7b — the same qualifier as the shield's recheck.
+    const match: { colors?: Color[]; cardType?: "Artifact" } =
+        source.kind === "artifact"
+            ? { cardType: "Artifact" }
+            : source.kind === "color-any"
+              ? { colors: [...source.colors] }
+              : { colors: [source.color] };
     const activationCost: ManaCost = args.activationCost ?? { X: 1 };
     // CR 107 — render the activation cost as mana symbols for the ability's
     // oracle text ({N} generic, then WUBRG). Keeps the LEA cycle's "{1}:" and
@@ -544,6 +552,7 @@ export function makeCircleOfProtection(args: {
                         source: { ref: "$chosen" },
                         to: { player: "controller" },
                         duration: { phase: "end-of-turn" },
+                        match,
                     },
                 ],
             },

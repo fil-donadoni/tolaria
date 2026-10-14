@@ -1749,6 +1749,12 @@ export type PreventionEffect = {
     /** The player whose incoming damage is prevented. */
     playerId: string;
     duration: Duration;
+    /** CR 609.7b (issue #5601) — the printed qualifier of "a <colour|type>
+     *  source of your choice", RECHECKED when the source would deal damage:
+     *  a source that no longer has the property is not prevented, and the
+     *  shield is not used up. Colours are an OR-set (CR 202.2 — "a black or
+     *  red source"). Absent for "a source of your choice". */
+    match?: { colors?: Color[]; cardType?: CardType };
 };
 
 /** A damage-prevention shield on a specific target (CR 615.1). Absorbs up to

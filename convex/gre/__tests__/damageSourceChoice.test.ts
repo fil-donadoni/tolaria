@@ -142,6 +142,7 @@ describe("pick-source — the CR 609.7a source pool (issue #5601)", () => {
                 sourceInstanceId: bolt.id,
                 playerId: "p1",
                 duration: { phase: "end-of-turn" },
+                match: { colors: ["R"] },
             },
         ]);
         // The Bolt resolves: CR 615.6 — prevented damage never happens, and
@@ -163,6 +164,38 @@ describe("pick-source — the CR 609.7a source pool (issue #5601)", () => {
         // The shield is used up: the same source's next damage is dealt.
         attackUnblocked(state, "ogre");
         expect(state.players[0].life).toBe(18);
+    });
+
+    it("a chosen red creature turned green deals its damage; the unused shield waits for it to be red again (CR 609.7b)", () => {
+        const state = board(circleOfProtectionRed, [
+            p2Permanent(grayOgre.id, "ogre"),
+        ]);
+        activate(state, circleOfProtectionRed);
+        submit(state, ["ogre"]);
+        const ogre = state.players[1].battlefield.find((c) => c.id === "ogre")!;
+        // A layer-5 colour SET (a lace): the Ogre is green, not red.
+        ogre.colorOverride = ["G"];
+        attackUnblocked(state, "ogre");
+        expect(state.players[0].life).toBe(18);
+        expect(state.preventionEffects).toHaveLength(1);
+        // Red again: the shield, never used, prevents this damage.
+        ogre.colorOverride = undefined;
+        attackUnblocked(state, "ogre");
+        expect(state.players[0].life).toBe(18);
+        expect(state.preventionEffects).toBeUndefined();
+    });
+
+    it("a chosen red spell turned blue on the stack deals its damage (CR 609.7b)", () => {
+        const state = board(circleOfProtectionRed);
+        const bolt = pushSpell(state, lightningBolt.id, "p2", [
+            { type: "player", id: "p1" },
+        ]);
+        activate(state, circleOfProtectionRed);
+        submit(state, [bolt.id]);
+        state.stack.find((s) => s.id === bolt.id)!.colorOverride = ["U"];
+        resolveTopOfStack(state);
+        expect(state.players[0].life).toBe(17);
+        expect(state.preventionEffects).toHaveLength(1);
     });
 
     it("prevents only damage to YOU — the chosen source's damage to your creature is dealt (CR 615.1a)", () => {
@@ -374,6 +407,28 @@ describe("the script's validator rules (issue #5601)", () => {
         expect(
             errorsOf([pick({ filter: { type: "Artifact" } }), shield()])
         ).toEqual([]);
+        // CR 609.7b — the qualifier the shield rechecks.
+        expect(
+            errorsOf([
+                pick({ filter: { color: ["B", "R"] } }),
+                shield({ match: { colors: ["B", "R"] } }),
+            ])
+        ).toEqual([]);
+        expect(
+            errorsOf([
+                pick({ filter: { type: "Artifact" } }),
+                shield({ match: { cardType: "Artifact" } }),
+            ])
+        ).toEqual([]);
+    });
+
+    it("refuses a recheck that is not a source match", () => {
+        expect(
+            errorsOf([pick(), shield({ match: { subtype: "Goblin" } })])
+        ).not.toEqual([]);
+        expect(
+            errorsOf([pick(), shield({ match: { colors: [] } })])
+        ).not.toEqual([]);
     });
 
     it("refuses the kind and the pool apart, a count past one, a battlefield-pool narrowing and an unread filter key", () => {

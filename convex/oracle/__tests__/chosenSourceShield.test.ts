@@ -41,9 +41,11 @@ function compiled(card: ReturnType<typeof oracleCard>): CompiledDefinition {
     return outcome.definition;
 }
 
-/** The two-Op script every accepted form lowers to. */
+/** The two-Op script every accepted form lowers to: the qualifier is the
+ *  choice's `filter` and, again, the shield's CR 609.7b recheck `match`. */
 function shieldScript(
     filter: Record<string, unknown> | undefined,
+    match: Record<string, unknown> | undefined,
     prompt: string
 ) {
     return [
@@ -63,6 +65,7 @@ function shieldScript(
             source: { ref: "$source1" },
             to: { player: "controller" },
             duration: { phase: "end-of-turn" },
+            ...(match === undefined ? {} : { match }),
         },
     ];
 }
@@ -86,6 +89,7 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
                         useStack: true,
                         effects: shieldScript(
                             { color: "R" },
+                            { colors: ["R"] },
                             "Choose a red source."
                         ),
                     },
@@ -108,7 +112,11 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
             oracleText: line,
             cost: { mana: { W: 1 } },
             useStack: true,
-            effects: shieldScript({ color: "R" }, "Choose a red source."),
+            effects: shieldScript(
+                { color: "R" },
+                { colors: ["R"] },
+                "Choose a red source."
+            ),
         });
     });
 
@@ -119,7 +127,11 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
             compiled(enchantment("Greater Realm of Preservation", line))
                 .activatedAbilities?.[0]?.effects
         ).toEqual(
-            shieldScript({ color: ["B", "R"] }, "Choose a black or red source.")
+            shieldScript(
+                { color: ["B", "R"] },
+                { colors: ["B", "R"] },
+                "Choose a black or red source."
+            )
         );
     });
 
@@ -131,7 +143,11 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
         ).activatedAbilities?.[0];
         expect(ability?.cost).toEqual({ mana: { X: 2 } });
         expect(ability?.effects).toEqual(
-            shieldScript({ type: "Artifact" }, "Choose an artifact source.")
+            shieldScript(
+                { type: "Artifact" },
+                { cardType: "Artifact" },
+                "Choose an artifact source."
+            )
         );
     });
 
@@ -145,7 +161,13 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
                     `${line}\nCycling {2} ({2}, Discard this card: Draw a card.)`
                 )
             ).activatedAbilities?.[0]?.effects
-        ).toEqual(shieldScript({ type: "Land" }, "Choose a land source."));
+        ).toEqual(
+            shieldScript(
+                { type: "Land" },
+                { cardType: "Land" },
+                "Choose a land source."
+            )
+        );
     });
 
     it("no qualifier: Pentagram of the Ages", () => {
@@ -163,7 +185,7 @@ describe("a source of your choice — golden fixtures (CR 609.7a)", () => {
         ).activatedAbilities?.[0];
         expect(ability?.cost).toEqual({ mana: { X: 4 }, tap: true });
         expect(ability?.effects).toEqual(
-            shieldScript(undefined, "Choose a source.")
+            shieldScript(undefined, undefined, "Choose a source.")
         );
     });
 });

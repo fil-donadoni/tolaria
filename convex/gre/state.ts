@@ -1131,10 +1131,39 @@ export function queueExtraCombat(state: GameState): void {
     state.extraPhases = [...(state.extraPhases ?? []), { kind: "combat" }];
 }
 
+/** CR 609.7b (issue #5601) — does the damage source still have the property a
+ *  "<colour|type> source of your choice" shield was created for? Read as the
+ *  source would deal damage, from the LIVE object: the permanent (an
+ *  activated ability's damage is its permanent's), else the spell on the
+ *  stack (a resolving spell is still there while it deals damage). Colours
+ *  are the layer-5 read (`STATIC_EFFECT_CTX.getColors`) and an OR-set
+ *  (CR 202.2). A source with no object left to read (LKI is not modelled)
+ *  keeps the id-keyed choice. */
+function preventionMatchHolds(
+    state: GameState,
+    sourceInstanceId: string,
+    match: NonNullable<GameState["preventionEffects"]>[number]["match"]
+): boolean {
+    if (!match) return true;
+    const live =
+        state.players
+            .flatMap((p) => p.battlefield)
+            .find((c) => c.id === sourceInstanceId) ??
+        state.stack.find((s) => s.id === sourceInstanceId);
+    if (!live) return true;
+    if (match.cardType && !live.types.includes(match.cardType)) return false;
+    if (match.colors && match.colors.length > 0) {
+        const colors = STATIC_EFFECT_CTX.getColors(live);
+        if (!match.colors.some((c) => colors.includes(c))) return false;
+    }
+    return true;
+}
+
 /** Returns true if a prevention effect matches (source, player) and consumes
  *  it. Called from every damage-dealing path (spell/ability, combat), after
  *  the CR 614 layer — see `applyTargetPrevention` for that CR 616.1 ordering
- *  choice. */
+ *  choice. CR 609.7b — a shield whose `match` the source no longer meets
+ *  prevents nothing and is NOT used up. */
 export function consumePreventionIfAny(
     state: GameState,
     sourceInstanceId: string,
@@ -1145,7 +1174,9 @@ export function consumePreventionIfAny(
     }
     const idx = state.preventionEffects.findIndex(
         (e) =>
-            e.sourceInstanceId === sourceInstanceId && e.playerId === playerId
+            e.sourceInstanceId === sourceInstanceId &&
+            e.playerId === playerId &&
+            preventionMatchHolds(state, sourceInstanceId, e.match)
     );
     if (idx === -1) return false;
     state.preventionEffects.splice(idx, 1);
@@ -11643,18 +11674,21 @@ export function buildSpellContext(
         preventNextDamageFromSource(
             sourceInstanceId: string,
             playerId: string,
-            duration: DurationSpec
+            duration: DurationSpec,
+            match?: { colors?: Color[]; cardType?: CardType }
         ): void {
             // CR 615.1, 615.6: "The next time a [source] would deal damage
             // to [player], prevent that damage." Stored as a one-shot
             // replacement effect and consumed by the first matching damage
-            // event. `duration` scopes the unconsumed remainder.
+            // event. `duration` scopes the unconsumed remainder; `match`
+            // is the CR 609.7b recheck (`consumePreventionIfAny`).
             state.preventionEffects = [
                 ...(state.preventionEffects ?? []),
                 {
                     sourceInstanceId,
                     playerId,
                     duration: resolveDuration(duration, item.castById, state),
+                    ...(match === undefined ? {} : { match }),
                 },
             ];
         },

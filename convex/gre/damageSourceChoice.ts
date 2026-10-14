@@ -14,7 +14,8 @@
 // (`pendingChoiceSubmitHandlers.ts`), the legal-action enumeration
 // (`zonePickEligibility.ts`) and the Bot's view of the choice. The other
 // CR 609.7a categories (objects referred to by a stack object, a waiting
-// replacement or delayed trigger; command-zone objects) are not modelled.
+// replacement or delayed trigger; command-zone objects) are not modelled —
+// tracked-by: #3733.
 
 import type { DamageSourceFilter } from "../cards/filters";
 import { matchesDamageSourceFilter } from "../cards/filters";

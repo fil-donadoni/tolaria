@@ -5481,11 +5481,15 @@ export interface SpellContext {
      *  would deal damage to `playerId`, that damage is prevented (CR 615.1,
      *  615.6). Consumed by the first matching damage event; any unused
      *  remainder is purged when `duration` expires. Used by Circle of
-     *  Protection's "this turn"-scoped prevent. */
+     *  Protection's "this turn"-scoped prevent. `match` (CR 609.7b, issue
+     *  #5601) is the printed "<colour|type> source" qualifier, rechecked as
+     *  the source would deal damage: no longer met, the damage is dealt and
+     *  the shield stays. */
     preventNextDamageFromSource: (
         sourceInstanceId: string,
         playerId: string,
-        duration: DurationSpec
+        duration: DurationSpec,
+        match?: { colors?: Color[]; cardType?: CardType }
     ) => void;
     /** CR 609.7a (issue #5601) — the ids a player may choose as "a source of
      *  damage": every spell on the stack (topmost first), then every
@@ -17370,13 +17374,23 @@ export type EffectOp =
      *  sentence). An uncaptured binding (no legal source) skips the Op.
      *  `to` is resolved ONCE as the effect is created (CR 608.2 — "you" is
      *  the resolving controller). `duration` scopes the unused shield
-     *  (`{ phase: "end-of-turn" }` for "this turn"). */
+     *  (`{ phase: "end-of-turn" }` for "this turn").
+     *
+     *  `match` (CR 609.7b) is the printed qualifier — "a red source", "an
+     *  artifact source" — the `pick-source` choice's `filter` again, now as
+     *  the shield's RECHECK: when the chosen source would deal damage, a
+     *  source that is no longer red (or no longer an artifact) is not
+     *  prevented and the shield is not used up. Colours are an OR-set
+     *  ("a black or red source"), each read through the ability's
+     *  colour-word text changes (CR 612) as the effect is created. Omit it
+     *  for "a source of your choice". */
     | {
           op: "preventDamage";
           mode: "next-from-source";
           source: { ref: string };
           to: { player: EffectPlayerRef };
           duration: DurationSpec;
+          match?: { colors?: Color[]; cardType?: CardType };
       }
     /** `"all-from-matching"` (CR 615, issue #1955) → the same primitive with a
      *  FILTER-scoped shield and no target named at all: prevent all damage
