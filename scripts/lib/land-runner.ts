@@ -333,7 +333,7 @@ export function describeLandFailures(
     const groups = new Map<string, LandFailure[]>();
     for (const f of failures)
         groups.set(f.reason, [...(groups.get(f.reason) ?? []), f]);
-    const prs = (g: LandFailure[]): string =>
+    const prs = (g: readonly LandFailure[]): string =>
         g.map((f) => `#${f.pr}`).join(", ");
     const head =
         failures.length === 1
