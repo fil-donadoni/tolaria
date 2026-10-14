@@ -626,6 +626,13 @@
             "needsSetup": true
         }
     ],
+    "Wheel of Fortune": [
+        {
+            "label": "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand",
+            "tier": "must",
+            "needsSetup": false
+        }
+    ],
     "Wistfulness": [
         {
             "label": "hybrid evoke: evokes Wistfulness on two Forests to exile an opposing artifact",

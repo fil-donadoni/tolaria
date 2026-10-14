@@ -691,6 +691,36 @@
         "landCount": 6,
         "libraryCount": 20
     },
+    "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand": {
+        "cards": [
+            {
+                "name": "Wheel of Fortune",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Mountain",
+                "owner": "me",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Forest",
+                "owner": "opp",
+                "zone": "battlefield",
+                "count": 3
+            },
+            {
+                "name": "Grizzly Bears",
+                "owner": "opp",
+                "zone": "hand",
+                "count": 7
+            }
+        ],
+        "phase": "POSTCOMBAT_MAIN",
+        "turn": 6,
+        "libraryCount": 20
+    },
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "escape: casts Phlage from the graveyard": {
