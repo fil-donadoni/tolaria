@@ -107,6 +107,14 @@ export interface LatentLens {
     eachPlayerDifferential?(
         valueSide: (side: EachPlayerSide) => number
     ): number | undefined;
+    /** Issue #5560 — the share of a ONE-SHOT's Differential Reading the
+     *  card in hand is credited (`EvalWeights.heldDifferentialFraction`):
+     *  the swing decays once it resolves, its price read off each leaf never
+     *  does. A standing engine's reading (`eachStepDifferentialValue`) is not
+     *  held — it recurs on the board face — and never reads it: its lens,
+     *  `engineLensOf` (`cardValue.ts`), drops the field on purpose. Present
+     *  only on a lens attached to a real board. */
+    readonly heldDifferentialFraction?: number;
     /** Issue #5162 — the player a `forEach { set: "players" }` body's
      *  `$each` names during one side of `eachPlayerDifferential`. Absent on
      *  every other walk. */

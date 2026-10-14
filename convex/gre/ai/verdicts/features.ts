@@ -183,6 +183,7 @@ const FITTABLE_TERM_WEIGHTS = [
     "graveyardEngineWeight",
     "graveyardReachFraction",
     "recoverableSweepFraction",
+    "heldDifferentialFraction",
     "latentCreatureDiscount",
     "latentFlashCreatureDiscount",
     // Issue #5154 — the restriction-share units.

@@ -454,7 +454,12 @@ function eachPlayerDifferentialValue(
     });
     if (points === undefined) return undefined;
     tags.delete("self-cost");
-    return { points, tags: [...tags] };
+    // Issue #5560 — the HELD price, a fitted fraction of the swing: credited
+    // in full it IS what the cast realises, and casting ties holding.
+    return {
+        points: points * (lens.heldDifferentialFraction ?? 1),
+        tags: [...tags],
+    };
 }
 
 /** Issue #5162 — one side of a Differential Reading: every Op of `body`

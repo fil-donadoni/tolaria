@@ -357,6 +357,7 @@ export function makeLatentBoardLens(
             measured = true;
             return total;
         },
+        heldDifferentialFraction: weights.heldDifferentialFraction,
         // Issue #5163 (ADR 0151) — a symmetric lock's standing worth, read on
         // the board the card would leave behind: the same per-leaf netting
         // the board face reads, so the hand face and the board face of the

@@ -248,6 +248,22 @@ export type EvalWeights = {
      *  for good (a creature destroyed, a token bounced) are credited in full:
      *  their loss does not decay, and their pricing is unchanged. */
     recoverableSweepFraction: number;
+    /** Issue #5560 (ADR 0151) — fraction of a `$each` one-shot's
+     *  Differential Reading (`eachPlayerDifferentialValue`,
+     *  `ai/opValuers.ts`) a card in hand is credited with: the
+     *  `recoverableSweepFraction` pattern, for a swing that decays the same
+     *  way. The search resolves the cast through the real GRE, so casting
+     *  moves the margin by what the resolution realises minus the card's hand
+     *  price — and the Differential makes that price the realised swing by
+     *  construction: credited in full, casting is a tie at one ply and the
+     *  Bot keeps the mana. Yet the swing decays once it resolves — a refilled
+     *  hand is played out over turns, a sacrificed creature is replaced — so
+     *  a FRACTION below 1 makes it worth most when taken now. A negative
+     *  reading stays floored at zero in hand (`latentValue`): the card held is
+     *  an option, and casting it realises the loss the floor declines. A
+     *  standing each-step engine's Differential (issue #5164) is NOT scaled:
+     *  it recurs, and its hand and board faces are one number. */
+    heldDifferentialFraction: number;
 
     // --- search.ts: tree selection + reward-mapping weights ----------------
     /** UCB1 exploration constant (`UCB_C`). The SOLE override path for this
@@ -377,6 +393,13 @@ export const FIT_BASE_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardReachFraction: 0.15,
     graveyardReachCap: 2,
     recoverableSweepFraction: 0.8,
+    // 0.25 (issue #5560): a refilled hand is played out over several turns
+    // and a sacrificed creature replaced within a few, so the held card is
+    // credited about one turn's share of the swing. The trust region (±50%)
+    // must reach the band the Wheel pair needs, measured ≤ 0.3: the 0.8 of
+    // `recoverableSweepFraction` cannot (the seven-card Wheel passes on every
+    // seed at 0.8, on two of five at 0.5, on one at 0.4).
+    heldDifferentialFraction: 0.25,
     permanentWeight: 5,
     manaWeight: 12,
     // 10.5 since issue #4761 (was 9): the prior must sit inside the fit's own
@@ -523,6 +546,7 @@ export const DEFAULT_EVAL_WEIGHTS: Readonly<EvalWeights> = Object.freeze({
     graveyardEngineWeight: 60,
     graveyardReachFraction: 0.160942,
     recoverableSweepFraction: 0.8,
+    heldDifferentialFraction: 0.25,
     latentCreatureDiscount: 0.693183,
     latentFlashCreatureDiscount: 0.805166,
     cannotAttackShare: 0.75,
