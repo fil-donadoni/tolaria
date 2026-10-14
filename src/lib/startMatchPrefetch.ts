@@ -4,8 +4,8 @@
 // The board is not — its catalogue gate holds it until `hydrateCatalogue()`
 // has the definitions resident. Starting that same memoised fetch here, at
 // idle, means the gate usually finds it done: Start match goes straight to
-// the board instead of "Loading cards...". The game route's lazy chunks are
-// preloaded the same way.
+// the board instead of "Loading cards...". The gate's own lazy chunk and the
+// game route's lazy chunks are preloaded the same way.
 //
 // Best effort, never a step's dependency: every part may fail on its own and
 // is ignored here — the gate retries the catalogue, and the router loads the
@@ -32,6 +32,7 @@ export async function prefetchStartMatch(
 ): Promise<void> {
     await Promise.allSettled([
         import("./catalogueArtifact").then((m) => m.hydrateCatalogue()),
+        import("~/components/ui/catalogue-gate"),
         preloadGameRoute(),
     ]);
 }

@@ -45,6 +45,15 @@ export function catalogueArtifactUrl(): string {
 }
 
 let hydration: Promise<number> | null = null;
+let hydrated = false;
+
+/** Whether the packed corpus is installed in this graph: `hydrateCatalogue()`
+ *  has resolved. Lets the gate render its children on the FIRST frame when a
+ *  prefetch already did the work (issue #5584), instead of a loading screen
+ *  for the tick its own `then` takes. */
+export function isCatalogueHydrated(): boolean {
+    return hydrated;
+}
 
 /**
  * Fetch the packed corpus and install it, once per document (or per Worker).
@@ -73,7 +82,9 @@ async function fetchCatalogue(): Promise<number> {
     if (!isPackedCorpus(packed)) {
         throw new Error(`catalogue artifact ${url} is not a packed corpus`);
     }
-    return registerPackedCorpus(packed);
+    const installed = registerPackedCorpus(packed);
+    hydrated = true;
+    return installed;
 }
 
 /** The fields the decoder and the index read, present and non-empty — a
@@ -101,4 +112,5 @@ function isPackedCorpus(value: unknown): value is PackedCorpus {
  *  Production has exactly one hydration per graph and never needs this. */
 export function resetCatalogueHydrationForTests(): void {
     hydration = null;
+    hydrated = false;
 }
