@@ -160,6 +160,11 @@ backend is configuration in `tolaria.config.json`. The Huawei runs a systemd
 timer that polls `origin/<base>`, applies the cadence rule (the same pure plan
 function) and writes the verdict; it never claims, lands or seeds.
 
+The Huawei also owns the two crons: `tolaria-housekeeping.timer` (hourly,
+`bun run housekeeping`) and `tolaria-nightly.timer` (nightly,
+`bun run health:nightly`), units in `scripts/runner-units/` and install steps in
+`docs/guides/huawei-runner.md` § The crons (issue #5592).
+
 **RED across machines.** A RED on tip T blocks new picks on both machines and
 refuses non-repair landings (`--red-ok` stands, issue #4964); in-flight PRs
 land. A second RED on the same lineage stops the loop and notifies the owner.
