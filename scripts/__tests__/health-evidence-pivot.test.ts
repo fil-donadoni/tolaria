@@ -51,7 +51,14 @@ beforeEach(() => {
         JSON.stringify({ sha: SHA, status: "red", failedStep: "test", log })
     );
 });
-afterEach(() => rmSync(root, { recursive: true, force: true }));
+afterEach(() =>
+    rmSync(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 10,
+        retryDelay: 100,
+    })
+);
 
 const status = (...args: string[]) =>
     spawnSync("bun", [HEALTH_MAIN, "--status", ...args], {
