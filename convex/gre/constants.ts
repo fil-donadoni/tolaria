@@ -928,8 +928,9 @@ export function getAbilityDynamicManaProduced(
     }>
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    // CR 608.2h / 605.1a — the DECLARATIVE count wins over a closure when a
-    // card carries both (see `ActivatedAbility.manaAmountSource`).
+    // The DECLARATIVE count (CR 608.2h — read as the ability resolves) wins
+    // over a closure when a card carries both (`ActivatedAbility
+    // .manaAmountSource`).
     if (ability.manaAmountSource && ability.manaProduced) {
         const source = ability.manaAmountSource;
         const board =
