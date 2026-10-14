@@ -1173,6 +1173,84 @@ export function permanentFilterFromDescriptor(
     return ok(filter as PermanentFilter);
 }
 
+/** `DescriptorIR` members {@link boardManaFilterFromDescriptor} consumes. */
+const READ_BY_BOARD_MANA_FILTER: ReadonlySet<string> = new Set([
+    "types",
+    "subtypes",
+    "supertypes",
+    "excludeTypes",
+    "excludeSubtypes",
+    "excludeSupertypes",
+    "controller",
+]);
+
+/**
+ * Descriptor → the `PermanentFilter` a board-derived mana descriptor reads
+ * (`BoardManaAmountSource` / `BoardManaColorSource`, CR 106.7 / 107.1):
+ * "creature you control" in "Add {G} for each creature you control", "land
+ * you control" in "…any type that a land you control could produce".
+ *
+ * The engine matches it against EVERY player's battlefield (CR 109.2), live,
+ * at activation — so the filter names exactly the permanents the descriptor
+ * does, and nothing is implied: a bare "Elf" is every permanent with the Elf
+ * subtype, a kindred one included (CR 205.3m), not only Elf CREATURES.
+ *
+ * `wholeBoard` is the "on the battlefield" reading, which carries no
+ * controller clause; otherwise the descriptor MUST say "you control" (CR
+ * 109.5) — the only controller the corpus prints at these sites. Every other
+ * clause (a colour, a keyword, a power bound, a tapped state) is refused by
+ * name rather than dropped, because a dropped clause counts — or reads the
+ * mana of — permanents the card does not mean.
+ */
+export function boardManaFilterFromDescriptor(
+    descriptor: DescriptorIR,
+    scope: "you" | "wholeBoard"
+): RuleResult<PermanentFilter> {
+    if (descriptor.player !== undefined || descriptor.anyTarget === true)
+        return fail("a player is not a permanent on the battlefield", "player");
+    if (descriptor.card === true || descriptor.zone !== undefined)
+        return fail(
+            "a board-derived mana descriptor reads the battlefield (CR 109.2)",
+            "zone"
+        );
+    for (const [field, value] of Object.entries(descriptor)) {
+        if (value === undefined || READ_BY_BOARD_MANA_FILTER.has(field))
+            continue;
+        return fail(
+            `"${field}" is not expressible as a board-derived mana filter`,
+            field
+        );
+    }
+    // CR 205.3 — the AND/OR ambiguity `staticFilterFromDescriptor` refuses for
+    // the same reason: `PermanentFilter.subtypes` is OR.
+    if ((descriptor.subtypes?.length ?? 0) > 1)
+        return fail(
+            "several subtypes at once: the filter cannot say whether they are AND or OR (CR 205.3)",
+            (descriptor.subtypes ?? []).join(" ")
+        );
+    if (scope === "you" && descriptor.controller !== "you")
+        return fail('a board-derived mana descriptor reads "you control"', "controller");
+    if (scope === "wholeBoard" && descriptor.controller !== undefined)
+        return fail(
+            '"on the battlefield" beside a controller clause',
+            "controller"
+        );
+    const filter: Record<string, unknown> = {};
+    if (descriptor.types) filter.types = [...descriptor.types];
+    if (descriptor.subtypes) filter.subtypes = [...descriptor.subtypes];
+    if (descriptor.supertypes) filter.supertypes = [...descriptor.supertypes];
+    if (descriptor.excludeTypes)
+        filter.excludeTypes = [...descriptor.excludeTypes];
+    if (descriptor.excludeSubtypes)
+        filter.excludeSubtypes = [...descriptor.excludeSubtypes];
+    if (descriptor.excludeSupertypes)
+        filter.excludeSupertypes = [...descriptor.excludeSupertypes];
+    if (Object.keys(filter).length === 0)
+        return fail("board-derived mana filter matches everything", "filter");
+    if (scope === "you") filter.controllerRelation = "you";
+    return ok(filter as PermanentFilter);
+}
+
 const SACRIFICABLE_TYPES: ReadonlySet<CardType> = new Set(PERMANENT_TYPES);
 
 /**

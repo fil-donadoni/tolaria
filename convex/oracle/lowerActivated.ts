@@ -9,7 +9,7 @@
  */
 
 import type { ActivatedAbility, EffectOp, ManaCost } from "../cards/types";
-import { hasFilteredGiveUpCost } from "../gre/constants";
+import { hasFilteredGiveUpCost, MANA_COLORS } from "../gre/constants";
 import {
     lowerActivationCost,
     type ActivationCostIR,
@@ -331,13 +331,43 @@ export function lowerManaAbility(input: {
         // unconditionally: see the CR 605.1a argument in the slot file.
         useStack: false,
     };
-    if (input.produces.kind === "fixed")
-        ability.manaProduced = input.produces.mana;
-    else {
-        ability.manaChoices = input.produces.options as ManaCost[];
-        if (input.produces.dealsDamageToControllerOnColoredTap !== undefined)
-            ability.dealsDamageToControllerOnColoredTap =
-                input.produces.dealsDamageToControllerOnColoredTap;
+    switch (input.produces.kind) {
+        case "fixed":
+            ability.manaProduced = input.produces.mana;
+            break;
+        case "choice":
+            ability.manaChoices = input.produces.options as ManaCost[];
+            if (
+                input.produces.dealsDamageToControllerOnColoredTap !==
+                undefined
+            )
+                ability.dealsDamageToControllerOnColoredTap =
+                    input.produces.dealsDamageToControllerOnColoredTap;
+            break;
+        // CR 107.1 / 605.1a (issue #5195) — the unit is `manaProduced`, the
+        // board count multiplies it (`gre/constants.ts`'s
+        // `getDynamicManaProduced`); the unit alone is the no-board fallback.
+        case "for-each":
+            ability.manaProduced = input.produces.unit;
+            ability.manaAmountSource = { filter: input.produces.filter };
+            break;
+        // CR 106.7 (issue #5195) — the offered set is the board's; the static
+        // list is the six-type no-board fallback every descriptor twin in the
+        // catalogue carries beside its `manaColorSource` (Fellwar Stone).
+        case "board-choice":
+            ability.manaChoices = MANA_COLORS.map((c) => ({ [c]: 1 }));
+            ability.manaColorSource = {
+                filter: input.produces.filter,
+                colors: "producesType",
+            };
+            break;
+        default: {
+            const never: never = input.produces;
+            return {
+                ok: false,
+                reason: `no lowering for mana production ${JSON.stringify(never)}`,
+            };
+        }
     }
     // The riders below are applied by the two tap-for-mana mutations only
     // (`tapUntap`, `tapSourceIntoPayment`: route A above), never by
