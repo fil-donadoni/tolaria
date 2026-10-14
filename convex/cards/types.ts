@@ -17386,6 +17386,23 @@ export type EffectOp =
           op: "regenerate";
           target: EffectObjectSelector;
       }
+    /** CR 702.26a (issue #4573) — phase a permanent out: "target creature
+     *  phases out". A thin declarative skin over the single SpellContext
+     *  primitive `phaseOut`, one execution path (ADR 0045): the host and every
+     *  Aura / Equipment attached to it (CR 702.26d) leave the battlefield
+     *  silently — no leaves-the-battlefield event, no zone change, no
+     *  triggers (CR 702.26h) — and phase back in, untouched and with their
+     *  counters, before their controller untaps during that controller's NEXT
+     *  untap step (CR 702.26f). `target` is an object selector (an announced
+     *  slot, `$source`, or a forEach `$each`). Skipped when the referenced
+     *  permanent is gone (CR 608.2b), and a no-op on a non-permanent
+     *  selection. It names no return condition: "phases out" printed bare has
+     *  exactly this one; a source-bound return (Oubliette) is a different
+     *  clause with a field to add when a card prints it. */
+    | {
+          op: "phaseOut";
+          target: EffectObjectSelector;
+      }
     /** CR 701.19c (issue #1283) — flag a creature so it CAN'T be regenerated
      *  for the rest of the turn (the inverse of the `regenerate` shield): every
      *  regeneration shield AND the auto-regenerate replacement on it are

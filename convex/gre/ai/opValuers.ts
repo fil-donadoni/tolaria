@@ -2285,6 +2285,22 @@ const regenerate: Valuer<"regenerate"> = (op, ctx) => ({
         : ["protection"],
 });
 
+// CR 702.26a (issue #4573) — phasing a permanent out takes it off the board
+// until its controller's next untap step and brings it back untouched: a
+// temporary answer, priced as the `tempo` of a bounce (no recast to pay, but
+// no card lost either), on the best legal victim on the current board.
+const phaseOut: Valuer<"phaseOut"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "tempo",
+        RETURN_COMPLETENESS.hand,
+        victimUnitsFor(op.target, ctx)
+    ),
+    tags: isAnnouncedTarget(op.target)
+        ? ["tempo", "targeted"]
+        : ["tempo", "board-scaling"],
+});
+
 // The inverse of `regenerate`: strip a creature's regeneration for the turn —
 // an offensive removal-enabler (it lets a companion destroy/damage stick), so
 // it is worth a fraction of a full removal, not a defensive `protection` unit.
@@ -2727,6 +2743,7 @@ export const OP_VALUERS: {
     putBack,
     rangedTopdeck,
     regenerate,
+    phaseOut,
     preventRegeneration,
     exileOnDeath,
     lockDamage,
@@ -3018,6 +3035,9 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     destroy: "harmful",
     exile: "harmful",
     exileWithAttachments: "harmful",
+    // CR 702.26a — the recipient loses use of the permanent until its next
+    // untap step: an attack on the one it is aimed at, however brief.
+    phaseOut: "harmful",
     counter: "harmful",
     // CR 400.7 (issue #2605) — un-casting someone's spell is an attack on them
     // whatever zone it lands in, exactly like `counter`. Listed explicitly

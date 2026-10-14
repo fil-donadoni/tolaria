@@ -1454,6 +1454,15 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 702.26a — "Target artifact, creature, or land phases out": one
+           * announced permanent phases out until its controller's next untap
+           * step. A sweep or a pronoun is not read (nothing prints it yet).
+           */
+          readonly kind: "phase-out";
+          readonly subject: SubjectIR;
+      }
+    | {
+          /**
            * CR 101.4 + CR 701.21a — "Each player chooses from among the
            * permanents they control an artifact, a creature, an enchantment,
            * and a land, then sacrifices the rest": every player (APNAP order)
@@ -3578,6 +3587,8 @@ const SHUFFLE_GRAVEYARD_BACK =
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
+/** CR 702.26a — "<target> phases out". */
+const PHASES_OUT = /^(Target .+) phases out$/;
 /** CR 101.4 — the keep-one-of-each edict, over a list of permanent types. */
 const KEEP_ONE_OF_EACH_TYPE =
     /^Each player chooses from among the permanents they control (.+), then sacrifices the rest$/;
@@ -6007,6 +6018,19 @@ function effectSentence(
         return ok({
             kind: "keep-one-of-each-permanent-type" as const,
             types: types as CardType[],
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── phase out (CR 702.26a) ──────────────────────────────────────────────
+    const phasesOut = span.match(PHASES_OUT);
+    if (phasesOut !== null) {
+        const subject = subjectRule.run(phasesOut[1]!, ctx);
+        if (!subject.ok) return subject;
+        if (subject.value.kind !== "target")
+            return fail("only an announced target phases out", span);
+        return ok({
+            kind: "phase-out" as const,
+            subject: subject.value,
         } satisfies EffectSentenceIR);
     }
 

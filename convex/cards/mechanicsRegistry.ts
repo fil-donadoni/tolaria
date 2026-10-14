@@ -3450,6 +3450,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'Stack a regeneration shield on a permanent (CR 701.19 / 701.19, issue #846). A thin declarative skin over the single SpellContext primitive `applyRegenerationShield`, one execution path (ADR 0045): `target` names the permanent to shield — an announced target slot (`{ target: N }` — Death Ward / Niall Silvain / Horror of Horrors "Regenerate target creature"), the resolving source (`$source` — a self-regenerate activated ability: Drudge Skeletons, Sedge Troll, Clay Statue, Zombie Master-granted regen), or a forEach `$each` (a regenerate-each rider). One shield per Op; it is consumed by the next destroy event on that permanent this turn (the shield replaces the destroy with "remove all marked damage, tap, remove from combat", CR 614.5 / 701.19a) and expires unused at CLEANUP (CR 514.2). No amount / duration — a permanent has a shield or it doesn\'t; multiple shields stack via repeated resolutions. The primitive no-ops on a non-permanent selection and off the battlefield (CR 608.2b — the Op is skipped when `resolveObjectRef` returns undefined). Subsumes the applyRegenerationShield closures the migration classifier folds here (~30 blocked closures at ship time). The continuous "if this would be destroyed, regenerate it" REPLACEMENT (`auto-regenerate`, state.ts regenerateOrDestroy — a static shield-granting effect, not a one-shot) is a distinct mechanic NOT folded here.',
     },
     {
+        op: "phaseOut",
+        status: "implemented",
+        cr: "702.26",
+        binding: "SpellContext.phaseOut",
+        note: 'Phase a permanent out (CR 702.26a, issue #4573): "target artifact, creature, or land phases out". A thin declarative skin over the single SpellContext primitive `phaseOut`, one execution path (ADR 0045): `target` names the permanent (an announced slot, `$source`, or a forEach `$each`); the host and every Aura / Equipment attached to it (CR 702.26d) leave the battlefield silently — no leaves-the-battlefield event, no zone change, no triggers (CR 702.26h) — and phase back in before their controller untaps during that controller\'s NEXT untap step (CR 702.26f), which is the `untap-cycle` return the Op fixes. It carries no return-condition field: bare "phases out" prints exactly one, and a source-bound return (Oubliette) is a different clause whose field waits for the card that prints it. Skipped when the referenced permanent is gone (CR 608.2b). This is the phasing EFFECT, not the `phasing` keyword ability (CR 702.26b: a permanent with the keyword phases itself every turn), which stays planned.',
+    },
+    {
         op: "preventRegeneration",
         status: "implemented",
         cr: "701.19",

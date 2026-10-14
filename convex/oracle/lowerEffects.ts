@@ -3195,6 +3195,13 @@ function lowerSentenceBody(
                     ],
                 },
             ]);
+        case "phase-out": {
+            // CR 702.26a — one announced permanent; the Op fixes the return
+            // (its controller's next untap step, CR 702.26f).
+            const target = objectSelector(sentence.subject, slots, site);
+            if (!target.ok) return target;
+            return lowered([{ op: "phaseOut", target: target.value }]);
+        }
         case "scry": {
             // CR 701.22a — look at the top N, any number to the bottom, the
             // rest back on top in any order: `scryReorder` to the bottom.

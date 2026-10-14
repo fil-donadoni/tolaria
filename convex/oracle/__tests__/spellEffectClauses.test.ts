@@ -198,6 +198,23 @@ describe("golden: one accepted form per card", () => {
         );
     });
 
+    it("an announced permanent phases out until its controller's untap step (CR 702.26a)", () => {
+        const text = "Target artifact, creature, or land phases out.";
+        expect(definitionOf(instant("Reality Ripple", "{1}{U}", text))).toEqual(
+            sortKeys({
+                name: "Reality Ripple",
+                types: ["Instant"],
+                manaCost: { X: 1, U: 1 },
+                oracleText: text,
+                effects: [{ op: "phaseOut", target: { target: 0 } }],
+                targetRequirement: {
+                    type: ["Artifact", "Creature", "Land"],
+                    count: 1,
+                },
+            })
+        );
+    });
+
     it("keep one permanent of each listed type, sacrifice the rest (CR 101.4)", () => {
         const text =
             "Each player chooses from among the permanents they control an artifact, a creature, an enchantment, and a land, then sacrifices the rest.";
@@ -313,6 +330,11 @@ describe("refusals: the neighbours each rule must not read", () => {
                 "Draw a card, then draw cards equal to the number of Islands you control."
             )
         );
+    });
+
+    it("a sweep that phases out is not an announced target", () => {
+        refused(instant("Test", "{1}{U}", "Creatures you control phase out."));
+        refused(instant("Test", "{1}{U}", "Each creature phases out."));
     });
 
     it("an edict listing fewer types than the four printed", () => {
