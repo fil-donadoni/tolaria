@@ -856,6 +856,9 @@ spent="0"
 no_progress_streak=0
 error_streak=0
 claims_held_streak=0
+# Unattended repairs this run attempted (step 2b, issue #5589) — bounded by
+# `LOOP_FIX_ATTEMPTS` inside `health:fix --plan`, which reads this count.
+fix_attempts=0
 # One string field of `health:status --json`'s flat one-line JSON (issue
 # #5462) — values carry no quotes, `health-main` strips them.
 _health_field() {
@@ -1522,9 +1525,43 @@ while :; do
             continue
             ;;
         red)
+            # The unattended repair (issue #5589): the RED's evidence is on
+            # the pivot, so a fixer on THIS machine can diagnose a RED the
+            # other one found. `health:fix --plan` decides from the attempt
+            # record on that same pivot — ONE headless attempt per tip, at
+            # most LOOP_FIX_ATTEMPTS per run; wait while a landed repair
+            # awaits health on its own tip; stop on a stuck fixer, an attempt
+            # that never finished, the bound, or a record it cannot read.
+            _fix_plan=$(bun run --silent health:fix --plan "$_h_sha" --attempts "$fix_attempts" 2>/dev/null | tail -n 1) || true
+            [ -n "$_fix_plan" ] || _fix_plan="stop: 'bun run health:fix --plan' gave no answer"
+            case "$_fix_plan" in
+                attempt)
+                    fix_attempts=$((fix_attempts + 1))
+                    echo "loop-drain: the base tip is RED (${_h_detail}) — attempting an unattended repair, ${fix_attempts} this run (issue #5589). Evidence:" >&2
+                    bun run --silent health:status >&2 || true
+                    # $CLAUDE_ARGS rides as ONE argument, split by health:fix
+                    # as this driver splits it for its own passes.
+                    if bun run --silent health:fix --headless "--claude-args=${CLAUDE_ARGS}" >&2; then
+                        echo "loop-drain: the repair of ${_h_short} LANDED — health confirms on its tip; resuming" >&2
+                    else
+                        DRAIN_REASON="health-red"
+                        echo "loop-drain[error]: the base tip is RED and the unattended repair did not land (stuck) — stopping; the RED stands. 'bun run health:status' shows the evidence and 'bun run health:fix' repairs it by hand. Verdict:" >&2
+                        echo "  ${_h_detail}" >&2
+                        notify_owner "Tolaria: RED base (${_h_short}, ${_h_step:-unknown step}) — unattended repair stuck, loop stopped"
+                    fi
+                    continue
+                    ;;
+                wait:*)
+                    echo "loop-drain: the base tip is RED (${_h_detail}) — ${_fix_plan#wait: }; no pass until health answers" >&2
+                    wait_tick "$running"
+                    continue
+                    ;;
+            esac
             DRAIN_REASON="health-red"
             echo "loop-drain[error]: the base tip is RED (the last release/health run found it red, ADR 0116) — stopping rather than stacking work on a red tip. Run 'bun run health:status' and fix forward. Verdict:" >&2
             echo "  ${_h_detail}" >&2
+            echo "  no unattended repair: ${_fix_plan#stop: }" >&2
+            notify_owner "Tolaria: RED base (${_h_short}, ${_h_step:-unknown step}) — no unattended repair, loop stopped"
             continue
             ;;
         infra)

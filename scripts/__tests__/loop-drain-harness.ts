@@ -350,6 +350,9 @@ export const run = (opts: RunOpts = {}) =>
             // inherits the lease of the run this suite runs under.
             TOLARIA_LEASE_DIR: path.join(tmp, "leases"),
             TOLARIA_OWNER: "",
+            // Hermetic: a stop that notifies the owner (a RED, issue #5589)
+            // must never reach the desktop of the machine running the suite.
+            TOLARIA_NOTIFY_CMD: "true",
             ...opts.env,
         },
     });

@@ -46,6 +46,7 @@ import {
 import { hostname } from "node:os";
 import { join } from "node:path";
 import { BASE_BRANCH, CONFIG_PATH } from "./branches";
+import { evidenceMarker, failingFiles } from "./health-evidence";
 import type { HealthStatus } from "./health-verdict";
 
 /** Where the file backend lives, relative to the primary checkout. */
@@ -79,6 +80,9 @@ export interface Verdict {
     at?: string;
     /** RED only: the failing test FILES — what a repair's lane must run. */
     tests?: string[];
+    /** RED only: what KIND of failure it was (`FailureKind`, issue #5589) —
+     *  so a RED naming no test says why instead of saying nothing. */
+    failure?: string;
     /** AMBER only: the RED sha the repair landed against. */
     repairOf?: string;
     /** `infra` only: what to do (`INFRA_REMEDY`). */
@@ -180,13 +184,7 @@ export function lineageOf(history: readonly Verdict[]): Lineage {
 /** The failing test files named in a vitest run's output — what a repair's
  *  lane must run (`land`'s repair proof). Sorted, unique. */
 export function failedTestFiles(output: string): string[] {
-    // eslint-disable-next-line no-control-regex -- stripping the ANSI colour codes
-    const plain = output.replace(/\u001b\[[0-9;]*m/g, "");
-    const files = new Set<string>();
-    const re =
-        /^\s*(?:[❯>×✗]\s*)?FAIL\s+(?:\|[^|\n]+\|\s+)?(\S+\.(?:test|spec)\.[cm]?[jt]sx?)\b/gm;
-    for (const m of plain.matchAll(re)) files.add(m[1]);
-    return [...files].sort();
+    return failingFiles(output);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,7 +218,7 @@ export function readVerdictBackend(path = CONFIG_PATH): VerdictBackend {
 
 /** The configured backend, or `file` — loudly — when the config cannot say:
  *  a torn or mistyped key must never disable the local RED refusal. */
-function configuredBackend(): VerdictBackend {
+export function configuredBackend(): VerdictBackend {
     try {
         return readVerdictBackend();
     } catch (e) {
@@ -432,6 +430,7 @@ export function encodeDescription(v: Verdict): string {
             out += SEP + extra;
     };
     if (v.repairOf) fit(`repair-of: ${v.repairOf}`);
+    if (v.failure) fit(`failure: ${v.failure}`);
     const tests: string[] = [];
     for (const t of v.tests ?? []) {
         const next = `tests: ${[...tests, t].join(",")}`;
@@ -470,6 +469,7 @@ export function decodeStatus(input: {
                 .split(",")
                 .map(Number)
                 .filter((n) => Number.isInteger(n) && n > 0);
+        if (m[1] === "failure") v.failure = m[2];
         if (m[1] === "log" && !v.log) v.log = m[2];
     }
     return v;
@@ -694,4 +694,101 @@ export function readVerdictLineage(store: () => VerdictStore): Lineage & {
     } catch (e) {
         return { kind: "none", verdict: null, error: (e as Error).message };
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The RED evidence, on the same pivot as the verdict (issue #5589)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a RED's evidence (`lib/health-evidence.ts`) lives so EITHER machine
+ * reads it: on the github backend a commit comment on the gated sha — the
+ * same repository, the same token scope as the commit status, found by the
+ * sha alone; on the file backend a file beside the log (one machine reads
+ * and writes it, which is what the file backend means).
+ *
+ * `publish` returns the pointer the verdict carries in `log` (the comment's
+ * URL, or the file's path) and THROWS when it could not publish; `read`
+ * returns the newest body for a sha, or null when none was published.
+ */
+export interface EvidenceStore {
+    readonly backend: VerdictBackend;
+    publish(sha: string, body: string): string;
+    read(sha: string): string | null;
+}
+
+export function evidenceFileName(sha: string): string {
+    return `${sha.slice(0, 12)}.evidence.md`;
+}
+
+export function fileEvidenceStore(root: string): EvidenceStore {
+    const dir = join(root, HEALTH_DIR_REL);
+    return {
+        backend: "file",
+        publish(sha, body) {
+            mkdirSync(dir, { recursive: true });
+            const p = join(dir, evidenceFileName(sha));
+            writeFileSync(p, body);
+            return p;
+        },
+        read(sha) {
+            const p = join(dir, evidenceFileName(sha));
+            const body = existsSync(p) ? readFileSync(p, "utf8") : null;
+            return body?.startsWith(evidenceMarker(sha)) ? body : null;
+        },
+    };
+}
+
+export function githubEvidenceStore(opts: {
+    repo: string;
+    run?: GhRunner;
+}): EvidenceStore {
+    const run = opts.run ?? realGh;
+    return {
+        backend: "github",
+        publish(sha, body) {
+            const r = run([
+                "api",
+                "-X",
+                "POST",
+                `repos/${opts.repo}/commits/${sha}/comments`,
+                "-f",
+                `body=${body}`,
+                "--jq",
+                ".html_url",
+            ]);
+            const url = r.stdout.trim();
+            if (r.status !== 0 || !isUrl(url))
+                throw new Error(
+                    `gh api commit comment failed (exit ${r.status}): ${r.stderr.trim() || "no URL returned"}`
+                );
+            return url;
+        },
+        read(sha) {
+            const list = ghJson<Array<{ body: string | null }>>(run, [
+                "api",
+                `repos/${opts.repo}/commits/${sha}/comments?per_page=100`,
+            ]);
+            // Oldest first: the newest evidence (a re-gated sha) wins.
+            const marker = evidenceMarker(sha);
+            const mine = list.filter((c) => c.body?.startsWith(marker));
+            return mine.length > 0
+                ? (mine[mine.length - 1].body ?? null)
+                : null;
+        },
+    };
+}
+
+/** The evidence store on the backend `verdictStore` would pick. */
+export function evidenceStore(
+    root: string,
+    opts: { backend?: VerdictBackend; run?: GhRunner } = {}
+): EvidenceStore {
+    const env = process.env.TOLARIA_VERDICT_STORE;
+    const backend =
+        opts.backend ??
+        (env === "file" || env === "github" ? env : configuredBackend());
+    return backend === "github"
+        ? githubEvidenceStore({ repo: originRepo(root), run: opts.run })
+        : fileEvidenceStore(root);
 }

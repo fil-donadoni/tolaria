@@ -2,14 +2,21 @@
 name: health-fix
 description: "Repair a RED base tip: reproduce, fix forward, land, record the verdict."
 disable-model-invocation: true
-argument-hint: "<base-tip-sha>"
+argument-hint: "<base-tip-sha> [--headless]"
 ---
 
 # /health-fix — turn a RED verdict into a landed repair
 
 `$1` is the base tip that went red. `bun run health:fix` passes it (PRD issue
 #3197); typed by hand without it, read it from `bun run health:status` and
-confirm it is the sha the RED marker names — never guess.
+confirm it is the sha the RED verdict names — never guess.
+
+**`--headless`** (`$2`, issue #5589): `health:fix --headless` spawned you as
+`claude -p` for the unattended loop (`loop-drain.sh` step 2b). Nobody will
+answer a question: wherever this skill says **grill**, the headless answer is
+**`stuck`**, with the analysis written in the repair issue (or, before one is
+opened, in `note`). Everything else is unchanged — the four prohibitions, the
+class guard, the one review round, the fail-closed verdict.
 
 You were spawned because the full offline gate (ADR 0116) failed on that tip
 and everything downstream is blocked: `release` refuses, `land` warns,
@@ -23,10 +30,10 @@ closes the class of the failure**, and a verdict file saying which.
    and the marker stays standing.
 2. **Never invoke `bun run release`.** The loop belongs to the caller. A fixer
    that re-entered release would escape the bound on rounds.
-3. **Grill on ambiguity, one question per turn.** You are interactive by
-   construction — `health:fix` refuses to spawn without a TTY precisely so you
-   can ask. Not being able to formulate the class guard is itself such an
-   ambiguity.
+3. **Grill on ambiguity, one question per turn** — interactive only.
+   `health:fix` refuses to spawn without a TTY unless `--headless`; headless,
+   ambiguity is `stuck` (analysis in the issue), never a guess. Not being able
+   to formulate the class guard is itself such an ambiguity.
 4. **A green suite is not the deliverable.** The fix plus the class guard is.
    A red you made disappear without understanding is a `stuck`.
 
@@ -38,23 +45,31 @@ that is where the health telemetry lives. **Write its absolute path down now**
 standing in, and a shell variable does not survive from one command to the
 next.
 
-```bash
-cat .claude/telemetry/health/last.json   # { sha, status:"red", failedStep, log, … }
-```
-
-`failedStep` is one of `worktree:init`, `check:all`, `test` — the gate stops at
-the first one that fails. Take the **full 40-char** sha from that record
-(`jq -r .sha`) if you were not handed one: `health:status` prints an abbreviated
-sha, and § 7's verdict is compared for exact equality against the full tip.
-
-The log is appended per step and is large: read it surgically, never `cat`.
+The RED may have been found on the OTHER machine (topology B': batch health
+runs on the Huawei). Its evidence is on the **pivot**, never in a local file
+(issue #5589) — read it there, from whichever machine you are on:
 
 ```bash
-grep -nE '^===== |FAIL|✗|Error|error TS|failed' "$(jq -r .log .claude/telemetry/health/last.json)" | head -40
+bun run health:status --evidence $1   # failing step, failure kind, projects, files, FAIL blocks, output tail
 ```
 
-Then `sed -n 'A,Bp' <log>` around the hits. The log is where the failure was
-observed once; it is **not** a diagnosis.
+Never `last.json`'s `log`: that is a path on the machine that ran the gate,
+and on the other one it does not exist. The evidence names its `failure:`
+kind — `assertion` / `timeout` (failing tests, named), `crash` (a signal, a
+worker death, an unhandled error), `gate` (a non-test step: `check:all`'s
+tsc, lint…), `unparsed` (the parser could not read a test step's output —
+the excerpt is the only evidence, and that is itself a defect to file). The
+step is one of `worktree:init`, `check:all`, `test`… — the gate stops at the
+first one that fails. Take the **full 40-char** sha (`git rev-parse`) if you
+were handed an abbreviated one: § 7's verdict is compared for exact equality.
+
+`bun run health:status --evidence` exits 1 when no evidence was published (a
+RED older than issue #5589, or a publish that failed). Then the log exists
+only on the machine the verdict names: on that machine, read it surgically
+(`grep -nE '^===== |FAIL|✗|Error|error TS|failed' <log> | head -40`, then
+`sed -n 'A,Bp'`); on the other one, reproduce (§ 1) — and headless, a RED
+you can neither read nor reproduce is `stuck`. The evidence is where the
+failure was observed once; it is **not** a diagnosis.
 
 ## 1. Reproduce — only the failing step, at that tip
 
@@ -86,17 +101,19 @@ state does not survive between commands. Narrow before you run:
 Tear the worktree down when the diagnosis is done:
 `git worktree remove --force ../tolaria-health-repro`.
 
-**The step passes at the tip?** Then the red was not in the tree — a flake,
-machine state, a stale artifact. Do not invent a fix for something you never
-saw fail: grill the maintainer with what you observed. That is an ambiguity,
-and its likely outcome is `stuck`.
+**The step passes at the tip?** Then the red was not in the tree — or not in
+THIS machine's view of it: a flake, machine state, a stale artifact, or a
+platform difference (the evidence's `machine:` is Linux, you are on macOS —
+issue #5590's red was exactly that). Read the evidence for what differs
+before concluding. Do not invent a fix for something you never saw fail:
+grill the maintainer with what you observed (headless: `stuck`).
 
 ## 2. Diagnose, then ask or proceed
 
 State the cause in one sentence and check it against the observed red. Grill
 whenever the cause or the repair is genuinely ambiguous — two plausible causes,
 a fix that trades one invariant for another, or a class you cannot yet name.
-One question per turn, no previews.
+One question per turn, no previews. Headless: the same ambiguity is `stuck`.
 
 ## 3. Open a GitHub issue, take a worktree
 
@@ -195,6 +212,11 @@ bun run check:lane >"$G" 2>&1; echo "exit=$?"; grep -E 'Tests|FAIL|✗' "$G"
 gh pr create …            # base must be the base branch; `land` refuses otherwise
 TOLARIA_LAND_RUNNER=1 bun run land <PR#>   # add --repair when no repair issue is recorded
 ```
+
+Headless, `land` is a gate that outlives the Bash tool's cap and your turn
+is the process: run it as `TOLARIA_LAND_RUNNER=1 bun run gate:run land <PR#>`
+with the tool's `timeout` at 600000, re-issuing the identical command while
+it exits 75 — never in the background (`/next-ticket` § RUNNING A GATE).
 
 Not the land-runner (issue #5469): § 7 reports a LANDING, so `/health-fix`
 lands its own repair through `deny-guard.sh` § 8's hatch.

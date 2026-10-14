@@ -128,8 +128,9 @@ import {
     type UiWalkState,
 } from "./lib/health-verdict";
 import { reachable, readEnvLocal } from "./lib/convex-reachable";
+import { buildEvidence, evidenceSummary } from "./lib/health-evidence";
 import {
-    failedTestFiles,
+    evidenceStore,
     machineName,
     readVerdictLineage,
     verdictAgeMs,
@@ -198,6 +199,11 @@ interface LastRun {
     /** `red` only: the failing test files (`failedTestFiles`) — what a
      *  repair's lane must run before the lineage turns AMBER (issue #5462). */
     tests?: string[];
+    /** `red` only: the failure's kind (`FailureKind`, issue #5589). */
+    failure?: string;
+    /** `red` only: where the evidence was published — the pivot's URL, or
+     *  the local file on the file backend (issue #5589). */
+    evidence?: string;
     /** The vitest projects a failed `test` step re-ran once (issue #5461):
      *  on a `green` the flake the retry absorbed, on a `red` what failed
      *  twice. `health:status` prints it. */
@@ -329,6 +335,8 @@ function statusJson(root: string): never {
         step: v?.step ?? null,
         machine: v?.machine ?? null,
         log: v?.log ?? null,
+        failure: v?.failure ?? null,
+        tests: v?.tests?.join(",") ?? null,
         reason: v?.reason ?? null,
         ageMs: verdictAgeMs(v, Date.now()),
         error: lineage.error ?? null,
@@ -340,8 +348,73 @@ function statusJson(root: string): never {
     process.exit(lineage.error ? 2 : 0);
 }
 
+/**
+ * The RED's evidence, read from the PIVOT (issue #5589) — never from a
+ * `log` path, which names a file on the machine that ran the gate. `full`
+ * prints the whole body (`health:status --evidence`, what `/health-fix`
+ * § 0 reads); otherwise its summary.
+ */
+function printEvidence(root: string, sha: string, full: boolean): boolean {
+    let body: string | null = null;
+    try {
+        body = evidenceStore(root).read(sha);
+    } catch (err) {
+        console.log(`  evidence: UNREADABLE — ${String(err)}`);
+        return false;
+    }
+    if (body === null) {
+        console.log(
+            `  evidence: none published for ${sha.slice(0, 8)} (a RED written before issue #5589, or a publish that failed — health-main's output says)`
+        );
+        return false;
+    }
+    if (full) console.log(body);
+    else
+        console.log(
+            `${evidenceSummary(body)
+                .split("\n")
+                .map((l) => `  ${l}`)
+                .join(
+                    "\n"
+                )}\n  full evidence: bun run health:status --evidence ${sha.slice(0, 12)}`
+        );
+    return true;
+}
+
+/** `health:status --evidence [sha]`: the standing RED's evidence (or the
+ *  named sha's), whole. Exit 0 when printed, 1 when there is none. */
+function evidence(root: string): never {
+    const i = process.argv.indexOf("--evidence");
+    const arg = process.argv[i + 1];
+    let sha = arg && !arg.startsWith("-") ? arg : undefined;
+    if (sha === undefined) {
+        const lineage = readVerdictLineage(() => verdictStore(root));
+        if (lineage.error) {
+            console.error(
+                `health:status: the verdict store could not be read — ${lineage.error}`
+            );
+            process.exit(2);
+        }
+        if (!lineage.verdict || lineage.verdict.status !== "red") {
+            console.error(
+                `health:status: no RED stands (${lineage.kind}) — name a sha: --evidence <sha>`
+            );
+            process.exit(1);
+        }
+        sha = lineage.verdict.sha;
+    } else if (sha.length < 40) {
+        const r = spawnSync("git", ["rev-parse", sha], {
+            cwd: root,
+            encoding: "utf8",
+        });
+        if (r.status === 0) sha = r.stdout.trim();
+    }
+    process.exit(printEvidence(root, sha, true) ? 0 : 1);
+}
+
 function status(root: string): never {
     if (process.argv.includes("--json")) statusJson(root);
+    if (process.argv.includes("--evidence")) evidence(root);
     const dir = join(root, HEALTH_DIR);
     const last = readLast(dir);
     const lineage = readVerdictLineage(() => verdictStore(root));
@@ -350,6 +423,13 @@ function status(root: string): never {
     console.log(
         `  verdict store: ${lineage.error ? `UNREADABLE — ${lineage.error}` : `${lineage.kind.toUpperCase()}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}${lineage.verdict.machine ? ` (${lineage.verdict.machine})` : ""}` : ""}`}`
     );
+    if (red && lineage.verdict) {
+        const v = lineage.verdict;
+        console.log(
+            `  RED: ${v.step ?? "unknown step"}${v.failure ? ` — ${v.failure}` : ""}${v.tests?.length ? ` — ${v.tests.join(", ")}` : ""}`
+        );
+        printEvidence(root, v.sha, false);
+    }
     if (!last) console.log("  no health run recorded yet");
     else
         console.log(
@@ -580,13 +660,57 @@ function finishInfra(
     process.exit(1);
 }
 
+/** What the failed step printed — the evidence's raw material. */
+interface FailedOutput {
+    output: string;
+    status: number | null;
+    signal: string | null;
+}
+
+/**
+ * Publishes the RED's evidence on the pivot (issue #5589) and returns what
+ * the verdict carries: the failing files, the failure's kind, and the
+ * pointer the OTHER machine can read. Never fatal: evidence that could not
+ * be published leaves the kind and the files in the verdict, and the local
+ * log as its pointer, as before.
+ */
+function publishEvidence(
+    ctx: RunCtx,
+    step: string,
+    failed: FailedOutput,
+    retry?: RetryFields
+): { tests: string[]; failure: string; pointer: string } {
+    const ev = buildEvidence({
+        sha: ctx.tip,
+        step,
+        machine: machineName(),
+        logPath: ctx.logPath,
+        ...failed,
+        retried: retry?.retried,
+        retryCause: retry?.retryCause,
+        at: new Date().toISOString(),
+    });
+    let pointer = ctx.logPath;
+    try {
+        pointer = evidenceStore(ctx.root).publish(ctx.tip, ev.body);
+    } catch (err) {
+        console.error(
+            `health-main: the RED evidence could not be published — ${String(err)}`
+        );
+    }
+    console.error(evidenceSummary(ev.body));
+    return { tests: ev.files, failure: ev.kind, pointer };
+}
+
 function finishRed(
     ctx: RunCtx,
     failedStep: string,
     halves: Pick<LastRun, "offline" | "ui">,
-    tests: string[] = [],
+    failed: FailedOutput,
     retry?: RetryFields
 ): never {
+    const ev = publishEvidence(ctx, failedStep, failed, retry);
+    const tests = ev.tests;
     if (retry?.retried)
         failedStep = retryNote(failedStep, retry.retried, retry.retryCause);
     writeLast(ctx.dir, {
@@ -597,6 +721,8 @@ function finishRed(
         failedStep,
         log: ctx.logPath,
         ...(tests.length > 0 ? { tests } : {}),
+        failure: ev.failure,
+        evidence: ev.pointer,
         ...retry,
         ...halves,
         ...walkFields(ctx),
@@ -605,7 +731,10 @@ function finishRed(
         sha: ctx.tip,
         status: "red",
         step: failedStep,
-        log: ctx.logPath,
+        // The pointer EITHER machine can read; the local path rides in the
+        // evidence body (issue #5589).
+        log: ev.pointer,
+        failure: ev.failure,
         ...(tests.length > 0 ? { tests } : {}),
     });
     const lineage = readVerdictLineage(() =>
@@ -694,7 +823,9 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         args: healthStepArgs(name),
     }));
     const wt = join(ctx.root, "..", `tolaria-health-walk-${process.pid}`);
-    let failed: { step: string; cause: InfraCause | null } | undefined;
+    let failed:
+        | { step: string; cause: InfraCause | null; out: FailedOutput }
+        | undefined;
     let walked = false;
     let current = "worktree add";
     try {
@@ -719,6 +850,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
                     exitCode: r.status,
                     output: r.output,
                 }),
+                out: { output: r.output, status: r.status, signal: r.signal },
             };
             break;
         }
@@ -729,7 +861,11 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
         console.error(
             `health-main: the walk threw at ${current}: ${String(err)}`
         );
-        failed = { step: current, cause: "ui-walk" };
+        failed = {
+            step: current,
+            cause: "ui-walk",
+            out: { output: String(err), status: null, signal: null },
+        };
         walked = false;
     } finally {
         spawnSync("git", ["worktree", "remove", "--force", wt], {
@@ -782,7 +918,7 @@ async function runWalk(ctx: RunCtx, walk: readonly string[]): Promise<void> {
             offline: "green",
             ui: "infra",
         });
-    finishRed(ctx, failed.step, { offline: "green", ui: "red" });
+    finishRed(ctx, failed.step, { offline: "green", ui: "red" }, failed.out);
 }
 
 /** `--phase=walk`: the walk the offline phase left owed, or nothing. */
@@ -1019,7 +1155,7 @@ async function main(): Promise<void> {
     }));
 
     let failedStep: string | undefined;
-    let failedTests: string[] = [];
+    let failedOutput: FailedOutput = { output: "", status: null, signal: null };
     let failedCause: InfraCause | null = null;
     let retry: RetryFields | undefined;
     try {
@@ -1057,7 +1193,11 @@ async function main(): Promise<void> {
                 )
                     failedCause = null;
                 failedStep = step.name;
-                failedTests = failedTestFiles(r.output);
+                failedOutput = {
+                    output: r.output,
+                    status: r.status,
+                    signal: r.signal,
+                };
                 break;
             }
         }
@@ -1084,7 +1224,7 @@ async function main(): Promise<void> {
             ctx,
             failedStep,
             { offline: "red", ui: "not run" },
-            failedTests,
+            failedOutput,
             retry
         );
 
