@@ -4,7 +4,7 @@
 //  1. GOLDEN — a real Oracle card compiled whole: Triangle of War's two
 //     announced combatants, in printed order, as slots 0 and 1.
 //  2. REFUSALS — the neighbours the rule must not read: a combatant named by
-//     an anaphor ("that creature"), which no slot announces.
+//     an anaphor ("that creature"), the source itself, and a player.
 
 import { describe, expect, it } from "vitest";
 import { compileCard } from "../compile";
@@ -77,6 +77,22 @@ describe("fight clause (CR 701.14a)", () => {
                 oracleText: "Target creature you control fights that creature.",
                 power: undefined,
                 toughness: undefined,
+            })
+        );
+        expect(outcome.state).toBe("unparsed");
+        if (outcome.state !== "unparsed") return;
+        expect(outcome.gaps[0]!.reason).toMatch(/single creature target/);
+    });
+
+    // No graduated card prints the source as a combatant, so the form has no
+    // fixture and stays refused (ADR 0105 § 2) until one does.
+    it('refuses "this creature fights" — the source as a combatant has no fixture', () => {
+        const outcome = compileCard(
+            oracleCard({
+                name: "Test Brawler",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Bear",
+                oracleText: "{1}{G}: This creature fights target creature.",
             })
         );
         expect(outcome.state).toBe("unparsed");

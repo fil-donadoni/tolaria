@@ -1943,18 +1943,18 @@ function lowerSentenceBody(
                     duration: durationSpec(sentence.duration),
                 },
             ]);
-        // CR 701.14a — two creatures fight. Each side is a creature target or
-        // the ability's own source; a mass or player side is no fight.
+        // CR 701.14a — two creatures fight. Each side is a single creature
+        // target; the ability's own source ("this creature fights …") is a
+        // form with no fixture yet, and a mass or player side is no fight.
         case "fight": {
             for (const side of [sentence.creature, sentence.other])
                 if (
-                    side.kind !== "self" &&
-                    (side.kind !== "target" ||
-                        side.requirement.type !== "Creature" ||
-                        side.requirement.count !== 1)
+                    side.kind !== "target" ||
+                    side.requirement.type !== "Creature" ||
+                    side.requirement.count !== 1
                 )
                     return unlowerable(
-                        "a fight is read between a single creature target or this creature on each side (CR 701.14a)"
+                        "a fight is read between a single creature target on each side (CR 701.14a)"
                     );
             const creature = objectSelector(sentence.creature, slots, site);
             if (!creature.ok) return creature;

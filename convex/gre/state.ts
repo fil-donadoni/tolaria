@@ -246,6 +246,7 @@ import {
     substitutionsForBreadth,
     CASTABLE_PERMANENT_TYPES,
     replaceProducedManaColor,
+    isCreature,
 } from "./constants";
 import { PLAYER_COUNTER_FIELD, readPlayerCounters } from "./playerCounters";
 import {
@@ -5944,8 +5945,9 @@ function markDamageFromPermanentSource(
  *  halves are marked — so a creature that dies to the fight still deals its
  *  full damage (CR 701.14, 510.4-style simultaneity; CR 704.5g lethal).
  *
- *  No-op for any half whose creature has left the battlefield (CR 608.2b
- *  last-known... is intentionally not modeled here — Tracker's ruling: if the
+ *  CR 701.14b — a no-op WHOLE (neither half) when either creature has left
+ *  the battlefield or is no longer a creature (last-known information is
+ *  intentionally not modeled here — Tracker's ruling: if the
  *  target leaves before resolution the ability is countered upstream by the
  *  target check, CR 608.2b). */
 export function resolveFight(
@@ -5957,11 +5959,7 @@ export function resolveFight(
     const b = findOnBattlefield(state, creatureBId);
     // CR 701.14b — if either is gone or no longer a creature, neither fights.
     if (!a || !b) return;
-    if (
-        !a.card.types.includes("Creature") ||
-        !b.card.types.includes("Creature")
-    )
-        return;
+    if (!isCreature(a.card) || !isCreature(b.card)) return;
     // CR 701.14 — snapshot both powers up front; the damage is simultaneous,
     // so neither power is affected by the other's damage.
     const powerA = getEffectivePower(state, a.card);
