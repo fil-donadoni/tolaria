@@ -62,12 +62,22 @@ export function uiWalkGating(
 
 /** The effective flag on this machine, fail-closed: a torn config reads as
  *  advisory on Linux (the walk must not red the health verdict by accident)
- *  and as gating elsewhere. */
+ *  and as gating elsewhere. `TOLARIA_UI_WALK_GATING` (`true`/`false`)
+ *  overrides both for one process — a test, like `TOLARIA_VERDICT_STORE` for
+ *  the store (issue #5590). */
 export function readUiWalkGating(
     path = CONFIG_PATH,
-    platform: NodeJS.Platform = process.platform
+    platform: NodeJS.Platform = process.platform,
+    env: NodeJS.ProcessEnv = process.env
 ): boolean {
+    const pin = env.TOLARIA_UI_WALK_GATING;
     try {
+        if (pin !== undefined) {
+            if (pin === "true" || pin === "false") return pin === "true";
+            throw new Error(
+                `TOLARIA_UI_WALK_GATING must be true or false, got ${JSON.stringify(pin)}`
+            );
+        }
         return uiWalkGating(
             parseUiWalkGating(readFileSync(path, "utf8"), path),
             platform

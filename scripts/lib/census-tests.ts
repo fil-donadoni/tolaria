@@ -148,6 +148,11 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/isolation-off-mock-boundary.test.ts",
         admits: /^(convex|src|scripts)\//,
     },
+    // scripts/**/*.ts — every host-platform read is a pinned role or mechanics
+    {
+        test: "scripts/__tests__/machine-pins.test.ts",
+        admits: /^scripts\/.*\.ts$|^vitest\.setup\.node\.ts$/,
+    },
     // convex/manual.ts and convex/manual/
     {
         test: "scripts/__tests__/manual-boundary.test.ts",

@@ -71,6 +71,7 @@ import {
     outcomeOf,
     owesPresetSeed,
     parseLandRunnerConfig,
+    pinLandRunnerPlatform,
     planTick,
     READY_LABEL,
     RUNNER_ENV,
@@ -519,8 +520,8 @@ async function main(): Promise<void> {
     const once = args.includes("--once");
     const dryRun = args.includes("--dry-run");
     const intervalAt = args.indexOf("--interval");
-    const config = parseLandRunnerConfig(
-        JSON.parse(readFileSync(CONFIG_PATH, "utf8"))
+    const config = pinLandRunnerPlatform(
+        parseLandRunnerConfig(JSON.parse(readFileSync(CONFIG_PATH, "utf8")))
     );
     let intervalS = config.intervalS;
     if (intervalAt !== -1) {

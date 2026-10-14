@@ -275,6 +275,17 @@ export function parseLandRunnerConfig(raw: unknown): LandRunnerConfig {
     return { platform, intervalS };
 }
 
+/** `TOLARIA_LAND_RUNNER_PLATFORM` overrides `landRunner.platform` for one
+ *  process (empty = runs nowhere) — a test, like
+ *  `TOLARIA_HEALTH_RUNNER_PLATFORM` for the health runner (issue #5590). */
+export function pinLandRunnerPlatform(
+    config: LandRunnerConfig,
+    env: NodeJS.ProcessEnv = process.env
+): LandRunnerConfig {
+    const pin = env.TOLARIA_LAND_RUNNER_PLATFORM;
+    return pin === undefined ? config : { ...config, platform: pin };
+}
+
 /** Whether THIS machine runs the land-runner. */
 export function runsHere(config: LandRunnerConfig, platform: string): boolean {
     return config.platform === platform;

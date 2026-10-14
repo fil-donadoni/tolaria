@@ -29,27 +29,13 @@ import {
     SWAP_ENV,
 } from "./convex/oracle/behavioural";
 import { deepFreeze, freezeCatalogueOnce } from "./vitest.freeze-catalogue";
+import { applyMachinePins } from "./scripts/lib/machine-pins";
 
-// Machine admission (issue #4966): every gate, claim, worktree and hook a test
-// spawns reads this calm machine INSTEAD of the real one — a suite run on a
-// saturated machine must neither wait on it nor pass because of it. A test
-// that wants the real probes, or a busy machine, sets the variable itself.
-process.env.TOLARIA_MACHINE_PROBE ??= JSON.stringify({
-    load1: 0,
-    swapUsedMb: 0,
-    pressure: 1,
-    reclaimableMb: 16_384,
-    sessions: [],
-});
-
-// The health verdict store and the health runner (issue #5462, issue #5467):
-// every script a test spawns reads the LOCAL file store and no runner, whatever
-// `tolaria.config.json` says — a fixture repo has no GitHub origin to write a
-// commit status to, and a cadence test must not turn into the stale-verdict
-// fallback because the real config names the Huawei. A test that wants the
-// GitHub backend or a runner sets the variable itself.
-process.env.TOLARIA_VERDICT_STORE ??= "file";
-process.env.TOLARIA_HEALTH_RUNNER_PLATFORM ??= "";
+// Machine pins (issue #5590): every gate, claim, worktree, hook and health run
+// a test spawns reads the SAME machine — calm, file store, no runner, a gating
+// walk — whichever machine runs the suite. A test that wants another machine
+// sets the variable itself. The values and their reasons: the registry.
+applyMachinePins();
 
 // Vitest re-runs this file for every test file, but modules it imports stay
 // cached in a non-isolated worker — so the walk lives in an imported module
