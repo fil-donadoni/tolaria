@@ -101,7 +101,9 @@ describe("machine pins — no test inherits the host's role (issue #5590)", () =
             if (!("pin" in read)) continue;
             expect(MACHINE_PINS, file).toHaveProperty(read.pin);
             expect(
-                readFileSync(join(REPO_ROOT, read.readIn), "utf8"),
+                stripComments(
+                    readFileSync(join(REPO_ROOT, read.readIn), "utf8")
+                ),
                 `${file}: ${read.readIn} never reads ${read.pin}`
             ).toContain(read.pin);
         }
