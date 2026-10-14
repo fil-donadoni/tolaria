@@ -2,9 +2,13 @@
 // issue #5343): a name, a Format when the Match Format is Freeform, and a
 // pasted list. Refused as a whole — with every problem listed — rather than
 // imported in part; on success the deck is saved as a normal user deck.
-import { useState } from "react";
+//
+// The parser reads the card catalogue, and the Setup flow is a light surface
+// that renders without it (issue #5584): the dialog loads both when it opens
+// (`loadStrictImport`) and keeps Import disabled until they are resident.
+import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
-import { FORMAT_LABELS, FORMAT_RULES, type FormatId } from "@convex/formats";
+import { FORMAT_LABELS, type FormatId } from "@convex/formats";
 import { Banner } from "~/components/ui/banner";
 import { Button } from "~/components/ui/button";
 import GameDialog from "~/components/ui/game-dialog";
@@ -15,15 +19,16 @@ import {
     TooltipTrigger,
 } from "~/components/ui/tooltip";
 import { useUserDeckMutations } from "~/hooks/useUserDecks";
-import { parseDecklist } from "~/lib/deckImport";
 import type { UserLobbyDeck } from "~/lib/deckTypes";
 import {
     IMPORT_FORMAT_CHOICES,
-    importedLobbyDeck,
     importFormat,
-    strictImportDeck,
-} from "~/lib/matchSetupDeckImport";
+} from "~/lib/matchSetupImportFormats";
 import { extractMutationErrorMessage } from "~/lib/mutation-error";
+import {
+    loadStrictImport,
+    type StrictImportModule,
+} from "~/lib/strictImportLoader";
 import { useEarliestPrintFetcher } from "~/lib/useEarliestPrintFetcher";
 
 const PLACEHOLDER = `4 Lightning Bolt
@@ -51,31 +56,54 @@ export default function ImportDeckDialog({
     const [chosen, setChosen] = useState<FormatId>("freeform");
     const [errors, setErrors] = useState<string[]>([]);
     const [busy, setBusy] = useState(false);
+    const [importer, setImporter] = useState<StrictImportModule | null>(null);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const { create } = useUserDeckMutations();
     const fetchEarliest = useEarliestPrintFetcher();
     const format = importFormat(matchFormat, chosen);
 
+    // Opening the dialog loads the parser and the catalogue; a failed load is
+    // retried by reopening it (`hydrateCatalogue` does not memoise a failure).
+    useEffect(() => {
+        if (!open || importer !== null) return;
+        let cancelled = false;
+        loadStrictImport().then(
+            (loaded) => {
+                if (cancelled) return;
+                setImporter(loaded);
+                setLoadError(null);
+            },
+            (err: unknown) => {
+                if (!cancelled)
+                    setLoadError(
+                        err instanceof Error ? err.message : String(err)
+                    );
+            }
+        );
+        return () => {
+            cancelled = true;
+        };
+    }, [open, importer]);
+
     const submit = async () => {
+        if (importer === null) return;
         setBusy(true);
         setErrors([]);
         try {
-            // Printings come from the `cardPrints` table (issue #5106): parse
-            // once for the Card IDs, fetch the earliest legal row, parse again.
-            const allowedSets = FORMAT_RULES[format].allowedSets;
-            const first = parseDecklist(text, format);
-            const earliest = allowedSets
-                ? await fetchEarliest(
-                      [...first.cards, ...first.sideboard].map((c) => c.cardId),
-                      allowedSets
-                  )
-                : undefined;
-            const result = strictImportDeck(name, text, format, earliest);
+            const result = await importer.strictImportWithPrintings(
+                name,
+                text,
+                format,
+                fetchEarliest
+            );
             if (!result.ok) {
                 setErrors(result.errors);
                 return;
             }
             const id = await create(result.payload);
-            onImported(importedLobbyDeck(id as string, result.payload));
+            onImported(
+                importer.importedLobbyDeck(id as string, result.payload)
+            );
             onOpenChange(false);
         } catch (err) {
             setErrors([extractMutationErrorMessage(err)]);
@@ -147,6 +175,26 @@ export default function ImportDeckDialog({
                     spellCheck={false}
                     className="input-field w-full resize-y px-3 py-2 font-mono text-xs"
                 />
+                {importer === null && loadError === null && (
+                    <p
+                        className="text-xs text-text-muted"
+                        data-import-loading
+                        role="status"
+                    >
+                        Loading cards…
+                    </p>
+                )}
+                {importer === null && loadError !== null && (
+                    <Banner tone="danger" role="alert">
+                        <p className="text-label">
+                            Could not load the card list — close and reopen to
+                            retry.
+                        </p>
+                        <p className="mt-1 font-mono text-xs text-text-muted">
+                            {loadError}
+                        </p>
+                    </Banner>
+                )}
                 {errors.length > 0 && (
                     <Banner tone="danger" role="alert" data-import-refusal>
                         <p className="text-label">Import refused:</p>
@@ -171,7 +219,9 @@ export default function ImportDeckDialog({
                         type="button"
                         variant="primary"
                         onClick={() => void submit()}
-                        disabled={text.trim() === "" || busy}
+                        disabled={
+                            text.trim() === "" || busy || importer === null
+                        }
                     >
                         Import
                     </Button>

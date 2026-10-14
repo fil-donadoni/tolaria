@@ -151,6 +151,51 @@ describe("createImportGraph — closureOf", () => {
     });
 });
 
+describe("createImportGraph — static closure and seams (issue #5584)", () => {
+    const root = fixtureTree({
+        "src/routes/setup.route.tsx": `import { dialog } from "../dialog";\nimport { rules } from "@convex/formats";\n`,
+        "src/dialog.ts": `export const dialog = () => import("./parser");\nconst w = new Worker(new URL("./worker.ts", import.meta.url));\n`,
+        "src/parser.ts": `export const parse = 1;\n`,
+        "src/worker.ts": `export const w = 1;\n`,
+        "convex/formats.ts": `import { meta } from "./cards";\nexport const rules = meta;\n`,
+        "convex/cards/index.ts": `export const meta = 1;\n`,
+        "src/stub.ts": `export const meta = null;\n`,
+    });
+
+    it("a static closure leaves out import() and new URL(…, import.meta.url)", () => {
+        const graph = createImportGraph({ root });
+        const all = graph.closureOf("src/routes/setup.route.tsx");
+        expect(all).toContain("src/parser.ts");
+        expect(all).toContain("src/worker.ts");
+        const statics = graph.closureOf("src/routes/setup.route.tsx", {
+            staticOnly: true,
+        });
+        expect(statics).toContain("src/dialog.ts");
+        expect(statics).not.toContain("src/parser.ts");
+        expect(statics).not.toContain("src/worker.ts");
+    });
+
+    it("a seam substitutes one importer's specifier, and only when passed", () => {
+        const plain = createImportGraph({ root });
+        expect(plain.closureOf("src/routes/setup.route.tsx")).toContain(
+            "convex/cards/index.ts"
+        );
+        const seamed = createImportGraph({
+            root,
+            seams: [
+                {
+                    importer: "convex/formats.ts",
+                    specifier: "./cards",
+                    replacement: "src/stub.ts",
+                },
+            ],
+        });
+        const closure = seamed.closureOf("src/routes/setup.route.tsx");
+        expect(closure).toContain("src/stub.ts");
+        expect(closure).not.toContain("convex/cards/index.ts");
+    });
+});
+
 describe("APP_ALIASES", () => {
     it("is vite.config.ts's resolve.alias, in order, made repo-relative", () => {
         const vite = (viteConfig.resolve?.alias ?? []) as ImportAlias[];

@@ -7,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useCurrentUser } from "~/hooks/useCurrentUser";
 import { useStartMatch } from "~/hooks/useStartMatch";
+import { useStartMatchPrefetch } from "~/hooks/useStartMatchPrefetch";
 import { useUserDecks } from "~/hooks/useUserDecks";
 import { toPresetLobbyDeck, type LobbyDeck } from "~/lib/deckTypes";
 import {
@@ -27,6 +28,7 @@ export default function MatchSetupFlow() {
     const openGames = useQuery(api.gameReads.listOpenGames);
     const [stored, setStored] = useState<MatchSetup>(loadSetup);
     const { start, busy, error } = useStartMatch();
+    useStartMatchPrefetch();
 
     const decks = useMemo<LobbyDeck[]>(
         () => [

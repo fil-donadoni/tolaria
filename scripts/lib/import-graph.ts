@@ -44,6 +44,32 @@ export interface ImportAlias {
     replacement: string;
 }
 
+/**
+ * An importer-specific substitution: `importer` writing `specifier` gets
+ * `replacement`, as a Vite `resolveId` plugin does in the browser build. Not
+ * an alias — the same specifier from any other importer resolves normally.
+ */
+export interface ImportSeam {
+    importer: string;
+    specifier: string;
+    replacement: string;
+}
+
+/**
+ * `vite.config.ts`'s importer-specific seams (its `formats-cards-browser-seam`
+ * plugin, issue #4854): the browser build gives `convex/formats.ts` a
+ * catalogue-free stand-in for `./cards`. OPT-IN (`ImportGraphOptions.seams`):
+ * the scoper's graph keeps the server edge, an over-approximation in the
+ * fail-closed direction; a guard on what a browser route LOADS passes these.
+ */
+export const BROWSER_SEAMS: readonly ImportSeam[] = [
+    {
+        importer: "convex/formats.ts",
+        specifier: "./cards",
+        replacement: "src/lib/catalogue/deck-card-meta.browser.ts",
+    },
+];
+
 /** `vite.config.ts` `resolve.alias`, in the same order. */
 export const APP_ALIASES: readonly ImportAlias[] = [
     { find: "~", replacement: "src" },
@@ -77,6 +103,14 @@ export function importSpecifiers(source: string): string[] {
     return [...specifiersOf(source).runtime];
 }
 
+/** The runtime specifiers `source` names STATICALLY — `import … from`,
+ *  `export … from`, side-effect `import "x"` — leaving out `import("x")` and
+ *  `new URL("x", import.meta.url)`, which load later, on demand. What a module
+ *  costs the moment it is evaluated (issue #5584). */
+export function staticImportSpecifiers(source: string): string[] {
+    return [...specifiersOf(source).static];
+}
+
 /** The specifiers `source` names ONLY in `import type` / `export type`
  *  statements: modules whose code never runs on `source`'s account, though a
  *  change to their types can still fail `check:ts`. A module named both ways
@@ -88,18 +122,25 @@ export function typeOnlySpecifiers(source: string): string[] {
 
 function specifiersOf(source: string): {
     runtime: Set<string>;
+    static: Set<string>;
     typeOnly: Set<string>;
 } {
     const runtime = new Set<string>();
+    const statics = new Set<string>();
     const typeOnly = new Set<string>();
     for (const [i, pattern] of SPECIFIER_PATTERNS.entries()) {
         for (const match of source.matchAll(pattern)) {
-            if (i !== 0) runtime.add(match[1]);
-            else if (match[1] === undefined) runtime.add(match[2]);
-            else typeOnly.add(match[2]);
+            if (i === 0 && match[1] !== undefined) {
+                typeOnly.add(match[2]);
+                continue;
+            }
+            const specifier = i === 0 ? match[2] : match[1];
+            runtime.add(specifier);
+            // Patterns 0 and 1 are the static forms; 2 and 3 load on demand.
+            if (i <= 1) statics.add(specifier);
         }
     }
-    return { runtime, typeOnly };
+    return { runtime, static: statics, typeOnly };
 }
 
 const EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".json"];
@@ -182,6 +223,12 @@ export interface ClosureOptions {
      * #4913) — the first contributes no surface, the second forces FULL.
      */
     types?: boolean;
+    /**
+     * Follow STATIC edges only (`staticImportSpecifiers`): no `import()`, no
+     * `new URL(…, import.meta.url)`. The closure is then what loads the
+     * moment the entry is evaluated, not what it may load later (issue #5584).
+     */
+    staticOnly?: boolean;
 }
 
 export interface ImportGraph {
@@ -189,6 +236,8 @@ export interface ImportGraph {
     importsOf(repoPath: string): readonly string[];
     /** The files `repoPath` names only in type-only statements, resolved. */
     typeImportsOf(repoPath: string): readonly string[];
+    /** The files `repoPath` imports STATICALLY at runtime, resolved. */
+    staticImportsOf(repoPath: string): readonly string[];
     /** `entry` plus every file reachable from it. */
     closureOf(entry: string, options?: ClosureOptions): Set<string>;
 }
@@ -206,6 +255,8 @@ export interface ImportGraphOptions {
     aliases?: readonly ImportAlias[];
     /** Overrides the disk reads at `root`. */
     source?: ImportGraphSource;
+    /** Importer-specific substitutions (`BROWSER_SEAMS`). None by default. */
+    seams?: readonly ImportSeam[];
 }
 
 /**
@@ -216,8 +267,10 @@ export function createImportGraph({
     root,
     aliases = APP_ALIASES,
     source,
+    seams = [],
 }: ImportGraphOptions): ImportGraph {
     const edges = new Map<string, readonly string[]>();
+    const staticEdges = new Map<string, readonly string[]>();
     const typeEdges = new Map<string, readonly string[]>();
     const fileCache = new Map<string, boolean>();
 
@@ -239,6 +292,7 @@ export function createImportGraph({
     const read = (repoPath: string): void => {
         if (edges.has(repoPath)) return;
         let runtime: string[] = [];
+        let statics: string[] = [];
         let typeOnly: string[] = [];
         if (isFile(repoPath) && !repoPath.endsWith(".json")) {
             const text = source
@@ -246,12 +300,22 @@ export function createImportGraph({
                 : readFileSync(join(root, repoPath), "utf8");
             const resolve = (specifiers: string[]) =>
                 specifiers
-                    .map((s) => resolveSpecifier(repoPath, s, aliases, isFile))
+                    .map(
+                        (s) =>
+                            seams.find(
+                                (seam) =>
+                                    seam.importer === repoPath &&
+                                    seam.specifier === s
+                            )?.replacement ??
+                            resolveSpecifier(repoPath, s, aliases, isFile)
+                    )
                     .filter((p): p is string => p !== null);
             runtime = resolve(importSpecifiers(text));
+            statics = resolve(staticImportSpecifiers(text));
             typeOnly = resolve(typeOnlySpecifiers(text));
         }
         edges.set(repoPath, [...new Set(runtime)]);
+        staticEdges.set(repoPath, [...new Set(statics)]);
         typeEdges.set(repoPath, [...new Set(typeOnly)]);
     };
 
@@ -265,14 +329,22 @@ export function createImportGraph({
         return typeEdges.get(repoPath)!;
     };
 
+    const staticImportsOf = (repoPath: string): readonly string[] => {
+        read(repoPath);
+        return staticEdges.get(repoPath)!;
+    };
+
     const closureOf = (entry: string, options: ClosureOptions = {}) => {
         const seen = new Set<string>([entry]);
         const queue = [entry];
         while (queue.length > 0) {
             const file = queue.pop()!;
-            const nexts = options.types
-                ? [...importsOf(file), ...typeImportsOf(file)]
+            const runtime = options.staticOnly
+                ? staticImportsOf(file)
                 : importsOf(file);
+            const nexts = options.types
+                ? [...runtime, ...typeImportsOf(file)]
+                : runtime;
             for (const next of nexts) {
                 if (seen.has(next) || options.prune?.(next)) continue;
                 seen.add(next);
@@ -282,5 +354,5 @@ export function createImportGraph({
         return seen;
     };
 
-    return { importsOf, typeImportsOf, closureOf };
+    return { importsOf, typeImportsOf, staticImportsOf, closureOf };
 }

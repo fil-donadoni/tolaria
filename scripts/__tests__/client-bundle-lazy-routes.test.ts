@@ -75,6 +75,7 @@ describe("asset graph — light surfaces", () => {
         "index-AAAA1111.js": `import{x}from"./util-CCCC3333.js";import("./game-DDDD4444.js");`,
         "util-CCCC3333.js": `export const x=1;`,
         "lobby.route-EEEE5555.js": `import{x}from"./util-CCCC3333.js";`,
+        "match-setup.route-HHHH8888.js": `import{x}from"./util-CCCC3333.js";import("./game-DDDD4444.js");`,
         "game-DDDD4444.js": `import"./engine-FFFF6666.js";`,
         "engine-FFFF6666.js": `throw Error("${ENGINE_SENTINEL}")`,
         "card-catalogue-GGGG7777.js": `export const c=1;`,
@@ -125,6 +126,34 @@ describe("asset graph — light surfaces", () => {
                 chunk: "util-CCCC3333.js",
             })
         );
+    });
+
+    it("reds when a light chunk names the packed corpus the gate fetches", () => {
+        const dist = fakeDist(ENTRY, {
+            ...LIGHT,
+            "match-setup.route-HHHH8888.js": `fetch("/assets/packed-corpus-YygP3Rut.json")`,
+        });
+        expect(lightSurfaceViolations(dist)).toContainEqual(
+            expect.objectContaining({
+                surface: "match-setup",
+                chunk: "match-setup.route-HHHH8888.js",
+            })
+        );
+    });
+
+    it("reds when the Setup flow statically imports the catalogue chunk (issue #5584)", () => {
+        const dist = fakeDist(ENTRY, {
+            ...LIGHT,
+            "match-setup.route-HHHH8888.js": `import"./card-catalogue-GGGG7777.js";`,
+        });
+        const violations = lightSurfaceViolations(dist);
+        expect(violations).toContainEqual(
+            expect.objectContaining({
+                surface: "match-setup",
+                chunk: "card-catalogue-GGGG7777.js",
+            })
+        );
+        expect(violations.some((v) => v.surface === "lobby")).toBe(false);
     });
 
     it("reds when no chunk carries the engine sentinel — the check cannot go vacuous", () => {
