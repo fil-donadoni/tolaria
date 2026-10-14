@@ -31,7 +31,12 @@ export function useDefinitionsResident(
     // Residency lives outside React (the loader's map): a bump after an
     // install re-reads it.
     const [, bump] = useReducer((n: number) => n + 1, 0);
-    const [error, setError] = useState<Error | null>(null);
+    // A failure belongs to the set of Sets it failed for: a new set of
+    // missing Sets starts clean, an earlier failure is not this load's.
+    const [failed, setFailed] = useState<{
+        key: string;
+        error: Error;
+    } | null>(null);
     const [attempt, setAttempt] = useState(0);
     const needed = ids === null ? [] : setsNeededFor(ids);
     const neededKey = needed.join(" ");
@@ -39,20 +44,19 @@ export function useDefinitionsResident(
     useEffect(() => {
         if (neededKey === "") return;
         let cancelled = false;
-        // A new set of missing Sets starts clean: an earlier failure is not
-        // this load's.
-        setError(null);
         installSets(neededKey.split(" ")).then(
             () => {
                 if (!cancelled) bump();
             },
             (cause: unknown) => {
                 if (!cancelled)
-                    setError(
-                        cause instanceof Error
-                            ? cause
-                            : new Error(String(cause))
-                    );
+                    setFailed({
+                        key: neededKey,
+                        error:
+                            cause instanceof Error
+                                ? cause
+                                : new Error(String(cause)),
+                    });
             }
         );
         return () => {
@@ -62,9 +66,10 @@ export function useDefinitionsResident(
 
     return {
         ready: needed.length === 0,
-        error,
+        error:
+            failed !== null && failed.key === neededKey ? failed.error : null,
         retry: () => {
-            setError(null);
+            setFailed(null);
             setAttempt((n) => n + 1);
         },
     };

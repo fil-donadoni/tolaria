@@ -83,3 +83,16 @@ describe("useDefinitionsResident", () => {
         expect(installSets).toHaveBeenCalledTimes(2);
     });
 });
+
+describe("useDefinitionsResident — a failure belongs to its own Sets", () => {
+    it("reports a failed load only while those Sets are the missing ones", async () => {
+        installSets.mockRejectedValueOnce(new Error("chunk 503"));
+        const view = render(<Probe ids={["lea:1"]} />);
+        await screen.findByText("retry: chunk 503");
+        // A later snapshot needing a different Set loads fine: the old
+        // failure is not shown over it.
+        view.rerender(<Probe ids={["arn:1"]} />);
+        await screen.findByText("ready");
+        expect(screen.queryByText(/retry:/)).toBeNull();
+    });
+});

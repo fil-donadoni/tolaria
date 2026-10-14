@@ -203,11 +203,18 @@ export default function Board({
         [liveState]
     );
     const residence = useDefinitionsResident(stateIds);
+    // The last snapshot every Set of which was resident, kept DURING render
+    // (React's "derive state from the previous render" form), so a snapshot
+    // the board cannot resolve yet never replaces one it can.
     const [lastResident, setLastResident] =
         useState<typeof liveState>(undefined);
-    useEffect(() => {
-        if (residence.ready && liveState) setLastResident(liveState);
-    }, [residence.ready, liveState]);
+    if (
+        residence.ready &&
+        liveState !== undefined &&
+        liveState !== lastResident
+    ) {
+        setLastResident(liveState);
+    }
     const state = residence.ready ? liveState : lastResident;
     useEffect(() => {
         if (stateIds) preloadCardImages(stateIds);
