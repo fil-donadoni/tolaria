@@ -27,6 +27,7 @@ import type {
     PermanentView,
     TargetRequirement,
     TriggeredAbility,
+    TriggerStateView,
 } from "../../cards/types";
 import {
     announceableModeCombinations,
@@ -39,6 +40,7 @@ import {
     withLatentLens,
     type GroundingContext,
     type LatentLens,
+    type StepGate,
 } from "./grounding";
 import type { LatentWeights } from "./evalWeights";
 import {
@@ -568,6 +570,7 @@ function abilityScriptOpValue(
         event?: TriggeredAbility["event"];
         zone?: TriggeredAbility["zone"];
         phaseScope?: TriggeredAbility["phaseScope"];
+        interveningIf?: TriggeredAbility["interveningIf"];
         activateFromGraveyard?: boolean;
         activateFromHand?: boolean;
         etbAbility?: boolean;
@@ -663,11 +666,15 @@ function abilityScriptOpValue(
             ability.phaseScope === "each" &&
             script !== undefined &&
             isEachStepEngineScript(script);
+        // Issue #5574 — its CR 603.4 intervening-if is decided per side; a
+        // check-time condition nothing can decide reads nothing (fail-closed).
+        const stepGate = eachStepEngine ? stepGateOf(ability) : undefined;
         const engine =
-            eachStepEngine && engineLens
+            eachStepEngine && engineLens && stepGate !== UNDECIDABLE_STEP_GATE
                 ? eachStepDifferentialValue(
                       script,
-                      withLatentLens(abilityCtx, engineLens)
+                      withLatentLens(abilityCtx, engineLens),
+                      stepGate
                   )
                 : undefined;
         if (eachStepEngine && !engine) continue;
@@ -1043,6 +1050,40 @@ export function dslStandingAbilityScriptValue(
     );
     return standing && standing.points * ABILITY_SCRIPT_DISCOUNT;
 }
+
+/** Issue #5574 — a standing each-step engine's CR 603.4 gate, asked for
+ *  one player's step (`StepGate`): its `interveningIf` given the PHASE_BEGIN
+ *  event of that player's step. The event's `phase` is the board's own — the
+ *  `phaseTrigger` wrapper narrows its predicate on the event type alone,
+ *  `matches` is what reads the phase. `undefined` when the trigger has no
+ *  gate. A check-time `condition` (`gate`) with no `interveningIf` beside it
+ *  is a predicate no reader can ask: `UNDECIDABLE_STEP_GATE`. A compiled
+ *  intervening-if passes ONE predicate as both (`resolveCompiledTrigger`,
+ *  CR 603.4 checks it twice), so its `interveningIf` decides it. */
+function stepGateOf(ability: {
+    gate?: TriggeredAbility["gate"];
+    interveningIf?: TriggeredAbility["interveningIf"];
+}): StepGate | typeof UNDECIDABLE_STEP_GATE | undefined {
+    const predicate = ability.interveningIf;
+    if (!predicate) {
+        return ability.gate && "undecidable" in ability.gate
+            ? UNDECIDABLE_STEP_GATE
+            : undefined;
+    }
+    const onSelf =
+        ability.gate && "onSelf" in ability.gate
+            ? ability.gate.onSelf
+            : undefined;
+    return (activePlayerId, self, state) =>
+        (onSelf === undefined || onSelf(self)) &&
+        predicate(
+            { type: "PHASE_BEGIN", phase: state.phase, activePlayerId },
+            self,
+            state as unknown as TriggerStateView
+        );
+}
+
+const UNDECIDABLE_STEP_GATE = Symbol("undecidable-step-gate");
 
 /** Issue #5164 (ADR 0151) — true when the card carries a standing ENGINE on
  *  every player's step: a `phaseScope: "each"` trigger whose script
