@@ -374,6 +374,26 @@ describe("CR 106.7 — the count-aware read covers the hand-written closures and
             ]);
         }));
 
+    it("the COLOURS a Reflecting Pool could produce exclude the {C} its TYPE read offers (CR 106.1a)", () =>
+        withDefinitions([REFLECTING_POOL, CABAL_STRONGHOLD], () => {
+            const pool = on(REFLECTING_POOL.id, "p1");
+            const state = board([
+                pool,
+                on(CABAL_STRONGHOLD.id, "p1"),
+                on(forest().id, "p1"),
+            ]);
+            // The tap offers both TYPES…
+            expect(getManaTapOptions(pool, "p1", bf(state))).toEqual([
+                { G: 1 },
+                { C: 1 },
+            ]);
+            // …while a colour census of the same Pool (castability, the
+            // Bot's colour terms) reads only the colour.
+            expect([...getProducibleColorsOnBoard(pool, bf(state))]).toEqual([
+                "G",
+            ]);
+        }));
+
     it("a colour read of an opponent's Reflecting Pool never yields {C}, though the Pool itself could produce it (CR 106.1a)", () =>
         withDefinitions([REFLECTING_POOL, CABAL_STRONGHOLD], () => {
             const stone = on(fellwarStone().id, "p1");
