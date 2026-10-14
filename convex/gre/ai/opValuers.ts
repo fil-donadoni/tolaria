@@ -44,6 +44,7 @@ import type { Feature, OpValue, ValueTag } from "./featureBasis";
 import { ZERO_OP_VALUE } from "./featureBasis";
 import type {
     EachPlayerSide,
+    HandStep,
     GroundingContext,
     SweepOutcome,
 } from "./grounding";
@@ -467,7 +468,12 @@ function eachPlayerDifferentialValue(
  *  that side's board here, from its `choice`'s filter and count — the
  *  binding a `sacrifice` valuer reads cannot name either — at the `destroy`
  *  completeness a sweep's member takes (`sweptForEachValue`): what the
- *  chooser gives up is known, it is the cheapest. */
+ *  chooser gives up is known, it is the cheapest.
+ *
+ *  Issue #5573 — a `draw` is priced off the side's board
+ *  (`EachPlayerSide.drawUnits`), the one authority the each-step engine
+ *  reads too, into the hand the body's earlier Ops leave behind
+ *  (`EachPlayerHand`): Wheel of Fortune's seven land in an emptied hand. */
 function valueEachPlayerSide(
     body: readonly EffectOp[],
     ctx: GroundingContext,
@@ -475,8 +481,18 @@ function valueEachPlayerSide(
     scope: ScriptScope
 ): OpValue {
     const sideCtx = eachPlayerGrounding(ctx, side);
+    const hand = new EachPlayerHand(side);
     let total = ZERO_OP_VALUE;
     for (const op of body) {
+        if (op.op === "draw") {
+            const count = hand.drawCount(op.count);
+            total = addValues(
+                total,
+                sideDraw(count, side, sideCtx, hand.steps)
+            );
+            hand.record({ kind: "draws", count });
+            continue;
+        }
         const handEdict = op.op === "discard" && handEdictChoiceFor(op, body);
         if (handEdict) {
             const count = groundedEdictCount(side, handEdict);
@@ -485,8 +501,11 @@ function valueEachPlayerSide(
                 points: side.own ? -worth : worth,
                 tags: ["cardAdvantage"],
             });
+            hand.record({ kind: "discards", count });
             continue;
         }
+        if (op.op === "discard") hand.record({ kind: "leaves" });
+        if (op.op === "moveZone") hand.shuffleIn(op);
         const edict = op.op === "sacrifice" && edictChoiceFor(op, body);
         if (edict) {
             const count = groundedEdictCount(side, edict);
@@ -506,6 +525,59 @@ function valueEachPlayerSide(
         total = addValues(total, valueOp(op, sideCtx, scope));
     }
     return total;
+}
+
+/** Issue #5573 — `side`'s hand as one side's walk of a one-shot body leaves
+ *  it: the steps a later `draw` lands after (`HandStep`), and its size, read
+ *  off the board and replayed through them, for a `bindCount` taken
+ *  when a whole hand is shuffled in (Winds of Change's "draws that many").
+ *  Only the Ops `isEachPlayerSideOp` admits reach it, and each of those
+ *  either leaves the hand alone or is one of the steps. */
+class EachPlayerHand {
+    readonly steps: HandStep[] = [];
+    private readonly bound = new Map<string, number>();
+    private readonly side: EachPlayerSide;
+
+    constructor(side: EachPlayerSide) {
+        this.side = side;
+    }
+
+    /** The hand's size after the steps so far; `undefined` when the board
+     *  cannot ground it, which voids the side (`groundCount`). */
+    private sizeNow(): number | undefined {
+        let size = this.side.groundCount({
+            count: { zone: "hand", controller: { ref: "$each" } },
+        });
+        if (size === undefined) return undefined;
+        for (const step of this.steps) {
+            if (step.kind === "draws") size += step.count;
+            else if (step.kind === "discards") {
+                size = Math.max(0, size - step.count);
+            } else size = 0;
+        }
+        return size;
+    }
+
+    record(step: HandStep): void {
+        this.steps.push(step);
+    }
+
+    /** A whole-hand `moveZone` into the library: binds the count of cards it
+     *  moves when it names one. */
+    shuffleIn(op: Extract<EffectOp, { op: "moveZone" }>): void {
+        if (!isWholeHandToLibrary(op)) return;
+        if ("bindCount" in op && op.bindCount !== undefined) {
+            this.bound.set(op.bindCount, this.sizeNow() ?? 0);
+        }
+        this.record({ kind: "shuffledIn" });
+    }
+
+    /** A draw's count: a literal, or the count a shuffle-in bound. */
+    drawCount(count: EffectValue): number {
+        if (typeof count === "number") return count;
+        if ("ref" in count) return this.bound.get(count.ref) ?? 0;
+        return 0;
+    }
 }
 
 /** Issue #5559 — how many members `side` gives up to an edict: its literal
@@ -593,7 +665,7 @@ export function eachStepDifferentialValue(
             total = addValues(
                 total,
                 op.op === "draw"
-                    ? stepSideDraw(op, side, sideCtx)
+                    ? sideDraw(op.count as number, side, sideCtx)
                     : valueOp(op, sideCtx)
             );
         }
@@ -613,14 +685,17 @@ export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
     return script.every(isStepSideOp) && script.some((op) => op.op === "draw");
 }
 
-/** Issue #5164 — one side's literal `draw`, priced off its board at the
- *  `draw` valuer's own unit. */
-function stepSideDraw(
-    op: Extract<EffectOp, { op: "draw" }>,
+/** Issue #5164 — one side's draw of `count` cards, priced off its board at
+ *  the `draw` valuer's own unit. Issue #5573 — `before`: the hand steps a
+ *  one-shot body's earlier Ops took (`HandStep`); a standing engine's
+ *  firing has none. */
+function sideDraw(
+    count: number,
     side: EachPlayerSide,
-    ctx: GroundingContext
+    ctx: GroundingContext,
+    before?: readonly HandStep[]
 ): OpValue {
-    const units = side.drawUnits(op.count as number);
+    const units = side.drawUnits(count, before);
     return {
         points: priced(ctx, "cardAdvantage", side.own ? units : -units),
         tags: ["cardAdvantage"],
@@ -653,19 +728,27 @@ function isStepSideOp(op: EffectOp): boolean {
 /** Issue #5162 — true for an Op of a `forEach { set: "players" }` body whose
  *  effect on `$each` the Differential Reading prices for one side alone:
  *   - read off that side's board — the whole hand leaving it (`discard`
- *     with no selection, CR 701.9; `moveZone` hand → library), and an edict
+ *     with no selection, CR 701.9; `moveZone` hand → library), an edict
  *     (`choice` `sacrifice-permanents` on `$each` + the `sacrifice` of its
- *     picks, CR 701.21a);
- *   - or the same magnitude on every side, signed by whose it is — a literal
- *     `draw`, life gained or lost, damage to the player — which the sides
- *     net out.
+ *     picks, CR 701.21a), and (issue #5573) a `draw`, literal or counted off
+ *     an earlier shuffle-in's `bindCount`, into the hand the body leaves
+ *     (`EachPlayerSide.drawUnits`);
+ *   - or the same magnitude on every side, signed by whose it is — life
+ *     gained or lost, damage to the player — which the sides net out.
  *  Every Op must name `$each`: one that names a fixed player would be counted
- *  once per side. Anything else (a graveyard reshuffle, a draw counted off a
- *  binding, a choice of another kind) is fail-closed. */
+ *  once per side. Anything else (a graveyard reshuffle, a draw counted off
+ *  any other binding, a choice of another kind) is fail-closed. */
 function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "draw":
-            return isEachPlayerRef(op.player) && typeof op.count === "number";
+            return (
+                isEachPlayerRef(op.player) &&
+                (typeof op.count === "number" ||
+                    isShuffledInCount(
+                        op.count,
+                        body.slice(0, body.indexOf(op))
+                    ))
+            );
         case "discard":
             if (op.cards) return handEdictChoiceFor(op, body) !== undefined;
             return isEachPlayerRef(op.player) && !op.filter;
@@ -695,15 +778,31 @@ function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
 
 /** Issue #5162 — `moveZone`'s player shape moving `$each`'s whole hand into
  *  its library (Timetwister's, Winds of Change's first half) — the hand
- *  leaves exactly as a discard's does. A `bindCount` feeds a later Op a
- *  per-player count, which the side walk cannot ground: fail-closed. */
+ *  leaves exactly as a discard's does. Issue #5573 — its `bindCount` (the
+ *  cards moved) is grounded per side by the walk (`EachPlayerHand`); only a
+ *  `draw` may read it (`isShuffledInCount`), every other Op's count must be
+ *  a literal or a board count. */
 function isWholeHandToLibrary(op: Extract<EffectOp, { op: "moveZone" }>) {
     if (!("from" in op) || !("player" in op) || "cards" in op) return false;
     return (
-        isEachPlayerRef(op.player) &&
-        op.from === "hand" &&
-        op.to === "library" &&
-        op.bindCount === undefined
+        isEachPlayerRef(op.player) && op.from === "hand" && op.to === "library"
+    );
+}
+
+/** Issue #5573 — true for a draw count naming the `bindCount` of a
+ *  whole-hand shuffle-in among `earlier` (Winds of Change's "draws that
+ *  many"). */
+function isShuffledInCount(
+    count: EffectValue,
+    earlier: readonly EffectOp[]
+): boolean {
+    if (typeof count !== "object" || !("ref" in count)) return false;
+    return earlier.some(
+        (e) =>
+            e.op === "moveZone" &&
+            isWholeHandToLibrary(e) &&
+            "bindCount" in e &&
+            e.bindCount === count.ref
     );
 }
 

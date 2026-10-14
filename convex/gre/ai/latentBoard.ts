@@ -50,7 +50,12 @@ import { getLegalTargets, pendingTargetingSource } from "../rules";
 import { isLand, PLACEHOLDER_CARD_ID } from "../constants";
 import { effectiveMaxHandSize } from "../phases";
 import type { EvalWeights } from "./evalWeights";
-import type { EachPlayerSide, LatentLens, SweepOutcome } from "./grounding";
+import type {
+    EachPlayerSide,
+    HandStep,
+    LatentLens,
+    SweepOutcome,
+} from "./grounding";
 import { isEachPlayerRef } from "./grounding";
 
 // The Representative Victim lives in its own leaf module (issue #4903), so
@@ -429,29 +434,38 @@ function boardSide(
             if (n === undefined) unreadable = true;
             return n;
         },
-        drawUnits(count) {
-            const expected = libraryMean(
-                player.library,
-                weights,
-                returnedWorth
-            );
+        drawUnits(count, before = []) {
             const scale = boardDraw();
             const hand = handValues(player.hand, valuedCardId, returnedWorth);
             // A hidden zone read as placeholders (a blind seat) has no worth
             // to compare: the side is unreadable, never guessed.
-            if (expected === undefined || scale === undefined || !hand) {
+            if (
+                scale === undefined ||
+                !hand ||
+                player.library.some(isPlaceholder)
+            ) {
                 unreadable = true;
                 return 0;
             }
+            const library = {
+                size: player.library.length,
+                mean: libraryMean(player.library, weights, returnedWorth) ?? 0,
+            };
+            const landing = handAfter(hand, library, before);
+            // Nothing to draw: no worth either way, and nothing read off the
+            // board — the side is neither answered nor voided by it.
+            if (library.size === 0) return 0;
             answered = true;
-            const drawn = Math.min(count, player.library.length);
+            const drawn = Math.min(count, library.size);
             if (drawn <= 0 || scale <= 0) return 0;
-            const withDraws = [...hand];
-            for (let i = 0; i < drawn; i++) withDraws.push(expected);
+            const withDraws = [...landing];
+            for (let i = 0; i < drawn; i++) withDraws.push(library.mean);
             // CR 514.1 / 402.2 — the cleanup discard keeps the player's best
             // cards up to the maximum hand size.
             const cap = effectiveMaxHandSize(player, state);
-            return (keptWorth(withDraws, cap) - keptWorth(hand, cap)) / scale;
+            return (
+                (keptWorth(withDraws, cap) - keptWorth(landing, cap)) / scale
+            );
         },
         sacrificeUnits(effectFilter, count) {
             const filter = sweepPermanentFilter(effectFilter);
@@ -615,6 +629,47 @@ function handValues(
         if (c.id !== valuedCardId) values.push(worth(c));
     }
     return values;
+}
+
+/** Issue #5573 — the hand a draw lands in once `before`'s steps have run
+ *  over `hand`, each card a context-free worth. `library` (its size and its
+ *  mean card) is updated in place: a draw takes from it, a shuffle-in adds
+ *  the hand's cards to it. */
+function handAfter(
+    hand: readonly number[],
+    library: { size: number; mean: number },
+    before: readonly HandStep[]
+): number[] {
+    let current = [...hand];
+    for (const step of before) {
+        switch (step.kind) {
+            case "leaves":
+                current = [];
+                break;
+            case "shuffledIn": {
+                const total =
+                    library.mean * library.size +
+                    current.reduce((a, b) => a + b, 0);
+                library.size += current.length;
+                library.mean = library.size > 0 ? total / library.size : 0;
+                current = [];
+                break;
+            }
+            case "discards":
+                // The chooser keeps its best (`discardWorth`).
+                current = [...current]
+                    .sort((a, b) => a - b)
+                    .slice(Math.max(0, step.count));
+                break;
+            case "draws": {
+                const drawn = Math.min(step.count, library.size);
+                for (let i = 0; i < drawn; i++) current.push(library.mean);
+                library.size -= drawn;
+                break;
+            }
+        }
+    }
+    return current;
 }
 
 function isPlaceholder(c: CardInstanceState): boolean {
