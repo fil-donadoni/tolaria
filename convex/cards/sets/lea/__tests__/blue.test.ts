@@ -3754,7 +3754,19 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         resolveTopOfStack(state);
         // The red creature is offered; the white one (and the white Circle)
         // no longer are.
-        expect(state.pendingChoices![0]!.candidateIds).toEqual(["r"]);
+        const head = state.pendingChoices![0]!;
+        expect(head.candidateIds).toEqual(["r"]);
+        // CR 609.7b — the shield rechecks the SAME re-pointed word: red.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["r"],
+        });
+        expect(state.preventionEffects?.[0]?.match).toEqual({
+            colors: ["R"],
+        });
 
         // The text change survives the projection (wire format).
         const projected = projectPublicState(state, 0, "p1");
