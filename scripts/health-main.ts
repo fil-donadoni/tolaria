@@ -136,6 +136,7 @@ import {
     verdictStore,
     type Verdict,
 } from "./lib/health-verdict-store";
+import { publishRunMarker } from "./lib/health-pivot";
 import { waitForWalkWindow } from "./lib/health-walk-wait";
 import { readUiWalkGating, writeWalkVerdict } from "./lib/health-verdict-walk";
 import {
@@ -249,6 +250,19 @@ function primaryCheckout(cwd: string): string | null {
     const common = git(["rev-parse", "--git-common-dir"], cwd);
     if (!common.startsWith("/")) return null;
     return dirname(resolve(common));
+}
+
+/** The verdict the shared store holds for `sha`; an unreadable store reads as
+ *  none (the local record still decides), loudly. */
+function readStoredVerdict(root: string, sha: string): Verdict | null {
+    try {
+        return verdictStore(root).read(sha);
+    } catch (e) {
+        console.error(
+            `health-main: the verdict store could not be read — ${(e as Error).message}`
+        );
+        return null;
+    }
 }
 
 function readLast(dir: string): LastRun | null {
@@ -898,6 +912,7 @@ async function main(): Promise<void> {
     const skip = gateSkipReason({
         last,
         tip,
+        stored: readStoredVerdict(root, tip),
         now: Date.now(),
         retryTerminal: !underLock || retryInfra,
         staleMs: STALE_RUNNING_MS,
@@ -926,6 +941,8 @@ async function main(): Promise<void> {
         branch,
         prior: priorOf(last),
     });
+    // The other machine's cadence reads this, not `last.json` (issue #5593).
+    publishRunMarker(root, tip);
 
     const wt = join(root, "..", `tolaria-health-${process.pid}`);
     const logPath = ctx.logPath;

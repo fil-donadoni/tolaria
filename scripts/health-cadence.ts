@@ -91,6 +91,7 @@ import {
     parseCadence,
     parseHealthRunnerConfig,
     pendingHealthRun,
+    FIRE_DEDUP_MS,
     recordDecision,
     recordLanding,
     recordRepairIssue,
@@ -104,6 +105,7 @@ import {
     type LandingKind,
 } from "./lib/health-cadence";
 import { HEALTH_ROLE } from "./lib/gate-liveness";
+import { pivotRunInFlight, recordPivotRepairIssue } from "./lib/health-pivot";
 import {
     INFRA_REMEDY,
     PREFLIGHT_MACHINE_STEP,
@@ -286,6 +288,9 @@ function repairIssue(root: string): number {
         return 2;
     }
     writeCadence(root, recordRepairIssue(readCadence(root), issue));
+    // And on the pivot, so `land` on the other machine recognises it too.
+    const note = recordPivotRepairIssue(root, issue);
+    if (note !== null) console.log(`health-cadence: ${note}`);
     console.log(
         `health-cadence: issue #${issue} recorded as a repair of the RED tip — a PR closing it lands without --red-ok`
     );
@@ -396,7 +401,11 @@ function decideAndRun(root: string, branch: string): Round {
         tip,
         now: firedAt,
         red: lineageUnconfirmed(root),
-        pending: pendingHealthRun(state, readLast(root), firedAt, processAlive),
+        // The local `last.json` sees only THIS machine's runs; the pivot
+        // carries the other machine's (issue #5593).
+        pending:
+            pendingHealthRun(state, readLast(root), firedAt, processAlive) ??
+            pivotRunInFlight(root, firedAt, FIRE_DEDUP_MS),
     };
     // The health runner gates on another machine (issue #5467): a due batch
     // is its to gate, and runs here only when its verdicts went stale.

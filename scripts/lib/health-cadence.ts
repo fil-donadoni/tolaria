@@ -636,8 +636,13 @@ export function gateSkipReason(input: {
     now: number;
     retryTerminal: boolean;
     staleMs?: number;
+    /** The verdict the shared store holds for `tip` (issue #5593): a GREEN
+     *  another machine proved is as final as a local one. */
+    stored?: Verdict | null;
 }): string | null {
     const { last, tip, now, retryTerminal } = input;
+    if (input.stored?.sha === tip && input.stored.status === "green")
+        return `tip ${short(tip)} already green on the verdict store${input.stored.machine ? ` (${input.stored.machine})` : ""}`;
     if (last === null || last.sha !== tip) return null;
     if (last.status === "green") return `tip ${short(tip)} already green`;
     if (last.status === "running")

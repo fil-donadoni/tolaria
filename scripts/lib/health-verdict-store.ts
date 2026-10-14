@@ -83,6 +83,10 @@ export interface Verdict {
     repairOf?: string;
     /** `infra` only: what to do (`INFRA_REMEDY`). */
     reason?: string;
+    /** The `health-fix` context only: the `/health-fix` issues recorded
+     *  against this RED sha (issue #5593) — what `land` reads to recognise
+     *  the closing PR as a repair, from whichever machine recorded them. */
+    issues?: number[];
 }
 
 /**
@@ -435,6 +439,7 @@ export function encodeDescription(v: Verdict): string {
         tests.push(t);
     }
     if (tests.length > 0) out += `${SEP}tests: ${tests.join(",")}`;
+    if (v.issues && v.issues.length > 0) fit(`issues: ${v.issues.join(",")}`);
     if (v.log && !isUrl(v.log)) fit(`log: ${v.log}`);
     return out;
 }
@@ -460,6 +465,11 @@ export function decodeStatus(input: {
         if (!m) continue;
         if (m[1] === "tests") v.tests = m[2].split(",").filter(Boolean);
         if (m[1] === "repair-of") v.repairOf = m[2];
+        if (m[1] === "issues")
+            v.issues = m[2]
+                .split(",")
+                .map(Number)
+                .filter((n) => Number.isInteger(n) && n > 0);
         if (m[1] === "log" && !v.log) v.log = m[2];
     }
     return v;
@@ -645,6 +655,13 @@ export function originRepo(root: string): string {
     return repo;
 }
 
+/** The backend in force: the override, else the env, else the config. */
+export function selectedBackend(override?: VerdictBackend): VerdictBackend {
+    if (override) return override;
+    const env = process.env.TOLARIA_VERDICT_STORE;
+    return env === "file" || env === "github" ? env : configuredBackend();
+}
+
 /**
  * The store `tolaria.config.json` selects, rooted at the primary checkout
  * (where the file backend lives). `TOLARIA_VERDICT_STORE` overrides the
@@ -654,10 +671,7 @@ export function verdictStore(
     root: string,
     opts: { backend?: VerdictBackend; run?: GhRunner; branch?: string } = {}
 ): VerdictStore {
-    const env = process.env.TOLARIA_VERDICT_STORE;
-    const backend =
-        opts.backend ??
-        (env === "file" || env === "github" ? env : configuredBackend());
+    const backend = selectedBackend(opts.backend);
     if (backend === "github")
         return githubVerdictStore({
             repo: originRepo(root),

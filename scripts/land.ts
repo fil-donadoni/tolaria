@@ -117,6 +117,7 @@ import {
     type Verdict,
     type VerdictStore,
 } from "./lib/health-verdict-store";
+import { pivotRepairIssues } from "./lib/health-pivot";
 import {
     GATE_OVERRIDE_ENV,
     MACHINE_SATURATED_EXIT,
@@ -1419,16 +1420,19 @@ function parseArgs(argv: string[]): {
 /** The `/health-fix` issues recorded against the standing RED — fail-soft,
  *  like every other read of the health ledger. */
 export function readRepairIssues(primary: string): number[] {
+    let local: number[] = [];
     try {
-        return parseCadence(
+        local = parseCadence(
             readFileSync(
                 join(primary, ".claude/telemetry/health/cadence.json"),
                 "utf8"
             )
         ).repairIssues;
     } catch {
-        return [];
+        // No local ledger: the pivot may still hold the other machine's.
     }
+    // A repair recorded by the other machine lives on the pivot (issue #5593).
+    return [...new Set([...local, ...pivotRepairIssues(primary)])];
 }
 
 /** The lineage `land`'s RED gate reads (issue #5462) — total, like every
