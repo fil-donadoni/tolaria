@@ -819,7 +819,7 @@ function withEffectivePT(
     return { ...view, power: pt.power, toughness: pt.toughness };
 }
 
-/** CR 107.1 — `unit` added `count` times: "Add {G} for each creature you
+/** CR 608.2h — `unit` added `count` times: "Add {G} for each creature you
  *  control" over three creatures is {G}{G}{G}. Every key of the unit is kept,
  *  at zero when nothing is counted, so a single-colour consumer reading
  *  `mana[color]` sees 0 rather than a missing key. */
@@ -846,7 +846,7 @@ function scaleManaUnit(unit: ManaCost, count: number): ManaCost {
  *  CR 113.1 / 611.2a (issue #1880) — POST-LAYER effective set, so a GRANTED
  *  board-conditional tap mana ability scales like a printed one.
  *
- *  CR 107.1 (issue #5195) — a `manaAmountSource` DESCRIPTOR (Gaea's Cradle,
+ *  CR 608.2h (issue #5195) — a `manaAmountSource` DESCRIPTOR (Gaea's Cradle,
  *  Priest of Titania) is resolved here too, as `manaProduced` × the number of
  *  permanents its filter matches (`boardDerivedManaCount`).
  *
@@ -905,7 +905,7 @@ function fixedOutputManaAbility(
     );
 }
 
-/** Board-conditional output of ONE named mana ability (CR 106.1 / 107.1 /
+/** Board-conditional output of ONE named mana ability (CR 106.1 / 608.2h /
  *  605.1a), or null when that ability's amount is printed rather than derived
  *  (no `manaAmountSource`, no `manaAmount`). The per-ability core of
  *  {@link getDynamicManaProduced}, read directly by the unified option list
@@ -922,7 +922,7 @@ export function getAbilityDynamicManaProduced(
     }>
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    // CR 107.1 / 605.1a — the DECLARATIVE count wins over a closure when a
+    // CR 608.2h / 605.1a — the DECLARATIVE count wins over a closure when a
     // card carries both (see `ActivatedAbility.manaAmountSource`).
     if (ability.manaAmountSource && ability.manaProduced) {
         const source = ability.manaAmountSource;
@@ -965,7 +965,7 @@ type ManaColorSourceResolver = (
 ) => Iterable<Color>;
 
 /** Resolves a fixed-output ability's CURRENT board-derived output (CR 106.7 /
- *  107.1), or null when its amount is printed. Supplied, like
+ *  608.2h), or null when its amount is printed. Supplied, like
  *  {@link ManaColorSourceResolver}, only by callers holding a board. */
 type DynamicManaAmountResolver = (ability: ActivatedAbility) => ManaCost | null;
 
@@ -1015,7 +1015,7 @@ function producibleColorsFromAbilities(
             if (resolveManaColorSource) {
                 // CR 106.7 — a nested `"producesType"` descriptor (a
                 // Reflecting Pool read by a Fellwar Stone) can yield {C};
-                // a colour read still drops it (CR 202.2).
+                // a colour read still drops it (CR 106.1a).
                 for (const c of resolveManaColorSource(ability.manaColorSource))
                     if (counts(c)) colors.add(c);
             }
@@ -1231,7 +1231,7 @@ export function boardDerivedManaChoices(
         0
     );
     // CR 106.1b / 106.7 — {C} is offered only by a TYPE read; a colour read
-    // never yields it (CR 202.2), so the guard is belt and braces there.
+    // never yields it (CR 106.1a), so the guard is belt and braces there.
     const offersColorless = source.colors === "producesType";
     return MANA_COLORS.filter(
         (c) => (offersColorless || c !== "C") && colors.has(c)
@@ -1285,8 +1285,8 @@ function boardDerivedManaColors(
  *  never name different permanents for the two.
  *
  *  Each permanent is matched against a LAYER-AWARE view: live colours
- *  (`STATIC_EFFECT_CTX.getColors`, CR 105 / 202.2 / 613.1d), live supertypes
- *  (`liveSupertypesOf`) and live effective P/T, through the engine's single
+ *  (`STATIC_EFFECT_CTX.getColors`, CR 105.3 / 613.1e), live supertypes
+ *  (`liveSupertypesOf`, CR 613.1d) and live effective P/T, through the single
  *  `matchesPermanentFilter` authority. `liveColors` is handed back so the
  *  `"isColor"` derivation reads the same colours the filter matched on. */
 function boardPermanentsMatching(
@@ -1329,7 +1329,7 @@ function boardPermanentsMatching(
     return matched;
 }
 
-/** CR 107.1 / 605.1a — how many permanents a {@link BoardManaAmountSource}
+/** CR 608.2h / 605.1a — how many permanents a {@link BoardManaAmountSource}
  *  counts on the CURRENT board: the multiplier "Add {G} for each creature you
  *  control" applies to its unit. Zero is a real answer (an empty Gaea's
  *  Cradle adds nothing), never "unknown". */
@@ -2964,7 +2964,7 @@ export function hasManaAbility(
     if (getBasicLandMana(card) !== null) return true;
     const ability = getActivatedManaAbility(card, state);
     if (!ability) return false;
-    // CR 107.1 (issue #5195) — a `manaAmountSource` count is gated the same
+    // CR 608.2h (issue #5195) — a `manaAmountSource` count is gated the same
     // way, but only when the controller's battlefield answers it exactly
     // ("for each creature you control"): a whole-board count ("for each Elf
     // on the battlefield") resolves to null here, for the reason the

@@ -5,13 +5,13 @@
 //   - `manaAmountSource` — "Add {G} for each creature you control" (Gaea's
 //     Cradle), "…for each Elf on the battlefield" (Priest of Titania): the
 //     ability adds its `manaProduced` unit once per permanent the filter
-//     matches when it resolves (CR 107.1, 605.1a). "You control" is the
+//     matches when it resolves (CR 608.2h, 605.1a). "You control" is the
 //     ability's controller (CR 109.5); "on the battlefield" is every player's
 //     permanents (CR 109.2).
 //   - `manaColorSource.colors: "producesType"` — "one mana of any TYPE that a
 //     land you control could produce" (Reflecting Pool): the six types of
 //     mana, colourless included (CR 106.1b, 106.7), where the colour read
-//     (`"produces"`, Fellwar Stone) drops {C} (CR 202.2).
+//     (`"produces"`, Fellwar Stone) drops {C} (CR 106.1a).
 //
 // Plus the two engine rules those descriptors exposed:
 //
@@ -170,7 +170,7 @@ function board(
 const bf = (state: GameState) =>
     state.players.map((p) => ({ playerId: p.id, battlefield: p.battlefield }));
 
-describe("manaAmountSource — a count of permanents the controller controls (CR 107.1 / 109.5)", () => {
+describe("manaAmountSource — a count of permanents the controller controls (CR 608.2h / 109.5)", () => {
     it("Gaea's Cradle adds {G} per creature its controller controls, never the opponent's", () => {
         const cradle = on(gaeasCradle().id, "p1");
         const state = board(
@@ -299,7 +299,7 @@ describe('manaColorSource "producesType" — any TYPE a land could produce (CR 1
                 { G: 1 },
                 { C: 1 },
             ]);
-            // CR 202.2 — the same board read for COLOURS (Fellwar Stone's
+            // CR 106.1a — the same board read for COLOURS (Fellwar Stone's
             // `"produces"`) never offers {C}.
             expect(
                 boardDerivedManaChoices(

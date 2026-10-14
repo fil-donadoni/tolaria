@@ -1186,7 +1186,7 @@ const READ_BY_BOARD_MANA_FILTER: ReadonlySet<string> = new Set([
 
 /**
  * Descriptor → the `PermanentFilter` a board-derived mana descriptor reads
- * (`BoardManaAmountSource` / `BoardManaColorSource`, CR 106.7 / 107.1):
+ * (`BoardManaAmountSource` / `BoardManaColorSource`, CR 106.7 / 608.2h):
  * "creature you control" in "Add {G} for each creature you control", "land
  * you control" in "…any type that a land you control could produce".
  *

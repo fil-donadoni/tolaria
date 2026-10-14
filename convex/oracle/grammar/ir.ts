@@ -139,7 +139,7 @@ export type ManaProductionIR =
           readonly dealsDamageToControllerOnColoredTap?: number;
       }
     /**
-     * CR 107.1 / 605.1a — "Add {G} for each creature you control": `unit`
+     * CR 608.2h / 605.1a — "Add {G} for each creature you control": `unit`
      * added once per permanent `filter` matches when the ability resolves
      * (`ActivatedAbility.manaAmountSource`, Gaea's Cradle). The filter's
      * `controllerRelation` carries "you control"; its absence is "on the

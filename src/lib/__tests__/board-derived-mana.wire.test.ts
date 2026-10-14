@@ -1,4 +1,4 @@
-// Board-derived mana descriptors on the CLIENT (issue #5195, CR 107.1 / 106.7
+// Board-derived mana descriptors on the CLIENT (issue #5195, CR 608.2h / 106.7
 // / 605.1a). The tap affordance and the mana picker read the same unified
 // option list the server resolves an index against (`getManaTapOptions`),
 // but they read it off the PROJECTED board: a field the wire drops — a
@@ -159,7 +159,7 @@ function projected(
 
 const id = (name: string) => getCardByName(name).id;
 
-describe("client — a board count read off the projected board (CR 107.1)", () => {
+describe("client — a board count read off the projected board (CR 608.2h)", () => {
     it("an empty Gaea's Cradle is no tappable source; beside a creature it is", () => {
         const empty = projected(
             [on(id("Gaea's Cradle"), "p1", "cradle")],

@@ -6,7 +6,7 @@ import { defineCard } from "../../types";
 
 // Gaea's Cradle — "{T}: Add {G} for each creature you control." (CR 605.1a
 // mana ability, `useStack: false`.) Board-conditional output via the
-// declarative `manaAmountSource` descriptor (CR 107.1, issue #5195): the
+// declarative `manaAmountSource` descriptor (CR 608.2h, issue #5195): the
 // engine adds `manaProduced` once per permanent the filter matches at
 // activation time. `manaProduced` is the unit, and the representative
 // fallback (one creature) for best-effort callers without a board snapshot.

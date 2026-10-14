@@ -343,7 +343,7 @@ export function lowerManaAbility(input: {
                 ability.dealsDamageToControllerOnColoredTap =
                     input.produces.dealsDamageToControllerOnColoredTap;
             break;
-        // CR 107.1 / 605.1a (issue #5195) — the unit is `manaProduced`, the
+        // CR 608.2h / 605.1a (issue #5195) — the unit is `manaProduced`, the
         // board count multiplies it (`gre/constants.ts`'s
         // `getDynamicManaProduced`); the unit alone is the no-board fallback.
         case "for-each":

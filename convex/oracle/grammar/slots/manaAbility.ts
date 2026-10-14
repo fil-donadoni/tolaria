@@ -168,7 +168,7 @@ const anyColorProduction: Rule<ManaProductionIR> = rule(
 );
 
 /**
- * CR 107.1 / 605.1a — "{G} for each creature you control", "{G} for each Elf
+ * CR 608.2h / 605.1a — "{G} for each creature you control", "{G} for each Elf
  * on the battlefield" (Gaea's Cradle, Serra's Sanctum, Priest of Titania):
  * one unit of mana per permanent the descriptor names when the ability
  * resolves, lowered to `manaAmountSource` (issue #5195) — never to a constant,

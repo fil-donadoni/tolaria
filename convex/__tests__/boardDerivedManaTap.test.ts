@@ -1,5 +1,5 @@
 // Integration test for board-derived mana descriptors through the PRIORITY
-// tap-for-mana mutation (`tapUntap`) — issue #5195, CR 107.1 / 109.2 / 605.1a.
+// tap-for-mana mutation (`tapUntap`) — issue #5195, CR 608.2h / 109.2 / 605.1a.
 //
 // The GRE unit file (`gre/__tests__/boardDerivedManaDescriptors.test.ts`)
 // pins the option list; this one pins what the REAL mutation adds to the

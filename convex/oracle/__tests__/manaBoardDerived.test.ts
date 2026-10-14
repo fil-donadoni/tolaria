@@ -1,6 +1,6 @@
 // Mana ability: board-derived productions (issue #5195) — a mana AMOUNT
 // counted off the battlefield ("Add {G} for each creature you control", CR
-// 107.1 / 605.1a) and a mana TYPE read off it ("one mana of any type that a
+// 608.2h / 605.1a) and a mana TYPE read off it ("one mana of any type that a
 // land you control could produce", CR 106.7 / 106.1b). Both lower to a JSON
 // descriptor the engine evaluates at activation — `manaAmountSource` and a
 // `"producesType"` `manaColorSource` — where the hand-written catalogue used a
@@ -55,7 +55,7 @@ function land(name: string, oracleText: string, oracleId: string): OracleCard {
     });
 }
 
-describe("golden — a count of permanents lowers to manaAmountSource (CR 107.1)", () => {
+describe("golden — a count of permanents lowers to manaAmountSource (CR 608.2h)", () => {
     it('Gaea\'s Cradle — "for each creature you control": the whole Compiled Definition', () => {
         const compiled = compiledOf(
             oracleCard({

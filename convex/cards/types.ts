@@ -2005,7 +2005,7 @@ export interface ActivatedAbility {
         source: PermanentView,
         controllerBattlefield: ReadonlyArray<PermanentView>
     ) => ManaCost;
-    /** DECLARATIVE board-derived mana AMOUNT (CR 106.1, 107.1, 605.1a) — the
+    /** DECLARATIVE board-derived mana AMOUNT (CR 106.1, 608.2h, 605.1a) — the
      *  data form of {@link manaAmount} for "Add {G} for each creature you
      *  control" (Gaea's Cradle), "…for each Elf on the battlefield" (Priest of
      *  Titania): the ability adds its `manaProduced` unit once per permanent
@@ -2449,7 +2449,7 @@ export interface BoardManaColorSource {
 }
 
 /** How many times a mana ability adds its unit when the count is derived from
- *  the board instead of printed on the card (CR 107.1, 605.1a). See
+ *  the board instead of printed on the card (CR 608.2h, 605.1a). See
  *  {@link ActivatedAbility.manaAmountSource}.
  *
  *  One axis only — WHICH permanents are counted — in the same
