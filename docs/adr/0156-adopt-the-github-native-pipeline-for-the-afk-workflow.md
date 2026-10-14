@@ -2,13 +2,18 @@
 
 ## Status
 
-proposed — written 2026-10-14 at the owner's request as the LAST iteration of
-the workflow discussion ("arrivare a una soluzione che mi permetta di
-concentrarmi sul prodotto"). Becomes accepted on the owner's word, recorded in
-this section with the date. Supersedes the grill of the same day (PRD A "loop
-never stops", PRD B "cockpit"): every decision reached there — Hold, mail via
-Resend, the driver as a service, an always-on dashboard, a Tailscale heartbeat
-— is re-examined below and most of it dissolves. Where this record and ADR
+accepted — owner's decision of 2026-10-14 ("ok, repo personale con Mergify.
+accetta l'ADR e apri il PRD"), written at the owner's request as the LAST
+iteration of the workflow discussion ("arrivare a una soluzione che mi
+permetta di concentrarmi sul prodotto"). The repository stays **personal and
+public**; the queue is **Mergify on its Open Source plan**; **Docker is ruled
+out**. Supersedes ADR 0154 §9 (topology B': fixed machine roles, the shared
+verdict store, `landRunner.platform` / `healthRunner.platform`) and the
+crons of ADR 0154 §5–6, which become workflows (§4). Supersedes the grill of
+the same day (PRD A "loop never stops", PRD B "cockpit"): every decision
+reached there — Hold, mail via Resend, the driver as a service, an always-on
+dashboard, a Tailscale heartbeat — dissolves into GitHub's own scheduling,
+notifications and runner status. Where this record and ADR
 0110 / 0116 / 0136 / 0154 name a script, the script stays the authority on
 what runs TODAY until the migration phase that retires it lands.
 
@@ -137,9 +142,34 @@ event re-fires `afk-pass` on its issue as the repair pick. The GitHub native
 queue replaces Mergify the day the repository moves to an organization, if
 it ever does; nothing above depends on which queue runs.
 
-Retired by this section: `land.ts`, `land-runner.ts`, `land-ready.ts`, the
-gate mutex and `gate-run.sh`, `machine-admission.ts`, the verdict store,
-the claims journal, the reaper, `runner-units/`.
+Two pieces of `land` have no Mergify equivalent and become workflows of our
+own, reusing the code that exists:
+
+- **`pr-refresh.yml` — a PR in conflict on generated files.** Mergify updates
+  a PR through GitHub and drops it on a conflict; `land` today rebases and
+  regenerates (`REGENERATED_ARTIFACTS`, `resolve-generated-artifacts`) —
+  16 of the 311 recorded landings did. On every `push` to the base branch, on
+  a `lane` runner, the workflow lists the `ready-to-land` PRs GitHub reports
+  `CONFLICTING`, rebases each with that resolver, regenerates and pushes; the
+  PR passes the gates again and re-enters the queue. A conflict in real code
+  gets `land-failed` with the reason, i.e. a repair pick.
+- **`pr-gate.yml` — the gates Mergify requires.** On `pull_request_target`,
+  on a GitHub-hosted runner, with the BASE's code and no checkout of the PR,
+  it posts two commit statuses: `trusted-author` (§8) and `base-health` —
+  green when the latest health verdict on the base tip is GREEN or AMBER, or
+  when the PR closes a declared repair issue: the RED gate `land` applies
+  today (issue #4964). `health.yml` re-dispatches it over the queued PRs when
+  it writes a verdict, so a RED stops the queue except for repairs and a
+  GREEN reopens it — the Open Source plan's missing Pause and Priorities.
+
+The rest of `land` moves without loss: the `check:ui` receipt and the
+`## Preset scenario` refusal become checks of `pr-check.yml`; seed, telemetry
+ingest and teardown go to `post-merge.yml`.
+
+Retired by this section: `land.ts` (but its resolver and RED rule, above),
+`land-runner.ts`, `land-ready.ts`, the gate mutex and `gate-run.sh`,
+`machine-admission.ts`, the verdict store, the claims journal, the reaper,
+`runner-units/`.
 
 ### 4. Post-merge, health, release are scheduled workflows
 
@@ -158,10 +188,20 @@ the claims journal, the reaper, `runner-units/`.
 
 ### 5. Observability is the Actions UI
 
-Runs, logs, durations and the queue per workflow; the runners page for
-which machine is online; native email on a failed run; Mergify's queue page;
-checks on every PR. Each `afk-pass` prints its token usage and cost from
-`claude -p --output-format json` into the job summary. The telemetry
+Runs, logs, durations and the queue per workflow (the Actions tab, filtered
+by workflow, status, branch, actor); the runners page for which machine is
+idle, busy or offline; native email and web notifications on a failed run
+(to the actor; for a scheduled workflow, to its creator; failed-only
+selectable); Mergify's queue page; checks on every PR. Each `afk-pass` writes
+issue, PR, outcome, duration, tokens and cost (from `claude -p
+--output-format json`) to `$GITHUB_STEP_SUMMARY` — shown on the run's
+Summary page; 1 MiB per step, immutable once uploaded, no documented API —
+and uploads the same as a small JSON artifact, which a weekly workflow
+aggregates into PR/h, failure share and wait times in its own summary.
+GitHub's Actions performance metrics (run and queue times, failure rates,
+one year back) are GA on all cloud plans for repositories (changelog
+2025-03-14); whether a personal repository shows them is read off its
+Insights tab once workflows run. The telemetry
 dashboard, `telemetry.db` and the transcript ingest leave the critical path
 (kept as an optional local tool until nobody opens it, then deleted).
 PRD B's cockpit, Tailscale heartbeat and mutual surveillance are not built:
@@ -189,6 +229,55 @@ the Huawei carries the queue; the Huawei, always on, keeps it alive at night.
 `landRunner.platform`, `healthRunner.platform` and the shared verdict store
 retire with it.
 
+### 8. Only trusted authors reach the runners and the queue
+
+The repository is public, and GitHub recommends self-hosted runners only for
+private repositories: a fork's PR could run code on them. The owner's rule:
+the loop accepts PRs and issues only from a list only the owner can change;
+everything else waits for a human. The list is the Actions repository
+variable `TRUSTED_AUTHORS` (admin-only, out of any PR's reach), seeded with
+the owner's account, which also authors the loop's PRs. Five barriers:
+
+1. **"Require approval for all external contributors"** (repository Actions
+   settings): a fork PR's workflows wait for the owner's approval — the
+   barrier that matters, because a PR can rewrite any check written in its
+   own workflow files.
+2. **`trusted-author`**, posted by `pr-gate.yml` from the base's code (§3).
+3. **The queue admits** only PRs with `trusted-author` and `base-health`
+   green and the `ready-to-land` label (an outsider cannot label); Mergify
+   reads its configuration from the base branch.
+4. **A PR touching `.github/` or `.mergify.yml` never enters the queue**; the
+   owner merges it by hand, so no pass can loosen its own gates.
+5. **`afk-pass` picks only issues opened by a trusted author or labelled
+   `ready-for-agent` by the owner**: an outsider's issue body may carry
+   instructions aimed at Claude.
+
+Claude's and `gh`'s credentials stay on the machines, under a dedicated
+system user that runs the runners; no PR job receives a secret. Moving to an
+organization adds nothing here on the Free plan: one default runner group,
+additional groups on Team, and no documented per-workflow restriction.
+
+### 9. The board stays; the picker loses its machinery
+
+Priority, `blocked by` dependencies and sub-issues are native GitHub data and
+are untouched. GitHub does not pick the next issue — the project's built-in
+automations only set Status and add or archive items — so `queue:plan`'s
+ordering (band, standalone before slice, priority, bugs, age; blocked and HITL
+skipped) stays, as the first step of `afk-pass`. Its cap, admission, claims
+journal and foreign-machine logic go: the cap is the runner count, the claim
+a label both machines read on GitHub.
+
+### 10. GitHub-hosted runners, where they fit
+
+Standard GitHub-hosted runners are free and unmetered on public repositories
+(4 CPU, 16 GB, x64 or arm64; 20 concurrent jobs on the Free plan; 6 h per
+job). `pr-gate.yml` always runs there. Queue lanes and health MAY run there —
+the queue then survives both machines being off — at a cost of a cold start
+per job, measured in phase 0. Passes, preset seeding and the browser walk
+stay on our machines (the subscription's token, the owner's Convex
+deployment, the browser). Under the $100 plan they add reliability, not
+drain speed.
+
 ### Budget
 
 | Item                               | Today        | After                      |
@@ -202,6 +291,19 @@ retire with it.
 Hedge: should a per-minute fee ever reach public repositories (not
 announced), the same YAML runs on Gitea/Forgejo Actions or Woodpecker on the
 Huawei; the cut is a remote URL, not a rewrite.
+
+### Drain forecast
+
+Backlog 441 `ready-for-agent` (2026-10-14), new issues excluded. October
+1–13 closed 28 issues a day — and opened 27, which is why the queue holds
+near 440. The binding limit is the subscription, not machines or queue: the
+5-hour window was hit on October 5, 11, 12 and 14 with 3–4 sessions on the
+MacBook alone, and the loop measured rate-limit at 20–40 sessions/day on
+October 11 (both machines share one account). Forecast: **≈ 16 days at
+$100** (14–28), with or without the second machine; **≈ 5 days at $200**
+(3.5–7, four times the limits), where the serial `land` (≈ 178 PR/day) would
+have become the next limit — so the $200 plan pays only after this migration,
+as the owner stated.
 
 ## Consequences
 
@@ -230,17 +332,26 @@ Huawei; the cut is a remote URL, not a rewrite.
 Each phase is one or two PRs; the old stack is **frozen** from phase 0 (no
 PRD A, no PRD B, no new workflow feature). Each phase names what proves it.
 
-- **Phase 0 — freeze and runners.** Register runners (MacBook ×3, Huawei ×1)
-  as user services; `pr-check.yml` as an advisory check. Proof: every open PR
-  shows the check; one deliberate red is red.
-- **Phase 1 — the queue.** `.mergify.yml` in shadow (acts only on a
-  `queue:shadow` label), then cut-over: `land:ready` becomes the label, the
-  land-runner stops. Proof: 20 PRs merged by the queue; failed-land share
-  ≤ today's; a rejected PR carries `land-failed` and re-fires its pass.
-- **Phase 2 — the schedules.** `post-merge.yml`, `health.yml`,
-  `release.yml`; retire runner units, crons, verdict store, health cadence,
-  `release.ts`. Proof: one RED tip visible as a status and an email; one
-  release through the workflow.
+- **Phase 0 — freeze, runners, the missing crons.** Register `pass`, `lane`
+  and `seed` runners on both machines under a dedicated system user, as user
+  services; repository settings of §8; `TRUSTED_AUTHORS`; `pr-check.yml` as an
+  advisory check. `post-merge.yml` runs `housekeeping` on every push and
+  `health:nightly` on a nightly schedule at once — nothing schedules them
+  today (issue #5592, superseded). Measure a lane on a GitHub-hosted runner.
+  Proof: every open PR shows the check; one deliberate red is red;
+  `gaps:sync` runs after a merge.
+- **Phase 1 — the queue.** `pr-gate.yml` (`trusted-author`, `base-health`),
+  `pr-refresh.yml`, the `check:ui` receipt and preset-scenario checks in
+  `pr-check.yml`; `.mergify.yml` with two parallel checks, in shadow (acts
+  only on a `queue:shadow` label), then cut-over: `land:ready` becomes the
+  label, the land-runner stops (issues #5598 and #5599 superseded). Proof:
+  20 PRs merged by the queue; failed-land share ≤ today's; a rejected PR
+  carries `land-failed` and re-fires its pass; a conflicting generated file
+  is regenerated without a pass; a RED base holds a non-repair PR.
+- **Phase 2 — the schedules.** `health.yml`, `release.yml`; retire runner
+  units, crons, verdict store, health cadence, `release.ts`. Proof: one RED
+  tip visible as a status and an email, and the queue held by it; one release
+  through the workflow.
 - **Phase 3 — the pass.** `afk-pass.yml`; retire `loop-drain.sh`,
   `loop-handoff.sh`, `queue-plan`'s cap and claims, the reaper, machine
   admission, the dashboard. Proof: 24 h unattended on both machines, PR/h per
@@ -269,9 +380,16 @@ cost per month (target $100).
 - **Self-hosted CI** (Woodpecker, Gitea/Forgejo Actions, Jenkins) on the
   Huawei. The fallback if GitHub's terms move; more operations, less UI, no
   phone view out of the box.
-- **GitHub native merge queue via an organization transfer.** Viable and
-  free; costs the user Project board and the repository literals. Mergify
-  first; revisit if Mergify's free tier changes.
+- **GitHub native merge queue via an organization transfer.** Free for a
+  public organization repository (per 2026 reports; the current docs carry no
+  availability line), no third-party app, Actions metrics at organization
+  level. Costs a controlled copy of the user Project board — GitHub copies
+  views, fields and workflows, not items, so every Priority value is exported
+  before and re-applied after (`backlog:triage --write` alone would not
+  restore the hand-set `P0`s), then a dry `backlog:triage` must show no diff.
+  It adds no security on the Free plan (§8) and the native queue lacks entry
+  conditions and PR dependencies. Rejected for now by the owner; nothing above
+  depends on which queue runs.
 - **Stop the AFK loop and work attended.** Rejected: the 441-issue backlog
   and the owner's stated goal.
 

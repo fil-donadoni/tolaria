@@ -1106,10 +1106,6 @@ _Avoid_: Merge train (the retired multi-PR orchestrator), merge bot, lander, aut
 Batch health on the one machine `healthRunner.platform` names (the Huawei): a systemd timer runs a cadence tick every few minutes (`bun run health:runner`), which rebuilds the cadence rule from the shared verdict store and the base branch's history — no ledger crosses machines — and on a fire runs the full health gate and writes its verdict. It never claims, lands or seeds. On every other machine `land`'s cadence becomes the stale-verdict fallback: one local health run, and a notification, when a batch has been due for `MAX_PENDING` with no GREEN or RED written since.
 _Avoid_: Health cron (it is a cadence, not a schedule), CI, health bot
 
-**Hold**:
-The state of an unattended process (a `loop:afk` run or the **Land-runner**) that has met a condition it cannot act on: a RED base, a usage limit, a crashing session, a broken machine, an unreachable backend or GitHub, an empty queue. It starts no new work, lets work in flight finish, re-checks the condition on a growing interval, notifies the owner on entering and leaving, and resumes on its own once the condition clears. A landing that failed for the machine, not for the PR, puts the runner in Hold and leaves the PR queued; it never becomes a repair pick. Its counterpart is a Loop Stop, the run exiting, which only the owner's stop, the token budget or the pass limit cause.
-_Avoid_: Pause (the owner's act), stall, wait, stop (the run exits; a Hold never does)
-
 **Residue**:
 An open issue the band rule can place in no **Priority Band** — nothing it names, unlocks or blocks lends one — left unprioritised and listed for the owner, by cause: undeclared (no cards at all) or off-road (cards named, none in a Target that lends a band). Never folded into `P3`: "the rule abstained" and "the owner ruled later" must not read the same.
 _Avoid_: Backlog (everything open), unprioritised alone (the board value; residue is why it is empty), leftovers
