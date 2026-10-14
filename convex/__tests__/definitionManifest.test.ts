@@ -52,9 +52,11 @@ const SWAB = idOf("Swab Goblin");
 const KAVU = idOf("Kavu Glider");
 const KNIGHT = idOf("Venerable Knight");
 
-/** A reprint's Print ID: the deck names this printing, and only its
- *  `cardPrints` row says which definition it is. */
+/** Reprints' Print IDs: the deck names these printings, and only their
+ *  `cardPrints` rows say which definitions they are — one in a maindeck, one
+ *  in a sideboard (resolved by different halves of the build). */
 const BOLT_PRINT = "0b0b0b0b-1111-4222-8333-444444444444";
+const LIONS_PRINT = "1a1a1a1a-5555-4666-8777-888888888888";
 
 const entry = (cardId: string) => ({ cardId, cardName: cardId });
 const many = (cardId: string, n: number) =>
@@ -69,11 +71,25 @@ const ALICE_MAIN = [
     entry(COUNTERSPELL),
     entry(BEARS),
 ];
-const ALICE_SIDE = [entry(LUTRI), entry(LIONS)];
+const ALICE_SIDE = [entry(LUTRI), entry(LIONS_PRINT)];
 /** Bob: compiled cards, and Venerable Knight in a sideboard Alice may not
  *  see. No companion. */
 const BOB_MAIN = [...many(MOUNTAIN, 5), entry(SIREN), entry(SWAB), entry(KAVU)];
 const BOB_SIDE = [entry(KNIGHT)];
+
+function printRow(_id: string, printId: string, cardId: string, set: string) {
+    return {
+        _id,
+        __table: "cardPrints",
+        printId,
+        cardId,
+        set,
+        rarity: "common",
+        digital: false,
+        promo: false,
+        tokenPrints: [],
+    };
+}
 
 function matchSeat(id: string, name: string) {
     return {
@@ -138,17 +154,8 @@ function pregameSeeds(opts: {
             createdAt: 0,
             updatedAt: 0,
         },
-        {
-            _id: "print-bolt",
-            __table: "cardPrints",
-            printId: BOLT_PRINT,
-            cardId: BOLT,
-            set: "m10",
-            rarity: "common",
-            digital: false,
-            promo: false,
-            tokenPrints: [],
-        },
+        printRow("print-bolt", BOLT_PRINT, BOLT, "m10"),
+        printRow("print-lions", LIONS_PRINT, LIONS, "10e"),
     ];
 }
 
@@ -273,13 +280,14 @@ describe("Definition Manifest — a created Constructed game (issue #5614)", () 
         expect(await manifest(stub, "u2", "game-1", "u1")).toBeNull();
     });
 
-    it("resolves a printing to its definition, never listing the Print ID", async () => {
+    it("resolves a printing to its definition, never listing the Print ID — maindeck and sideboard alike", async () => {
         const stub = constructedMatch();
         await buildFirstGame(stub, "u1");
 
-        const ids = await manifestIds(stub, "u2", "game-1", "u2");
-        expect(ids).toContain(BOLT);
+        const ids = await manifestIds(stub, "u1", "game-1", "u1");
+        expect(ids).toEqual(expect.arrayContaining([BOLT, LIONS]));
         expect(ids).not.toContain(BOLT_PRINT);
+        expect(ids).not.toContain(LIONS_PRINT);
     });
 
     it("keys every entry by its definition's Set — the module's for a hand-written card, the first printing's for a compiled one", async () => {
@@ -329,7 +337,7 @@ describe("Definition Manifest — Game 2 of a Bo3 (issue #5614)", () => {
             matchId: "match-1" as Id<"matches">,
             seatId: "u1",
             maindeck: ALICE_MAIN.map((c) =>
-                c.cardId === BEARS ? entry(LIONS) : c
+                c.cardId === BEARS ? entry(LIONS_PRINT) : c
             ),
             sideboard: [entry(LUTRI), entry(BEARS)],
         });
