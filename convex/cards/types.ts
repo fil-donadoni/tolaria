@@ -4245,6 +4245,14 @@ export interface SpellContext {
      *  (permanent). No-op if the target has left the battlefield. Used by
      *  Barl's Cage. */
     skipNextUntap: (target: TargetSelection) => void;
+    /** Marks the target to be returned to its OWNER's hand during
+     *  `playerId`'s next untap step (CR 502.3 — a turn-based action, no
+     *  stack). One-shot; the mark dies with the object (CR 400.7). No-op if
+     *  the target has left the battlefield. */
+    returnToHandAtNextUntap: (
+        target: TargetSelection,
+        playerId: string
+    ) => void;
     /** Grants the target "can attack this turn as though it didn't have
      *  defender" (CR 508.1a override — FEM Vodalian War Machine). Cleared at
      *  CLEANUP. No-op if the target has left the battlefield. */
@@ -16348,6 +16356,21 @@ export type EffectOp =
      *  one-shot flag. */
     | {
           op: "skipNextUntap";
+          target: EffectObjectSelector;
+      }
+    /** CR 502.3 / 502.4 (issue #5509) — "During your next untap step, return
+     *  <permanent> to its owner's hand." A thin declarative skin over the
+     *  SpellContext primitive `returnToHandAtNextUntap`, one execution path
+     *  (ADR 0045): it marks the permanent with the resolving controller; that
+     *  player's NEXT untap step returns it as part of the untap turn-based
+     *  action — no stack, no priority, whether or not the permanent would
+     *  untap. One-shot; the mark dies with the object (CR 400.7). `target`
+     *  names the permanent: an announced slot, the resolving source
+     *  (`$source` — a land returning itself), or a forEach `$each`. Skipped
+     *  when the permanent is gone (CR 608.2b). Deliberately NOT a delayed
+     *  triggered ability (CR 603.7) and NOT generalised to other steps. */
+    | {
+          op: "returnToHandAtNextUntap";
           target: EffectObjectSelector;
       }
     /** CR 611.2a / 613.1f (layer 6, issue #843) — grant an ability to a

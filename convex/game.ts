@@ -437,6 +437,7 @@ import {
     payExertActivationCost,
     restoreExertOnUntap,
 } from "./gre/exert";
+import { restoreReturnMarkOnUntap } from "./gre/untapReturn";
 import {
     getEffectiveBlockGraph,
     outstandingDamageAssigner,
@@ -2308,6 +2309,7 @@ function untapSourceFromPayment(
     restoreLifePaidOnUntap(player, card);
     // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
     restoreExertOnUntap(state, card);
+    restoreReturnMarkOnUntap(card);
     // CR 106.4 / 601.2f — and the mana its own activation cost took (Chromatic
     // Star's {1}). Same reversal, cost side.
     restoreManaPaidOnUntap(player, card);
@@ -2733,6 +2735,7 @@ function rollbackPendingCast(state: GameState): void {
         // own inline copy of the untap and must restate it, or a cancelled cast
         // leaves the land not untapping for a spell that was never cast.
         restoreExertOnUntap(state, card);
+        restoreReturnMarkOnUntap(card);
         // CR 106.4 / 118.3 / 122.1 — and the counters the tap's own
         // `removeCounter` leg took (a depletion land, a Mana Battery's scaling
         // cost). Same reversal-symmetry class as the exert leg above: this
@@ -8077,6 +8080,7 @@ export const untapForPayment = mutation({
         // is what exerted it, the same reversal `untapSourceFromPayment` runs on
         // the activation side (Arena of Glory).
         restoreExertOnUntap(state, card);
+        restoreReturnMarkOnUntap(card);
         // CR 106.4 / 601.2f / 118.4 (issue #3354) — and the COST legs the
         // activation took: the ability's own mana (Arena of Glory's {R},
         // Chromatic Star's {1}) and the life an inline rider paid (Mana
@@ -13929,6 +13933,7 @@ export const tapUntap = mutation({
             restoreManaCounterRemovalOnUntap(state, card);
             // CR 106.4 / 701.43b — and the exert its cost leg paid (Arena of Glory).
             restoreExertOnUntap(state, card);
+            restoreReturnMarkOnUntap(card);
             // CR 106.4 / 601.2f — the cost-side sibling: refund the mana the
             // activation's own mana cost took (Mana Cylix's {1}), or the untap
             // toggle burns it. Same window/guards as the life refund above.

@@ -62,6 +62,7 @@ import {
 } from "./state";
 import { tryGetDefinition } from "../cards";
 import { payDeclaredExertCosts } from "./exert";
+import { returnMarkedPermanentsToHand } from "./untapReturn";
 import { tryGetEmblemDefinition } from "../cards/emblems";
 import { resetControlContinuity } from "./controlContinuity";
 import { effectivePermanentView } from "./permanentView";
@@ -474,6 +475,16 @@ export function untapStep(state: GameState): void {
         for (const card of player.battlefield) {
             card.startedTurnUntapped = !card.isTapped;
         }
+
+        // CR 502.3 / 502.4 (issue #5509) — "during your next untap step,
+        // return it to its owner's hand": a turn-based action of the untap
+        // step itself (no stack, no priority; a leaves-the-battlefield trigger
+        // waits for the next priority window). Unconditional — it fires
+        // whether or not the permanent would untap, so it runs before any
+        // restriction is consulted. The mark is consumed here; the other
+        // player's untap step never matches it (CR 400.7: a zone change
+        // already cleared it from a new object).
+        returnMarkedPermanentsToHand(state, state.activePlayerId);
 
         for (const card of player.battlefield) {
             if (card.staticAbilities.includes("does-not-untap")) {

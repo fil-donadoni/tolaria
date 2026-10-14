@@ -3245,6 +3245,13 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: 'A permanent "doesn\'t untap during its controller\'s next untap step" (CR 302.6 / 502.1, PRD #795). A thin declarative skin over the single SpellContext primitive `skipNextUntap`, one execution path (ADR 0045): it stamps a one-shot instance flag consumed by (and cleared after) exactly one untap step — Barl\'s Cage / Elvish Hunter ("target creature doesn\'t untap …", an announced slot), the Homarid dive cycle / Deep Spawn (`$source`, paired with a `tapUntap` tap + a `grantAbility` shroud), and Goblin Rock Sled (`$source`, a self-lock arming trigger). `target` is an announced slot, the resolving source (`$source`), or a forEach `$each`. No amount / duration — the one-shot next-untap scope is intrinsic; skipped when the permanent has left the battlefield (CR 608.2b). Subsumes the `skipNextUntap` closures the migration classifier folds here. The CONTINUOUS source-linked variant (`lockUntapWhileSourceTapped`, "doesn\'t untap as long as … remains tapped") is a distinct primitive and stays `planned` (its own `lockUntap` row).',
     },
     {
+        op: "returnToHandAtNextUntap",
+        status: "implemented",
+        cr: "502.3",
+        binding: "SpellContext.returnToHandAtNextUntap",
+        note: "A permanent is returned to its OWNER's hand during the resolving controller's NEXT untap step (CR 502.3 turn-based action, no stack; CR 502.4 no priority — a leaves-the-battlefield trigger waits for the next priority window; issue #5509). A thin declarative skin over the single SpellContext primitive `returnToHandAtNextUntap`, one execution path (ADR 0045): it stamps `CardInstanceState.returnToHandAtUntapOf` with the controller's id; `untapStep` returns every marked permanent through `removePermanentTo(.., \"hand\")` as that player's untap begins, unconditionally (whether or not the permanent would untap, so `skipNextUntap` / `untapLockedBy` / depletion do not stop it), then deletes the mark. One-shot; the other player's untap step never consumes it; a zone change clears it (CR 400.7 — a new object). `target` is an announced slot, the resolving source (`$source`) or a forEach `$each`. Skipped when the permanent is gone (CR 608.2b). Not a delayed triggered ability (CR 603.7).",
+    },
+    {
         op: "discardAtRandom",
         status: "implemented",
         cr: "701.8",

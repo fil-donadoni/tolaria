@@ -4809,6 +4809,14 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
         },
     },
+    // CR 502.3 (issue #5509) — "during your next untap step, return it to its
+    // owner's hand." `target` is an object selector (announced slot, `$source`,
+    // or a forEach `$each`). No amount / duration — one-shot, intrinsic.
+    returnToHandAtNextUntap: {
+        required: {
+            target: isObjectSelector,
+        },
+    },
     // CR 701.19 (issue #846) — stack a regeneration shield on a permanent.
     // `target` is an object selector (announced slot, `$source`, or a forEach
     // `$each`). No amount / duration — one shield per Op, consumed by the next

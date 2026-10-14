@@ -5843,6 +5843,15 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.skipNextUntap(target);
     },
+    // CR 502.3 (issue #5509) — "during your next untap step, return it to its
+    // owner's hand." A thin adapter over `SpellContext.returnToHandAtNextUntap`:
+    // marks the permanent with the resolving controller; that player's next
+    // untap step performs the return. Skipped when it has left (CR 608.2b).
+    returnToHandAtNextUntap(ctx, op) {
+        const target = resolveObjectRef(ctx, op.target);
+        if (!target) return;
+        ctx.returnToHandAtNextUntap(target, ctx.controller);
+    },
     // CR 701.20a (issue #920, #682) — reveal `player`'s hand, or a searched-up
     // card, to every player. TWO halves, ONE reveal (ADR 0026), fired together
     // here so no card can get one without the other (issue #3425):
