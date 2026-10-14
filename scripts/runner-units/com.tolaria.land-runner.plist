@@ -5,7 +5,7 @@
   (issue #5469). The alternative to `bun run loop:afk --start`, which starts the
   same process detached; the runner's lock keeps one of them. Install like the
   reaper's (docs/guides/huawei-runner.md § Install on the MacBook). __REPO__,
-  __BUN__ and __HOME__ are substituted at install time. The `unit:` tag keeps
+  __BUN__, __NODE_BIN__ and __HOME__ are substituted at install time. The `unit:` tag keeps
   the reaper off its tree. Restarted only after a CRASH: SIGTERM (`--disarm`)
   makes it exit 0 after the landing in flight, which launchd leaves stopped;
   `ExitTimeOut` gives that landing an hour before launchd's SIGKILL.
@@ -35,7 +35,7 @@
         <key>HOME</key>
         <string>__HOME__</string>
         <key>PATH</key>
-        <string>__HOME__/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <string>__HOME__/.bun/bin:__NODE_BIN__:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
         <key>TOLARIA_OWNER</key>
         <string>unit:com.tolaria.land-runner</string>
     </dict>
