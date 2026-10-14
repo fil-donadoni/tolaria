@@ -216,7 +216,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
     //  - a land with TWO or more (Badlands) would tap for one colour only,
     //    and the catalogue works around that with a hand-written
     //    `manaChoices` ability the Oracle text does not carry. Fail closed
-    //    until `getBasicLandMana` reads every type — see
+    //    until `getBasicLandMana` reads every type (issue #5623) — see
     //    docs/findings/2694-basic-land-type-mana-encoding.md.
     if (
         typeLine.parsed.types.includes("Land") &&
@@ -227,7 +227,7 @@ export function compileCard(card: OracleCard): CompileOutcome {
             {
                 line: card.typeLine,
                 fragment: card.typeLine,
-                reason: "land with a basic land type — intrinsic mana ability (CR 305.6) is not in grammar v0",
+                reason: "land with two or more basic land types — the intrinsic mana ability reads one type only (CR 305.6)",
             },
         ]);
     }
