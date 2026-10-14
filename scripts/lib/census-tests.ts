@@ -240,6 +240,11 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/verdict-store-credentials.test.ts",
         admits: /^(scripts|src)\//,
     },
+    // convex/, src/ — the catalogue is the only importer of a card Set module
+    {
+        test: "scripts/__tests__/vite-card-sets-dev-bundle.test.ts",
+        admits: /^(convex|src)\//,
+    },
     // weak sole assertions over convex/, src/, scripts/, dashboard/
     {
         test: "scripts/__tests__/weak-sole-assertion.test.ts",
