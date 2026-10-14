@@ -209,8 +209,7 @@ const forEachProduction: Rule<ManaProductionIR> = rule(
             );
         let counted = span.slice(at + 1);
         const wholeBoard = counted.endsWith(ON_THE_BATTLEFIELD);
-        if (wholeBoard)
-            counted = counted.slice(0, -ON_THE_BATTLEFIELD.length);
+        if (wholeBoard) counted = counted.slice(0, -ON_THE_BATTLEFIELD.length);
         const each = forEachRule.run(counted, ctx);
         if (!each.ok) return each;
         if (each.value.kind !== "for-each")
@@ -253,7 +252,10 @@ const boardChoiceProduction: Rule<ManaProductionIR> = rule(
         const descriptor = descriptorRule.run(m[1]!, ctx);
         if (!descriptor.ok) return descriptor;
         if (descriptor.value.plural === true)
-            return fail('"a … could produce" names a singular descriptor', m[1]!);
+            return fail(
+                '"a … could produce" names a singular descriptor',
+                m[1]!
+            );
         const filter = boardManaFilterFromDescriptor(descriptor.value, "you");
         if (!filter.ok) return filter;
         return ok({

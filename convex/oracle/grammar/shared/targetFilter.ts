@@ -1229,7 +1229,10 @@ export function boardManaFilterFromDescriptor(
             (descriptor.subtypes ?? []).join(" ")
         );
     if (scope === "you" && descriptor.controller !== "you")
-        return fail('a board-derived mana descriptor reads "you control"', "controller");
+        return fail(
+            'a board-derived mana descriptor reads "you control"',
+            "controller"
+        );
     if (scope === "wholeBoard" && descriptor.controller !== undefined)
         return fail(
             '"on the battlefield" beside a controller clause',

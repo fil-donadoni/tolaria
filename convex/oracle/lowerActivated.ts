@@ -338,8 +338,7 @@ export function lowerManaAbility(input: {
         case "choice":
             ability.manaChoices = input.produces.options as ManaCost[];
             if (
-                input.produces.dealsDamageToControllerOnColoredTap !==
-                undefined
+                input.produces.dealsDamageToControllerOnColoredTap !== undefined
             )
                 ability.dealsDamageToControllerOnColoredTap =
                     input.produces.dealsDamageToControllerOnColoredTap;
