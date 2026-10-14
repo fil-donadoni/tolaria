@@ -30,6 +30,7 @@ import type {
 } from "./_generated/server";
 import type { DeckCard, MatchDeck, MatchPlayer } from "./matches";
 import type { GameState } from "./gre/state";
+import type { DefinitionManifestEntry } from "./definitionManifestEntry";
 
 // Only `db` is ever touched, and several callers (`buildNextGameForMatch`)
 // already thread a `Pick<…, "db">` ctx — take the narrowest thing that works.
@@ -290,17 +291,13 @@ export async function deleteGameDecks(
 }
 
 // ---------------------------------------------------------------------------
-// gameManifests
+// gameDefinitionManifests
 // ---------------------------------------------------------------------------
 // The STORE of the per-seat Definition Manifest (issue #5614): its rows only.
 // What goes in one — the definitions, their Set codes — is derived by
 // `convex/definitionManifest.ts`, which needs the catalogue; this half stays
 // card-free so `gameReads.ts` can serve it and the Game-deletion cascades can
 // clear it.
-
-/** One Definition Manifest entry: a Card Definition a seat's client can need
- *  in this Game, and the Set code that keys the client shard holding it. */
-export type DefinitionManifestEntry = Doc<"gameManifests">["entries"][number];
 
 /** One seat's Definition Manifest, or `null` when it has none — a `pregame`
  *  Game (its state, and so its manifest, is not built yet) or a Game built
@@ -311,7 +308,7 @@ export async function loadSeatDefinitionManifest(
     playerId: string
 ): Promise<DefinitionManifestEntry[] | null> {
     const row = await ctx.db
-        .query("gameManifests")
+        .query("gameDefinitionManifests")
         .withIndex("by_game", (q) =>
             q.eq("gameId", gameId).eq("playerId", playerId)
         )
@@ -319,13 +316,15 @@ export async function loadSeatDefinitionManifest(
     return row?.entries ?? null;
 }
 
-/** Every seat's manifest of a Game, by seat handle. */
+/** Every seat's manifest of a Game, by seat handle — EVERY seat's sideboard
+ *  included, so for a mutation's write path only (the debug widen). A query
+ *  serves one seat, through {@link loadSeatDefinitionManifest}. */
 export async function loadDefinitionManifests(
     ctx: QueryCtx,
     gameId: Id<"games">
 ): Promise<Map<string, DefinitionManifestEntry[]>> {
     const rows = await ctx.db
-        .query("gameManifests")
+        .query("gameDefinitionManifests")
         .withIndex("by_game", (q) => q.eq("gameId", gameId))
         .collect();
     return new Map(rows.map((r) => [r.playerId, r.entries]));
@@ -339,7 +338,7 @@ export async function writeDefinitionManifests(
     bySeat: ReadonlyMap<string, readonly DefinitionManifestEntry[]>
 ): Promise<void> {
     const existing = await ctx.db
-        .query("gameManifests")
+        .query("gameDefinitionManifests")
         .withIndex("by_game", (q) => q.eq("gameId", gameId))
         .collect();
     const rowBySeat = new Map(existing.map((r) => [r.playerId, r]));
@@ -347,17 +346,18 @@ export async function writeDefinitionManifests(
         const doc = { gameId, playerId, entries: [...entries] };
         const row = rowBySeat.get(playerId);
         if (row) await ctx.db.replace(row._id, doc);
-        else await ctx.db.insert("gameManifests", doc);
+        else await ctx.db.insert("gameDefinitionManifests", doc);
     }
 }
 
-/** Deletes every `gameManifests` row of a Game — for the Game's own deletion. */
+/** Deletes every `gameDefinitionManifests` row of a Game — for the Game's own
+ *  deletion. */
 export async function deleteDefinitionManifests(
     ctx: MutationCtx,
     gameId: Id<"games">
 ): Promise<void> {
     const rows = await ctx.db
-        .query("gameManifests")
+        .query("gameDefinitionManifests")
         .withIndex("by_game", (q) => q.eq("gameId", gameId))
         .collect();
     for (const row of rows) await ctx.db.delete(row._id);

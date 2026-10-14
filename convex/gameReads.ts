@@ -4,6 +4,7 @@ import { auth, getCurrentUser } from "./auth";
 import { seatBelongsToUser } from "./gameLifecycle";
 import { activeGameOpponentName, findActiveMatchForUser } from "./matches";
 import { loadGameSeatCards, loadSeatDefinitionManifest } from "./deckStore";
+import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
@@ -149,9 +150,7 @@ export const getDefinitionManifest = query({
         v.null(),
         v.object({
             playerId: v.string(),
-            entries: v.array(
-                v.object({ definitionId: v.string(), setCode: v.string() })
-            ),
+            entries: v.array(definitionManifestEntryValidator),
         })
     ),
     handler: async (ctx, args) => {

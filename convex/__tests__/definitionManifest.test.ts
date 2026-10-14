@@ -23,7 +23,7 @@ import { submitSideboard } from "../gameTable";
 import { getDefinitionManifest } from "../gameReads";
 import { debugLoadBladeScenario } from "../debugBlade";
 import { manifestEntries, stateDefinitionIds } from "../definitionManifest";
-import type { DefinitionManifestEntry } from "../deckStore";
+import type { DefinitionManifestEntry } from "../definitionManifestEntry";
 import {
     makeInstance,
     makePlayer,
@@ -391,6 +391,24 @@ describe("Definition Manifest — a debug load widens it (issue #5614)", () => {
         expect(await manifestIds(stub, "u3", "game-1", "u3-p1")).toContain(
             LIONS
         );
+    });
+
+    it("gives a Game built before manifests existed none — a position alone has no sideboards and would read as complete", async () => {
+        const stub = soloMatch();
+        await buildFirstGame(stub, "u3");
+        // The rows a pre-manifest build never wrote.
+        for (const w of stub.writes)
+            if (w.table === "gameDefinitionManifests")
+                stub.doc(w.id).__table = "dropped";
+        expect(await manifest(stub, "u3", "game-1", "u3-p1")).toBeNull();
+
+        await runMutation(debugSetupScenario, stub.asUser("u3"), {
+            gameId: "game-1" as Id<"games">,
+            cards: [{ name: "Shivan Dragon", owner: "opp" }],
+        });
+
+        expect(await manifest(stub, "u3", "game-1", "u3-p1")).toBeNull();
+        expect(await manifest(stub, "u3", "game-1", "u3-p2")).toBeNull();
     });
 
     it("debugLoadBladeScenario: the entry's position joins every seat's manifest", async () => {

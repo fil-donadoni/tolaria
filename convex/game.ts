@@ -14618,6 +14618,10 @@ export const debugResetGame = mutation({
         initialState.mulligan = makeMulliganState(initialState);
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
+        // No Definition Manifest write (issue #5614): `gameDecks` are
+        // immutable, so the rebuilt libraries are the ones the stored rows
+        // already list — and these seats carry no sideboard, so a rewrite
+        // would DROP each seat's own.
         await saveGameState(ctx, args.gameId, 0, initialState, existing);
 
         // Reset game status in case it was finished

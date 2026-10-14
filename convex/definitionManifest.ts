@@ -16,7 +16,7 @@
 // `cardPrints` path the game build uses), the Set codes off the Definition
 // Index (`getDefinitionSetCode`). Tokens, face-down sentinels and twins need no
 // entry of their own — they self-decode or derive from a parent, and a twin
-// names its parent here. The rows live in `gameManifests` behind
+// names its parent here. The rows live in `gameDefinitionManifests` behind
 // `convex/deckStore.ts`; this half needs the catalogue, so only engine-bound
 // modules (`game.ts`, `debugBlade.ts`) import it.
 import type { Id } from "./_generated/dataModel";
@@ -24,11 +24,8 @@ import type { MutationCtx } from "./_generated/server";
 import { getDefinitionSetCode } from "./cards/catalogue";
 import { FACE_DOWN_CARD_ID } from "./cards/registry";
 import { isTwinDefinitionId, parentIdOfTwin } from "./cards/twinId";
-import {
-    loadDefinitionManifests,
-    writeDefinitionManifests,
-    type DefinitionManifestEntry,
-} from "./deckStore";
+import { loadDefinitionManifests, writeDefinitionManifests } from "./deckStore";
+import type { DefinitionManifestEntry } from "./definitionManifestEntry";
 import type { CardInstanceState, GameState } from "./gre/state";
 
 type Ctx = Pick<MutationCtx, "db">;
@@ -170,11 +167,13 @@ export async function widenGameDefinitionManifests(
         ctx,
         gameId
     )) {
+        const have = new Set(entries.map((e) => e.definitionId));
         const next = manifestEntries([
-            ...entries.map((e) => e.definitionId),
+            ...have,
             ...stateDefinitionIds(state, playerId),
         ]);
-        if (next.length > entries.length) widened.set(playerId, next);
+        if (next.some((e) => !have.has(e.definitionId)))
+            widened.set(playerId, next);
     }
     if (widened.size > 0) await writeDefinitionManifests(ctx, gameId, widened);
 }

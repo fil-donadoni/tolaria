@@ -23,6 +23,7 @@ import { poolArrangementEntryValidator } from "./limited/eventTypes";
 // pull in) and imported by both the storage site below and `userDecks.ts`'s
 // mutation args.
 import { storedDeckColumnLayoutValidator } from "./deckLayoutStorage";
+import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import {
     botReachTraceValidator,
     compileSourceValidator,
@@ -600,14 +601,15 @@ export default defineSchema({
     // board subscription (`getGame` returns it whole, to anyone holding the
     // id), so a per-seat sideboard there would leak, and ~120 entries would
     // ride every patch of the row.
-    gameManifests: defineTable({
+    gameDefinitionManifests: defineTable({
         gameId: v.id("games"),
         /** The opaque GRE seat handle — `games.players[].id`. */
         playerId: v.string(),
-        entries: v.array(
-            v.object({ definitionId: v.string(), setCode: v.string() })
-        ),
-    }).index("by_game", ["gameId", "playerId"]),
+        entries: v.array(definitionManifestEntryValidator),
+    })
+        // `gameDecks`' shape and name: both seats of one game, or one seat's
+        // point lookup with `eq` on both components.
+        .index("by_game", ["gameId", "playerId"]),
     // Format banlists (PRD #1138, ADR 0057, issue #1141) — the full OFFICIAL
     // banlist by oracle name, including cards not yet implemented in the
     // engine (e.g. Parallax Tide for Premodern). Names only — NO cardId is
