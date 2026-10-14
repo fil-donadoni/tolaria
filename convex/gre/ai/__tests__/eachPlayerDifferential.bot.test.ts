@@ -35,10 +35,12 @@ import { innocentBlood } from "../../../cards/sets/ody/black.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 import { balance } from "../../../cards/sets/lea/white.cards";
 import { DEFAULT_EVAL_WEIGHTS, type EvalWeights } from "../evalWeights";
+import { windsOfChange } from "../../../cards/sets/leg/red.cards";
 
 interface Side {
     hand?: readonly string[];
     board?: readonly string[];
+    library?: readonly string[];
 }
 
 /** The script reading of `cardId` held by p1, on the board `own` / `opp`
@@ -67,10 +69,12 @@ function readOnBoard(
             makePlayer("p1", {
                 hand: [held, ...at("p1", own.hand)],
                 battlefield: at("p1", own.board, "battlefield"),
+                library: at("p1", own.library, "library"),
             }),
             makePlayer("p2", {
                 hand: at("p2", opp.hand),
                 battlefield: at("p2", opp.board, "battlefield"),
+                library: at("p2", opp.library, "library"),
             }),
         ],
     });
@@ -362,5 +366,142 @@ describe("a held Differential is a fitted fraction of the swing (issue #5560)", 
             9
         );
         expect(held.value).toBeLessThan(full.value!);
+    });
+});
+
+describe("an each-player draw is priced off the drawing side's board (issue #5573)", () => {
+    const wheel = wheelOfFortune().id;
+    const bear = grizzlyBears().id;
+    const land = forest().id;
+    const bears = cards(20, bear);
+    const forests = cards(20, land);
+
+    const sorcery = (id: string, body: EffectOp[]): CardDefinition => ({
+        id: `each-player-draw-test:${id}`,
+        name: `Each Player Draw ${id}`,
+        rarity: "common",
+        manaCost: { R: 1, generic: 2 },
+        types: ["Sorcery"],
+        effects: [{ op: "forEach", select: { set: "players" }, effects: body }],
+    });
+    const each = { ref: "$each" } as const;
+
+    it("Wheel of Fortune credits the side with the better library, and flips on the mirror", () => {
+        // CR 701.9 / 121.1 — equal hands leave equally; the seven each player
+        // draws are what differ: Bears off the top beat Forests.
+        const better = readOnBoard(
+            wheel,
+            { hand: cards(3, bear), library: bears },
+            { hand: cards(3, bear), library: forests }
+        );
+        const worse = readOnBoard(
+            wheel,
+            { hand: cards(3, bear), library: forests },
+            { hand: cards(3, bear), library: bears }
+        );
+        expect(better.value).toBeGreaterThan(0);
+        expect(worse.value).toBeLessThan(0);
+        expect(better.measured && worse.measured).toBe(true);
+    });
+
+    it("a symmetric draw-only body reads the library gap too", () => {
+        // "Each player draws two" (Faerie Mastermind's, Urza's Guilt's first
+        // step): no longer netted to zero by a flat magnitude.
+        const def = sorcery("draw-two", [
+            { op: "draw", player: each, count: 2 },
+        ]);
+        withTemporaryDefinition(def, () => {
+            const better = readOnBoard(
+                def.id,
+                { library: bears },
+                { library: forests }
+            );
+            const worse = readOnBoard(
+                def.id,
+                { library: forests },
+                { library: bears }
+            );
+            expect(better.value).toBeGreaterThan(0);
+            expect(worse.value).toBeLessThan(0);
+            expect(better.measured && worse.measured).toBe(true);
+        });
+    });
+
+    it("Wheel's seven land in the hand its discard emptied", () => {
+        // The caster holds seven Forests, the opponent nothing; both draw
+        // Bears. Into the emptied hand both sides keep seven Bears, so the
+        // draws cancel and the Wheel reads exactly its discard. Read into the
+        // seven Forests still held, the caster's cleanup discard (CR 514.1)
+        // would eat the gain and the Wheel would read lower.
+        const discardOnly = sorcery("discard", [
+            { op: "discard", player: each },
+        ]);
+        const board: [Side, Side] = [
+            { hand: cards(7, land), library: bears },
+            { library: bears },
+        ];
+        withTemporaryDefinition(discardOnly, () => {
+            const wheelRead = readOnBoard(wheel, ...board);
+            const discardRead = readOnBoard(discardOnly.id, ...board);
+            expect(wheelRead.measured).toBe(true);
+            expect(wheelRead.value).toBeCloseTo(discardRead.value!, 9);
+        });
+    });
+
+    it("a counted discard shrinks the hand the draw lands in", () => {
+        // Each player discards three, then draws three. The caster's seven
+        // Bears go to four, so its three Bears are all kept, as the
+        // opponent's are into an empty hand: the draws cancel and the body
+        // reads exactly its discard.
+        const edict: EffectOp[] = [
+            {
+                op: "choice",
+                kind: "discard-hand",
+                player: each,
+                zone: "hand",
+                count: 3,
+                prompt: "Discard three cards.",
+                bind: "$discarded",
+            },
+            { op: "discard", player: each, cards: { ref: "$discarded" } },
+        ];
+        const discardThenDraw = sorcery("discard-then-draw", [
+            ...edict,
+            { op: "draw", player: each, count: 3 },
+        ]);
+        const discardOnly = sorcery("discard-three", edict);
+        const board: [Side, Side] = [
+            { hand: cards(7, bear), library: bears },
+            { library: bears },
+        ];
+        withTemporaryDefinition(discardThenDraw, () =>
+            withTemporaryDefinition(discardOnly, () => {
+                const both = readOnBoard(discardThenDraw.id, ...board);
+                const discard = readOnBoard(discardOnly.id, ...board);
+                expect(both.measured).toBe(true);
+                expect(both.value).toBeCloseTo(discard.value!, 9);
+            })
+        );
+    });
+
+    it("Winds of Change draws back as many cards as each hand shuffled in", () => {
+        // CR 701.24 — the caster's three Bears go into a library of Forests
+        // and three cards come back off it; the opponent, with no hand, draws
+        // none. The draw-back is credited: the reading sits above the
+        // shuffle-in alone.
+        const shuffleOnly = sorcery("shuffle-only", [
+            { op: "moveZone", player: each, from: "hand", to: "library" },
+            { op: "libraryLook", action: "shuffle", player: each },
+        ]);
+        const board: [Side, Side] = [
+            { hand: cards(3, bear), library: forests },
+            { library: forests },
+        ];
+        withTemporaryDefinition(shuffleOnly, () => {
+            const winds = readOnBoard(windsOfChange().id, ...board);
+            const shuffled = readOnBoard(shuffleOnly.id, ...board);
+            expect(winds.measured).toBe(true);
+            expect(winds.value).toBeGreaterThan(shuffled.value!);
+        });
     });
 });

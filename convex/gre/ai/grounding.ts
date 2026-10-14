@@ -190,8 +190,13 @@ export interface EachPlayerSide {
      *  side with the better library draws more of them. The card being
      *  valued is left out of the hand, as in `handWorth`; at most the
      *  library's size is drawn. A side holding a hidden placeholder is
-     *  unreadable (0, and the Differential falls back). */
-    drawUnits(count: number): number;
+     *  unreadable (0, and the Differential falls back).
+     *
+     *  Issue #5573 — `before` is what the earlier Ops of a one-shot body did
+     *  to this player's hand and library before the draw (`HandStep`), in
+     *  order: the draw lands in the hand they leave behind, from the library
+     *  they leave behind. An empty library draws nothing and reads 0. */
+    drawUnits(count: number, before?: readonly HandStep[]): number;
     /** `boardRemoval` units (the `sweepUnits` scale) of the `count` members
      *  this player would choose to sacrifice among its permanents matching
      *  `filter`: the cheapest ones — only a permanent's controller can
@@ -202,6 +207,20 @@ export interface EachPlayerSide {
         count: number
     ): number | undefined;
 }
+
+/** Issue #5573 — one earlier Op of a one-shot `forEach { set: "players" }`
+ *  body, as far as the hand a later draw lands in goes:
+ *   - `leaves` — the whole hand is discarded (CR 701.9): the hand is empty;
+ *   - `shuffledIn` — the whole hand is put into the library: the hand is
+ *     empty and the library holds its cards;
+ *   - `discards` — `count` cards of the player's choice are discarded: its
+ *     CHEAPEST `count`, as `discardWorth` reads them;
+ *   - `draws` — `count` cards are drawn, each at the library expectation. */
+export type HandStep =
+    | { readonly kind: "leaves" }
+    | { readonly kind: "shuffledIn" }
+    | { readonly kind: "discards"; readonly count: number }
+    | { readonly kind: "draws"; readonly count: number };
 
 /** True for the `{ ref: "$each" }` forEach iteration variable used as a
  *  PLAYER ref (issue #1521). Every catalogue card naming a player this way
