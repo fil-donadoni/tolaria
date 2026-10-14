@@ -593,17 +593,11 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
  *  commit to a source `tapSourceIntoPayment` then rejected with "Card does not
  *  produce mana" — and made `tapUntap` tap the permanent for ZERO mana. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
-    if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        // ADR 0039 / CR 605.1a — a one-shot mana ability is paid by TAPPING
-        // and/or SACRIFICING its source, and the sacrifice-ONLY shape (Eldrazi
-        // Spawn's "Sacrifice this token: Add {C}.") is a fixed-output mana
-        // ability exactly like a {T} one. Requiring `cost.tap` here made
-        // `tapSourceIntoPayment` reject it with "Card does not produce mana"
-        // even though `getManaTapOptionsDetailed` had offered it.
-        ({ ability: a }) =>
-            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
-    )?.ability;
+    // ADR 0039 / CR 605.1a — tap and/or sacrifice (`fixedOutputManaAbility`):
+    // requiring `cost.tap` here made `tapSourceIntoPayment` reject Eldrazi
+    // Spawn's sacrifice-only ability with "Card does not produce mana" even
+    // though `getManaTapOptionsDetailed` had offered it.
+    const ability = fixedOutputManaAbility(card);
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
@@ -617,15 +611,10 @@ export function getActivatedManaColor(card: CardInstanceState): Color | null {
 export function getActivatedManaProduced(
     card: CardInstanceState
 ): ManaCost | null {
-    if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        // ADR 0039 — tap and/or sacrifice, same as `getActivatedManaColor`
-        // above: the sacrifice-ONLY fixed-output shape must resolve its amount
-        // here or `getFixedManaAmount` falls back to a bare 1.
-        ({ ability: a }) =>
-            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
-    )?.ability;
-    return ability?.manaProduced ?? null;
+    // ADR 0039 — tap and/or sacrifice, same as `getActivatedManaColor` above:
+    // the sacrifice-ONLY fixed-output shape must resolve its amount here or
+    // `getFixedManaAmount` falls back to a bare 1.
+    return fixedOutputManaAbility(card)?.manaProduced ?? null;
 }
 
 /** The card's FIXED-output mana ability whose cost is "Sacrifice this" with NO
@@ -859,7 +848,15 @@ function scaleManaUnit(unit: ManaCost, count: number): ManaCost {
  *
  *  CR 107.1 (issue #5195) — a `manaAmountSource` DESCRIPTOR (Gaea's Cradle,
  *  Priest of Titania) is resolved here too, as `manaProduced` × the number of
- *  permanents its filter matches (`boardDerivedManaCount`). */
+ *  permanents its filter matches (`boardDerivedManaCount`).
+ *
+ *  CR 605.1a (issue #5195) — the ability answered is the one the FIXED tap
+ *  path acts on: the first fixed-output mana ability, the same one
+ *  `getActivatedManaColor` / `getActivatedManaProduced` name. On a source
+ *  printing a plain "{T}: Add {C}" BEFORE a scaled "{3}, {T}: Add {B} for each
+ *  basic Swamp you control" (Cabal Stronghold) the {C} tap is not dynamic, so
+ *  this answers null rather than scaling the {C} by the Swamp count. A caller
+ *  holding a SPECIFIC ability reads {@link getAbilityDynamicManaProduced}. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
     controllerBattlefield: readonly CardInstanceState[],
@@ -874,12 +871,57 @@ export function getDynamicManaProduced(
         battlefield: readonly CardInstanceState[];
     }>
 ): ManaCost | null {
-    if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) =>
-            a.cost.tap && !a.useStack && (a.manaAmountSource || a.manaAmount)
-    )?.ability;
+    const ability = fixedOutputManaAbility(card);
     if (!ability) return null;
+    return getAbilityDynamicManaProduced(
+        card,
+        ability,
+        controllerBattlefield,
+        continuousEffects,
+        battlefields
+    );
+}
+
+/** The first fixed-output (`manaProduced`) mana ability paid by tapping and/or
+ *  sacrificing its source — the ability the fixed tap branches act on. ONE
+ *  probe behind `getActivatedManaColor`, `getActivatedManaProduced` and
+ *  `getDynamicManaProduced`, so the colour a fixed tap adds and the amount it
+ *  adds always name the same ability. */
+function fixedOutputManaAbility(
+    card: CardInstanceState
+): ActivatedAbility | null {
+    if (abilitiesSuppressed(card)) return null;
+    return (
+        getEffectiveActivatedAbilities(card).find(
+            // ADR 0039 / CR 605.1a — a one-shot mana ability is paid by
+            // TAPPING and/or SACRIFICING its source, and the sacrifice-ONLY
+            // shape (Eldrazi Spawn's "Sacrifice this token: Add {C}.") is a
+            // fixed-output mana ability exactly like a {T} one.
+            ({ ability: a }) =>
+                (a.cost.tap || a.cost.sacrifice) &&
+                !a.useStack &&
+                !!a.manaProduced
+        )?.ability ?? null
+    );
+}
+
+/** Board-conditional output of ONE named mana ability (CR 106.1 / 107.1 /
+ *  605.1a), or null when that ability's amount is printed rather than derived
+ *  (no `manaAmountSource`, no `manaAmount`). The per-ability core of
+ *  {@link getDynamicManaProduced}, read directly by the unified option list
+ *  (`getManaTapOptionsDetailed`), which walks every mana ability of the source
+ *  and must scale each by its OWN count. */
+export function getAbilityDynamicManaProduced(
+    card: CardInstanceState,
+    ability: ActivatedAbility,
+    controllerBattlefield: readonly CardInstanceState[],
+    continuousEffects?: readonly ContinuousEffect[],
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost | null {
+    if (abilitiesSuppressed(card)) return null;
     // CR 107.1 / 605.1a — the DECLARATIVE count wins over a closure when a
     // card carries both (see `ActivatedAbility.manaAmountSource`).
     if (ability.manaAmountSource && ability.manaProduced) {
@@ -887,7 +929,12 @@ export function getDynamicManaProduced(
         const board =
             battlefields ??
             (amountSourceReadsOnlyController(source)
-                ? [{ playerId: card.controllerId, battlefield: controllerBattlefield }]
+                ? [
+                      {
+                          playerId: card.controllerId,
+                          battlefield: controllerBattlefield,
+                      },
+                  ]
                 : null);
         if (board === null) return null;
         const count = boardDerivedManaCount(
@@ -917,6 +964,11 @@ type ManaColorSourceResolver = (
     source: BoardManaColorSource
 ) => Iterable<Color>;
 
+/** Resolves a fixed-output ability's CURRENT board-derived output (CR 106.7 /
+ *  107.1), or null when its amount is printed. Supplied, like
+ *  {@link ManaColorSourceResolver}, only by callers holding a board. */
+type DynamicManaAmountResolver = (ability: ActivatedAbility) => ManaCost | null;
+
 /** Colours a set of activated abilities COULD produce (CR 106.4 — "could
  *  produce"), unioning every non-stack ability's fixed `manaProduced` and
  *  `manaChoices` chooser options. Colourless ({C}) is excluded — {C} is not a
@@ -929,16 +981,22 @@ function producibleColorsFromAbilities(
     abilities: readonly ActivatedAbility[] | undefined,
     resolveManaColorSource?: ManaColorSourceResolver,
     /** CR 106.7 / 106.1b — keep {C} (a TYPE read, not a colour read). */
-    includeColorless = false
+    includeColorless = false,
+    resolveDynamicAmount?: DynamicManaAmountResolver
 ): Set<Color> {
     const colors = new Set<Color>();
     const counts = (c: Color) => includeColorless || c !== "C";
     for (const ability of abilities ?? []) {
         if (ability.useStack) continue;
         if (ability.manaProduced) {
+            // CR 106.7 — "could produce" is what the ability WOULD add if it
+            // resolved now: a scaled ability counting nothing (an empty Gaea's
+            // Cradle) adds no mana, so it contributes no type. Without a board
+            // the printed unit stands in.
+            const output =
+                resolveDynamicAmount?.(ability) ?? ability.manaProduced;
             for (const c of MANA_COLORS) {
-                if (counts(c) && (ability.manaProduced[c] ?? 0) > 0)
-                    colors.add(c);
+                if (counts(c) && (output[c] ?? 0) > 0) colors.add(c);
             }
         }
         // CR 605.1a / 106.4 (issue #1941) — a DESCRIPTOR ability's colour set
@@ -1032,7 +1090,8 @@ export function getProducibleColors(
     resolveManaColorSource?: ManaColorSourceResolver,
     /** CR 106.7 / 106.1b — keep colourless {C}: the TYPES of mana the card
      *  could produce rather than its colours (see `getProducibleColorsOnBoard`). */
-    includeColorless = false
+    includeColorless = false,
+    resolveDynamicAmount?: DynamicManaAmountResolver
 ): Set<Color> {
     const colors = new Set<Color>();
     if (abilitiesSuppressed(card)) return colors;
@@ -1043,7 +1102,8 @@ export function getProducibleColors(
     for (const c of producibleColorsFromAbilities(
         getEffectiveActivatedAbilities(card).map(({ ability }) => ability),
         resolveManaColorSource,
-        includeColorless
+        includeColorless,
+        resolveDynamicAmount
     ))
         colors.add(c);
     return colors;
@@ -1099,7 +1159,17 @@ export function getProducibleColorsOnBoard(
                       depth + 1
                   )
             : undefined,
-        includeColorless
+        includeColorless,
+        // CR 106.7 — a scaled ability is read at its count on THIS board.
+        (ability) =>
+            getAbilityDynamicManaProduced(
+                card,
+                ability,
+                battlefields.find((b) => b.playerId === card.controllerId)
+                    ?.battlefield ?? [],
+                undefined,
+                battlefields
+            )
     );
 }
 
@@ -2223,9 +2293,13 @@ export function getManaTapOptionsDetailed(
             if (ability.manaProduced) {
                 // CR 106.1 — resolve a board-conditional amount (Urza trio) when
                 // the board is available; else the static output is the snapshot.
+                // CR 605.1a (issue #5195) — THIS ability's count, never the
+                // source's first scaled ability's: Cabal Stronghold's "{T}: Add
+                // {C}" stays {C} beside its Swamp-counting "{3}, {T}: Add {B}".
                 const dynamic = controllerBattlefield
-                    ? getDynamicManaProduced(
+                    ? getAbilityDynamicManaProduced(
                           card,
+                          ability,
                           controllerBattlefield,
                           continuousEffects,
                           battlefields
@@ -2900,8 +2974,9 @@ export function hasManaAbility(
         controllerBattlefield &&
         (ability.manaAmount || ability.manaAmountSource)
     ) {
-        const dynamic = getDynamicManaProduced(
+        const dynamic = getAbilityDynamicManaProduced(
             card,
+            ability,
             controllerBattlefield,
             continuousEffects
         );

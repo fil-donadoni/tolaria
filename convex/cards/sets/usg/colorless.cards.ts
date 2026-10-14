@@ -2,19 +2,15 @@
 // Scryfall oracle text is authoritative (ADR 0004). Lands and colourless
 // artifacts (no coloured cost) live here per the colour-split convention.
 
-import {
-    defineCard,
-    type ActivatedAbilityContext,
-    type PermanentView,
-} from "../../types";
+import { defineCard } from "../../types";
 
 // Gaea's Cradle — "{T}: Add {G} for each creature you control." (CR 605.1a
 // mana ability, `useStack: false`.) Board-conditional output via the
-// `manaAmount` hook — the same primitive the Urza land trio uses
-// (`convex/cards/sets/atq/colorless.cards.ts`), generalized here to a COUNT rather
-// than a binary on/off. `manaProduced` is the representative fallback (one
-// creature) for best-effort callers without a board snapshot. Vintage Cube
-// free tranche (issue #675, ADR 0041).
+// declarative `manaAmountSource` descriptor (CR 107.1, issue #5195): the
+// engine adds `manaProduced` once per permanent the filter matches at
+// activation time. `manaProduced` is the unit, and the representative
+// fallback (one creature) for best-effort callers without a board snapshot.
+// Vintage Cube free tranche (issue #675, ADR 0041).
 export const gaeasCradle = defineCard(() => ({
     id: "25b0b816-0583-44aa-9dc5-f3ff48993a51",
     rarity: "rare",
@@ -22,27 +18,23 @@ export const gaeasCradle = defineCard(() => ({
     oracleText: "{T}: Add {G} for each creature you control.",
     manaCost: {},
     types: ["Land"],
+    supertypes: ["Legendary"],
     activatedAbilities: [
         {
             id: "gaeas-cradle-mana",
             oracleText: "{T}: Add {G} for each creature you control.",
             cost: { tap: true },
             useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ G: 1 });
-            },
             manaProduced: { G: 1 },
-            manaAmount: (_source, battlefield) => ({
-                G: battlefield.filter((p: PermanentView) =>
-                    p.types.includes("Creature")
-                ).length,
-            }),
+            manaAmountSource: {
+                filter: { types: ["Creature"], controllerRelation: "you" },
+            },
         },
     ],
 }));
 
 // Tolarian Academy — "{T}: Add {U} for each artifact you control." (CR
-// 605.1a mana ability, `useStack: false`.) Same `manaAmount` shape as
+// 605.1a mana ability, `useStack: false`.) Same `manaAmountSource` shape as
 // Gaea's Cradle, counting artifacts instead of creatures. Vintage Cube free
 // tranche (issue #675, ADR 0041).
 export const tolarianAcademy = defineCard(() => ({
@@ -52,29 +44,25 @@ export const tolarianAcademy = defineCard(() => ({
     oracleText: "{T}: Add {U} for each artifact you control.",
     manaCost: {},
     types: ["Land"],
+    supertypes: ["Legendary"],
     activatedAbilities: [
         {
             id: "tolarian-academy-mana",
             oracleText: "{T}: Add {U} for each artifact you control.",
             cost: { tap: true },
             useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ U: 1 });
-            },
             manaProduced: { U: 1 },
-            manaAmount: (_source, battlefield) => ({
-                U: battlefield.filter((p: PermanentView) =>
-                    p.types.includes("Artifact")
-                ).length,
-            }),
+            manaAmountSource: {
+                filter: { types: ["Artifact"], controllerRelation: "you" },
+            },
         },
     ],
 }));
 
 // Serra's Sanctum — "{T}: Add {W} for each enchantment you control." (CR
-// 605.1a mana ability, `useStack: false`.) Same `manaAmount` shape as Gaea's
-// Cradle / Tolarian Academy, counting enchantments instead of creatures /
-// artifacts. Vintage Cube free tranche (issue #675, ADR 0041).
+// 605.1a mana ability, `useStack: false`.) Same `manaAmountSource` shape as
+// Gaea's Cradle / Tolarian Academy, counting enchantments instead of
+// creatures / artifacts. Vintage Cube free tranche (issue #675, ADR 0041).
 export const serrasSanctum = defineCard(() => ({
     id: "f7a18130-dbaa-4657-a885-3a96a985935a",
     rarity: "rare",
@@ -89,15 +77,10 @@ export const serrasSanctum = defineCard(() => ({
             oracleText: "{T}: Add {W} for each enchantment you control.",
             cost: { tap: true },
             useStack: false,
-            effect: (ctx: ActivatedAbilityContext) => {
-                ctx.addMana({ W: 1 });
-            },
             manaProduced: { W: 1 },
-            manaAmount: (_source, battlefield) => ({
-                W: battlefield.filter((p: PermanentView) =>
-                    p.types.includes("Enchantment")
-                ).length,
-            }),
+            manaAmountSource: {
+                filter: { types: ["Enchantment"], controllerRelation: "you" },
+            },
         },
     ],
 }));

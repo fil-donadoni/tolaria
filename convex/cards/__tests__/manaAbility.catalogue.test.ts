@@ -179,11 +179,11 @@ function sweep(): Sweep {
                 });
                 continue;
             }
-            if (ability.manaAmount) {
+            if (ability.manaAmount || ability.manaAmountSource) {
                 result.skips.push({
                     card: def.name,
                     abilityId: ability.id,
-                    reason: "board-conditional manaAmount — output depends on a board this fixture does not build (CR 605.1a / #1889)",
+                    reason: "board-conditional amount (manaAmount / manaAmountSource) — output depends on a board this fixture does not build (CR 605.1a / #1889)",
                 });
                 continue;
             }
@@ -304,7 +304,7 @@ describe("mana abilities, catalogue-wide (CR 605.1a)", () => {
             );
             if (!abilities.some((a) => !a.cost?.sacrifice)) continue;
             const destructive = abilities.filter(
-                (a) => a.cost?.sacrifice && !a.manaAmount
+                (a) => a.cost?.sacrifice && !a.manaAmount && !a.manaAmountSource
             );
             if (destructive.length === 0) continue;
             const instance = makeInstance(def.id, {
