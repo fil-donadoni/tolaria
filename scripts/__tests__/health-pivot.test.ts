@@ -113,10 +113,18 @@ const clock = () => new Date((t += 1000)).toISOString();
 const NOW = () => t + 60_000;
 const STALE = 90 * 60_000;
 
+/** A marker as the Huawei's health run publishes it. */
+const marker = (): Status => ({
+    state: "pending",
+    context: "health-run",
+    description: "AMBER · running · omarchy",
+    created_at: clock(),
+});
+
 describe("run marker on the pivot", () => {
     it("a run another machine started is in flight; a settled verdict ends it", () => {
         const repo = sharedRepo([TIP, OLD], clock);
-        publishRunMarker(root, TIP, { backend: "github", run: repo.run });
+        repo.seed(TIP, marker());
         const read = () =>
             pivotRunInFlight(root, NOW(), STALE, {
                 backend: "github",
@@ -137,9 +145,21 @@ describe("run marker on the pivot", () => {
         ).toBeNull();
     });
 
-    it("a marker past the stale bound is a dead run", () => {
+    it("this machine's own marker is left to its pid probe", () => {
         const repo = sharedRepo([TIP], clock);
         publishRunMarker(root, TIP, { backend: "github", run: repo.run });
+        expect(
+            pivotRunInFlight(root, NOW(), STALE, {
+                backend: "github",
+                run: repo.run,
+                stored: () => null,
+            })
+        ).toBeNull();
+    });
+
+    it("a marker past the stale bound is a dead run", () => {
+        const repo = sharedRepo([TIP], clock);
+        repo.seed(TIP, marker());
         expect(
             pivotRunInFlight(root, NOW() + STALE, STALE, {
                 backend: "github",

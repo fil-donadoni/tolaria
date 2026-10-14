@@ -93,12 +93,19 @@ export function pivotRunInFlight(
         const marker = pivotStore(root, RUN_CONTEXT, opts)?.latest() ?? null;
         if (marker === null || marker.status !== "amber" || !marker.at)
             return null;
+        // This machine's own run is judged by its pid probe (`last.json`):
+        // a marker it left behind from a killed run must not hold the fire.
+        if (marker.machine === machineName()) return null;
         const startedAt = Date.parse(marker.at);
         if (!Number.isFinite(startedAt) || now - startedAt >= staleMs)
             return null;
         const settled = (
             opts.stored ??
-            ((sha) => verdictStore(root, { run: opts.run }).read(sha))
+            ((sha) =>
+                verdictStore(root, {
+                    backend: opts.backend,
+                    run: opts.run,
+                }).read(sha))
         )(marker.sha);
         const settledAt = settled?.at ? Date.parse(settled.at) : NaN;
         if (
