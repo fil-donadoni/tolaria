@@ -61,7 +61,7 @@ export function owningSet(
     ) {
         for (const importer of info.importers) {
             const code = owningSet(importer, graph, memo);
-            if (code === undefined) {
+            if (code === undefined || (owner !== undefined && code !== owner)) {
                 owner = undefined;
                 break;
             }
