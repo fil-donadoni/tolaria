@@ -1454,7 +1454,7 @@ export type EffectSentenceIR =
       }
     | {
           /**
-           * CR 702.26a — "Target artifact, creature, or land phases out": one
+           * CR 702.26b — "Target artifact, creature, or land phases out": one
            * announced permanent phases out until its controller's next untap
            * step. A sweep or a pronoun is not read (nothing prints it yet).
            */
@@ -3587,7 +3587,7 @@ const SHUFFLE_GRAVEYARD_BACK =
 /** CR 401.4 — the one-sentence reorder, looked at by "you". */
 const LIBRARY_REORDER =
     /^Look at the top (\S+) cards of (your|target player's|target opponent's) library, then put them back in any order$/;
-/** CR 702.26a — "<target> phases out". */
+/** CR 702.26b — "<target> phases out". */
 const PHASES_OUT = /^(Target .+) phases out$/;
 /** CR 101.4 — the keep-one-of-each edict, over a list of permanent types. */
 const KEEP_ONE_OF_EACH_TYPE =
@@ -6021,7 +6021,7 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
-    // ── phase out (CR 702.26a) ──────────────────────────────────────────────
+    // ── phase out (CR 702.26b) ──────────────────────────────────────────────
     const phasesOut = span.match(PHASES_OUT);
     if (phasesOut !== null) {
         const subject = subjectRule.run(phasesOut[1]!, ctx);

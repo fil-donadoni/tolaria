@@ -38,11 +38,6 @@
             "issue": 4532
         },
         {
-            "key": "(op) › chooseCategorized",
-            "op": "chooseCategorized",
-            "issue": 5166
-        },
-        {
             "key": "(op) › coinFlip",
             "op": "coinFlip",
             "issue": 4537

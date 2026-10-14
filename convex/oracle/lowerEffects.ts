@@ -3196,8 +3196,8 @@ function lowerSentenceBody(
                 },
             ]);
         case "phase-out": {
-            // CR 702.26a — one announced permanent; the Op fixes the return
-            // (its controller's next untap step, CR 702.26f).
+            // CR 702.26b — one announced permanent; the Op fixes the return
+            // (its controller's next untap step, CR 702.26a).
             const target = objectSelector(sentence.subject, slots, site);
             if (!target.ok) return target;
             return lowered([{ op: "phaseOut", target: target.value }]);

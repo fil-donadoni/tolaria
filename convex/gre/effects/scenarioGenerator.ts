@@ -2397,7 +2397,7 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             recordSubject(req, op.target);
             return;
         case "phaseOut":
-            // CR 702.26a (issue #4573) — the permanent leaves the battlefield
+            // CR 702.26b (issue #4573) — the permanent leaves the battlefield
             // silently into a phased-out bundle; observable in the same
             // resolution on an announced permanent slot or an ability's own
             // source. A `$each` target is not modelled.
@@ -3540,8 +3540,8 @@ const OP_ASSERTORS: AssertorTable = {
             },
         };
     },
-    // `phaseOut` (CR 702.26a, issue #4573) — the permanent is off every
-    // battlefield and inside a phased-out bundle (CR 702.26h: it has not left
+    // `phaseOut` (CR 702.26b, issue #4573) — the permanent is off every
+    // battlefield and inside a phased-out bundle (CR 702.26d: it has not left
     // the game, only the battlefield).
     phaseOut(rawOp, scenario, pre) {
         const op = rawOp as Extract<EffectOp, { op: "phaseOut" }>;

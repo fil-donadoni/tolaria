@@ -17386,14 +17386,14 @@ export type EffectOp =
           op: "regenerate";
           target: EffectObjectSelector;
       }
-    /** CR 702.26a (issue #4573) — phase a permanent out: "target creature
+    /** CR 702.26b (issue #4573) — phase a permanent out: "target creature
      *  phases out". A thin declarative skin over the single SpellContext
      *  primitive `phaseOut`, one execution path (ADR 0045): the host and every
-     *  Aura / Equipment attached to it (CR 702.26d) leave the battlefield
+     *  Aura / Equipment attached to it (CR 702.26g) leave the battlefield
      *  silently — no leaves-the-battlefield event, no zone change, no
-     *  triggers (CR 702.26h) — and phase back in, untouched and with their
+     *  triggers (CR 702.26d) — and phase back in, untouched and with their
      *  counters, before their controller untaps during that controller's NEXT
-     *  untap step (CR 702.26f). `target` is an object selector (an announced
+     *  untap step (CR 702.26a). `target` is an object selector (an announced
      *  slot, `$source`, or a forEach `$each`). Skipped when the referenced
      *  permanent is gone (CR 608.2b), and a no-op on a non-permanent
      *  selection. It names no return condition: "phases out" printed bare has

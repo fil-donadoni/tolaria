@@ -12348,7 +12348,7 @@ describe("Effect Script Op: phaseOut (CR 702.26, issue #4573)", () => {
         });
     }
 
-    // CR 702.26a + CR 702.26h — the announced permanent leaves the
+    // CR 702.26b + CR 702.26d — the announced permanent leaves the
     // battlefield into a phased-out bundle; nothing "leaves", so no event.
     it("phases the announced permanent out, silently, until its controller's untap step", () => {
         const id = registerScript("test-op-phaseout-target", [
@@ -12363,8 +12363,8 @@ describe("Effect Script Op: phaseOut (CR 702.26, issue #4573)", () => {
         expect(state.phasedOut![0].returnOn).toEqual({ kind: "untap-cycle" });
     });
 
-    // CR 702.26d — an Aura attached to the host phases out with it.
-    it("takes the attached Aura out with its host (CR 702.26d)", () => {
+    // CR 702.26g — an Aura attached to the host phases out with it.
+    it("takes the attached Aura out with its host (CR 702.26g)", () => {
         const id = registerScript("test-op-phaseout-aura", [
             { op: "phaseOut", target: { target: 0 } },
         ]);
@@ -12443,7 +12443,7 @@ describe("Effect Script Op: phaseOut (CR 702.26, issue #4573)", () => {
         expect(shut.players[1].battlefield).toHaveLength(1);
     });
 
-    // CR 702.26f — it returns at its controller's NEXT untap step, not the
+    // CR 702.26a — it returns at its controller's NEXT untap step, not the
     // untap step of the turn it phased out on.
     it("phases back in at the controller's next untap step, not this turn's", () => {
         const id = registerScript("test-op-phaseout-return", [

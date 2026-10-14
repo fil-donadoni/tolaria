@@ -4759,7 +4759,7 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
         },
     },
-    // CR 702.26a (issue #4573) — phase a permanent out. `target` is an object
+    // CR 702.26b (issue #4573) — phase a permanent out. `target` is an object
     // selector (announced slot, `$source`, or a forEach `$each`). No return
     // condition: bare "phases out" returns at its controller's next untap step.
     phaseOut: {

@@ -7348,4 +7348,42 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             ],
         },
     },
+    // CR 608.2h + CR 119.3 — "Destroy target artifact. It can't be
+    // regenerated. That artifact's controller gains life equal to its mana
+    // value": the same acted-on controller as Swords to Plowshares, with the
+    // amount read off the snapshot's mana value rather than its power
+    // (issue #4573).
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "8d6e39b0-a190-40a0-a8e1-ee82f477376f",
+            name: "Crumble",
+            manaCost: "{G}",
+            typeLine: "Instant",
+            oracleText:
+                "Destroy target artifact. It can't be regenerated. That artifact's controller gains life equal to its mana value.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Crumble",
+            types: ["Instant"],
+            manaCost: { G: 1 },
+            oracleText:
+                "Destroy target artifact. It can't be regenerated. That artifact's controller gains life equal to its mana value.",
+            effects: [
+                {
+                    op: "destroy",
+                    target: { target: 0 },
+                    cantBeRegenerated: true,
+                    bind: "$that1",
+                },
+                {
+                    op: "gainLife",
+                    player: { ref: "$that1.controller" },
+                    amount: { ref: "$that1.manaValue" },
+                },
+            ],
+            targetRequirement: { type: "Artifact", count: 1 },
+        },
+    },
 ]);

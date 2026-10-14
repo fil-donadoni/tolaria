@@ -2285,7 +2285,7 @@ const regenerate: Valuer<"regenerate"> = (op, ctx) => ({
         : ["protection"],
 });
 
-// CR 702.26a (issue #4573) — phasing a permanent out takes it off the board
+// CR 702.26b (issue #4573) — phasing a permanent out takes it off the board
 // until its controller's next untap step and brings it back untouched: a
 // temporary answer, priced as the `tempo` of a bounce (no recast to pay, but
 // no card lost either), on the best legal victim on the current board.
@@ -3035,7 +3035,7 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     destroy: "harmful",
     exile: "harmful",
     exileWithAttachments: "harmful",
-    // CR 702.26a — the recipient loses use of the permanent until its next
+    // CR 702.26b — the recipient loses use of the permanent until its next
     // untap step: an attack on the one it is aimed at, however brief.
     phaseOut: "harmful",
     counter: "harmful",

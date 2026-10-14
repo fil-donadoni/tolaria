@@ -198,7 +198,7 @@ describe("golden: one accepted form per card", () => {
         );
     });
 
-    it("an announced permanent phases out until its controller's untap step (CR 702.26a)", () => {
+    it("an announced permanent phases out until its controller's untap step (CR 702.26b)", () => {
         const text = "Target artifact, creature, or land phases out.";
         expect(definitionOf(instant("Reality Ripple", "{1}{U}", text))).toEqual(
             sortKeys({

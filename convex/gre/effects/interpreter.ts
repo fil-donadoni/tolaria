@@ -5249,7 +5249,7 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.applyRegenerationShield(target);
     },
-    // CR 702.26a (issue #4573) — phase the permanent out until its controller's
+    // CR 702.26b (issue #4573) — phase the permanent out until its controller's
     // next untap step. A thin skin over the single SpellContext primitive
     // `phaseOut`, ONE execution path (ADR 0045). Skipped when the referenced
     // permanent is gone (CR 608.2b); a non-permanent selection is a no-op.
