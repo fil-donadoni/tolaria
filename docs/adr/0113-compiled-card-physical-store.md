@@ -845,7 +845,7 @@ it. This amendment ships the first slice, the hand-written half.
   back to the whole catalogue rather than waiting forever.
 - **Whole-catalogue reads on the game route get a disposition each:** the
   name-a-card prompt and the debug token picker switch to whole mode when
-  they open (CR 202.3 names any card; the token catalogue walks every
+  they open (CR 201.4 names any card; the token catalogue walks every
   definition); `getChooseableCardNames` / `getAllCardNames` read the
   Definition Index and need nothing; the Bot's registry walk on the main
   thread skips a non-resident card, the worker holds every Set.

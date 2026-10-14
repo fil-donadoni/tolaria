@@ -19,7 +19,7 @@ export default function CardNameInput({
     onSubmit: (cardName: string) => void;
 }) {
     const [value, setValue] = useState("");
-    // CR 202.3 — the chooser may name ANY card, so this prompt is a
+    // CR 201.4 — the chooser may name ANY card, so this prompt is a
     // WHOLE-CATALOGUE surface on a route that otherwise holds only its game's
     // Sets (issue #5615): the candidate list is read off the Definition Index
     // (no definition needed), but the server's check of the name
