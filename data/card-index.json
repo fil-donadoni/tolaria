@@ -8270,6 +8270,16 @@
         "source": "compiled"
     },
     {
+        "name": "Cabal Coffers",
+        "scryfallId": "2b934c78-258e-4b1e-9783-ec9f734e8776",
+        "oracleId": "7358e164-5704-4e78-9b21-6a9bf2a968ce",
+        "firstSet": "tor",
+        "firstPrintId": "2b934c78-258e-4b1e-9783-ec9f734e8776",
+        "firstPrintSet": "tor",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Cabal Evangel",
         "scryfallId": "d218d2a2-bb5d-4ea8-a131-341c574410b2",
         "oracleId": "a4fed66f-ef3c-4547-8612-46e65d63ef1f",
@@ -8306,6 +8316,16 @@
         "firstSet": "tor",
         "firstPrintId": "5403b49d-03a7-4cc3-af3c-df098c1c9c2e",
         "firstPrintSet": "tor"
+    },
+    {
+        "name": "Cabal Stronghold",
+        "scryfallId": "0bda51ef-ee3e-48d4-92e2-c9083bbe0f80",
+        "oracleId": "066cd584-773c-4623-be53-8f6feda5a26a",
+        "firstSet": "dom",
+        "firstPrintId": "0bda51ef-ee3e-48d4-92e2-c9083bbe0f80",
+        "firstPrintSet": "dom",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Cabal Surgeon",
@@ -10278,6 +10298,16 @@
         "source": "compiled"
     },
     {
+        "name": "Circle of Dreams Druid",
+        "scryfallId": "be6fdec0-a2c4-4da2-ae14-961185eaee66",
+        "oracleId": "1c857fa4-e823-494d-9ea4-7eb9e719c9b6",
+        "firstSet": "afr",
+        "firstPrintId": "be6fdec0-a2c4-4da2-ae14-961185eaee66",
+        "firstPrintSet": "afr",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Circle of Protection: Artifacts",
         "scryfallId": "22ebd5a3-fef8-4097-b038-89a6cb38227d",
         "oracleId": "2e61e9c0-a2b9-4a24-8cb0-5160accce183",
@@ -10794,6 +10824,16 @@
         "firstSet": "m20",
         "firstPrintId": "e2111753-a930-403f-9d94-a86dfcb069da",
         "firstPrintSet": "m20",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Cloudpost",
+        "scryfallId": "2f28ecdc-a4f0-4327-a78c-340be41555ee",
+        "oracleId": "f705c0eb-9c6c-4315-a860-208ed0c5d93e",
+        "firstSet": "mrd",
+        "firstPrintId": "2f28ecdc-a4f0-4327-a78c-340be41555ee",
+        "firstPrintSet": "mrd",
         "rarity": "common",
         "source": "compiled"
     },
@@ -36326,6 +36366,16 @@
         "source": "compiled"
     },
     {
+        "name": "Magus of the Coffers",
+        "scryfallId": "cf6b93ea-8ada-404c-9920-7976690c3e8c",
+        "oracleId": "23dd895c-92bd-4af0-8b1a-7d76ca49178f",
+        "firstSet": "plc",
+        "firstPrintId": "cf6b93ea-8ada-404c-9920-7976690c3e8c",
+        "firstPrintSet": "plc",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Magus of the Disk",
         "scryfallId": "febbea40-74c7-431f-a88f-c15d4fdda89d",
         "oracleId": "3996aa0c-3322-43be-bbaf-7b66836a8ff4",
@@ -40298,6 +40348,16 @@
         "firstSet": "war",
         "firstPrintId": "0f244233-f2e8-48f8-9106-e7cd186efd51",
         "firstPrintSet": "war",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Naga Vitalist",
+        "scryfallId": "ce9a8551-8788-47ea-b774-477f0f3ff22a",
+        "oracleId": "9cea8783-c7d7-49f9-b23d-324309efc140",
+        "firstSet": "akh",
+        "firstPrintId": "ce9a8551-8788-47ea-b774-477f0f3ff22a",
+        "firstPrintSet": "akh",
         "rarity": "common",
         "source": "compiled"
     },
@@ -45794,6 +45854,16 @@
         "source": "compiled"
     },
     {
+        "name": "Priest of Titania",
+        "scryfallId": "965c33c3-0c68-4516-b8b0-5a0552ed44b6",
+        "oracleId": "3a198a16-17b9-481e-b516-5bc945c7e247",
+        "firstSet": "usg",
+        "firstPrintId": "965c33c3-0c68-4516-b8b0-5a0552ed44b6",
+        "firstPrintSet": "usg",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Priest of Urabrask",
         "scryfallId": "d0a9f49c-f15c-4b2d-b6a5-8efc3c430d87",
         "oracleId": "e4bd8910-770b-4220-8a26-2673491f4a3e",
@@ -48380,6 +48450,16 @@
         "firstPrintSet": "drk"
     },
     {
+        "name": "Reflecting Pool",
+        "scryfallId": "7b633ac2-bf98-42bd-8c26-8737a7d8edc7",
+        "oracleId": "67f43ac6-2a58-4b53-b5d7-0330e2a252e2",
+        "firstSet": "tmp",
+        "firstPrintId": "7b633ac2-bf98-42bd-8c26-8737a7d8edc7",
+        "firstPrintSet": "tmp",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Reflex Sliver",
         "scryfallId": "9017d37d-f47d-405e-95d8-78a8eec8addc",
         "oracleId": "80e4e857-3f7e-4344-bf41-64d3b32f328f",
@@ -50073,6 +50153,16 @@
         "firstPrintId": "af957200-c538-4f52-b105-6db7a7abb4dc",
         "firstPrintSet": "lea",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Rofellos, Llanowar Emissary",
+        "scryfallId": "6aa5cc65-f8f1-4f6f-8b4e-2fedccbda684",
+        "oracleId": "3015882b-4897-4d2c-8e33-6731c85a0d03",
+        "firstSet": "uds",
+        "firstPrintId": "6aa5cc65-f8f1-4f6f-8b4e-2fedccbda684",
+        "firstPrintSet": "uds",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
