@@ -70,6 +70,16 @@
         "source": "compiled"
     },
     {
+        "name": "Aang, Air Nomad",
+        "scryfallId": "f369827d-e4cd-4bc7-8c5e-72882eff0908",
+        "oracleId": "e46b2ac6-97d6-48f2-aba3-cd92f8e092c6",
+        "firstSet": "tle",
+        "firstPrintId": "f369827d-e4cd-4bc7-8c5e-72882eff0908",
+        "firstPrintSet": "tle",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Aang, at the Crossroads",
         "scryfallId": "fea89ca0-8070-4f28-9851-994314f9d248",
         "oracleId": "96e5d4a1-e59f-4140-823f-a17e15ee5d8d",
@@ -730,6 +740,16 @@
         "firstSet": "ice",
         "firstPrintId": "f3f26060-0c24-496c-b8e2-4dac7ea6166b",
         "firstPrintSet": "ice"
+    },
+    {
+        "name": "Aggressive Mammoth",
+        "scryfallId": "323f3c76-5e79-43e6-ae78-f555810edbc3",
+        "oracleId": "032b5fc4-5aca-41b6-9bf6-2c1ed0018968",
+        "firstSet": "m19",
+        "firstPrintId": "323f3c76-5e79-43e6-ae78-f555810edbc3",
+        "firstPrintSet": "m19",
+        "rarity": "rare",
+        "source": "compiled"
     },
     {
         "name": "Aggressive Negotiations",
@@ -3625,6 +3645,26 @@
         "firstPrintId": "7002a87b-a55f-42ec-b247-119a3229129f",
         "firstPrintSet": "rav",
         "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "Avacyn, Angel of Hope",
+        "scryfallId": "ba149706-cd17-4da6-8403-ccfe2d6cb437",
+        "oracleId": "216cb26e-8da9-478b-bfbc-8030f7adee72",
+        "firstSet": "avr",
+        "firstPrintId": "ba149706-cd17-4da6-8403-ccfe2d6cb437",
+        "firstPrintSet": "avr",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
+        "name": "Avacyn's Memorial",
+        "scryfallId": "c8134a08-4c7f-419e-940d-95bc9f630ae2",
+        "oracleId": "a8abc5db-4e0b-488d-898a-8109690d5099",
+        "firstSet": "mic",
+        "firstPrintId": "c8134a08-4c7f-419e-940d-95bc9f630ae2",
+        "firstPrintSet": "mic",
+        "rarity": "mythic",
         "source": "compiled"
     },
     {
@@ -6851,6 +6891,16 @@
         "firstPrintId": "45bb2e6d-2ead-4ce3-8e5e-fc6900435583",
         "firstPrintSet": "emn",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Boldwyr Aggressor",
+        "scryfallId": "76bbccd2-8a90-49a7-921a-6565b495efdf",
+        "oracleId": "ab32c671-7686-435b-a987-14a08f6790eb",
+        "firstSet": "ecl",
+        "firstPrintId": "76bbccd2-8a90-49a7-921a-6565b495efdf",
+        "firstPrintSet": "ecl",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -20238,6 +20288,16 @@
         "source": "compiled"
     },
     {
+        "name": "Felhide Petrifier",
+        "scryfallId": "4d6cce01-a0cb-4059-a0ad-fbf7d9b998b8",
+        "oracleId": "1ad604ed-c645-4f94-8c5f-8e0ce66a85ff",
+        "firstSet": "jou",
+        "firstPrintId": "4d6cce01-a0cb-4059-a0ad-fbf7d9b998b8",
+        "firstPrintSet": "jou",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Felidar Cub",
         "scryfallId": "ea76a183-e15c-4968-b29d-91c074aa8681",
         "oracleId": "cae60cf8-cd64-4595-a4dd-946694cf2bb1",
@@ -27784,6 +27844,16 @@
         "source": "compiled"
     },
     {
+        "name": "Herald of Dromoka",
+        "scryfallId": "8987b2af-66d6-4271-a139-37e544cdec62",
+        "oracleId": "dae8dc90-8047-434c-9e3a-a2eaa6aba575",
+        "firstSet": "dtk",
+        "firstPrintId": "8987b2af-66d6-4271-a139-37e544cdec62",
+        "firstPrintSet": "dtk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Herald of Faith",
         "scryfallId": "452591ca-7273-4e47-820b-3ff89697a036",
         "oracleId": "cb97da84-1d13-4795-b68a-2bf111a50067",
@@ -30822,6 +30892,16 @@
         "firstPrintSet": "leg"
     },
     {
+        "name": "Ivory Mask",
+        "scryfallId": "35ea3762-a419-412c-b2bd-0a40902d8d51",
+        "oracleId": "028bc726-0e86-4c53-9648-625153ae4b01",
+        "firstSet": "mmq",
+        "firstPrintId": "35ea3762-a419-412c-b2bd-0a40902d8d51",
+        "firstPrintSet": "mmq",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Ivory Tower",
         "scryfallId": "a5f23039-45ca-4c15-af50-bfd40ea26453",
         "oracleId": "d416a4ed-9f16-4a8b-8aee-03c630e1eb6c",
@@ -32237,6 +32317,16 @@
         "firstPrintId": "1cc6a5e6-0b73-4488-8954-4b168ce7106d",
         "firstPrintSet": "wwk",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Khenra Charioteer",
+        "scryfallId": "8ab1454e-3c69-4450-bd4c-934af2ff2bcb",
+        "oracleId": "e75bc5df-f4a4-45af-a6fd-2711b98dd521",
+        "firstSet": "akh",
+        "firstPrintId": "8ab1454e-3c69-4450-bd4c-934af2ff2bcb",
+        "firstPrintSet": "akh",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -41038,6 +41128,16 @@
         "source": "compiled"
     },
     {
+        "name": "Nylea's Forerunner",
+        "scryfallId": "2cf2b6be-80a8-4464-a909-8cc658196a14",
+        "oracleId": "bf0948b7-f7af-4d99-a8aa-ea7e6a69232d",
+        "firstSet": "thb",
+        "firstPrintId": "2cf2b6be-80a8-4464-a909-8cc658196a14",
+        "firstPrintSet": "thb",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
         "name": "Nyx Weaver",
         "scryfallId": "0e8553cc-8f61-4022-97c9-e31183b65059",
         "oracleId": "6f8bf968-0571-4582-8c04-9791e44d5df0",
@@ -45204,6 +45304,16 @@
         "firstPrintSet": "inv"
     },
     {
+        "name": "Privileged Position",
+        "scryfallId": "f8fa7566-6f7d-4c01-a442-ff7b38684de5",
+        "oracleId": "abd62af0-c17d-4f62-af15-9ea83037b990",
+        "firstSet": "rav",
+        "firstPrintId": "f8fa7566-6f7d-4c01-a442-ff7b38684de5",
+        "firstPrintSet": "rav",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Prized Elephant",
         "scryfallId": "01597ede-94e7-44a4-93c2-7fd1db11e92a",
         "oracleId": "4b1674b1-2176-493f-a463-936e715d51a2",
@@ -47608,6 +47718,16 @@
         "firstPrintSet": "lea"
     },
     {
+        "name": "Regisaur Alpha",
+        "scryfallId": "d6a322c5-aa4c-4a99-a3ca-48c1353104f0",
+        "oracleId": "0673f4e0-66ff-458c-b4ba-eb067e560cce",
+        "firstSet": "xln",
+        "firstPrintId": "d6a322c5-aa4c-4a99-a3ca-48c1353104f0",
+        "firstPrintSet": "xln",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
         "name": "Regress",
         "scryfallId": "e869775f-72fa-463f-a46a-7c3e955f8590",
         "oracleId": "2fa763ad-4d94-4c3a-a099-13ac22c09ce4",
@@ -48423,6 +48543,16 @@
         "firstPrintId": "281f04d5-af45-4494-ac11-a605d3a06643",
         "firstPrintSet": "m19",
         "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Rhox Pikemaster",
+        "scryfallId": "b3684a28-e819-4909-912e-dec4a9cf1b11",
+        "oracleId": "8866d33e-8159-4e10-8b11-914c12a0918f",
+        "firstSet": "m10",
+        "firstPrintId": "b3684a28-e819-4909-912e-dec4a9cf1b11",
+        "firstPrintSet": "m10",
+        "rarity": "uncommon",
         "source": "compiled"
     },
     {
@@ -52459,6 +52589,16 @@
         "firstPrintId": "145c3ebd-7a67-4606-8427-f3b91ab26b84",
         "firstPrintSet": "usg",
         "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
+        "name": "Serra's Guardian",
+        "scryfallId": "1a1d95b9-aa18-41e2-b972-93fda25e0b11",
+        "oracleId": "c50cd7e7-8d53-44af-ac96-3e104587bdb3",
+        "firstSet": "m19",
+        "firstPrintId": "1a1d95b9-aa18-41e2-b972-93fda25e0b11",
+        "firstPrintSet": "m19",
+        "rarity": "rare",
         "source": "compiled"
     },
     {
@@ -61206,6 +61346,16 @@
         "source": "compiled"
     },
     {
+        "name": "The Walls of Ba Sing Se",
+        "scryfallId": "24a14ac5-0b7e-4441-9963-782a7cda3f4a",
+        "oracleId": "af7d7da5-aff5-48e1-901a-f81257a85f71",
+        "firstSet": "tla",
+        "firstPrintId": "24a14ac5-0b7e-4441-9963-782a7cda3f4a",
+        "firstPrintSet": "tla",
+        "rarity": "mythic",
+        "source": "compiled"
+    },
+    {
         "name": "The Whizzer, Classic Speedster",
         "scryfallId": "77134e93-4c03-476b-ab60-d8fb48f7a74f",
         "oracleId": "aa86bce1-9cde-44d8-9455-24502221f31d",
@@ -61282,6 +61432,16 @@
         "firstSet": "lea",
         "firstPrintId": "e92cce01-b3bd-4307-aae5-9a7c8fa386ab",
         "firstPrintSet": "lea"
+    },
+    {
+        "name": "Thicket Crasher",
+        "scryfallId": "534eb449-3f1c-46ec-a965-0f5812e2c93e",
+        "oracleId": "998e850a-b3c7-4ab2-85ac-25beef98ab20",
+        "firstSet": "m20",
+        "firstPrintId": "534eb449-3f1c-46ec-a965-0f5812e2c93e",
+        "firstPrintSet": "m20",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Thieving Magpie",
@@ -63652,6 +63812,16 @@
         "firstSet": "pcy",
         "firstPrintId": "23d7e856-6852-4b97-ae0e-a4becdfc8166",
         "firstPrintSet": "pcy",
+        "rarity": "rare",
+        "source": "compiled"
+    },
+    {
+        "name": "True Believer",
+        "scryfallId": "4289bdcb-6eea-458f-a4eb-89e26264673a",
+        "oracleId": "5a0cd4dd-2212-4408-819e-0cb7c150418b",
+        "firstSet": "ons",
+        "firstPrintId": "4289bdcb-6eea-458f-a4eb-89e26264673a",
+        "firstPrintSet": "ons",
         "rarity": "rare",
         "source": "compiled"
     },

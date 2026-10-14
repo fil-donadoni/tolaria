@@ -260,6 +260,23 @@ export type StaticClauseIR =
      *  replacement of the controller's own turn-based draw. Lowered to
      *  `drawStepReplacement`, which suppresses the draw but not the step. */
     | { readonly kind: "skip-draw-step" }
+    /** CR 305.2 — "You may play an additional land on each of your turns":
+     *  `count` more land plays than the one CR 305.2a already grants. */
+    | { readonly kind: "extra-land-drop"; readonly count: number }
+    /**
+     * CR 614.1a / 614.12 — "If <self> would enter, you may discard a <type>
+     * card instead. If you do, put <self> onto the battlefield. If you
+     * don't, put it into its owner's graveyard": an as-enters cost the
+     * entering permanent's controller may decline, declining sending the
+     * permanent to the graveyard.
+     */
+    | {
+          readonly kind: "as-enters-discard";
+          readonly filter: { readonly type: CardType };
+      }
+    /** CR 702.18 / 115.1 — "You have shroud": the controller can't be the
+     *  target of spells or abilities. */
+    | { readonly kind: "player-shroud" }
     /** CR 614.1a — "If <self> would be put into a graveyard from anywhere,
      *  reveal <self> and shuffle it into its owner's library instead".
      *  Lowered to `shuffleFromAnywhere`. */
@@ -524,6 +541,8 @@ export const selfConditionalPumpRule: Rule<StaticClauseIR> = rule(
 
 // ── Frame: keyword grant (CR 613.1f) ───────────────────────────────────────
 
+const OTHER_PREFIX = "Other ";
+
 export const keywordGrantRule: Rule<StaticClauseIR> = rule(
     "keyword grant",
     (span): RuleResult<StaticClauseIR> =>
@@ -534,11 +553,21 @@ export const keywordGrantRule: Rule<StaticClauseIR> = rule(
             // shipped as an inert grant.
             const keyword = keywordVocabulary().get(tail.toLowerCase());
             if (keyword === undefined) return null;
-            const filter = readSubject(subject, "materialised");
+            // CR 201.5 — "Other enchantments you control have shroud": the
+            // set without the source itself, which is `excludeSource`. The
+            // descriptor grammar has no "other" adjective, so the word is
+            // read here, at the one frame that owes it.
+            const other = subject.startsWith(OTHER_PREFIX);
+            const filter = readSubject(
+                other ? subject.slice(OTHER_PREFIX.length) : subject,
+                "materialised"
+            );
             if (!filter.ok) return filter;
             return ok({
                 kind: "keyword-grant" as const,
-                filter: filter.value,
+                filter: other
+                    ? { ...filter.value, excludeSource: true }
+                    : filter.value,
                 keyword,
             });
         })
@@ -1879,6 +1908,75 @@ const youControlHostRule: Rule<StaticClauseIR> = pattern(
         })
 );
 
+// ── Frame: an additional land play (CR 305.2) ───────────────────────────────
+
+/**
+ * "You may play an additional land on each of your turns." (Exploration.)
+ * CR 305.2: a player can normally play one land per turn; effects can raise
+ * the number. The sentence names exactly one more, so the count is 1 — the
+ * bounded analogue of an unlimited allowance. Its neighbours ("As long as you
+ * control another Elf, …", "N+ | …") add a condition the engine encoding has
+ * no place for and stay refused by the anchored regex.
+ */
+const EXTRA_LAND_DROP =
+    /^You may play an additional land on each of your turns$/;
+
+const extraLandDropRule: Rule<StaticClauseIR> = pattern(
+    "additional land play",
+    EXTRA_LAND_DROP,
+    (): RuleResult<StaticClauseIR> =>
+        ok({ kind: "extra-land-drop" as const, count: 1 })
+);
+
+// ── Frame: the as-enters discard (CR 614.1a) ────────────────────────────────
+
+/**
+ * "If this artifact would enter, you may discard a land card instead. If you
+ * do, put this artifact onto the battlefield. If you don't, put it into its
+ * owner's graveyard." (Mox Diamond.) CR 614.1a: "instead" makes it a
+ * replacement effect of the permanent entering, and CR 701.9 defines the
+ * discard it offers. Both self references must name THIS object (CR 201.5).
+ * The two follow-up sentences are the whole of the replacement — "If you do"
+ * is the discard paid, "If you don't" its decline — and a rider other than
+ * the graveyard (an exile redirect, a sacrifice) differs from the anchored
+ * text and stays refused.
+ */
+const AS_ENTERS_DISCARD =
+    /^If (.+) would enter, you may discard a land card instead\. If you do, put (.+) onto the battlefield\. If you don't, put it into its owner's graveyard$/;
+
+const asEntersDiscardRule: Rule<StaticClauseIR> = pattern(
+    "as-enters discard",
+    AS_ENTERS_DISCARD,
+    (match): RuleResult<StaticClauseIR> => {
+        if (!isSelfPhrase(match[1]!) || !isSelfPhrase(match[2]!))
+            return fail(
+                "the discarding permanent is not this object",
+                match[0]
+            );
+        return ok({
+            kind: "as-enters-discard" as const,
+            filter: { type: "Land" as const },
+        });
+    }
+);
+
+// ── Frame: player shroud (CR 702.18) ────────────────────────────────────────
+
+/**
+ * "You have shroud." (Ivory Mask, Solitary Confinement.) CR 702.18a: a player
+ * with shroud can't be the target of spells or abilities (CR 115.1 — players
+ * are legal targets, so the keyword reaches them). The controller only:
+ * "Players have shroud" and "Target player has shroud" name other holders and
+ * differ from the anchored text.
+ */
+const PLAYER_SHROUD = /^You have shroud$/;
+
+const playerShroudRule: Rule<StaticClauseIR> = pattern(
+    "player shroud",
+    PLAYER_SHROUD,
+    (): RuleResult<StaticClauseIR> => ok({ kind: "player-shroud" as const })
+);
+
 // ── The clause ─────────────────────────────────────────────────────────────
 
 export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
@@ -1908,6 +2006,9 @@ export const staticClauseRule: Rule<StaticClauseIR> = subGrammar(
         setEntersTappedRule,
         targetChoiceRequirementRule,
         skipDrawStepRule,
+        extraLandDropRule,
+        asEntersDiscardRule,
+        playerShroudRule,
         shuffleFromAnywhereRule,
         damagePreventionCounterRemovalRule,
         selfConditionalPumpRule,
