@@ -228,7 +228,7 @@ export interface DescriptorState {
     excludeAbility?: string;
     powerFilter?: { min?: number; max?: number };
     toughnessFilter?: { min?: number; max?: number };
-    mvFilter?: { min?: number; max?: number; equals?: "X" };
+    mvFilter?: { min?: number; max?: number | "X"; equals?: "X" };
     zone?: "graveyard";
     zoneOwner?: "you" | "any";
     card?: true;
