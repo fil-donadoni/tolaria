@@ -65,7 +65,10 @@ import {
 } from "./lib/health-verdict-store";
 import { issueOfBranch } from "./lib/issue-worktree";
 import {
+    describeLandFailures,
     failureComment,
+    failureReason,
+    type LandFailure,
     labelArgs,
     mergedComment,
     outcomeOf,
@@ -80,6 +83,7 @@ import {
     type LandOutcome,
     type QueuedPr,
 } from "./lib/land-runner";
+import { notifyOwner } from "./lib/notify-owner";
 import { primaryCheckout } from "./lib/primary-checkout";
 import { performRelease } from "./lib/queue-claim";
 import { readRepairIssues } from "./land";
@@ -355,7 +359,7 @@ function applyOutcome(input: {
     output: string;
     primary: string;
     log: (line: string) => void;
-}): void {
+}): LandFailure | null {
     const { pr, outcome, log } = input;
     if (outcome.action === "merged") {
         log(`PR #${pr.number}: landed`);
@@ -372,7 +376,7 @@ function applyOutcome(input: {
         );
         seedPresetsIfOwed(pr.number, input.primary, log);
         const issue = issueOfBranch(pr.headRefName);
-        if (issue === null) return;
+        if (issue === null) return null;
         closeIssueIfOpen(issue, pr.number, log);
         const ledger = claimLedgerPath(input.primary);
         try {
@@ -394,11 +398,11 @@ function applyOutcome(input: {
                 `PR #${pr.number}: claim release for issue #${issue} failed (${(err as Error).message.split("\n")[0]}) — housekeeping retries it`
             );
         }
-        return;
+        return null;
     }
     if (outcome.action === "requeue") {
         log(`PR #${pr.number}: stays queued — ${outcome.reason}`);
-        return;
+        return null;
     }
     log(
         `PR #${pr.number}: land exited ${input.status ?? "on a signal"} — labelling land-failed`
@@ -419,6 +423,11 @@ function applyOutcome(input: {
         ],
         log
     );
+    return {
+        pr: pr.number,
+        reason: failureReason(outcome.excerpt),
+        logPath: input.logPath,
+    };
 }
 
 /** One tick. Returns whether a landing was attempted. */
@@ -427,6 +436,8 @@ function tick(opts: {
     dir: string;
     dryRun: boolean;
     log: (line: string) => void;
+    /** Each `land-failed` relabel — the loop notifies the owner once per burst. */
+    onFailed: (failure: LandFailure) => void;
 }): boolean {
     const { primary, dryRun, log } = opts;
     const queued = listQueued();
@@ -465,7 +476,7 @@ function tick(opts: {
     } catch (err) {
         const message = (err as Error).message;
         appendFileSync(logPath, `${message}\n`);
-        applyOutcome({
+        const failure = applyOutcome({
             pr,
             outcome:
                 err instanceof PrepError && err.requeue
@@ -477,6 +488,7 @@ function tick(opts: {
             primary,
             log,
         });
+        if (failure) opts.onFailed(failure);
         return true;
     }
     log(`PR #${pr.number}: land in ${wt.dir} (log ${logPath})`);
@@ -511,7 +523,16 @@ function tick(opts: {
             (outcome.action === "failed" && wt.created))
     )
         dropWorktree(primary, wt.dir, pr.headRefName);
-    applyOutcome({ pr, outcome, status, logPath, output, primary, log });
+    const failure = applyOutcome({
+        pr,
+        outcome,
+        status,
+        logPath,
+        output,
+        primary,
+        log,
+    });
+    if (failure) opts.onFailed(failure);
     return true;
 }
 
@@ -564,14 +585,33 @@ async function main(): Promise<void> {
     process.on("SIGTERM", stop);
     process.on("SIGINT", stop);
 
+    // Failures of a burst of back-to-back ticks leave as ONE notification
+    // (issue #5599), flushed when the queue goes quiet or the loop ends.
+    let burst: LandFailure[] = [];
+    let lastReason: string | null = null;
+    const flushBurst = (): void => {
+        const message = describeLandFailures(burst, lastReason);
+        if (message === null) return;
+        lastReason = burst.at(-1)!.reason;
+        burst = [];
+        log(`notifying the owner: ${message}`);
+        notifyOwner(message, "Tolaria land-runner");
+    };
     try {
         do {
             let busy = false;
             try {
-                busy = tick({ primary, dir, dryRun, log });
+                busy = tick({
+                    primary,
+                    dir,
+                    dryRun,
+                    log,
+                    onFailed: (f) => burst.push(f),
+                });
             } catch (err) {
                 log(`tick failed: ${(err as Error).message.split("\n")[0]}`);
             }
+            if (!busy || once || stopping) flushBurst();
             if (once || stopping) break;
             // Straight on to the next PR after a landing; a quiet queue waits.
             if (!busy) {

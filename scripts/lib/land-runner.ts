@@ -290,3 +290,68 @@ export function pinLandRunnerPlatform(
 export function runsHere(config: LandRunnerConfig, platform: string): boolean {
     return config.platform === platform;
 }
+
+/** One PR the runner labelled `land-failed`, as the owner notification sees it. */
+export interface LandFailure {
+    pr: number;
+    /** One line: the failing step's first error line. */
+    reason: string;
+    logPath: string;
+}
+
+const ERROR_LINE =
+    /error|fail|refus|no such file|not found|cannot|denied|✗|exited \d/i;
+
+/**
+ * The one line naming why a `land` went red: the first error-looking line of
+ * its excerpt (its `land: refusing` line sorts first by construction), else
+ * the last non-empty line — a receipt's tail. Same cause on two PRs yields
+ * the same string, which is what `describeLandFailures` coalesces on.
+ */
+export function failureReason(excerpt: string): string {
+    const lines = excerpt
+        .replace(ANSI, "")
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l !== "" && l !== "…");
+    const line = lines.find((l) => ERROR_LINE.test(l)) ?? lines.at(-1);
+    return (line ?? "no output").slice(0, 160);
+}
+
+/**
+ * The ONE owner notification for the `land-failed` relabels of a burst of
+ * ticks (issue #5599), or `null` when there were none. Failures sharing a
+ * reason coalesce into one clause; a reason on 2+ PRs — or equal to the
+ * `previous` failure's — is called out as machine-level, not the PRs' fault
+ * (four PRs went red on a missing `node`, 2026-10-14).
+ */
+export function describeLandFailures(
+    failures: readonly LandFailure[],
+    previous: string | null = null
+): string | null {
+    if (failures.length === 0) return null;
+    const groups = new Map<string, LandFailure[]>();
+    for (const f of failures)
+        groups.set(f.reason, [...(groups.get(f.reason) ?? []), f]);
+    const prs = (g: LandFailure[]): string =>
+        g.map((f) => `#${f.pr}`).join(", ");
+    const head =
+        failures.length === 1
+            ? `PR #${failures[0].pr} land-failed`
+            : `${failures.length} PRs land-failed`;
+    const clauses = [...groups].map(([reason, g]) => {
+        const lead = groups.size === 1 && g.length > 1 ? "" : `${prs(g)}: `;
+        const repeated = g.length > 1 || reason === previous;
+        const callout = repeated
+            ? g.length > 1
+                ? ` — same cause on ${g.length} PRs — likely infra, not the PRs`
+                : " — same cause as the previous failure — likely infra, not the PR"
+            : "";
+        return `${lead}${reason}${callout}`;
+    });
+    const where =
+        groups.size === 1 && failures.length > 1
+            ? `${prs(failures)}; log ${failures[0].logPath}`
+            : `log ${failures.at(-1)!.logPath}`;
+    return `${head}: ${clauses.join(" | ")} (${where})`;
+}
