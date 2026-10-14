@@ -265,17 +265,22 @@ describe("release — parseFixBound", () => {
     });
 });
 
-describe("the AFK loop is NOT authorised to fix (PRD issue #3197, out of scope)", () => {
-    it("loop-drain.sh still stops on the RED marker and never calls release", () => {
-        // Authorising an agent to repair the base branch overnight, with no one
-        // to grill, is a separate decision. The TTY rule would refuse it
-        // anyway — this guards the layer above it.
+describe("the AFK loop repairs only through the bounded headless fixer (issue #5589)", () => {
+    it("loop-drain.sh stops on a RED it may not repair, and never calls release", () => {
+        // PRD issue #3197 left the overnight repair out of scope; the owner
+        // authorised it in issue #5589 — ONE `health:fix --headless` per RED
+        // tip, decided by `health:fix --plan`, never `release`.
         const sh = readFileSync(join(__dirname, "..", "loop-drain.sh"), "utf8");
         // Through the verdict store since issue #5462.
         expect(sh).toMatch(/health:status --json/);
         expect(sh).toMatch(/stopping rather than stacking work on a red tip/);
         expect(sh).not.toMatch(/bun run release/);
-        expect(sh).not.toMatch(/health:fix/);
+        // Every invocation (messages name `bun run health:fix` for a human,
+        // the driver runs it `--silent`): the plan, then the headless fixer.
+        const calls = [
+            ...sh.matchAll(/bun run --silent health:fix (\S+)/g),
+        ].map((m) => m[1]);
+        expect(calls).toEqual(["--plan", "--headless"]);
     });
 });
 
