@@ -309,13 +309,16 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Creature", count: 1 },
         },
     },
-    // CR 609.7a / 615.1a (issue #5601) — "The next time a <qualifier> source
-    // of your choice would deal damage to you this turn, prevent that damage".
-    // Exhibits the shield reading the `pick-source` choice's binding: the
-    // canned smoke scenario cannot make the choice, so this fixture is the
-    // evidence that the script the grammar emits is the one the hand-written
-    // catalogue writes (the Circle of Protection cycle also round-trips,
-    // Guard C).
+    // CR 609.7a / 609.7b / 615.1a (issue #5601) — "The next time a
+    // <qualifier> source of your choice would deal damage to you this turn,
+    // prevent that damage". Exhibits the shield reading the `pick-source`
+    // choice's binding: the canned smoke scenario cannot make the choice, so
+    // these fixtures are the evidence that the script the grammar emits is the
+    // one the hand-written catalogue writes (the Circle of Protection cycle also
+    // round-trips, Guard C). The shield's `match` — the qualifier its CR 609.7b
+    // recheck reads — is a literal of the form, so each printed qualifier has
+    // its own fixture: one colour per colour, "black or red", "artifact",
+    // "land", and none.
     {
         rule: "effect clause",
         card: {
@@ -349,6 +352,402 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
                             filter: { color: "R" },
                             count: 1,
                             prompt: "Choose a red source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["R"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "5f46f86a-9779-4ed3-99cb-76a03d380598",
+            name: "Circle of Protection: White",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: White",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-white-ability",
+                    oracleText:
+                        "{1}: The next time a white source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: "W" },
+                            count: 1,
+                            prompt: "Choose a white source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["W"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "d7572f17-f85d-45c0-ac64-43aac760eafe",
+            name: "Circle of Protection: Blue",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: Blue",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-blue-ability",
+                    oracleText:
+                        "{1}: The next time a blue source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: "U" },
+                            count: 1,
+                            prompt: "Choose a blue source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["U"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "7a5a8414-4da4-4dd0-93ae-210d50f4d6f6",
+            name: "Circle of Protection: Black",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: Black",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-black-ability",
+                    oracleText:
+                        "{1}: The next time a black source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: "B" },
+                            count: 1,
+                            prompt: "Choose a black source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["B"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "41b0f347-1398-4778-bf3f-4007d8a77162",
+            name: "Circle of Protection: Green",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: Green",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-green-ability",
+                    oracleText:
+                        "{1}: The next time a green source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: "G" },
+                            count: 1,
+                            prompt: "Choose a green source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["G"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "b03eb0c4-89a4-420d-8a23-1a868a07d9cf",
+            name: "Greater Realm of Preservation",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Greater Realm of Preservation",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "greater-realm-of-preservation-ability",
+                    oracleText:
+                        "{1}{W}: The next time a black or red source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 1, W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { color: ["B", "R"] },
+                            count: 1,
+                            prompt: "Choose a black or red source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { colors: ["B", "R"] },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "2e61e9c0-a2b9-4a24-8cb0-5160accce183",
+            name: "Circle of Protection: Artifacts",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Circle of Protection: Artifacts",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "circle-of-protection-artifacts-ability",
+                    oracleText:
+                        "{2}: The next time an artifact source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 2 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { type: "Artifact" },
+                            count: 1,
+                            prompt: "Choose an artifact source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { cardType: "Artifact" },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "605dd1b5-8946-4bd0-b31b-e99bf63a1bc4",
+            name: "Rune of Protection: Lands",
+            manaCost: "{1}{W}",
+            typeLine: "Enchantment",
+            oracleText:
+                "{W}: The next time a land source of your choice would deal damage to you this turn, prevent that damage.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+            layout: "normal",
+        },
+        expected: {
+            name: "Rune of Protection: Lands",
+            types: ["Enchantment"],
+            manaCost: { X: 1, W: 1 },
+            oracleText:
+                "{W}: The next time a land source of your choice would deal damage to you this turn, prevent that damage.\nCycling {2} ({2}, Discard this card: Draw a card.)",
+            activatedAbilities: [
+                {
+                    id: "rune-of-protection-lands-ability",
+                    oracleText:
+                        "{W}: The next time a land source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { W: 1 } },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            filter: { type: "Land" },
+                            count: 1,
+                            prompt: "Choose a land source.",
+                            bind: "$source1",
+                        },
+                        {
+                            op: "preventDamage",
+                            mode: "next-from-source",
+                            source: { ref: "$source1" },
+                            to: { player: "controller" },
+                            duration: { phase: "end-of-turn" },
+                            match: { cardType: "Land" },
+                        },
+                    ],
+                },
+                {
+                    id: "cycling",
+                    oracleText:
+                        "Cycling {2} ({2}, Discard this card: Draw a card.)",
+                    cost: {
+                        mana: { generic: 2 },
+                        discardThis: true,
+                        cyclingCost: true,
+                    },
+                    activateFromHand: true,
+                    useStack: true,
+                    effects: [{ op: "draw", player: "controller", count: 1 }],
+                },
+            ],
+        },
+    },
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "265204a9-0ce2-4a0a-a9ea-8537cd94b079",
+            name: "Pentagram of the Ages",
+            manaCost: "{4}",
+            typeLine: "Artifact",
+            oracleText:
+                "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
+            layout: "normal",
+        },
+        expected: {
+            name: "Pentagram of the Ages",
+            types: ["Artifact"],
+            manaCost: { X: 4 },
+            oracleText:
+                "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
+            activatedAbilities: [
+                {
+                    id: "pentagram-of-the-ages-ability",
+                    oracleText:
+                        "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
+                    cost: { mana: { X: 4 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "choice",
+                            kind: "pick-source",
+                            player: "controller",
+                            zone: "battlefield-or-stack",
+                            count: 1,
+                            prompt: "Choose a source.",
                             bind: "$source1",
                         },
                         {
