@@ -110,7 +110,21 @@ describe("machine pins — no test inherits the host's role (issue #5590)", () =
     });
 
     it("the node test setup applied every pin — what every spawned script inherits", () => {
-        for (const pin of Object.keys(MACHINE_PINS))
-            expect(process.env[pin], pin).toBeDefined();
+        // Asked of a real child, spawned the way the health tests spawn
+        // `health-main`: the parent's environment, nothing added.
+        const pins = Object.keys(MACHINE_PINS);
+        const child = spawnSync(
+            "bun",
+            [
+                "-e",
+                `process.stdout.write(JSON.stringify(${JSON.stringify(pins)}.filter((k) => process.env[k] === undefined)))`,
+            ],
+            { cwd: REPO_ROOT, encoding: "utf8", env: { ...process.env } }
+        );
+        expect(child.status, child.stderr).toBe(0);
+        expect(
+            JSON.parse(child.stdout),
+            "pins the child does not inherit"
+        ).toEqual([]);
     });
 });
