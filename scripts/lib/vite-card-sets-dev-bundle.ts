@@ -51,8 +51,10 @@ export interface SetNamespaceImport {
 // a namespace import of the Set's `index.cards` module.
 const SET_IMPORT_LINE =
     /^import \* as ([A-Za-z_$][\w$]*) from "\.\/sets\/([a-z0-9]+)\/index\.cards";$/gm;
-// Any other way of naming a Set module from the catalogue.
-const ANY_SET_IMPORT = /\bfrom\s*["']\.\/sets\/|\bimport\s*\(\s*["']\.\/sets\//;
+// Any other mention of a Set module path in the catalogue — a side-effect
+// import, `import()`, `require`, `import.meta.glob` — once the namespace
+// imports are rewritten: the catalogue has no other `./sets/` string.
+const ANY_SET_IMPORT = /["'`]\.\/sets\//;
 
 /**
  * Rewrite the catalogue's Set imports into one import of
@@ -115,11 +117,18 @@ export function isInsideSets(root: string, file: string): boolean {
 
 export interface CardSetsBundle {
     code: string;
+    /** Without `sourcesContent` (6.2 MB → 1.0 MB inline per graph load):
+     *  DevTools reads each Set source from the dev server, by the root-relative
+     *  URL `sources` names. */
     map: string;
     /** Root-relative URLs the bundle imports (everything outside the Sets). */
     externals: string[];
-    /** Absolute paths of the modules folded into the bundle. */
+    /** Absolute paths of the modules with code in the bundle. */
     modules: string[];
+    /** Absolute paths of every file the bundle was built from — `modules`
+     *  plus the empty `export {}` colour shims it drops. What a change must
+     *  touch to make the bundle stale. */
+    watched: string[];
 }
 
 const ENTRY_ID = "\0tolaria-card-sets-entry";
@@ -172,17 +181,28 @@ export async function bundleCardSets(
     try {
         const { output } = await bundle.generate({
             format: "esm",
-            sourcemap: true,
+            // `hidden`: Vite inlines the map it is handed; no comment of ours.
+            sourcemap: "hidden",
+            sourcemapExcludeSources: true,
+            sourcemapPathTransform: (relative, mapPath) =>
+                `/${path
+                    .relative(
+                        root,
+                        path.resolve(path.dirname(mapPath), relative)
+                    )
+                    .split(path.sep)
+                    .join("/")}`,
         });
         const chunk = output[0];
+        const inputs = (ids: Iterable<string>) =>
+            // `\0` ids are the bundler's own (the entry, Rolldown's runtime).
+            [...ids].filter((m) => !m.startsWith("\0"));
         return {
             code: chunk.code,
             map: chunk.map ? chunk.map.toString() : "",
             externals: [...chunk.imports],
-            // `\0` ids are the bundler's own (the entry, Rolldown's runtime).
-            modules: Object.keys(chunk.modules).filter(
-                (m) => !m.startsWith("\0")
-            ),
+            modules: inputs(Object.keys(chunk.modules)),
+            watched: inputs(await bundle.watchFiles),
         };
     } finally {
         await bundle.close();
@@ -208,6 +228,10 @@ export function cardSetsDevBundle(): Plugin {
     let root = process.cwd();
     let cataloguePath = path.join(root, CATALOGUE_MODULE);
     let building: Promise<CardSetsBundle> | null = null;
+    /** The files the LAST finished build read; `null` while one is in flight
+     *  (or none ran), when any change under the Sets counts. */
+    let watched: ReadonlySet<string> | null = null;
+    let pendingReload: ReturnType<typeof setTimeout> | null = null;
 
     const build = (): Promise<CardSetsBundle> => {
         if (building === null) {
@@ -215,26 +239,45 @@ export function cardSetsDevBundle(): Plugin {
             const { sets } = rewriteCatalogueSetImports(
                 readFileSync(cataloguePath, "utf8")
             );
-            building = bundleCardSets(root, sets).then((bundle) => {
+            watched = null;
+            const current = bundleCardSets(root, sets).then((bundle) => {
+                if (building === current) watched = new Set(bundle.watched);
                 console.log(
-                    `card-sets dev bundle: ${bundle.modules.length} Set modules → 1 in ${(performance.now() - started).toFixed(0)} ms`
+                    `card-sets dev bundle: ${bundle.watched.length} Set files → 1 module in ${(performance.now() - started).toFixed(0)} ms`
                 );
                 return bundle;
             });
-            building.catch(() => {
-                building = null;
+            building = current;
+            current.catch(() => {
+                if (building === current) building = null;
             });
         }
         return building;
     };
 
+    /** Whether a change to `file` makes the bundle stale: the catalogue, or a
+     *  file the bundle was built from — never a Set's `__tests__`. */
+    const isStaleBy = (file: string): boolean => {
+        const abs = path.resolve(file);
+        if (abs === cataloguePath) return true;
+        if (!isInsideSets(root, abs)) return false;
+        return watched === null || watched.has(abs);
+    };
+
+    // Trailing-debounced: a `git checkout` touching many Sets costs one
+    // rebuild and one reload, not one per file.
     const invalidate = (server: ViteDevServer): void => {
         building = null;
-        for (const environment of Object.values(server.environments)) {
-            const mod = environment.moduleGraph.getModuleById(RESOLVED_ID);
-            if (mod) environment.moduleGraph.invalidateModule(mod);
-        }
-        server.ws.send({ type: "full-reload" });
+        watched = null;
+        if (pendingReload !== null) clearTimeout(pendingReload);
+        pendingReload = setTimeout(() => {
+            pendingReload = null;
+            for (const environment of Object.values(server.environments)) {
+                const mod = environment.moduleGraph.getModuleById(RESOLVED_ID);
+                if (mod) environment.moduleGraph.invalidateModule(mod);
+            }
+            server.ws.send({ type: "full-reload" });
+        }, 100);
     };
 
     return {
@@ -247,11 +290,7 @@ export function cardSetsDevBundle(): Plugin {
         },
         configureServer(server) {
             server.watcher.on("all", (_event, file) => {
-                if (
-                    isInsideSets(root, file) ||
-                    path.resolve(file) === cataloguePath
-                )
-                    invalidate(server);
+                if (isStaleBy(file)) invalidate(server);
             });
         },
         resolveId(source) {
