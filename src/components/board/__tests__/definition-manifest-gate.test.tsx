@@ -13,20 +13,26 @@ import type { Id } from "@convex/_generated/dataModel";
  *   - a solo client installs the union of BOTH seats' rows;
  *   - the own row `null` on a playing Game is the whole-catalogue fallback,
  *     never a gate that waits forever; the opponent's `null` is ignored;
- *   - a widened Manifest holds the board again until its new Sets are in;
- *   - a failed load is named and retried.
+ *   - every seat's row settles before the first install, and a widened
+ *     Manifest installs in the background: the board is held ONCE, never
+ *     unmounted by a widen;
+ *   - a failed load, and a failed query, are named and retried.
  */
 
 const rows = new Map<
     string,
     { entries: { definitionId: string; setCode: string }[] } | null | undefined
 >();
+const errors = new Map<string, Error>();
+const retry = vi.fn();
 vi.mock("~/hooks/useResilientQuery", () => ({
     useResilientQuery: (
         _query: unknown,
         args: { playerId: string } | "skip"
     ) => ({
         data: args === "skip" ? undefined : rows.get(args.playerId),
+        error: args === "skip" ? null : (errors.get(args.playerId) ?? null),
+        retry,
     }),
 }));
 
@@ -64,6 +70,7 @@ function renderGate(playerId: string, seatIds: string[]) {
 
 beforeEach(() => {
     rows.clear();
+    errors.clear();
     installSets.mockResolvedValue(undefined);
     hydrateCatalogue.mockResolvedValue(0);
 });
@@ -73,8 +80,9 @@ afterEach(() => {
 });
 
 describe("DefinitionManifestGate", () => {
-    it("mounts nothing while the viewer's row is loading", () => {
-        rows.set("p1", undefined);
+    it("mounts nothing while any seat's row is loading", () => {
+        rows.set("p1", { entries: [entry("lea")] });
+        rows.set("p2", undefined);
         renderGate("p1", ["p1", "p2"]);
         expect(screen.queryByText("the board")).toBeNull();
         expect(screen.getByText("Loading cards...")).toBeTruthy();
@@ -117,15 +125,12 @@ describe("DefinitionManifestGate", () => {
         expect(installSets).not.toHaveBeenCalled();
     });
 
-    it("holds the board again when the Manifest widens, until the new Sets are in", async () => {
+    it("installs a widened Manifest's Sets in the background — the board is held once, never unmounted", async () => {
         rows.set("p1", { entries: [entry("lea")] });
         const view = renderGate("p1", ["p1"]);
         await screen.findByText("the board");
 
-        let release: () => void = () => {};
-        installSets.mockImplementationOnce(
-            () => new Promise<void>((resolve) => (release = resolve))
-        );
+        installSets.mockImplementationOnce(() => new Promise<void>(() => {}));
         rows.set("p1", { entries: [entry("lea"), entry("arn")] });
         view.rerender(
             <DefinitionManifestGate
@@ -136,10 +141,19 @@ describe("DefinitionManifestGate", () => {
                 {CHILD}
             </DefinitionManifestGate>
         );
-        expect(screen.queryByText("the board")).toBeNull();
+        // Still mounted while the new Set loads; the install was asked for.
+        expect(screen.getByText("the board")).toBeTruthy();
         expect([...installSets.mock.calls[1]![0]]).toEqual(["lea", "arn"]);
-        release();
-        await screen.findByText("the board");
+    });
+
+    it("names a failed query and retries both subscriptions", async () => {
+        rows.set("p1", undefined);
+        errors.set("p1", new Error("query timeout"));
+        renderGate("p1", ["p1", "p2"]);
+        await screen.findByText("query timeout");
+        expect(screen.queryByText("the board")).toBeNull();
+        screen.getByRole("button", { name: "Retry" }).click();
+        expect(retry).toHaveBeenCalledTimes(2);
     });
 
     it("names a failed load and re-installs on retry", async () => {

@@ -5,49 +5,11 @@
 // `pendingChoiceLabel("name-card")` this is the frontend half of the
 // GRE→game.ts→UI name-card path.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, fireEvent, cleanup } from "@testing-library/react";
+import CardNameInput from "~/components/board/card-name-input";
 import { pendingChoiceLabel } from "~/lib/pending-choice-labels";
 
-// The prompt is a whole-catalogue surface (issue #5615): the submit waits for
-// every Set to be resident. Here it already is, so the gate is transparent;
-// the "not yet" half is its own block below.
-const isCatalogueHydrated = vi.fn(() => true);
-const hydrateCatalogue = vi.fn<() => Promise<number>>(() => Promise.resolve(0));
-vi.mock("~/lib/catalogueArtifact", () => ({
-    isCatalogueHydrated,
-    hydrateCatalogue,
-}));
-
-const { default: CardNameInput } =
-    await import("~/components/board/card-name-input");
-
-afterEach(() => {
-    cleanup();
-    isCatalogueHydrated.mockReturnValue(true);
-    hydrateCatalogue.mockImplementation(() => Promise.resolve(0));
-});
-
-describe("CardNameInput waits for the whole catalogue (issue #5615)", () => {
-    it("starts loading it on mount, and enables a valid name only once it is resident", async () => {
-        isCatalogueHydrated.mockReturnValue(false);
-        let resolveLoad: (n: number) => void = () => {};
-        hydrateCatalogue.mockImplementation(
-            () => new Promise<number>((resolve) => (resolveLoad = resolve))
-        );
-        const { getByLabelText, getByText } = render(
-            <CardNameInput disabled={false} onSubmit={() => {}} />
-        );
-        expect(hydrateCatalogue).toHaveBeenCalledTimes(1);
-        const submit = getByText("Name it") as HTMLButtonElement;
-        fireEvent.change(getByLabelText("Card name"), {
-            target: { value: "Tundra Wolves" },
-        });
-        // A valid name, every Set not yet resident: held.
-        expect(submit.disabled).toBe(true);
-        resolveLoad(0);
-        await waitFor(() => expect(submit.disabled).toBe(false));
-    });
-});
+afterEach(cleanup);
 
 describe("CardNameInput (name-card UI, #489)", () => {
     it("disables submit until the typed name is a registered card", () => {

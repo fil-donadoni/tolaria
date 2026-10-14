@@ -7,15 +7,7 @@ import {
 } from "@/lib/catalogueArtifact";
 import LoadingScreen from "@/components/ui/loading-screen";
 import CatalogueLoadError from "@/components/ui/catalogue-load-error";
-
-/** What a gated surface needs resident before it renders (issue #5615, ADR
- *  0113 Amendment V):
- *  - `whole` — the packed corpus and every hand-written Set: the deck
- *    builder, deck detail, the Draft Lab, admin, the join antechamber.
- *  - `game` — the packed corpus only. The game route then loads the Sets of
- *    its Definition Manifest itself (`DefinitionManifestGate`), so a game
- *    downloads its own cards and never the catalogue. */
-export type CatalogueGateMode = "whole" | "game";
+import type { CatalogueGateMode } from "@/lib/catalogueGateMode";
 
 /**
  * The loading gate for the card catalogue (ADR 0113 §3, issue #3053).
@@ -48,15 +40,19 @@ export default function CatalogueGate({
     children: ReactNode;
 }) {
     const [error, setError] = useState<Error | null>(null);
+    // The mode the hydration was EARNED for: one gate instance outlives a
+    // navigation from `/game` to a whole-catalogue route (`RouteOutlet`
+    // renders the same element shape), and a `ready` earned in game mode
+    // must not let a whole-mode surface render over a partial catalogue.
+    const [readyFor, setReadyFor] = useState<CatalogueGateMode | null>(null);
+    const [attempt, setAttempt] = useState(0);
     // Already resident (the Setup flow prefetches the corpus, issue #5584):
     // no loading frame at all. The whole catalogue resident satisfies either
     // mode.
-    const [ready, setReady] = useState(
-        () =>
-            isCatalogueHydrated() ||
-            (mode === "game" && isCompiledCorpusHydrated())
-    );
-    const [attempt, setAttempt] = useState(0);
+    const ready =
+        readyFor === mode ||
+        isCatalogueHydrated() ||
+        (mode === "game" && isCompiledCorpusHydrated());
 
     useEffect(() => {
         let cancelled = false;
@@ -64,7 +60,7 @@ export default function CatalogueGate({
             mode === "game" ? hydrateCompiledCorpus : hydrateCatalogue;
         hydrate().then(
             () => {
-                if (!cancelled) setReady(true);
+                if (!cancelled) setReadyFor(mode);
             },
             (cause: unknown) => {
                 if (!cancelled)

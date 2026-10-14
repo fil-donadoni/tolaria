@@ -52,6 +52,12 @@ function install(code: string): Promise<SetModuleExports> {
     }
     const load = loadSetModule(code).then(
         (exports) => {
+            // A loader that answers nothing (the dev bundle missing a
+            // namespace) is a failed install, never a resident empty Set —
+            // the board would wait on a residency that never comes.
+            if (exports === undefined || exports === null) {
+                throw new Error(`Set module ${code} loaded no exports`);
+            }
             resident.set(code, exports);
             loading.delete(code);
             return exports;

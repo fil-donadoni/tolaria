@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
 import DefinitionManifestGate from "~/components/board/definition-manifest-gate";
+import CatalogueGate from "~/components/ui/catalogue-gate";
 import ManualBoardContainer from "~/components/board/manual-board-container";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
@@ -131,34 +132,43 @@ export default function GameRoute() {
         // ADR 0080 — the ONLY consumer of games.mode: route the manual game
         // to its own board rather than the GRE board.
         if (game.mode === "manual") {
+            // A Tabletop game holds no Card Definitions (ADR 0080) and so has
+            // no Definition Manifest, yet its card images and previews resolve
+            // a printing's name through the registry: it gets the WHOLE
+            // catalogue (issue #5615), as before this route went per-game.
+            //
             // A conceded Tabletop game has had its `manualStates` rows deleted
             // by `manualConcedeMatch`, so the container would subscribe to a
             // null state and sit on "Loading..." forever. The result screen
             // replaces the board outright.
             if (game.status === "finished") {
                 return (
-                    <div className="flex h-dvh flex-col">
-                        <SurfaceReadyMarker />
-                        <ManualGameOverDialog
-                            players={game.players}
-                            winnerId={game.winner}
-                            matchId={game.matchId}
-                            viewerId={playerId}
-                            onSwitchGame={handleSwitchGame}
-                        />
-                    </div>
+                    <CatalogueGate mode="whole">
+                        <div className="flex h-dvh flex-col">
+                            <SurfaceReadyMarker />
+                            <ManualGameOverDialog
+                                players={game.players}
+                                winnerId={game.winner}
+                                matchId={game.matchId}
+                                viewerId={playerId}
+                                onSwitchGame={handleSwitchGame}
+                            />
+                        </div>
+                    </CatalogueGate>
                 );
             }
             return (
-                <div className="flex h-dvh flex-col">
-                    <SurfaceReadyMarker />
-                    <ManualBoardContainer
-                        key={gameId}
-                        gameId={gameId}
-                        playerId={playerId}
-                        solo={game.solo === true}
-                    />
-                </div>
+                <CatalogueGate mode="whole">
+                    <div className="flex h-dvh flex-col">
+                        <SurfaceReadyMarker />
+                        <ManualBoardContainer
+                            key={gameId}
+                            gameId={gameId}
+                            playerId={playerId}
+                            solo={game.solo === true}
+                        />
+                    </div>
+                </CatalogueGate>
             );
         }
 

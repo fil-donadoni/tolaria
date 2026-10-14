@@ -1,5 +1,5 @@
 import { use, type ReactNode } from "react";
-import type { CatalogueGateMode } from "~/components/ui/catalogue-gate";
+import type { CatalogueGateMode } from "~/lib/catalogueGateMode";
 import { loadCatalogueGate } from "~/lib/catalogueGateLoader";
 
 /** The catalogue gate around `children`, read through `use()`: synchronous

@@ -25,7 +25,10 @@ export default function RouteOutlet() {
     if (need === "none") return <Outlet />;
     return (
         <Suspense fallback={<LoadingScreen message="Loading cards..." />}>
-            <CatalogueGateFrame mode={need}>
+            {/* Keyed by mode: a gate that earned `ready` for the game route
+                must not carry it onto a whole-catalogue route (the frame
+                renders the same element shape across navigations). */}
+            <CatalogueGateFrame key={need} mode={need}>
                 <Outlet />
             </CatalogueGateFrame>
         </Suspense>

@@ -17,8 +17,10 @@ export interface DefinitionsResidence {
  * what lands on the board outside it — a debug placement before the widened
  * Manifest arrives, a card fetched from outside the game (CR 400.11), a
  * Manifest Set code the client's index does not know — is caught HERE, by
- * the ids the state actually carries, and loaded with the board held back.
- * Never debug-only, and never a throw out of `getDefinition` mid-render.
+ * the ids the state actually carries, and loaded with the snapshot held back.
+ * Never debug-only. This hold is what keeps `getDefinition` — which throws
+ * for a card whose Set is not resident, like any unknown id — from running
+ * against a snapshot it cannot resolve.
  *
  * `ids` is `null` while there is no state to read. Cheap per render: a map
  * lookup per id; the install runs once per distinct set of missing Sets.
@@ -37,6 +39,9 @@ export function useDefinitionsResident(
     useEffect(() => {
         if (neededKey === "") return;
         let cancelled = false;
+        // A new set of missing Sets starts clean: an earlier failure is not
+        // this load's.
+        setError(null);
         installSets(neededKey.split(" ")).then(
             () => {
                 if (!cancelled) bump();

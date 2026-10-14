@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
     RouterProvider,
     createMemoryHistory,
@@ -59,6 +61,16 @@ describe("RouteOutlet", () => {
         const gate = await screen.findByTestId("catalogue-gate");
         expect(gate.contains(screen.getByTestId("page"))).toBe(true);
         expect(gate.dataset.mode).toBe("whole");
+    });
+
+    it("keys the gate by mode, so a game-mode gate never carries its readiness onto a whole route", () => {
+        const outlet = readFileSync(
+            resolve(__dirname, "../route-outlet.tsx"),
+            "utf8"
+        );
+        expect(outlet).toMatch(
+            /<CatalogueGateFrame key=\{need\} mode=\{need\}>/
+        );
     });
 
     it("gates a route declaring catalogue: game in game mode (issue #5615)", async () => {

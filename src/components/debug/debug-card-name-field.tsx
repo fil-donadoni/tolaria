@@ -38,9 +38,16 @@ export default function DebugCardNameField({
     useEffect(() => {
         if (source !== "tokens") return;
         let cancelled = false;
-        hydrateCatalogue().then(() => {
-            if (!cancelled) setWhole(true);
-        });
+        hydrateCatalogue().then(
+            () => {
+                if (!cancelled) setWhole(true);
+            },
+            (cause: unknown) => {
+                // Suggestions stay empty; the typed key is still submitted
+                // and validated server-side.
+                console.warn("token catalogue not loaded", cause);
+            }
+        );
         return () => {
             cancelled = true;
         };

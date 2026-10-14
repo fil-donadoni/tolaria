@@ -1,10 +1,8 @@
-/** What the matched route tree asks of the catalogue (`src/router.tsx`,
- *  read by `RouteOutlet`): `none` — every non-root match is a declared
- *  `lightSurface`; `game` — every gated match declares `catalogue: "game"`
- *  and loads its own Sets behind the Definition Manifest (issue #5615); else
- *  `whole`, the default. */
-export type RouteCatalogueNeed = "none" | "game" | "whole";
+import type { RouteCatalogueNeed } from "./catalogueGateMode";
 
+/** `none` — every non-root match is a declared `lightSurface`; `game` —
+ *  every gated match declares `catalogue: "game"` and loads its own Sets
+ *  behind the Definition Manifest (issue #5615); else `whole`, the default. */
 export function routeCatalogueNeed(
     matches: readonly {
         routeId: string;

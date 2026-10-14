@@ -14,8 +14,8 @@ describe("manifestSetCodes", () => {
     it("unions the rows, each code once, in first-seen order", () => {
         expect(
             manifestSetCodes([
-                { entries: [e("arn"), e("lea"), e("arn")] },
-                { entries: [e("lea")] },
+                { playerId: "p1", entries: [e("arn"), e("lea"), e("arn")] },
+                { playerId: "p2", entries: [e("lea")] },
             ])
         ).toEqual(["arn", "lea"]);
     });
@@ -25,7 +25,7 @@ describe("manifestSetCodes", () => {
             manifestSetCodes([
                 null,
                 undefined,
-                { entries: [e("zzz"), e("lea")] },
+                { playerId: "p1", entries: [e("zzz"), e("lea")] },
             ])
         ).toEqual(["lea"]);
     });

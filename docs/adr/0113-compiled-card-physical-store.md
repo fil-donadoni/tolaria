@@ -834,9 +834,11 @@ it. This amendment ships the first slice, the hand-written half.
   Draft Lab, admin, the join antechamber, and the Brain worker until its own
   slice — awaits the whole catalogue through the same loader: § 3's behaviour,
   unchanged where it was wanted.
-- **§ 1 holds: `getDefinition` stays synchronous.** The catalogue answers
-  `null` for a card whose Set is not resident — never a throw — and the board
-  is held until every Set the state names is in (`useDefinitionsResident`):
+- **§ 1 holds: `getDefinition` stays synchronous.** For a card whose Set is
+  not resident the catalogue answers nothing (`tryGetDefinition` `null`,
+  `getDefinition` the usual throw), so the hold is the only guarantee: the
+  board shows a snapshot only once every Set it names is in
+  (`useDefinitionsResident`), keeping the last resident snapshot meanwhile:
   a debug placement before the widened Manifest arrives, a card fetched from
   outside the game (CR 400.11), a Manifest Set code the client's index does
   not know (the code is a hint frozen at the Game's build; client and server
@@ -844,11 +846,13 @@ it. This amendment ships the first slice, the hand-written half.
   `playing` Game with no Manifest — built before manifests existed — falls
   back to the whole catalogue rather than waiting forever.
 - **Whole-catalogue reads on the game route get a disposition each:** the
-  name-a-card prompt and the debug token picker switch to whole mode when
-  they open (CR 201.4 names any card; the token catalogue walks every
-  definition); `getChooseableCardNames` / `getAllCardNames` read the
-  Definition Index and need nothing; the Bot's registry walk on the main
-  thread skips a non-resident card, the worker holds every Set.
+  name-a-card prompt needs no definition (CR 201.4 names any card; its list
+  and its submit gate read the Definition Index, the name's legality is the
+  server's check); the debug token picker switches to whole mode when it
+  opens (the token catalogue walks every definition); the Tabletop faces of
+  the route get the whole catalogue (their card images resolve a printing's
+  name through the registry); the Bot's registry walk on the main thread
+  skips a non-resident card, the worker holds every Set.
 - **A chunk per Set, by ownership.** A helper only one Set reaches (an
   ability module one Set uses) joins that Set's chunk; one that two Sets or
   the app reach stays in a shared chunk every Set chunk imports one way

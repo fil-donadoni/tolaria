@@ -918,6 +918,12 @@ function nameCardDefaultFor(
  *  the client bundle outright — `[MISSING_EXPORT] "getAllCards" is not exported
  *  by "convex/cards/client.ts"`, empty `#root`, every route down (#2530).
  *
+ *  On a game route the client holds only its game's Sets (issue #5615): a
+ *  non-resident hand-written card resolves to nothing here and is skipped, so
+ *  this rung's answer on the MAIN thread depends on which Sets are resident —
+ *  the Brain worker holds every Set, and rung 2 answers almost every head
+ *  before this one is reached. Accepted until PRD #5602's worker slice.
+ *
  *  The two sets agree where it matters. On both sides the registry enumerates
  *  the catalogue's lazy source in Definition Index order (issue #4856), the
  *  client's compiled half from the packed corpus it fetched (issue #4861), so

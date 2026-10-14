@@ -1,12 +1,11 @@
-import type { DefinitionManifestEntry } from "@convex/definitionManifestEntry";
+import type { FunctionReturnType } from "convex/server";
+import type { api } from "@convex/_generated/api";
 import { isKnownSetCode } from "./definitionShards";
 
 /** One seat's Definition Manifest as `gameReads.getDefinitionManifest`
- *  returns it: `undefined` while loading, `null` for a seat the viewer does
- *  not own or a Game that predates manifests. */
+ *  returns it, or `undefined` while loading. */
 export type ManifestRow =
-    | { entries: readonly DefinitionManifestEntry[] }
-    | null
+    | FunctionReturnType<typeof api.gameReads.getDefinitionManifest>
     | undefined;
 
 /** The Sets the Manifest rows ask for, each once, in row order — only the

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
 import { useDefinitionsResident } from "~/hooks/useDefinitionsResident";
-import { stateDefinitionIds } from "~/lib/stateDefinitionIds";
+import { publicStateDefinitionIds } from "~/lib/publicStateDefinitionIds";
 import CatalogueLoadError from "~/components/ui/catalogue-load-error";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
@@ -149,7 +149,7 @@ export default function Board({
         pageVisible && showAllCards ? { gameId, debugAllActions } : "skip"
     );
     const stateQuery = showAllCards ? fullState : publicState;
-    const state = stateQuery.data;
+    const liveState = stateQuery.data;
 
     // Owning Match (ADR 0029): the game-over screen shows the terminal Match
     // result. Resolve the matchId from the game doc, then the Match meta.
@@ -190,19 +190,25 @@ export default function Board({
         preloadCardImages(gameCardIds);
     }, [gameCardIds]);
 
-    const players = state?.players;
-    const stack = state?.stack;
-    // Every definition the state names (ADR 0026: the viewer's known library
-    // cards included) — what the board preloads art for, and what must be
-    // RESIDENT before it renders (issue #5615): a card outside the game's
-    // Definition Manifest (a debug placement, a card fetched from outside the
-    // game) loads its Set on demand with the board held back, never a throw
-    // out of `getDefinition` mid-render.
+    // Every definition the live state names — what the board preloads art
+    // for, and what must be RESIDENT before it is shown (issue #5615): a card
+    // outside the game's Definition Manifest (a debug placement, a card
+    // fetched from outside the game) loads its Set on demand. The board HOLDS
+    // THE UPDATE, not its tree: until the new snapshot's Sets are in it keeps
+    // showing the last snapshot every Set of which was resident, so no
+    // `getDefinition` below ever sees a card it cannot resolve and nothing
+    // below is unmounted. Only the very first snapshot shows a loading line.
     const stateIds = useMemo(
-        () => (players ? stateDefinitionIds({ players, stack }) : null),
-        [players, stack]
+        () => (liveState ? publicStateDefinitionIds(liveState) : null),
+        [liveState]
     );
     const residence = useDefinitionsResident(stateIds);
+    const [lastResident, setLastResident] =
+        useState<typeof liveState>(undefined);
+    useEffect(() => {
+        if (residence.ready && liveState) setLastResident(liveState);
+    }, [residence.ready, liveState]);
+    const state = residence.ready ? liveState : lastResident;
     useEffect(() => {
         if (stateIds) preloadCardImages(stateIds);
     }, [stateIds]);
@@ -304,14 +310,7 @@ export default function Board({
         );
     }
 
-    if (!state) {
-        return (
-            <div className="flex h-full items-center justify-center text-white">
-                Loading...
-            </div>
-        );
-    }
-    if (residence.error) {
+    if (residence.error && !state) {
         return (
             <CatalogueLoadError
                 error={residence.error}
@@ -319,10 +318,10 @@ export default function Board({
             />
         );
     }
-    if (!residence.ready) {
+    if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
-                Loading cards...
+                {residence.ready ? "Loading..." : "Loading cards..."}
             </div>
         );
     }

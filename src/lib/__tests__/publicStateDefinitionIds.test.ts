@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import type { Player, StackItem } from "~/types/game";
-import { stateDefinitionIds } from "../stateDefinitionIds";
+import { publicStateDefinitionIds } from "../publicStateDefinitionIds";
 
-/** Every zone a projected state carries a definition in, walked once (issue
- *  #5615): what the board must resolve before it renders. */
+/** Every place a projected state carries a definition id, walked once (issue
+ *  #5615): what the board must resolve before it shows a snapshot. */
 
 const card = (id: string, knownCardId?: string) =>
-    ({ card: { id }, knownCardId }) as never;
+    ({ card: { id }, knownCardId }) as unknown as Record<string, unknown>;
 
 function player(zones: Partial<Record<string, unknown>>): Player {
     return {
@@ -20,9 +20,9 @@ function player(zones: Partial<Record<string, unknown>>): Player {
     } as unknown as Player;
 }
 
-describe("stateDefinitionIds", () => {
-    it("walks every zone of every player and the stack, each id once", () => {
-        const ids = stateDefinitionIds({
+describe("publicStateDefinitionIds", () => {
+    it("walks every zone of every player, the companion, the stack and the off-stack bundles, each id once", () => {
+        const ids = publicStateDefinitionIds({
             players: [
                 player({
                     battlefield: [card("bf"), card("dup")],
@@ -31,12 +31,15 @@ describe("stateDefinitionIds", () => {
                     hand: [card("hd"), null],
                     revealedHand: [card("rh")],
                     library: { count: 9, known: [{ card: card("lk") }] },
+                    companion: { instance: card("cp"), used: false },
                 }),
                 player({
                     library: [card("lw"), card("dup")],
                 }),
             ],
             stack: [card("st") as StackItem],
+            phasedOut: [{ cards: [card("po")] }],
+            pendingTriggerBatch: [card("tb")],
         });
         expect(ids).toEqual([
             "bf",
@@ -46,20 +49,30 @@ describe("stateDefinitionIds", () => {
             "hd",
             "rh",
             "lk",
+            "cp",
             "lw",
             "st",
+            "po",
+            "tb",
         ]);
     });
 
-    it("includes the identity a face-down object hides from its owner's view", () => {
+    it("includes the identity a face-down object hides from its owner's view, and the granting card of a granted ability", () => {
         expect(
-            stateDefinitionIds({
+            publicStateDefinitionIds({
                 players: [
                     player({
-                        battlefield: [card("face-down:2-2-vanilla", "real")],
+                        battlefield: [
+                            {
+                                ...card("face-down:2-2-vanilla", "real"),
+                                grantedActivatedAbilities: [
+                                    { sourceCardId: "lord", abilityId: "a" },
+                                ],
+                            },
+                        ],
                     }),
                 ],
             })
-        ).toEqual(["face-down:2-2-vanilla", "real"]);
+        ).toEqual(["face-down:2-2-vanilla", "real", "lord"]);
     });
 });

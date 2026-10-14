@@ -121,10 +121,11 @@ const staleIndex = (what: string): Error =>
  *
  *  `null` while the Set is not RESIDENT in this graph (a client that has
  *  loaded only its game's Sets, issue #5615): the same answer an unknown id
- *  gets, never a throw out of the first `tryGetDefinition`. Nothing is
- *  memoised about the miss, so the next request after the Set is installed
- *  resolves. Holding the board until every Set it needs is resident is the
- *  gate's job (`src/lib/catalogue/definitionShards.ts`). */
+ *  gets — `tryGetDefinition` returns `null`, `getDefinition` throws `Card
+ *  not found`. Nothing is memoised about the miss, so the next request after
+ *  the Set is installed resolves. Not reading before the Set is resident is
+ *  the gate's job (`src/lib/catalogue/definitionShards.ts`), the only
+ *  guarantee there is. */
 function handWrittenDefinition(id: string): CardDefinition | null {
     const entry = handWrittenEntryById.get(id);
     if (entry === undefined) return null;

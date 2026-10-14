@@ -24,7 +24,7 @@
 // A dynamic import, never a static one: the gate imports the catalogue glue,
 // and the shell must not (issue #4854).
 import type { ComponentType, ReactNode, ReactPromise } from "react";
-import type { CatalogueGateMode } from "~/components/ui/catalogue-gate";
+import type { CatalogueGateMode } from "~/lib/catalogueGateMode";
 
 export type CatalogueGateComponent = ComponentType<{
     mode?: CatalogueGateMode;

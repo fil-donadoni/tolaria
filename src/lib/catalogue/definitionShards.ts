@@ -13,10 +13,11 @@
 //     placement before the widened Manifest arrives, or a card fetched from
 //     outside the game (CR 400.11), loads on demand with the board held back.
 //
-// `getDefinition` stays synchronous (ADR 0113 §1): the catalogue answers
-// `null` for a card whose Set is not resident, so a consumer that reads
-// before the gate has finished sees "unknown", never a throw — and the gate
-// never lets the board read before `installSets` has resolved.
+// `getDefinition` stays synchronous (ADR 0113 §1). For a card whose Set is
+// not resident the catalogue answers nothing: `tryGetDefinition` returns
+// `null`, `getDefinition` throws `Card not found` as for any unknown id. So
+// THE HOLD IS THE ONLY GUARANTEE: the gate and the board never read a
+// snapshot before `installSets` has resolved for every Set it names.
 import { parentIdOfTwin } from "@convex/cards/twinId";
 import { handWrittenSetCodeOf } from "@convex/cards/catalogue";
 import { setModuleSource } from "./set-modules.browser";

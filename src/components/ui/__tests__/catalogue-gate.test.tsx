@@ -115,3 +115,18 @@ describe("CatalogueGate in game mode (issue #5615)", () => {
         expect(hydrateCatalogue).toHaveBeenCalledTimes(1);
     });
 });
+
+describe("CatalogueGate across a mode change (issue #5615)", () => {
+    it("a readiness earned in game mode does not let a whole-mode surface render", async () => {
+        hydrateCompiledCorpus.mockResolvedValue(5000);
+        hydrateCatalogue.mockReturnValue(new Promise(() => {}));
+        const view = render(<CatalogueGate mode="game">{CHILD}</CatalogueGate>);
+        await waitFor(() =>
+            expect(screen.getByText("catalogue consumer")).toBeTruthy()
+        );
+        view.rerender(<CatalogueGate mode="whole">{CHILD}</CatalogueGate>);
+        expect(screen.queryByText("catalogue consumer")).toBeNull();
+        expect(screen.getByText("Loading cards...")).toBeTruthy();
+        expect(hydrateCatalogue).toHaveBeenCalledTimes(1);
+    });
+});
