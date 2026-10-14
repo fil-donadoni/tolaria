@@ -9,6 +9,14 @@ The split follows the residency finding in `context-residency-audit.md`:
 CLAUDE.md is resident in every session and every subagent, so a token there is
 paid a few thousand times; a token here is paid when someone asks why.
 
+**Freeze (ADR 0156, PRD #5620).** The home-built orchestration this file
+describes — `land` and the land-runner, `loop:afk`, the gate mutex, machine
+and session admission, batch health and its cadence, `release` — is being
+replaced by the GitHub-native pipeline (`docs/guides/github-pipeline.md`). It
+stays the authority on what runs until the phase that retires each piece
+lands, and it gets **no new feature outside PRD #5620**: a repair that keeps
+it running is fine, a new capability belongs in the new stack.
+
 ## Why `check:pr` may never be hand-picked
 
 `check:pr` = format + lint + type-check + `check:index` + `check:stubs` +

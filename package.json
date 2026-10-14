@@ -58,6 +58,7 @@
         "gate:who": "bun scripts/gate.ts who",
         "machine": "bun scripts/machine.ts",
         "reaper": "bun scripts/reaper.ts",
+        "runner": "bun scripts/github-runner.ts",
         "maintenance": "bun scripts/maintenance.ts",
         "health": "bun scripts/health-main.ts",
         "health:cadence": "bun scripts/health-cadence.ts",
