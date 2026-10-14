@@ -1038,5 +1038,20 @@
         "file": "scripts/__tests__/health-step.test.ts",
         "test": "HEALTH_SCRIPTS — only the steps that prove the tree (issue #5458) > never runs a maintenance script, nor a health-only guard as maintenance",
         "reason": "Disjointness census over MAINTENANCE_SCRIPTS vs HEALTH_SCRIPTS and HEALTH_ONLY_GUARDS, for every member, not a literal."
+    },
+    {
+        "file": "scripts/__tests__/health-evidence-pivot.test.ts",
+        "test": "/health-fix § 0 reads the pivot, never the log path > names `health:status --evidence` as THE read",
+        "reason": "Class guard of issue #5589 over the skill's prose: § 0 must read the RED evidence through the store, the only check a markdown procedure admits."
+    },
+    {
+        "file": "scripts/__tests__/health-evidence-pivot.test.ts",
+        "test": "/health-fix § 0 reads the pivot, never the log path > never derives a file to read from last.json's `log`",
+        "reason": "Class guard of issue #5589 over the skill's prose: § 0 must never read a machine-local log path."
+    },
+    {
+        "file": "scripts/__tests__/health-fix-headless.test.ts",
+        "test": "loopFixDecision — one attempt per tip, bounded > the bound is release's",
+        "reason": "Drift guard: LOOP_FIX_ATTEMPTS restates release's DEFAULT_FIX_ATTEMPTS (an import would cycle release → health-fix → health-fix-attempts)."
     }
 ]
