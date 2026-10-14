@@ -38,6 +38,28 @@ const known = new Set(codes);
 const resident = new Map<string, SetModuleExports>();
 const loading = new Map<string, Promise<SetModuleExports>>();
 
+// Residency is state OUTSIDE React, and a component that reads it (the
+// board's hold) must re-read it when it changes: this is the external store
+// `useSyncExternalStore` subscribes to. The version is the one value a
+// memoising caller can key on — the React Compiler memoises a call by its
+// arguments and cannot see a Map a function reads behind them.
+const listeners = new Set<() => void>();
+let version = 0;
+
+/** How many Sets have become resident in this graph so far: changes exactly
+ *  when a residency answer can change. */
+export function residencyVersion(): number {
+    return version;
+}
+
+/** Called after every Set that becomes resident. Returns the unsubscribe. */
+export function subscribeResidency(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => {
+        listeners.delete(listener);
+    };
+}
+
 function install(code: string): Promise<SetModuleExports> {
     const installed = resident.get(code);
     if (installed !== undefined) return Promise.resolve(installed);
@@ -60,6 +82,8 @@ function install(code: string): Promise<SetModuleExports> {
             }
             resident.set(code, exports);
             loading.delete(code);
+            version++;
+            for (const listener of listeners) listener();
             return exports;
         },
         (cause: unknown) => {

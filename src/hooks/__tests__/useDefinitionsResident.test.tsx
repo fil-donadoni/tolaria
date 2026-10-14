@@ -10,8 +10,19 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 const resident = new Set<string>();
 const setBySuffix = (id: string) => id.split(":")[0]!;
 const installSets = vi.fn<(codes: Iterable<string>) => Promise<void>>();
+const listeners = new Set<() => void>();
+let version = 0;
+const becameResident = () => {
+    version++;
+    for (const l of listeners) l();
+};
 vi.mock("~/lib/catalogue/definitionShards", () => ({
     installSets,
+    residencyVersion: () => version,
+    subscribeResidency: (l: () => void) => {
+        listeners.add(l);
+        return () => listeners.delete(l);
+    },
     // `<set>:<n>` ids; a `tok:` id needs no Set.
     setsNeededFor: (ids: Iterable<string>) => {
         const out = new Set<string>();
@@ -39,7 +50,10 @@ function Probe({ ids }: { ids: string[] | null }) {
 beforeEach(() => {
     resident.clear();
     installSets.mockImplementation(async (codes) => {
+        // A chunk arrives later, never within the effect that asked for it.
+        await new Promise((resolve) => setTimeout(resolve, 0));
         for (const code of codes) resident.add(code);
+        becameResident();
     });
 });
 afterEach(() => {

@@ -20,7 +20,13 @@
 // snapshot before `installSets` has resolved for every Set it names.
 import { parentIdOfTwin } from "@convex/cards/twinId";
 import { handWrittenSetCodeOf } from "@convex/cards/catalogue";
-import { setModuleSource } from "./set-modules.browser";
+import {
+    residencyVersion,
+    setModuleSource,
+    subscribeResidency,
+} from "./set-modules.browser";
+
+export { residencyVersion, subscribeResidency };
 
 /** Every Set code this client can install, in catalogue order. */
 export function allSetCodes(): readonly string[] {
@@ -50,8 +56,17 @@ export function setNeededBy(definitionId: string): string | undefined {
 }
 
 /** The Sets among those `definitionIds` need that are NOT resident yet, each
- *  once, in first-seen order. Empty = every definition is answerable now. */
-export function setsNeededFor(definitionIds: Iterable<string>): string[] {
+ *  once, in first-seen order. Empty = every definition is answerable now.
+ *
+ *  `version` is {@link residencyVersion} at the time of the call, passed by a
+ *  React caller so that a memoised call (the React Compiler keys a call on its
+ *  arguments) is recomputed when a Set becomes resident; the answer itself
+ *  reads the residency map, never the number. */
+export function setsNeededFor(
+    definitionIds: Iterable<string>,
+    version: number = residencyVersion()
+): string[] {
+    void version;
     const needed = new Set<string>();
     for (const id of definitionIds) {
         const code = setNeededBy(id);
