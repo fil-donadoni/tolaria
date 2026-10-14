@@ -111,6 +111,11 @@
     ],
     "Disenchant": [
         {
+            "label": "each-step edict: Disenchant takes the Destructive Flow that eats only the bot's nonbasic lands, not the 2-MV artifact (issue #5575)",
+            "tier": "must",
+            "needsSetup": false
+        },
+        {
             "label": "removal: Disenchant takes the artifact whose per-turn trigger outranks its floor (issue #5151)",
             "tier": "must",
             "needsSetup": false

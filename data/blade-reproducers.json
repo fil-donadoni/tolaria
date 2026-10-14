@@ -721,6 +721,59 @@
         "turn": 6,
         "libraryCount": 20
     },
+    "each-step edict: Disenchant takes the Destructive Flow that eats only the bot's nonbasic lands, not the 2-MV artifact (issue #5575)": {
+        "cards": [
+            {
+                "name": "Tundra",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Tundra",
+                "owner": "me",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Disenchant",
+                "owner": "me",
+                "zone": "hand"
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Plains",
+                "owner": "opp",
+                "zone": "battlefield",
+                "tapped": false
+            },
+            {
+                "name": "Aeolipile",
+                "owner": "opp",
+                "zone": "battlefield"
+            },
+            {
+                "name": "Destructive Flow",
+                "owner": "opp",
+                "zone": "battlefield"
+            }
+        ],
+        "phase": "PRECOMBAT_MAIN",
+        "turn": 8,
+        "landCount": 0,
+        "libraryCount": 20
+    },
     "entomb: buries the reanimation target, not one of eight lands": null,
     "entomb: buries the self-reachable card, not the bigger body": null,
     "escape: casts Phlage from the graveyard": {

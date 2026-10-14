@@ -12880,6 +12880,116 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5574. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue`'s life pricing (`stepSideLife`, `ai/opValuers.ts`) and the side grounding of a count over `$event.activePlayerId` (`groundCount`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: Karma never (Aeolipile 20). Before issue #5574: Disenchant on Karma 17/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): Karma 14/20.",
     },
+    {
+        // EACH-STEP EDICT (issue #5575, ADR 0151) — the opponent's
+        // Destructive Flow has the player whose upkeep it is sacrifice a
+        // nonbasic land (CR 701.21a: each player its own). The bot's two lands
+        // are Tundras, the opponent's three are Plains: the Flow takes a land
+        // from the bot every turn and never one from the opponent, so it is
+        // the permanent Disenchant should answer, not the Aeolipile.
+        label: "each-step edict: Disenchant takes the Destructive Flow that eats only the bot's nonbasic lands, not the 2-MV artifact (issue #5575)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Destructive Flow only the bot has nonbasic lands for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Tundra",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Plains",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Destructive Flow", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Destructive Flow",
+                },
+            ],
+        },
+        note: "Issue #5575. The anchor reading of the Destructive Flow pair (two unpaired `conditional` Test Positions — the lands differ on both sides, so no `pairOf`): the Flow is worth what each player's upkeep edict takes from that player (`EachPlayerSide.sacrificeUnits`, `ai/latentBoard.ts`), the opponent's minus the bot's, read on the board face (`standingEngineLens`, `evaluate.ts`). Measured at 400 iterations over 20 seeds: the Flow 20/20. NOT discriminating on its own — before issue #5575 (the edict read once, as removal aimed at the controller's opponent) the Flow is 20/20 here too; the mirror entry below is the one that reds.",
+    },
+    {
+        // EACH-STEP EDICT, MIRROR (issue #5575, ADR 0151) — the board above
+        // with the lands swapped: the bot's two lands are Plains, the
+        // opponent's three Tundras. Now the opponent's Destructive Flow eats
+        // the OPPONENT's mana base and never the bot's, so destroying it
+        // gives the opponent its lands back.
+        //
+        // This is the position that discriminates: read once as an edict on
+        // the controller's opponent (the pre-#5575 representative walk), the
+        // Flow carries the same positive sign for its controller on every
+        // board and Disenchant takes it 20/20 here exactly as above.
+        label: "each-step edict: Disenchant leaves the Destructive Flow that eats only the opponent's nonbasic lands (issue #5575)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Destructive Flow only the opponent has nonbasic lands for",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                ...Array.from({ length: 3 }, () => ({
+                    name: "Tundra",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Destructive Flow", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Destructive Flow",
+                },
+            ],
+        },
+        note: "Issue #5575. The discriminating position (the entry above is the anchor reading). Guards the edict branch of `eachStepDifferentialValue` (`sideEdictLoss`, `ai/opValuers.ts`) and the widened read-nothing rule (`isEachStepScopedScript`, `cardScriptValue.ts`). Measured at 400 iterations over 20 seeds: the Flow never (Aeolipile 20). Before issue #5575: Disenchant on the Flow 20/20. Proof of failure — the per-side edict loss skipped (`valueOp` on each side's `sacrifice`, the representative edict): the Flow 20/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through
