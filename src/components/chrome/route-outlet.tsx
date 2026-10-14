@@ -1,11 +1,11 @@
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
 import { Outlet, useMatches } from "@tanstack/react-router";
 import LoadingScreen from "~/components/ui/loading-screen";
-
 // The gate lives in its own chunk: its module imports the catalogue glue, so a
 // static import here would put every set module back in the entry (issue
-// #4854).
-const CatalogueGate = lazy(() => import("~/components/ui/catalogue-gate"));
+// #4854). The frame loads it (`~/lib/catalogueGateLoader`) without suspending
+// once it is in memory (issue #5584).
+import CatalogueGateFrame from "./catalogue-gate-frame";
 
 /**
  * The shell's `<Outlet />`, with the card catalogue gate mounted around it when
@@ -29,9 +29,9 @@ export default function RouteOutlet() {
     if (!needsCatalogue) return <Outlet />;
     return (
         <Suspense fallback={<LoadingScreen message="Loading cards..." />}>
-            <CatalogueGate>
+            <CatalogueGateFrame>
                 <Outlet />
-            </CatalogueGate>
+            </CatalogueGateFrame>
         </Suspense>
     );
 }
