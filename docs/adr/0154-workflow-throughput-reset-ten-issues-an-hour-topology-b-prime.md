@@ -210,6 +210,36 @@ merges, and `docs:ship` goes through the same runner.
   ≈ 12.8 M cache-read tokens on 2026-10-11 — and asynchronous landing (issue
   #5469) is the first lever on it.
 
+## Measured after Phase 1
+
+Issue #5471 closes the rollout. Each row is filled when it is measured.
+
+### Walk calibration, 2026-10-14
+
+Both machines ran `check:ui --all` on the same tip, `aa0a38197638`, which the
+Huawei's health runner had gated GREEN.
+
+| Machine          | Result                                                     | `verdict-sha256` |
+| ---------------- | ---------------------------------------------------------- | ---------------- |
+| MacBook (darwin) | PASS, 68/70 surfaces measured, 2 declared unwalked (#3506) | `0e5ba6d8a77d…`  |
+| Huawei (linux)   | PASS, 68/70 surfaces measured, 2 declared unwalked (#3506) | `0e5ba6d8a77d…`  |
+
+`bun run ui:calibrate <macbook> <linux>` reported
+`identical — 340 cell(s), 0 divergent` and exited 0, so `ui-walk.gating` is
+now `true` and a Linux walk gates the health verdict (§ 9).
+
+There are two caveats. The MacBook backend served the primary checkout's
+functions at `00aebfc4`, not the tip's; the Huawei served the tip. The Huawei
+walk needed `--parallel=2`, because at the default five lanes the lane
+account's sign-in fails under load (auth backend, not a Floor). The run took
+1637 s.
+
+### Throughput, 24 h window
+
+Still owed (issue #5471, step 4): PR/h per machine, land mutex p50/p90, health
+mutex min/day and attempts/PR from `bun run telemetry:latency` after 24 h of
+`loop:afk` on both machines.
+
 ## Alternatives considered
 
 - **Topology B — every gate on the Huawei.** Rejected: at ~0.35× multi-thread
