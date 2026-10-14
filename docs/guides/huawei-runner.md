@@ -115,8 +115,9 @@ check that it was forgotten: `grep 'untagged orphan' ~/.cache/tolaria/reaper/rea
 
 ## Prove it
 
-On each machine, with the agent installed. Two strays — an untagged orphan the
-[pattern net](#g-net) must catch, and a tagged arbitrary binary whose
+On each machine, with the agent installed. Three strays — two untagged orphans
+the [pattern net](#g-net) must catch (a vitest worker, a headless Chromium
+under the Playwright cache), and a tagged arbitrary binary whose
 [lease](#g-lease) dies:
 
 ```bash
@@ -124,7 +125,12 @@ On each machine, with the agent installed. Two strays — an untagged orphan the
 bash -c 'exec -a "node vitest/dist/workers/forks.js" sleep 100000 &' ; sleep 1
 pgrep -fl 'vitest/dist/workers/forks.js'
 
-# 2. A tagged python under a lease whose anchor we then kill. Homebrew's
+# 2. Untagged headless Chromium from the Playwright cache, orphaned the same
+#    way. On macOS the binary is under ~/Library/Caches/ms-playwright.
+HS=$(ls -d ~/.cache/ms-playwright/chromium_headless_shell-*/*/chrome-headless-shell | head -1)
+bash -c "\"$HS\" --no-sandbox --remote-debugging-port=0 about:blank >/dev/null 2>&1 &" ; sleep 1
+
+# 3. A tagged python under a lease whose anchor we then kill. Homebrew's
 #    python3 on macOS: Apple's own binaries (/usr/bin/*) hide their
 #    environment from `ps -E`, so a tag on them cannot be read.
 sh -c 'echo $$ > /tmp/anchor; exec sleep 100000' & sleep 1
@@ -132,11 +138,14 @@ bun scripts/lib/process-lease.ts put proof-1 proof "$(cat /tmp/anchor)" 3600
 TOLARIA_OWNER=proof-1 sh -c "python3 -c 'import time; time.sleep(1e6)' &"
 kill "$(cat /tmp/anchor)"
 
-bun run reaper --dry-run --orphan-min-age 0   # both listed, with reasons
+bun run reaper --dry-run --orphan-min-age 0   # all three listed, with reasons
 ```
 
-The vitest stray is reaped by the first [sweep](#g-sweep) after it is a minute
-old, the python by the next [sweep](#g-sweep). Both must show in `reaped.log` with their reasons.
+The vitest and Chromium strays (Chromium with every child it forked) are
+reaped by the first [sweep](#g-sweep) after they are a minute old; the python
+by that sweep or the next. All three must show in `reaped.log` with their
+reasons. Run on the Huawei on 2026-10-13 (issue #5492): all eight processes
+reaped by one sweep.
 
 ## Set up the Huawei for the batch gates
 
