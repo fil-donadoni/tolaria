@@ -1704,6 +1704,16 @@
         "source": "compiled"
     },
     {
+        "name": "Ancestor's Chosen",
+        "scryfallId": "c0cf71e1-3c57-47f9-a4ef-e0d0ad1ee329",
+        "oracleId": "fc2ccab7-cab1-4463-b73d-898070136d74",
+        "firstSet": "jud",
+        "firstPrintId": "c0cf71e1-3c57-47f9-a4ef-e0d0ad1ee329",
+        "firstPrintSet": "jud",
+        "rarity": "uncommon",
+        "source": "compiled"
+    },
+    {
         "name": "Ancestral Memories",
         "scryfallId": "b1d1298b-9f56-4540-8d6b-7eecfe38cf62",
         "oracleId": "95a2802a-2621-40c3-84f8-51e8aad7b6f0",
@@ -6602,6 +6612,16 @@
         "firstSet": "ktk",
         "firstPrintId": "a32a1c0b-f6ea-475a-aa01-3618ea7d8647",
         "firstPrintSet": "ktk",
+        "rarity": "common",
+        "source": "compiled"
+    },
+    {
+        "name": "Blossoming Wreath",
+        "scryfallId": "2f944ad9-c9ce-47b2-80fa-d0f7fcf0fd5d",
+        "oracleId": "fbd99a88-8926-455e-8e23-58fed6d14719",
+        "firstSet": "wth",
+        "firstPrintId": "2f944ad9-c9ce-47b2-80fa-d0f7fcf0fd5d",
+        "firstPrintSet": "wth",
         "rarity": "common",
         "source": "compiled"
     },
@@ -18128,6 +18148,16 @@
         "firstSet": "inv",
         "firstPrintId": "c19bb473-03b0-4e6d-a7da-0ec1e7707a68",
         "firstPrintSet": "inv"
+    },
+    {
+        "name": "Elvish Eulogist",
+        "scryfallId": "564b9d31-3079-45e3-acb3-a74169aa332e",
+        "oracleId": "21017dc0-9b79-48b8-8eae-561abfad31d5",
+        "firstSet": "lrw",
+        "firstPrintId": "564b9d31-3079-45e3-acb3-a74169aa332e",
+        "firstPrintSet": "lrw",
+        "rarity": "common",
+        "source": "compiled"
     },
     {
         "name": "Elvish Farmer",

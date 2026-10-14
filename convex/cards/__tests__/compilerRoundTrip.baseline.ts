@@ -960,7 +960,6 @@ export const COMPILER_GAP_ROWS: readonly string[] = [
     "Preacher",
     "Preordain",
     "Presence of the Master",
-    "Price of Progress",
     "Priest of Yawgmoth",
     "Primal Clay",
     "Primal Growth",

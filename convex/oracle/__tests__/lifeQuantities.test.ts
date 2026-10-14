@@ -377,12 +377,6 @@ describe("life quantities — refusals stay fail-closed (issue #4136)", () => {
                 span: "creature on the battlefield",
             },
         ],
-        // A zone the count does not name.
-        [
-            "You gain 1 life for each card in your graveyard.",
-            "a graveyard",
-            /permanents "you control"/,
-        ],
         // A multiplier that is not a printed number.
         [
             "You gain X life for each Plains you control.",

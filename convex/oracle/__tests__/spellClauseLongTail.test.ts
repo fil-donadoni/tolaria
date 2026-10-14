@@ -1,4 +1,4 @@
-// Spell long tail 2 (issue #4574): four clause forms a Grammar Cluster closed
+// Spell long tail 2 (issue #4574): three clause forms a Grammar Cluster closed
 // together, each with its real corpus card compiled whole and compared with
 // `sortKeys` equality, plus the neighbours the corpus prints that must stay
 // refused (fail-closed, ADR 0105 § 2).
@@ -10,9 +10,7 @@
 //     nonbasic lands that player controls" (Price of Progress, CR 120.1 +
 //     CR 107.1 + CR 205.4a) — a `forEach` over the players, each dealt a count
 //     of THEIR OWN lands.
-//  3. "Untap up to three lands." (Frantic Search, CR 701.26b) — a resolution
-//     time pick, not a target.
-//  4. "Create X 4/4 white Angel creature tokens with flying." (Decree of
+//  3. "Create X 4/4 white Angel creature tokens with flying." (Decree of
 //     Justice, CR 107.3 + CR 111.1) — the announced X is the token count.
 
 import { describe, expect, it } from "vitest";
