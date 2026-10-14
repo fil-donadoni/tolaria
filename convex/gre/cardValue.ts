@@ -330,6 +330,14 @@ export function latentValue(chars: {
             chars.dslSpellValue + (standing ?? 0) + delayed,
             MAX_LATENT_SCRIPT_VALUE
         );
+        // Issue #5560 — a measured NEGATIVE one-shot reading (a Wheel of
+        // Fortune that refills the opponent's one card against the caster's
+        // seven) stays floored at zero: a one-shot held is an option, never a
+        // liability, and casting it realises the loss the floor declines, so
+        // holding already wins. Unfloored, the held price would only shrink
+        // that margin. A standing lock or a measured standing reading is
+        // different — its hand and board faces are one number, so it reads
+        // below nothing on both (above, issue #5163 / issue #5164).
         return Math.max(floor, bounded);
     }
     // No spell and no standing reading: the card has nothing the floor could

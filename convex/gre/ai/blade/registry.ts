@@ -9581,6 +9581,88 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         note: "Issue #4880, position B of the mana-rock pair: the mirror of A, with Armageddon castable (six Plains). The sweep takes six of the Bot's lands and two of the opponent's, who keeps four mana of rocks: its net worth is below zero and the Bot holds by mean reward, not by a material tie-break.",
     },
     {
+        label: "each-player one-shot: casts Wheel of Fortune holding nothing else against a seven-card hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "the empty hand on the Bot's side and seven cards on the opponent's",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Wheel of Fortune", owner: "me", zone: "hand" },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 3 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 7,
+                },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: { moves: [{ kind: "cast-spell", card: "Wheel of Fortune" }] },
+        note: "Issue #5560, position A of the Wheel pair. The Bot's hand is the Wheel alone, the opponent's seven cards: casting it draws the Bot seven and only swaps the opponent's, so a human casts it without hedging. Issue #5162 priced the held Wheel by its Differential Reading on this board (`LatentLens.eachPlayerDifferential`) — and that price IS what the cast realises, so casting tied holding at one ply and the Bot passed on every seed. A refilled hand is played out over turns, so the swing decays once it resolves while its price in hand, read off each leaf, never does: the hand now credits only `heldDifferentialFraction` of it, the `recoverableSweepFraction` pattern (issue #4880). POSTCOMBAT_MAIN because this is the turn's last window: precombat, `pass` contains the same cast after combat. Position B is the mirror and must hold.",
+    },
+    {
+        label: "each-player one-shot: holds Wheel of Fortune with six other cards against a one-card hand",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "other",
+                detail: "six cards on the Bot's side and one on the opponent's",
+            },
+        },
+        spec: {
+            cards: [
+                { name: "Wheel of Fortune", owner: "me", zone: "hand" },
+                {
+                    name: "Grizzly Bears",
+                    owner: "me",
+                    zone: "hand",
+                    count: 6,
+                },
+                {
+                    name: "Mountain",
+                    owner: "me",
+                    zone: "battlefield",
+                    count: 3,
+                },
+                { name: "Forest", owner: "opp", zone: "battlefield", count: 3 },
+                {
+                    name: "Grizzly Bears",
+                    owner: "opp",
+                    zone: "hand",
+                    count: 1,
+                },
+            ],
+            phase: "POSTCOMBAT_MAIN",
+            turn: 6,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3, 4],
+        tier: "must",
+        expect: {
+            forbidden: [{ kind: "cast-spell", card: "Wheel of Fortune" }],
+        },
+        note: "Issue #5560, position B of the Wheel pair: the mirror of A. Casting discards the Bot's six cards to refill the opponent's one: the Differential is below zero and the held Wheel is floored at nothing (`latentValue` keeps the zero floor for a measured one-shot: an option held is never a liability, and the cast realises the loss), so the Bot holds by mean reward.",
+    },
+    {
         label: "symmetric sweep: holds Armageddon when the Bot holds the land surplus and the opponent the board",
         classification: {
             kind: "conditional",
