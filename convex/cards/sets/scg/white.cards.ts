@@ -20,9 +20,6 @@ const DECREE_OF_JUSTICE_ID = "5e8a7e5c-f252-4de8-94d7-e7327210bf26";
 // THE ABILITY RESOLVES and then pays it. That is `payVariableMana` (issue
 // #1701), whose bound amount the `createToken` count reads — not `{ X: true }`,
 // which would read the cast-time announcement this card never made.
-//
-// compiler-gap: "Create X 4/4 white Angel creature tokens with flying." (#2693)
-// compiler-gap: "When you cycle this card, you may pay {X}. If you do, create X 1/1 white Soldier creature tokens." (#2693)
 export const decreeOfJustice = defineCard(() => ({
     id: DECREE_OF_JUSTICE_ID,
     name: "Decree of Justice",

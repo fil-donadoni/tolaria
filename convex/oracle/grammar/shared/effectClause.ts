@@ -651,6 +651,18 @@ export type EffectSentenceIR =
           readonly duration: DurationIR;
       }
     | {
+          /**
+           * CR 120.1 + CR 107.1 — "{self} deals damage to each player equal to
+           * twice the number of nonbasic lands that player controls": every
+           * player is dealt a count of THEIR OWN set, so the set is read per
+           * recipient ("that player controls" rebinds the "you control" the
+           * descriptor was parsed with). The dealer is always the source.
+           */
+          readonly kind: "deal-damage-each-player-count";
+          readonly times: number;
+          readonly set: CountedSetIR;
+      }
+    | {
           readonly kind: "deal-damage";
           readonly amount: AmountIR;
           readonly to: SubjectIR;
@@ -3261,6 +3273,11 @@ function readManaPips(pips: string): EffectManaPool {
     return mana;
 }
 const LIFE_FOR_EACH = /^(.+) (gain|gains|lose|loses) (\S+) life (for each .+)$/;
+/** CR 107.1 + CR 119.3 — "You gain life equal to the number of creature cards
+ *  in your graveyard" (Blossoming Wreath): the set is a plural noun phrase read
+ *  by `numberOfSetRule`, the same read as damage "equal to the number of". */
+const LIFE_EQUAL_COUNT =
+    /^(.+) (gain|gains|lose|loses) life equal to (the number of .+)$/;
 /** CR 119.3 + CR 202.3 + CR 208.1 — "You lose life equal to its mana value"
  *  (or "that card's", or "that permanent's" — Feed the Swarm), and "You gain
  *  life equal to its power" (Chastise). The characteristic is a capture group
@@ -3290,6 +3307,8 @@ const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
  * both open spans; "equal to the number of" is the only anchor between them,
  * so the recipient is read lazily up to it.
  */
+const DAMAGE_EACH_PLAYER_COUNT =
+    /^(.+) deals damage to each player equal to (twice )?(the number of .+?) that player controls$/;
 const DAMAGE_EQUAL_COUNT =
     /^(.+) deals damage to (.+?) equal to (the number of .+)$/;
 /**
@@ -5052,6 +5071,27 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── damage to each player equal to THEIR count (CR 120.1, CR 107.1) ────
+    const damageEachPlayer = span.match(DAMAGE_EACH_PLAYER_COUNT);
+    if (damageEachPlayer !== null) {
+        if (!isSelfPhrase(uncapitalise(damageEachPlayer[1]!)))
+            return fail(
+                `"${damageEachPlayer[1]}" is not a damage source this grammar knows`,
+                span
+            );
+        // "that player controls" is "you control" said once per recipient.
+        const set = numberOfSetRule.run(
+            `${damageEachPlayer[3]} you control`,
+            ctx
+        );
+        if (!set.ok) return set;
+        return ok({
+            kind: "deal-damage-each-player-count" as const,
+            times: damageEachPlayer[2] === undefined ? 1 : 2,
+            set: set.value,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── damage equal to a counted set (CR 107.1) ───────────────────────────
     const damageCount = span.match(DAMAGE_EQUAL_COUNT);
     if (damageCount !== null) {
@@ -5646,6 +5686,22 @@ function effectSentence(
             action: lifeEach[2]!.startsWith("gain") ? "gain" : "lose",
             player,
             amount: { kind: "counted" as const, times, set: set.value },
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── life equal to a counted set (CR 107.1, CR 119.3) ───────────────────
+    const lifeCount = span.match(LIFE_EQUAL_COUNT);
+    if (lifeCount !== null) {
+        const player = playerSubject(lifeCount[1]!, ctx);
+        if (player === null)
+            return fail(`"${lifeCount[1]}" is not a player`, span);
+        const set = numberOfSetRule.run(lifeCount[3]!, ctx);
+        if (!set.ok) return set;
+        return ok({
+            kind: "life" as const,
+            action: lifeCount[2]!.startsWith("gain") ? "gain" : "lose",
+            player,
+            amount: { kind: "counted" as const, times: 1, set: set.value },
         } satisfies EffectSentenceIR);
     }
 

@@ -65,7 +65,13 @@ export type TokenCountIR =
      * value of the object the previous sentence acted on, read as it last
      * existed. `noun` is the printed type word ("creature", "artifact").
      */
-    | { readonly kind: "mana-value-of-that"; readonly noun: string };
+    | { readonly kind: "mana-value-of-that"; readonly noun: string }
+    /**
+     * CR 107.3 — "Create X … tokens" with nothing after it: the X the spell
+     * announced (Decree of Justice). The lowering gates it on the site
+     * announcing an {X}, exactly as every other effect magnitude is.
+     */
+    | { readonly kind: "announced-x" };
 
 export interface CreateTokenIR {
     readonly count: TokenCountIR;
@@ -85,6 +91,10 @@ const CREATE_FIXED =
 /** The X form: X read back off the object the previous sentence acted on. */
 const CREATE_X_THAT =
     /^Create X (\d+)\/(\d+) (.+) creature tokens, where X is that (\w+)'s mana value$/;
+
+/** The announced-X form: plural by construction, X is the spell's own {X}. */
+const CREATE_X_ANNOUNCED =
+    /^Create X (\d+)\/(\d+) (.+) creature tokens(?: with (.+))?$/;
 
 const KEYWORDS = keywordVocabulary();
 
@@ -172,6 +182,21 @@ export const createTokenRule: Rule<CreateTokenIR> = rule<CreateTokenIR>(
                 count: { kind: "mana-value-of-that" as const, noun: x[4]! },
                 token,
             });
+        }
+        const announced = span.match(CREATE_X_ANNOUNCED);
+        if (announced !== null) {
+            const token = readToken(
+                announced[1]!,
+                announced[2]!,
+                announced[3]!,
+                announced[4]
+            );
+            if (typeof token === "string") return fail(token, span);
+            // As the where-X form: no corpus card prints an X-count
+            // artifact token, so none is read.
+            if (token.artifact)
+                return fail('"artifact" is not read on an X-count token', span);
+            return ok({ count: { kind: "announced-x" as const }, token });
         }
         const fixed = span.match(CREATE_FIXED);
         if (fixed === null) return fail("not a token creation", span);
