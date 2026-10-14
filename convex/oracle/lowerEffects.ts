@@ -2647,6 +2647,44 @@ function lowerSentenceBody(
                 { op: "libraryLook", action: "shuffle", player: player.value },
             ]);
         }
+        case "untap-up-to": {
+            // CR 701.26b — the controller picks up to N permanents on
+            // resolution (no target is announced, any controller's), and the
+            // picks untap. The pick is a `choice`, read back through
+            // `forEach { set: "bound" }` as `return-own-permanent` does.
+            const bind = walk.nextBind("untap");
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "choose-permanents",
+                    player: "controller",
+                    zone: "battlefield",
+                    allControllers: true,
+                    filter: {
+                        type:
+                            sentence.types.length === 1
+                                ? sentence.types[0]!
+                                : [...sentence.types],
+                    },
+                    count: { min: 0, max: sentence.max },
+                    prompt: `Untap up to ${sentence.word} ${sentence.types
+                        .map((type) => `${type.toLowerCase()}s`)
+                        .join(" or ")}.`,
+                    bind,
+                },
+                {
+                    op: "forEach",
+                    select: { set: "bound", ref: bind },
+                    effects: [
+                        {
+                            op: "tapUntap",
+                            action: "untap",
+                            target: { ref: "$each" },
+                        },
+                    ],
+                },
+            ]);
+        }
         case "return-own-permanent": {
             // CR 400.3 — the controller picks one of their own permanents and
             // it returns to its owner's hand. The pick is routed through
