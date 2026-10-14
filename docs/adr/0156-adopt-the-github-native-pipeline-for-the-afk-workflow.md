@@ -249,6 +249,61 @@ cost per month (target $100).
 - **Stop the AFK loop and work attended.** Rejected: the 441-issue backlog
   and the owner's stated goal.
 
+### Ralph — Huntley's loop, Pocock's Docker variant
+
+Ralph (Geoffrey Huntley, 2025) is `while :; do cat PROMPT.md | claude -p;
+done`: a fresh context per iteration, one task from a plan on disk,
+implement, test, commit, exit; the plan file is the shared state. Matt
+Pocock's variant (`aihero.dev`, "Getting Started With Ralph", the Day 5
+workshop): a human-in-the-loop `ralph-once.sh` for tuning the prompt, then
+`afk-ralph.sh <iterations>` — a `for` loop over `docker sandbox run claude
+-p` (Docker Desktop's sandbox: the working directory mounted at the same
+path, credentials in a volume, so `--dangerously-skip-permissions` cannot
+touch the host), stopping on a `<promise>COMPLETE</promise>` sigil or the
+iteration cap. Task source a `PRD.md` + `progress.txt`, or GitHub Issues
+tagged AFK; TDD and "feedback loops" (tests, type checks) per task — in his
+words the feedback loop quality "sets the ceiling on output quality"; an
+automated review in a cleared context (Sonnet implements, Opus reviews);
+parallelism and merging via his Sand Castle library (one worktree per agent,
+a merger agent). No merge queue, no CI, no health or release gate, no
+notifications, no second machine; progress is stdout, commits and
+`progress.txt`; cost control is the iteration cap. Before the loop the human
+grills, reviews the PRD and the vertical slices, then "leaves the loop";
+after it, QA and review.
+
+What the comparison says:
+
+- **Tolaria's `/next-ticket` pass IS a Ralph iteration** — fresh context, one
+  issue, tests, proof-of-failure, one review round, a PR — and its intake
+  (`/grill` → `/to-prd` → `/to-tickets`) is Pocock's HITL phase to the
+  letter. The producer is not what differs.
+- **Everything Ralph deliberately lacks is what Tolaria built**: the ~110k
+  lines are the queue, the gate, the health cadence, the orchestration and
+  the telemetry around the loop. Ralph is portable because it has none of
+  it; Pocock needs none of it because one agent commits to one branch and a
+  human merges. Tolaria needs a subset — two machines, PRs instead of
+  commits to the base, scripted verification before a merge, a release
+  gate — and this record's answer is to take that subset from GitHub, not to
+  write it: `afk-pass.yml` is a Ralph iteration whose `for` loop is the
+  event scheduler, and the queue, the checks and the schedules are
+  commodity.
+- **Two things Ralph has and this design adopts.** The **sandbox** as a
+  declared toolchain: the Linux runner runs the pass under a job `container:`
+  (the Docker Desktop sandbox on the MacBook once it carries Convex and the
+  browser — the "special image" Pocock mentions), which is the second answer
+  to the #5598 class after the declared setup steps. The **sigil and the
+  cap** as the pass contract: a pass exits 0 with "nothing to do" (the sigil)
+  and the cap is runner count × subscription window, never a count inside a
+  driver.
+- **One thing Ralph does with an LLM that this design does with a script.**
+  Sand Castle's merger agent reconciles branches by judgment; the merge
+  queue reconciles by rebase and a re-run lane. For "verify by scripts, not
+  prose" the queue wins, and it is what Pocock's own ceiling rule
+  recommends.
+- **Anthropic's `ralph-wiggum` plugin** (a Stop hook that keeps one session
+  going until a completion promise) is a single-session loop; it has no place
+  in a multi-issue AFK pipeline and is not adopted.
+
 ## What would change the answer
 
 A per-minute Actions fee that reaches public repositories; Anthropic
