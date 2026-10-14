@@ -20,7 +20,13 @@ Since issue #5469 a session never runs step 6's `land` itself (`deny-guard.sh`
 its launchd agent (`scripts/runner-units/com.tolaria.land-runner.plist`) —
 runs `land` in the PR's worktree, oldest PR first. A red `land` relabels the
 PR `land-failed` with the lane excerpt as a comment; `queue:plan` makes it a
-repair pick. The sections below are what `land` does when the runner — or an
+repair pick. **Where a failure shows up** (issue #5599): the owner
+notification (`notifyOwner`: `TOLARIA_NOTIFY_CMD`, else the desktop notifier),
+one per burst of ticks with PRs of the same cause coalesced and a repeated cause
+called out as "likely infra, not the PRs"; the `land-failed` label with the
+runner's comment on the PR; and the logs,
+`.claude/telemetry/land-runner/runner.log` plus `land-<PR>.log` for the detail.
+The sections below are what `land` does when the runner — or an
 owner, with `TOLARIA_LAND_RUNNER=1` — runs it.
 
 ```bash

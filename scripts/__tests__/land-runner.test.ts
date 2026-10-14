@@ -6,7 +6,9 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+    describeLandFailures,
     EXCERPT_LINES,
+    failureReason,
     FAILED_LABEL,
     failureComment,
     labelArgs,
@@ -21,6 +23,7 @@ import {
     runsHere,
     SATURATED_EXIT,
     worktreeOfBranch,
+    type LandFailure,
     type QueuedPr,
 } from "../lib/land-runner";
 
@@ -329,5 +332,62 @@ describe("owesPresetSeed — the post-merge seed a session used to run", () => {
         expect(owesPresetSeed(["convex/gre/sba.ts", "scripts/x.ts"])).toBe(
             false
         );
+    });
+});
+
+describe("owner notification for land-failed (issue #5599)", () => {
+    const f = (prNo: number, reason: string): LandFailure => ({
+        pr: prNo,
+        reason,
+        logPath: `/log/land-${prNo}.log`,
+    });
+    const NODE = "env: node: No such file or directory";
+
+    it("no failure → no notification", () => {
+        expect(describeLandFailures([])).toBeNull();
+    });
+
+    it("one failure names PR, reason and log path", () => {
+        const m = describeLandFailures([f(5570, "lane: tsc red")])!;
+        expect(m).toContain("PR #5570");
+        expect(m).toContain("lane: tsc red");
+        expect(m).toContain("/log/land-5570.log");
+        expect(m).not.toContain("likely infra");
+    });
+
+    it("the same reason on N PRs coalesces into one machine-level message", () => {
+        const m = describeLandFailures([
+            f(5570, NODE),
+            f(5581, NODE),
+            f(5582, NODE),
+        ])!;
+        expect(m.startsWith("3 PRs land-failed")).toBe(true);
+        expect(m.split(NODE)).toHaveLength(2);
+        expect(m).toContain("same cause on 3 PRs — likely infra, not the PRs");
+        expect(m).toContain("#5570, #5581, #5582");
+    });
+
+    it("distinct reasons stay separate clauses in the same message", () => {
+        const m = describeLandFailures([f(1, "a red"), f(2, "b red")])!;
+        expect(m).toContain("#1: a red");
+        expect(m).toContain("#2: b red");
+        expect(m).not.toContain("likely infra");
+    });
+
+    it("a second consecutive failure with the same reason is machine-level", () => {
+        const m = describeLandFailures([f(7, NODE)], NODE)!;
+        expect(m).toContain("same cause as the previous failure");
+        expect(describeLandFailures([f(7, NODE)], "other")).not.toContain(
+            "likely infra"
+        );
+    });
+
+    it("failureReason takes the first error line, else the last line", () => {
+        expect(failureReason(`land: refusing x\n…\nlane: ran\n${NODE}`)).toBe(
+            "land: refusing x"
+        );
+        expect(failureReason("step one\nstep two\n")).toBe("step two");
+        expect(failureReason(`\u001b[31m${NODE}\u001b[0m`)).toBe(NODE);
+        expect(failureReason("")).toBe("no output");
     });
 });
