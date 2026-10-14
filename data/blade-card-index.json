@@ -202,6 +202,13 @@
             "needsSetup": true
         }
     ],
+    "Gray Ogre": [
+        {
+            "label": "source of your choice: shields itself from the attacking red creature, not the first red one listed",
+            "tier": "must",
+            "needsSetup": true
+        }
+    ],
     "Grizzly Bears": [
         {
             "label": "battle cry: swings for exactly-lethal only the pump provides",
@@ -304,6 +311,11 @@
         },
         {
             "label": "granted-flashback: casts the Lightning Bolt Snapcaster Mage's ETB granted flashback, for lethal",
+            "tier": "must",
+            "needsSetup": true
+        },
+        {
+            "label": "source of your choice: shields itself from the burn spell on the stack, not an idle red creature",
             "tier": "must",
             "needsSetup": true
         },
