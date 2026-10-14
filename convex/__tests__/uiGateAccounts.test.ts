@@ -145,6 +145,14 @@ function seededDeployment(): Record<string, InMemoryRow[]> {
             { _id: "gdecklanedone", gameId: "gamelanedone", playerId: "p1" },
             { _id: "gdeckother", gameId: "gameother", playerId: "p1" },
         ],
+        gameManifests: [
+            {
+                _id: "gmanifestlanedone",
+                gameId: "gamelanedone",
+                playerId: "p1",
+            },
+            { _id: "gmanifestother", gameId: "gameother", playerId: "p1" },
+        ],
         matchDecks: [
             { _id: "mdecklane", matchId: "matchlanedone", playerId: "p1" },
             { _id: "mdeckother", matchId: "matchother", playerId: "p1" },

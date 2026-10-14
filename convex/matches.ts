@@ -5,6 +5,7 @@ import { auth } from "./auth";
 import { query } from "./_generated/server";
 import { seatBelongsToUser } from "./gameLifecycle";
 import {
+    deleteDefinitionManifests,
     deleteGameDecks,
     deleteMatchDecks,
     loadMatchSeatDecks,
@@ -790,6 +791,8 @@ export async function deleteGameCascade(
     for (const m of manualLog) await ctx.db.delete(m._id);
     // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
     await deleteGameDecks(ctx, gameId);
+    // Definition Manifest companion (issue #5614) — same key, same risk.
+    await deleteDefinitionManifests(ctx, gameId);
     await ctx.db.delete(gameId);
 }
 

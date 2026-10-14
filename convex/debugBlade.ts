@@ -4,6 +4,7 @@ import { mutation, query } from "./_generated/server";
 import { bladeLoadBotSeatId } from "./matches";
 import { getLatestGameState, saveGameState } from "./gameStateStore";
 import { withStatePrintIds } from "./deckStore";
+import { widenGameDefinitionManifests } from "./definitionManifest";
 import type { GameState } from "./gre/state";
 import { BLADE_SCENARIOS } from "./gre/ai/blade/registry";
 import { resolveBladeLoadState } from "./gre/ai/blade/runner";
@@ -166,6 +167,9 @@ export const debugLoadBladeScenario = mutation({
         await ctx.db.patch(args.gameId, {
             cardIds: withStatePrintIds(game.cardIds, state),
         });
+        // The entry's position may place cards from outside both decks: widen
+        // the Definition Manifest too, so the client loads them (issue #5614).
+        await widenGameDefinitionManifests(ctx, args.gameId, state);
         await saveGameState(
             ctx,
             args.gameId,

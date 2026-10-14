@@ -289,6 +289,80 @@ export async function deleteGameDecks(
     for (const row of rows) await ctx.db.delete(row._id);
 }
 
+// ---------------------------------------------------------------------------
+// gameManifests
+// ---------------------------------------------------------------------------
+// The STORE of the per-seat Definition Manifest (issue #5614): its rows only.
+// What goes in one — the definitions, their Set codes — is derived by
+// `convex/definitionManifest.ts`, which needs the catalogue; this half stays
+// card-free so `gameReads.ts` can serve it and the Game-deletion cascades can
+// clear it.
+
+/** One Definition Manifest entry: a Card Definition a seat's client can need
+ *  in this Game, and the Set code that keys the client shard holding it. */
+export type DefinitionManifestEntry = Doc<"gameManifests">["entries"][number];
+
+/** One seat's Definition Manifest, or `null` when it has none — a `pregame`
+ *  Game (its state, and so its manifest, is not built yet) or a Game built
+ *  before manifests existed. One point read. */
+export async function loadSeatDefinitionManifest(
+    ctx: QueryCtx,
+    gameId: Id<"games">,
+    playerId: string
+): Promise<DefinitionManifestEntry[] | null> {
+    const row = await ctx.db
+        .query("gameManifests")
+        .withIndex("by_game", (q) =>
+            q.eq("gameId", gameId).eq("playerId", playerId)
+        )
+        .unique();
+    return row?.entries ?? null;
+}
+
+/** Every seat's manifest of a Game, by seat handle. */
+export async function loadDefinitionManifests(
+    ctx: QueryCtx,
+    gameId: Id<"games">
+): Promise<Map<string, DefinitionManifestEntry[]>> {
+    const rows = await ctx.db
+        .query("gameManifests")
+        .withIndex("by_game", (q) => q.eq("gameId", gameId))
+        .collect();
+    return new Map(rows.map((r) => [r.playerId, r.entries]));
+}
+
+/** Writes each seat's manifest in `bySeat` (insert or replace); a seat not
+ *  named keeps its row. */
+export async function writeDefinitionManifests(
+    ctx: MutationCtx,
+    gameId: Id<"games">,
+    bySeat: ReadonlyMap<string, readonly DefinitionManifestEntry[]>
+): Promise<void> {
+    const existing = await ctx.db
+        .query("gameManifests")
+        .withIndex("by_game", (q) => q.eq("gameId", gameId))
+        .collect();
+    const rowBySeat = new Map(existing.map((r) => [r.playerId, r]));
+    for (const [playerId, entries] of bySeat) {
+        const doc = { gameId, playerId, entries: [...entries] };
+        const row = rowBySeat.get(playerId);
+        if (row) await ctx.db.replace(row._id, doc);
+        else await ctx.db.insert("gameManifests", doc);
+    }
+}
+
+/** Deletes every `gameManifests` row of a Game — for the Game's own deletion. */
+export async function deleteDefinitionManifests(
+    ctx: MutationCtx,
+    gameId: Id<"games">
+): Promise<void> {
+    const rows = await ctx.db
+        .query("gameManifests")
+        .withIndex("by_game", (q) => q.eq("gameId", gameId))
+        .collect();
+    for (const row of rows) await ctx.db.delete(row._id);
+}
+
 /** Does this `games` row still carry its decklists inline (written before the
  *  split)? The backfill's idempotence predicate. */
 export function gameHasInlineDecks(game: Doc<"games">): boolean {

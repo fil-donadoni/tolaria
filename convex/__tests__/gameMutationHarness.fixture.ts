@@ -39,6 +39,9 @@ export interface MutationStub {
     /** Convenience accessor for the single `gameStates` row every scenario
      *  here seeds as `gs-1`. */
     state: () => GameState;
+    /** A ctx over the SAME document store, authenticated as another user —
+     *  for a flow two players drive in turn (a 2-player Match). */
+    asUser: (userId: string | null) => MutationCtx;
 }
 
 /** A stub `MutationCtx`, authenticated as `userId` (or unauthenticated when
@@ -52,12 +55,13 @@ export function makeMutationCtx(
     for (const seed of seeds) docs.set(seed._id as string, { ...seed });
     const gets: string[] = [];
     const writes: { id: string; table?: string }[] = [];
+    const authAs = (who: string | null) => ({
+        getUserIdentity: async () =>
+            who === null ? null : { subject: `${who}|session1` },
+    });
 
     const ctx = {
-        auth: {
-            getUserIdentity: async () =>
-                userId === null ? null : { subject: `${userId}|session1` },
-        },
+        auth: authAs(userId),
         db: {
             get: async (id: string) => {
                 gets.push(id);
@@ -119,6 +123,14 @@ export function makeMutationCtx(
                     return {
                         collect: async () => rows,
                         first: async () => rows[0] ?? null,
+                        // Convex's `unique()`: at most one row, else it throws.
+                        unique: async () => {
+                            if (rows.length > 1)
+                                throw new Error(
+                                    `unique() matched ${rows.length} ${table} rows`
+                                );
+                            return rows[0] ?? null;
+                        },
                         order: () => ordered,
                     };
                 },
@@ -141,6 +153,8 @@ export function makeMutationCtx(
         // so this is safe to call both before and after a mutation runs.
         state: () =>
             expandState(docs.get("gs-1")!.state as Record<string, unknown>),
+        asUser: (who) =>
+            ({ ...ctx, auth: authAs(who) }) as unknown as MutationCtx,
     };
 }
 
