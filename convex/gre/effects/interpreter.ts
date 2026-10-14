@@ -5268,6 +5268,16 @@ export const OP_EXECUTORS: {
         if (!target) return;
         ctx.setTargetCantBeRegeneratedThisTurn(target);
     },
+    // CR 701.14a — two creatures fight. CR 701.14b: if EITHER side is gone or
+    // an illegal target (its slot blanked by the CR 608.2b gate), neither
+    // fights — the Op is skipped whole rather than half-applied. Thin skin
+    // over the single `fight` primitive, one execution path (ADR 0045).
+    fight(ctx, op) {
+        const creature = resolveObjectRef(ctx, op.creature);
+        const other = resolveObjectRef(ctx, op.other);
+        if (!creature || !other) return;
+        ctx.fight(other, creature);
+    },
     // CR 614.1a (issue #1095) — arm the one-shot "if it would die this turn,
     // exile it instead" replacement. Thin skin over the single primitive
     // `setExileOnDeath`, one execution path (ADR 0045). No-op when the target

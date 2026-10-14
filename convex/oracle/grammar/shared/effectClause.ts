@@ -759,6 +759,18 @@ export type EffectSentenceIR =
       }
     | {
           /**
+           * CR 701.14a — "<creature> fights <other>": each deals damage equal
+           * to its power to the other. Both sides are read by the one subject
+           * rule, in printed order, so two announced targets take slots 0 and
+           * 1 as printed (Triangle of War); the lowering admits a creature
+           * target or the ability's own source on either side.
+           */
+          readonly kind: "fight";
+          readonly creature: SubjectIR;
+          readonly other: SubjectIR;
+      }
+    | {
+          /**
            * CR 615.1a + CR 510.2 — "Prevent all combat damage that would be
            * dealt by <object> this turn."
            *
@@ -3784,6 +3796,12 @@ const PREVENT_COMBAT_DAMAGE_BY =
     /^Prevent all combat damage that would be dealt by (.+?) (this turn)$/;
 
 /**
+ * CR 701.14a — the keyword action "fights", between two printed creatures.
+ * The first combatant runs up to the verb; the second is the rest of the span.
+ */
+const FIGHTS = /^(.+?) fights (.+)$/;
+
+/**
  * CR 614.9 — the redirection shield's printed form. The budget is the printed
  * DIGITS or the announced {X} (Captain's Maneuver is the corpus's only {X}
  * spelling); "that much" and a spelled number are refused, not read. Both
@@ -5079,6 +5097,20 @@ function effectSentence(
             kind: "prevent-combat-damage-to-and-by" as const,
             subject: subject.value,
             duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── <creature> fights <other> (CR 701.14a) ─────────────────────────────
+    const fights = span.match(FIGHTS);
+    if (fights !== null) {
+        const creature = subjectRule.run(fights[1]!, ctx);
+        if (!creature.ok) return creature;
+        const other = subjectRule.run(fights[2]!, ctx);
+        if (!other.ok) return other;
+        return ok({
+            kind: "fight" as const,
+            creature: creature.value,
+            other: other.value,
         } satisfies EffectSentenceIR);
     }
 

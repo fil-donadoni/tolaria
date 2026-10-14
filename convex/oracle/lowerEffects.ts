@@ -1943,6 +1943,27 @@ function lowerSentenceBody(
                     duration: durationSpec(sentence.duration),
                 },
             ]);
+        // CR 701.14a — two creatures fight. Each side is a creature target or
+        // the ability's own source; a mass or player side is no fight.
+        case "fight": {
+            for (const side of [sentence.creature, sentence.other])
+                if (
+                    side.kind !== "self" &&
+                    (side.kind !== "target" ||
+                        side.requirement.type !== "Creature" ||
+                        side.requirement.count !== 1)
+                )
+                    return unlowerable(
+                        "a fight is read between a single creature target or this creature on each side (CR 701.14a)"
+                    );
+            const creature = objectSelector(sentence.creature, slots, site);
+            if (!creature.ok) return creature;
+            const other = objectSelector(sentence.other, slots, site);
+            if (!other.ok) return other;
+            return lowered([
+                { op: "fight", creature: creature.value, other: other.value },
+            ]);
+        }
         // CR 615.1a + CR 510.2 — the one-way source-side combat shield on an
         // announced object (Kor Haven's "target attacking creature"). The
         // ability's own source is a shape no corpus card prints here.

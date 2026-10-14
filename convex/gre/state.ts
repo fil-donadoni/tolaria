@@ -11615,12 +11615,18 @@ export function buildSpellContext(
                 });
             }
         },
-        fight(target: TargetSelection) {
+        fight(target: TargetSelection, fighter?: TargetSelection) {
             // CR 701.14 mutual damage: the resolving ability's source permanent
-            // and the target creature each deal damage equal to their power to
-            // the other, simultaneously, through the normal damage path.
-            // `sourceInstanceId` is the activated/triggered ability's permanent.
+            // (or the explicit `fighter`) and the target creature each deal
+            // damage equal to their power to the other, simultaneously,
+            // through the normal damage path.
             if (target.type !== "permanent") return;
+            if (fighter !== undefined) {
+                if (fighter.type !== "permanent") return;
+                resolveFight(state, fighter.id, target.id);
+                return;
+            }
+            // `sourceInstanceId` is the activated/triggered ability's permanent.
             // The source is the resolving ability's permanent — a triggered
             // ability carries `triggerSourceId`; an activated one is `item.id`.
             resolveFight(state, item.triggerSourceId ?? item.id, target.id);

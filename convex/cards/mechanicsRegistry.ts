@@ -3464,6 +3464,14 @@ export const EFFECT_OP_REGISTRY: EffectOpRow[] = [
         note: "Flag a creature so it CAN'T be regenerated for the rest of the turn (CR 701.19c, issue #1283) — the inverse of the `regenerate` shield Op. A thin declarative skin over the single SpellContext primitive `setTargetCantBeRegeneratedThisTurn`, one execution path (ADR 0045): it sets the `cantBeRegeneratedThisTurn` per-instance flag (suppressing every regeneration shield AND the auto-regenerate replacement until CLEANUP, CR 514.2). `target` is an announced target slot (`{ target: N }` — Incinerate's \"a creature dealt damage this way can't be regenerated this turn\", Orcish Healer's \"{R}{R}, {T}: Target creature can't be regenerated this turn\"), the resolving source (`$source` — Clergy of the Holy Nimbus's \"{1}: This creature can't be regenerated this turn\", routed through the SAME setTarget primitive with the source's id), or a forEach `$each`. DISTINCT from `destroy`'s `cantBeRegenerated` FLAG, which suppresses regeneration only for that one destroy event — this is a STANDALONE turn-scoped lock with no destroy attached (Bone Shaman rider; the damage-target trigger variants that read the firing $event stay resolve()). Lim-Dûl's Cohort reads the CR 509.1h pair complement declaratively since issue #2762 — `target: { ref: \"$event.otherCombatant\" }`. No-op on a non-creature or a permanent that has left the battlefield (CR 608.2b).",
     },
     {
+        op: "fight",
+        status: "implemented",
+        cr: "701.14",
+        mechanicId: "fight",
+        binding: "SpellContext.fight",
+        note: 'Two creatures fight (CR 701.14a, issue #2013, issue #4572): each deals damage equal to its power to the other, simultaneously, through the normal damage path (prevention, protection, deathtouch, wither and damage triggers all apply; CR 701.14d - not combat damage). A thin declarative skin over the single SpellContext primitive `fight`, one execution path (ADR 0045), with BOTH combatants named: `creature` and `other` are object selectors (an announced slot, `$source`, a forEach `$each`, a bound ref), so "Target creature you control fights target creature an opponent controls" (Triangle of War) and "this creature fights target creature" are one shape. CR 701.14b - if either creature is gone, no longer a creature, or an illegal target at resolution (its slot blanked by the CR 608.2b gate), NEITHER fights: the Op is skipped whole. DISTINCT from a one-way "deals damage equal to its power to target creature" (`dealDamage`), which is not a fight. The hand-written `ctx.fight(target)` cards (Tracker, Karplusan Yeti, Tahngarth) predate the Op and print the two-sentence pre-"fight" template, not "fights".',
+    },
+    {
         op: "exileOnDeath",
         status: "implemented",
         cr: "614.1a",
