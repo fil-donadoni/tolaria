@@ -6,7 +6,7 @@ import { publicStateDefinitionIds } from "../publicStateDefinitionIds";
  *  #5615): what the board must resolve before it shows a snapshot. */
 
 const card = (id: string, knownCardId?: string) =>
-    ({ card: { id }, knownCardId }) as unknown as Record<string, unknown>;
+    ({ card: { id }, knownCardId }) as never;
 
 function player(zones: Partial<Record<string, unknown>>): Player {
     return {
@@ -64,11 +64,12 @@ describe("publicStateDefinitionIds", () => {
                     player({
                         battlefield: [
                             {
-                                ...card("face-down:2-2-vanilla", "real"),
+                                card: { id: "face-down:2-2-vanilla" },
+                                knownCardId: "real",
                                 grantedActivatedAbilities: [
                                     { sourceCardId: "lord", abilityId: "a" },
                                 ],
-                            },
+                            } as never,
                         ],
                     }),
                 ],
