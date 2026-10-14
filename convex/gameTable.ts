@@ -6,6 +6,7 @@ import { getCurrentUser } from "./auth";
 import { asDbRounds, callerOwnsSeat, gameBelongsToUser } from "./gameLifecycle";
 import { applySideboard, matchBelongsToUser } from "./matches";
 import {
+    deleteDefinitionManifests,
     deleteGameDecks,
     deleteMatchDecks,
     loadMatchSeatDecks,
@@ -62,6 +63,9 @@ export const leaveGame = mutation({
         for (const t of ticks) await ctx.db.delete(t._id);
         // Decklist companion (issue #2506) — same orphan risk as `gameStates`.
         await deleteGameDecks(ctx, args.gameId);
+        // Definition Manifest companion (issue #5614): none is written before
+        // the state is built, so this too is normally a no-op.
+        await deleteDefinitionManifests(ctx, args.gameId);
         await ctx.db.delete(args.gameId);
         if (game.matchId) {
             const match = await ctx.db.get(game.matchId);

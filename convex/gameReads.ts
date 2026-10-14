@@ -3,7 +3,8 @@ import { internalMutation, query } from "./_generated/server";
 import { auth, getCurrentUser } from "./auth";
 import { seatBelongsToUser } from "./gameLifecycle";
 import { activeGameOpponentName, findActiveMatchForUser } from "./matches";
-import { loadGameSeatCards } from "./deckStore";
+import { loadGameSeatCards, loadSeatDefinitionManifest } from "./deckStore";
+import { definitionManifestEntryValidator } from "./definitionManifestEntry";
 import { waitingMatchFormat } from "./gameSeats";
 import { gamesFormatForBestOf } from "./limited/gamesFormat";
 import {
@@ -121,6 +122,48 @@ export const getSeatDeck = query({
         const cards = await loadGameSeatCards(ctx, args.gameId, args.playerId);
         if (!cards) return null;
         return { playerId: args.playerId, cards };
+    },
+});
+
+/** ONE seat's Definition Manifest (issue #5614, PRD #5602): the Card
+ *  Definitions this Game can need on that seat's client — both maindecks,
+ *  both companions, the seat's OWN sideboard — each with the Set code keying
+ *  the client shard that holds it. The client subscribes before the board
+ *  renders and loads those shards, nothing else.
+ *
+ *  Gated on SEAT ownership like `getSeatDeck`: the row carries the seat's
+ *  sideboard, which the opponent may not see. `null` for a seat the caller
+ *  does not own, and for a Game whose state is not built yet (`pregame`) or
+ *  that predates manifests.
+ *
+ *  Cheap by construction: one indexed point read of a row written when the
+ *  state was built (`convex/definitionManifest.ts`), no Card Definition and no
+ *  catalogue in this module's graph. It re-executes only when that row is
+ *  rewritten — at the build, or when a debug load widens it — never on the
+ *  `games` patches of a turn. */
+export const getDefinitionManifest = query({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    returns: v.union(
+        v.null(),
+        v.object({
+            playerId: v.string(),
+            entries: v.array(definitionManifestEntryValidator),
+        })
+    ),
+    handler: async (ctx, args) => {
+        const userId = await auth.getUserId(ctx);
+        if (!userId) return null;
+        if (!seatBelongsToUser(args.playerId, userId)) return null;
+        const entries = await loadSeatDefinitionManifest(
+            ctx,
+            args.gameId,
+            args.playerId
+        );
+        if (!entries) return null;
+        return { playerId: args.playerId, entries };
     },
 });
 

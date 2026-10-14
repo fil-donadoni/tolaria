@@ -133,6 +133,10 @@ import { declineMadness, consumeMadnessCastChoice } from "./gre/madness";
 import { declineRebound, consumeReboundCastChoice } from "./gre/rebound";
 import { assertDeckLegal, toFormatId, type ResolvePool } from "./formats";
 import { loadDeckPrintRows, withSeatDefinitionIds } from "./cardPrintRows";
+import {
+    widenGameDefinitionManifests,
+    writeGameDefinitionManifests,
+} from "./definitionManifest";
 import { makeResolveCardFromRows } from "./cards/printRows";
 import {
     JOIN_CODE_REJECTED,
@@ -3544,9 +3548,16 @@ export const chooseFirstPlayer = mutation({
         // CR 103.5: opening hands are drawn only after the starting player is
         // decided. The on-the-play skip-first-draw rule (CR 103.8) is already
         // handled by the engine (turn === 1).
+        const resolvedSeats = await withSeatDefinitionIds(ctx, seats);
         const initialState = buildInitialGameState(
-            await withSeatDefinitionIds(ctx, seats),
+            resolvedSeats,
             activePlayerId
+        );
+        await writeGameDefinitionManifests(
+            ctx,
+            gameId,
+            resolvedSeats,
+            initialState
         );
         await saveGameState(ctx, gameId, 0, initialState, null);
 
@@ -3849,9 +3860,14 @@ async function buildNextGameForMatch(
     // CR 103: the next Game starts fresh from the post-sideboard maindeck. The
     // play/draw choice sets the turn-1 active player; the on-the-play skip-first-
     // draw rule is already correct in the engine (turn === 1, CR 103.8).
-    const initialState = buildInitialGameState(
-        await withSeatDefinitionIds(ctx, seats),
-        activePlayerId
+    const resolvedSeats = await withSeatDefinitionIds(ctx, seats);
+    const initialState = buildInitialGameState(resolvedSeats, activePlayerId);
+    // Rebuilt per Game: sideboarding re-partitioned the decks it lists.
+    await writeGameDefinitionManifests(
+        ctx,
+        gameId,
+        resolvedSeats,
+        initialState
     );
     await saveGameState(ctx, gameId, 0, initialState, null);
 
@@ -14602,6 +14618,10 @@ export const debugResetGame = mutation({
         initialState.mulligan = makeMulliganState(initialState);
         initialState.priorityPlayerId = initialState.mulligan.declaringPlayerId;
 
+        // No Definition Manifest write (issue #5614): `gameDecks` are
+        // immutable, so the rebuilt libraries are the ones the stored rows
+        // already list — and these seats carry no sideboard, so a rewrite
+        // would DROP each seat's own.
         await saveGameState(ctx, args.gameId, 0, initialState, existing);
 
         // Reset game status in case it was finished
@@ -15186,6 +15206,9 @@ export const debugSetupScenario = mutation({
         await ctx.db.patch(args.gameId, {
             cardIds: withStatePrintIds(game.cardIds, state),
         });
+        // …and the Definition Manifest likewise (issue #5614): a card staged
+        // from outside the decks must reach the client's loaded definitions.
+        await widenGameDefinitionManifests(ctx, args.gameId, state);
         await saveGameState(
             ctx,
             args.gameId,

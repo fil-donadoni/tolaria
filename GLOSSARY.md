@@ -982,6 +982,10 @@ _Avoid_: Compiled cards, the JSON, ready set
 The small, generated, eagerly loaded table of every **Card Definition** the runtime can serve — its Card ID, name, **Set** and where the definition itself lives (a block of the packed **Compiled Pool**, or a hand-written export). It is the only part of the catalogue built at load; a definition is decoded or built from it on first request, so what a call costs grows with the cards of the game, never with the catalogue (ADR 0113 Amendment IV) — on the server, in the page and in the Bot worker alike. Whole-catalogue features (name lists, availability, Draftability) read the index, never the definitions; deck-builder search reads the **Search Index**.
 _Avoid_: Registry (the lookup API over it), manifest, card list
 
+**Definition Manifest**:
+Per seat of a Game, the **Card Definitions** that seat's client can need — both maindecks, both companions, and that seat's OWN sideboard (the opponent's is hidden information) — each with the **Set** code that keys the client shard holding it. Built server-side with the Game's state, rebuilt for every Game of a Match, widened when a debug load places a card from outside it; served seat-gated by `getDefinitionManifest`, so a client loads those definitions and nothing else (issue #5614, PRD #5602). Tokens, twins and face-down sentinels need no entry.
+_Avoid_: Definition Index (that is the whole catalogue), `games.cardIds` (print ids, both decklists, for art)
+
 **Search Index**:
 One generated row per catalogue card — name, types, colours, mana value, searchable oracle text, **Set** — written by `catalogue:pack` beside the **Definition Index** and fetched only by the deck builder, so it searches the whole catalogue without decoding a definition (issue #4861).
 _Avoid_: Card index (that is `data/card-index.json`), search cache
