@@ -529,35 +529,34 @@ function valueEachPlayerSide(
 
 /** Issue #5573 — `side`'s hand as one side's walk of a one-shot body leaves
  *  it: the steps a later `draw` lands after (`HandStep`), and its size, read
- *  off the board once and followed through them, for a `bindCount` taken
+ *  off the board and replayed through them, for a `bindCount` taken
  *  when a whole hand is shuffled in (Winds of Change's "draws that many").
  *  Only the Ops `isEachPlayerSideOp` admits reach it, and each of those
  *  either leaves the hand alone or is one of the steps. */
 class EachPlayerHand {
     readonly steps: HandStep[] = [];
-    private size: number | undefined;
     private readonly bound = new Map<string, number>();
 
     constructor(private readonly side: EachPlayerSide) {}
 
-    /** The hand's size now; `undefined` when the board cannot ground it,
-     *  which voids the side (`groundCount`). */
+    /** The hand's size after the steps so far; `undefined` when the board
+     *  cannot ground it, which voids the side (`groundCount`). */
     private sizeNow(): number | undefined {
-        if (this.size === undefined) {
-            this.size = this.side.groundCount({
-                count: { zone: "hand", controller: { ref: "$each" } },
-            });
+        let size = this.side.groundCount({
+            count: { zone: "hand", controller: { ref: "$each" } },
+        });
+        if (size === undefined) return undefined;
+        for (const step of this.steps) {
+            if (step.kind === "draws") size += step.count;
+            else if (step.kind === "discards") {
+                size = Math.max(0, size - step.count);
+            } else size = 0;
         }
-        return this.size;
+        return size;
     }
 
     record(step: HandStep): void {
         this.steps.push(step);
-        if (this.size === undefined) return;
-        if (step.kind === "draws") this.size += step.count;
-        else if (step.kind === "discards") {
-            this.size = Math.max(0, this.size - step.count);
-        } else this.size = 0;
     }
 
     /** A whole-hand `moveZone` into the library: binds the count of cards it
@@ -726,15 +725,16 @@ function isStepSideOp(op: EffectOp): boolean {
 /** Issue #5162 — true for an Op of a `forEach { set: "players" }` body whose
  *  effect on `$each` the Differential Reading prices for one side alone:
  *   - read off that side's board — the whole hand leaving it (`discard`
- *     with no selection, CR 701.9; `moveZone` hand → library), and an edict
+ *     with no selection, CR 701.9; `moveZone` hand → library), an edict
  *     (`choice` `sacrifice-permanents` on `$each` + the `sacrifice` of its
- *     picks, CR 701.21a);
- *   - or the same magnitude on every side, signed by whose it is — a literal
- *     `draw`, life gained or lost, damage to the player — which the sides
- *     net out.
+ *     picks, CR 701.21a), and (issue #5573) a `draw`, literal or counted off
+ *     an earlier shuffle-in's `bindCount`, into the hand the body leaves
+ *     (`EachPlayerSide.drawUnits`);
+ *   - or the same magnitude on every side, signed by whose it is — life
+ *     gained or lost, damage to the player — which the sides net out.
  *  Every Op must name `$each`: one that names a fixed player would be counted
- *  once per side. Anything else (a graveyard reshuffle, a draw counted off a
- *  binding, a choice of another kind) is fail-closed. */
+ *  once per side. Anything else (a graveyard reshuffle, a draw counted off
+ *  any other binding, a choice of another kind) is fail-closed. */
 function isEachPlayerSideOp(op: EffectOp, body: readonly EffectOp[]): boolean {
     switch (op.op) {
         case "draw":

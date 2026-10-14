@@ -485,23 +485,33 @@ describe("an each-player draw is priced off the drawing side's board (issue #557
     });
 
     it("Winds of Change draws back as many cards as each hand shuffled in", () => {
-        // CR 701.24 — the caster's three Bears go into a library of Forests
-        // and three cards come back off it; the opponent, with no hand, draws
-        // none. The draw-back is credited: the reading sits above the
-        // shuffle-in alone.
+        // CR 701.24 — each player's three cards go into a library of Forests
+        // and three come back off it: the caster's Bears are worth more than
+        // the opponent's Forests, and the draw-back is credited. The reading
+        // sits above the shuffle-in alone, at exactly a literal draw of three
+        // on each side: the count is each side's own hand.
         const shuffleOnly = sorcery("shuffle-only", [
             { op: "moveZone", player: each, from: "hand", to: "library" },
             { op: "libraryLook", action: "shuffle", player: each },
         ]);
+        const drawThree = sorcery("shuffle-draw-three", [
+            { op: "moveZone", player: each, from: "hand", to: "library" },
+            { op: "libraryLook", action: "shuffle", player: each },
+            { op: "draw", player: each, count: 3 },
+        ]);
         const board: [Side, Side] = [
             { hand: cards(3, bear), library: forests },
-            { library: forests },
+            { hand: cards(3, land), library: forests },
         ];
-        withTemporaryDefinition(shuffleOnly, () => {
-            const winds = readOnBoard(windsOfChange().id, ...board);
-            const shuffled = readOnBoard(shuffleOnly.id, ...board);
-            expect(winds.measured).toBe(true);
-            expect(winds.value).toBeGreaterThan(shuffled.value!);
-        });
+        withTemporaryDefinition(shuffleOnly, () =>
+            withTemporaryDefinition(drawThree, () => {
+                const winds = readOnBoard(windsOfChange().id, ...board);
+                const shuffled = readOnBoard(shuffleOnly.id, ...board);
+                const literal = readOnBoard(drawThree.id, ...board);
+                expect(winds.measured).toBe(true);
+                expect(winds.value).toBeGreaterThan(shuffled.value!);
+                expect(winds.value).toBeCloseTo(literal.value!, 9);
+            })
+        );
     });
 });
