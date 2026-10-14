@@ -5955,7 +5955,13 @@ export function resolveFight(
 ): void {
     const a = findOnBattlefield(state, creatureAId);
     const b = findOnBattlefield(state, creatureBId);
+    // CR 701.14b — if either is gone or no longer a creature, neither fights.
     if (!a || !b) return;
+    if (
+        !a.card.types.includes("Creature") ||
+        !b.card.types.includes("Creature")
+    )
+        return;
     // CR 701.14 — snapshot both powers up front; the damage is simultaneous,
     // so neither power is affected by the other's damage.
     const powerA = getEffectivePower(state, a.card);

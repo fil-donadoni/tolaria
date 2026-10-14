@@ -127,6 +127,7 @@
         "code": "later-outcome",
         "reason": "Op \"extraTurn\" mutates a turn-boundary queue, not a same-step outcome — covered by hand-written tests"
     },
+    "fight": "runs",
     "forEach": {
         "code": "source-or-each-subject",
         "reason": "construct \"forEach\" iterates a runtime-selected set — covered by the card's own tests"
