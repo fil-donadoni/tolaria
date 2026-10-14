@@ -60,14 +60,22 @@ the agent below is not installed.
 From the primary checkout:
 
 ```bash
-REPO=$(git rev-parse --show-toplevel)
-mkdir -p ~/.cache/tolaria/reaper
-sed -e "s|__REPO__|$REPO|g" -e "s|__BUN__|$(command -v bun)|g" -e "s|__HOME__|$HOME|g" \
-    scripts/runner-units/com.tolaria.reaper.plist \
-    > ~/Library/LaunchAgents/com.tolaria.reaper.plist
-launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.tolaria.reaper.plist
-launchctl print "gui/$(id -u)/com.tolaria.reaper" | grep -E 'state|last exit'
+mkdir -p ~/.cache/tolaria/reaper ~/.cache/tolaria/land-runner
+for u in reaper land-runner; do   # land-runner: omit on a machine that does not merge
+    bun scripts/launchd-render.ts scripts/runner-units/com.tolaria.$u.plist \
+        > ~/Library/LaunchAgents/com.tolaria.$u.plist || break
+    launchctl bootstrap "gui/$(id -u)" ~/Library/LaunchAgents/com.tolaria.$u.plist
+    launchctl print "gui/$(id -u)/com.tolaria.$u" | grep -E 'state|last exit'
+done
 ```
+
+`scripts/launchd-render.ts` substitutes `__REPO__`, `__BUN__`, `__HOME__` and
+`__NODE_BIN__` (the directory of `command -v node`: launchd's PATH does not
+carry nvm/mise, and `land`'s `convex codegen` dies with `env: node: No such
+file or directory` without it, issue #5598). It exits 1 with nothing written
+when a placeholder is left over or `node` is not on the rendered PATH. Verify
+the live agent: `ps eww -p <pid> | tr ' ' '\n' | grep ^PATH=` shows the node
+directory.
 
 The agent runs `scripts/reaper.ts` from the primary checkout, so it always
 sweeps with the code of the base branch that checkout is on. Remove it with
