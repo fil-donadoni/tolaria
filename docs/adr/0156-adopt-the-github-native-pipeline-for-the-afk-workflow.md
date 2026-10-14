@@ -46,8 +46,8 @@ Every figure is re-derivable; the source is named beside it.
 - **What that code re-implements.** A CI runner with concurrency control
   (`gate.ts`, `gate-run.sh`, `machine-admission.ts`), a merge queue
   (`land.ts`, `land-runner.ts`, the gate mutex), scheduled jobs (health
-  cadence, `runner-units/`, the crons of ADR 0154 §5–6 — none of which is
-  scheduled anywhere yet, issue #5592), commit statuses (the verdict store),
+  cadence, `runner-units/`, the crons of ADR 0154 §5–6, which ran nowhere
+  until issue #5592 put them on Huawei systemd timers the same day), commit statuses (the verdict store),
   notifications (`notify-owner.ts`), runner liveness (the heartbeat PRD B
   was about to add), dashboards (`dashboard/`), and job orchestration
   (`loop-drain.sh`, 1,600 lines of shell).
