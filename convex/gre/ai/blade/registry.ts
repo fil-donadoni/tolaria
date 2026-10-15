@@ -12760,6 +12760,126 @@ export const BLADE_SCENARIOS: RegistryBladeScenario[] = [
         },
         note: "Issue #5164. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue` (`ai/opValuers.ts`) and the measured reading's sign (`latentValue`'s `dslStandingAbilityMeasured`, `cardValue.ts`). Measured at 400 iterations over 20 seeds: the Mine never (pass 12, Aeolipile 8). Before issue #5164 (\"its controller draws\" read context-free): Disenchant on the Mine 20/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): the Mine 7/20.",
     },
+    {
+        // SYMMETRIC LIFE ENGINE (issue #5574, ADR 0151). The bot holds
+        // Disenchant with two untapped Plains beside four Swamps; the opponent
+        // controls four Forests, an Aeolipile (2 MV, at its floor — issue
+        // #5145) and a Karma. Karma deals each player, on their upkeep, damage
+        // equal to the Swamps THAT player controls: 4 a turn to the bot,
+        // nothing to the opponent. The opponent's Karma is a burn engine
+        // pointed at the bot; Disenchant it.
+        label: "symmetric life engine: Disenchant takes the Karma burning the bot's Swamps, not the 2-MV artifact (issue #5574)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Karma whose damage lands only on the bot's Swamps",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Swamp",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Karma", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            moves: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Karma",
+                },
+            ],
+        },
+        note: "Issue #5574. The anchor reading of the Karma positions (two unpaired `conditional` Test Positions — the battlefields differ by more than one Discriminant, so no `pairOf`): each upkeep's damage is grounded on that player's own Swamps (`stepSideLife`, `ai/opValuers.ts`) and priced at `lifeSwing`, the opponent's loss minus the bot's. Measured at 400 iterations over 20 seeds: Karma 20/20. NOT discriminating on its own — before issue #5574, and with `eachStepDifferentialValue` returning undefined, Karma is still 20/20; the mirror entry below is the one that reds.",
+    },
+    {
+        // SYMMETRIC LIFE ENGINE, MIRROR (issue #5574, ADR 0151) — the board
+        // above with the Swamps and Forests swapped: now the opponent's Karma
+        // deals 4 a turn to the OPPONENT and nothing to the bot, so
+        // destroying it is destroying the bot's own clock. Read as "its
+        // controller deals damage to the opponent" (the representative walk
+        // before issue #5574), Karma is a threat on every board and
+        // Disenchant takes it here as above.
+        label: "symmetric life engine: Disenchant leaves the Karma burning the opponent's Swamps (issue #5574)",
+        classification: {
+            kind: "conditional",
+            discriminant: {
+                kind: "card",
+                detail: "a Karma whose damage lands only on the opponent's Swamps",
+            },
+        },
+        spec: {
+            cards: [
+                ...Array.from({ length: 2 }, () => ({
+                    name: "Plains",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                    tapped: false,
+                })),
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Forest",
+                    owner: "me" as const,
+                    zone: "battlefield" as const,
+                })),
+                ...Array.from({ length: 4 }, () => ({
+                    name: "Swamp",
+                    owner: "opp" as const,
+                    zone: "battlefield" as const,
+                })),
+                { name: "Disenchant", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "me", zone: "hand" },
+                { name: "Grizzly Bears", owner: "opp", zone: "hand" },
+                { name: "Aeolipile", owner: "opp", zone: "battlefield" },
+                { name: "Karma", owner: "opp", zone: "battlefield" },
+            ],
+            phase: "PRECOMBAT_MAIN",
+            turn: 8,
+            landCount: 0,
+            libraryCount: 20,
+        },
+        bot: "me",
+        budget: { iterations: 400 },
+        seeds: [0xb1ade, 1, 2, 3],
+        tier: "must",
+        expect: {
+            forbidden: [
+                {
+                    kind: "cast-spell",
+                    card: "Disenchant",
+                    target: "Karma",
+                },
+            ],
+        },
+        note: "Issue #5574. The discriminating position (the entry above is the anchor reading). Guards `eachStepDifferentialValue`'s life pricing (`stepSideLife`, `ai/opValuers.ts`) and the side grounding of a count over `$event.activePlayerId` (`groundCount`, `ai/latentBoard.ts`). Measured at 400 iterations over 20 seeds: Karma never (Aeolipile 20). Before issue #5574: Disenchant on Karma 17/20. Proof of failure — `eachStepDifferentialValue` returning undefined (the netting skipped): Karma 14/20.",
+    },
     // KEYWORD BONUS ROWS (issue #5345). `expect.predicate`, not `moves`, ON
     // PURPOSE: a `moves` entry is a Verdict and obliges a refit of
     // `DEFAULT_EVAL_WEIGHTS` (`weightFit.bot.test.ts`), which cascades through

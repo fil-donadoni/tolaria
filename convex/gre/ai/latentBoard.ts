@@ -33,9 +33,12 @@ import type {
     EffectCardFilter,
     EffectCountSpec,
     EffectForEachSelector,
+    EffectPlayerRef,
     EffectValue,
+    PermanentView,
     TargetRequirement,
 } from "../../cards/types";
+import { countDomain } from "../../cards/types";
 import type { CardInstanceState, GameState, PlayerState } from "../state";
 import {
     matchesPermanentFilter,
@@ -340,6 +343,24 @@ export function makeLatentBoardLens(
         },
         eachPlayerDifferential(valueSide) {
             let total = 0;
+            // Issue #5574 — the source a step gate is asked about, built once
+            // for both sides: the permanent itself on the board face, the card
+            // entered under its caster on the hand face (the board it would
+            // stand on once it resolved, CR 608.3a). UNTAPPED on both: the
+            // engine is a recurrence over future steps, and its controller's
+            // untap step untaps it (CR 502.3) — a Howling Mine tapped on this
+            // leaf still feeds the table next turn, and the two faces stay
+            // one number.
+            let stepMemo: StepSource | undefined;
+            const stepSource = (): StepSource => {
+                if (stepMemo === undefined) {
+                    stepMemo =
+                        card.zone === "battlefield"
+                            ? { state, perm: { ...card, isTapped: false } }
+                            : withCardEntered(state, casterId, card);
+                }
+                return stepMemo;
+            };
             const boardDraw = () =>
                 boardLibraryMean(state, weights, returnedWorth);
             for (const player of state.players) {
@@ -348,6 +369,7 @@ export function makeLatentBoardLens(
                     player,
                     player.id === casterId,
                     card.id,
+                    stepSource,
                     realisedLoss,
                     returnedWorth,
                     denominator,
@@ -392,6 +414,10 @@ export function makeLatentBoardLens(
     };
 }
 
+/** Issue #5574 — the source permanent and the board a step gate is asked
+ *  against (`EachPlayerSide.stepGateHolds`). */
+type StepSource = { state: GameState; perm: CardInstanceState };
+
 /** Issue #5162 — `player`'s side of a Differential Reading, with the flag
  *  `eachPlayerDifferential` reads to know the side was answered. */
 function boardSide(
@@ -399,6 +425,7 @@ function boardSide(
     player: PlayerState,
     own: boolean,
     valuedCardId: string,
+    stepSource: () => StepSource,
     realisedLoss: RealisedLoss,
     returnedWorth: RealisedLoss,
     denominator: number,
@@ -429,10 +456,26 @@ function boardSide(
             for (const w of worths.slice(0, count)) worth += w;
             return worth;
         },
-        groundCount(value) {
-            const n = groundSideCount(state, player, valuedCardId, value);
+        groundCount(value, namesSide = isEachPlayerRef) {
+            const n = groundSideCount(
+                state,
+                player,
+                valuedCardId,
+                value,
+                namesSide
+            );
             if (n === undefined) unreadable = true;
+            else answered = true;
             return n;
+        },
+        stepGateHolds(gate) {
+            answered = true;
+            const source = stepSource();
+            return gate(
+                player.id,
+                source.perm as unknown as PermanentView,
+                source.state
+            );
         },
         drawUnits(count, before = []) {
             const scale = boardDraw();
@@ -506,17 +549,38 @@ function groundSideCount(
     state: GameState,
     player: PlayerState,
     valuedCardId: string,
-    value: EffectValue
+    value: EffectValue,
+    namesSide: (ref: EffectPlayerRef) => boolean
 ): number | undefined {
     if (typeof value === "number") return value;
     if ("count" in value) {
-        return groundZoneCount(state, player, valuedCardId, value.count);
+        return groundZoneCount(
+            state,
+            player,
+            valuedCardId,
+            value.count,
+            namesSide
+        );
     }
     if ("difference" in value) {
         const { from, minus } = value.difference;
-        const a = groundSideCount(state, player, valuedCardId, from);
-        const b = groundSideCount(state, player, valuedCardId, minus);
+        const a = groundSideCount(state, player, valuedCardId, from, namesSide);
+        const b = groundSideCount(
+            state,
+            player,
+            valuedCardId,
+            minus,
+            namesSide
+        );
         return a === undefined || b === undefined ? undefined : a - b;
+    }
+    // Issue #5574 — CR 305.6: the basic land types among lands the side's
+    // player controls (Collapsing Borders' "for each basic land type among
+    // lands they control"), through the engine's one Domain scan.
+    if ("domain" in value && namesSide(value.domain.of)) {
+        return (
+            countDomain(state as never, player.id) * (value.domain.times ?? 1)
+        );
     }
     return undefined;
 }
@@ -528,7 +592,8 @@ function groundZoneCount(
     state: GameState,
     player: PlayerState,
     valuedCardId: string,
-    spec: EffectCountSpec
+    spec: EffectCountSpec,
+    namesSide: (ref: EffectPlayerRef) => boolean
 ): number | undefined {
     if (spec.picks !== undefined || spec.countTypes) return undefined;
     if (spec.zone !== "battlefield" && spec.zone !== "hand") return undefined;
@@ -557,10 +622,7 @@ function groundZoneCount(
         size = Math.min(...state.players.map(sizeOf));
     } else if (spec.acrossAllPlayers) {
         size = state.players.reduce((n, p) => n + sizeOf(p), 0);
-    } else if (
-        spec.controller !== undefined &&
-        isEachPlayerRef(spec.controller)
-    ) {
+    } else if (spec.controller !== undefined && namesSide(spec.controller)) {
         size = sizeOf(player);
     } else {
         return undefined;

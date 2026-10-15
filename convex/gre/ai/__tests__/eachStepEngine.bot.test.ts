@@ -163,6 +163,18 @@ describe("a standing each-step engine reads the board (issue #5164)", () => {
         // stands (the script is incomplete, issue #5161).
         expect(cardValueById(MINE)).toBe(nonCreatureBodyRaw(2));
     });
+
+    it("a Mine tapped on this leaf reads as the untapped one: its untap step restores it (issue #5574)", () => {
+        // CR 603.4 "if Howling Mine is untapped" is decided per side against
+        // the source as its controller's untap step leaves it (CR 502.3) —
+        // the engine is a recurrence over future steps, so a Mine tapped now
+        // still feeds the table next turn.
+        const untapped = board({ hand: 1, mine: "board" }, { hand: 7 });
+        const tapped = board({ hand: 1, mine: "board" }, { hand: 7 });
+        tapped.players[0].battlefield[0].isTapped = true;
+        expect(mineWorth(tapped)).toBeGreaterThan(0);
+        expect(mineWorth(tapped)).toBeCloseTo(mineWorth(untapped), 6);
+    });
 });
 
 describe("a standing engine is not a held one-shot (issue #5560)", () => {

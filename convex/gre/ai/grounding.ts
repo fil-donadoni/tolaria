@@ -26,8 +26,10 @@ import type {
     EffectPlayerRef,
     EffectForEachSelector,
     EffectRef,
+    PermanentView,
     TargetRequirement,
 } from "../../cards/types";
+import type { GameState } from "../state";
 import type { Feature } from "./featureBasis";
 import type { LatentWeights } from "./evalWeights";
 import { DEFAULT_EVAL_WEIGHTS } from "./evalWeights";
@@ -177,8 +179,23 @@ export interface EachPlayerSide {
      *  players') battlefield or hand members, or a `difference` of two of
      *  them. The card being valued is not counted in its caster's hand — it
      *  is on the stack when the count is taken. `undefined` for a value the
-     *  board cannot ground, which voids the side. */
-    groundCount(value: EffectValue): number | undefined;
+     *  board cannot ground, which voids the side.
+     *
+     *  Issue #5574 — `namesSide` names the ref bound to this player: `$each`
+     *  by default, the scoped player (`$event.activePlayerId`) for a standing
+     *  each-step engine. A `{ domain: { of } }` of that player is grounded
+     *  too (CR 305.6). A grounded value marks the side ANSWERED: the amount
+     *  was read off this side's board, so a literal that nets out across the
+     *  sides is a MEASURED zero (ADR 0151 rule 2). */
+    groundCount(
+        value: EffectValue,
+        namesSide?: (ref: EffectPlayerRef) => boolean
+    ): number | undefined;
+    /** Issue #5574 — CR 603.4: whether a standing each-step engine's
+     *  intervening-if holds on THIS player's step, decided by the trigger's
+     *  own predicate against the board the lens is attached to, with this
+     *  player as the one whose step it is. Marks the side answered. */
+    stepGateHolds(gate: StepGate): boolean;
     /** Issue #5164 — what drawing `count` more cards is worth to this
      *  player, in `cardAdvantage` units: each card at the side's
      *  library-top expectation (the mean CONTEXT-FREE `cardValue` of its
@@ -221,6 +238,15 @@ export type HandStep =
     | { readonly kind: "shuffledIn" }
     | { readonly kind: "discards"; readonly count: number }
     | { readonly kind: "draws"; readonly count: number };
+
+/** Issue #5574 — a standing each-step trigger's CR 603.4 intervening-if,
+ *  asked for one player's step: `activePlayerId` is the player whose step it
+ *  is, `self` the source permanent, `state` the board it stands on. */
+export type StepGate = (
+    activePlayerId: string,
+    self: PermanentView,
+    state: GameState
+) => boolean;
 
 /** True for the `{ ref: "$each" }` forEach iteration variable used as a
  *  PLAYER ref (issue #1521). Every catalogue card naming a player this way

@@ -60,6 +60,7 @@
  */
 
 import { dslLatentPieces, latentValue } from "../../convex/gre/cardValue";
+import { carriesEachStepEngine } from "../../convex/gre/ai/cardScriptValue";
 import { nonCreatureBodyRaw } from "../../convex/gre/creatureBody";
 import { manaValue } from "../../convex/gre/constants";
 import type {
@@ -462,6 +463,11 @@ const NO_FLOOR_MANA_VALUE = -1_000_000;
  * creature is never inert (body plus ability value add, no floor); an
  * `aiValue` override replaces the reading outright; a card with no readable
  * script falls back to the floor by construction, not because of a shadow.
+ * Issue #5574 — neither does a card carrying a standing each-step engine
+ * (`carriesEachStepEngine`): context-free the engine reads nothing and the
+ * card keeps the Latent Floor by ADR 0151 §1 (a Symmetric Effect carries no
+ * fixed sign without a board), so its floor is the engine's, not the shadow's
+ * (Cold Snap's cumulative-upkeep cost beside its Karma-shaped trigger).
  */
 export function enumerateInertShadows(
     cards: readonly CardDefinition[]
@@ -471,6 +477,7 @@ export function enumerateInertShadows(
         if (card.types.includes("Creature")) continue;
         if (card.aiValue !== undefined) continue;
         if (!carriesShadow(card)) continue;
+        if (carriesEachStepEngine(card)) continue;
         const pieces = dslLatentPieces(card);
         if (
             pieces.dslSpellValue === undefined &&

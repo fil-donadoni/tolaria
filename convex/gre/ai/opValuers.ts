@@ -46,6 +46,7 @@ import type {
     EachPlayerSide,
     HandStep,
     GroundingContext,
+    StepGate,
     SweepOutcome,
 } from "./grounding";
 import { contextFreeGrounding, isEachPlayerRef } from "./grounding";
@@ -642,32 +643,35 @@ function isStepPlayerRef(ref: EffectPlayerRef): boolean {
  *  (issue #5151). A `draw` is priced off the drawing side's own board
  *  (`EachPlayerSide.drawUnits`): Howling Mine feeds the player whose next
  *  card is worth more to it — the better library, the hand the cleanup
- *  discard leaves room in. A life or damage Op is the same magnitude on
- *  every side and nets out beside a draw.
+ *  discard leaves room in.
  *
- *  `undefined` — the representative reading stands — when no board is
- *  attached, the script holds an Op this reading cannot attribute to the
- *  scoped player alone (`isStepSideOp`), or no side read the board (a script
- *  of life Ops alone, which `eachPlayerDifferentialValue` leaves standing for
- *  the same reason). */
+ *  Issue #5574 — a life Op is priced off the scoped player's own board too
+ *  (`stepSideLife`): Karma's damage is the Swamps THAT player controls, so it
+ *  hurts the side with more Swamps; a literal amount nets out to a MEASURED
+ *  zero (Copper Tablet). `gate` is the trigger's CR 603.4 intervening-if,
+ *  decided per side (`EachPlayerSide.stepGateHolds`): a side on whose step
+ *  the trigger would do nothing reads 0 (Spiritual Sanctuary's Plains, Mask
+ *  of Intolerance's four basic land types).
+ *
+ *  `undefined` — the engine reads nothing — when no board is attached, the
+ *  script holds an Op this reading cannot attribute to the scoped player
+ *  alone (`isStepSideOp`), or a side's amount could not be grounded on its
+ *  board (fail-closed, ADR 0151 §1). */
 export function eachStepDifferentialValue(
     script: readonly EffectOp[],
-    ctx: GroundingContext
+    ctx: GroundingContext,
+    gate?: StepGate
 ): OpValue | undefined {
     const lens = ctx.latent;
     if (!lens.eachPlayerDifferential) return undefined;
     if (!isEachStepEngineScript(script)) return undefined;
     const tags = new Set<ValueTag>(["board-scaling"]);
     const points = lens.eachPlayerDifferential((side) => {
+        if (gate && !side.stepGateHolds(gate)) return 0;
         const sideCtx = eachPlayerGrounding(ctx, side, isStepPlayerRef);
         let total = ZERO_OP_VALUE;
         for (const op of script) {
-            total = addValues(
-                total,
-                op.op === "draw"
-                    ? sideDraw(op.count as number, side, sideCtx)
-                    : valueOp(op, sideCtx)
-            );
+            total = addValues(total, stepSideOpValue(op, side, sideCtx));
         }
         for (const t of total.tags) tags.add(t);
         return total.points;
@@ -677,12 +681,49 @@ export function eachStepDifferentialValue(
     return { points, tags: [...tags] };
 }
 
-/** Issue #5164 — true for a script `eachStepDifferentialValue` reads: every
- *  Op attributable to the scoped player alone (`isStepSideOp`), and a draw
- *  among them — the Op that reads the board (a script of life Ops alone
- *  would read nothing off it). */
+/** Issue #5164 / #5574 — true for a script `eachStepDifferentialValue`
+ *  reads: a non-empty script whose every Op is attributable to the scoped
+ *  player alone (`isStepSideOp`). */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
-    return script.every(isStepSideOp) && script.some((op) => op.op === "draw");
+    return script.length > 0 && script.every(isStepSideOp);
+}
+
+/** Issue #5574 — one Op of a standing each-step script on one side: a draw
+ *  priced off the side's library and hand, a life Op off the side's board. */
+function stepSideOpValue(
+    op: EffectOp,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    switch (op.op) {
+        case "draw":
+            return sideDraw(op.count as number, side, ctx);
+        case "gainLife":
+            return stepSideLife(op.amount, 1, side, ctx);
+        case "loseLife":
+            return stepSideLife(op.amount, -1, side, ctx);
+        case "dealDamage":
+            // CR 120.3a — damage dealt to a player causes that much life loss.
+            return stepSideLife(op.amount, -1, side, ctx);
+        default:
+            return valueOp(op, ctx);
+    }
+}
+
+/** Issue #5574 — life gained (`direction` 1) or lost (-1) by the scoped
+ *  player, the amount grounded on THAT player's board with
+ *  `$event.activePlayerId` bound to it, priced at `lifeSwing` and signed by
+ *  whose side it is. An amount the board cannot ground voids the side
+ *  (`groundCount`) and reads 0 here. */
+function stepSideLife(
+    amount: EffectValue,
+    direction: 1 | -1,
+    side: EachPlayerSide,
+    ctx: GroundingContext
+): OpValue {
+    const n = Math.max(0, side.groundCount(amount, isStepPlayerRef) ?? 0);
+    const signed = side.own ? direction * n : -direction * n;
+    return { points: priced(ctx, "lifeSwing", signed), tags: ["lifeSwing"] };
 }
 
 /** Issue #5164 — one side's draw of `count` cards, priced off its board at
@@ -706,23 +747,39 @@ function sideDraw(
  *  Reading prices for the scoped player alone: a literal `draw` (CR 121.1),
  *  life gained or lost, damage to that player. Every Op must name the
  *  scoped player — one naming a fixed player would be counted once per
- *  side; anything else is fail-closed. */
+ *  side; anything else is fail-closed. Issue #5574 — a life amount may be a
+ *  board count (`isStepGroundableAmount`), grounded per side. */
 function isStepSideOp(op: EffectOp): boolean {
     switch (op.op) {
         case "draw":
             return isStepPlayerRef(op.player) && typeof op.count === "number";
         case "gainLife":
         case "loseLife":
-            return isStepPlayerRef(op.player) && typeof op.amount === "number";
+            return (
+                isStepPlayerRef(op.player) && isStepGroundableAmount(op.amount)
+            );
         case "dealDamage":
             return (
                 "player" in op.to &&
                 isStepPlayerRef(op.to.player) &&
-                typeof op.amount === "number"
+                isStepGroundableAmount(op.amount)
             );
         default:
             return false;
     }
+}
+
+/** Issue #5574 — an amount shape a side may ground on its own board
+ *  (`EachPlayerSide.groundCount`): a literal, a `count`, a `difference`, a
+ *  Domain. Whether THIS count is groundable is the board's answer — a
+ *  filter or player it cannot read voids the side. */
+function isStepGroundableAmount(value: EffectValue): boolean {
+    return (
+        typeof value === "number" ||
+        "count" in value ||
+        "difference" in value ||
+        "domain" in value
+    );
 }
 
 /** Issue #5162 — true for an Op of a `forEach { set: "players" }` body whose
