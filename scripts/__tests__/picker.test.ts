@@ -1,0 +1,204 @@
+import { describe, it, expect } from "vitest";
+import * as fs from "fs";
+import * as path from "path";
+import {
+    planBatch,
+    type IssueDetail,
+    type PlanConfig,
+    type QueueIssue,
+    type QueuePort,
+} from "../lib/queue-plan";
+import {
+    claimFate,
+    isTrusted,
+    pick,
+    type IssueProvenance,
+    type PickerInput,
+    type TrustPolicy,
+} from "../lib/picker";
+
+/**
+ * The picker (issue #5648) is `planBatch` plus two admission facts: who wrote
+ * the issue, and whether a claim has a live workflow run. Order is NOT
+ * re-derived — the first block pins that to the old planner on the recorded
+ * queue; the rest pin the two additions.
+ */
+
+const LIVE_QUEUE = JSON.parse(
+    fs.readFileSync(
+        path.resolve(__dirname, "fixtures", "queue", "live-queue.json"),
+        "utf8"
+    )
+) as QueueIssue[];
+
+const CONFIG: PlanConfig = {
+    batchCap: 4,
+    staleClaimHours: 24,
+    defaultImplModel: "sonnet",
+    now: "2026-08-04T12:00:00Z",
+};
+
+const TRUST: TrustPolicy = { owner: "owner", trustedAuthors: ["maintainer"] };
+
+const BODY = [
+    "## What to build",
+    "",
+    "Some behaviour the loop needs, described at enough length that the body is a spec rather than a title repeated twice.",
+    "",
+    "## Acceptance criteria",
+    "",
+    "- [ ] the behaviour above works end to end",
+    "- [ ] a test covers it and has been proven to fail",
+    "",
+    "## Target files",
+    "",
+].join("\n");
+
+function port(files: Record<number, string> = {}): QueuePort {
+    return {
+        issuesWithOpenPr: [],
+        priority: {},
+        issueDetail(n: number): IssueDetail {
+            return {
+                state: "OPEN",
+                stateReason: null,
+                labels: ["enhancement", "ready-for-agent"],
+                body: `${BODY}- \`${files[n] ?? `src/f${n}.ts`}\`\n`,
+            };
+        },
+        nativeBlockedBy: () => [],
+    };
+}
+
+function issue(n: number, labels: string[] = ["ready-for-agent"]): QueueIssue {
+    return {
+        number: n,
+        title: `issue ${n}`,
+        labels: labels.map((name) => ({ name })),
+        parent: null,
+        assignees: [],
+        updatedAt: CONFIG.now,
+    };
+}
+
+const byOwner: IssueProvenance = { author: "owner", readyBy: null };
+const stranger: IssueProvenance = { author: "stranger", readyBy: null };
+
+function input(over: Partial<PickerInput>): PickerInput {
+    return {
+        issues: [],
+        config: CONFIG,
+        port: port(),
+        trust: TRUST,
+        provenance: {},
+        claims: [],
+        ...over,
+    };
+}
+
+describe("picker — order parity with queue:plan (issue #5648)", () => {
+    it("returns the same plan as planBatch on the recorded queue", () => {
+        const provenance = Object.fromEntries(
+            LIVE_QUEUE.map((i) => [i.number, byOwner])
+        );
+        const p = port();
+        const expected = planBatch(LIVE_QUEUE, CONFIG, p);
+        const got = pick(input({ issues: LIVE_QUEUE, provenance, port: p }));
+        expect(expected.batch.length).toBeGreaterThan(0);
+        expect(got.plan).toEqual(expected);
+        expect(got.untrusted).toEqual([]);
+    });
+});
+
+describe("picker — trusted authors (issue #5648)", () => {
+    it("trusts the owner, a trusted author, and the owner's ready label", () => {
+        expect(isTrusted(byOwner, TRUST)).toBe(true);
+        expect(isTrusted({ author: "maintainer", readyBy: null }, TRUST)).toBe(
+            true
+        );
+        expect(isTrusted({ author: "stranger", readyBy: "owner" }, TRUST)).toBe(
+            true
+        );
+    });
+
+    it("distrusts a stranger, a stranger labelled by a stranger, and unknown provenance", () => {
+        expect(isTrusted(stranger, TRUST)).toBe(false);
+        expect(isTrusted({ author: "stranger", readyBy: "other" }, TRUST)).toBe(
+            false
+        );
+        expect(isTrusted({ author: null, readyBy: null }, TRUST)).toBe(false);
+        expect(isTrusted(undefined, TRUST)).toBe(false);
+    });
+
+    it("skips an untrusted author's issue and plans the rest", () => {
+        const got = pick(
+            input({
+                issues: [issue(1), issue(2), issue(3)],
+                provenance: {
+                    1: stranger,
+                    2: byOwner,
+                    3: { author: "stranger", readyBy: "owner" },
+                },
+            })
+        );
+        expect(got.untrusted).toEqual([1]);
+        expect(got.plan.batch.map((b) => b.number).sort()).toEqual([2, 3]);
+    });
+});
+
+describe("picker — run-based claim liveness (issue #5648)", () => {
+    it("maps run + branch facts to a fate; missing facts hold the claim", () => {
+        const f = { issue: 1, liveRun: false, branchPushed: true, pr: null };
+        expect(claimFate({ ...f, liveRun: true })).toBe("live");
+        expect(claimFate(f)).toBe("resume");
+        expect(claimFate({ ...f, branchPushed: false })).toBe("release");
+        expect(claimFate(undefined)).toBe("live");
+    });
+
+    it("a claim with no live run and a pushed branch is a resume pick", () => {
+        const got = pick(
+            input({
+                issues: [
+                    issue(7, ["ready-for-agent", "in-progress"]),
+                    issue(8),
+                ],
+                provenance: { 7: byOwner, 8: byOwner },
+                claims: [
+                    { issue: 7, liveRun: false, branchPushed: true, pr: 70 },
+                ],
+            })
+        );
+        expect(got.resume.map((r) => [r.number, r.pr])).toEqual([[7, 70]]);
+        expect(got.release).toEqual([]);
+        expect(got.plan.batch.map((b) => b.number)).toEqual([8]);
+    });
+
+    it("a claim with no live run and no branch is released, not resumed", () => {
+        const got = pick(
+            input({
+                issues: [issue(7, ["ready-for-agent", "in-progress"])],
+                provenance: { 7: byOwner },
+                claims: [
+                    { issue: 7, liveRun: false, branchPushed: false, pr: null },
+                ],
+            })
+        );
+        expect(got.release).toEqual([7]);
+        expect(got.resume).toEqual([]);
+    });
+
+    it("a claim with a live run is held, never resumed or released", () => {
+        const got = pick(
+            input({
+                issues: [issue(7, ["ready-for-agent", "in-progress"])],
+                provenance: { 7: byOwner },
+                claims: [
+                    { issue: 7, liveRun: true, branchPushed: true, pr: null },
+                ],
+            })
+        );
+        expect(got.live).toEqual([7]);
+        expect(got.resume).toEqual([]);
+        expect(got.release).toEqual([]);
+    });
+});
