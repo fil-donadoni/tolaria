@@ -24,10 +24,11 @@ const ENV: Record<string, string | undefined> =
 
 const BLINK = "cast × blink";
 const TAPPED = "land-drop × enters-tapped";
-const THEMES = [BLINK, TAPPED] as const;
+const BARE = "targeting × any";
+const THEMES = [BLINK, TAPPED, BARE] as const;
 
-/** Two themes: blink has one red anchor + one green half (issue #111);
- *  enters-tapped has no pair at all. */
+/** Three themes: blink has one red anchor + one green half (issue #111);
+ *  enters-tapped one all-green pair; targeting no pair at all. */
 const BY_FIELD: CensusScenario[] = [
     {
         label: "blink anchor",
@@ -42,6 +43,15 @@ const BY_FIELD: CensusScenario[] = [
         pairOf: {
             anchor: "blink anchor",
             discriminant: { kind: "other", detail: "flicker target" },
+        },
+    },
+    { label: "tapped anchor", tier: "must", audit: { theme: TAPPED } },
+    {
+        label: "tapped half",
+        tier: "must",
+        pairOf: {
+            anchor: "tapped anchor",
+            discriminant: { kind: "other", detail: "tapped land" },
         },
     },
     { label: "unrelated", tier: "must" },
@@ -61,7 +71,8 @@ describe("audit census (issue #4925)", () => {
     it("counts pairs and red/green per theme, from the pair field", () => {
         expect(auditCensus(BY_FIELD, THEMES)).toEqual([
             { theme: BLINK, pairs: 1, red: 1, green: 1, issues: [111] },
-            { theme: TAPPED, pairs: 0, red: 0, green: 0, issues: [] },
+            { theme: TAPPED, pairs: 1, red: 0, green: 2, issues: [] },
+            { theme: BARE, pairs: 0, red: 0, green: 0, issues: [] },
         ]);
     });
 
@@ -69,6 +80,7 @@ describe("audit census (issue #4925)", () => {
         expect(auditCensus(BY_PROSE, THEMES)).toEqual([
             { theme: BLINK, pairs: 1, red: 1, green: 1, issues: [111] },
             { theme: TAPPED, pairs: 0, red: 0, green: 0, issues: [] },
+            { theme: BARE, pairs: 0, red: 0, green: 0, issues: [] },
         ]);
     });
 
@@ -89,14 +101,14 @@ describe("audit census (issue #4925)", () => {
     it("drops a theme row when the theme is dropped from the list", () => {
         const rows = auditCensus(BY_FIELD, [BLINK]);
         expect(rows.map((r) => r.theme)).toEqual([BLINK]);
-        expect(formatAuditCensus(rows)).not.toContain(TAPPED);
+        expect(formatAuditCensus(rows)).not.toContain(BARE);
     });
 
     it("prints a row per theme with its issues", () => {
         const text = formatAuditCensus(auditCensus(BY_FIELD, THEMES));
         expect(text).toContain(`${BLINK}`);
         expect(text).toContain("#111");
-        expect(text).toContain("1/2 themes have no pair");
+        expect(text).toContain("1/3 themes have no pair");
     });
 });
 
