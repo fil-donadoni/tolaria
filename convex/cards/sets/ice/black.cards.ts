@@ -1039,7 +1039,7 @@ export const gravebind = defineCard(() => ({
             op: "delayedTrigger",
             timing: "next-upkeep",
             oracleText:
-                "Draw a card at the beginning of the next turn's upkeep.",
+                "At the beginning of the next turn's upkeep, draw a card.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
@@ -1939,7 +1939,7 @@ export const mindRavel = defineCard(() => ({
             kind: "discard-hand",
             player: { target: 0 },
             zone: "hand",
-            count: { min: 0, max: 1 },
+            count: 1,
             prompt: "Mind Ravel: discard a card.",
             bind: "$picked",
         },
@@ -1948,7 +1948,7 @@ export const mindRavel = defineCard(() => ({
             op: "delayedTrigger",
             timing: "next-upkeep",
             oracleText:
-                "Draw a card at the beginning of the next turn's upkeep.",
+                "At the beginning of the next turn's upkeep, draw a card.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],
@@ -3078,7 +3078,7 @@ export const touchOfDeath = defineCard(() => ({
             op: "delayedTrigger",
             timing: "next-upkeep",
             oracleText:
-                "Draw a card at the beginning of the next turn's upkeep.",
+                "At the beginning of the next turn's upkeep, draw a card.",
             effects: [{ op: "draw", player: "controller", count: 1 }],
         },
     ],

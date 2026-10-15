@@ -1060,6 +1060,13 @@ export class SentenceWalk {
         readonly requirement: TargetRequirement;
     } | null = null;
 
+    /**
+     * CR 608.2c — an earlier sentence dealt damage to the ONE announced target
+     * (slot 0): the antecedent of "dealt damage this way". Set by the
+     * `deal-damage` lowering only.
+     */
+    damagedTarget = false;
+
     /** A destroy/exile/move sat behind a gate, so no live read of its target is safe. */
     gatedRemoval = false;
 
@@ -1796,6 +1803,12 @@ function lowerSentenceBody(
                     ? lowerThatCreatureController(walk)
                     : damageTarget(sentence.to, slots, site);
             if (!to.ok) return to;
+            const damaged = to.value as { target?: number };
+            if (
+                damaged.target === 0 &&
+                walk.targets.requirements().length === 1
+            )
+                walk.damagedTarget = true;
             return lowered([
                 { op: "dealDamage", amount: amount.value, to: to.value },
             ]);
@@ -2346,6 +2359,13 @@ function lowerSentenceBody(
             // structural construct. The inner sentence is lowered by THIS
             // walk, so "you may tap target creature" allocates its slot once,
             // through the shared allocator, exactly as the bare sentence does.
+            // CR 603.7a — "you may draw a card at the beginning of the next
+            // turn's upkeep" asks at the upkeep, not on this resolution: the
+            // gate would decide the schedule instead of the draw.
+            if (sentence.effect.kind === "delayed-draw-next-upkeep")
+                return unlowerable(
+                    "an optional delayed draw is chosen at the delayed trigger, not here"
+                );
             const inner = gatedSentence(sentence.effect, walk, site);
             if (!inner.ok) return inner;
             const bind = walk.nextBind("may");
@@ -2811,6 +2831,28 @@ function lowerSentenceBody(
                     '"that creature" names no single creature target announced before it (CR 608.2h)'
                 );
             return lowered([{ op: "exileOnDeath", target: { target: 0 } }]);
+        }
+        case "prevent-regeneration-damaged": {
+            // CR 701.19c + CR 608.2c — "a creature dealt damage this way" is
+            // the ONE target announced before it; the Op no-ops on a player,
+            // which is what "a creature" means for an "any target" spell.
+            const announced = slots.requirements();
+            const only = announced.length === 1 ? announced[0]! : null;
+            if (
+                only === null ||
+                (only.type !== "Creature" && only.type !== "any") ||
+                only.count !== 1 ||
+                only.zone !== undefined ||
+                only.announcedOnlyIfKicked === true ||
+                !walk.damagedTarget ||
+                walk.gatedRemoval
+            )
+                return unlowerable(
+                    '"a creature dealt damage this way" names no single target announced before it (CR 608.2c)'
+                );
+            return lowered([
+                { op: "preventRegeneration", target: { target: 0 } },
+            ]);
         }
         case "exile-self": {
             // CR 608.2n — the resolving spell, never an ability: on a
