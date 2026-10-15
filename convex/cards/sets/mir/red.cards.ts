@@ -19,8 +19,6 @@ import { defineCard } from "../../types";
 // LKI (Divine Offering, `leg/white.cards.ts`, reads `manaValue` off a destroy bind
 // the same way). The damage lands on `{ ref: "$source" }`, the Tinkerer
 // itself, which is why a big artifact kills it.
-//
-// hand-tail: {R}, {T}: Destroy target artifact. That artifact deals damage equal to its mana value to this creature. (#4195)
 export const goblinTinkerer = defineCard(() => ({
     id: "e6529852-8b3e-4a70-a4a1-029e012231c6", // MIR 180
     rarity: "common",

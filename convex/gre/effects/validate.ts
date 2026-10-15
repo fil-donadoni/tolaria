@@ -4772,6 +4772,15 @@ const OP_SCHEMAS: OpSchemaTable = {
             target: isObjectSelector,
         },
     },
+    // CR 701.14a (issue #2013) — two creatures fight. Both combatants are
+    // object selectors; neither defaults (the source fights by naming
+    // `$source`).
+    fight: {
+        required: {
+            creature: isObjectSelector,
+            other: isObjectSelector,
+        },
+    },
     // CR 614.1a (issue #1095) — arm a one-shot "if it would die this turn,
     // exile it instead" replacement. `target` is an object selector (announced
     // slot, `$source`, or a forEach `$each`). No duration — the one-shot,

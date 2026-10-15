@@ -2411,6 +2411,25 @@ function analyseOp(op: EffectOp, req: Requirements): void {
             }
             recordSubject(req, op.target);
             return;
+        case "fight":
+            // CR 701.14a (issue #2013) — both combatants must be seeded
+            // permanents (an announced slot, or the ability's own source) for
+            // the mutual damage to be observable; a `$each` / bound combatant
+            // is the card's own test.
+            if (
+                !subjectModelled(req, op.creature) ||
+                !subjectModelled(req, op.other)
+            ) {
+                skipBecause(
+                    req,
+                    "source-or-each-subject",
+                    `Op "fight" names a $each/bound combatant — covered by the card's own per-card test`
+                );
+                return;
+            }
+            recordSubject(req, op.creature);
+            recordSubject(req, op.other);
+            return;
         case "preventRegeneration":
             // `preventRegeneration` (CR 701.19c, issue #1283) sets an IMMEDIATE
             // `cantBeRegeneratedThisTurn` flag on the target creature,
@@ -3563,6 +3582,62 @@ const OP_ASSERTORS: AssertorTable = {
                 return {
                     ok: !stillThere && phased,
                     detail: `on battlefield ${stillThere}, phased out ${phased}`,
+                };
+            },
+        };
+    },
+    // `fight` (CR 701.14a, issue #2013) — each combatant is dealt damage equal
+    // to the OTHER's power (read before the fight, CR 701.14a's simultaneity):
+    // its marked damage grows by exactly that much, or — when that is lethal —
+    // it has left the battlefield (CR 704.5g).
+    fight(rawOp, scenario, pre) {
+        const op = rawOp as Extract<EffectOp, { op: "fight" }>;
+        const aId = subjectPermanentId(scenario, op.creature);
+        const bId = subjectPermanentId(scenario, op.other);
+        if (aId === undefined || bId === undefined || aId === bId) return null;
+        const onBattlefield = (s: GameState, id: string) =>
+            s.players.flatMap((p) => p.battlefield).find((c) => c.id === id);
+        const a = onBattlefield(pre, aId);
+        const b = onBattlefield(pre, bId);
+        if (!a || !b) return null;
+        const aPT = getEffectivePT(pre, a);
+        const bPT = getEffectivePT(pre, b);
+        const sides = [
+            {
+                id: aId,
+                before: a.damageMarked ?? 0,
+                toughness: aPT.toughness,
+                dealt: bPT.power,
+            },
+            {
+                id: bId,
+                before: b.damageMarked ?? 0,
+                toughness: bPT.toughness,
+                dealt: aPT.power,
+            },
+        ];
+        return {
+            label: `fight ${aId} (${aPT.power}) ↔ ${bId} (${bPT.power})`,
+            check: (post) => {
+                for (const side of sides) {
+                    const expected = side.before + side.dealt;
+                    const perm = onBattlefield(post, side.id);
+                    if (!perm) {
+                        if (expected >= side.toughness) continue;
+                        return {
+                            ok: false,
+                            detail: `${side.id} gone, expected ${expected} marked`,
+                        };
+                    }
+                    if ((perm.damageMarked ?? 0) !== expected)
+                        return {
+                            ok: false,
+                            detail: `${side.id} marked ${perm.damageMarked ?? 0}, expected ${expected}`,
+                        };
+                }
+                return {
+                    ok: true,
+                    detail: "both combatants dealt the other's power",
                 };
             },
         };

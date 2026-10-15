@@ -947,7 +947,7 @@
         {
             "kind": "grammar",
             "key": "activated › effect clause › The next time a red source of your choice would deal damage to you this turn, prevent that damage",
-            "issue": 4572
+            "issue": 5601
         },
         {
             "kind": "grammar",

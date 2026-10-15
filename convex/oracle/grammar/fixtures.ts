@@ -7386,4 +7386,56 @@ export const GOLDEN_FIXTURES: readonly GoldenFixture[] = Object.freeze([
             targetRequirement: { type: "Artifact", count: 1 },
         },
     },
+    // CR 120.1 + CR 202.3 + CR 608.2h — "Destroy target artifact. That
+    // artifact deals damage equal to its mana value to this creature": the
+    // DEALER is the object the destroy acted on, read off its `bind` snapshot
+    // (issue #4572), exhibiting the "amount is a runtime snapshot" and
+    // "dealDamage lands on $source" card-dependent forms.
+    {
+        rule: "effect clause",
+        card: {
+            oracleId: "0afc2d2f-4fdb-440f-9c35-45bf103c0437",
+            name: "Goblin Tinkerer",
+            manaCost: "{1}{R}",
+            typeLine: "Creature — Goblin Artificer",
+            oracleText:
+                "{R}, {T}: Destroy target artifact. That artifact deals damage equal to its mana value to this creature.",
+            power: "1",
+            toughness: "2",
+            layout: "normal",
+        },
+        expected: {
+            name: "Goblin Tinkerer",
+            types: ["Creature"],
+            subtypes: ["Goblin", "Artificer"],
+            manaCost: { X: 1, R: 1 },
+            power: 1,
+            toughness: 2,
+            oracleText:
+                "{R}, {T}: Destroy target artifact. That artifact deals damage equal to its mana value to this creature.",
+            activatedAbilities: [
+                {
+                    id: "goblin-tinkerer-ability",
+                    oracleText:
+                        "{R}, {T}: Destroy target artifact. That artifact deals damage equal to its mana value to this creature.",
+                    cost: { mana: { R: 1 }, tap: true },
+                    useStack: true,
+                    effects: [
+                        {
+                            op: "destroy",
+                            target: { target: 0 },
+                            bind: "$that1",
+                        },
+                        {
+                            op: "dealDamage",
+                            amount: { ref: "$that1.manaValue" },
+                            to: { ref: "$source" },
+                            source: { ref: "$that1" },
+                        },
+                    ],
+                    targetRequirement: { type: "Artifact", count: 1 },
+                },
+            ],
+        },
+    },
 ]);

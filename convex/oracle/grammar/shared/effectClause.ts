@@ -675,6 +675,15 @@ export type EffectSentenceIR =
            * "it" names anyone else (see `lowerSentenceBody`).
            */
           readonly sourceIsPronoun?: true;
+          /**
+           * CR 120.1 + CR 608.2h — the sentence named its damage SOURCE as
+           * "that <noun>": the object an EARLIER sentence acted on (Goblin
+           * Tinkerer's "Destroy target artifact. That artifact deals damage
+           * …"). The noun is kept as printed so the lowering can check it
+           * against what was acted on; the dealer is that object's last known
+           * information, read off the acting Op's `bind` snapshot.
+           */
+          readonly sourceIsActedOn?: string;
       }
     | {
           /**
@@ -745,6 +754,32 @@ export type EffectSentenceIR =
            * announced-slot form no corpus card prints under this clause.
            */
           readonly kind: "prevent-combat-damage-to-and-by";
+          readonly subject: SubjectIR;
+          readonly duration: DurationIR;
+      }
+    | {
+          /**
+           * CR 701.14a — "<creature> fights <other>": each deals damage equal
+           * to its power to the other. Both sides are read by the one subject
+           * rule, in printed order, so two announced targets take slots 0 and
+           * 1 as printed (Triangle of War); the lowering admits a creature
+           * target or the ability's own source on either side.
+           */
+          readonly kind: "fight";
+          readonly creature: SubjectIR;
+          readonly other: SubjectIR;
+      }
+    | {
+          /**
+           * CR 615.1a + CR 510.2 — "Prevent all combat damage that would be
+           * dealt by <object> this turn."
+           *
+           * A SOURCE-side shield: whatever combat damage the named object
+           * would deal this turn, to any recipient, is prevented (`preventDamage`
+           * mode "all-from-source" with `combatOnly`). `subject` is read by the
+           * one subject rule; the lowering accepts an announced target only.
+           */
+          readonly kind: "prevent-combat-damage-by";
           readonly subject: SubjectIR;
           readonly duration: DurationIR;
       }
@@ -3313,6 +3348,15 @@ const DAMAGE_EQUAL_MANA_VALUE = new RegExp(
     `^(.+) deals damage equal to ${actedOnNounGroup(["permanent"])} mana value to (.+)$`
 );
 /**
+ * CR 120.1 + CR 202.3 + CR 608.2h — "That artifact deals damage equal to its
+ * mana value to this creature" (Goblin Tinkerer): the DEALER is the object an
+ * earlier sentence acted on, and "its" is that same dealer. One printed noun,
+ * checked by the lowering against what was acted on; the magnitude is pinned
+ * to "its mana value", the only characteristic the corpus prints here.
+ */
+const ACTED_ON_DEALS_DAMAGE_EQUAL_MANA_VALUE =
+    /^That (\S+) deals damage equal to its mana value to (.+)$/;
+/**
  * CR 107.1 + CR 120.1 — "{self} deals damage to target creature equal to the
  * number of Mountains you control" (Rockslide Ambush). Recipient and count are
  * both open spans; "equal to the number of" is the only anchor between them,
@@ -3741,6 +3785,21 @@ function isPreventionShieldRecipient(requirement: TargetRequirement): boolean {
  */
 const PREVENT_COMBAT_DAMAGE_TO_AND_BY =
     /^Prevent all combat damage that would be dealt to and dealt by (.+?) (this turn)$/;
+
+/**
+ * CR 615.1a — the one-way, source-side combat prevention shield's printed
+ * form. The source runs up to the trailing duration, which is read by the
+ * duration rule itself. Disjoint from the two-way form above: "to and dealt
+ * by" never begins with "by".
+ */
+const PREVENT_COMBAT_DAMAGE_BY =
+    /^Prevent all combat damage that would be dealt by (.+?) (this turn)$/;
+
+/**
+ * CR 701.14a — the keyword action "fights", between two printed creatures.
+ * The first combatant runs up to the verb; the second is the rest of the span.
+ */
+const FIGHTS = /^(.+?) fights (.+)$/;
 
 /**
  * CR 614.9 — the redirection shield's printed form. The budget is the printed
@@ -5041,6 +5100,34 @@ function effectSentence(
         } satisfies EffectSentenceIR);
     }
 
+    // ── <creature> fights <other> (CR 701.14a) ─────────────────────────────
+    const fights = span.match(FIGHTS);
+    if (fights !== null) {
+        const creature = subjectRule.run(fights[1]!, ctx);
+        if (!creature.ok) return creature;
+        const other = subjectRule.run(fights[2]!, ctx);
+        if (!other.ok) return other;
+        return ok({
+            kind: "fight" as const,
+            creature: creature.value,
+            other: other.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── prevent all combat damage by <object> (CR 615.1a) ──────────────────
+    const preventCombatBy = span.match(PREVENT_COMBAT_DAMAGE_BY);
+    if (preventCombatBy !== null) {
+        const subject = subjectRule.run(preventCombatBy[1]!, ctx);
+        if (!subject.ok) return subject;
+        const duration = durationRule.run(preventCombatBy[2]!, ctx);
+        if (!duration.ok) return duration;
+        return ok({
+            kind: "prevent-combat-damage-by" as const,
+            subject: subject.value,
+            duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
     // ── redirect the next N damage (CR 614.9) ──────────────────────────────
     const redirectNext = span.match(REDIRECT_NEXT_DAMAGE);
     if (redirectNext !== null) {
@@ -5059,6 +5146,23 @@ function effectSentence(
             from: from.value,
             to: to.value,
             duration: duration.value,
+        } satisfies EffectSentenceIR);
+    }
+
+    // ── the acted-on object deals damage equal to its mana value ───────────
+    const actedOnDealer = span.match(ACTED_ON_DEALS_DAMAGE_EQUAL_MANA_VALUE);
+    if (actedOnDealer !== null) {
+        const to = subjectRule.run(actedOnDealer[2]!, ctx);
+        if (!to.ok) return to;
+        return ok({
+            kind: "deal-damage" as const,
+            amount: {
+                kind: "acted-on-characteristic" as const,
+                noun: "it" as const,
+                characteristic: "manaValue" as const,
+            },
+            to: to.value,
+            sourceIsActedOn: actedOnDealer[1]!,
         } satisfies EffectSentenceIR);
     }
 

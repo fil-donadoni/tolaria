@@ -93,6 +93,10 @@ const REMOVAL_COMPLETENESS = {
     edict: { num: 3, den: 4 },
     /** Stealing a permanent: denial plus a body, but revertible. */
     gainControl: { num: 15, den: 16 },
+    /** A fight (CR 701.14a): the victim dies only when the fighter's power
+     *  reaches its toughness, and the fighter takes damage back — a
+     *  conditional half of a removal, not the whole. */
+    fight: { num: 1, den: 2 },
 } as const;
 
 /** The `tempo` twin of `REMOVAL_COMPLETENESS`: how much of a bounced victim's
@@ -2539,6 +2543,21 @@ const preventRegeneration: Valuer<"preventRegeneration"> = (op) => ({
         : ["boardRemoval"],
 });
 
+// CR 701.14a — a fight is conditional removal aimed at `other`: priced off
+// the best legal victim like `destroy`, at the `fight` completeness (the
+// victim may survive, and the fighter is damaged back).
+const fight: Valuer<"fight"> = (op, ctx) => ({
+    points: pricedFraction(
+        ctx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.fight,
+        victimUnitsFor(op.other, ctx)
+    ),
+    tags: isAnnouncedTarget(op.other)
+        ? ["boardRemoval", "targeted"]
+        : ["boardRemoval"],
+});
+
 // CR 614.1a — "if it would die this turn, exile it instead" (issue #1095).
 // A graveyard-denial rider, not removal in itself: it only pays off when the
 // creature actually dies this turn, and what it buys is the recursion the
@@ -2971,6 +2990,7 @@ export const OP_VALUERS: {
     regenerate,
     phaseOut,
     preventRegeneration,
+    fight,
     exileOnDeath,
     lockDamage,
     suppressDamagePrevention,
@@ -3259,6 +3279,8 @@ export const OP_BENEFICENCE: { [K in EffectOp["op"]]?: Beneficence } = {
     dealDamageDividedAsChosen: "harmful",
     loseLife: "harmful",
     destroy: "harmful",
+    // CR 701.14a — damage to both combatants; the stake is the `other`'s life.
+    fight: "harmful",
     exile: "harmful",
     exileWithAttachments: "harmful",
     // CR 702.26b — the recipient loses use of the permanent until its next

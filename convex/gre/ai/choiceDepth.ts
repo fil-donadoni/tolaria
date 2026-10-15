@@ -164,6 +164,7 @@ export const RAISES_RESOLUTION_CHOICE: Record<EffectOp["op"], boolean> = {
     redirectDamage: false,
     phaseOut: false,
     preventRegeneration: false,
+    fight: false,
     pump: false,
     randomExileToHand: false,
     recallCapturedBinding: false,

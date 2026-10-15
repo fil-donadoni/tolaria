@@ -4118,8 +4118,11 @@ export interface SpellContext {
      *  and triggers fire). Both powers are snapshotted before any damage, and
      *  a creature that dies to the fight still deals its full damage. Reusable
      *  by any fight card (pre-"fight" Tracker template and modern "fights").
-     *  No-op if either creature is no longer on the battlefield. */
-    fight: (target: TargetSelection) => void;
+     *  `fighter` names the other combatant explicitly (the `fight` Effect Op,
+     *  "target creature you control fights target creature …"); omitted, it
+     *  is the resolving ability's source. No-op if either creature is no
+     *  longer on the battlefield (CR 701.14b). */
+    fight: (target: TargetSelection, fighter?: TargetSelection) => void;
     gainLife: (playerId: string, amount: number) => void;
     loseLife: (playerId: string, amount: number) => void;
     /** CR 122.1 — "A counter is a marker placed on an object or player": adds
@@ -17461,6 +17464,26 @@ export type EffectOp =
      *  destroy attached. No-op on a non-creature or a permanent that has left
      *  the battlefield (CR 608.2b). */
     | { op: "preventRegeneration"; target: EffectObjectSelector }
+    /** CR 701.14a (issue #2013, issue #4572) — `creature` fights `other`: each
+     *  deals damage equal to its power to the other, simultaneously, through
+     *  the normal damage path. A thin declarative skin over the single
+     *  SpellContext primitive `fight`, one execution path (ADR 0045), with the
+     *  first combatant named explicitly rather than defaulted to the source,
+     *  so "Target creature you control fights target creature an opponent
+     *  controls" (Triangle of War) and "this creature fights target creature"
+     *  are one shape (`creature: { ref: "$source" }` for the latter). Both are
+     *  object selectors — an announced slot, `$source`, a forEach `$each`, or
+     *  a bound ref. CR 701.14b — when either side is gone, no longer a
+     *  creature, or an illegal target (its slot blanked by the CR 608.2b gate),
+     *  NEITHER fights: the Op is skipped whole, never half-applied. CR 701.14c
+     *  (a creature fighting itself) is the primitive's, not refused here. NOT
+     *  "deals damage equal to its power to target creature" (a one-way bite,
+     *  `dealDamage`), which is a different keyword action. */
+    | {
+          op: "fight";
+          creature: EffectObjectSelector;
+          other: EffectObjectSelector;
+      }
     /** CR 614.1a (issue #1095) — arm a one-shot, turn-scoped replacement on a
      *  permanent: if it would DIE this turn, exile it instead. "If it would
      *  die this turn, exile it instead" (Scorching Lava's kicked rider,

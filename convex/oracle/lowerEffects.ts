@@ -1771,6 +1771,23 @@ function lowerSentenceBody(
             // you control"), which needs the walk's target slots.
             const amount = lowerLifeAmount(sentence.amount, walk, site);
             if (!amount.ok) return amount;
+            // CR 120.1 + CR 608.2h — "That artifact deals damage …": the
+            // dealer is the object an earlier sentence acted on, its last
+            // known information read off that Op's `bind` (Goblin Tinkerer).
+            if (sentence.sourceIsActedOn !== undefined) {
+                const source = actedOnDealer(sentence.sourceIsActedOn, walk);
+                if (!source.ok) return source;
+                const to = damageTarget(sentence.to, slots, site);
+                if (!to.ok) return to;
+                return lowered([
+                    {
+                        op: "dealDamage",
+                        amount: amount.value,
+                        to: to.value,
+                        source: source.value,
+                    },
+                ]);
+            }
             // CR 120.3 — "to each creature and each player" names two
             // disjoint recipient sets; `dealDamage.to` names one, so this
             // fans out into a pair of sweeps instead of a single Op.
@@ -1926,6 +1943,46 @@ function lowerSentenceBody(
                     duration: durationSpec(sentence.duration),
                 },
             ]);
+        // CR 701.14a — two creatures fight. Each side is a single creature
+        // target; the ability's own source ("this creature fights …") is a
+        // form with no fixture yet, and a mass or player side is no fight.
+        case "fight": {
+            for (const side of [sentence.creature, sentence.other])
+                if (
+                    side.kind !== "target" ||
+                    side.requirement.type !== "Creature" ||
+                    side.requirement.count !== 1
+                )
+                    return unlowerable(
+                        "a fight is read between a single creature target on each side (CR 701.14a)"
+                    );
+            const creature = objectSelector(sentence.creature, slots, site);
+            if (!creature.ok) return creature;
+            const other = objectSelector(sentence.other, slots, site);
+            if (!other.ok) return other;
+            return lowered([
+                { op: "fight", creature: creature.value, other: other.value },
+            ]);
+        }
+        // CR 615.1a + CR 510.2 — the one-way source-side combat shield on an
+        // announced object (Kor Haven's "target attacking creature"). The
+        // ability's own source is a shape no corpus card prints here.
+        case "prevent-combat-damage-by": {
+            if (sentence.subject.kind !== "target")
+                return unlowerable(
+                    "a source-side combat prevention shield is read for an announced target only (CR 615.1a)"
+                );
+            const source = objectSelector(sentence.subject, slots, site);
+            if (!source.ok) return source;
+            return lowered([
+                {
+                    op: "preventDamage",
+                    mode: "all-from-source",
+                    source: source.value,
+                    combatOnly: true,
+                },
+            ]);
+        }
         case "redirect-next-damage": {
             // CR 614.9 / 601.2c — the printed form is TWO instances of the
             // word "target", the second marked "another". The engine announces
@@ -3786,6 +3843,36 @@ function lowerActedOnController(
     const bind = actedOn.op.bind ?? walk.nextBind("that");
     actedOn.op.bind = bind;
     return lowered({ ref: `${bind}.controller` });
+}
+
+/**
+ * CR 120.1 + CR 608.2h — "that <noun>" as a damage SOURCE: the object the
+ * last sentence acted on, named by the same noun its announcement printed
+ * ("Destroy target artifact. That artifact deals …"). A noun that is not
+ * that announcement's single type names some other object, and is refused.
+ */
+function actedOnDealer(
+    noun: string,
+    walk: SentenceWalk
+): Lowered<EffectObjectSelector> {
+    const actedOn = walk.actedOn;
+    if (actedOn === null)
+        return unlowerable(
+            `"that ${noun}" names no object acted on before it (CR 608.2h)`
+        );
+    const { type, zone, count } = actedOn.requirement;
+    if (
+        typeof type !== "string" ||
+        type.toLowerCase() !== noun ||
+        count !== 1 ||
+        (zone !== undefined && zone !== "battlefield")
+    )
+        return unlowerable(
+            `"that ${noun}" is not the ${JSON.stringify(type)} acted on before it (CR 608.2h)`
+        );
+    const bind = actedOn.op.bind ?? walk.nextBind("that");
+    actedOn.op.bind = bind;
+    return lowered({ ref: bind });
 }
 
 /** Remember the announced object a sentence acted on (see `actedOn`). */
