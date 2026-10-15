@@ -1,0 +1,355 @@
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+    checkStructure,
+    formatViolation,
+    isSelfHosted,
+    JOB_SETUP_FILE,
+    type RuleId,
+    type SourceFile,
+    type StructureInput,
+} from "../ci/workflow-structure";
+
+// The structure guard over `.github/` and `.mergify.yml` (ADR 0156 §8 and
+// Amendment I, issue #5636). One test reads the repository's real files; the
+// rest pin each rule on a fixture that holds every invariant, broken one
+// line at a time.
+
+const REPO = join(__dirname, "..", "..");
+
+function read(rel: string): SourceFile {
+    return { path: rel, text: readFileSync(join(REPO, rel), "utf8") };
+}
+
+function repoInput(): StructureInput {
+    const wfDir = ".github/workflows";
+    const actDir = ".github/actions";
+    return {
+        workflows: readdirSync(join(REPO, wfDir))
+            .filter((f) => /\.ya?ml$/.test(f))
+            .map((f) => read(`${wfDir}/${f}`)),
+        actions: readdirSync(join(REPO, actDir))
+            .filter((d) => existsSync(join(REPO, actDir, d, "action.yml")))
+            .map((d) => read(`${actDir}/${d}/action.yml`)),
+        mergify: existsSync(join(REPO, ".mergify.yml"))
+            ? read(".mergify.yml")
+            : null,
+    };
+}
+
+describe("the repository's workflows", () => {
+    it("hold every invariant", () => {
+        const input = repoInput();
+        // Never vacuous: a glob that reads nothing would pass anything.
+        expect(input.workflows.map((w) => w.path)).toContain(
+            ".github/workflows/pr-check.yml"
+        );
+        expect(input.actions.map((a) => a.path)).toContain(JOB_SETUP_FILE);
+        expect(checkStructure(input).map(formatViolation)).toEqual([]);
+    });
+});
+
+const SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1";
+
+const HOSTED = `
+on:
+  pull_request:
+concurrency:
+  group: x
+  cancel-in-progress: true
+jobs:
+  lane:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@${SHA}
+      - uses: ./.github/actions/job-setup
+      - run: bun run check:lane
+`;
+
+const SELF_HOSTED = `
+on:
+  push:
+    branches: [x]
+  workflow_dispatch:
+  issues:
+    types: [labeled]
+jobs:
+  lane:
+    runs-on: [self-hosted, lane]
+    timeout-minutes: 30
+    steps:
+      - name: Job worktree
+        run: git show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+      - uses: ./.github/actions/job-setup
+      - run: scripts/ci/run-quiet.sh pass -- claude -p "/next-ticket 1"
+      - if: always()
+        run: git show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+`;
+
+const PR_TARGET = `
+on:
+  pull_request_target:
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@${SHA}
+      - uses: ./.github/actions/job-setup
+      - run: bun scripts/pr-gate.ts
+`;
+
+const JOB_SETUP = readFileSync(join(REPO, JOB_SETUP_FILE), "utf8");
+
+const MERGIFY = `
+queue_rules:
+  - name: default
+    queue_conditions:
+      - label=ready-to-land
+      - check-success=trusted-author
+      - check-success=base-health
+      - -files~=^\\.github/
+      - -files=.mergify.yml
+    merge_conditions:
+      - check-success=lane
+`;
+
+interface Over {
+    hosted?: string;
+    self?: string;
+    target?: string;
+    setup?: string;
+    mergify?: string;
+}
+
+function fixture(over: Over = {}): StructureInput {
+    const wf = {
+        hosted: over.hosted ?? HOSTED,
+        self: over.self ?? SELF_HOSTED,
+        target: over.target ?? PR_TARGET,
+    };
+    return {
+        workflows: Object.entries(wf).map(([k, text]) => ({
+            path: `.github/workflows/${k}.yml`,
+            text,
+        })),
+        actions: [{ path: JOB_SETUP_FILE, text: over.setup ?? JOB_SETUP }],
+        mergify: { path: ".mergify.yml", text: over.mergify ?? MERGIFY },
+    };
+}
+
+function rules(input: StructureInput): RuleId[] {
+    return [...new Set(checkStructure(input).map((v) => v.rule))];
+}
+
+/** Replace `from` in `text`, asserting it was there (a no-op edit would
+ *  prove nothing). */
+function edit(text: string, from: string, to: string): string {
+    expect(text).toContain(from);
+    return text.replace(from, to);
+}
+
+describe("workflow structure guard", () => {
+    it("the fixture holds every invariant", () => {
+        expect(checkStructure(fixture()).map(formatViolation)).toEqual([]);
+    });
+
+    it("refuses a self-hosted job an outsider can trigger", () => {
+        for (const trigger of [
+            "pull_request:",
+            "pull_request_target:",
+            "issue_comment:",
+            "discussion:",
+            "workflow_run:\n    workflows: [x]",
+            "issues:\n    types: [labeled, opened]",
+            "issues:",
+        ]) {
+            const self = edit(
+                SELF_HOSTED,
+                "  issues:\n    types: [labeled]",
+                `  ${trigger}`
+            );
+            expect(rules(fixture({ self })), trigger).toEqual([
+                "outsider-reaches-self-hosted",
+            ]);
+        }
+    });
+
+    it("reads every runs-on shape it cannot prove hosted as self-hosted", () => {
+        expect(isSelfHosted("ubuntu-24.04")).toBe(false);
+        expect(isSelfHosted(["ubuntu-24.04"])).toBe(false);
+        for (const r of [
+            "self-hosted",
+            "lane",
+            ["pass"],
+            ["host:huawei"],
+            "${{ inputs.runner }}",
+            { group: "mine" },
+            { labels: ["seed"] },
+            [],
+            undefined,
+        ])
+            expect(isSelfHosted(r), JSON.stringify(r)).toBe(true);
+        const hosted = edit(
+            HOSTED,
+            "runs-on: ubuntu-24.04",
+            "runs-on: ${{ inputs.os }}"
+        );
+        expect(rules(fixture({ hosted }))).toContain(
+            "outsider-reaches-self-hosted"
+        );
+    });
+
+    it("refuses a pull_request_target job that checks out or fetches the PR head", () => {
+        const withRef = edit(
+            PR_TARGET,
+            `      - uses: actions/checkout@${SHA}`,
+            `      - uses: actions/checkout@${SHA}\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}`
+        );
+        expect(rules(fixture({ target: withRef }))).toEqual([
+            "pr-target-head-checkout",
+        ]);
+        const fetch = edit(
+            PR_TARGET,
+            "run: bun scripts/pr-gate.ts",
+            "run: gh pr checkout 12"
+        );
+        expect(rules(fixture({ target: fetch }))).toEqual([
+            "pr-target-head-checkout",
+        ]);
+    });
+
+    it("refuses a uses: not pinned to a full SHA, in a workflow or an action", () => {
+        const hosted = edit(
+            HOSTED,
+            `actions/checkout@${SHA}`,
+            "actions/checkout@v7"
+        );
+        expect(rules(fixture({ hosted }))).toEqual(["unpinned-uses"]);
+        const docker = edit(
+            HOSTED,
+            `actions/checkout@${SHA}`,
+            "docker://alpine:3"
+        );
+        expect(rules(fixture({ hosted: docker }))).toEqual(["unpinned-uses"]);
+        const setup = JOB_SETUP.replace(
+            /actions\/setup-node@[0-9a-f]{40}/,
+            "actions/setup-node@v7"
+        );
+        expect(setup).not.toBe(JOB_SETUP);
+        expect(rules(fixture({ setup }))).toEqual(["unpinned-uses"]);
+    });
+
+    it("refuses a reusable-workflow call", () => {
+        const hosted = `${HOSTED}  call:\n    uses: o/r/.github/workflows/x.yml@${SHA}\n`;
+        expect(rules(fixture({ hosted }))).toEqual(["reusable-call"]);
+    });
+
+    it("refuses a job without a timeout", () => {
+        const self = edit(SELF_HOSTED, "    timeout-minutes: 30\n", "");
+        expect(rules(fixture({ self }))).toEqual(["no-timeout"]);
+    });
+
+    it("refuses a run: step before the shared job setup", () => {
+        const hosted = edit(
+            HOSTED,
+            "      - uses: ./.github/actions/job-setup\n",
+            ""
+        );
+        expect(rules(fixture({ hosted }))).toEqual(["no-toolchain"]);
+        const late = edit(
+            HOSTED,
+            "      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane\n",
+            "      - run: bun run check:lane\n      - uses: ./.github/actions/job-setup\n"
+        );
+        expect(rules(fixture({ hosted: late }))).toEqual(["no-toolchain"]);
+    });
+
+    it("refuses a concurrency group on a self-hosted job or its workflow", () => {
+        const job = edit(
+            SELF_HOSTED,
+            "    timeout-minutes: 30",
+            "    timeout-minutes: 30\n    concurrency: heavy"
+        );
+        expect(rules(fixture({ self: job }))).toEqual(["concurrency-group"]);
+        const wf = edit(SELF_HOSTED, "jobs:", "concurrency: heavy\njobs:");
+        expect(rules(fixture({ self: wf }))).toEqual(["concurrency-group"]);
+    });
+
+    it("refuses actions/checkout on a self-hosted job", () => {
+        const self = edit(
+            SELF_HOSTED,
+            "      - uses: ./.github/actions/job-setup",
+            `      - uses: actions/checkout@${SHA}\n      - uses: ./.github/actions/job-setup`
+        );
+        expect(rules(fixture({ self }))).toEqual(["self-hosted-clone"]);
+    });
+
+    it("refuses a self-hosted job that does not create and remove its worktree", () => {
+        const noCreate = edit(
+            SELF_HOSTED,
+            "bash -s -- create",
+            "bash -s -- status"
+        );
+        expect(rules(fixture({ self: noCreate }))).toEqual(["job-worktree"]);
+        const notAlways = edit(
+            SELF_HOSTED,
+            "      - if: always()\n        run:",
+            "      - run:"
+        );
+        expect(rules(fixture({ self: notAlways }))).toEqual(["job-worktree"]);
+        const noRemove = edit(
+            SELF_HOSTED,
+            "bash -s -- remove",
+            "bash -s -- status"
+        );
+        expect(rules(fixture({ self: noRemove }))).toEqual(["job-worktree"]);
+    });
+
+    it("refuses a claude call outside run-quiet", () => {
+        const self = edit(
+            SELF_HOSTED,
+            'run: scripts/ci/run-quiet.sh pass -- claude -p "/next-ticket 1"',
+            'run: |\n          cd x && claude -p "/next-ticket 1"'
+        );
+        expect(rules(fixture({ self }))).toEqual(["claude-raw-output"]);
+    });
+
+    it("refuses a job setup that lost its mask or a pinned toolchain step", () => {
+        for (const [from, to] of [
+            ["::add-mask::", "::notice::"],
+            ["node-version-file: .nvmrc", "node-version: 24"],
+            ["scripts/ci/setup-bun.sh", "true"],
+            ["bun run worktree:init", "bun install"],
+        ] as const) {
+            const setup = edit(JOB_SETUP, from, to);
+            expect(rules(fixture({ setup })), from).toEqual([
+                "job-setup-contract",
+            ]);
+        }
+    });
+
+    it("refuses a queue rule that does not gate entry", () => {
+        for (const line of [
+            "      - label=ready-to-land\n",
+            "      - check-success=trusted-author\n",
+            "      - check-success=base-health\n",
+            "      - -files~=^\\.github/\n",
+            "      - -files=.mergify.yml\n",
+        ]) {
+            const mergify = edit(MERGIFY, line, "");
+            expect(rules(fixture({ mergify })), line).toEqual(["queue-entry"]);
+        }
+        expect(rules(fixture({ mergify: "pull_request_rules: []\n" }))).toEqual(
+            ["queue-entry"]
+        );
+    });
+
+    it("reports a file it cannot parse", () => {
+        expect(rules(fixture({ hosted: "on: [push\n" }))).toEqual([
+            "unparseable",
+        ]);
+    });
+});
