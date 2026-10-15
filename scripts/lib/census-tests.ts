@@ -104,6 +104,11 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/compiled-pool-client-seam.test.ts",
         admits: /^(convex|src|scripts)\//,
     },
+    // convex/, src/, scripts/ — every importer of `setModules` (issue #5615)
+    {
+        test: "scripts/__tests__/set-modules-client-seam.test.ts",
+        admits: /^(convex|src|scripts)\//,
+    },
     // convex/ top-level game*/debug* modules and their bundled import closure
     {
         test: "scripts/__tests__/convex-card-free-seam.test.ts",

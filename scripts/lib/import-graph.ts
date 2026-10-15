@@ -80,6 +80,11 @@ export const APP_ALIASES: readonly ImportAlias[] = [
         find: /^\.\/compiledPool$/,
         replacement: "src/lib/catalogue/compiled-pool.browser.ts",
     },
+    // Issue #5615 — the hand-written half of the same asymmetry.
+    {
+        find: /^\.\/setModules$/,
+        replacement: "src/lib/catalogue/set-modules.browser.ts",
+    },
 ];
 
 const SPECIFIER_PATTERNS: readonly RegExp[] = [
