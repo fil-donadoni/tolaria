@@ -201,4 +201,37 @@ describe("picker — run-based claim liveness (issue #5648)", () => {
         expect(got.resume).toEqual([]);
         expect(got.release).toEqual([]);
     });
+
+    it("a live-run claim older than staleClaimHours is never in staleClaims", () => {
+        const old = {
+            ...issue(7, ["ready-for-agent", "in-progress"]),
+            updatedAt: "2026-01-01T00:00:00Z",
+        };
+        const got = pick(
+            input({
+                issues: [old],
+                provenance: { 7: byOwner },
+                claims: [
+                    { issue: 7, liveRun: true, branchPushed: false, pr: null },
+                ],
+            })
+        );
+        expect(got.plan.staleClaims).toEqual([]);
+        expect(got.plan.activeClaims).toEqual([7]);
+    });
+
+    it("duplicate facts merge toward alive", () => {
+        const got = pick(
+            input({
+                issues: [issue(7, ["ready-for-agent", "in-progress"])],
+                provenance: { 7: byOwner },
+                claims: [
+                    { issue: 7, liveRun: true, branchPushed: false, pr: null },
+                    { issue: 7, liveRun: false, branchPushed: false, pr: null },
+                ],
+            })
+        );
+        expect(got.live).toEqual([7]);
+        expect(got.release).toEqual([]);
+    });
 });

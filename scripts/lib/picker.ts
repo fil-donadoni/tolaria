@@ -102,7 +102,23 @@ const isClaimed = (issue: QueueIssue): boolean =>
 
 export function pick(input: PickerInput): PickResult {
     const { issues, config, port, trust, provenance } = input;
-    const facts = new Map(input.claims.map((c) => [c.issue, c]));
+    // Duplicate evidence merges toward "alive": a later `liveRun: false` row
+    // must never turn a held claim into a release.
+    const facts = new Map<number, ClaimFacts>();
+    for (const c of input.claims) {
+        const prev = facts.get(c.issue);
+        facts.set(
+            c.issue,
+            prev
+                ? {
+                      issue: c.issue,
+                      liveRun: prev.liveRun || c.liveRun,
+                      branchPushed: prev.branchPushed || c.branchPushed,
+                      pr: prev.pr ?? c.pr,
+                  }
+                : c
+        );
+    }
 
     const live: number[] = [];
     const release: number[] = [];
@@ -131,7 +147,22 @@ export function pick(input: PickerInput): PickResult {
         }
     }
 
-    const plan = planBatch(competing, config, port);
+    const planned = planBatch(competing, config, port);
+    // The run is the liveness authority: `planBatch` judges a claim by issue
+    // age and open PR, which would call a long-running live pass "stale".
+    const liveSet = new Set(live);
+    const plan: BatchPlan = {
+        ...planned,
+        staleClaims: planned.staleClaims.filter((n) => !liveSet.has(n)),
+        activeClaims: [...new Set([...planned.activeClaims, ...live])].sort(
+            (x, y) => x - y
+        ),
+        deferred: planned.deferred.map((d) =>
+            liveSet.has(d.number) && d.reason.startsWith("stale claim")
+                ? { ...d, reason: "claimed by another session" }
+                : d
+        ),
+    };
     const resume = resumeItems(
         resumable.map((c) => ({
             issue: c.issue,
