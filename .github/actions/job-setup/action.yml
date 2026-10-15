@@ -1,0 +1,29 @@
+# The shared job setup (ADR 0156 Amendment I, issue #5636) — every job's
+# first `uses:` once its workspace exists (a job worktree on a self-hosted
+# runner, `actions/checkout` on a GitHub-hosted one). It masks the gh token,
+# pins node (.nvmrc) and bun (.bun-version) on the job's PATH whatever the
+# runner's service PATH holds (the issue #5598 class), and runs
+# `worktree:init`. Scripts only, no nested action: a nested action's post
+# step would run after the job worktree is removed.
+# docs/guides/github-pipeline.md § Jobs.
+name: job-setup
+description: Mask the gh token, pin node and bun, bootstrap the tree.
+runs:
+    using: composite
+    steps:
+        - name: Mask the gh token
+          shell: bash
+          run: |
+              if command -v gh >/dev/null 2>&1 && t="$(gh auth token 2>/dev/null)" && [ -n "$t" ]; then
+                  echo "::add-mask::$t"
+                  echo "gh token masked"
+              fi
+        - name: Node (.nvmrc)
+          shell: bash
+          run: scripts/ci/setup-node.sh
+        - name: Bun (.bun-version)
+          shell: bash
+          run: scripts/ci/setup-bun.sh
+        - name: worktree:init
+          shell: bash
+          run: bun run worktree:init

@@ -255,6 +255,11 @@ export const CENSUS_TESTS: readonly CensusTest[] = [
         test: "scripts/__tests__/weak-sole-assertion.test.ts",
         admits: /^(convex|src|scripts|dashboard)\//,
     },
+    // .github/ workflows and actions, .mergify.yml, the job harness (issue #5636)
+    {
+        test: "scripts/__tests__/workflow-structure.test.ts",
+        admits: /^\.github\/|^\.mergify\.yml$|^scripts\/ci\//,
+    },
 ];
 
 /** Directory-walking tests that census no repo corpus, each with its reason. */

@@ -71,6 +71,7 @@ function input(platform: "darwin" | "linux"): InstallInput {
                       systemdTpl,
                       ROOT,
                       "/usr/bin:/bin",
+                      "/r",
                       () => true
                   )
                 : null,
@@ -196,6 +197,9 @@ describe("runner units", () => {
         );
         expect(out).toContain("<key>KeepAlive</key>\n    <true/>");
         expect(out).toContain("/h/.nvm/v24/bin");
+        expect(out).toContain(
+            "<key>TOLARIA_PRIMARY_CHECKOUT</key>\n        <string>/r</string>"
+        );
     });
 
     it("convex dev is a launchd agent restarted when it dies", () => {
@@ -212,13 +216,21 @@ describe("runner units", () => {
             systemdTpl,
             ROOT,
             "/usr/bin:/bin",
+            "/r",
             () => true
         );
         expect(out).toContain(`ExecStart=${ROOT}/%i/run.sh`);
         expect(out).toContain("Restart=always");
         expect(out).toContain("KillMode=control-group");
+        expect(out).toContain("Environment=TOLARIA_PRIMARY_CHECKOUT=/r");
         expect(() =>
-            renderRunnerSystemdTemplate("__NOPE__", ROOT, "/bin", () => true)
+            renderRunnerSystemdTemplate(
+                "__NOPE__",
+                ROOT,
+                "/bin",
+                "/r",
+                () => true
+            )
         ).toThrow(/unsubstituted/);
     });
 
@@ -228,13 +240,20 @@ describe("runner units", () => {
             "/h/.local/bin:/h/.bun/bin:/h/.local/share/mise/node/bin:/usr/local/bin:/usr/bin:/bin"
         );
         expect(() =>
-            renderRunnerSystemdTemplate(systemdTpl, ROOT, path, () => false)
+            renderRunnerSystemdTemplate(
+                systemdTpl,
+                ROOT,
+                path,
+                "/r",
+                () => false
+            )
         ).toThrow(/node not resolvable/);
         expect(() =>
             renderRunnerSystemdTemplate(
                 systemdTpl,
                 ROOT,
                 "/a b:/bin",
+                "/r",
                 () => true
             )
         ).toThrow(/whitespace/);
@@ -243,6 +262,16 @@ describe("runner units", () => {
                 systemdTpl,
                 ROOT,
                 "/a%h:/bin",
+                "/r",
+                () => true
+            )
+        ).toThrow(/whitespace/);
+        expect(() =>
+            renderRunnerSystemdTemplate(
+                systemdTpl,
+                ROOT,
+                "/usr/bin:/bin",
+                "/my repo",
                 () => true
             )
         ).toThrow(/whitespace/);

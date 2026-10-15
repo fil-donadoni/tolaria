@@ -1,0 +1,46 @@
+# lane-timing — the same `check:lane` as pr-check, on one of the owner's
+# `lane` runners, to compare a GitHub-hosted lane with a local one (ADR 0156
+# §10, phase 0's measurement, issue #5636). Triggered only by events an
+# outsider cannot fire: a dispatch, or a push of a `lane-timing/<anything>`
+# branch (push the PR's head there to time its lane:
+# `git push origin <sha>:refs/heads/lane-timing/pr-<N>`).
+#
+# The shape every self-hosted job copies (docs/guides/github-pipeline.md
+# § Jobs): job worktree first, job-setup, the work, the worktree removed
+# `if: always()`.
+name: lane-timing
+
+on:
+    workflow_dispatch:
+        inputs:
+            host:
+                description: Machine whose lane runner times the lane
+                type: choice
+                options: [macbook, huawei]
+                default: macbook
+    push:
+        branches: ["lane-timing/**"]
+
+permissions:
+    contents: read
+
+jobs:
+    lane:
+        name: check:lane (${{ inputs.host || 'macbook' }} lane runner)
+        runs-on: [self-hosted, lane, "host:${{ inputs.host || 'macbook' }}"]
+        timeout-minutes: 60
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: check:lane
+              run: bun run check:lane
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

@@ -143,7 +143,13 @@ if (primary) {
 // `bun install` also fires the `prepare` script, which is what regenerates
 // `.husky/_`. Order matters: deps before the husky check below.
 if (!existsSync(join(cwd, "node_modules")) || force) {
-    if (run("bun", ["install"])) done.push("node_modules (bun install)");
+    // A CI job never rewrites the lockfile: a drifted `bun.lock` is a red
+    // install, not a dirty tree `check:lane` refuses later (issue #5636).
+    const frozen = process.env.CI ? ["--frozen-lockfile"] : [];
+    if (run("bun", ["install", ...frozen]))
+        done.push(
+            `node_modules (bun install${frozen.length ? " --frozen-lockfile" : ""})`
+        );
     else failed.push("bun install");
 } else {
     skipped.push("node_modules (present)");
@@ -156,7 +162,10 @@ if (!existsSync(join(cwd, "node_modules")) || force) {
 // copy is kept only while its module list matches this tree's, and is
 // regenerated offline otherwise (no deployment, no backend). After deps on
 // purpose: the generator is the Convex CLI in `node_modules`.
-if (primary) {
+// A plain clone with no generated API at all — a GitHub-hosted runner's
+// checkout, which has no primary to copy from (issue #5636) — takes the same
+// offline path; a primary checkout that HAS one is `convex dev`'s to keep.
+if (primary || !existsSync(join(cwd, "convex", "_generated"))) {
     const outcome = refreshGeneratedApi(cwd);
     const line = refreshReceipt(outcome);
     if (outcome.kind === "failed") failed.push(line);
