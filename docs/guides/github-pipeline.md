@@ -246,7 +246,10 @@ read-only token either way. A newer push cancels the older run.
 verdict corpus (`weightFit.bot.test.ts`, `verdicts.bot.test.ts`) need the
 Verdict Store reader key, which lives only on the owner's machines — the
 bucket is private and a PR job gets no secret. A lane that plans them is red
-on a hosted runner (`No Verdict Store read key at …`) whatever the PR does.
+on a hosted runner (`No Verdict Store read key at …`) whatever the PR does —
+and since `check:guards` runs the bot suite first and chains the app suites
+with `&&`, the app suites never run there (a deliberately broken tooling test
+on PR #5676 never executed). The decision is issue #5675.
 
 Measured on the same commit (PR #5674, full lane): **hosted `ubuntu-24.04`
 491 s** (red only on the two corpus tests above) vs **MacBook `lane` runner
