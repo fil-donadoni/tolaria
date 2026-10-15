@@ -70,28 +70,31 @@ describe("attribution — one real card per slot names the sub-grammar that fail
         });
     });
 
-    it("mana-ability: a production the mana grammar cannot read (Gaea's Cradle)", () => {
+    it("mana-ability: a production the mana grammar cannot read (Overgrown Battlement)", () => {
         // The activated slot reads the same line one sub-grammar over — its
         // effect clause refuses the "Add" sentence — and loses on the shorter
         // span the mana production could not consume.
         //
         // The fixture was Orochi Leafcaller ("{G}: Add one mana of any
-        // color.") until issue #4134 taught the production that span; a
-        // "for each" COUNT still needs a descriptor the grammar does not emit,
-        // so it is what carries this diagnostic now.
+        // color.") until issue #4134 taught the production that span, then
+        // Gaea's Cradle until issue #5195 taught it a "for each" count over a
+        // type. A keyword clause on the counted permanents ("with defender")
+        // is not one the board-derived filter carries, so it is what carries
+        // this diagnostic now.
         expect(
             attributionOf({
-                name: "Gaea's Cradle",
-                manaCost: "",
-                typeLine: "Legendary Land",
-                oracleText: "{T}: Add {G} for each creature you control.",
-                power: undefined,
-                toughness: undefined,
+                name: "Overgrown Battlement",
+                manaCost: "{1}{G}",
+                typeLine: "Creature — Wall",
+                oracleText:
+                    "Defender\n{T}: Add {G} for each creature you control with defender.",
+                power: "0",
+                toughness: "4",
             })
         ).toEqual({
             slot: "mana-ability",
             path: [MANA_PRODUCTION],
-            span: "{G} for each creature you control",
+            span: "{G} for each creature you control with defender",
         });
     });
 

@@ -74,8 +74,13 @@ import {
     type Rule,
 } from "../../rule";
 import type { ParseContext } from "../../types";
+import { MANA_COLORS } from "../../../gre/manaColors";
 import { activationCostRule } from "../shared/cost";
-import { readNumberWord } from "../shared/quantity";
+import { forEachRule, readNumberWord } from "../shared/quantity";
+import {
+    boardManaFilterFromDescriptor,
+    descriptorRule,
+} from "../shared/targetFilter";
 import type { ManaProductionIR, ManaRiderIR, SlotIR } from "../ir";
 
 export const MANA_ABILITY_SLOT = "mana-ability";
@@ -162,12 +167,113 @@ const anyColorProduction: Rule<ManaProductionIR> = rule(
             : fail(`production is not "${ANY_COLOR_SPAN}"`, span)
 );
 
+/**
+ * CR 608.2h / 605.1a — "{G} for each creature you control", "{G} for each Elf
+ * on the battlefield" (Gaea's Cradle, Serra's Sanctum, Priest of Titania):
+ * one unit of mana per permanent the descriptor names when the ability
+ * resolves, lowered to `manaAmountSource` (issue #5195) — never to a constant,
+ * which is the "for each collapsed to a constant" misparse `quantity.ts`'s
+ * header names.
+ *
+ * The descriptor is `forEachRule`'s, read whole, and its clauses are the
+ * engine's to evaluate: `boardManaFilterFromDescriptor` refuses every clause
+ * the board-derived filter cannot carry. Two scopes and only two: "you
+ * control" (CR 109.5), and "on the battlefield" (CR 109.2 — every player's
+ * permanents, so it may carry no controller clause of its own).
+ *
+ * The unit is ONE mana of ONE type: the engine scales `manaProduced` and every
+ * single-colour consumer reads `mana[color]` off it.
+ */
+const FOR_EACH = " for each ";
+const ON_THE_BATTLEFIELD = " on the battlefield";
+
+const forEachProduction: Rule<ManaProductionIR> = rule(
+    "mana for each",
+    (span, ctx) => {
+        const at = span.indexOf(FOR_EACH);
+        if (at === -1)
+            return fail('production is not "<mana> for each …"', span);
+        const unit = manaSymbols.run(span.slice(0, at), ctx);
+        if (!unit.ok) return unit;
+        const produced = Object.entries(unit.value).filter(
+            ([, n]) => n !== undefined
+        );
+        if (
+            produced.length !== 1 ||
+            !(MANA_COLORS as readonly string[]).includes(produced[0]![0]) ||
+            produced[0]![1] !== 1
+        )
+            return fail(
+                "a for-each unit is one mana of one type",
+                span.slice(0, at)
+            );
+        let counted = span.slice(at + 1);
+        const wholeBoard = counted.endsWith(ON_THE_BATTLEFIELD);
+        if (wholeBoard) counted = counted.slice(0, -ON_THE_BATTLEFIELD.length);
+        const each = forEachRule.run(counted, ctx);
+        if (!each.ok) return each;
+        if (each.value.kind !== "for-each")
+            return fail("not a counted set of permanents", counted);
+        const filter = boardManaFilterFromDescriptor(
+            each.value.per,
+            wholeBoard ? "wholeBoard" : "you"
+        );
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "for-each" as const,
+            unit: unit.value,
+            filter: filter.value,
+        });
+    }
+);
+
+/**
+ * CR 106.7 — "one mana of any type that a land you control could produce"
+ * (Reflecting Pool, Naga Vitalist): the offered set is every TYPE of mana the
+ * described permanents could produce when the ability resolves, colourless
+ * included (CR 106.1b), lowered to a `manaColorSource` with the
+ * `"producesType"` read (issue #5195).
+ *
+ * Only the TYPE read: "any COLOR that a land an opponent controls could
+ * produce" (Fellwar Stone) is the same descriptor with `"produces"`, a
+ * neighbour this rule refuses rather than reads — it stays its own gap.
+ */
+const ANY_TYPE_THAT = /^one mana of any type that an? (.+) could produce$/;
+
+const boardChoiceProduction: Rule<ManaProductionIR> = rule(
+    "mana any type a permanent could produce",
+    (span, ctx) => {
+        const m = ANY_TYPE_THAT.exec(span);
+        if (m === null)
+            return fail(
+                'production is not "one mana of any type that … could produce"',
+                span
+            );
+        const descriptor = descriptorRule.run(m[1]!, ctx);
+        if (!descriptor.ok) return descriptor;
+        if (descriptor.value.plural === true)
+            return fail(
+                '"a … could produce" names a singular descriptor',
+                m[1]!
+            );
+        const filter = boardManaFilterFromDescriptor(descriptor.value, "you");
+        if (!filter.ok) return filter;
+        return ok({
+            kind: "board-choice" as const,
+            read: "type" as const,
+            filter: filter.value,
+        });
+    }
+);
+
 const production: Rule<ManaProductionIR> = subGrammar(
     MANA_PRODUCTION,
     oneOf(MANA_PRODUCTION, [
         fixedProduction,
         choiceProduction,
         anyColorProduction,
+        forEachProduction,
+        boardChoiceProduction,
     ])
 );
 

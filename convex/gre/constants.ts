@@ -1,5 +1,6 @@
 import type {
     ActivatedAbility,
+    BoardManaAmountSource,
     BoardManaColorSource,
     CardDefinition,
     CardSupertype,
@@ -15,7 +16,7 @@ import type {
 // `cards/snowReads` is the dependency-free supertype leaf `gre/snow`
 // re-exports), so this adds no import cycle.
 import { matchesPermanentFilter } from "../cards/filters";
-import type { MatchablePermanent } from "../cards/filters";
+import type { MatchablePermanent, PermanentFilter } from "../cards/filters";
 import { liveSupertypesOf } from "../cards/snowReads";
 import { LANDWALK_KEYWORD_BY_BASIC_TYPE } from "../cards/types";
 import type { ManaRestriction } from "./types";
@@ -592,17 +593,11 @@ export function abilitiesSuppressed(card: CardInstanceState): boolean {
  *  commit to a source `tapSourceIntoPayment` then rejected with "Card does not
  *  produce mana" — and made `tapUntap` tap the permanent for ZERO mana. */
 export function getActivatedManaColor(card: CardInstanceState): Color | null {
-    if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        // ADR 0039 / CR 605.1a — a one-shot mana ability is paid by TAPPING
-        // and/or SACRIFICING its source, and the sacrifice-ONLY shape (Eldrazi
-        // Spawn's "Sacrifice this token: Add {C}.") is a fixed-output mana
-        // ability exactly like a {T} one. Requiring `cost.tap` here made
-        // `tapSourceIntoPayment` reject it with "Card does not produce mana"
-        // even though `getManaTapOptionsDetailed` had offered it.
-        ({ ability: a }) =>
-            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
-    )?.ability;
+    // ADR 0039 / CR 605.1a — tap and/or sacrifice (`fixedOutputManaAbility`):
+    // requiring `cost.tap` here made `tapSourceIntoPayment` reject Eldrazi
+    // Spawn's sacrifice-only ability with "Card does not produce mana" even
+    // though `getManaTapOptionsDetailed` had offered it.
+    const ability = fixedOutputManaAbility(card);
     if (!ability?.manaProduced) return null;
     const colors = Object.entries(ability.manaProduced)
         .filter(([k, v]) => k !== "X" && typeof v === "number" && v > 0)
@@ -616,15 +611,10 @@ export function getActivatedManaColor(card: CardInstanceState): Color | null {
 export function getActivatedManaProduced(
     card: CardInstanceState
 ): ManaCost | null {
-    if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        // ADR 0039 — tap and/or sacrifice, same as `getActivatedManaColor`
-        // above: the sacrifice-ONLY fixed-output shape must resolve its amount
-        // here or `getFixedManaAmount` falls back to a bare 1.
-        ({ ability: a }) =>
-            (a.cost.tap || a.cost.sacrifice) && !a.useStack && a.manaProduced
-    )?.ability;
-    return ability?.manaProduced ?? null;
+    // ADR 0039 — tap and/or sacrifice, same as `getActivatedManaColor` above:
+    // the sacrifice-ONLY fixed-output shape must resolve its amount here or
+    // `getFixedManaAmount` falls back to a bare 1.
+    return fixedOutputManaAbility(card)?.manaProduced ?? null;
 }
 
 /** The card's FIXED-output mana ability whose cost is "Sacrifice this" with NO
@@ -750,13 +740,23 @@ export function getFixedManaAmount(
     card: CardInstanceState,
     color: Color,
     controllerBattlefield?: readonly CardInstanceState[],
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    /** Every player's battlefield — see `getDynamicManaProduced`. */
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
 ): number {
-    if (controllerBattlefield) {
+    // CR 305.6 (issue #5195) — when a basic land type names the colour, the
+    // fixed tap is the INTRINSIC "{T}: Add [symbol]", one mana; a scaled
+    // activated ability beside it (Gaea's Cradle under Urborg) is a different
+    // ability and never sets this amount.
+    if (controllerBattlefield && getBasicLandMana(card) === null) {
         const dynamic = getDynamicManaProduced(
             card,
             controllerBattlefield,
-            continuousEffects
+            continuousEffects,
+            battlefields
         );
         if (dynamic) return dynamic[color] ?? 0;
     }
@@ -823,6 +823,19 @@ function withEffectivePT(
     return { ...view, power: pt.power, toughness: pt.toughness };
 }
 
+/** CR 608.2h — `unit` added `count` times: "Add {G} for each creature you
+ *  control" over three creatures is {G}{G}{G}. Every key of the unit is kept,
+ *  at zero when nothing is counted, so a single-colour consumer reading
+ *  `mana[color]` sees 0 rather than a missing key. */
+function scaleManaUnit(unit: ManaCost, count: number): ManaCost {
+    const scaled: ManaCost = {};
+    for (const c of MANA_COLORS) {
+        const per = unit[c];
+        if (per !== undefined) scaled[c] = per * count;
+    }
+    return scaled;
+}
+
 /** Board-conditional mana output for a card's fixed tap mana ability (CR 106.1),
  *  computed against the controller's battlefield, or null when the ability has
  *  no `manaAmount` hook. The Urza land trio uses this to scale colorless output
@@ -835,17 +848,112 @@ function withEffectivePT(
  *  see `manaLayerView`), not its raw base stats.
  *
  *  CR 113.1 / 611.2a (issue #1880) — POST-LAYER effective set, so a GRANTED
- *  board-conditional tap mana ability scales like a printed one. */
+ *  board-conditional tap mana ability scales like a printed one.
+ *
+ *  CR 608.2h (issue #5195) — a `manaAmountSource` DESCRIPTOR (Gaea's Cradle,
+ *  Priest of Titania) is resolved here too, as `manaProduced` × the number of
+ *  permanents its filter matches (`boardDerivedManaCount`).
+ *
+ *  CR 605.1a (issue #5195) — the ability answered is the one the FIXED tap
+ *  path acts on: the first fixed-output mana ability, the same one
+ *  `getActivatedManaColor` / `getActivatedManaProduced` name. On a source
+ *  printing a plain "{T}: Add {C}" BEFORE a scaled "{3}, {T}: Add {B} for each
+ *  basic Swamp you control" (Cabal Stronghold) the {C} tap is not dynamic, so
+ *  this answers null rather than scaling the {C} by the Swamp count. A caller
+ *  holding a SPECIFIC ability reads {@link getAbilityDynamicManaProduced}. */
 export function getDynamicManaProduced(
     card: CardInstanceState,
     controllerBattlefield: readonly CardInstanceState[],
-    continuousEffects?: readonly ContinuousEffect[]
+    continuousEffects?: readonly ContinuousEffect[],
+    /** EVERY player's battlefield (`manaGateBattlefields`). A
+     *  `manaAmountSource` whose scope reaches past the controller ("for each
+     *  Elf on the battlefield", CR 109.2) is answered only from this; without
+     *  it such a descriptor resolves to null — "no board, no answer" — never
+     *  to a count of the controller's half of the board. */
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
+): ManaCost | null {
+    const ability = fixedOutputManaAbility(card);
+    if (!ability) return null;
+    return getAbilityDynamicManaProduced(
+        card,
+        ability,
+        controllerBattlefield,
+        continuousEffects,
+        battlefields
+    );
+}
+
+/** The first fixed-output (`manaProduced`) mana ability paid by tapping and/or
+ *  sacrificing its source — the ability the fixed tap branches act on when no
+ *  basic land type supplies the colour. ONE probe behind
+ *  `getActivatedManaColor`, `getActivatedManaProduced` and
+ *  `getDynamicManaProduced`, so those three never name different abilities.
+ *  When `getBasicLandMana` DOES name the colour, the tap is the intrinsic
+ *  ability (CR 305.6) and `getFixedManaAmount` ignores this one's count. */
+function fixedOutputManaAbility(
+    card: CardInstanceState
+): ActivatedAbility | null {
+    if (abilitiesSuppressed(card)) return null;
+    return (
+        getEffectiveActivatedAbilities(card).find(
+            // ADR 0039 / CR 605.1a — a one-shot mana ability is paid by
+            // TAPPING and/or SACRIFICING its source, and the sacrifice-ONLY
+            // shape (Eldrazi Spawn's "Sacrifice this token: Add {C}.") is a
+            // fixed-output mana ability exactly like a {T} one.
+            ({ ability: a }) =>
+                (a.cost.tap || a.cost.sacrifice) &&
+                !a.useStack &&
+                !!a.manaProduced
+        )?.ability ?? null
+    );
+}
+
+/** Board-conditional output of ONE named mana ability (CR 106.1 / 608.2h /
+ *  605.1a), or null when that ability's amount is printed rather than derived
+ *  (no `manaAmountSource`, no `manaAmount`). The per-ability core of
+ *  {@link getDynamicManaProduced}, read directly by the unified option list
+ *  (`getManaTapOptionsDetailed`), which walks every mana ability of the source
+ *  and must scale each by its OWN count. */
+export function getAbilityDynamicManaProduced(
+    card: CardInstanceState,
+    ability: ActivatedAbility,
+    controllerBattlefield: readonly CardInstanceState[],
+    continuousEffects?: readonly ContinuousEffect[],
+    battlefields?: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>
 ): ManaCost | null {
     if (abilitiesSuppressed(card)) return null;
-    const ability = getEffectiveActivatedAbilities(card).find(
-        ({ ability: a }) => a.cost.tap && !a.useStack && a.manaAmount
-    )?.ability;
-    if (!ability?.manaAmount) return null;
+    // The DECLARATIVE count (CR 608.2h — read as the ability resolves) wins
+    // over a closure when a card carries both (`ActivatedAbility
+    // .manaAmountSource`).
+    if (ability.manaAmountSource && ability.manaProduced) {
+        const source = ability.manaAmountSource;
+        const board =
+            battlefields ??
+            (amountSourceReadsOnlyController(source)
+                ? [
+                      {
+                          playerId: card.controllerId,
+                          battlefield: controllerBattlefield,
+                      },
+                  ]
+                : null);
+        if (board === null) return null;
+        const count = boardDerivedManaCount(
+            source,
+            card,
+            card.controllerId,
+            board,
+            continuousEffects
+        );
+        return scaleManaUnit(ability.manaProduced, count);
+    }
+    if (!ability.manaAmount) return null;
     const layerView = manaLayerView(
         [{ playerId: card.controllerId, battlefield: controllerBattlefield }],
         continuousEffects
@@ -863,6 +971,11 @@ type ManaColorSourceResolver = (
     source: BoardManaColorSource
 ) => Iterable<Color>;
 
+/** Resolves a fixed-output ability's CURRENT board-derived output (CR 106.7 /
+ *  608.2h), or null when its amount is printed. Supplied, like
+ *  {@link ManaColorSourceResolver}, only by callers holding a board. */
+type DynamicManaAmountResolver = (ability: ActivatedAbility) => ManaCost | null;
+
 /** Colours a set of activated abilities COULD produce (CR 106.4 — "could
  *  produce"), unioning every non-stack ability's fixed `manaProduced` and
  *  `manaChoices` chooser options. Colourless ({C}) is excluded — {C} is not a
@@ -873,15 +986,24 @@ type ManaColorSourceResolver = (
  *  (ability suppression, text-changed subtypes) folded in. */
 function producibleColorsFromAbilities(
     abilities: readonly ActivatedAbility[] | undefined,
-    resolveManaColorSource?: ManaColorSourceResolver
+    resolveManaColorSource?: ManaColorSourceResolver,
+    /** CR 106.7 / 106.1b — keep {C} (a TYPE read, not a colour read). */
+    includeColorless = false,
+    resolveDynamicAmount?: DynamicManaAmountResolver
 ): Set<Color> {
     const colors = new Set<Color>();
+    const counts = (c: Color) => includeColorless || c !== "C";
     for (const ability of abilities ?? []) {
         if (ability.useStack) continue;
         if (ability.manaProduced) {
+            // CR 106.7 — "could produce" is what the ability WOULD add if it
+            // resolved now: a scaled ability counting nothing (an empty Gaea's
+            // Cradle) adds no mana, so it contributes no type. Without a board
+            // the printed unit stands in.
+            const output =
+                resolveDynamicAmount?.(ability) ?? ability.manaProduced;
             for (const c of MANA_COLORS) {
-                if (c !== "C" && (ability.manaProduced[c] ?? 0) > 0)
-                    colors.add(c);
+                if (counts(c) && (output[c] ?? 0) > 0) colors.add(c);
             }
         }
         // CR 605.1a / 106.4 (issue #1941) — a DESCRIPTOR ability's colour set
@@ -898,15 +1020,18 @@ function producibleColorsFromAbilities(
         // contributes nothing rather than five phantom colours.
         if (ability.manaColorSource) {
             if (resolveManaColorSource) {
+                // CR 106.7 — a nested `"producesType"` descriptor (a
+                // Reflecting Pool read by a Fellwar Stone) can yield {C};
+                // a colour read still drops it (CR 106.1a).
                 for (const c of resolveManaColorSource(ability.manaColorSource))
-                    colors.add(c);
+                    if (counts(c)) colors.add(c);
             }
             continue;
         }
         if (ability.manaChoices) {
             for (const choice of ability.manaChoices) {
                 for (const c of MANA_COLORS) {
-                    if (c !== "C" && (choice[c] ?? 0) > 0) colors.add(c);
+                    if (counts(c) && (choice[c] ?? 0) > 0) colors.add(c);
                 }
             }
         }
@@ -969,16 +1094,23 @@ export function getDefinitionProducibleColors(
  *  battlefield) necessarily stays printed-only — a grant lives on an instance. */
 export function getProducibleColors(
     card: CardInstanceState,
-    resolveManaColorSource?: ManaColorSourceResolver
+    resolveManaColorSource?: ManaColorSourceResolver,
+    /** CR 106.7 / 106.1b — keep colourless {C}: the TYPES of mana the card
+     *  could produce rather than its colours (see `getProducibleColorsOnBoard`). */
+    includeColorless = false,
+    resolveDynamicAmount?: DynamicManaAmountResolver
 ): Set<Color> {
     const colors = new Set<Color>();
     if (abilitiesSuppressed(card)) return colors;
     // CR 305.6 — intrinsic basic-land subtype abilities (text-change aware).
     const intrinsic = getBasicLandMana(card);
-    if (intrinsic && intrinsic !== "C") colors.add(intrinsic);
+    if (intrinsic && (includeColorless || intrinsic !== "C"))
+        colors.add(intrinsic);
     for (const c of producibleColorsFromAbilities(
         getEffectiveActivatedAbilities(card).map(({ ability }) => ability),
-        resolveManaColorSource
+        resolveManaColorSource,
+        includeColorless,
+        resolveDynamicAmount
     ))
         colors.add(c);
     return colors;
@@ -1016,7 +1148,11 @@ export function getProducibleColorsOnBoard(
         playerId: string;
         battlefield: readonly CardInstanceState[];
     }>,
-    depth = 0
+    depth = 0,
+    /** CR 106.7 / 106.1b — read every TYPE of mana, colourless {C} included
+     *  ("any type that a land you control could produce"), instead of the
+     *  colours alone. */
+    includeColorless = false
 ): Set<Color> {
     return getProducibleColors(
         card,
@@ -1029,7 +1165,18 @@ export function getProducibleColorsOnBoard(
                       battlefields,
                       depth + 1
                   )
-            : undefined
+            : undefined,
+        includeColorless,
+        // CR 106.7 — a scaled ability is read at its count on THIS board.
+        (ability) =>
+            getAbilityDynamicManaProduced(
+                card,
+                ability,
+                battlefields.find((b) => b.playerId === card.controllerId)
+                    ?.battlefield ?? [],
+                undefined,
+                battlefields
+            )
     );
 }
 
@@ -1057,6 +1204,8 @@ export function getProducibleColorsOnBoard(
  *  - `"produces"` unions `getProducibleColors` (CR 106.4 "could produce" —
  *    basic-land subtypes, fixed and choice mana abilities, post-layer granted
  *    ones, minus suppressed ones). {C} is excluded there already (CR 202.2).
+ *  - `"producesType"` is the same read keeping {C} (CR 106.7 / 106.1b — the
+ *    six TYPES of mana), offered after the colours.
  *  - `"isColor"` unions the permanent's own post-layer-5 colours (CR 105.2).
  *
  *  An EMPTY result is a real answer, not "unknown": it means the scope
@@ -1088,9 +1237,12 @@ export function boardDerivedManaChoices(
         battlefields,
         0
     );
-    return MANA_COLORS.filter((c) => c !== "C" && colors.has(c)).map(
-        (c) => ({ [c]: 1 }) as ManaCost
-    );
+    // CR 106.1b / 106.7 — {C} is offered only by a TYPE read; a colour read
+    // never yields it (CR 106.1a), so the guard is belt and braces there.
+    const offersColorless = source.colors === "producesType";
+    return MANA_COLORS.filter(
+        (c) => (offersColorless || c !== "C") && colors.has(c)
+    ).map((c) => ({ [c]: 1 }) as ManaCost);
 }
 
 /** Colour-set core of {@link boardDerivedManaChoices}. `depth` is the descriptor
@@ -1105,7 +1257,61 @@ function boardDerivedManaColors(
     }>,
     depth: number
 ): Set<Color> {
-    const layerView = manaLayerView(battlefields);
+    const colors = new Set<Color>();
+    for (const permanent of boardPermanentsMatching(
+        source.filter,
+        self,
+        controllerId,
+        battlefields
+    )) {
+        if (source.colors === "isColor") {
+            // CR 105.3 / 613.1e — the permanent's LIVE colours, the same read
+            // a `colors` clause of the filter matched against.
+            for (const c of STATIC_EFFECT_CTX.getColors(permanent))
+                colors.add(c);
+            continue;
+        }
+        // CR 106.4 (issue #1941) — DESCRIPTOR-aware: a contributing
+        // permanent whose own colour set is board-derived is evaluated
+        // against THIS same board (bounded by
+        // `MAX_NESTED_MANA_COLOR_SOURCE_DEPTH`), never off its static
+        // no-board `manaChoices` fallback, which would make every such
+        // permanent a phantom WUBRG source. CR 106.7 — `"producesType"`
+        // reads every TYPE the permanent could produce, {C} included.
+        for (const c of getProducibleColorsOnBoard(
+            permanent,
+            battlefields,
+            depth,
+            source.colors === "producesType"
+        ))
+            colors.add(c);
+    }
+    return colors;
+}
+
+/** The permanents a board-mana descriptor's `filter` names right now — the ONE
+ *  matcher behind both {@link BoardManaColorSource} (which colours) and
+ *  {@link BoardManaAmountSource} (how many), so "creature you control" can
+ *  never name different permanents for the two.
+ *
+ *  Each permanent is matched against a LAYER-AWARE view: live colours
+ *  (`STATIC_EFFECT_CTX.getColors`, CR 105.3 / 613.1e), live supertypes
+ *  (`liveSupertypesOf`, CR 613.1d) and live effective P/T, through the single
+ *  `matchesPermanentFilter` authority. Colours and P/T are LAZY: a layer walk
+ *  per permanent is paid only by a filter that reads them, so "for each
+ *  creature you control" (Gaea's Cradle, read inside the Bot's mana census)
+ *  stays a type check per permanent. */
+function boardPermanentsMatching(
+    filter: PermanentFilter,
+    self: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    continuousEffects?: readonly ContinuousEffect[]
+): CardInstanceState[] {
+    const layerView = manaLayerView(battlefields, continuousEffects);
     const ctx = {
         selfInstanceId: self.id,
         // CR 109.5 — "you" on an ability is its CONTROLLER, which is what
@@ -1113,40 +1319,64 @@ function boardDerivedManaColors(
         selfControllerId: controllerId,
         supertypesOf: liveSupertypesOf,
     };
-    const colors = new Set<Color>();
+    const matched: CardInstanceState[] = [];
     for (const { battlefield } of battlefields) {
         for (const permanent of battlefield) {
-            // CR 105 / 202.2 / 613.1d — live colours, so a `colors` filter and
-            // the `"isColor"` derivation below agree with the board.
-            const liveColors = STATIC_EFFECT_CTX.getColors(permanent);
-            const pt = withEffectivePT(permanent, layerView);
+            let liveColors: readonly Color[] | undefined;
+            let pt: PermanentView | undefined;
             const view: MatchablePermanent = {
                 ...permanent,
                 staticAbilities: permanent.staticAbilities ?? [],
-                colors: liveColors,
-                power: pt.power,
-                toughness: pt.toughness,
+                get colors() {
+                    return (liveColors ??=
+                        STATIC_EFFECT_CTX.getColors(permanent)) as Color[];
+                },
+                get power() {
+                    return (pt ??= withEffectivePT(permanent, layerView)).power;
+                },
+                get toughness() {
+                    return (pt ??= withEffectivePT(permanent, layerView))
+                        .toughness;
+                },
             };
-            if (!matchesPermanentFilter(view, source.filter, ctx)) continue;
-            if (source.colors === "produces") {
-                // CR 106.4 (issue #1941) — DESCRIPTOR-aware: a contributing
-                // permanent whose own colour set is board-derived is evaluated
-                // against THIS same board (bounded by
-                // `MAX_NESTED_MANA_COLOR_SOURCE_DEPTH`), never off its static
-                // no-board `manaChoices` fallback, which would make every such
-                // permanent a phantom WUBRG source.
-                for (const c of getProducibleColorsOnBoard(
-                    permanent,
-                    battlefields,
-                    depth
-                ))
-                    colors.add(c);
-            } else {
-                for (const c of liveColors) colors.add(c);
-            }
+            if (matchesPermanentFilter(view, filter, ctx))
+                matched.push(permanent);
         }
     }
-    return colors;
+    return matched;
+}
+
+/** CR 608.2h / 605.1a — how many permanents a {@link BoardManaAmountSource}
+ *  counts on the CURRENT board: the multiplier "Add {G} for each creature you
+ *  control" applies to its unit. Zero is a real answer (an empty Gaea's
+ *  Cradle adds nothing), never "unknown". */
+export function boardDerivedManaCount(
+    source: BoardManaAmountSource,
+    self: CardInstanceState,
+    controllerId: string,
+    battlefields: ReadonlyArray<{
+        playerId: string;
+        battlefield: readonly CardInstanceState[];
+    }>,
+    continuousEffects?: readonly ContinuousEffect[]
+): number {
+    return boardPermanentsMatching(
+        source.filter,
+        self,
+        controllerId,
+        battlefields,
+        continuousEffects
+    ).length;
+}
+
+/** True when a {@link BoardManaAmountSource} counts only the controller's own
+ *  permanents (CR 109.5 "you control"), so the controller's battlefield alone
+ *  answers it exactly. Any wider scope ("on the battlefield", "an opponent
+ *  controls") needs every player's battlefield. */
+function amountSourceReadsOnlyController(
+    source: BoardManaAmountSource
+): boolean {
+    return source.filter.controllerRelation === "you";
 }
 
 export function getDynamicManaChoices(
@@ -2080,11 +2310,16 @@ export function getManaTapOptionsDetailed(
             if (ability.manaProduced) {
                 // CR 106.1 — resolve a board-conditional amount (Urza trio) when
                 // the board is available; else the static output is the snapshot.
+                // CR 605.1a (issue #5195) — THIS ability's count, never the
+                // source's first scaled ability's: Cabal Stronghold's "{T}: Add
+                // {C}" stays {C} beside its Swamp-counting "{3}, {T}: Add {B}".
                 const dynamic = controllerBattlefield
-                    ? getDynamicManaProduced(
+                    ? getAbilityDynamicManaProduced(
                           card,
+                          ability,
                           controllerBattlefield,
-                          continuousEffects
+                          continuousEffects,
+                          battlefields
                       )
                     : null;
                 const mana = dynamic ?? ability.manaProduced;
@@ -2746,9 +2981,19 @@ export function hasManaAbility(
     if (getBasicLandMana(card) !== null) return true;
     const ability = getActivatedManaAbility(card, state);
     if (!ability) return false;
-    if (controllerBattlefield && ability.manaAmount) {
-        const dynamic = getDynamicManaProduced(
+    // CR 608.2h (issue #5195) — a `manaAmountSource` count is gated the same
+    // way, but only when the controller's battlefield answers it exactly
+    // ("for each creature you control"): a whole-board count ("for each Elf
+    // on the battlefield") resolves to null here, for the reason the
+    // `getManaChoices` chooser is not gated — a partial board would erase a
+    // real source.
+    if (
+        controllerBattlefield &&
+        (ability.manaAmount || ability.manaAmountSource)
+    ) {
+        const dynamic = getAbilityDynamicManaProduced(
             card,
+            ability,
             controllerBattlefield,
             continuousEffects
         );

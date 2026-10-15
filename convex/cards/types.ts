@@ -2005,6 +2005,27 @@ export interface ActivatedAbility {
         source: PermanentView,
         controllerBattlefield: ReadonlyArray<PermanentView>
     ) => ManaCost;
+    /** DECLARATIVE board-derived mana AMOUNT (CR 106.1, 608.2h, 605.1a) — the
+     *  data form of {@link manaAmount} for "Add {G} for each creature you
+     *  control" (Gaea's Cradle), "…for each Elf on the battlefield" (Priest of
+     *  Titania): the ability adds its `manaProduced` unit once per permanent
+     *  the descriptor's `filter` currently matches. The amount analog of
+     *  {@link manaColorSource}, sharing its permanent matcher.
+     *
+     *  Evaluated by `boardDerivedManaCount` (`gre/constants.ts`) through
+     *  `getAbilityDynamicManaProduced`, which the TAP route reads — the
+     *  unified option list (`getManaTapOptionsDetailed`: the tap mutations,
+     *  the auto-tap solver, the castability probe, the client tap list) — so
+     *  the count tracks the board at activation time. Only a {T} cost whose
+     *  other legs move no permanent (mana, life) reaches that route counted
+     *  right, so the grammar emits it on no other (`lowerManaAbility`).
+     *
+     *  JSON-pure (ADR 0046), so a compiled definition can carry it where the
+     *  `manaAmount` closure cannot. When both are present the descriptor
+     *  wins. `manaProduced` is REQUIRED beside it — it is the unit, and stays
+     *  the representative / fallback output for best-effort callers with no
+     *  board snapshot, exactly as for `manaAmount`. */
+    manaAmountSource?: BoardManaAmountSource;
     /** Spend restriction carried by the mana this ability produces (CR 106.6).
      *  When set, the produced mana lands in the controller's `restrictedMana`
      *  pool instead of the fungible pool and may pay only for spells the
@@ -2420,9 +2441,30 @@ export interface BoardManaColorSource {
     /** How a matching permanent yields a colour:
      *  - `"produces"` — every colour it COULD produce if tapped (CR 106.4);
      *    colourless {C} is not a colour and never contributes (CR 202.2).
+     *  - `"producesType"` — every TYPE of mana it could produce (CR 106.7),
+     *    colourless included: "one mana of any TYPE that a land you control
+     *    could produce" (Reflecting Pool) offers {C} beside a Wastes or a
+     *    Sol Land, where "any COLOR" (`"produces"`) does not — the six types
+     *    of mana are the five colours plus colourless (CR 106.1b).
      *  - `"isColor"` — the permanent's OWN colours (CR 105.2 / 202.2, read
      *    post-layer-5 so a colour-changing effect is honoured). */
-    colors: "produces" | "isColor";
+    colors: "produces" | "producesType" | "isColor";
+}
+
+/** How many times a mana ability adds its unit when the count is derived from
+ *  the board instead of printed on the card (CR 608.2h, 605.1a). See
+ *  {@link ActivatedAbility.manaAmountSource}.
+ *
+ *  One axis only — WHICH permanents are counted — in the same
+ *  {@link PermanentFilter} vocabulary {@link BoardManaColorSource} uses, and
+ *  matched by the same layer-aware matcher, so "creature you control" names
+ *  the same permanents whether a card counts them or reads their colours. */
+export interface BoardManaAmountSource {
+    /** Selector over the counted permanents, evaluated against EVERY player's
+     *  battlefield. `controllerRelation: "you"` = the activating player's own
+     *  ("for each creature you control"); omitted = the whole board ("for each
+     *  Elf on the battlefield", CR 109.2). */
+    filter: PermanentFilter;
 }
 
 // --- Cost legs (CR 117.3a / 118.4 / 118.9 / 702.24, ADR 0079) ---

@@ -389,6 +389,7 @@ import {
     manaAbilityPaidWithoutTapping,
     getActivatedManaColor,
     getActivatedManaRestriction,
+    getAbilityDynamicManaProduced,
     getDynamicManaProduced,
     getEffectiveManaChoices,
     getManaTapOptionsDetailed,
@@ -2131,11 +2132,22 @@ export function tapSourceIntoPayment(
     // CR 106.1 / 605.1a — board-conditional output (Urza trio) is computed from
     // the controller's battlefield now and snapshotted onto `chosenMana` so the
     // untap/refund path returns the exact amount that was added.
-    const dynamic = getDynamicManaProduced(
-        card,
-        player.battlefield,
-        state.continuousEffects
-    );
+    // CR 605.1a (issue #5195) — the multi-colour shape is scaled by ITS OWN
+    // count; the single-colour shape by the fixed ability `manaColor` names.
+    const dynamic = multiColorAbility
+        ? getAbilityDynamicManaProduced(
+              card,
+              multiColorAbility,
+              player.battlefield,
+              state.continuousEffects,
+              manaTapBattlefields(state)
+          )
+        : getDynamicManaProduced(
+              card,
+              player.battlefield,
+              state.continuousEffects,
+              manaTapBattlefields(state)
+          );
     // CR 605.1a (issue #3263) — the multi-colour shape contributes its WHOLE
     // `manaProduced` in one activation, exactly as
     // `activateFixedSacrificeManaAbility` does for the tap-less sacrifice
@@ -2146,7 +2158,8 @@ export function tapSourceIntoPayment(
                   card,
                   manaColor,
                   player.battlefield,
-                  state.continuousEffects
+                  state.continuousEffects,
+                  manaTapBattlefields(state)
               ),
           } as ManaCost)
         : (dynamic ?? (multiColorAbility!.manaProduced as ManaCost));
@@ -2573,10 +2586,14 @@ function inlineManaAbilityOutput(
     // resolves against the CURRENT board, the same read
     // `getManaTapOptionsDetailed` made when it offered the option; without it
     // the option shown and the mana delivered can differ.
-    const dynamic = getDynamicManaProduced(
+    // CR 605.1a (issue #5195) — THIS ability's count, not the source's first
+    // fixed-output ability's.
+    const dynamic = getAbilityDynamicManaProduced(
         card,
+        ability,
         player.battlefield,
-        state.continuousEffects
+        state.continuousEffects,
+        manaTapBattlefields(state)
     );
     // CR 614 — Deep Water / Illusionary Terrain rewrite a LAND's produced mana
     // (Phyrexian Tower is a Land, so this leg is live for the shipped shape).
@@ -13614,10 +13631,12 @@ export const tapUntap = mutation({
                 // untap we refund the exact snapshotted `chosenMana` amount
                 // (the board may have changed since the tap), falling back to a
                 // fresh computation only for legacy/untracked instances.
+                const battlefields = manaTapBattlefields(state);
                 const isDynamic = !!getDynamicManaProduced(
                     card,
                     player.battlefield,
-                    state.continuousEffects
+                    state.continuousEffects,
+                    battlefields
                 );
                 const refundAmount =
                     isDynamic && wasTapped && card.chosenMana
@@ -13626,7 +13645,8 @@ export const tapUntap = mutation({
                               card,
                               manaColor,
                               player.battlefield,
-                              state.continuousEffects
+                              state.continuousEffects,
+                              battlefields
                           );
                 const amount = wasTapped
                     ? refundAmount
@@ -13634,7 +13654,8 @@ export const tapUntap = mutation({
                           card,
                           manaColor,
                           player.battlefield,
-                          state.continuousEffects
+                          state.continuousEffects,
+                          battlefields
                       );
                 // CR 106.6 — Mishra's Workshop produces mana spendable only on
                 // artifact spells; it floats in a parallel `restrictedMana`
@@ -13769,11 +13790,15 @@ export const tapUntap = mutation({
                 // rider-aware, CR 106.6), and the single-`Color` refund
                 // arithmetic the branch above uses cannot express it.
                 if (!wasTapped) {
+                    // CR 605.1a (issue #5195) — the multi-colour ability's
+                    // OWN count, never the first fixed ability's.
                     const produced =
-                        getDynamicManaProduced(
+                        getAbilityDynamicManaProduced(
                             card,
+                            multiColorAbility,
                             player.battlefield,
-                            state.continuousEffects
+                            state.continuousEffects,
+                            manaTapBattlefields(state)
                         ) ?? (multiColorAbility.manaProduced as ManaCost);
                     // CR 614 — Deep Water rewrites a land's produced mana to
                     // {U} (no-op for non-lands / unaffected players).

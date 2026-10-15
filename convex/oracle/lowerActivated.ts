@@ -9,7 +9,7 @@
  */
 
 import type { ActivatedAbility, EffectOp, ManaCost } from "../cards/types";
-import { hasFilteredGiveUpCost } from "../gre/constants";
+import { hasFilteredGiveUpCost, MANA_COLORS } from "../gre/constants";
 import {
     lowerActivationCost,
     type ActivationCostIR,
@@ -233,6 +233,16 @@ const MANA_ABILITY_NON_TAP_PAYABLE_COST_LEGS: ReadonlySet<string> = new Set([
     "tapOtherFilter",
 ]);
 
+/** Cost legs a board-counted mana amount (`manaAmountSource`) may carry: the
+ *  {T} that routes it to the tap mutations, and the legs that move no
+ *  permanent, so the board the count reads is the board the ability resolves
+ *  on (CR 608.2h). See `lowerManaAbility`. */
+const BOARD_COUNT_COST_LEGS: ReadonlySet<string> = new Set([
+    "tap",
+    "mana",
+    "life",
+]);
+
 /**
  * Mana-ability IR → `ActivatedAbility` (CR 605.1a). Shared by the mana slot
  * and by a granted ability ('Enchanted land has "{T}: Add …"', issue #3833),
@@ -323,6 +333,30 @@ export function lowerManaAbility(input: {
             };
         }
     }
+    // CR 608.2h / 605.1a (issue #5195) — a board COUNT is read by the tap
+    // route alone (`getManaTapOptionsDetailed` → `tapUntap` /
+    // `tapSourceIntoPayment`), and only a cost that leaves the board as it
+    // was is counted right: a self-sacrifice or a filtered give-up leg is
+    // counted BEFORE the permanent leaves (the effect, applied after costs
+    // are paid, would not see it), and the no-tap route (`activateManaAbility`)
+    // never reads `manaAmountSource` at all. So the count admits {T} plus the
+    // legs that move no permanent — mana and life — and refuses the rest.
+    if (input.produces.kind === "for-each") {
+        const legs = Object.keys(cost.value);
+        const unscalable = legs.filter(
+            (leg) => !BOARD_COUNT_COST_LEGS.has(leg)
+        );
+        if (cost.value.tap !== true || unscalable.length > 0) {
+            return {
+                ok: false,
+                reason: `a board-counted mana amount is scaled on the {T} route only, beside mana and life legs: ${
+                    cost.value.tap !== true
+                        ? "this cost has no {T}"
+                        : `"${unscalable[0]}" changes or bypasses the counted board`
+                }`,
+            };
+        }
+    }
     const ability: ActivatedAbility = {
         id: input.id,
         oracleText: input.oracleText,
@@ -331,13 +365,42 @@ export function lowerManaAbility(input: {
         // unconditionally: see the CR 605.1a argument in the slot file.
         useStack: false,
     };
-    if (input.produces.kind === "fixed")
-        ability.manaProduced = input.produces.mana;
-    else {
-        ability.manaChoices = input.produces.options as ManaCost[];
-        if (input.produces.dealsDamageToControllerOnColoredTap !== undefined)
-            ability.dealsDamageToControllerOnColoredTap =
-                input.produces.dealsDamageToControllerOnColoredTap;
+    switch (input.produces.kind) {
+        case "fixed":
+            ability.manaProduced = input.produces.mana;
+            break;
+        case "choice":
+            ability.manaChoices = input.produces.options as ManaCost[];
+            if (
+                input.produces.dealsDamageToControllerOnColoredTap !== undefined
+            )
+                ability.dealsDamageToControllerOnColoredTap =
+                    input.produces.dealsDamageToControllerOnColoredTap;
+            break;
+        // CR 608.2h / 605.1a (issue #5195) — the unit is `manaProduced`, the
+        // board count multiplies it (`gre/constants.ts`'s
+        // `getDynamicManaProduced`); the unit alone is the no-board fallback.
+        case "for-each":
+            ability.manaProduced = input.produces.unit;
+            ability.manaAmountSource = { filter: input.produces.filter };
+            break;
+        // CR 106.7 (issue #5195) — the offered set is the board's; the static
+        // list is the six-type no-board fallback every descriptor twin in the
+        // catalogue carries beside its `manaColorSource` (Fellwar Stone).
+        case "board-choice":
+            ability.manaChoices = MANA_COLORS.map((c) => ({ [c]: 1 }));
+            ability.manaColorSource = {
+                filter: input.produces.filter,
+                colors: "producesType",
+            };
+            break;
+        default: {
+            const never: never = input.produces;
+            return {
+                ok: false,
+                reason: `no lowering for mana production ${JSON.stringify(never)}`,
+            };
+        }
     }
     // The riders below are applied by the two tap-for-mana mutations only
     // (`tapUntap`, `tapSourceIntoPayment`: route A above), never by

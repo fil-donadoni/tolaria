@@ -137,6 +137,32 @@ export type ManaProductionIR =
            * different field, a different grammar rule, not carried here.
            */
           readonly dealsDamageToControllerOnColoredTap?: number;
+      }
+    /**
+     * CR 608.2h / 605.1a — "Add {G} for each creature you control": `unit`
+     * added once per permanent `filter` matches when the ability resolves
+     * (`ActivatedAbility.manaAmountSource`, Gaea's Cradle). The filter's
+     * `controllerRelation` carries "you control"; its absence is "on the
+     * battlefield" (CR 109.2 — every player's permanents).
+     */
+    | {
+          readonly kind: "for-each";
+          readonly unit: ManaCost;
+          readonly filter: PermanentFilter;
+          readonly riders?: readonly ManaRiderIR[];
+      }
+    /**
+     * CR 106.7 — "one mana of any type that a land you control could
+     * produce": the offered set is read off the board when the ability
+     * resolves (`ActivatedAbility.manaColorSource`, Reflecting Pool). Only the
+     * TYPE read ({C} included, CR 106.1b) is accepted; "any color that …" is
+     * a neighbour this node does not carry.
+     */
+    | {
+          readonly kind: "board-choice";
+          readonly read: "type";
+          readonly filter: PermanentFilter;
+          readonly riders?: readonly ManaRiderIR[];
       };
 
 export type SlotIR =
