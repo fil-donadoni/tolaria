@@ -16,7 +16,7 @@ import {
     publishRunMarker,
     recordPivotRepairIssue,
 } from "../lib/health-pivot";
-import type { GhRunner } from "../lib/health-verdict-store";
+import { type GhRunner, machineName } from "../lib/health-verdict-store";
 
 const TIP = "a".repeat(40);
 const OLD = "b".repeat(40);
@@ -113,11 +113,15 @@ const clock = () => new Date((t += 1000)).toISOString();
 const NOW = () => t + 60_000;
 const STALE = 90 * 60_000;
 
-/** A marker as the Huawei's health run publishes it. */
+/** Another machine: derived from this host's name so it never IS this host
+ *  (a literal `omarchy` read as the Huawei's own marker there). */
+const PEER = `${machineName()}-peer`;
+
+/** A marker as the other machine's health run publishes it. */
 const marker = (): Status => ({
     state: "pending",
     context: "health-run",
-    description: "AMBER · running · omarchy",
+    description: `AMBER · running · ${PEER}`,
     created_at: clock(),
 });
 
