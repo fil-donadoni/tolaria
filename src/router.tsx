@@ -121,6 +121,11 @@ const gameRoute = createRoute({
     getParentRoute: () => rootRoute,
     path: "/game",
     component: lazyRouteComponent(() => import("./routes/game.route")),
+    // The game downloads only its own cards (issue #5615, PRD #5602): the gate
+    // awaits the packed corpus, and the route loads the Sets of its
+    // Definition Manifest before the board renders
+    // (`DefinitionManifestGate`).
+    staticData: { catalogue: "game" },
 });
 
 // Invite antechamber (`/join/<gameId>`): a shared invite link lands here — the
@@ -422,5 +427,8 @@ declare module "@tanstack/react-router" {
         /** The route renders without the card catalogue hydrated; `RouteOutlet`
          *  mounts no `CatalogueGate` for a match tree made only of these. */
         lightSurface?: boolean;
+        /** The route needs the packed corpus only and loads its hand-written
+         *  Sets itself, per game (issue #5615). Default: the whole catalogue. */
+        catalogue?: "game";
     }
 }

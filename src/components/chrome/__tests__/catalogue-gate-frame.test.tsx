@@ -57,7 +57,7 @@ class Boundary extends Component<
 
 const frame = () => (
     <Suspense fallback={<p>fallback</p>}>
-        <CatalogueGateFrame>
+        <CatalogueGateFrame mode="whole">
             <p>child</p>
         </CatalogueGateFrame>
     </Suspense>

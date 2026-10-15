@@ -48,10 +48,12 @@ import { gzipSync } from "node:zlib";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
 import {
+    SET_CHUNK_PREFIX,
     chunksInStaticCycle,
     entryAssets,
     lightSurfaceViolations,
     reachableChunks,
+    setChunkViolations,
 } from "./lib/asset-graph";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -60,6 +62,9 @@ const DIST_ASSETS = join(ROOT, "dist", "assets");
 interface Budget {
     /** Chunk filename prefix (hash suffix varies per build). */
     prefix: string;
+    /** `sum`: the budget bounds every chunk carrying the prefix together
+     *  (the per-Set chunks of issue #5615); default: the one largest. */
+    scope?: "sum";
     /** gzip bytes. ~10% headroom over the post-#3053 measurement in this
      *  file's header — past this, either the chunk's own code has grown a
      *  lot, or card data has come back into a client graph. */
@@ -67,8 +72,12 @@ interface Budget {
 }
 
 const BUDGETS: Budget[] = [
-    // measured 440,553 B (issue #3053)
-    { prefix: "card-catalogue-", gzipBudgetBytes: 490_000 },
+    // measured 440,553 B (issue #3053) as ONE `card-catalogue` chunk; since
+    // issue #5615 the Sets are one chunk each (`card-set-<code>`, 146 files)
+    // and the row bounds their SUM — 436,709 B gzip on the same tree (the
+    // helpers many Sets share moved to chunks of their own), so the ceiling
+    // stays where it was.
+    { prefix: SET_CHUNK_PREFIX, scope: "sum", gzipBudgetBytes: 490_000 },
     // measured 610,101 B (issue #3053); RE-ANCHORED to 675,412 B at issue #3230,
     // to 689,547 B at issue #3808 and to 703,501 B at issue #4781 — every time
     // ORDINARY CODE GROWTH and not the accident this row guards.
@@ -93,26 +102,37 @@ const BUDGETS: Budget[] = [
     // sweeps off the board (`ai/latentBoard.ts`, `ai/opValuers.ts`); the
     // `card-catalogue` row did not move, so the pool is not back.
     //
-    // Headroom stays ~2% rather than the ~10% the card-catalogue row carries:
+    // #5615: RE-ANCHORED to 723,677 B. The worker is an `iife` bundle, which
+    // Vite builds with code splitting off, so the catalogue's new per-Set
+    // `import()` (`src/lib/catalogue/set-chunk-loader.ts`) is INLINED there:
+    // the same 146 Sets as before, now each behind a lazy module wrapper plus
+    // the loader's 146-entry map — +20 KB gzip of wrappers, no card data. The
+    // worker still holds every Set until PRD #5602's worker slice gives it a
+    // per-game Manifest; the `card-set-` row above did not move, so the pool
+    // is not back.
+    //
+    // Headroom stays ~2% rather than the ~10% the card-set row carries:
     // pool RE-ENTRY reds this row from any of these numbers, and a tight
     // margin is what makes the next re-anchor a decision somebody takes on
     // purpose rather than a ceiling that quietly absorbs a regression.
-    { prefix: "brain.worker-", gzipBudgetBytes: 717_500 },
+    { prefix: "brain.worker-", gzipBudgetBytes: 738_000 },
 ];
 
-function findChunk(prefix: string): string | null {
+/** The chunks a budget row measures: every file carrying the prefix for a
+ *  `sum` row; else the one largest — deterministic: if a rename ever produces
+ *  more than one match, the largest is the one worth budgeting, never
+ *  silently the first. */
+function findChunks(budget: Budget): string[] {
     const files = readdirSync(DIST_ASSETS).filter(
-        (f) => f.startsWith(prefix) && f.endsWith(".js")
+        (f) => f.startsWith(budget.prefix) && f.endsWith(".js")
     );
-    if (files.length === 0) return null;
-    // Deterministic: if a rename ever produces more than one match, the
-    // largest is the one worth budgeting — never silently pick the first.
+    if (files.length === 0 || budget.scope === "sum") return files;
     files.sort(
         (a, b) =>
             statSync(join(DIST_ASSETS, b)).size -
             statSync(join(DIST_ASSETS, a)).size
     );
-    return files[0]!;
+    return [files[0]!];
 }
 
 function main(): void {
@@ -123,8 +143,8 @@ function main(): void {
 
     const failures: string[] = [];
     for (const budget of BUDGETS) {
-        const file = findChunk(budget.prefix);
-        if (file === null) {
+        const files = findChunks(budget);
+        if (files.length === 0) {
             failures.push(
                 `${budget.prefix}*.js — no chunk found in dist/assets/. ` +
                     `Either the build changed how this entry is chunked (update ` +
@@ -133,8 +153,13 @@ function main(): void {
             );
             continue;
         }
-        const raw = readFileSync(join(DIST_ASSETS, file));
-        const gzipBytes = gzipSync(raw).length;
+        const gzipBytes = files
+            .map((f) => gzipSync(readFileSync(join(DIST_ASSETS, f))).length)
+            .reduce((a, b) => a + b, 0);
+        const file =
+            budget.scope === "sum"
+                ? `${budget.prefix}*.js (${files.length} chunks)`
+                : files[0]!;
         const status = gzipBytes <= budget.gzipBudgetBytes ? "OK" : "OVER";
         console.log(
             `[check:bundle] ${file}: ${(gzipBytes / 1024).toFixed(1)} KB gzip ` +
@@ -158,13 +183,18 @@ function main(): void {
     console.log(
         `[check:bundle] login page JS (entry + static graph): ${loginGzip} B gzip`
     );
-    for (const chunk of chunksInStaticCycle(distDir, "card-catalogue-")) {
+    for (const chunk of chunksInStaticCycle(distDir, SET_CHUNK_PREFIX)) {
         failures.push(
             `${chunk} is in a static import cycle — a set can evaluate before a helper it shares exists (issue #4854)`
         );
     }
     for (const v of lightSurfaceViolations(distDir)) {
         failures.push(`${v.surface}: ${v.chunk} — ${v.reason}`);
+    }
+    // Issue #5615: a game downloads only its own Sets. Every Set chunk sits
+    // behind the loader's `import()`; none is in any chunk's static closure.
+    for (const v of setChunkViolations(distDir)) {
+        failures.push(`set chunks: ${v.chunk} — ${v.reason}`);
     }
 
     if (failures.length > 0) {

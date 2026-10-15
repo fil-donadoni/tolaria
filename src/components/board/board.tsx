@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useResilientQuery } from "~/hooks/useResilientQuery";
+import { useDefinitionsResident } from "~/hooks/useDefinitionsResident";
+import { publicStateDefinitionIds } from "~/lib/publicStateDefinitionIds";
+import CatalogueLoadError from "~/components/ui/catalogue-load-error";
+import BoardCardsLoadingOverlay from "~/components/board/board-cards-loading-overlay";
 import { usePauseMenuHotkey } from "~/hooks/usePauseMenuHotkey";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -146,7 +150,7 @@ export default function Board({
         pageVisible && showAllCards ? { gameId, debugAllActions } : "skip"
     );
     const stateQuery = showAllCards ? fullState : publicState;
-    const state = stateQuery.data;
+    const liveState = stateQuery.data;
 
     // Owning Match (ADR 0029): the game-over screen shows the terminal Match
     // result. Resolve the matchId from the game doc, then the Match meta.
@@ -187,28 +191,35 @@ export default function Board({
         preloadCardImages(gameCardIds);
     }, [gameCardIds]);
 
-    const players = state?.players;
-    const stack = state?.stack;
+    // Every definition the live state names — what the board preloads art
+    // for, and what must be RESIDENT before it is shown (issue #5615): a card
+    // outside the game's Definition Manifest (a debug placement, a card
+    // fetched from outside the game) loads its Set on demand. The board HOLDS
+    // THE UPDATE, not its tree: until the new snapshot's Sets are in it keeps
+    // showing the last snapshot every Set of which was resident, so no
+    // `getDefinition` below ever sees a card it cannot resolve and nothing
+    // below is unmounted. Only the very first snapshot shows a loading line.
+    const stateIds = useMemo(
+        () => (liveState ? publicStateDefinitionIds(liveState) : null),
+        [liveState]
+    );
+    const residence = useDefinitionsResident(stateIds);
+    // The last snapshot every Set of which was resident, kept DURING render
+    // (React's "derive state from the previous render" form), so a snapshot
+    // the board cannot resolve yet never replaces one it can.
+    const [lastResident, setLastResident] =
+        useState<typeof liveState>(undefined);
+    if (
+        residence.ready &&
+        liveState !== undefined &&
+        liveState !== lastResident
+    ) {
+        setLastResident(liveState);
+    }
+    const state = residence.ready ? liveState : lastResident;
     useEffect(() => {
-        if (!players) return;
-        const ids: string[] = [];
-        for (const p of players) {
-            for (const c of p.battlefield) ids.push(c.card.id);
-            for (const c of p.graveyard) ids.push(c.card.id);
-            for (const c of p.exile) ids.push(c.card.id);
-            for (const c of p.hand) if (c) ids.push(c.card.id);
-            if (Array.isArray(p.library)) {
-                for (const c of p.library) ids.push(c.card.id);
-            } else {
-                // ADR 0026 — preload art for the viewer's known library cards.
-                for (const k of p.library.known ?? []) {
-                    ids.push(k.card.card.id);
-                }
-            }
-        }
-        if (stack) for (const c of stack) ids.push(c.card.id);
-        preloadCardImages(ids);
-    }, [players, stack]);
+        if (stateIds) preloadCardImages(stateIds);
+    }, [stateIds]);
 
     // Publish --right-piles-w to the document root while the board is mounted
     // so portal'd dialogs (rendered to document.body, outside data-board-root)
@@ -307,10 +318,18 @@ export default function Board({
         );
     }
 
+    if (residence.error && !state) {
+        return (
+            <CatalogueLoadError
+                error={residence.error}
+                onRetry={residence.retry}
+            />
+        );
+    }
     if (!state) {
         return (
             <div className="flex h-full items-center justify-center text-white">
-                Loading...
+                {residence.ready ? "Loading..." : "Loading cards..."}
             </div>
         );
     }
@@ -449,6 +468,16 @@ export default function Board({
                                     >
                                         <main className="flex h-full w-full flex-col relative overflow-hidden">
                                             <BoardBackground />
+                                            {/* The snapshot on screen is the
+                                                last resident one while the
+                                                live one's Sets install: no
+                                                click may land on it. */}
+                                            {!residence.ready && (
+                                                <BoardCardsLoadingOverlay
+                                                    error={residence.error}
+                                                    onRetry={residence.retry}
+                                                />
+                                            )}
                                             <AutoPassController solo={solo} />
                                             {vsAi && (
                                                 <VsAiDriver

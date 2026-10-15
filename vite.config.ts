@@ -5,6 +5,11 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import { buildDefine } from "./scripts/lib/build-define";
 import { cardSetsDevBundle } from "./scripts/lib/vite-card-sets-dev-bundle";
+import {
+    cardSetChunkName,
+    setChunkName,
+    setCodeOf,
+} from "./scripts/lib/vite-card-set-chunks";
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -68,31 +73,77 @@ export default defineConfig({
                     "src/lib/catalogue/compiled-pool.browser.ts"
                 ),
             },
+            // Issue #5615 (PRD #5602, ADR 0113 Amendment V) — the same
+            // asymmetry for the HAND-WRITTEN half. `convex/cards/setModules.ts`
+            // imports every Set statically, right on the server; in a client
+            // graph the swap installs a Set as one lazily imported chunk on
+            // demand (`set-chunk-loader.ts`), so a game downloads the Sets of
+            // its Definition Manifest and nothing else — in the page and in
+            // the Brain worker alike, as this alias reaches both builds. Sound
+            // while `catalogue.ts` is the module's one importer, pinned by
+            // `scripts/__tests__/set-modules-client-seam.test.ts`.
+            {
+                find: /^\.\/setModules$/,
+                replacement: path.resolve(
+                    __dirname,
+                    "src/lib/catalogue/set-modules.browser.ts"
+                ),
+            },
         ],
     },
     build: {
         rollupOptions: {
             output: {
-                // Extract the card-catalogue set modules (~1872 definitions,
-                // ~1.63 MB raw / 431 KB gzip) into a dedicated chunk so the
-                // main bundle drops them. The chunk is cached independently
-                // from the app code and is referenced by the catalogue glue
-                // module (`convex/cards/catalogue.ts`).
+                // The hand-written Set modules are ONE CHUNK PER SET
+                // (`card-set-<code>`, issue #5615), each reached only through
+                // the dynamic import in `src/lib/catalogue/set-chunk-loader.ts`
+                // — so a game downloads the Sets of its Definition Manifest
+                // and a release re-points only the chunks whose Sets changed.
+                // Before issue #5615 every Set sat in one `card-catalogue`
+                // chunk (~1.63 MB raw / 443 KB gzip) that the catalogue glue
+                // imported statically. The asset-graph check keys on the
+                // prefix (`scripts/lib/asset-graph.ts` → `SET_CHUNK_PREFIX`).
+                // A chunk whose entry is a Set's barrel is named after the
+                // Set too, should the bundler ever front a Set chunk with a
+                // facade (`index.cards-<hash>.js`): the Set chunk's only
+                // static importers stay Set chunks, and the asset-graph check
+                // keys on one prefix.
+                chunkFileNames: (chunk) => {
+                    const set = chunk.facadeModuleId
+                        ? setCodeOf(chunk.facadeModuleId)
+                        : undefined;
+                    return set === undefined
+                        ? "assets/[name]-[hash].js"
+                        : `assets/${setChunkName(set)}-[hash].js`;
+                },
                 codeSplitting: {
-                    // Dependencies stay INCLUDED (the default): turning that
-                    // off split the helpers the sets share into a chunk that
-                    // imports `card-catalogue` back, and whichever route
-                    // loaded first evaluated a set before its helper existed
-                    // (`TypeError: … is not a function`, built bundle only —
-                    // issue #4854). One-way chunk edges instead:
+                    // A group captures ONLY the modules it tests, never their
+                    // dependencies (issue #5615). With the default — each
+                    // group also captures what its modules import — the first
+                    // Set processed swallowed the helpers every Set shares
+                    // (`convex/cards/abilities/**`, `gre/protection`, …) AND
+                    // the catalogue glue, so one `card-set-*` chunk was the
+                    // whole catalogue again. When the Sets were ONE chunk,
+                    // turning this off split the shared helpers into a chunk
+                    // that imported `card-catalogue` back, and a route could
+                    // evaluate a set before its helper existed (issue #4854);
+                    // a Set chunk is now reached only through `import()`, so
+                    // nothing a helper chunk holds imports a Set chunk back
+                    // (`chunksInStaticCycle`, `scripts/check-bundle-size.ts`).
+                    // One-way chunk edges:
+                    includeDependenciesRecursively: false,
                     //  - `card-registry` claims `convex/cards/registry.ts`
                     //    FIRST (higher priority) so the registry the sets
                     //    import — and the lobby's image helpers read — is
                     //    not absorbed into `card-catalogue`, which would make
                     //    the entry statically import the 475 KB catalogue
                     //    chunk for one `tryGetDefinition`;
-                    //  - `card-catalogue` takes the set modules and whatever
-                    //    only they share.
+                    //  - `card-set-<code>` takes one Set's modules and the
+                    //    helpers only that Set reaches (`cardSetChunkName`);
+                    //    what two Sets share (`drk` imports a `leg` helper)
+                    //    stays in the Set that declares it, imported chunk to
+                    //    chunk, and a helper many Sets share sits in a chunk
+                    //    of its own that each imports one way.
                     groups: [
                         {
                             name: "card-registry",
@@ -100,8 +151,10 @@ export default defineConfig({
                             priority: 20,
                         },
                         {
-                            name: "card-catalogue",
-                            test: /convex[\\/]cards[\\/]sets[\\/]/,
+                            name: cardSetChunkName,
+                            // Every engine module is a candidate; the name
+                            // decides, by who imports it.
+                            test: /convex[\\/]/,
                             priority: 10,
                         },
                     ],

@@ -804,6 +804,88 @@ retained from `game.ts` measured 48.5 MiB and failed it.
 | ----------------------------------------------------------------- | ------------------------------------------------------------ |
 | `game.ts` over its heap budget with every definition built lazily | the GRE as its own long-lived service (Amendment III, row 2) |
 
+## Amendment V (issue #5615, 2026-10-14) — a game downloads only its own hand-written Sets
+
+§ 2's client half said "one content-addressed, `immutable` static asset,
+fetched at the loading gate", and § 3 that "the client loads the WHOLE corpus,
+not a per-game slice". Amendment IV kept the download whole by design while
+making the heap grow with the game. PRD #5602 re-opens the download: measured
+on 2026-10-14, a game against the Bot fetched ≈ 2.85 MB, ≈ 1.7 MB of it card
+data, for 60–120 distinct cards — and every release re-pointed the whole of
+it. This amendment ships the first slice, the hand-written half.
+
+### Decision
+
+- **The client half of § 2 becomes: the shards a route declares, each
+  immutable.** The hand-written definitions are no longer one `card-catalogue`
+  chunk the catalogue glue imports statically. They are **one lazily imported
+  chunk per Set** (`card-set-<code>`, `vite.config.ts` → `codeSplitting`),
+  reached only through the dynamic import in
+  `src/lib/catalogue/set-chunk-loader.ts`. The server keeps its static imports
+  (`convex/cards/setModules.ts`); the browser build aliases the specifier
+  `./setModules` to a seam that installs a Set on demand — the same technique
+  as `./compiledPool` (Amendment IV) — so the Convex bundle and the per-call
+  heap are untouched.
+- **One loader, two modes** (`src/lib/catalogue/definitionShards.ts`). The
+  game route awaits the packed corpus and then the Sets of its **Definition
+  Manifest** (issue #5614: both maindecks, both companions, the viewer's own
+  sideboard, each keyed by Set code), one row per seat the viewer owns — both
+  in solo. Every other gated surface — the deck builder, deck detail, the
+  Draft Lab, admin, the join antechamber, and the Brain worker until its own
+  slice — awaits the whole catalogue through the same loader: § 3's behaviour,
+  unchanged where it was wanted.
+- **§ 1 holds: `getDefinition` stays synchronous.** For a card whose Set is
+  not resident the catalogue answers nothing (`tryGetDefinition` `null`,
+  `getDefinition` the usual throw), so the hold is the only guarantee: the
+  board shows a snapshot only once every Set it names is in
+  (`useDefinitionsResident`), keeping the last resident snapshot meanwhile:
+  a debug placement before the widened Manifest arrives, a card fetched from
+  outside the game (CR 400.11), a Manifest Set code the client's index does
+  not know (the code is a hint frozen at the Game's build; client and server
+  deploys are not atomic) all load on demand with the board held back. A
+  `playing` Game with no Manifest — built before manifests existed — falls
+  back to the whole catalogue rather than waiting forever.
+- **Whole-catalogue reads on the game route get a disposition each:** the
+  name-a-card prompt needs no definition (CR 201.4 names any card; its list
+  and its submit gate read the Definition Index, the name's legality is the
+  server's check); the debug token picker switches to whole mode when it
+  opens (the token catalogue walks every definition); the Tabletop faces of
+  the route get the whole catalogue (their card images resolve a printing's
+  name through the registry); the Bot's registry walk on the main thread
+  skips a non-resident card, the worker holds every Set.
+- **A chunk per Set, by ownership.** A helper only one Set reaches (an
+  ability module one Set uses) joins that Set's chunk; one that two Sets or
+  the app reach stays in a shared chunk every Set chunk imports one way
+  (`scripts/lib/vite-card-set-chunks.ts`). Without the rule a Set whose
+  exclusive helper the bundler left in its entry chunk shipped as two chunks
+  with a static cycle between them — 15 of 146 Sets, measured. The asset-graph
+  check (`setChunkViolations`, `check:bundle`) reds a Set chunk any non-Set
+  chunk imports statically, or `index.html` preloads, and a build with no Set
+  chunk or no `import()` of one at all.
+
+### Measured
+
+Production build, the same tree, gzip: the 146 Set chunks sum to 436,709 B
+against the one 443 KB `card-catalogue` chunk they replace; the catalogue
+glue (the loader, the index, `catalogue.ts`) is 89,921 B, shared by every
+gated route. The Brain worker, an `iife` bundle the per-Set `import()` is
+inlined into, grew by ≈ 20 KB of lazy-module wrappers (723,677 B) and still
+holds every Set; the compiled corpus is still one 788 KB asset. Both are the
+next slices of PRD #5602. The per-game figures (a Solo game's requests and
+bytes before and after) are in the PR of issue #5615.
+
+### What stays open
+
+- The compiled corpus as content-addressed shards plus a small index (PRD
+  #5602's next slice): the Definition Manifest already keys a compiled card
+  by its first-printing Set.
+- The Brain worker on a per-game Manifest, and whether it can load the main
+  build's chunks or keeps its own.
+- The dev server keeps serving the Sets as ONE pre-bundled module (issue
+  #5597): the plugin now swaps the client's chunk loader for a loader over
+  that bundle, so dev and build run the same gate code over different Set
+  sources.
+
 ## Open, deliberately not decided here
 
 - Whether retiring a hand-written card in favour of its proven-equal compiled

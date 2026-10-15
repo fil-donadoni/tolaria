@@ -83,6 +83,12 @@ describe("createImportGraph — closureOf", () => {
         "src/components/panel-body.tsx": `import "./panel.css";\nexport const Panel = 1;\n`,
         "src/components/panel.css": `.x{}`,
         "src/components/viewer/index.tsx": `const lazy = () => import("@/lib/builder");\nexport default lazy;\n`,
+        "src/lib/chunk-loader.ts":
+            "export const load = (code: string) => import(`../../convex/cards/sets/${code}/index.cards.ts`);\n",
+        "convex/cards/sets/lea/index.cards.ts": `export const lea = 1;\n`,
+        "convex/cards/sets/leb/index.cards.ts": `export const leb = 1;\n`,
+        "convex/cards/sets/leb/red.cards.ts": `export const red = 1;\n`,
+        "convex/cards/sets/notes.txt": `not a module`,
         "src/lib/builder.ts": `import { rules } from "@convex/gre/rules";\nexport const b = rules;\n`,
         "convex/gre/rules.ts": `import data from "../../data/rules.json";\nexport const rules = data;\n`,
         "data/rules.json": `{}`,
@@ -111,6 +117,24 @@ describe("createImportGraph — closureOf", () => {
         expect(graph.closureOf("src/components/viewer/index.tsx")).toContain(
             "src/lib/builder.ts"
         );
+    });
+
+    it("fans a template import(`…${x}…`) out to every file it matches on disk — one edge per Set chunk (issue #5615)", () => {
+        expect(
+            importSpecifiers(
+                "import(`../../convex/cards/sets/${code}/index.cards.ts`)"
+            )
+        ).toEqual(["../../convex/cards/sets/*/index.cards.ts"]);
+        const closure = graph.closureOf("src/lib/chunk-loader.ts");
+        expect([...closure].sort()).toEqual([
+            "convex/cards/sets/lea/index.cards.ts",
+            "convex/cards/sets/leb/index.cards.ts",
+            "src/lib/chunk-loader.ts",
+        ]);
+        // On demand, like a literal import(): not part of the static closure.
+        expect(
+            graph.closureOf("src/lib/chunk-loader.ts", { staticOnly: true })
+        ).toEqual(new Set(["src/lib/chunk-loader.ts"]));
     });
 
     it("resolves a `.js` specifier to its `.ts(x)` source and ignores bare packages", () => {

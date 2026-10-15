@@ -1,156 +1,13 @@
 import type { CardDefinition, Rarity } from "./types";
-// All set modules — imported once, populated into the runtime registry on
-// import (side-effect). This module is the heavyweight split-out from
-// `index.ts`; only imported by the Convex backend and by client pages that
-// need catalogue-wide functions (deck builder, lobby, draft lab).
-import * as lea from "./sets/lea/index.cards";
-import * as leb from "./sets/leb/index.cards";
-import * as arn from "./sets/arn/index.cards";
-import * as atq from "./sets/atq/index.cards";
-import * as leg from "./sets/leg/index.cards";
-import * as lgn from "./sets/lgn/index.cards";
-import * as drk from "./sets/drk/index.cards";
-import * as fem from "./sets/fem/index.cards";
-import * as ice from "./sets/ice/index.cards";
-import * as jou from "./sets/jou/index.cards";
-// Vintage Cube card-draw / card-advantage tranche (issue #674)
-import * as lrw from "./sets/lrw/index.cards";
-import * as m10 from "./sets/m10/index.cards";
-import * as m11 from "./sets/m11/index.cards";
-import * as m12 from "./sets/m12/index.cards";
-import * as dft from "./sets/dft/index.cards";
-import * as dka from "./sets/dka/index.cards";
-import * as ulg from "./sets/ulg/index.cards";
-import * as voc from "./sets/voc/index.cards";
-import * as fifthDawn from "./sets/5dn/index.cards";
-import * as wth from "./sets/wth/index.cards";
-import * as tsp from "./sets/tsp/index.cards";
-import * as csp from "./sets/csp/index.cards";
-import * as ltc from "./sets/ltc/index.cards";
-import * as cns from "./sets/cns/index.cards";
-import * as cn2 from "./sets/cn2/index.cards";
-import * as thb from "./sets/thb/index.cards";
-import * as fut from "./sets/fut/index.cards";
-import * as mh1 from "./sets/mh1/index.cards";
-import * as bro from "./sets/bro/index.cards";
-import * as c18 from "./sets/c18/index.cards";
-import * as sos from "./sets/sos/index.cards";
-import * as avr from "./sets/avr/index.cards";
-import * as pc2 from "./sets/pc2/index.cards";
-import * as dmu from "./sets/dmu/index.cards";
-import * as mkm from "./sets/mkm/index.cards";
-import * as ltr from "./sets/ltr/index.cards";
-import * as mh2 from "./sets/mh2/index.cards";
-import * as blc from "./sets/blc/index.cards";
-import * as tdm from "./sets/tdm/index.cards";
-import * as stx from "./sets/stx/index.cards";
-import * as mh3 from "./sets/mh3/index.cards";
-import * as chk from "./sets/chk/index.cards";
-import * as cmr from "./sets/cmr/index.cards";
-import * as ody from "./sets/ody/index.cards";
-import * as usg from "./sets/usg/index.cards";
-import * as uds from "./sets/uds/index.cards";
-import * as plc from "./sets/plc/index.cards";
-import * as fin from "./sets/fin/index.cards";
-import * as mrd from "./sets/mrd/index.cards";
-import * as som from "./sets/som/index.cards";
-import * as m14 from "./sets/m14/index.cards";
-import * as exo from "./sets/exo/index.cards";
-import * as kld from "./sets/kld/index.cards";
-import * as wwk from "./sets/wwk/index.cards";
-import * as tmp from "./sets/tmp/index.cards";
-import * as mir from "./sets/mir/index.cards";
-import * as ths from "./sets/ths/index.cards";
-import * as isd from "./sets/isd/index.cards";
-import * as c19 from "./sets/c19/index.cards";
-import * as dsk from "./sets/dsk/index.cards";
-import * as sth from "./sets/sth/index.cards";
-import * as big from "./sets/big/index.cards";
-import * as gpt from "./sets/gpt/index.cards";
-import * as dis from "./sets/dis/index.cards";
-import * as rav from "./sets/rav/index.cards";
-import * as mid from "./sets/mid/index.cards";
-import * as apc from "./sets/apc/index.cards";
-import * as neo from "./sets/neo/index.cards";
-import * as bok from "./sets/bok/index.cards";
-import * as roe from "./sets/roe/index.cards";
-import * as lci from "./sets/lci/index.cards";
-import * as por from "./sets/por/index.cards";
-import * as p02 from "./sets/p02/index.cards";
-import * as phpr from "./sets/phpr/index.cards";
-import * as ktk from "./sets/ktk/index.cards";
-import * as akh from "./sets/akh/index.cards";
-import * as aer from "./sets/aer/index.cards";
-import * as rtr from "./sets/rtr/index.cards";
-import * as c15 from "./sets/c15/index.cards";
-import * as afr from "./sets/afr/index.cards";
-import * as hou from "./sets/hou/index.cards";
-import * as ecl from "./sets/ecl/index.cards";
-import * as c17 from "./sets/c17/index.cards";
-import * as pip from "./sets/pip/index.cards";
-import * as emn from "./sets/emn/index.cards";
-import * as nem from "./sets/nem/index.cards";
-import * as fic from "./sets/fic/index.cards";
-import * as lcc from "./sets/lcc/index.cards";
-import * as m3c from "./sets/m3c/index.cards";
-import * as con from "./sets/con/index.cards";
-import * as shm from "./sets/shm/index.cards";
-import * as zen from "./sets/zen/index.cards";
-import * as ons from "./sets/ons/index.cards";
-import * as ori from "./sets/ori/index.cards";
-import * as eld from "./sets/eld/index.cards";
-import * as vis from "./sets/vis/index.cards";
-import * as bbd from "./sets/bbd/index.cards";
-import * as khm from "./sets/khm/index.cards";
-import * as ptk from "./sets/ptk/index.cards";
-import * as mbs from "./sets/mbs/index.cards";
-import * as nph from "./sets/nph/index.cards";
-import * as mmq from "./sets/mmq/index.cards";
-import * as c14 from "./sets/c14/index.cards";
-import * as pls from "./sets/pls/index.cards";
-import * as dtk from "./sets/dtk/index.cards";
-import * as onc from "./sets/onc/index.cards";
-import * as spm from "./sets/spm/index.cards";
-import * as moc from "./sets/moc/index.cards";
-import * as dsc from "./sets/dsc/index.cards";
-import * as znr from "./sets/znr/index.cards";
-import * as woe from "./sets/woe/index.cards";
-import * as eoe from "./sets/eoe/index.cards";
-import * as tla from "./sets/tla/index.cards";
-import * as tmt from "./sets/tmt/index.cards";
-import * as tor from "./sets/tor/index.cards";
-import * as nec from "./sets/nec/index.cards";
-import * as c21 from "./sets/c21/index.cards";
-import * as rna from "./sets/rna/index.cards";
-import * as dom from "./sets/dom/index.cards";
-import * as eve from "./sets/eve/index.cards";
-import * as blb from "./sets/blb/index.cards";
-import * as clu from "./sets/clu/index.cards";
-import * as bng from "./sets/bng/index.cards";
-import * as one from "./sets/one/index.cards";
-import * as war from "./sets/war/index.cards";
-import * as mom from "./sets/mom/index.cards";
-import * as clb from "./sets/clb/index.cards";
-import * as c13 from "./sets/c13/index.cards";
-import * as vow from "./sets/vow/index.cards";
-import * as jud from "./sets/jud/index.cards";
-import * as m20 from "./sets/m20/index.cards";
-import * as ala from "./sets/ala/index.cards";
-import * as otj from "./sets/otj/index.cards";
-import * as hml from "./sets/hml/index.cards";
-import * as scg from "./sets/scg/index.cards";
-import * as inv from "./sets/inv/index.cards";
-import * as all from "./sets/all/index.cards";
-import * as pcy from "./sets/pcy/index.cards";
-import * as iko from "./sets/iko/index.cards";
-import * as snc from "./sets/snc/index.cards";
-import * as j25 from "./sets/j25/index.cards";
-import * as soi from "./sets/soi/index.cards";
-import * as ncc from "./sets/ncc/index.cards";
-import * as arb from "./sets/arb/index.cards";
-import * as dmc from "./sets/dmc/index.cards";
-import * as dst from "./sets/dst/index.cards";
-
+// The hand-written Set modules (issue #5615, ADR 0113 Amendment V). On the
+// SERVER `./setModules` imports every Set statically; in a CLIENT build
+// `vite.config.ts` aliases this exact relative specifier to
+// `src/lib/catalogue/set-modules.browser.ts`, which installs a Set as one
+// lazily imported chunk on demand — a game loads the Sets of its Definition
+// Manifest, a whole-catalogue surface all of them. Keep this the only
+// importer of `./setModules` — pinned by
+// `scripts/__tests__/set-modules-client-seam.test.ts`.
+import { setModuleSource } from "./setModules";
 import {
     setLazyDefinitionSource,
     setPrintedBackFaceIndex,
@@ -186,156 +43,6 @@ import { createPackedLookup, type PackedCorpus } from "./packedCorpus";
 // the COMPILED section of the Definition Index beside its rows.
 import { packedCorpusLookup, packedServerCorpus } from "./compiledPool";
 
-// Set modules paired with their lowercase set code.
-const setModules: { code: string; exports: Record<string, unknown> }[] = [
-    { code: "lea", exports: lea },
-    { code: "leb", exports: leb },
-    { code: "arn", exports: arn },
-    { code: "atq", exports: atq },
-    { code: "leg", exports: leg },
-    { code: "lgn", exports: lgn },
-    { code: "drk", exports: drk },
-    { code: "fem", exports: fem },
-    { code: "ice", exports: ice },
-    { code: "jou", exports: jou },
-    { code: "lrw", exports: lrw },
-    { code: "m10", exports: m10 },
-    { code: "m11", exports: m11 },
-    { code: "m12", exports: m12 },
-    { code: "dft", exports: dft },
-    { code: "dka", exports: dka },
-    { code: "ulg", exports: ulg },
-    { code: "voc", exports: voc },
-    { code: "5dn", exports: fifthDawn },
-    { code: "wth", exports: wth },
-    { code: "tsp", exports: tsp },
-    { code: "csp", exports: csp },
-    { code: "ltc", exports: ltc },
-    { code: "cns", exports: cns },
-    { code: "cn2", exports: cn2 },
-    { code: "thb", exports: thb },
-    { code: "fut", exports: fut },
-    { code: "mh1", exports: mh1 },
-    { code: "bro", exports: bro },
-    { code: "sos", exports: sos },
-    { code: "avr", exports: avr },
-    { code: "pc2", exports: pc2 },
-    { code: "dmu", exports: dmu },
-    { code: "mkm", exports: mkm },
-    { code: "ltr", exports: ltr },
-    { code: "mh2", exports: mh2 },
-    { code: "blc", exports: blc },
-    { code: "tdm", exports: tdm },
-    { code: "stx", exports: stx },
-    { code: "mh3", exports: mh3 },
-    { code: "chk", exports: chk },
-    { code: "ody", exports: ody },
-    { code: "usg", exports: usg },
-    { code: "uds", exports: uds },
-    { code: "plc", exports: plc },
-    { code: "fin", exports: fin },
-    { code: "mrd", exports: mrd },
-    { code: "som", exports: som },
-    { code: "m14", exports: m14 },
-    { code: "exo", exports: exo },
-    { code: "kld", exports: kld },
-    { code: "wwk", exports: wwk },
-    { code: "tmp", exports: tmp },
-    { code: "mir", exports: mir },
-    { code: "ths", exports: ths },
-    { code: "isd", exports: isd },
-    { code: "c19", exports: c19 },
-    { code: "dsk", exports: dsk },
-    { code: "sth", exports: sth },
-    { code: "big", exports: big },
-    { code: "gpt", exports: gpt },
-    { code: "dis", exports: dis },
-    { code: "rav", exports: rav },
-    { code: "mid", exports: mid },
-    { code: "apc", exports: apc },
-    { code: "neo", exports: neo },
-    { code: "bok", exports: bok },
-    { code: "roe", exports: roe },
-    { code: "lci", exports: lci },
-    { code: "por", exports: por },
-    { code: "p02", exports: p02 },
-    { code: "phpr", exports: phpr },
-    { code: "ktk", exports: ktk },
-    { code: "akh", exports: akh },
-    { code: "aer", exports: aer },
-    { code: "rtr", exports: rtr },
-    { code: "c15", exports: c15 },
-    { code: "afr", exports: afr },
-    { code: "hou", exports: hou },
-    { code: "ecl", exports: ecl },
-    { code: "c17", exports: c17 },
-    { code: "pip", exports: pip },
-    { code: "emn", exports: emn },
-    { code: "nem", exports: nem },
-    { code: "fic", exports: fic },
-    { code: "lcc", exports: lcc },
-    { code: "m3c", exports: m3c },
-    { code: "con", exports: con },
-    { code: "shm", exports: shm },
-    { code: "zen", exports: zen },
-    { code: "ons", exports: ons },
-    { code: "ori", exports: ori },
-    { code: "eld", exports: eld },
-    { code: "vis", exports: vis },
-    { code: "bbd", exports: bbd },
-    { code: "khm", exports: khm },
-    { code: "ptk", exports: ptk },
-    { code: "mbs", exports: mbs },
-    { code: "nph", exports: nph },
-    { code: "c18", exports: c18 },
-    { code: "mmq", exports: mmq },
-    { code: "c14", exports: c14 },
-    { code: "pls", exports: pls },
-    { code: "dtk", exports: dtk },
-    { code: "onc", exports: onc },
-    { code: "spm", exports: spm },
-    { code: "moc", exports: moc },
-    { code: "dsc", exports: dsc },
-    { code: "znr", exports: znr },
-    { code: "woe", exports: woe },
-    { code: "eoe", exports: eoe },
-    { code: "tla", exports: tla },
-    { code: "tmt", exports: tmt },
-    { code: "tor", exports: tor },
-    { code: "nec", exports: nec },
-    { code: "c21", exports: c21 },
-    { code: "rna", exports: rna },
-    { code: "dom", exports: dom },
-    { code: "eve", exports: eve },
-    { code: "blb", exports: blb },
-    { code: "clu", exports: clu },
-    { code: "bng", exports: bng },
-    { code: "one", exports: one },
-    { code: "war", exports: war },
-    { code: "mom", exports: mom },
-    { code: "clb", exports: clb },
-    { code: "c13", exports: c13 },
-    { code: "vow", exports: vow },
-    { code: "jud", exports: jud },
-    { code: "m20", exports: m20 },
-    { code: "ala", exports: ala },
-    { code: "otj", exports: otj },
-    { code: "hml", exports: hml },
-    { code: "scg", exports: scg },
-    { code: "inv", exports: inv },
-    { code: "all", exports: all },
-    { code: "pcy", exports: pcy },
-    { code: "iko", exports: iko },
-    { code: "snc", exports: snc },
-    { code: "j25", exports: j25 },
-    { code: "soi", exports: soi },
-    { code: "cmr", exports: cmr },
-    { code: "ncc", exports: ncc },
-    { code: "arb", exports: arb },
-    { code: "dmc", exports: dmc },
-    { code: "dst", exports: dst },
-];
-
 // ── The Definition Index (issue #4856, ADR 0113 Amendment IV) ───────────────
 //
 // At load this module reads the index and touches NO definition: every index
@@ -349,8 +56,6 @@ const setModules: { code: string; exports: Record<string, unknown> }[] = [
 // A definition declared with `defineCard` (issue #4857) is not even BUILT at
 // load: its Set module evaluates a factory, which runs on the first request
 // (`handWrittenDefinition`).
-
-const setModuleByCode = new Map(setModules.map((m) => [m.code, m.exports]));
 
 // Both sections are read DEFENSIVELY: `catalogue:pack` imports this module,
 // so a committed index of an older or partial shape (a merge that kept one
@@ -412,17 +117,34 @@ const staleIndex = (what: string): Error =>
 /** The hand-written definition for `id`, read from the Set module export the
  *  index locates — the module's own object, unexpanded. A `defineCard`
  *  factory is called here, on this first request, and memoises what it
- *  builds (issue #4857): the same object for every later request. */
+ *  builds (issue #4857): the same object for every later request.
+ *
+ *  `null` while the Set is not RESIDENT in this graph (a client that has
+ *  loaded only its game's Sets, issue #5615): the same answer an unknown id
+ *  gets — `tryGetDefinition` returns `null`, `getDefinition` throws `Card
+ *  not found`. Nothing is memoised about the miss, so the next request after
+ *  the Set is installed resolves. Not reading before the Set is resident is
+ *  the gate's job (`src/lib/catalogue/definitionShards.ts`), the only
+ *  guarantee there is. */
 function handWrittenDefinition(id: string): CardDefinition | null {
     const entry = handWrittenEntryById.get(id);
     if (entry === undefined) return null;
     const [, name, setCode, exportName] = entry;
-    const value = resolveCardExport(setModuleByCode.get(setCode)?.[exportName]);
+    const module = setModuleSource.resident(setCode);
+    if (module === undefined) return null;
+    const value = resolveCardExport(module[exportName]);
     if (value === undefined || value.id !== id) {
         throw staleIndex(`${name} (${id}) is not ${setCode}.${exportName}`);
     }
     return value;
 }
+
+/** The home Set of a HAND-WRITTEN definition — the Set module that declares
+ *  it, read off the Definition Index — or `undefined` for every other id
+ *  (compiled rows, tokens, a derived face). What the client's shard loader
+ *  keys a definition's chunk on (issue #5615). */
+export const handWrittenSetCodeOf = (id: string): string | undefined =>
+    handWrittenEntryById.get(id)?.[2];
 
 /** Where a compiled row is read from, given its id and its row in the
  *  compiled index. Installed ONCE per module graph by
@@ -668,14 +390,18 @@ export function registerPackedCorpus(packed: PackedCorpus): number {
  *  compares it with. */
 export function walkHandWrittenDefinitions(): HandWrittenExport[] {
     const walk: HandWrittenExport[] = [];
-    for (const m of setModules) {
-        const exports = Object.entries(m.exports).sort(([a], [b]) =>
+    for (const setCode of setModuleSource.codes) {
+        // Every Set is resident on the server, the generator's only runtime;
+        // a client graph walks what it has installed.
+        const module = setModuleSource.resident(setCode);
+        if (module === undefined) continue;
+        const exports = Object.entries(module).sort(([a], [b]) =>
             a < b ? -1 : a > b ? 1 : 0
         );
         for (const [exportName, value] of exports) {
             const definition = resolveCardExport(value);
             if (definition !== undefined) {
-                walk.push({ setCode: m.code, exportName, definition });
+                walk.push({ setCode, exportName, definition });
             }
         }
     }

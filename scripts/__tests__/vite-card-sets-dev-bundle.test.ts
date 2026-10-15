@@ -4,30 +4,42 @@ import path from "node:path";
 import type { Plugin } from "vite";
 import { createImportGraph } from "../lib/import-graph";
 import {
+    CARD_SETS_DEV_LOADER,
     CARD_SETS_DEV_MODULE,
-    CATALOGUE_MODULE,
+    SET_CHUNK_LOADER_SPECIFIER,
+    SET_MODULES_BROWSER_SEAM,
+    SET_MODULES_MODULE,
     SETS_DIR,
     bundleCardSets,
     cardSetsDevBundle,
     cardSetsDevBundleApplies,
-    rewriteCatalogueSetImports,
+    cardSetsLoaderSource,
+    isSetModulesBrowserSeam,
+    parseSetModuleImports,
     type CardSetsBundle,
 } from "../lib/vite-card-sets-dev-bundle";
 
 /**
- * The dev server's one-module card catalogue (issue #5597). Four things must
- * hold for the bundle to be the SAME catalogue the app would have loaded file
- * by file: the catalogue's Set imports are all rewritten, and nothing else in
- * it moves; the bundle folds in Set modules and ONLY Set modules (anything
- * else stays an external URL — one module instance with the engine); no other
- * module imports a Set (it would load a second instance beside the bundle's);
- * and the plugin never runs where a test compares a Set export by identity.
+ * The dev server's one-module card catalogue (issue #5597), behind the
+ * per-Set loader of issue #5615. Four things must hold for the bundle to be
+ * the SAME catalogue the app would have loaded chunk by chunk: the server's
+ * Set list is read whole, each import with its code; the bundle folds in Set
+ * modules and ONLY Set modules (anything else stays an external URL — one
+ * module instance with the engine); a Set module has exactly its two
+ * importers (the server's static list, the client's one `import()`); and the
+ * plugin never runs where a test compares a Set export by identity.
  */
 
 const ROOT = path.resolve(__dirname, "../..");
-const catalogueSource = readFileSync(path.join(ROOT, CATALOGUE_MODULE), "utf8");
+const setModulesSource = readFileSync(
+    path.join(ROOT, SET_MODULES_MODULE),
+    "utf8"
+);
 const SET_IMPORT =
     /^import \* as \w+ from "\.\/sets\/[a-z0-9]+\/index\.cards";$/gm;
+/** The client's one `import()` of a Set module: a template specifier Vite
+ *  expands into one chunk per Set directory. */
+const SET_CHUNK_LOADER = "src/lib/catalogue/set-chunk-loader.ts";
 
 /** Every source file under `dir` with one of `exts`, `__tests__` left out,
  *  absolute. */
@@ -40,65 +52,64 @@ function sourceFiles(dir: string, exts: readonly string[] = [".ts"]): string[] {
     });
 }
 
-describe("rewriteCatalogueSetImports — the real catalogue", () => {
-    const { code, sets } = rewriteCatalogueSetImports(catalogueSource);
+describe("parseSetModuleImports — the real Set list", () => {
+    const sets = parseSetModuleImports(setModulesSource);
 
-    it("rewrites every Set import into ONE import of the virtual module", () => {
-        expect(sets.length).toBe(catalogueSource.match(SET_IMPORT)!.length);
-        expect(code).not.toMatch(/["']\.\/sets\//);
-        const virtualImports = code.match(
-            new RegExp(`from "${CARD_SETS_DEV_MODULE}";`, "g")
-        );
-        expect(virtualImports).toHaveLength(1);
-        for (const { name } of sets) {
-            expect(code).toMatch(new RegExp(`import \\{[^}]*\\b${name}\\b`));
-        }
+    it("reads every Set import, with the code its list entry gives it", () => {
+        expect(sets.length).toBe(setModulesSource.match(SET_IMPORT)!.length);
+        expect(sets.find((s) => s.dir === "5dn")?.name).toBe("fifthDawn");
+        expect(sets.find((s) => s.dir === "lea")?.name).toBe("lea");
     });
 
-    it("preserves every line number — the rest of the module does not move", () => {
-        expect(code.split("\n")).toHaveLength(
-            catalogueSource.split("\n").length
-        );
-        const untouched = (src: string) =>
-            src
-                .split("\n")
-                .filter(
-                    (line) =>
-                        !/\.\/sets\/|tolaria-card-sets/.test(line) &&
-                        line !== ""
-                );
-        expect(untouched(code)).toEqual(untouched(catalogueSource));
+    it("names every Set directory, and no other", () => {
+        const dirs = readdirSync(path.join(ROOT, SETS_DIR), {
+            withFileTypes: true,
+        })
+            .filter((e) => e.isDirectory())
+            .map((e) => e.name)
+            .sort();
+        expect(sets.map((s) => s.dir).sort()).toEqual(dirs);
     });
 });
 
-describe("rewriteCatalogueSetImports — refusals", () => {
-    it("throws when the catalogue has no Set import to rewrite", () => {
+describe("parseSetModuleImports — refusals", () => {
+    it("throws when the module has no Set import to read", () => {
         expect(() =>
-            rewriteCatalogueSetImports(`import { x } from "./registry";\n`)
+            parseSetModuleImports(`import { x } from "./registry";\n`)
         ).toThrow(/no longer recognises it/);
     });
 
-    it.each([
-        `import { airElemental } from "./sets/lea/blue.cards";`,
-        `import "./sets/lea/index.cards";`,
-        `const lazy = () => import("./sets/lea/index.cards");`,
-        "const all = import.meta.glob(`./sets/*/index.cards.ts`);",
-    ])(
-        "throws when a Set module is named some other way, which would load it twice: %s",
-        (other) => {
-            const source = [
-                `import * as lea from "./sets/lea/index.cards";`,
-                other,
-            ].join("\n");
-            expect(() => rewriteCatalogueSetImports(source)).toThrow(
-                /would load that module twice/
-            );
-        }
-    );
+    it("throws when an import has no list entry", () => {
+        expect(() =>
+            parseSetModuleImports(
+                `import * as lea from "./sets/lea/index.cards";\n` +
+                    `import * as leb from "./sets/leb/index.cards";\n` +
+                    `const setModules = [{ code: "lea", exports: lea }];\n`
+            )
+        ).toThrow(/lists no .* entry for it/);
+    });
+
+    it("throws when a list entry's code is not the import's directory", () => {
+        expect(() =>
+            parseSetModuleImports(
+                `import * as lea from "./sets/lea/index.cards";\n` +
+                    `const setModules = [{ code: "leb", exports: lea }];\n`
+            )
+        ).toThrow(/under code "leb" but imports it from \.\/sets\/lea/);
+    });
+
+    it("throws when the list has an entry no import backs", () => {
+        expect(() =>
+            parseSetModuleImports(
+                `import * as lea from "./sets/lea/index.cards";\n` +
+                    `const setModules = [{ code: "lea", exports: lea }, { code: "leb", exports: leb }];\n`
+            )
+        ).toThrow(/lists 2 Set entries but imports 1/);
+    });
 });
 
-describe("the catalogue is the only importer of a Set module", () => {
-    it("no other convex/ or src/ module imports one, statically or not", () => {
+describe("a Set module has exactly its two importers", () => {
+    it("the server's static list and the client's one import(), nothing else", () => {
         const graph = createImportGraph({ root: ROOT });
         const setsPrefix = `${SETS_DIR}/`;
         const importers = ["convex", "src"]
@@ -108,14 +119,67 @@ describe("the catalogue is the only importer of a Set module", () => {
             .map((abs) => path.relative(ROOT, abs).split(path.sep).join("/"))
             .filter(
                 (rel) =>
-                    !rel.startsWith(setsPrefix) &&
-                    rel !== CATALOGUE_MODULE &&
-                    !/\.test\.tsx?$/.test(rel)
+                    !rel.startsWith(setsPrefix) && !/\.test\.tsx?$/.test(rel)
             )
-            .filter((rel) =>
-                graph.importsOf(rel).some((dep) => dep.startsWith(setsPrefix))
+            .filter(
+                (rel) =>
+                    graph
+                        .importsOf(rel)
+                        .some((dep) => dep.startsWith(setsPrefix)) ||
+                    // The template `import()` the graph's literal-only scan
+                    // cannot see: named by its source.
+                    readFileSync(path.join(ROOT, rel), "utf8").includes(
+                        "convex/cards/sets/${"
+                    )
             );
-        expect(importers).toEqual([]);
+        expect(importers.sort()).toEqual([
+            SET_MODULES_MODULE,
+            SET_CHUNK_LOADER,
+        ]);
+    });
+
+    it("the chunk loader spells one template import of a Set's barrel", () => {
+        const loader = readFileSync(path.join(ROOT, SET_CHUNK_LOADER), "utf8");
+        expect(loader.match(/\bimport\(/g)).toHaveLength(1);
+        expect(loader).toContain(
+            "import(`../../../convex/cards/sets/${code}/index.cards.ts`)"
+        );
+    });
+
+    it("the browser seam imports the loader by the specifier the plugin swaps", () => {
+        const seam = readFileSync(
+            path.join(ROOT, SET_MODULES_BROWSER_SEAM),
+            "utf8"
+        );
+        expect(seam).toContain(`from "${SET_CHUNK_LOADER_SPECIFIER}";`);
+        expect(
+            isSetModulesBrowserSeam(path.join(ROOT, SET_MODULES_BROWSER_SEAM))
+        ).toBe(true);
+        expect(
+            isSetModulesBrowserSeam(
+                `${path.join(ROOT, SET_MODULES_BROWSER_SEAM)}?import`
+            )
+        ).toBe(true);
+        expect(isSetModulesBrowserSeam(path.join(ROOT, SET_CHUNK_LOADER))).toBe(
+            false
+        );
+        expect(isSetModulesBrowserSeam(undefined)).toBe(false);
+    });
+});
+
+describe("cardSetsLoaderSource", () => {
+    const sets = [
+        { name: "lea", dir: "lea" },
+        { name: "fifthDawn", dir: "5dn" },
+    ];
+
+    it("answers a code from the one bundle, by the namespace its import gives it", () => {
+        const source = cardSetsLoaderSource(sets);
+        expect(source).toContain(`import("${CARD_SETS_DEV_MODULE}")`);
+        expect(source).toContain('"5dn":"fifthDawn"');
+        expect(source).toContain("export function loadSetModule(code)");
+        expect(source).toContain("Unknown Set module");
+        expect(source).toContain("return bundle.then((m) => m[name]);");
     });
 });
 
@@ -126,7 +190,7 @@ describe("bundleCardSets — the Set boundary, over the real tree", () => {
     const bundled = (): Promise<CardSetsBundle> =>
         (pending ??= bundleCardSets(
             ROOT,
-            rewriteCatalogueSetImports(catalogueSource).sets
+            parseSetModuleImports(setModulesSource)
         ));
 
     it("folds in Set modules only, and keeps everything else an external root-relative URL", async () => {
@@ -222,19 +286,33 @@ describe("the plugin's wiring", () => {
         expect(apply({}, { command: "build", mode: "production" })).toBe(false);
     });
 
-    it("rewrites the catalogue module, whatever its query, and nothing else", () => {
+    it("swaps the seam's chunk loader for the dev loader, and nothing else's", () => {
         (plugin.configResolved as Hook)({ root: ROOT });
-        const transform = plugin.transform as Hook;
-        const catalogue = path.join(ROOT, CATALOGUE_MODULE);
-        const rewritten = transform(catalogueSource, `${catalogue}?import`) as {
-            code: string;
-        };
-        expect(rewritten.code).toContain(`from "${CARD_SETS_DEV_MODULE}";`);
+        const resolveId = plugin.resolveId as Hook;
+        const seam = path.join(ROOT, SET_MODULES_BROWSER_SEAM);
+        expect(resolveId(SET_CHUNK_LOADER_SPECIFIER, `${seam}?import`)).toBe(
+            `\0${CARD_SETS_DEV_LOADER}`
+        );
         expect(
-            transform(
-                catalogueSource,
-                path.join(ROOT, "convex/cards/registry.ts")
+            resolveId(
+                SET_CHUNK_LOADER_SPECIFIER,
+                path.join(ROOT, "src/lib/catalogueArtifact.ts")
             )
+        ).toBeNull();
+        expect(resolveId(CARD_SETS_DEV_MODULE, seam)).toBe(
+            `\0${CARD_SETS_DEV_MODULE}`
+        );
+        expect(resolveId("./registry", seam)).toBeNull();
+    });
+
+    it("serves the dev loader from the real Set list", async () => {
+        (plugin.configResolved as Hook)({ root: ROOT });
+        const load = plugin.load as Hook;
+        const source = (await load(`\0${CARD_SETS_DEV_LOADER}`)) as string;
+        expect(source).toContain('"5dn":"fifthDawn"');
+        expect(source).toContain(`import("${CARD_SETS_DEV_MODULE}")`);
+        expect(
+            await load(path.join(ROOT, "convex/cards/registry.ts"))
         ).toBeNull();
     });
 });

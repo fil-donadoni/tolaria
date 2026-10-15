@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, cleanup, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 
 let game: Record<string, unknown> | undefined;
 
@@ -42,6 +43,16 @@ vi.mock("~/lib/session", () => ({
 
 // Every face of the route stands in as a marker, so the assertions are about
 // WHICH one mounted and nothing else.
+// The two catalogue gates above the faces are not under test here — each has
+// its own suite (`definition-manifest-gate.test.tsx`, `catalogue-gate.test.tsx`)
+// — and both hold their children behind an async install that never settles
+// in this harness, so they stand in as pass-throughs (issue #5615).
+vi.mock("~/components/board/definition-manifest-gate", () => ({
+    default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+vi.mock("~/components/ui/catalogue-gate", () => ({
+    default: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
 vi.mock("~/components/board/board", () => ({
     default: () => <div data-testid="gre-board" />,
 }));

@@ -8,12 +8,21 @@
 // it's on, and the draft ⇄ spec round-trip must carry the flag. These tests
 // drive the real components/helpers, never a hand-built stand-in.
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { getAllTokenKeys } from "@convex/cards/tokenCatalogue";
 
-import DebugScenarioCardFields from "../debug-scenario-card-fields";
-import DebugCardNameField from "../debug-card-name-field";
+// The token keys are derived from every hand-written definition, so the field
+// waits for the whole catalogue (issue #5615); resident here.
+vi.mock("~/lib/catalogueArtifact", () => ({
+    isCatalogueHydrated: () => true,
+    hydrateCatalogue: () => Promise.resolve(0),
+}));
+
+const { default: DebugScenarioCardFields } =
+    await import("../debug-scenario-card-fields");
+const { default: DebugCardNameField } =
+    await import("../debug-card-name-field");
 import {
     cardToDraft,
     draftToCard,

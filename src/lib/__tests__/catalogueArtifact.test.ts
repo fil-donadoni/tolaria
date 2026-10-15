@@ -45,6 +45,12 @@ vi.mock(
     "@convex/cards/compiledPool",
     () => import("../catalogue/compiled-pool.browser")
 );
+// The same for the hand-written half (issue #5615): `./setModules` is
+// aliased to the browser seam, so no Set is resident until it is installed.
+vi.mock(
+    "@convex/cards/setModules",
+    () => import("../catalogue/set-modules.browser")
+);
 
 /**
  * The client's catalogue on the shared Definition Source (issue #4861, ADR
@@ -122,6 +128,15 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
         expect(getAllCardNames()).not.toContain(PACKED.names[0]);
     });
 
+    it("starts with no hand-written card either: a Set is resident only once installed (issue #5615)", () => {
+        const [id, name] = HAND_INDEX.entries[0]!;
+        // The NAME is known — the index is resident — but the definition is
+        // not: `null`, never a throw, until its Set chunk is in.
+        expect(getAllCardNames()).toContain(name);
+        expect(tryGetDefinition(id)).toBeNull();
+        expect(isCatalogueHydrated()).toBe(false);
+    });
+
     it("refuses a non-OK response instead of registering nothing in silence", async () => {
         vi.stubGlobal(
             "fetch",
@@ -189,6 +204,10 @@ describe("hydrateCatalogue — the corpus is resident, nothing is decoded", () =
         await expect(hydrateCatalogue()).resolves.toBe(PACKED.ids.length);
         // What lets the gate render its children on the first frame (#5584).
         expect(isCatalogueHydrated()).toBe(true);
+        // WHOLE mode: every hand-written Set installed too (issue #5615).
+        for (const [id, name] of HAND_INDEX.entries) {
+            expect(tryGetDefinition(id)?.id, name).toBe(id);
+        }
 
         expect(fetchMock).toHaveBeenCalledWith(
             catalogueArtifactUrl(),

@@ -31,6 +31,7 @@ import {
     resolveDeckCardMeta,
 } from "@convex/cards/catalogue";
 import { bindDeckCardMetaResolver } from "~/lib/catalogue/deck-card-meta.browser";
+import { installAllSets } from "~/lib/catalogue/definitionShards";
 import { fetchJsonAsset } from "~/lib/fetchJsonAsset";
 
 // `convex/formats.ts` gets a late-bound `resolveDeckCardMeta` in the browser
@@ -44,34 +45,71 @@ export function catalogueArtifactUrl(): string {
     return packedCorpusUrl;
 }
 
+let corpus: Promise<number> | null = null;
+let corpusHydrated = false;
 let hydration: Promise<number> | null = null;
 let hydrated = false;
 
-/** Whether the packed corpus is installed in this graph: `hydrateCatalogue()`
- *  has resolved. Lets the gate render its children on the FIRST frame when a
- *  prefetch already did the work (issue #5584), instead of a loading screen
- *  for the tick its own `then` takes. */
+/** Whether the packed corpus is installed in this graph:
+ *  `hydrateCompiledCorpus()` has resolved. The game route's gate renders on
+ *  the FIRST frame when the Setup flow's prefetch already fetched it. */
+export function isCompiledCorpusHydrated(): boolean {
+    return corpusHydrated;
+}
+
+/** Whether the WHOLE catalogue is installed in this graph:
+ *  `hydrateCatalogue()` has resolved. Lets the gate render its children on
+ *  the FIRST frame when a prefetch already did the work (issue #5584),
+ *  instead of a loading screen for the tick its own `then` takes. */
 export function isCatalogueHydrated(): boolean {
     return hydrated;
 }
 
 /**
- * Fetch the packed corpus and install it, once per document (or per Worker).
+ * Fetch the packed corpus and install it, once per document (or per Worker):
+ * the COMPILED half of the catalogue, still one whole asset (PRD #5602's next
+ * slice shards it). The game route's gate awaits this and the Sets of its
+ * Definition Manifest (`src/lib/catalogue/definitionShards.ts`), never the
+ * whole catalogue.
  *
- * Promise singleton: the loading gate awaits it, and the Brain's Worker
- * awaits its own copy in its own graph. A rejection is not memoised — the
- * gate offers a retry, and a retried fetch must actually re-fetch.
+ * Promise singleton; a rejection is not memoised, so a retry really
+ * re-fetches. Resolves with the number of compiled cards the corpus added —
+ * the honest "did the fetch do anything" signal. Nothing is decoded here: a
+ * row is inflated when a card of its block is first asked for.
+ */
+export function hydrateCompiledCorpus(): Promise<number> {
+    if (corpus === null) {
+        corpus = fetchCatalogue().catch((error: unknown) => {
+            corpus = null;
+            throw error;
+        });
+    }
+    return corpus;
+}
+
+/**
+ * The WHOLE catalogue resident: the packed corpus fetched and every
+ * hand-written Set chunk installed (issue #5615). What a whole-catalogue
+ * surface awaits — the deck builder, deck detail, the Draft Lab, admin, the
+ * join antechamber — and the Brain's Worker in its own graph, until its own
+ * slice gives it a per-game Manifest.
  *
- * Resolves with the number of compiled cards the corpus added to the
- * catalogue — the honest "did the fetch do anything" signal. Nothing is
- * decoded here: a row is inflated when a card of its block is first asked for.
+ * Promise singleton: the loading gate awaits it. A rejection is not memoised
+ * — the gate offers a retry, and a retried load must actually re-load.
+ *
+ * Resolves with the compiled count of {@link hydrateCompiledCorpus}.
  */
 export function hydrateCatalogue(): Promise<number> {
     if (hydration === null) {
-        hydration = fetchCatalogue().catch((error: unknown) => {
-            hydration = null;
-            throw error;
-        });
+        hydration = Promise.all([hydrateCompiledCorpus(), installAllSets()])
+            .then(([installed]) => {
+                hydrated = true;
+                return installed;
+            })
+            .catch((error: unknown) => {
+                hydration = null;
+                throw error;
+            });
     }
     return hydration;
 }
@@ -83,7 +121,7 @@ async function fetchCatalogue(): Promise<number> {
         throw new Error(`catalogue artifact ${url} is not a packed corpus`);
     }
     const installed = registerPackedCorpus(packed);
-    hydrated = true;
+    corpusHydrated = true;
     return installed;
 }
 
@@ -111,6 +149,8 @@ function isPackedCorpus(value: unknown): value is PackedCorpus {
 /** TEST-ONLY. Drops the memoised promise so a test can drive the fetch again.
  *  Production has exactly one hydration per graph and never needs this. */
 export function resetCatalogueHydrationForTests(): void {
+    corpus = null;
+    corpusHydrated = false;
     hydration = null;
     hydrated = false;
 }

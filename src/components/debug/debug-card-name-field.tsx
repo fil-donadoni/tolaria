@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getAllCardNames } from "@convex/cards/catalogue";
 import { getAllTokenKeys } from "@convex/cards/tokenCatalogue";
+import { hydrateCatalogue, isCatalogueHydrated } from "~/lib/catalogueArtifact";
 
 /** Controlled card-name autocomplete for the debug scenario builder. Unlike
  *  `CardNameInput` (which owns a submit button for a `name-card` choice), this
@@ -27,9 +28,38 @@ export default function DebugCardNameField({
     source?: "cards" | "tokens";
 }) {
     const [focused, setFocused] = useState(false);
+    // The token catalogue is derived by walking EVERY hand-written
+    // definition (`getAllCards`): a whole-catalogue read, on a game route
+    // that holds only its game's Sets (issue #5615). The card names are read
+    // off the Definition Index and need nothing; the token keys wait for the
+    // whole catalogue, which this field starts loading — admin tooling pays
+    // the catalogue, the game does not.
+    const [whole, setWhole] = useState(isCatalogueHydrated);
+    useEffect(() => {
+        if (source !== "tokens") return;
+        let cancelled = false;
+        hydrateCatalogue().then(
+            () => {
+                if (!cancelled) setWhole(true);
+            },
+            (cause: unknown) => {
+                // Suggestions stay empty; the typed key is still submitted
+                // and validated server-side.
+                console.warn("token catalogue not loaded", cause);
+            }
+        );
+        return () => {
+            cancelled = true;
+        };
+    }, [source]);
     const allNames = useMemo(
-        () => (source === "tokens" ? getAllTokenKeys() : getAllCardNames()),
-        [source]
+        () =>
+            source === "tokens"
+                ? whole
+                    ? getAllTokenKeys()
+                    : []
+                : getAllCardNames(),
+        [source, whole]
     );
 
     const trimmed = value.trim();

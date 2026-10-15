@@ -6,6 +6,8 @@ import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import Board from "~/components/board/board";
+import DefinitionManifestGate from "~/components/board/definition-manifest-gate";
+import CatalogueGate from "~/components/ui/catalogue-gate";
 import ManualBoardContainer from "~/components/board/manual-board-container";
 import ManualGameOverDialog from "~/components/board/manual-game-over-dialog";
 import PregameDialog from "~/components/board/pregame-dialog";
@@ -130,91 +132,111 @@ export default function GameRoute() {
         // ADR 0080 — the ONLY consumer of games.mode: route the manual game
         // to its own board rather than the GRE board.
         if (game.mode === "manual") {
+            // A Tabletop game holds no Card Definitions (ADR 0080) and so has
+            // no Definition Manifest, yet its card images and previews resolve
+            // a printing's name through the registry: it gets the WHOLE
+            // catalogue (issue #5615), as before this route went per-game.
+            //
             // A conceded Tabletop game has had its `manualStates` rows deleted
             // by `manualConcedeMatch`, so the container would subscribe to a
             // null state and sit on "Loading..." forever. The result screen
             // replaces the board outright.
             if (game.status === "finished") {
                 return (
-                    <div className="flex h-dvh flex-col">
-                        <SurfaceReadyMarker />
-                        <ManualGameOverDialog
-                            players={game.players}
-                            winnerId={game.winner}
-                            matchId={game.matchId}
-                            viewerId={playerId}
-                            onSwitchGame={handleSwitchGame}
-                        />
-                    </div>
+                    <CatalogueGate mode="whole">
+                        <div className="flex h-dvh flex-col">
+                            <SurfaceReadyMarker />
+                            <ManualGameOverDialog
+                                players={game.players}
+                                winnerId={game.winner}
+                                matchId={game.matchId}
+                                viewerId={playerId}
+                                onSwitchGame={handleSwitchGame}
+                            />
+                        </div>
+                    </CatalogueGate>
                 );
             }
             return (
-                <div className="flex h-dvh flex-col">
-                    <SurfaceReadyMarker />
-                    <ManualBoardContainer
-                        key={gameId}
-                        gameId={gameId}
-                        playerId={playerId}
-                        solo={game.solo === true}
-                    />
-                </div>
-            );
-        }
-
-        return (
-            // The provider owns the sheet's open flag (issue #3493) and sits
-            // ABOVE the column because the board area and the sheet are
-            // siblings: the sheet is `position: fixed`, so the only way it can
-            // stop covering the board at desktop widths is for the board area
-            // to give up the width. `enabled` keeps a non-tester's board free
-            // of a push for a sheet they cannot open — the flag is persisted
-            // per device, so a tester session on this browser would otherwise
-            // reach across to them.
-            <DebugSheetProvider enabled={showDebugSheet}>
-                <div className="flex h-dvh flex-col">
-                    <SurfaceReadyMarker />
-                    {viewportMode === "portrait" && (
-                        <OrientationHint
-                            surfaceId="game-board"
-                            message="Rotate for the wide landscape board layout."
-                        />
-                    )}
-                    <DebugBoardArea>
-                        <Board
-                            // Key by gameId: switching games (Restart Solo /
-                            // rematch / Switch Game) reuses this route, so
-                            // without a key the board subtree keeps every
-                            // per-game client ref from the prior game (driver
-                            // dedupe guards, auto-pass seq, zone anchors).
-                            // Remount on game change for a clean slate (fixes
-                            // the bot freezing on the new game's mulligan after
-                            // a restart).
+                <CatalogueGate mode="whole">
+                    <div className="flex h-dvh flex-col">
+                        <SurfaceReadyMarker />
+                        <ManualBoardContainer
                             key={gameId}
                             gameId={gameId}
                             playerId={playerId}
                             solo={game.solo === true}
-                            vsAi={game.vsAi === true}
-                            // Both debug view modes lost their only toggles
-                            // with the seven buttons issue #3403 removed; the
-                            // board's props stay (they are read through
-                            // `GameContext` all over the board subtree) and are
-                            // simply always off.
-                            showAllCards={false}
-                            debugAllActions={false}
-                            onSwitchGame={handleSwitchGame}
                         />
-                    </DebugBoardArea>
-                    {/* The tester debug surface: one left sheet behind a slim
+                    </div>
+                </CatalogueGate>
+            );
+        }
+
+        return (
+            // The game downloads only its own cards (issue #5615): the route's
+            // catalogue gate brought the packed corpus; this one installs the
+            // Sets of the game's Definition Manifest before anything below
+            // reads a definition — the board, the driver, the debug sheet.
+            <DefinitionManifestGate
+                key={gameId}
+                gameId={gameId}
+                playerId={playerId}
+                seatIds={game.players.map((p) => p.id)}
+            >
+                {/* The provider owns the sheet's open flag (issue #3493) and sits
+                ABOVE the column because the board area and the sheet are
+                siblings: the sheet is `position: fixed`, so the only way it can
+                stop covering the board at desktop widths is for the board area
+                to give up the width. `enabled` keeps a non-tester's board free
+                of a push for a sheet they cannot open — the flag is persisted
+                per device, so a tester session on this browser would otherwise
+                reach across to them. */}
+                <DebugSheetProvider enabled={showDebugSheet}>
+                    <div className="flex h-dvh flex-col">
+                        <SurfaceReadyMarker />
+                        {viewportMode === "portrait" && (
+                            <OrientationHint
+                                surfaceId="game-board"
+                                message="Rotate for the wide landscape board layout."
+                            />
+                        )}
+                        <DebugBoardArea>
+                            <Board
+                                // Key by gameId: switching games (Restart Solo /
+                                // rematch / Switch Game) reuses this route, so
+                                // without a key the board subtree keeps every
+                                // per-game client ref from the prior game (driver
+                                // dedupe guards, auto-pass seq, zone anchors).
+                                // Remount on game change for a clean slate (fixes
+                                // the bot freezing on the new game's mulligan after
+                                // a restart).
+                                key={gameId}
+                                gameId={gameId}
+                                playerId={playerId}
+                                solo={game.solo === true}
+                                vsAi={game.vsAi === true}
+                                // Both debug view modes lost their only toggles
+                                // with the seven buttons issue #3403 removed; the
+                                // board's props stay (they are read through
+                                // `GameContext` all over the board subtree) and are
+                                // simply always off.
+                                showAllCards={false}
+                                debugAllActions={false}
+                                onSwitchGame={handleSwitchGame}
+                            />
+                        </DebugBoardArea>
+                        {/* The tester debug surface: one left sheet behind a slim
                         edge toggle (issue #3403). */}
-                    {showDebugSheet && (
-                        <DebugSheet
-                            gameId={gameId}
-                            playerId={playerId}
-                            vsAi={game.vsAi === true}
-                        />
-                    )}
-                </div>
-            </DebugSheetProvider>
+                        {showDebugSheet && (
+                            <DebugSheet
+                                gameId={gameId}
+                                playerId={playerId}
+                                vsAi={game.vsAi === true}
+                            />
+                        )}
+                    </div>
+                </DebugSheetProvider>
+            </DefinitionManifestGate>
         );
     }
 

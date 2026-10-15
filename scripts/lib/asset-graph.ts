@@ -45,9 +45,23 @@ export function reachableChunks(distDir: string, roots: string[]): Set<string> {
     return seen;
 }
 
-/** The chunk-name prefix that must stay out of a light surface: the card set
- *  modules (`card-catalogue`, `vite.config.ts` → `codeSplitting`). */
-export const HEAVY_CHUNK_PREFIXES = ["card-catalogue-"] as const;
+/** `import("./x.js")` / `import(\`./x.js\`)` — a dynamic edge, the lazy
+ *  boundary. */
+const DYNAMIC_EDGE = /\bimport\s*\(\s*["'`]\.\/([^"'`]+\.js)["'`]/g;
+
+export function dynamicImports(distDir: string, chunk: string): string[] {
+    const source = readFileSync(join(distDir, "assets", chunk), "utf8");
+    return [...source.matchAll(DYNAMIC_EDGE)].map((m) => m[1]!);
+}
+
+/** The chunk-name prefix of one hand-written Set's modules — `card-set-<code>`
+ *  (`vite.config.ts` → `codeSplitting`, issue #5615). Before issue #5615 every
+ *  Set sat in one `card-catalogue` chunk. */
+export const SET_CHUNK_PREFIX = "card-set-";
+
+/** The chunk-name prefixes that must stay out of a light surface: the card
+ *  set modules. */
+export const HEAVY_CHUNK_PREFIXES = [SET_CHUNK_PREFIX] as const;
 
 /** A literal only the rules engine carries (`convex/gre/activation.ts`), so a
  *  chunk holding it IS an engine chunk whatever the bundler named it. The
@@ -148,6 +162,70 @@ export function lightSurfaceViolations(
                 });
             }
         }
+    }
+    return out;
+}
+
+export interface SetChunkViolation {
+    chunk: string;
+    reason: string;
+}
+
+/**
+ * Every way `distDir` breaks "a game downloads only its own Sets" (issue
+ * #5615, PRD #5602): a Set chunk (`SET_CHUNK_PREFIX`) that some chunk other
+ * than a Set chunk imports STATICALLY, or that `index.html` preloads — the
+ * static closure of the entry, of every route chunk and of everything else
+ * then carries that Set whether the game needs it or not. A Set chunk may be
+ * imported statically only by another Set chunk (`drk` reads a `leg`
+ * helper; a Set's facade re-exports its chunk).
+ *
+ * Two vacuity guards: there must be Set chunks at all, and at least one chunk
+ * must reach one through `import()` — the loader
+ * (`src/lib/catalogue/set-chunk-loader.ts`); otherwise the Sets were folded
+ * somewhere this check cannot see, or nothing can load them.
+ */
+export function setChunkViolations(
+    distDir: string,
+    setPrefix: string = SET_CHUNK_PREFIX
+): SetChunkViolation[] {
+    const assets = readdirSync(join(distDir, "assets")).filter((f) =>
+        f.endsWith(".js")
+    );
+    const isSet = (chunk: string) => chunk.startsWith(setPrefix);
+    const out: SetChunkViolation[] = [];
+    if (!assets.some(isSet)) {
+        out.push({
+            chunk: `${setPrefix}*.js`,
+            reason: "no Set chunk in dist/assets — the Sets are folded into some other chunk, so this check cannot see them",
+        });
+        return out;
+    }
+    for (const preloaded of entryAssets(distDir)) {
+        if (isSet(preloaded)) {
+            out.push({
+                chunk: preloaded,
+                reason: "Set chunk preloaded by index.html",
+            });
+        }
+    }
+    let dynamicallyReached = 0;
+    for (const chunk of assets.sort()) {
+        for (const target of staticImports(distDir, chunk)) {
+            if (isSet(target) && !isSet(chunk)) {
+                out.push({
+                    chunk: target,
+                    reason: `Set chunk imported statically by ${chunk} — every surface that loads ${chunk} downloads this Set`,
+                });
+            }
+        }
+        if (dynamicImports(distDir, chunk).some(isSet)) dynamicallyReached++;
+    }
+    if (dynamicallyReached === 0) {
+        out.push({
+            chunk: `${setPrefix}*.js`,
+            reason: "no chunk reaches a Set chunk through import() — the Set loader is missing from the build",
+        });
     }
     return out;
 }

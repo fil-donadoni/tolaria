@@ -1,100 +1,120 @@
 // The dev server's card catalogue as ONE module (issue #5597).
 //
-// WHY. `convex/cards/catalogue.ts` imports every Set module statically (146
+// WHY. `convex/cards/setModules.ts` imports every Set module statically (146
 // `import * as <set> from "./sets/<set>/index.cards"`), and those reach the
-// 1070 files under `convex/cards/sets/`. A production build folds them into
-// one `card-catalogue` chunk; the Vite DEV server serves each one as its own
-// request, revalidated (`no-cache`) on every load — 1070 requests per gated
-// page load, twice in a game against the Bot, whose Brain worker has its own
-// module graph. Measured 2026-10-14: opening `/play/constructed` cost 1374
-// requests, 1138 of them catalogue (sets + abilities).
+// 1070 files under `convex/cards/sets/`. A production build makes one lazily
+// imported chunk per Set (issue #5615); the Vite DEV server would serve each
+// file as its own request, revalidated (`no-cache`) on every load — 1070
+// requests per gated page load, twice in a game against the Bot, whose Brain
+// worker has its own module graph. Measured 2026-10-14: opening
+// `/play/constructed` cost 1374 requests, 1138 of them catalogue (sets +
+// abilities).
 //
-// WHAT. In `vite` (dev) only, the catalogue's 146 Set imports are rewritten
-// into ONE import of a virtual module whose code is a Rolldown bundle of
-// `convex/cards/sets/**`. Every import that LEAVES that subtree — the card
-// types, `defineCard`, `convex/cards/abilities/**`, `convex/gre/constants`, …
-// — stays EXTERNAL and is emitted as the root-relative URL (`/convex/cards/
-// types.ts`) under which Vite already serves that file to the rest of the app,
-// so it remains ONE module instance: the engine and the Sets share their
-// abilities, their registry, their brand symbols.
+// WHAT. In `vite` (dev) only, the client's Set loader
+// (`src/lib/catalogue/set-chunk-loader.ts`, the `./set-chunk-loader` the
+// browser seam imports) is swapped for a loader over ONE virtual module whose
+// code is a Rolldown bundle of `convex/cards/sets/**`. Every import that
+// LEAVES that subtree — the card types, `defineCard`, `convex/cards/
+// abilities/**`, `convex/gre/constants`, … — stays EXTERNAL and is emitted as
+// the root-relative URL (`/convex/cards/types.ts`) under which Vite already
+// serves that file to the rest of the app, so it remains ONE module instance:
+// the engine and the Sets share their abilities, their registry, their brand
+// symbols. The loader keeps its contract — one Set's exports per code — so
+// the catalogue, the shard loader and the gate run the same code in dev as in
+// a build; only where a Set's module comes from differs.
 //
-// SOUND ONLY BECAUSE `catalogue.ts` IS THE SOLE IMPORTER OF A SET MODULE.
-// Another importer would load the file a second time, outside the bundle, and
-// hold a second `defineCard` factory for the same card. Checked when this was
-// written (no `src/`, `convex/gre/` or `convex/cards/` module outside the Sets
-// imports one) and asserted on every rewrite: a leftover `./sets/` import in
-// the catalogue throws instead of serving a split catalogue.
+// SOUND ONLY BECAUSE A SET MODULE HAS TWO IMPORTERS: the server's static list
+// (`convex/cards/setModules.ts`, which `vite.config.ts` aliases away from
+// every client graph) and the client's one `import()` (the loader this plugin
+// swaps). Another importer would load the file a second time, outside the
+// bundle, and hold a second `defineCard` factory for the same card. Asserted
+// by `scripts/__tests__/vite-card-sets-dev-bundle.test.ts` over the import
+// graph.
 //
-// NOT IN `vite build`, NOT IN VITEST. The build already bundles the Sets into
-// `card-catalogue`; and a test compares a Set export with what the catalogue
-// resolves BY IDENTITY, which a bundled copy would break.
+// NOT IN `vite build`, NOT IN VITEST. The build emits the per-Set chunks; and
+// a test compares a Set export with what the catalogue resolves BY IDENTITY,
+// which a bundled copy would break.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { rolldown } from "rolldown";
 import type { Plugin, ViteDevServer } from "vite";
 
-/** The specifier the rewritten catalogue imports its Set namespaces from. */
+/** The virtual module holding every Set, one namespace export per Set. */
 export const CARD_SETS_DEV_MODULE = "virtual:tolaria-card-sets";
 const RESOLVED_ID = `\0${CARD_SETS_DEV_MODULE}`;
+/** The virtual loader the browser seam gets in place of its chunk loader. */
+export const CARD_SETS_DEV_LOADER = "virtual:tolaria-card-sets-loader";
+const RESOLVED_LOADER_ID = `\0${CARD_SETS_DEV_LOADER}`;
 
 /** Repo-relative paths the plugin is keyed on. */
-export const CATALOGUE_MODULE = "convex/cards/catalogue.ts";
+export const SET_MODULES_MODULE = "convex/cards/setModules.ts";
 export const SETS_DIR = "convex/cards/sets";
+/** The browser seam, the one importer of the chunk loader, and how it spells
+ *  the specifier (`src/lib/catalogue/set-modules.browser.ts`). */
+export const SET_MODULES_BROWSER_SEAM =
+    "src/lib/catalogue/set-modules.browser.ts";
+export const SET_CHUNK_LOADER_SPECIFIER = "./set-chunk-loader";
 
-/** One `import * as <name> from "./sets/<dir>/index.cards";` of the catalogue. */
+/** One `import * as <name> from "./sets/<dir>/index.cards";` of the server's
+ *  Set list. */
 export interface SetNamespaceImport {
     name: string;
     dir: string;
 }
 
-// The exact shape every Set import of `catalogue.ts` has: one per line,
-// a namespace import of the Set's `index.cards` module.
+// The exact shape every Set import of `setModules.ts` has: one per line, a
+// namespace import of the Set's `index.cards` module.
 const SET_IMPORT_LINE =
     /^import \* as ([A-Za-z_$][\w$]*) from "\.\/sets\/([a-z0-9]+)\/index\.cards";$/gm;
-// Any other mention of a Set module path in the catalogue — a side-effect
-// import, `import()`, `require`, `import.meta.glob` — once the namespace
-// imports are rewritten: the catalogue has no other `./sets/` string.
-const ANY_SET_IMPORT = /["'`]\.\/sets\//;
+// `{ code: "<code>", exports: <name> }` — the Set code each namespace is
+// listed under (`5dn` is `fifthDawn`).
+const SET_CODE_ENTRY =
+    /\{ code: "([a-z0-9]+)", exports: ([A-Za-z_$][\w$]*) \}/g;
 
 /**
- * Rewrite the catalogue's Set imports into one import of
- * {@link CARD_SETS_DEV_MODULE}. LINE-PRESERVING: the first Set import line
- * becomes the combined import and every other one an empty line, so the rest
- * of the module keeps its line numbers and no sourcemap is owed.
+ * The Set list of the server module: every namespace import, each with the
+ * Set code its list entry gives it (the code is what the loader is asked
+ * for; the directory is what the bundle reads).
  *
- * Throws when there is no Set import to rewrite (the catalogue changed shape:
- * the dev server would silently fall back to 1070 requests) and when a Set
- * module is still named some other way after the rewrite (it would load a
- * second instance beside the bundled one).
+ * Throws when there is no Set import to read (the module changed shape: the
+ * dev server would silently fall back to 1070 requests) and when an import
+ * has no list entry or an entry no import (the bundle would serve a Set the
+ * catalogue cannot name, or name one it cannot serve).
  */
-export function rewriteCatalogueSetImports(code: string): {
-    code: string;
-    sets: SetNamespaceImport[];
-} {
+export function parseSetModuleImports(code: string): SetNamespaceImport[] {
     const sets: SetNamespaceImport[] = [];
     for (const match of code.matchAll(SET_IMPORT_LINE)) {
         sets.push({ name: match[1]!, dir: match[2]! });
     }
     if (sets.length === 0) {
         throw new Error(
-            `${CATALOGUE_MODULE} has no \`import * as <set> from "./sets/<set>/index.cards"\` line: ` +
+            `${SET_MODULES_MODULE} has no \`import * as <set> from "./sets/<set>/index.cards"\` line: ` +
                 "the card-sets dev bundle no longer recognises it (scripts/lib/vite-card-sets-dev-bundle.ts)"
         );
     }
-    const combined = `import { ${sets.map((s) => s.name).join(", ")} } from "${CARD_SETS_DEV_MODULE}";`;
-    let first = true;
-    const rewritten = code.replace(SET_IMPORT_LINE, () => {
-        if (!first) return "";
-        first = false;
-        return combined;
-    });
-    if (ANY_SET_IMPORT.test(rewritten)) {
+    const codeByName = new Map<string, string>();
+    for (const match of code.matchAll(SET_CODE_ENTRY)) {
+        codeByName.set(match[2]!, match[1]!);
+    }
+    for (const set of sets) {
+        const setCode = codeByName.get(set.name);
+        if (setCode === undefined) {
+            throw new Error(
+                `${SET_MODULES_MODULE} imports ${set.name} (./sets/${set.dir}) but lists no \`{ code, exports: ${set.name} }\` entry for it`
+            );
+        }
+        if (setCode !== set.dir) {
+            throw new Error(
+                `${SET_MODULES_MODULE} lists ${set.name} under code "${setCode}" but imports it from ./sets/${set.dir}`
+            );
+        }
+    }
+    if (codeByName.size !== sets.length) {
         throw new Error(
-            `${CATALOGUE_MODULE} names a Set module outside the one-per-line namespace imports: ` +
-                "bundling the Sets would load that module twice"
+            `${SET_MODULES_MODULE} lists ${codeByName.size} Set entries but imports ${sets.length} Set modules`
         );
     }
-    return { code: rewritten, sets };
+    return sets;
 }
 
 /** The bundle's entry: one namespace re-export per Set, by absolute path. */
@@ -108,6 +128,27 @@ export function cardSetsEntrySource(
                 `export * as ${name} from ${JSON.stringify(path.join(root, SETS_DIR, dir, "index.cards.ts"))};`
         )
         .join("\n");
+}
+
+/** The dev loader: `loadSetModule(code)` answered from the one bundle. The
+ *  same contract as `src/lib/catalogue/set-chunk-loader.ts`, which it
+ *  replaces: one Set's exports per code, a rejection for a code the server
+ *  module does not list. */
+export function cardSetsLoaderSource(
+    sets: readonly SetNamespaceImport[]
+): string {
+    const byCode = Object.fromEntries(sets.map((s) => [s.dir, s.name]));
+    return [
+        `const byCode = ${JSON.stringify(byCode)};`,
+        "let bundle = null;",
+        "export function loadSetModule(code) {",
+        "    const name = Object.prototype.hasOwnProperty.call(byCode, code) ? byCode[code] : undefined;",
+        "    if (name === undefined) return Promise.reject(new Error(`Unknown Set module: ${code}`));",
+        `    bundle ??= import(${JSON.stringify(CARD_SETS_DEV_MODULE)});`,
+        "    return bundle.then((m) => m[name]);",
+        "}",
+        "",
+    ].join("\n");
 }
 
 /** Whether `file` (absolute) lies under `convex/cards/sets/` of `root`. */
@@ -218,29 +259,42 @@ export function cardSetsDevBundleApplies(
     return env.command === "serve" && env.mode !== "test" && !processEnv.VITEST;
 }
 
+/** Whether `importer` is the browser seam — the one module whose
+ *  `./set-chunk-loader` import the plugin swaps. */
+export function isSetModulesBrowserSeam(importer: string | undefined): boolean {
+    return (
+        importer !== undefined &&
+        importer
+            .split("?")[0]!
+            .replaceAll("\\", "/")
+            .endsWith(`/${SET_MODULES_BROWSER_SEAM}`)
+    );
+}
+
 /**
  * The plugin. Built lazily on the first request for the virtual module and
- * kept until a file under `convex/cards/sets/` (or the catalogue itself)
- * changes, which drops it and reloads the page: a Set edit has no HMR
+ * kept until a file under `convex/cards/sets/` (or the server's Set list
+ * itself) changes, which drops it and reloads the page: a Set edit has no HMR
  * boundary to stop at, so a full reload is what the app did before too.
  */
 export function cardSetsDevBundle(): Plugin {
     let root = process.cwd();
-    let cataloguePath = path.join(root, CATALOGUE_MODULE);
+    let setModulesPath = path.join(root, SET_MODULES_MODULE);
     let building: Promise<CardSetsBundle> | null = null;
     /** The files the LAST finished build read; `null` while one is in flight
      *  (or none ran), when any change under the Sets counts. */
     let watched: ReadonlySet<string> | null = null;
     let pendingReload: ReturnType<typeof setTimeout> | null = null;
 
+    const sets = (): SetNamespaceImport[] =>
+        parseSetModuleImports(readFileSync(setModulesPath, "utf8"));
+
     const build = (): Promise<CardSetsBundle> => {
         if (building === null) {
             const started = performance.now();
-            const { sets } = rewriteCatalogueSetImports(
-                readFileSync(cataloguePath, "utf8")
-            );
+            const list = sets();
             watched = null;
-            const current = bundleCardSets(root, sets).then((bundle) => {
+            const current = bundleCardSets(root, list).then((bundle) => {
                 if (building === current) watched = new Set(bundle.watched);
                 console.log(
                     `card-sets dev bundle: ${bundle.watched.length} Set files → 1 module in ${(performance.now() - started).toFixed(0)} ms`
@@ -255,11 +309,11 @@ export function cardSetsDevBundle(): Plugin {
         return building;
     };
 
-    /** Whether a change to `file` makes the bundle stale: the catalogue, or a
+    /** Whether a change to `file` makes the bundle stale: the Set list, or a
      *  file the bundle was built from — never a Set's `__tests__`. */
     const isStaleBy = (file: string): boolean => {
         const abs = path.resolve(file);
-        if (abs === cataloguePath) return true;
+        if (abs === setModulesPath) return true;
         if (!isInsideSets(root, abs)) return false;
         return watched === null || watched.has(abs);
     };
@@ -273,8 +327,10 @@ export function cardSetsDevBundle(): Plugin {
         pendingReload = setTimeout(() => {
             pendingReload = null;
             for (const environment of Object.values(server.environments)) {
-                const mod = environment.moduleGraph.getModuleById(RESOLVED_ID);
-                if (mod) environment.moduleGraph.invalidateModule(mod);
+                for (const id of [RESOLVED_ID, RESOLVED_LOADER_ID]) {
+                    const mod = environment.moduleGraph.getModuleById(id);
+                    if (mod) environment.moduleGraph.invalidateModule(mod);
+                }
             }
             server.ws.send({ type: "full-reload" });
         }, 100);
@@ -286,25 +342,29 @@ export function cardSetsDevBundle(): Plugin {
         apply: (_config, env) => cardSetsDevBundleApplies(env),
         configResolved(config) {
             root = config.root;
-            cataloguePath = path.join(root, CATALOGUE_MODULE);
+            setModulesPath = path.join(root, SET_MODULES_MODULE);
         },
         configureServer(server) {
             server.watcher.on("all", (_event, file) => {
                 if (isStaleBy(file)) invalidate(server);
             });
         },
-        resolveId(source) {
-            return source === CARD_SETS_DEV_MODULE ? RESOLVED_ID : null;
+        resolveId(source, importer) {
+            if (source === CARD_SETS_DEV_MODULE) return RESOLVED_ID;
+            if (source === CARD_SETS_DEV_LOADER) return RESOLVED_LOADER_ID;
+            if (
+                source === SET_CHUNK_LOADER_SPECIFIER &&
+                isSetModulesBrowserSeam(importer)
+            ) {
+                return RESOLVED_LOADER_ID;
+            }
+            return null;
         },
         async load(id) {
+            if (id === RESOLVED_LOADER_ID) return cardSetsLoaderSource(sets());
             if (id !== RESOLVED_ID) return null;
             const { code, map } = await build();
             return { code, map };
-        },
-        transform(code, id) {
-            if (path.resolve(id.split("?")[0]!) !== cataloguePath) return null;
-            // Line-preserving: `map: null` keeps the existing mappings.
-            return { code: rewriteCatalogueSetImports(code).code, map: null };
         },
     };
 }

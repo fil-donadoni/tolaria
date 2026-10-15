@@ -15,6 +15,12 @@
  *   - dynamic `import("x")` with a LITERAL specifier (the verdict quiz loads its
  *     builder that way — a non-literal specifier cannot be resolved statically
  *     and is ignored);
+ *   - dynamic `import(\`./dir/${x}/file.ts\`)` with a TEMPLATE specifier, the
+ *     way Vite's dynamic-import-vars reads it: each `${…}` is one path
+ *     segment's wildcard, and the edge fans out to every file the pattern
+ *     matches on disk (the per-Set chunk loader, issue #5615 — one Set file
+ *     per directory under `convex/cards/sets/`). A `source` with no `listDir`
+ *     cannot expand it and follows nothing there;
  *   - `new URL("x", import.meta.url)`, the form the Brain worker is spawned
  *     with;
  *   - relative specifiers, and the app's path aliases (`APP_ALIASES`, kept
@@ -30,7 +36,7 @@
  * selects more surfaces, never fewer — so the error runs in the fail-closed
  * direction, which is the only direction a scoper may err in.
  */
-import { readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, posix } from "node:path";
 
 /**
@@ -80,6 +86,11 @@ export const APP_ALIASES: readonly ImportAlias[] = [
         find: /^\.\/compiledPool$/,
         replacement: "src/lib/catalogue/compiled-pool.browser.ts",
     },
+    // Issue #5615 — the hand-written half of the same asymmetry.
+    {
+        find: /^\.\/setModules$/,
+        replacement: "src/lib/catalogue/set-modules.browser.ts",
+    },
 ];
 
 const SPECIFIER_PATTERNS: readonly RegExp[] = [
@@ -93,9 +104,20 @@ const SPECIFIER_PATTERNS: readonly RegExp[] = [
     /\bimport\s*["']([^"'\n]+)["']/g,
     // import("y")
     /\bimport\s*\(\s*["']([^"'\n]+)["']\s*\)/g,
+    // import(`./y/${z}.ts`) — the specifier is kept with each `${…}` as `*`.
+    /\bimport\s*\(\s*`([^`\n]+)`\s*\)/g,
     // new URL("y", import.meta.url)
     /\bnew\s+URL\(\s*["']([^"'\n]+)["']\s*,\s*import\.meta\.url\s*\)/g,
 ];
+
+/** The wildcard a template specifier's `${…}` becomes (Vite's
+ *  dynamic-import-vars): one path segment, never crossing a `/`. */
+const TEMPLATE_WILDCARD = "*";
+
+/** Whether `specifier` is a template pattern to fan out (`expandPattern`). */
+export function isPatternSpecifier(specifier: string): boolean {
+    return specifier.includes(TEMPLATE_WILDCARD);
+}
 
 /** Every module specifier `source` names at RUNTIME, in no particular order,
  *  deduped — a type-only statement contributes nothing (`typeOnlySpecifiers`). */
@@ -134,9 +156,23 @@ function specifiersOf(source: string): {
                 typeOnly.add(match[2]);
                 continue;
             }
-            const specifier = i === 0 ? match[2] : match[1];
+            let specifier = i === 0 ? match[2] : match[1];
+            if (i === 3) {
+                // A template with no `${…}` is a plain literal; one with any
+                // is a pattern — relative only, as Vite requires of it.
+                specifier = specifier.replaceAll(
+                    /\$\{[^}]*\}/g,
+                    TEMPLATE_WILDCARD
+                );
+                if (
+                    isPatternSpecifier(specifier) &&
+                    !specifier.startsWith("./") &&
+                    !specifier.startsWith("../")
+                )
+                    continue;
+            }
             runtime.add(specifier);
-            // Patterns 0 and 1 are the static forms; 2 and 3 load on demand.
+            // Patterns 0 and 1 are the static forms; 2, 3 and 4 load on demand.
             if (i <= 1) statics.add(specifier);
         }
     }
@@ -247,6 +283,48 @@ export interface ImportGraph {
 export interface ImportGraphSource {
     isFile(repoPath: string): boolean;
     readFile(repoPath: string): string;
+    /** The entries of a directory, or `[]` for none. Without it a template
+     *  `import(\`…${x}…\`)` fans out to nothing. */
+    listDir?(repoPath: string): readonly string[];
+}
+
+/**
+ * Every existing file the repo-relative pattern `base` names — a `*`
+ * segment matching one directory entry (Vite's dynamic-import-vars) — in
+ * no particular order.
+ */
+export function expandPattern(
+    base: string,
+    listDir: (repoPath: string) => readonly string[],
+    isFile: (repoPath: string) => boolean
+): string[] {
+    const segments = base.split("/");
+    let partials = [""];
+    for (const [i, segment] of segments.entries()) {
+        const last = i === segments.length - 1;
+        const next: string[] = [];
+        for (const partial of partials) {
+            const names = segment.includes(TEMPLATE_WILDCARD)
+                ? listDir(partial === "" ? "." : partial).filter((name) =>
+                      segmentMatcher(segment).test(name)
+                  )
+                : [segment];
+            for (const name of names) {
+                const path = partial === "" ? name : `${partial}/${name}`;
+                if (!last || isFile(path)) next.push(path);
+            }
+        }
+        partials = next;
+    }
+    return partials;
+}
+
+function segmentMatcher(segment: string): RegExp {
+    const escaped = segment
+        .split(TEMPLATE_WILDCARD)
+        .map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+        .join("[^/]*");
+    return new RegExp(`^${escaped}$`);
 }
 
 export interface ImportGraphOptions {
@@ -289,6 +367,15 @@ export function createImportGraph({
         return known;
     };
 
+    const listDir = (repoPath: string): readonly string[] => {
+        try {
+            if (source) return source.listDir?.(repoPath) ?? [];
+            return readdirSync(join(root, repoPath));
+        } catch {
+            return [];
+        }
+    };
+
     const read = (repoPath: string): void => {
         if (edges.has(repoPath)) return;
         let runtime: string[] = [];
@@ -300,15 +387,22 @@ export function createImportGraph({
                 : readFileSync(join(root, repoPath), "utf8");
             const resolve = (specifiers: string[]) =>
                 specifiers
-                    .map(
-                        (s) =>
+                    .flatMap((s) => {
+                        if (isPatternSpecifier(s)) {
+                            const base = specifierBase(repoPath, s, aliases);
+                            return base === null
+                                ? []
+                                : expandPattern(base, listDir, isFile);
+                        }
+                        return [
                             seams.find(
                                 (seam) =>
                                     seam.importer === repoPath &&
                                     seam.specifier === s
                             )?.replacement ??
-                            resolveSpecifier(repoPath, s, aliases, isFile)
-                    )
+                                resolveSpecifier(repoPath, s, aliases, isFile),
+                        ];
+                    })
                     .filter((p): p is string => p !== null);
             runtime = resolve(importSpecifiers(text));
             statics = resolve(staticImportSpecifiers(text));

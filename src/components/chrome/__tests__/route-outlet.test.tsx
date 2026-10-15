@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import {
     RouterProvider,
     createMemoryHistory,
@@ -16,17 +18,28 @@ import RouteOutlet from "../route-outlet";
 // guarantee (nothing reads the registry before it is hydrated).
 
 vi.mock("~/components/ui/catalogue-gate", () => ({
-    default: ({ children }: { children: React.ReactNode }) => (
-        <div data-testid="catalogue-gate">{children}</div>
+    default: ({
+        mode,
+        children,
+    }: {
+        mode?: string;
+        children: React.ReactNode;
+    }) => (
+        <div data-testid="catalogue-gate" data-mode={mode}>
+            {children}
+        </div>
     ),
 }));
 
-async function renderAt(path: string, lightSurface?: true) {
+async function renderAt(
+    path: string,
+    staticData?: { lightSurface?: true; catalogue?: "game" }
+) {
     const root = createRootRoute({ component: RouteOutlet });
     const page = createRoute({
         getParentRoute: () => root,
         path,
-        staticData: lightSurface ? { lightSurface } : undefined,
+        staticData,
         component: () => <div data-testid="page" />,
     });
     const router = createRouter({
@@ -39,17 +52,32 @@ async function renderAt(path: string, lightSurface?: true) {
 
 describe("RouteOutlet", () => {
     it("mounts no gate around a lightSurface route", async () => {
-        await renderAt("/lobby-like", true);
+        await renderAt("/lobby-like", { lightSurface: true });
         expect(screen.queryByTestId("catalogue-gate")).toBeNull();
     });
 
-    it("gates a route that declares nothing — gated is the default", async () => {
+    it("gates a route that declares nothing — gated is the default, the whole catalogue", async () => {
         await renderAt("/board-like");
-        expect(
-            (await screen.findByTestId("catalogue-gate")).contains(
-                screen.getByTestId("page")
-            )
-        ).toBe(true);
+        const gate = await screen.findByTestId("catalogue-gate");
+        expect(gate.contains(screen.getByTestId("page"))).toBe(true);
+        expect(gate.dataset.mode).toBe("whole");
+    });
+
+    it("keys the gate by mode, so a game-mode gate never carries its readiness onto a whole route", () => {
+        const outlet = readFileSync(
+            resolve(__dirname, "../route-outlet.tsx"),
+            "utf8"
+        );
+        expect(outlet).toMatch(
+            /<CatalogueGateFrame key=\{need\} mode=\{need\}>/
+        );
+    });
+
+    it("gates a route declaring catalogue: game in game mode (issue #5615)", async () => {
+        await renderAt("/game-like", { catalogue: "game" });
+        const gate = await screen.findByTestId("catalogue-gate");
+        expect(gate.contains(screen.getByTestId("page"))).toBe(true);
+        expect(gate.dataset.mode).toBe("game");
     });
 });
 
@@ -67,6 +95,17 @@ describe("which real routes opt out of the gate", () => {
 
     it("the Constructed Setup flow is a light surface (issue #5584)", () => {
         expect(lightSurface("/play/constructed")).toBe(true);
+    });
+
+    it("the game route loads its own Sets; the join antechamber the whole catalogue (issue #5615)", () => {
+        const catalogue = (path: string) =>
+            router
+                .getMatchedRoutes(path)
+                .matchedRoutes.filter((r) => r.id !== "__root__")
+                .map((r) => r.options.staticData?.catalogue);
+        expect(catalogue("/game")).toEqual(["game"]);
+        expect(catalogue("/join/abc")).toEqual([undefined]);
+        expect(catalogue("/decks/create")).toEqual([undefined]);
     });
 
     it.each([

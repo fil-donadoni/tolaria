@@ -18,6 +18,11 @@ export default function CardNameInput({
     onSubmit: (cardName: string) => void;
 }) {
     const [value, setValue] = useState("");
+    // On a game route that holds only its game's Sets (issue #5615) this
+    // prompt needs NO definition: the candidate list and the submit gate read
+    // the Definition Index, and the name's legality (`isLegalNamedCard`,
+    // which does read a definition for a twin name, a name restriction or an
+    // as-enters filter) is checked on the SERVER, where every Set is resident.
     // The whole implemented registry is the candidate set (CR 202.3 — name ANY
     // card; here, any card we model), PLUS every inset spell's alternative name
     // (CR 715.5 — "if … the player wants to choose an adventurer card's
