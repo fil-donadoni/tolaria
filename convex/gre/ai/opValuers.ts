@@ -509,18 +509,7 @@ function valueEachPlayerSide(
         if (op.op === "moveZone") hand.shuffleIn(op);
         const edict = op.op === "sacrifice" && edictChoiceFor(op, body);
         if (edict) {
-            const count = groundedEdictCount(side, edict);
-            const units = side.sacrificeUnits(edict.filter, count) ?? 0;
-            const taken = pricedFraction(
-                sideCtx,
-                "boardRemoval",
-                REMOVAL_COMPLETENESS.destroy,
-                units
-            );
-            total = addValues(total, {
-                points: side.own ? -taken : taken,
-                tags: ["boardRemoval"],
-            });
+            total = addValues(total, sideEdictLoss(side, edict, sideCtx));
             continue;
         }
         total = addValues(total, valueOp(op, sideCtx, scope));
@@ -579,6 +568,27 @@ class EachPlayerHand {
         if ("ref" in count) return this.bound.get(count.ref) ?? 0;
         return 0;
     }
+}
+
+/** Issue #5162 — what `side` gives up to an edict, off its own board: the
+ *  cheapest members its `choice`'s filter and count name, at the `destroy`
+ *  completeness a sweep's member takes (`sweptForEachValue`) — what the
+ *  chooser gives up is known, it is the cheapest. Lost by that player.
+ *  Issue #5575 — the standing engine's edict side reads it too. */
+function sideEdictLoss(
+    side: EachPlayerSide,
+    edict: EachPlayerEdictChoice,
+    sideCtx: GroundingContext
+): OpValue {
+    const count = groundedEdictCount(side, edict);
+    const units = side.sacrificeUnits(edict.filter, count) ?? 0;
+    const taken = pricedFraction(
+        sideCtx,
+        "boardRemoval",
+        REMOVAL_COMPLETENESS.destroy,
+        units
+    );
+    return { points: side.own ? -taken : taken, tags: ["boardRemoval"] };
 }
 
 /** Issue #5559 — how many members `side` gives up to an edict: its literal
@@ -671,7 +681,10 @@ export function eachStepDifferentialValue(
         const sideCtx = eachPlayerGrounding(ctx, side, isStepPlayerRef);
         let total = ZERO_OP_VALUE;
         for (const op of script) {
-            total = addValues(total, stepSideOpValue(op, side, sideCtx));
+            total = addValues(
+                total,
+                stepSideOpValue(op, script, side, sideCtx)
+            );
         }
         for (const t of total.tags) tags.add(t);
         return total.points;
@@ -683,21 +696,61 @@ export function eachStepDifferentialValue(
 
 /** Issue #5164 / #5574 — true for a script `eachStepDifferentialValue`
  *  reads: a non-empty script whose every Op is attributable to the scoped
- *  player alone (`isStepSideOp`). */
+ *  player alone (`isStepSideOp`) — a draw, a life Op, or (issue #5575) an
+ *  edict on that player's own permanents — beyond the edict's bare
+ *  `choice`, which reads nothing by itself. */
 export function isEachStepEngineScript(script: readonly EffectOp[]): boolean {
-    return script.length > 0 && script.every(isStepSideOp);
+    return (
+        script.length > 0 &&
+        script.every((op) => isStepSideOp(op, script)) &&
+        script.some((op) => op.op !== "choice")
+    );
+}
+
+/** Issue #5575 (ADR 0151 §1) — true for a standing each-step script the
+ *  representative walk must never read: it names the scoped player and
+ *  holds an Op beyond the life family (gained, lost, dealt — issue #5574's).
+ *  Read per side when `isEachStepEngineScript` reads it, else NOTHING: the
+ *  walk would take `$event.activePlayerId` for the controller and give the
+ *  engine one fixed sign on every board. */
+export function isEachStepScopedScript(script: readonly EffectOp[]): boolean {
+    return (
+        namesStepPlayer(script) &&
+        !script.every(
+            (op) =>
+                op.op === "gainLife" ||
+                op.op === "loseLife" ||
+                op.op === "dealDamage"
+        )
+    );
+}
+
+/** Issue #5575 — true when `node` names the scoped player anywhere, nested
+ *  Ops included (Oath of Druids' `if` arm). */
+function namesStepPlayer(node: unknown): boolean {
+    if (Array.isArray(node)) return node.some(namesStepPlayer);
+    if (node === null || typeof node !== "object") return false;
+    if (isStepPlayerRef(node as EffectPlayerRef)) return true;
+    return Object.values(node).some(namesStepPlayer);
 }
 
 /** Issue #5574 — one Op of a standing each-step script on one side: a draw
- *  priced off the side's library and hand, a life Op off the side's board. */
+ *  priced off the side's library and hand, a life Op off the side's board.
+ *  Issue #5575 — an edict's `sacrifice` off the side's own permanents
+ *  (`sideEdictLoss`); its `choice` reads through `valueOp` as before. */
 function stepSideOpValue(
     op: EffectOp,
+    script: readonly EffectOp[],
     side: EachPlayerSide,
     ctx: GroundingContext
 ): OpValue {
     switch (op.op) {
         case "draw":
             return sideDraw(op.count as number, side, ctx);
+        case "sacrifice": {
+            const edict = edictChoiceFor(op, script, isStepPlayerRef);
+            return edict ? sideEdictLoss(side, edict, ctx) : valueOp(op, ctx);
+        }
         case "gainLife":
             return stepSideLife(op.amount, 1, side, ctx);
         case "loseLife":
@@ -745,12 +798,19 @@ function sideDraw(
 
 /** Issue #5164 — an Op of a standing each-step script the Differential
  *  Reading prices for the scoped player alone: a literal `draw` (CR 121.1),
- *  life gained or lost, damage to that player. Every Op must name the
- *  scoped player — one naming a fixed player would be counted once per
- *  side; anything else is fail-closed. Issue #5574 — a life amount may be a
- *  board count (`isStepGroundableAmount`), grounded per side. */
-function isStepSideOp(op: EffectOp): boolean {
+ *  life gained or lost, damage to that player; issue #5575 — an edict on
+ *  that player's own permanents (`choice` `sacrifice-permanents` + the
+ *  `sacrifice` of its picks, CR 701.21a: only a permanent's controller can
+ *  sacrifice it), priced off its board (`EachPlayerSide.sacrificeUnits`).
+ *  Every Op must name the scoped player — one naming a fixed player would be
+ *  counted once per side; anything else is fail-closed. Issue #5574 — a life
+ *  amount may be a board count (`isStepGroundableAmount`), grounded per side. */
+function isStepSideOp(op: EffectOp, script: readonly EffectOp[]): boolean {
     switch (op.op) {
+        case "choice":
+            return isEachPlayerEdictChoice(op, isStepPlayerRef);
+        case "sacrifice":
+            return edictChoiceFor(op, script, isStepPlayerRef) !== undefined;
         case "draw":
             return isStepPlayerRef(op.player) && typeof op.count === "number";
         case "gainLife":
@@ -866,9 +926,12 @@ function isShuffledInCount(
 /** Issue #5162 — a `choice` that has `$each` pick a number of its OWN
  *  battlefield permanents to sacrifice (Innocent Blood's shape). Issue #5559
  *  — the number may be computed (Balance's "the rest"), grounded per side. */
-function isEachPlayerEdictChoice(op: EffectOp): op is EachPlayerEdictChoice {
+function isEachPlayerEdictChoice(
+    op: EffectOp,
+    namesSide: (ref: EffectPlayerRef) => boolean = isEachPlayerRef
+): op is EachPlayerEdictChoice {
     return (
-        isOwnZoneEachPlayerChoice(op) &&
+        isOwnZoneEachPlayerChoice(op, namesSide) &&
         op.kind === "sacrifice-permanents" &&
         op.zone === "battlefield"
     );
@@ -887,12 +950,16 @@ function isEachPlayerHandEdictChoice(
     );
 }
 
-/** The shape both edict choices share: `$each` picks an exact number of
- *  members of its own zone, with no narrowing this reading cannot follow. */
-function isOwnZoneEachPlayerChoice(op: EffectOp): op is EachPlayerEdictChoice {
+/** The shape both edict choices share: `$each` (or, issue #5575, the side
+ *  `namesSide` names) picks an exact number of members of its own zone, with
+ *  no narrowing this reading cannot follow. */
+function isOwnZoneEachPlayerChoice(
+    op: EffectOp,
+    namesSide: (ref: EffectPlayerRef) => boolean = isEachPlayerRef
+): op is EachPlayerEdictChoice {
     return (
         op.op === "choice" &&
-        isEachPlayerRef(op.player) &&
+        namesSide(op.player) &&
         op.zoneOwnerId === undefined &&
         op.allControllers === undefined &&
         op.candidates === undefined &&
@@ -924,12 +991,15 @@ function handEdictChoiceFor(
 /** The edict `choice` of `body` whose picks `op` sacrifices, if any. */
 function edictChoiceFor(
     op: Extract<EffectOp, { op: "sacrifice" }>,
-    body: readonly EffectOp[]
+    body: readonly EffectOp[],
+    namesSide: (ref: EffectPlayerRef) => boolean = isEachPlayerRef
 ): EachPlayerEdictChoice | undefined {
     const ref = op.permanents;
     if (!ref || op.target) return undefined;
     for (const e of body) {
-        if (isEachPlayerEdictChoice(e) && e.bind === ref.ref) return e;
+        if (isEachPlayerEdictChoice(e, namesSide) && e.bind === ref.ref) {
+            return e;
+        }
     }
     return undefined;
 }

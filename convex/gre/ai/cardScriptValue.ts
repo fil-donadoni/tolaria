@@ -51,6 +51,7 @@ import {
     addValues,
     eachStepDifferentialValue,
     isEachStepEngineScript,
+    isEachStepScopedScript,
     opBeneficence,
     valueEffectScript,
 } from "./opValuers";
@@ -661,11 +662,17 @@ function abilityScriptOpValue(
         // a Symmetric Effect never carries a fixed sign (ADR 0151 §1), and
         // the representative walk would read `$event.activePlayerId` as the
         // controller — "its controller draws" on every board. The card then
-        // keeps its Latent Floor (unmeasured, incomplete).
+        // keeps its Latent Floor (unmeasured, incomplete). Issue #5575 — the
+        // same for every standing script on the scoped player beyond the
+        // life family (`isEachStepScopedScript`): a family the Differential
+        // does not read yet (a discard at random, a mill, mana) reads
+        // nothing, never the representative sign. The life family itself is
+        // read per side when its amounts ground (issue #5574's
+        // `isEachStepEngineScript`).
         const eachStepEngine =
             ability.phaseScope === "each" &&
             script !== undefined &&
-            isEachStepEngineScript(script);
+            (isEachStepEngineScript(script) || isEachStepScopedScript(script));
         // Issue #5574 — its CR 603.4 intervening-if is decided per side; a
         // check-time condition nothing can decide reads nothing (fail-closed).
         const stepGate = eachStepEngine ? stepGateOf(ability) : undefined;
