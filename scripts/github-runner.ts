@@ -385,7 +385,8 @@ function main(): void {
                             "utf8"
                         ),
                         RUNNER_ROOT,
-                        systemdRunnerPath(HOME, dirname(which("node")))
+                        systemdRunnerPath(HOME, dirname(which("node"))),
+                        repo
                     );
                 }
             } catch (e) {

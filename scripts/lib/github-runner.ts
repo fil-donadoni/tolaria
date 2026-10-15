@@ -143,22 +143,26 @@ export function systemdRunnerPath(home: string, nodeBin: string): string {
 }
 
 /** The systemd template unit, shared by every runner on the machine. Throws
- *  on a leftover placeholder, a PATH systemd would mangle (`%` is a
- *  specifier, whitespace splits the assignment), or no `node` on it. */
+ *  on a leftover placeholder, a PATH, runner root or repo systemd would
+ *  mangle (`%` is a specifier, whitespace splits the assignment), or no
+ *  `node` on the PATH. `repo` is the primary checkout, exported to every job
+ *  as `TOLARIA_PRIMARY_CHECKOUT` (the job worktree's source, issue #5636). */
 export function renderRunnerSystemdTemplate(
     template: string,
     runnerRoot: string,
     path: string,
+    repo: string,
     exists: (p: string) => boolean = existsSync
 ): string {
-    if (/[%\s]/.test(path) || /[%\s]/.test(runnerRoot)) {
+    if ([path, runnerRoot, repo].some((v) => /[%\s]/.test(v))) {
         throw new Error(
-            `'%' or whitespace in the unit's PATH or runner root: ${path} / ${runnerRoot}`
+            `'%' or whitespace in the unit's PATH, runner root or repo: ${path} / ${runnerRoot} / ${repo}`
         );
     }
     const out = template
         .replaceAll("__RUNNER_ROOT__", () => runnerRoot)
-        .replaceAll("__PATH__", () => path);
+        .replaceAll("__PATH__", () => path)
+        .replaceAll("__REPO__", () => repo);
     const left = out.match(/__[A-Z_]+__/g);
     if (left) {
         throw new Error(

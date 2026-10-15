@@ -5,9 +5,13 @@ scheduling, the merge queue, post-merge jobs, health, release — onto GitHub
 Actions and Mergify. Every job runs on a [self-hosted runner](#g-runner) on
 one of the owner's two machines. This guide is the operating manual of that
 stack; **every slice of PRD #5620 updates it in the same PR**. Version 1
-(issue #5634) covers the [runners](#g-runner) only: install,
+(issue #5634) covered the [runners](#g-runner): install,
 [labels](#g-label), [pause](#g-pause) / resume, and the repository settings
-checklist. No workflow uses the runners yet — that is Phase 0's next slice.
+checklist. Version 2 (issue #5636) adds the [jobs](#jobs): the
+[job setup](#g-job-setup) every workflow copies, the
+[structure guard](#g-structure-guard) over the workflow files, and the first
+two workflows — the advisory [`pr-check`](#pr-check) and
+[`lane-timing`](#lane-timing).
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -36,6 +40,11 @@ both machines share.
 Every [runner](#g-runner) runs **as the owner's user** (Amendment I: no
 dedicated system user), so a job sees the same Convex deployment, `gh` and
 Claude logins, merge drivers and telemetry as an interactive session.
+Its unit also exports `TOLARIA_PRIMARY_CHECKOUT`, the
+[primary checkout](#g-primary-checkout) the install ran from: the source of
+every [job worktree](#g-job-worktree). A runner installed before issue #5636
+lacks it and fails every self-hosted job at its first step — re-run
+`bun run runner install` on that machine (it restarts the idle runners).
 
 ## Install
 
@@ -136,6 +145,133 @@ busy check — GitHub marks it failed. Look at `bun run runner status` (the
 [pass](#g-pass). `pause` never touches the
 [Convex agent](#g-convex-agent).
 
+## Jobs
+
+### The shape of a job
+
+Every job declares `timeout-minutes`, and every job with a `run:` step goes
+through the [job setup](#g-job-setup) before its first one. What comes
+before the job setup depends on the runner:
+
+- **GitHub-hosted** (`runs-on: ubuntu-24.04`): `actions/checkout` pinned by
+  SHA, `persist-credentials: false`. There is no primary checkout on a
+  hosted VM, so `worktree:init` regenerates `convex/_generated` offline
+  (`convex codegen --system-udfs`, no deployment).
+- **Self-hosted** (`runs-on` with a [role label](#g-label)): never a clone.
+  The first step cuts a [job worktree](#g-job-worktree) of the machine's
+  [primary checkout](#g-primary-checkout) AT the job's
+  `$GITHUB_WORKSPACE`, and the last step removes it `if: always()`:
+
+```yaml
+steps:
+    - name: Job worktree
+      working-directory: ${{ runner.temp }}
+      run: |
+          git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --quiet origin "$GITHUB_SHA"
+          git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+    - uses: ./.github/actions/job-setup
+    - run: bun run <the work>
+    - name: Remove the job worktree
+      if: always()
+      working-directory: ${{ runner.temp }}
+      run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+```
+
+The script is read out of the primary's object store at the job's own
+commit, since the job has no tree yet to run it from. Because the worktree
+IS the workspace, `uses: ./.github/actions/job-setup` and every later step
+run in it with no `working-directory`. A job killed before its last step
+leaves its worktree registered; the next job on the same runner drops it
+before cutting its own. The job's commit is held by `refs/ci/<runner name>`
+while the job runs.
+
+### The job setup
+
+`.github/actions/job-setup` (a composite action), in order:
+
+1. **masks the `gh` token** — a self-hosted job runs with the owner's `gh`
+   login, and every signed-in GitHub user can read a public repository's
+   logs;
+2. **node** from `.nvmrc` (`actions/setup-node`, pinned by SHA) and **bun**
+   from `.bun-version` (`scripts/ci/setup-bun.sh`: npm into the runner's own
+   tool cache, never `~/.bun`, and no third-party action for the allow-list
+   to name). The job's toolchain no longer depends on the service's `PATH`
+   — the issue #5598 class;
+3. `bun run worktree:init`.
+
+### Public logs
+
+A job never writes Claude's raw output to its log: a `claude` call runs
+through `scripts/ci/run-quiet.sh <name> -- claude …`, which keeps the output
+in `~/.cache/tolaria/jobs/<run id>-<attempt>/<name>.log` on the machine and
+prints only the exit code and that path. The job summary and artifacts carry
+numbers only.
+
+### Serialising heavy work
+
+By [runner labels](#g-label), never by a `concurrency` group: a group keeps
+ONE pending job and cancels the older pending one, which would silently drop
+a queue check or a health run. One [`lane`](#g-lane) runner per machine
+already runs one heavy job at a time. A hosted-only workflow may use a group
+with `cancel-in-progress` to drop a superseded run (`pr-check` does).
+
+## Workflows
+
+| Workflow                      | Trigger                                              | Runner                                | What it proves                                                    |
+| ----------------------------- | ---------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| [`pr-check`](#pr-check)       | `pull_request` (open, push)                          | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory           |
+| [`lane-timing`](#lane-timing) | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0) |
+
+### pr-check
+
+`.github/workflows/pr-check.yml`: on every PR open and push, the full
+`check:lane` on a free GitHub-hosted runner, on the merge ref (the PR merged
+into the current base — what would land). **Advisory**: no ruleset requires
+it, and `land` still pays the lane that gates the merge (ADR 0136); a red
+`pr-check` is a defect found before the queue. A fork's PR runs it only after
+the owner approves (see the checklist below); it gets no secret and a
+read-only token either way. A newer push cancels the older run.
+
+### lane-timing
+
+`.github/workflows/lane-timing.yml`: the same `check:lane` on one machine's
+[`lane`](#g-lane) runner. Time a PR's lane there by pushing its head to a
+`lane-timing/` branch, or dispatch it from the Actions tab (input `host`):
+
+```bash
+git push origin <pr-head-sha>:refs/heads/lane-timing/pr-<N>
+git push origin --delete lane-timing/pr-<N>          # afterwards
+```
+
+It exists for ADR 0156 §10's measurement (hosted vs local lane); it is also
+the reference shape of a self-hosted job.
+
+## The structure guard
+
+`scripts/__tests__/workflow-structure.test.ts` runs the pure check in
+`scripts/ci/workflow-structure.ts` over `.github/workflows/*`,
+`.github/actions/*/action.yml` and `.mergify.yml` (when present). It runs in
+the lane of any diff under `scripts/` and costs ~0.1 s of tests (≤ 10 s ⇒ the
+lane, issue #4963). Each line it prints names a rule:
+
+| Rule                           | Fails when                                                                                                                                                                     |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `push`, `schedule`, `workflow_dispatch`, and `issues` limited to `labeled`/`unlabeled`             |
+| `pr-target-head-checkout`      | a `pull_request_target` job checks out or fetches the PR head                                                                                                                  |
+| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                        |
+| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                     |
+| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                        |
+| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                 |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency`                                                                                                           |
+| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                      |
+| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`                                                                  |
+| `claude-raw-output`            | a `run:` line calls `claude` without `scripts/ci/run-quiet.sh`                                                                                                                 |
+| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, its `.nvmrc` node, its `setup-bun.sh` or its `worktree:init`                                                                |
+| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml` (Phase 1) |
+
+Every rule fails closed: a `runs-on` the guard cannot read as a hosted image
+(an expression, a group, an empty list) counts as self-hosted.
+
 ## Repository settings checklist (ADR 0156 §8)
 
 The repository is public: these settings, not the workflow files, are what
@@ -159,8 +295,17 @@ in the repository's Settings; a slice that needs a new one adds its row here.
       online, with its [labels](#g-label) (`bun run runner status` prints the
       same).
 
-Later slices add: the ruleset requiring the PR check (Phase 0), the queue's
-entry conditions and `.github/` / `.mergify.yml` exclusion (Phase 1).
+- [ ] **Actions → General → Allow actions: GitHub-owned + the pinned
+      third-party ones the workflows name.** Today the workflows use only
+      GitHub-owned actions (`actions/checkout`, `actions/setup-node`); bun
+      is installed by script precisely so the allow-list needs no entry.
+- [ ] **Both machines' runners re-installed after issue #5636**
+      (`bun run runner install`), so their units export
+      `TOLARIA_PRIMARY_CHECKOUT`.
+
+`pr-check` stays advisory: no ruleset requires it. Later slices add: the
+queue's required checks and entry conditions, the `.github/` /
+`.mergify.yml` exclusion (Phase 1).
 
 ## Troubleshooting
 
@@ -170,6 +315,9 @@ entry conditions and `.github/` / `.mergify.yml` exclusion (Phase 1).
 | `node not resolvable on the rendered PATH`   | run `install` from a shell where `command -v node` resolves                                                                   |
 | a [runner](#g-runner) offline on GitHub      | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                          |
 | the [Convex agent](#g-convex-agent) restarts | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                          |
+| `TOLARIA_PRIMARY_CHECKOUT is unset`          | the runner predates issue #5636: `bun run runner install` on that machine                                                     |
+| `refusing workspace …`                       | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand               |
+| `pr-check` red, the lane green locally       | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)           |
 | jobs fail when the MacBook lid closes        | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing |
 
 ## Glossary
@@ -240,6 +388,24 @@ flags declares the same [runners](#g-runner).
 
 The clone that owns `.git/` (not a worktree): where the Convex deployment
 state and the units' working directory live.
+
+### <a id="g-job-worktree"></a>Job worktree
+
+The git worktree of a machine's [primary checkout](#g-primary-checkout) that
+a self-hosted job works in, cut at the job's `$GITHUB_WORKSPACE` by
+`scripts/ci/job-worktree.sh create` and removed by its `remove`. Never a
+clone: `primaryCheckout()` resolves from it as from any worktree.
+
+### <a id="g-job-setup"></a>Job setup
+
+`.github/actions/job-setup`: the composite action every job runs before its
+first `run:` step — token mask, pinned node and bun, `worktree:init`.
+
+### <a id="g-structure-guard"></a>Structure guard
+
+`scripts/__tests__/workflow-structure.test.ts`: the test that fails when a
+workflow file, the job setup or `.mergify.yml` breaks a security or
+correctness invariant ([§ The structure guard](#the-structure-guard)).
 
 ### <a id="g-trusted-authors"></a>`TRUSTED_AUTHORS`
 

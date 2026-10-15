@@ -3,7 +3,7 @@
 # name, its directory __RUNNER_ROOT__/<name>. The owner's user, up at boot with
 # nobody logged in (linger), restarted when it dies. Installed by
 # `bun run runner install` (docs/guides/github-pipeline.md § Install);
-# __RUNNER_ROOT__ and __PATH__ are substituted at install time.
+# __RUNNER_ROOT__, __PATH__ and __REPO__ are substituted at install time.
 [Unit]
 Description=Tolaria GitHub Actions runner %i
 After=network-online.target
@@ -22,6 +22,8 @@ KillMode=control-group
 Environment=PATH=__PATH__
 # A unit's tree is the unit's to end: the reaper never reaps on a `unit:` tag.
 Environment=TOLARIA_OWNER=unit:%n
+# The primary checkout every job's worktree is cut from (scripts/ci/job-worktree.sh).
+Environment=TOLARIA_PRIMARY_CHECKOUT=__REPO__
 
 [Install]
 WantedBy=default.target

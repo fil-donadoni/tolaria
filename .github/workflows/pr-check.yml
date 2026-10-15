@@ -1,0 +1,36 @@
+# pr-check — the full `check:lane` when a PR opens or updates, on a free
+# GitHub-hosted runner (ADR 0156 Amendment I § Duties, issue #5636). ADVISORY:
+# no ruleset requires it; `land` still pays the lane that gates the merge. It
+# runs on the merge ref — the PR merged into the current base, what would land.
+#
+# GitHub-hosted on purpose: a `pull_request` can come from a fork, and no job
+# an outsider can trigger ever reaches the owner's machines (the structure
+# guard, scripts/__tests__/workflow-structure.test.ts). No secret, read-only
+# token. docs/guides/github-pipeline.md § Workflows.
+name: pr-check
+
+on:
+    pull_request:
+
+permissions:
+    contents: read
+
+# A newer push supersedes the lane of the older one (hosted only: a self-hosted
+# workflow is serialised by runner labels, never by a concurrency group).
+concurrency:
+    group: pr-check-${{ github.event.pull_request.number }}
+    cancel-in-progress: true
+
+jobs:
+    lane:
+        name: check:lane (advisory)
+        runs-on: ubuntu-24.04
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: check:lane
+              run: bun run check:lane
