@@ -84,6 +84,54 @@ describe("audit census (issue #4925)", () => {
         ]);
     });
 
+    it("reads a label with an apostrophe, and the colon form", () => {
+        const rows = auditCensus(
+            [
+                { label: "it's an anchor", tier: "stretch" },
+                {
+                    label: "half",
+                    tier: "must",
+                    audit: { theme: BLINK },
+                    note: 'PAIRED WITH: "it\'s an anchor"',
+                },
+            ],
+            THEMES
+        );
+        expect(rows[0]).toMatchObject({ pairs: 1, red: 1, green: 1 });
+    });
+
+    it("skips a pair whose anchor is no entry", () => {
+        const rows = auditCensus(
+            [
+                {
+                    label: "half",
+                    tier: "must",
+                    audit: { theme: BLINK },
+                    note: 'PAIRED WITH "gone"',
+                },
+            ],
+            THEMES
+        );
+        expect(rows[0]).toMatchObject({ pairs: 0, red: 0, green: 0 });
+    });
+
+    it("counts an anchor with two halves as one red", () => {
+        const half = (label: string): CensusScenario => ({
+            label,
+            tier: "must",
+            audit: { theme: BLINK },
+            pairOf: {
+                anchor: "blink anchor",
+                discriminant: { kind: "other", detail: "x" },
+            },
+        });
+        const rows = auditCensus(
+            [BY_PROSE[0]!, half("h1"), half("h2")],
+            THEMES
+        );
+        expect(rows[0]).toMatchObject({ pairs: 2, red: 1, green: 2 });
+    });
+
     it("counts a pair declared from both sides once", () => {
         const both: CensusScenario[] = [
             ...BY_PROSE,

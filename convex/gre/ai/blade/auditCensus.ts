@@ -15,7 +15,11 @@
  * else of its anchor; a pair neither member of which carries `audit.theme`
  * belongs to no audit and is not counted. Red / green count the pair's
  * MEMBERS by tier: `stretch` = red (the Bot is wrong now), `must` = green.
- * The issues are the `issue #N` refs the members' notes name.
+ * The issues are the `issue #N` refs the members' notes name (closed ones
+ * included: an offline read cannot tell). Red / green count distinct entries,
+ * so an anchor with several halves is one red. A pair whose anchor names no
+ * entry is dangling and not counted. Only the first `PAIRED WITH` partner of a
+ * note is read.
  */
 
 import { AUDIT_THEME_LIST, type AuditTheme } from "./auditThemes";
@@ -38,7 +42,8 @@ export type AuditCensusRow = {
 
 type Pair = { half: CensusScenario; anchorLabel: string };
 
-const PROSE_PARTNER = /PAIRED WITH\s+["“']([^"”']+)["”']/;
+// Double-quoted only: labels carry apostrophes ("Liliana's −2").
+const PROSE_PARTNER = /PAIRED WITH:?\s+["“]([^"”]+)["”]/;
 const ISSUE_REF = /issue #(\d+)/g;
 
 /** The pairs the scenarios declare, each once. A `pairOf` field wins over the
@@ -69,31 +74,37 @@ export function auditCensus(
     themes: readonly AuditTheme[] = AUDIT_THEME_LIST
 ): AuditCensusRow[] {
     const byLabel = new Map(scenarios.map((s) => [s.label, s]));
-    const rows = new Map<AuditTheme, AuditCensusRow & { refs: Set<number> }>(
-        themes.map((theme) => [
-            theme,
-            { theme, pairs: 0, red: 0, green: 0, issues: [], refs: new Set() },
-        ])
+    const members = new Map<AuditTheme, Map<string, CensusScenario>>(
+        themes.map((theme) => [theme, new Map()])
     );
+    const pairs = new Map<AuditTheme, number>(themes.map((t) => [t, 0]));
     for (const { half, anchorLabel } of readPairs(scenarios)) {
         const anchor = byLabel.get(anchorLabel);
-        const theme = half.audit?.theme ?? anchor?.audit?.theme;
-        const row = theme === undefined ? undefined : rows.get(theme);
-        if (row === undefined) continue;
-        row.pairs += 1;
-        for (const member of anchor === undefined ? [half] : [half, anchor]) {
-            if (member.tier === "stretch") row.red += 1;
-            else row.green += 1;
-            for (const n of issuesNamedBy(member.note)) row.refs.add(n);
-            for (const n of issuesNamedBy(member.beyondBudget?.note)) {
-                row.refs.add(n);
-            }
-        }
+        if (anchor === undefined) continue;
+        const theme = half.audit?.theme ?? anchor.audit?.theme;
+        const bucket = theme === undefined ? undefined : members.get(theme);
+        if (theme === undefined || bucket === undefined) continue;
+        pairs.set(theme, (pairs.get(theme) ?? 0) + 1);
+        bucket.set(half.label, half);
+        bucket.set(anchor.label, anchor);
     }
-    return [...rows.values()].map(({ refs, ...row }) => ({
-        ...row,
-        issues: [...refs].sort((a, b) => a - b),
-    }));
+    return themes.map((theme) => {
+        const all = [...(members.get(theme) ?? new Map()).values()];
+        const refs = new Set(
+            all.flatMap((m) => [
+                ...issuesNamedBy(m.note),
+                ...issuesNamedBy(m.beyondBudget?.note),
+            ])
+        );
+        const red = all.filter((m) => m.tier === "stretch").length;
+        return {
+            theme,
+            pairs: pairs.get(theme) ?? 0,
+            red,
+            green: all.length - red,
+            issues: [...refs].sort((a, b) => a - b),
+        };
+    });
 }
 
 /** The table `/bot-audit` prints on opening. */
