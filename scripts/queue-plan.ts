@@ -42,7 +42,7 @@ import {
     writeFileSync,
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { gh, issueBlockedBy } from "./lib/gh";
+import { gh, ghTokenScopes, issueBlockedBy } from "./lib/gh";
 import {
     fetchBoardPriority as fetchBoardPriorityShared,
     NO_PRIORITY_WARNING,
@@ -787,6 +787,7 @@ function main(): void {
         // The native dependency graph, one issue at a time (issue #3794).
         // Cached like `issueDetail` for the same reason: a candidate deferred
         // on one pass of the planner must not pay the round-trip twice.
+        tokenScopes: ghTokenScopes,
         nativeBlockedBy(number: number): number[] {
             const cached = blockedByCache.get(number);
             if (cached) return cached;
