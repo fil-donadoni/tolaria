@@ -165,14 +165,16 @@ before the job setup depends on the runner:
 ```yaml
 steps:
     - name: Job worktree
+      shell: bash
       working-directory: ${{ runner.temp }}
       run: |
-          git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --quiet origin "$GITHUB_SHA"
+          git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
           git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
     - uses: ./.github/actions/job-setup
     - run: bun run <the work>
     - name: Remove the job worktree
       if: always()
+      shell: bash
       working-directory: ${{ runner.temp }}
       run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
 ```
@@ -181,9 +183,14 @@ The script is read out of the primary's object store at the job's own
 commit, since the job has no tree yet to run it from. Because the worktree
 IS the workspace, `uses: ./.github/actions/job-setup` and every later step
 run in it with no `working-directory`. A job killed before its last step
-leaves its worktree registered; the next job on the same runner drops it
-before cutting its own. The job's commit is held by `refs/ci/<runner name>`
-while the job runs.
+leaves its worktree registered (locked, if it died inside `worktree add`);
+the next job on the same runner drops it before cutting its own. The job's
+commit is held by `refs/ci/<runner name>` while the job runs. `shell: bash`
+is what gives both steps `pipefail` — without it a failed `git show` pipes
+nothing into `bash -s`, which exits 0. `remove` leaves an empty workspace
+directory: the runner runs post steps there after the last step, which is
+why the job setup nests no action (a nested action's post step could no
+longer find it).
 
 ### The job setup
 
@@ -192,11 +199,12 @@ while the job runs.
 1. **masks the `gh` token** — a self-hosted job runs with the owner's `gh`
    login, and every signed-in GitHub user can read a public repository's
    logs;
-2. **node** from `.nvmrc` (`actions/setup-node`, pinned by SHA) and **bun**
-   from `.bun-version` (`scripts/ci/setup-bun.sh`: npm into the runner's own
-   tool cache, never `~/.bun`, and no third-party action for the allow-list
-   to name). The job's toolchain no longer depends on the service's `PATH`
-   — the issue #5598 class;
+2. **node** from `.nvmrc` (`scripts/ci/setup-node.sh`: the nodejs.org
+   build) and **bun** from `.bun-version` (`scripts/ci/setup-bun.sh`: npm),
+   both unpacked into the runner's own tool cache — never `~/.bun` or the
+   owner's nvm, and no action for the allow-list to name or for a post step
+   to outlive the worktree. The job's toolchain no longer depends on the
+   service's `PATH` — the issue #5598 class;
 3. `bun run worktree:init`.
 
 ### Public logs
@@ -205,7 +213,9 @@ A job never writes Claude's raw output to its log: a `claude` call runs
 through `scripts/ci/run-quiet.sh <name> -- claude …`, which keeps the output
 in `~/.cache/tolaria/jobs/<run id>-<attempt>/<name>.log` on the machine and
 prints only the exit code and that path. The job summary and artifacts carry
-numbers only.
+numbers only. Masking hides the token in the LOG only: a self-hosted job runs
+as the owner and can read the owner's `gh` and git credentials — which is
+why no outsider-triggerable job may reach a self-hosted runner at all.
 
 ### Serialising heavy work
 
@@ -232,6 +242,16 @@ it, and `land` still pays the lane that gates the merge (ADR 0136); a red
 the owner approves (see the checklist below); it gets no secret and a
 read-only token either way. A newer push cancels the older run.
 
+**Its limit (measured on PR #5674):** the bot tests that read the committed
+verdict corpus (`weightFit.bot.test.ts`, `verdicts.bot.test.ts`) need the
+Verdict Store reader key, which lives only on the owner's machines — the
+bucket is private and a PR job gets no secret. A lane that plans them is red
+on a hosted runner (`No Verdict Store read key at …`) whatever the PR does.
+
+Measured on the same commit (PR #5674, full lane): **hosted `ubuntu-24.04`
+491 s** (red only on the two corpus tests above) vs **MacBook `lane` runner
+794 s** (on a machine also carrying Claude sessions).
+
 ### lane-timing
 
 `.github/workflows/lane-timing.yml`: the same `check:lane` on one machine's
@@ -254,23 +274,29 @@ the reference shape of a self-hosted job.
 the lane of any diff under `scripts/` and costs ~0.1 s of tests (≤ 10 s ⇒ the
 lane, issue #4963). Each line it prints names a rule:
 
-| Rule                           | Fails when                                                                                                                                                                     |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `push`, `schedule`, `workflow_dispatch`, and `issues` limited to `labeled`/`unlabeled`             |
-| `pr-target-head-checkout`      | a `pull_request_target` job checks out or fetches the PR head                                                                                                                  |
-| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                        |
-| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                     |
-| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                        |
-| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                 |
-| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency`                                                                                                           |
-| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                      |
-| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`                                                                  |
-| `claude-raw-output`            | a `run:` line calls `claude` without `scripts/ci/run-quiet.sh`                                                                                                                 |
-| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, its `.nvmrc` node, its `setup-bun.sh` or its `worktree:init`                                                                |
-| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml` (Phase 1) |
+| Rule                           | Fails when                                                                                                                                                                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `outsider-reaches-self-hosted` | a self-hosted job sits in a workflow an outsider can trigger — anything but `schedule`, `workflow_dispatch`, `push` with a `branches:` filter Dependabot's branches cannot match, and `issues` limited to `labeled`/`unlabeled` |
+| `pr-target-head-checkout`      | a `pull_request_target` job checks out anything but the base (`ref:` / `repository:` set) or fetches the PR head                                                                                                                |
+| `unpinned-uses`                | a `uses:` is not pinned to a full commit SHA (local `./` excepted; `docker://` refused)                                                                                                                                         |
+| `reusable-call`                | a job calls a reusable workflow (the guard cannot see the callee's runner)                                                                                                                                                      |
+| `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                   |
+| `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                         |
+| `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                  |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency`                                                                                                                                                            |
+| `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                       |
+| `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                         |
+| `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                             |
+| `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                       |
+| `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml` (Phase 1)                                                  |
 
-Every rule fails closed: a `runs-on` the guard cannot read as a hosted image
-(an expression, a group, an empty list) counts as self-hosted.
+Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
+`macos-15`, …) counts as GitHub-hosted. Anything else — an expression, a
+group, a list, and `Linux`, `macOS`, `X64`, `ARM64`, which every self-hosted
+runner also carries and GitHub matches case-insensitively — is self-hosted.
+`CENSUS_TESTS` (`scripts/lib/census-tests.ts`) admits `.github/`,
+`.mergify.yml` and `scripts/ci/`, so a diff touching only a workflow file
+still runs the guard in its lane.
 
 ## Repository settings checklist (ADR 0156 §8)
 
@@ -297,8 +323,8 @@ in the repository's Settings; a slice that needs a new one adds its row here.
 
 - [ ] **Actions → General → Allow actions: GitHub-owned + the pinned
       third-party ones the workflows name.** Today the workflows use only
-      GitHub-owned actions (`actions/checkout`, `actions/setup-node`); bun
-      is installed by script precisely so the allow-list needs no entry.
+      GitHub-owned `actions/checkout`; node and bun are installed by script
+      precisely so the allow-list needs no entry.
 - [ ] **Both machines' runners re-installed after issue #5636**
       (`bun run runner install`), so their units export
       `TOLARIA_PRIMARY_CHECKOUT`.

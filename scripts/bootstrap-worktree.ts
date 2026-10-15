@@ -143,7 +143,13 @@ if (primary) {
 // `bun install` also fires the `prepare` script, which is what regenerates
 // `.husky/_`. Order matters: deps before the husky check below.
 if (!existsSync(join(cwd, "node_modules")) || force) {
-    if (run("bun", ["install"])) done.push("node_modules (bun install)");
+    // A CI job never rewrites the lockfile: a drifted `bun.lock` is a red
+    // install, not a dirty tree `check:lane` refuses later (issue #5636).
+    const frozen = process.env.CI ? ["--frozen-lockfile"] : [];
+    if (run("bun", ["install", ...frozen]))
+        done.push(
+            `node_modules (bun install${frozen.length ? " --frozen-lockfile" : ""})`
+        );
     else failed.push("bun install");
 } else {
     skipped.push("node_modules (present)");

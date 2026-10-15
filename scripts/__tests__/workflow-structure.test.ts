@@ -29,9 +29,11 @@ function repoInput(): StructureInput {
         workflows: readdirSync(join(REPO, wfDir))
             .filter((f) => /\.ya?ml$/.test(f))
             .map((f) => read(`${wfDir}/${f}`)),
-        actions: readdirSync(join(REPO, actDir))
-            .filter((d) => existsSync(join(REPO, actDir, d, "action.yml")))
-            .map((d) => read(`${actDir}/${d}/action.yml`)),
+        actions: readdirSync(join(REPO, actDir)).flatMap((d) =>
+            ["action.yml", "action.yaml"]
+                .filter((f) => existsSync(join(REPO, actDir, d, f)))
+                .map((f) => read(`${actDir}/${d}/${f}`))
+        ),
         mergify: existsSync(join(REPO, ".mergify.yml"))
             ? read(".mergify.yml")
             : null,
@@ -71,7 +73,7 @@ jobs:
 const SELF_HOSTED = `
 on:
   push:
-    branches: [x]
+    branches: [lane-timing/**]
   workflow_dispatch:
   issues:
     types: [labeled]
@@ -81,10 +83,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Job worktree
+        shell: bash
         run: git show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
       - uses: ./.github/actions/job-setup
       - run: scripts/ci/run-quiet.sh pass -- claude -p "/next-ticket 1"
       - if: always()
+        shell: bash
         run: git show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
 `;
 
@@ -177,48 +181,83 @@ describe("workflow structure guard", () => {
         }
     });
 
+    it("refuses a self-hosted workflow on a push any branch can fire", () => {
+        for (const push of [
+            "  push:\n",
+            "  push:\n    branches: ['**']\n",
+            "  push:\n    branches: [dependabot/**]\n",
+        ]) {
+            const self = edit(
+                SELF_HOSTED,
+                "  push:\n    branches: [lane-timing/**]\n",
+                push
+            );
+            expect(rules(fixture({ self })), push).toEqual([
+                "outsider-reaches-self-hosted",
+            ]);
+        }
+    });
+
     it("reads every runs-on shape it cannot prove hosted as self-hosted", () => {
-        expect(isSelfHosted("ubuntu-24.04")).toBe(false);
-        expect(isSelfHosted(["ubuntu-24.04"])).toBe(false);
+        for (const r of [
+            "ubuntu-24.04",
+            ["ubuntu-24.04"],
+            "macos-15",
+            "ubuntu-latest",
+        ])
+            expect(isSelfHosted(r), JSON.stringify(r)).toBe(false);
+        // Every self-hosted runner also carries its OS and architecture, and
+        // GitHub matches labels case-insensitively.
         for (const r of [
             "self-hosted",
+            "Self-Hosted",
             "lane",
-            ["pass"],
+            "LANE",
+            "macOS",
+            ["linux", "x64"],
+            ["ubuntu-24.04", "lane"],
             ["host:huawei"],
             "${{ inputs.runner }}",
             { group: "mine" },
-            { labels: ["seed"] },
+            { labels: ["ubuntu-24.04"] },
             [],
             undefined,
         ])
             expect(isSelfHosted(r), JSON.stringify(r)).toBe(true);
-        const hosted = edit(
-            HOSTED,
-            "runs-on: ubuntu-24.04",
-            "runs-on: ${{ inputs.os }}"
-        );
+        const hosted = edit(HOSTED, "runs-on: ubuntu-24.04", "runs-on: macOS");
         expect(rules(fixture({ hosted }))).toContain(
             "outsider-reaches-self-hosted"
         );
     });
 
-    it("refuses a pull_request_target job that checks out or fetches the PR head", () => {
-        const withRef = edit(
-            PR_TARGET,
-            `      - uses: actions/checkout@${SHA}`,
-            `      - uses: actions/checkout@${SHA}\n        with:\n          ref: \${{ github.event.pull_request.head.sha }}`
-        );
-        expect(rules(fixture({ target: withRef }))).toEqual([
-            "pr-target-head-checkout",
-        ]);
-        const fetch = edit(
-            PR_TARGET,
-            "run: bun scripts/pr-gate.ts",
-            "run: gh pr checkout 12"
-        );
-        expect(rules(fixture({ target: fetch }))).toEqual([
-            "pr-target-head-checkout",
-        ]);
+    it("refuses a pull_request_target job that checks out anything but the base, or fetches the head", () => {
+        for (const w of [
+            "ref: ${{ github.event.pull_request.head.sha }}",
+            "ref: ${{ github.event.pull_request.merge_commit_sha }}",
+            "repository: ${{ github.event.pull_request.head.repo.full_name }}",
+        ]) {
+            const target = edit(
+                PR_TARGET,
+                `      - uses: actions/checkout@${SHA}`,
+                `      - uses: actions/checkout@${SHA}\n        with:\n          ${w}`
+            );
+            expect(rules(fixture({ target })), w).toEqual([
+                "pr-target-head-checkout",
+            ]);
+        }
+        for (const run of [
+            "gh pr checkout 12",
+            'git fetch origin "pull/$N/merge"',
+        ]) {
+            const target = edit(
+                PR_TARGET,
+                "run: bun scripts/pr-gate.ts",
+                `run: ${run}`
+            );
+            expect(rules(fixture({ target })), run).toEqual([
+                "pr-target-head-checkout",
+            ]);
+        }
     });
 
     it("refuses a uses: not pinned to a full SHA, in a workflow or an action", () => {
@@ -234,12 +273,27 @@ describe("workflow structure guard", () => {
             "docker://alpine:3"
         );
         expect(rules(fixture({ hosted: docker }))).toEqual(["unpinned-uses"]);
-        const setup = JOB_SETUP.replace(
-            /actions\/setup-node@[0-9a-f]{40}/,
-            "actions/setup-node@v7"
+        const setup = edit(
+            JOB_SETUP,
+            "          run: scripts/ci/setup-bun.sh",
+            "          run: scripts/ci/setup-bun.sh\n        - uses: oven-sh/setup-bun@v2"
         );
-        expect(setup).not.toBe(JOB_SETUP);
-        expect(rules(fixture({ setup }))).toEqual(["unpinned-uses"]);
+        expect(rules(fixture({ setup })).sort()).toEqual([
+            "job-setup-contract",
+            "unpinned-uses",
+        ]);
+    });
+
+    it("refuses a local action the guard does not read", () => {
+        const hosted = edit(
+            HOSTED,
+            "./.github/actions/job-setup",
+            "./tools/setup"
+        );
+        expect(rules(fixture({ hosted })).sort()).toEqual([
+            "local-action-unscanned",
+            "no-toolchain",
+        ]);
     });
 
     it("refuses a reusable-workflow call", () => {
@@ -265,6 +319,13 @@ describe("workflow structure guard", () => {
             "      - run: bun run check:lane\n      - uses: ./.github/actions/job-setup\n"
         );
         expect(rules(fixture({ hosted: late }))).toEqual(["no-toolchain"]);
+        // Naming the worktree script exempts only the first and last step.
+        const sneak = edit(
+            SELF_HOSTED,
+            "      - uses: ./.github/actions/job-setup\n",
+            "      - run: bun install # job-worktree.sh\n      - uses: ./.github/actions/job-setup\n"
+        );
+        expect(rules(fixture({ self: sneak }))).toEqual(["no-toolchain"]);
     });
 
     it("refuses a concurrency group on a self-hosted job or its workflow", () => {
@@ -287,40 +348,49 @@ describe("workflow structure guard", () => {
         expect(rules(fixture({ self }))).toEqual(["self-hosted-clone"]);
     });
 
-    it("refuses a self-hosted job that does not create and remove its worktree", () => {
-        const noCreate = edit(
-            SELF_HOSTED,
-            "bash -s -- create",
-            "bash -s -- status"
-        );
-        expect(rules(fixture({ self: noCreate }))).toEqual(["job-worktree"]);
-        const notAlways = edit(
-            SELF_HOSTED,
-            "      - if: always()\n        run:",
-            "      - run:"
-        );
-        expect(rules(fixture({ self: notAlways }))).toEqual(["job-worktree"]);
-        const noRemove = edit(
-            SELF_HOSTED,
-            "bash -s -- remove",
-            "bash -s -- status"
-        );
-        expect(rules(fixture({ self: noRemove }))).toEqual(["job-worktree"]);
+    it("refuses a self-hosted job that does not create and remove its worktree under pipefail", () => {
+        for (const [from, to] of [
+            ["bash -s -- create", "bash -s -- status"],
+            ["bash -s -- remove", "bash -s -- status"],
+            ["      - if: always()\n", "      - name: x\n"],
+            [
+                "        shell: bash\n        run: git show",
+                "        run: git show",
+            ],
+        ] as const) {
+            const self = edit(SELF_HOSTED, from, to);
+            expect(rules(fixture({ self })), from).toEqual(["job-worktree"]);
+        }
     });
 
-    it("refuses a claude call outside run-quiet", () => {
-        const self = edit(
+    it("refuses a claude call that is not one run-quiet call", () => {
+        for (const call of [
+            'cd x && claude -p "/next-ticket 1"',
+            '/usr/local/bin/claude -p "/next-ticket 1"',
+            "bunx @anthropic-ai/claude-code -p hi",
+            'scripts/ci/run-quiet.sh x -- true; claude -p "/next-ticket 1"',
+        ]) {
+            const self = edit(
+                SELF_HOSTED,
+                'run: scripts/ci/run-quiet.sh pass -- claude -p "/next-ticket 1"',
+                `run: |\n          ${call}`
+            );
+            expect(rules(fixture({ self })), call).toEqual([
+                "claude-raw-output",
+            ]);
+        }
+        const action = edit(
             SELF_HOSTED,
-            'run: scripts/ci/run-quiet.sh pass -- claude -p "/next-ticket 1"',
-            'run: |\n          cd x && claude -p "/next-ticket 1"'
+            "      - uses: ./.github/actions/job-setup\n",
+            `      - uses: ./.github/actions/job-setup\n      - uses: anthropics/claude-code-action@${SHA}\n`
         );
-        expect(rules(fixture({ self }))).toEqual(["claude-raw-output"]);
+        expect(rules(fixture({ self: action }))).toEqual(["unpinned-uses"]);
     });
 
     it("refuses a job setup that lost its mask or a pinned toolchain step", () => {
         for (const [from, to] of [
             ["::add-mask::", "::notice::"],
-            ["node-version-file: .nvmrc", "node-version: 24"],
+            ["run: scripts/ci/setup-node.sh", "run: node --version"],
             ["scripts/ci/setup-bun.sh", "true"],
             ["bun run worktree:init", "bun install"],
         ] as const) {

@@ -15,13 +15,17 @@
 # step of a self-hosted job reads THIS file at the job's own commit out of the
 # primary's object store (docs/guides/github-pipeline.md § Jobs):
 #
-#   git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --quiet origin "$GITHUB_SHA"
+#   git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
 #   git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
 #
 # `TOLARIA_PRIMARY_CHECKOUT` comes from the runner's unit (`bun run runner
 # install`). The job's commit is held by `refs/ci/<runner name>` — one ref per
 # runner, and a runner runs one job at a time, so concurrent jobs on one
-# machine never share a ref (nor race on FETCH_HEAD).
+# machine never share a ref; every fetch here skips FETCH_HEAD, which the
+# primary's git dir shares with every runner and the owner's own `git pull`.
+#
+# `remove` leaves an EMPTY workspace directory behind: the runner still runs
+# the actions' post steps there after the job's last step.
 set -euo pipefail
 
 die() {
@@ -32,22 +36,32 @@ die() {
 primary="${TOLARIA_PRIMARY_CHECKOUT:-}"
 ws="${GITHUB_WORKSPACE:-}"
 runner="${RUNNER_NAME:-}"
+runner_ws="${RUNNER_WORKSPACE:-}"
+repo="${GITHUB_REPOSITORY:-}"
 [ -n "$primary" ] || die "TOLARIA_PRIMARY_CHECKOUT is unset — re-run \`bun run runner install\` on this machine"
 [ -d "$primary/.git" ] || die "$primary is not a primary checkout (no .git directory)"
 [ -n "$ws" ] || die "GITHUB_WORKSPACE is unset — this runs inside a GitHub Actions job only"
-[ -n "$runner" ] || die "RUNNER_NAME is unset — this runs inside a GitHub Actions job only"
+[ -n "$runner" ] && [ -n "$runner_ws" ] && [ -n "$repo" ] ||
+    die "RUNNER_NAME, RUNNER_WORKSPACE or GITHUB_REPOSITORY is unset — this runs inside a GitHub Actions job only"
 
-# The workspace is deleted and recreated below: refuse anything that is not
-# the runner's own `_work/<repo>/<repo>` directory, and never the primary.
+# The workspace is deleted and recreated below: refuse anything but EXACTLY
+# the runner's own `<RUNNER_WORKSPACE>/<repo>` directory under `_work/`, with
+# no `..`, and never one nesting with the primary (compared resolved).
+[ "$ws" = "$runner_ws/${repo#*/}" ] ||
+    die "refusing workspace $ws — not \$RUNNER_WORKSPACE/<repo>"
 case "$ws" in
+*/../* | */.. | */./*) die "refusing workspace $ws — not a canonical path" ;;
 */_work/*/*) ;;
 *) die "refusing workspace $ws — not a runner's _work/<repo>/<repo> directory" ;;
 esac
-case "$ws/" in
-"$primary/"*) die "refusing workspace $ws — inside the primary checkout" ;;
+real_primary="$(cd "$primary" && pwd -P)"
+real_ws_parent="$(mkdir -p "$(dirname "$ws")" && cd "$(dirname "$ws")" && pwd -P)"
+real_ws="$real_ws_parent/$(basename "$ws")"
+case "$real_ws/" in
+"$real_primary/"*) die "refusing workspace $ws — inside the primary checkout" ;;
 esac
-case "$primary/" in
-"$ws/"*) die "refusing workspace $ws — contains the primary checkout" ;;
+case "$real_primary/" in
+"$real_ws/"*) die "refusing workspace $ws — contains the primary checkout" ;;
 esac
 
 ref_name="refs/ci/$runner"
@@ -57,16 +71,18 @@ git_p() { git -C "$primary" "$@"; }
 fetch() {
     local n
     for n in 1 2 3 4 5; do
-        git_p fetch --no-tags --quiet origin "$@" && return 0
+        git_p fetch --no-tags --no-write-fetch-head --quiet origin "$@" && return 0
         sleep "$n"
     done
     die "git fetch origin $* failed 5 times"
 }
 
-# A killed job leaves its worktree registered: drop it before reusing the path.
+# A killed job leaves its worktree registered — LOCKED, when it died inside
+# `worktree add` ("initializing"): `-f -f` removes a locked one, and prune
+# skips locked entries, so drop it before reusing the path.
 forget_workspace() {
     if git_p worktree list --porcelain | grep -qxF "worktree $ws"; then
-        git_p worktree remove --force "$ws" || true
+        git_p worktree remove -f -f "$ws" || true
     fi
     git_p worktree prune
 }
@@ -80,12 +96,14 @@ create)
     # Every base branch too: `check:lane` diffs against origin/<base>.
     fetch "+refs/heads/*:refs/remotes/origin/*" "+$ref:$ref_name"
     sha="$(git_p rev-parse "$ref_name^{commit}")"
-    git_p worktree add --detach --quiet "$ws" "$sha"
+    git_p worktree add -f -f --detach --quiet "$ws" "$sha"
     echo "job-worktree: $ws at $sha (worktree of $primary)"
     ;;
 remove)
     forget_workspace
     git_p update-ref -d "$ref_name" 2>/dev/null || true
+    rm -rf "$ws"
+    mkdir -p "$ws"
     echo "job-worktree: removed $ws"
     ;;
 *)

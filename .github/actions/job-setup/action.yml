@@ -3,7 +3,9 @@
 # runner, `actions/checkout` on a GitHub-hosted one). It masks the gh token,
 # pins node (.nvmrc) and bun (.bun-version) on the job's PATH whatever the
 # runner's service PATH holds (the issue #5598 class), and runs
-# `worktree:init`. docs/guides/github-pipeline.md § Jobs.
+# `worktree:init`. Scripts only, no nested action: a nested action's post
+# step would run after the job worktree is removed.
+# docs/guides/github-pipeline.md § Jobs.
 name: job-setup
 description: Mask the gh token, pin node and bun, bootstrap the tree.
 runs:
@@ -17,9 +19,8 @@ runs:
                   echo "gh token masked"
               fi
         - name: Node (.nvmrc)
-          uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-          with:
-              node-version-file: .nvmrc
+          shell: bash
+          run: scripts/ci/setup-node.sh
         - name: Bun (.bun-version)
           shell: bash
           run: scripts/ci/setup-bun.sh
