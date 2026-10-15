@@ -9,6 +9,8 @@
   the reaper off its tree. Restarted only after a CRASH: SIGTERM (`--disarm`)
   makes it exit 0 after the landing in flight, which launchd leaves stopped;
   `ExitTimeOut` gives that landing an hour before launchd's SIGKILL.
+  `RunAtLoad` starts it at login: KeepAlive/SuccessfulExit only restarts after
+  a crash, so without it a reboot leaves the runner unloaded (issue #5669).
 -->
 <plist version="1.0">
 <dict>
@@ -21,6 +23,8 @@
     </array>
     <key>WorkingDirectory</key>
     <string>__REPO__</string>
+    <key>RunAtLoad</key>
+    <true/>
     <key>KeepAlive</key>
     <dict>
         <key>SuccessfulExit</key>
