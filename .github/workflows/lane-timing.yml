@@ -31,14 +31,16 @@ jobs:
         timeout-minutes: 60
         steps:
             - name: Job worktree
+              shell: bash
               working-directory: ${{ runner.temp }}
               run: |
-                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
                   git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
             - uses: ./.github/actions/job-setup
             - name: check:lane
               run: bun run check:lane
             - name: Remove the job worktree
               if: always()
+              shell: bash
               working-directory: ${{ runner.temp }}
               run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
