@@ -247,6 +247,13 @@ export interface LintContext {
     /** Every card name the catalogue knows (`data/card-index.json`) — the
      *  vocabulary of `unlinked-card-name`. Absent → that rule is not run. */
     cardNames?: readonly string[];
+    /**
+     * Reads the `gh` token's OAuth scopes (`ghTokenScopes`), called lazily and
+     * only when an issue targets `.github/workflows/**`. `null` (unreadable)
+     * and an absent reader both keep `unmergeable-ci-config` blocking: the
+     * rule fails closed, and clears only on positive evidence of `workflow`.
+     */
+    readTokenScopes?: () => readonly string[] | null;
 }
 
 /** An inline or image Markdown link, title included: the linked form is the
@@ -357,12 +364,13 @@ export function lintIssue(
             .replace(/`/g, "");
         if (!t) continue;
         if (t.startsWith(".github/workflows")) {
+            if (context.readTokenScopes?.()?.includes("workflow")) continue;
             findings.push({
                 rule: "unmergeable-ci-config",
                 severity: "blocking",
                 message:
-                    "touches `.github/workflows/**`, which needs the `workflow` OAuth scope only an interactive `gh auth refresh` can grant — an agent implements it and then fails at `git push`",
-                fix: `gh issue edit ${issue.number} --remove-label ready-for-agent --add-label ready-for-human`,
+                    "touches `.github/workflows/**`, which needs the `workflow` OAuth scope, and the `gh` token does not carry it (or its scopes could not be read) — an agent implements it and then fails at `git push`",
+                fix: `gh auth refresh -h github.com -s workflow   # interactive; or: gh issue edit ${issue.number} --remove-label ready-for-agent --add-label ready-for-human`,
             });
             break;
         }

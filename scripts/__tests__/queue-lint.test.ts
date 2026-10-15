@@ -1,3 +1,4 @@
+import { parseTokenScopes } from "../lib/gh";
 import { describe, it, expect } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -113,6 +114,45 @@ describe("queue lint — blocking findings (issue #2188)", () => {
         expect(bySeverity(issue({ body }), "blocking")).toContain(
             "unmergeable-ci-config"
         );
+    });
+
+    describe("unmergeable-ci-config reads the token's real scopes", () => {
+        const body = WELL_FORMED.replace(
+            "`scripts/lib/thing.ts`",
+            "`.github/workflows/test.yml`"
+        );
+        const ciRule = (readTokenScopes?: () => readonly string[] | null) =>
+            lintIssue(issue({ body }), { readTokenScopes }).find(
+                (f) => f.rule === "unmergeable-ci-config"
+            );
+
+        it("lints clean when `workflow` is among the scopes", () => {
+            expect(ciRule(() => ["repo", "workflow"])).toBeUndefined();
+        });
+
+        it("stays blocking without `workflow`, naming the refresh command", () => {
+            const f = ciRule(() => ["repo", "project"])!;
+            expect(f.severity).toBe("blocking");
+            expect(f.fix).toContain(
+                "gh auth refresh -h github.com -s workflow"
+            );
+        });
+
+        it("fails closed when the scopes cannot be read", () => {
+            expect(ciRule(() => null)?.severity).toBe("blocking");
+            expect(ciRule()?.severity).toBe("blocking");
+        });
+
+        it("parses X-OAuth-Scopes, and reads a missing header as unreadable", () => {
+            const head = (h: string) => `HTTP/2.0 200 OK\r\n${h}\r\n\r\n{}`;
+            expect(
+                parseTokenScopes(
+                    head("X-Oauth-Scopes: gist, project, repo, workflow")
+                )
+            ).toEqual(["gist", "project", "repo", "workflow"]);
+            expect(parseTokenScopes(head("X-Oauth-Scopes: "))).toEqual([]);
+            expect(parseTokenScopes(head("Content-Type: x"))).toBeNull();
+        });
     });
 
     it("flags targets outside the repository", () => {

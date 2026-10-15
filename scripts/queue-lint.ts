@@ -14,7 +14,7 @@
 // Exits 1 when any BLOCKING finding is present, 0 otherwise — so an intake
 // skill can gate on it without parsing anything.
 
-import { gh, issueBlockedBy } from "./lib/gh";
+import { gh, ghTokenScopes, issueBlockedBy } from "./lib/gh";
 import {
     lintIssue,
     isBlocking,
@@ -83,7 +83,13 @@ for (const n of numbers) {
         blockedByNative: issueBlockedBy(n),
         body: raw.body ?? "",
     };
-    results.push({ issue, findings: lintIssue(issue, { cardNames }) });
+    results.push({
+        issue,
+        findings: lintIssue(issue, {
+            cardNames,
+            readTokenScopes: ghTokenScopes,
+        }),
+    });
 }
 
 if (asJson) {

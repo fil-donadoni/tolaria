@@ -285,3 +285,47 @@ export function issueBlockedBy(
         .filter((line) => line !== "")
         .map(Number);
 }
+
+/**
+ * The OAuth scopes of the token `gh` authenticates with, from the
+ * `X-OAuth-Scopes` response header, or `null` when they cannot be read.
+ *
+ * `null` is UNREADABLE, not empty: a fine-grained PAT or an offline run sends
+ * no such header, and a caller that gates on a scope must fail closed on it
+ * rather than read "no scopes" and "no evidence" as the same thing.
+ */
+export function parseTokenScopes(headers: string): string[] | null {
+    const line = headers
+        .split(/\r?\n/)
+        .find((l) => /^x-oauth-scopes\s*:/i.test(l));
+    if (line === undefined) return null;
+    return line
+        .slice(line.indexOf(":") + 1)
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+}
+
+let tokenScopesCache: { value: string[] | null } | undefined;
+
+/** Test seam: forget the per-process scope read. */
+export function resetTokenScopesCache(): void {
+    tokenScopesCache = undefined;
+}
+
+/**
+ * The developer token's scopes, read ONCE per process (one `gh api` call) and
+ * cached — including a failed read, so an offline run does not retry per
+ * issue. `null` = unreadable (see `parseTokenScopes`).
+ */
+export function ghTokenScopes(): string[] | null {
+    if (tokenScopesCache) return tokenScopesCache.value;
+    let value: string[] | null;
+    try {
+        value = parseTokenScopes(gh(["api", "-i", "/"]));
+    } catch {
+        value = null;
+    }
+    tokenScopesCache = { value };
+    return value;
+}

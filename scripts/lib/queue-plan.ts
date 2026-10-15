@@ -127,6 +127,10 @@ export interface QueuePort {
      * own `issueDetail` and never for a blocker or a parent.
      */
     nativeBlockedBy(number: number): number[];
+    /** The `gh` token's OAuth scopes, `null` when unreadable; absent in a
+     *  port that cannot read them (the lint then fails closed). Read once per
+     *  run by the real port. */
+    tokenScopes?(): readonly string[] | null;
     /** Issues that currently have an open PR — the liveness signal that keeps a
      *  long-running claim from being swept as orphaned. */
     issuesWithOpenPr: number[];
@@ -1043,14 +1047,17 @@ export function planBatch(
         // expensive per-candidate cost for nothing.
         const nativeBlockedBy = port.nativeBlockedBy(issue.number);
 
-        const lintFindings = lintIssue({
-            number: issue.number,
-            title: issue.title,
-            labels: labelNames(issue),
-            parentNumber: issue.parent?.number ?? null,
-            blockedByNative: nativeBlockedBy,
-            body: detail.body,
-        });
+        const lintFindings = lintIssue(
+            {
+                number: issue.number,
+                title: issue.title,
+                labels: labelNames(issue),
+                parentNumber: issue.parent?.number ?? null,
+                blockedByNative: nativeBlockedBy,
+                body: detail.body,
+            },
+            { readTokenScopes: port.tokenScopes }
+        );
         const lintBlockers = lintFindings.filter(
             (f) => f.severity === "blocking"
         );
