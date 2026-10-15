@@ -88,7 +88,7 @@ describe("createImportGraph — closureOf", () => {
         "convex/cards/sets/lea/index.cards.ts": `export const lea = 1;\n`,
         "convex/cards/sets/leb/index.cards.ts": `export const leb = 1;\n`,
         "convex/cards/sets/leb/red.cards.ts": `export const red = 1;\n`,
-        "convex/cards/sets/notes.md": `not a module`,
+        "convex/cards/sets/notes.txt": `not a module`,
         "src/lib/builder.ts": `import { rules } from "@convex/gre/rules";\nexport const b = rules;\n`,
         "convex/gre/rules.ts": `import data from "../../data/rules.json";\nexport const rules = data;\n`,
         "data/rules.json": `{}`,
