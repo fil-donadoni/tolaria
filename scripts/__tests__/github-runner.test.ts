@@ -222,7 +222,7 @@ describe("runner units", () => {
         expect(out).toContain(`ExecStart=${ROOT}/%i/run.sh`);
         expect(out).toContain("Restart=always");
         expect(out).toContain("KillMode=control-group");
-        expect(out).toContain("Environment=TOLARIA_PRIMARY_CHECKOUT=/r");
+        expect(out).toContain("Environment=TOLARIA_PRIMARY_CHECKOUT=/deliberately-red");
         expect(() =>
             renderRunnerSystemdTemplate(
                 "__NOPE__",
