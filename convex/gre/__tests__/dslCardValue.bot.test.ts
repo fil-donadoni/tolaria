@@ -1006,6 +1006,12 @@ describe("Complete Script and the two-way Latent Floor (issue #5161)", () => {
             );
         });
 
+        it("a source-of-your-choice shield is complete: its pick-source binder is looked through (Circle of Protection: Red, CR 609.7a)", () => {
+            expect(isCompleteScript(byName("Circle of Protection: Red"))).toBe(
+                true
+            );
+        });
+
         it("a sacrifice over picks (neutral beneficence) leaves the script incomplete", () => {
             expect(
                 isCompleteScript(

@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { StackItem } from "~/types/game";
 import { matchesSpellPendingTarget, wantsSpellTarget } from "~/lib/card-utils";
 import { isBarredByRequiredTargetChoice } from "~/lib/targeting";
+import { isStackChoiceCandidate } from "~/lib/pending-choice-labels";
+import { PendingChoiceBufferContext } from "~/hooks/usePendingChoiceBuffer";
 import { useGameContext } from "~/hooks/useGameContext";
 import { useArrowHighlight } from "~/hooks/arrowHighlightContext";
 import { useDraggable } from "~/hooks/useDraggable";
@@ -157,11 +159,21 @@ export default function GameStack({
         gameId,
         playerId,
         pendingTarget,
+        pendingChoices,
         allPlayers,
         activePlayerId,
         recentArrivals,
     } = useGameContext();
     const selectTarget = useMutation(api.game.selectTarget);
+    // CR 609.7a (issue #5601) — a "source of your choice" may be a spell on
+    // the stack: the open choice's candidates are clicked here, into the same
+    // buffer the battlefield's permanents feed. Read optionally — the board
+    // always mounts the buffer, a bare panel (a test) simply offers no pick.
+    const bufferCtx = useContext(PendingChoiceBufferContext);
+    const activeChoice = bufferCtx ? pendingChoices?.[0] : undefined;
+    const canChooseStackSource = stack.some((item) =>
+        isStackChoiceCandidate(activeChoice, playerId, item.id)
+    );
     const { offset, dragHandlers } = useDraggable();
     const highlight = useArrowHighlight();
     const setSeed = highlight?.setSeed;
@@ -192,7 +204,7 @@ export default function GameStack({
         pendingTarget.playerId === playerId &&
         wantsSpellTarget(pendingTarget.targetType);
 
-    const folded = !!collapsed && !canTargetSpell;
+    const folded = !!collapsed && !canTargetSpell && !canChooseStackSource;
 
     // A row unmounted mid-hover fires no mouseleave; drop its arrow seed.
     useEffect(() => {
@@ -356,7 +368,10 @@ export default function GameStack({
                                 <button
                                     type="button"
                                     onClick={onToggleCollapse}
-                                    disabled={!!collapsed && canTargetSpell}
+                                    disabled={
+                                        !!collapsed &&
+                                        (canTargetSpell || canChooseStackSource)
+                                    }
                                     aria-label={
                                         folded
                                             ? "Expand stack"
@@ -417,6 +432,13 @@ export default function GameStack({
                                             item.id
                                         );
 
+                                    const isSourceCandidate =
+                                        isStackChoiceCandidate(
+                                            activeChoice,
+                                            playerId,
+                                            item.id
+                                        );
+
                                     const dimmed =
                                         highlight?.nodes != null &&
                                         !highlight.nodes.has(item.id);
@@ -427,8 +449,21 @@ export default function GameStack({
                                             item={item}
                                             order={i + 1}
                                             isTop={i === 0}
-                                            isTargetable={!!isTargetable}
+                                            isTargetable={
+                                                !!isTargetable ||
+                                                isSourceCandidate
+                                            }
+                                            isSelected={
+                                                isSourceCandidate &&
+                                                !!bufferCtx?.buffer.includes(
+                                                    item.id
+                                                )
+                                            }
                                             onSelect={() => {
+                                                if (isSourceCandidate) {
+                                                    bufferCtx?.toggle(item.id);
+                                                    return;
+                                                }
                                                 if (!isTargetable) return;
                                                 selectTarget({
                                                     gameId,

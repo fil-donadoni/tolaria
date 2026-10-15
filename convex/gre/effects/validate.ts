@@ -1997,6 +1997,7 @@ const EFFECT_CHOICE_KINDS: Record<EffectChoiceKind, true> = {
     "choose-graveyard-card": true,
     "choose-exile-card": true,
     "choose-library-card": true,
+    "pick-source": true,
 };
 
 function isEffectChoiceKind(value: unknown): boolean {
@@ -2007,15 +2008,70 @@ function isEffectChoiceKind(value: unknown): boolean {
     );
 }
 
+/** CR 609.7a (issue #5601) — "a source of your choice". The kind and its pool
+ *  are one thing: `pick-source` picks from `battlefield-or-stack`, and
+ *  nothing else picks from it. The pool is fixed by the rule (every
+ *  permanent, every spell on the stack), so the battlefield-pool narrowings
+ *  have no reading there; the filter keeps only the two axes the stack side
+ *  reads — a literal `color` and `type` — because `toDamageSourceFilter`
+ *  (`interpreter.ts`) refuses anything else rather than dropping it; and "a
+ *  source" is ONE source. */
+function sourcePickErrors(entry: Record<string, unknown>): string[] {
+    const sourcePick = entry.kind === "pick-source";
+    const sourcePool = entry.zone === "battlefield-or-stack";
+    if (!sourcePick && !sourcePool) return [];
+    if (sourcePick !== sourcePool)
+        return [
+            'kind: "pick-source" and zone: "battlefield-or-stack" go together — the source pool (CR 609.7a) is that kind\'s and only that kind\'s',
+        ];
+    const errors: string[] = [];
+    for (const field of [
+        "zoneOwnerId",
+        "allControllers",
+        "candidates",
+        "bindOther",
+        "superlative",
+        "categories",
+    ]) {
+        if (entry[field] !== undefined) {
+            errors.push(
+                `"${field}" is not valid with kind: "pick-source" — its pool is every permanent and every spell on the stack (CR 609.7a)`
+            );
+        }
+    }
+    const filter = entry.filter;
+    if (
+        filter !== undefined &&
+        (typeof filter !== "object" ||
+            filter === null ||
+            Object.keys(filter).some((k) => k !== "color" && k !== "type") ||
+            ("color" in filter &&
+                typeof filter.color !== "string" &&
+                !Array.isArray(filter.color)))
+    ) {
+        errors.push(
+            'kind: "pick-source" filters by a literal "color" and/or "type" only'
+        );
+    }
+    if (entry.count !== 1) {
+        errors.push(
+            'kind: "pick-source" chooses ONE source — "count" must be 1'
+        );
+    }
+    return errors;
+}
+
 /** The zones a `choice` Op may pick from — exactly the zones the Pending
- *  Choice submit validator knows how to gate (CR 608.2). */
+ *  Choice submit validator knows how to gate (CR 608.2), plus CR 609.7a's
+ *  `battlefield-or-stack` source pool (issue #5601). */
 function isChoiceZone(value: unknown): boolean {
     return (
         value === "battlefield" ||
         value === "hand" ||
         value === "library" ||
         value === "graveyard" ||
-        value === "exile"
+        value === "exile" ||
+        value === "battlefield-or-stack"
     );
 }
 
@@ -2343,13 +2399,15 @@ function isRevealRouteList(value: unknown): boolean {
 }
 
 /** The `mode` discriminator of a `preventDamage` Op (issue #845 / #1955,
- *  CR 615): the six prevention-shield shapes folded here — three
- *  recipient-scoped (`next-n`, `all-combat`, `combat-to-and-by`,
- *  `next-n-divided`) and two SOURCE-scoped (`all-from-source`,
- *  `all-from-matching`). */
+ *  CR 615): the prevention-shield shapes folded here — recipient-scoped
+ *  (`next-n`, `all-combat`, `combat-to-and-by`, `next-n-divided`,
+ *  `all-to-matching`) and SOURCE-scoped (`all-from-source`,
+ *  `all-from-matching`, and `next-from-source` — one event from one chosen
+ *  source to one player, issue #5601). */
 function isPreventDamageMode(value: unknown): boolean {
     return (
         value === "next-n" ||
+        value === "next-from-source" ||
         value === "all-combat" ||
         value === "combat-to-and-by" ||
         value === "all-from-source" ||
@@ -5563,6 +5621,28 @@ const OP_SCHEMAS: OpSchemaTable = {
                 }
             } else if (entry.mode === "next-n-divided") {
                 requireFields(["total", "duration"]);
+            } else if (entry.mode === "next-from-source") {
+                // CR 609.7a / 615.1a (issue #5601) — the chosen source is a
+                // bare picks ref (a `pick-source` choice's binding; its family
+                // is checked by the ordered ref pass), the recipient a PLAYER;
+                // `match` is the CR 609.7b recheck, a SOURCE match.
+                requireFields(["source", "to", "duration"], ["match"]);
+                if (has("match") && !isSourceShieldMatch(entry.match)) {
+                    errors.push(
+                        'mode "next-from-source" takes a SOURCE match ' +
+                            "({ colors?, cardType? })"
+                    );
+                }
+                if (has("source") && !isBarePicksRef(entry.source)) {
+                    errors.push(
+                        'mode "next-from-source" takes `source: { ref }` naming a pick-source choice\'s picks binding'
+                    );
+                }
+                if (has("to") && !isPlayerRecipient(entry.to)) {
+                    errors.push(
+                        'mode "next-from-source" takes `to: { player }` only'
+                    );
+                }
             }
             return errors;
         },
@@ -5935,6 +6015,7 @@ const OP_SCHEMAS: OpSchemaTable = {
                     '"bindOther" is valid only with zone: "battlefield" — it snapshots the unpicked candidate as a permanent, which a card in a hidden or unordered zone is not'
                 );
             }
+            errors.push(...sourcePickErrors(entry));
             return errors;
         },
     },
@@ -7740,6 +7821,18 @@ function checkOpListRefs(
             // function with a different presence recheck.
             if (entry.op === "counter" && k === "target") {
                 collectRefUses(v, "counterTarget", uses);
+                continue;
+            }
+            // CR 609.7a (issue #5601) — `preventDamage`'s `"next-from-source"`
+            // reads `source` as a bare PICKS ref: the `pick-source` choice's
+            // binding, read raw because it may name a spell on the stack. Every
+            // other mode's `source` is a battlefield object selector.
+            if (
+                entry.op === "preventDamage" &&
+                entry.mode === "next-from-source" &&
+                k === "source"
+            ) {
+                collectRefUses(v, "picks", uses);
                 continue;
             }
             // CR 400.7e (issue #4127) — `moveZone.target` may name the card a

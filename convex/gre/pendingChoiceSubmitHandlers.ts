@@ -32,6 +32,7 @@ import {
     finalizeUntapPick,
 } from "./phases";
 import { checkStateBasedActions, finalizeLegendKeep } from "./sba";
+import { damageSourceChoicePool } from "./damageSourceChoice";
 import { applyMulliganBottomChoice } from "./mulligan";
 import { raiseTriggerTargetSelection } from "./rules";
 import {
@@ -180,6 +181,20 @@ function assertZonePickLegal(
         // each basic land type"): the BATTLEFIELD arm of the shared
         // categorized legality check. See `assertCategorizedPickLegal`.
         assertCategorizedPickLegal(head, args.cardInstanceIds, "permanents");
+    } else if (head.zone === "battlefield-or-stack") {
+        // CR 609.7a (issue #5601) — "a source of your choice": a permanent or
+        // a spell on the stack, from the one pool authority. The raise ALWAYS
+        // carries the filtered allow-list, so an absent one admits nothing
+        // (fail closed) rather than the whole pool.
+        const pool = damageSourceChoicePool(state);
+        for (const id of args.cardInstanceIds) {
+            if (!pool.some((c) => c.id === id)) {
+                throw new Error("Not a permanent or a spell on the stack");
+            }
+            if (!head.candidateIds?.includes(id)) {
+                throw new Error("Card is not an eligible choice");
+            }
+        }
     } else if (head.zone === "hand") {
         for (const id of args.cardInstanceIds) {
             if (!zoneOwner.hand.find((c: CardInstanceState) => c.id === id)) {

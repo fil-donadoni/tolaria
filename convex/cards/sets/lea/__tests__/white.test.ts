@@ -55,7 +55,6 @@ import {
 import { activatePump, grizzlyBearsId } from "./set.helper";
 import { getDefinition } from "../../../index";
 
-const ancestralRecall = getDefinition("70e7ddf2-5604-41e7-bb9d-ddd03d3e9d0b");
 const animateWall = getDefinition("d5c83259-9b90-47c2-b48e-c7d78519e792");
 const armageddon = getDefinition("5b6ddce7-b9c5-431d-a0b0-46d4aa93cbcb");
 const balance = getDefinition("6f9ea46a-411f-40ce-a873-a905180093f4");
@@ -67,17 +66,8 @@ const blueWard = getDefinition("93f9f0f2-e1cc-4740-888c-1336c6de0a27");
 const bogWraith = getDefinition("6701874e-986e-4b81-9268-90b6171e6187");
 const castle = getDefinition("b0da8d56-3178-44c2-9344-95d2346d326f");
 const chaoslace = getDefinition("72ea2048-57bc-43d5-8987-33ca727f1a97");
-const circleOfProtectionBlue = getDefinition(
-    "848b1a7f-e8ba-40b5-92b7-af1e963a0319"
-);
-const circleOfProtectionGreen = getDefinition(
-    "1ae32d20-b438-4f43-b603-e8f706ecfb03"
-);
 const circleOfProtectionRed = getDefinition(
     "b3dd94c5-42f6-4148-be6e-2a3a4226cc0e"
-);
-const circleOfProtectionWhite = getDefinition(
-    "92df19c9-e127-42d9-8dd2-7fa5a7095428"
 );
 const consecrateLand = getDefinition("d2379f78-c03f-447f-b3c9-10a918d556e9");
 const conversion = getDefinition("13186bc9-8d9c-433b-ba15-121ef94dd68a");
@@ -88,7 +78,6 @@ const disenchant = getDefinition("2722d7e2-61c6-4934-9c21-875ee78fd06c");
 const farmstead = getDefinition("3455b006-9ea5-4aef-8ad2-d0701eb0cacf");
 const fireball = getDefinition("b7623c00-144b-4a8f-9c6c-f5e9e4f65ece");
 const forest = getDefinition("6f1c8cb0-38eb-408b-94e8-16db83999b3b");
-const giantGrowth = getDefinition("367dbefe-3366-408e-9fcf-7dc00f8cc201");
 const goblinKing = getDefinition("5873672d-37ea-4c0f-97f3-12b74fde112d");
 const greenWard = getDefinition("1f6118b2-fe01-425a-a2ed-6d7c42286c8e");
 const grizzlyBears = getDefinition("ce2d603a-3231-4a8c-bf39-1617586ea870");
@@ -1133,44 +1122,15 @@ describe.each([
     }
 );
 
-describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
+// The `preventNextDamageFromSource` shield a resolved Circle of Protection
+// leaves (CR 615.1a / 615.6): what it matches, and when it expires. The choice
+// that creates it is `gre/__tests__/damageSourceChoice.test.ts` (issue #5601).
+describe("Circle of Protection: Red — the shield it leaves (CR 615.1a, 615.6)", () => {
     function setupCoPOnBattlefield(copCard = circleOfProtectionRed) {
         const cop = makeInstance(copCard.id, { id: "cop" });
         const p1 = makePlayer("p1", { battlefield: [cop] });
         return makeState({ players: [p1, makePlayer("p2")] });
     }
-
-    it("registers an end-of-turn prevention effect when the ability resolves", () => {
-        const state = setupCoPOnBattlefield();
-        const cop = state.players[0].battlefield[0];
-        // Simulate activation: push ability on stack with a chosen source.
-        const bolt = makeInstance(lightningBolt.id, {
-            id: "bolt-stack",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        state.stack.push({
-            ...bolt,
-            castById: "p2",
-            targets: [{ type: "player", id: "p1" }],
-        });
-        state.stack.push({
-            ...cop,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "cop-prevent",
-            targets: [{ type: "spell", id: "bolt-stack" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.preventionEffects).toEqual([
-            {
-                sourceInstanceId: "bolt-stack",
-                playerId: "p1",
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
-    });
 
     it("prevents direct damage from the chosen spell source to the protected player", () => {
         const state = setupCoPOnBattlefield();
@@ -1268,132 +1228,6 @@ describe("Circle of Protection: Red (CR 615.1, 615.6)", () => {
         // END_STEP → CLEANUP (auto) → next turn.
         advancePhase(state);
         expect(state.preventionEffects).toBeUndefined();
-    });
-});
-
-describe("Circle of Protection: Green (CR 615.1, imperative resolve() on cop-prevent)", () => {
-    it("activating against a green spell registers the chosen source's end-of-turn prevention", () => {
-        const cop = makeInstance(circleOfProtectionGreen.id, { id: "cop" });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2"),
-            ],
-        });
-        const growth = makeInstance(giantGrowth.id, {
-            id: "growth-stack",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        state.stack.push({
-            ...growth,
-            castById: "p2",
-            targets: [{ type: "player", id: "p1" }],
-        });
-        state.stack.push({
-            ...cop,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "cop-prevent",
-            targets: [{ type: "spell", id: "growth-stack" }],
-        });
-        resolveTopOfStack(state);
-        expect(state.preventionEffects).toEqual([
-            {
-                sourceInstanceId: "growth-stack",
-                playerId: "p1",
-                duration: { phase: "end-of-turn" },
-            },
-        ]);
-    });
-});
-
-describe("Circle of Protection: color filter on target selection", () => {
-    it("Red CoP only offers red spells/permanents as legal targets", () => {
-        const redBolt = makeInstance(lightningBolt.id, {
-            id: "bolt",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const blueSpell = makeInstance(ancestralRecall.id, {
-            id: "recall",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const state = makeState();
-        state.stack.push({ ...redBolt, castById: "p2" });
-        state.stack.push({ ...blueSpell, castById: "p2" });
-        const ability = circleOfProtectionRed.activatedAbilities![0];
-        const legal = getLegalTargets(
-            state,
-            ability.targetRequirement!,
-            NO_TARGETING_SOURCE
-        );
-        expect(legal.map((t) => t.id)).toEqual(["bolt"]);
-    });
-
-    it("Blue CoP only offers blue spells/permanents as legal targets", () => {
-        const redBolt = makeInstance(lightningBolt.id, {
-            id: "bolt",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const blueSpell = makeInstance(ancestralRecall.id, {
-            id: "recall",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const state = makeState();
-        state.stack.push({ ...redBolt, castById: "p2" });
-        state.stack.push({ ...blueSpell, castById: "p2" });
-        const ability = circleOfProtectionBlue.activatedAbilities![0];
-        const legal = getLegalTargets(
-            state,
-            ability.targetRequirement!,
-            NO_TARGETING_SOURCE
-        );
-        expect(legal.map((t) => t.id)).toEqual(["recall"]);
-    });
-
-    it("Green CoP only offers green spells/permanents as legal targets", () => {
-        const redBolt = makeInstance(lightningBolt.id, {
-            id: "bolt",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const greenSpell = makeInstance(giantGrowth.id, {
-            id: "growth",
-            controllerId: "p2",
-            ownerId: "p2",
-            zone: "stack",
-        });
-        const state = makeState();
-        state.stack.push({ ...redBolt, castById: "p2" });
-        state.stack.push({ ...greenSpell, castById: "p2" });
-        const ability = circleOfProtectionGreen.activatedAbilities![0];
-        const legal = getLegalTargets(
-            state,
-            ability.targetRequirement!,
-            NO_TARGETING_SOURCE
-        );
-        expect(legal.map((t) => t.id)).toEqual(["growth"]);
-    });
-
-    it("color filter excludes players (players have no color)", () => {
-        const state = makeState();
-        const ability = circleOfProtectionWhite.activatedAbilities![0];
-        const legal = getLegalTargets(
-            state,
-            ability.targetRequirement!,
-            NO_TARGETING_SOURCE
-        );
-        expect(legal.filter((t) => t.type === "player")).toEqual([]);
     });
 });
 

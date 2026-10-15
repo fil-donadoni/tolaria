@@ -58,6 +58,7 @@ import {
     type RepetitionHistory,
 } from "@convex/gre/ai/repetition";
 import { effectivePermanentView } from "@convex/gre/permanentView";
+import { eligibleZonePickCards } from "@convex/gre/zonePickEligibility";
 import { getCardColorIdentity, getColorsFromCost } from "@convex/cards/colors";
 import { tryGetDefinition } from "@convex/cards";
 import {
@@ -198,6 +199,13 @@ export function listCandidates(
             return allowListed.filter((c) => head.eligibleIds!.includes(c.id));
         }
         return allowListed;
+    }
+    // CR 609.7a (issue #5601) — "a source of your choice": every permanent
+    // and every spell on the stack, narrowed by the raise's `candidateIds`.
+    // Read from the ONE enumeration mirror of the submit validator, never a
+    // second copy of the pool.
+    if (head.zone === "battlefield-or-stack") {
+        return eligibleZonePickCards(state, head);
     }
     if (head.zone === "battlefield") {
         const pool = head.allControllers

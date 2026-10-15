@@ -2456,10 +2456,15 @@ const preventDamage: Valuer<"preventDamage"> = (op, ctx) => {
     }
     // "all-combat" (Fog) / "combat-to-and-by" (Maze of Ith) /
     // "all-from-source" (Falling Timber, Rith's Charm) / "all-from-matching"
-    // (Radiant Kavu) / "all-to-matching" (Divine Light, issue #3810) — no
-    // scalar amount, a flat defensive shield. The recipient-scoped mode joins
-    // the fall-through on purpose: like its source-scoped mirror it absorbs
+    // (Radiant Kavu) / "all-to-matching" (Divine Light, issue #3810) /
+    // "next-from-source" (Circle of Protection, issue #5601) — no scalar
+    // amount, a flat defensive shield. The recipient-scoped mode joins the
+    // fall-through on purpose: like its source-scoped mirror it absorbs
     // without limit for the turn, so there is no printed number to price.
+    // "next-from-source" absorbs ONE event of any size from the chosen
+    // source — again no printed number — and is the shield the Circle of
+    // Protection cycle's former `aiEffects` shadow priced through this very
+    // branch (as `"all-from-source"`), so its value does not move.
     return {
         points: pricedFraction(
             ctx,

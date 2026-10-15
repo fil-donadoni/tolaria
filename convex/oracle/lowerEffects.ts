@@ -1927,6 +1927,52 @@ function lowerSentenceBody(
                 },
             ]);
         }
+        // CR 609.7a / 615.1a — "the next time a <qualifier> source of your
+        // choice would deal damage to you this turn, prevent that damage": a
+        // `pick-source` choice over every permanent and every spell on the
+        // stack (never a target — the ability announces none), then a
+        // one-event shield keyed on the picked id. The qualifier is the
+        // choice's filter: one colour as itself, two as "any of them", a card
+        // type as `type`.
+        case "prevent-next-damage-from-chosen-source": {
+            const bind = walk.nextBind("source");
+            const { colors, cardType } = sentence;
+            const filter: EffectCardFilter = {
+                ...(colors === undefined
+                    ? {}
+                    : {
+                          color: colors.length === 1 ? colors[0]! : [...colors],
+                      }),
+                ...(cardType === undefined ? {} : { type: cardType }),
+            };
+            // CR 609.7b — the same qualifier, rechecked by the shield when
+            // the chosen source would deal damage.
+            const match = {
+                ...(colors === undefined ? {} : { colors: [...colors] }),
+                ...(cardType === undefined ? {} : { cardType }),
+            };
+            const article = /^[aeiou]/.test(sentence.phrase) ? "an" : "a";
+            return lowered([
+                {
+                    op: "choice",
+                    kind: "pick-source",
+                    player: "controller",
+                    zone: "battlefield-or-stack",
+                    ...(Object.keys(filter).length === 0 ? {} : { filter }),
+                    count: 1,
+                    prompt: `Choose ${article} ${sentence.phrase}.`,
+                    bind,
+                },
+                {
+                    op: "preventDamage",
+                    mode: "next-from-source",
+                    source: { ref: bind },
+                    to: { player: "controller" },
+                    duration: durationSpec(sentence.duration),
+                    ...(Object.keys(match).length === 0 ? {} : { match }),
+                },
+            ]);
+        }
         // CR 615.1a — the two-way combat shield on the ability's own source.
         // Only `this creature` is read: a printed announced target would need
         // a slot this clause has no fixture for.

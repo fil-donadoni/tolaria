@@ -148,7 +148,7 @@ export const COLOR_WORDS: ReadonlyMap<string, Color> = new Map([
 ]);
 
 /** CR 205.2a — the noun spelling of each card type, singular/plural. */
-const TYPE_NOUNS: ReadonlyMap<string, readonly CardType[]> = new Map<
+export const TYPE_NOUNS: ReadonlyMap<string, readonly CardType[]> = new Map<
     string,
     readonly CardType[]
 >([

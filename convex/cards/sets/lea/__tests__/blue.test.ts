@@ -33,7 +33,10 @@ import {
     raiseTriggerTargetSelection,
     NO_TARGETING_SOURCE,
 } from "../../../../gre/rules";
-import { finalizeTargetSelection } from "../../../../game";
+import {
+    activateAbilityOnState,
+    finalizeTargetSelection,
+} from "../../../../game";
 import { projectPublicState } from "../../../../gameProjections";
 import { substituteColorFilter } from "../../../../gre/textChanges";
 import { checkStateBasedActions } from "../../../../gre/sba";
@@ -3700,42 +3703,45 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
         expect(getProtectedColors(slim)).toEqual(["U"]);
     });
 
-    it("retargets a Circle of Protection's color filter to the new color (CR 615)", () => {
+    /** p1: a Circle of Protection: White with {1} floating; p2: a white and
+     *  a red creature. */
+    function copBoard(): GameState {
         const cop = makeInstance(circleOfProtectionWhite.id, {
             id: "cop",
             controllerId: "p1",
             ownerId: "p1",
         });
-        const whiteSrc = makeInstance(savannahLions.id, {
-            id: "w",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const redSrc = makeInstance(monssGoblinRaiders.id, {
-            id: "r",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
+        const creature = (cardId: string, id: string) =>
+            makeInstance(cardId, { id, controllerId: "p2", ownerId: "p2" });
+        return makeState({
             players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2", { battlefield: [whiteSrc, redSrc] }),
+                makePlayer("p1", {
+                    battlefield: [cop],
+                    manaPool: { W: 0, U: 0, B: 0, R: 0, G: 0, C: 1 },
+                }),
+                makePlayer("p2", {
+                    battlefield: [
+                        creature(savannahLions.id, "w"),
+                        creature(monssGoblinRaiders.id, "r"),
+                    ],
+                }),
             ],
         });
-        const baseReq =
-            circleOfProtectionWhite.activatedAbilities![0].targetRequirement!;
+    }
 
-        // Before: the "white source of your choice" filter sees the white
-        // creature, not the red one.
-        const legalBefore = getLegalTargets(
-            state,
-            { ...baseReq, colorFilter: "W" },
-            NO_TARGETING_SOURCE,
-            "p1"
-        );
-        expect(legalBefore.some((t) => t.id === "w")).toBe(true);
-        expect(legalBefore.some((t) => t.id === "r")).toBe(false);
+    function activateCop(state: GameState): void {
+        activateAbilityOnState(state, {
+            playerId: "p1",
+            cardInstanceId: "cop",
+            abilityId: "cop-prevent",
+        });
+    }
 
+    // CR 612 / 609.7a (issue #5601) — "a white source of your choice" is a
+    // colour word of the Circle's text, read by its resolution-time
+    // `pick-source` choice: Sleight of Mind re-points the choice itself.
+    it("re-points a Circle of Protection's source choice to the new color (CR 612)", () => {
+        const state = copBoard();
         castSleight(state, "cop", "permanent", "red");
         const copAfter = state.players[0].battlefield.find(
             (c) => c.id === "cop"
@@ -3744,100 +3750,41 @@ describe("Sleight of Mind (color-word text change — CR 612, layer 3)", () => {
             { kind: "color-word", from: "white", to: "red" },
         ]);
 
-        // After: the substituted filter targets the red source, not the white.
-        const effColor = substituteColorFilter(copAfter, baseReq.colorFilter!);
-        expect(effColor).toBe("R");
-        const legalAfter = getLegalTargets(
-            state,
-            { ...baseReq, colorFilter: effColor },
-            NO_TARGETING_SOURCE,
-            "p1"
-        );
-        expect(legalAfter.some((t) => t.id === "r")).toBe(true);
-        expect(legalAfter.some((t) => t.id === "w")).toBe(false);
+        activateCop(state);
+        resolveTopOfStack(state);
+        // The red creature is offered; the white one (and the white Circle)
+        // no longer are.
+        const head = state.pendingChoices![0]!;
+        expect(head.candidateIds).toEqual(["r"]);
+        // CR 609.7b — the shield rechecks the SAME re-pointed word: red.
+        applyPendingChoiceSubmit(state, {
+            playerId: head.playerId,
+            stackItemId: head.stackItemId,
+            step: head.step,
+            choiceId: head.choiceId,
+            cardInstanceIds: ["r"],
+        });
+        expect(state.preventionEffects?.[0]?.match).toEqual({
+            colors: ["R"],
+        });
 
-        // The substituted filter survives the projection (wire format).
+        // The text change survives the projection (wire format).
         const projected = projectPublicState(state, 0, "p1");
         const slimCop = projected.players[0].battlefield.find(
             (c) => c.id === "cop"
         )! as CardInstanceState;
-        expect(substituteColorFilter(slimCop, baseReq.colorFilter!)).toBe("R");
+        expect(substituteColorFilter(slimCop, "W")).toBe("R");
     });
 
-    // CR 608.2b + 612.6 (issue #1853 review round 2, round 3 fixup) — a
-    // regression test that goes all the way to `preventionEffects`, not just
-    // to `getLegalTargets` like the test above. The round-2 fix
-    // (`permanentTargetStillMeetsRestrictions`) reconstructs the resolving
-    // ability's `TargetRequirement` from RAW static card data
-    // (`resolvingTargetRequirement`, gre/state.ts) to re-check the target at
-    // resolution — but the first cut of that reconstruction skipped the SAME
-    // colour-word substitution `activateAbilityOnState`'s
-    // `effectiveRequirement` (game.ts) applies at announcement, so a Circle
-    // of Protection: White retargeted red by Sleight of Mind wrongly
-    // fizzled against a legally-chosen red source: the announcement offered
-    // it under the substituted "R" filter, then resolution re-lowered the
-    // raw static "W" and ruled it illegal. `effectiveRequirementForSource`
-    // (gre/rules.ts) is now the single helper both sites call.
-    it("resolves and registers the prevention effect for a colour-substituted, legally-chosen target (CR 608.2b, issue #1853 round 3)", () => {
-        const cop = makeInstance(circleOfProtectionWhite.id, {
-            id: "cop",
-            controllerId: "p1",
-            ownerId: "p1",
-            textChangeHolds: [
-                {
-                    change: { kind: "color-word", from: "white", to: "red" },
-                    seq: 1,
-                },
-            ],
-        });
-        const redSrc = makeInstance(monssGoblinRaiders.id, {
-            id: "r",
-            controllerId: "p2",
-            ownerId: "p2",
-        });
-        const state = makeState({
-            players: [
-                makePlayer("p1", { battlefield: [cop] }),
-                makePlayer("p2", { battlefield: [redSrc] }),
-            ],
-        });
-        const baseReq =
-            circleOfProtectionWhite.activatedAbilities![0].targetRequirement!;
-
-        // Announcement half: the substituted filter offers the red source —
-        // exactly what `effectiveRequirement` computes in
-        // `activateAbilityOnState` before `getLegalTargets` runs.
-        const effColor = substituteColorFilter(cop, baseReq.colorFilter!);
-        const legal = getLegalTargets(
-            state,
-            { ...baseReq, colorFilter: effColor },
-            NO_TARGETING_SOURCE,
-            "p1"
-        );
-        expect(legal.some((t) => t.type === "permanent" && t.id === "r")).toBe(
-            true
-        );
-
-        // Push the ability on the stack the way `buildActivatedAbilityStackItem`
-        // does — a clone of the source `card` (carrying its `textChanges`)
-        // plus the already-legally-chosen target — then resolve it.
-        const item: StackItem = {
-            ...cop,
-            zone: "stack",
-            castById: "p1",
-            abilityId: "cop-prevent",
-            targets: [{ type: "permanent", id: "r" }],
-        };
-        state.stack.push(item);
-        resolveTopOfStack(state);
-
-        // CR 608.2b: a target legal when chosen and still legal at
-        // resolution must resolve normally. Before the fix,
-        // `resolvingTargetRequirement` re-lowered the unsubstituted static
-        // "W" filter, ruled the red source illegal, and
-        // `state.preventionEffects` stayed `[]`.
-        expect(state.preventionEffects).toHaveLength(1);
-        expect(state.preventionEffects?.[0]?.sourceInstanceId).toBe("r");
+    // CR 113.7a — once activated, the ability exists on the stack
+    // independently of its source: a Sleight cast on the Circle AFTER the
+    // activation changes the permanent, not the ability already waiting.
+    it("a text change after activation leaves the ability already on the stack alone (CR 113.7a)", () => {
+        const state = copBoard();
+        activateCop(state);
+        castSleight(state, "cop", "permanent", "red");
+        resolveTopOfStack(state); // the Circle's ability
+        expect(state.pendingChoices![0]!.candidateIds).toEqual(["cop", "w"]);
     });
 
     it("does not change the object's own color (CR 612.1)", () => {

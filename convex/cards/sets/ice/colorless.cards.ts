@@ -1165,10 +1165,11 @@ export const onyxTalisman = defineCard(() =>
     })
 );
 // Pentagram of the Ages — {4}, {T}: The next time a source of your choice would
-// deal damage to you this turn, prevent that damage (CR 605 activated ability;
-// CR 609.7 "source of your choice" via `requestChoice({ kind: "pick-source" })`;
-// CR 615.1/615.6 one-shot source-scoped prevention shield via
-// `preventNextDamageFromSource`, the Circle of Protection mechanism).
+// deal damage to you this turn, prevent that damage. CR 609.7a — the source is
+// chosen as the ability resolves, never targeted: any permanent or any spell on
+// the stack (a `pick-source` choice, issue #5601); CR 615.1a / 615.6 — the
+// chosen source's next damage to you is prevented (`"next-from-source"`), the
+// Circle of Protection script without a qualifier.
 export const pentagramOfTheAges = defineCard(() => ({
     id: "b8d889a5-f6c7-410d-97f9-acf08b9091c8",
     name: "Pentagram of the Ages",
@@ -1184,23 +1185,24 @@ export const pentagramOfTheAges = defineCard(() => ({
                 "{4}, {T}: The next time a source of your choice would deal damage to you this turn, prevent that damage.",
             cost: { mana: { X: 4 }, tap: true },
             useStack: true,
-            resolve: (ctx: SpellContext) => {
-                const picks = ctx.requestChoice({
-                    playerId: ctx.controller,
-                    choiceId: `pentagram-source-${ctx.sourceInstanceId}`,
+            effects: [
+                {
+                    op: "choice",
                     kind: "pick-source",
-                    zone: "battlefield",
-                    allControllers: true,
+                    player: "controller",
+                    zone: "battlefield-or-stack",
                     count: 1,
-                    prompt: "Pentagram of the Ages: pick the source whose next damage to you this turn is prevented.",
-                });
-                if (picks === undefined) return; // suspended for the choice
-                const sourceId = picks[0];
-                if (!sourceId) return;
-                ctx.preventNextDamageFromSource(sourceId, ctx.controller, {
-                    phase: "end-of-turn",
-                });
-            },
+                    prompt: "Pentagram of the Ages: choose the source whose next damage to you this turn is prevented.",
+                    bind: "$chosen",
+                },
+                {
+                    op: "preventDamage",
+                    mode: "next-from-source",
+                    source: { ref: "$chosen" },
+                    to: { player: "controller" },
+                    duration: { phase: "end-of-turn" },
+                },
+            ],
         },
     ],
 }));

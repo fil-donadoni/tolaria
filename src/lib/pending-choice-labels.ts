@@ -147,7 +147,42 @@ export function mayPayPermanentPickHint(
 export function pendingChoiceRoutesToBattlefield(
     choice: PendingChoice
 ): boolean {
-    return choice.zone === "battlefield";
+    // CR 609.7a (issue #5601) — a "source of your choice" pool holds every
+    // permanent too (beside the stack's spells, see `isStackChoiceCandidate`).
+    return (
+        choice.zone === "battlefield" || choice.zone === "battlefield-or-stack"
+    );
+}
+
+/** Does this choice's pool span EVERY player's battlefield, rather than one
+ *  owner's? An `allControllers` pick (CR 707 — Clone / Copy Artifact "any
+ *  creature on the battlefield") and the CR 609.7a source pool
+ *  (`battlefield-or-stack`, issue #5601) do; the per-card `candidateIds` /
+ *  `filter` gate still decides which permanents are clickable. */
+export function pendingChoiceSpansAllBattlefields(
+    choice: PendingChoice
+): boolean {
+    return (
+        choice.allControllers === true || choice.zone === "battlefield-or-stack"
+    );
+}
+
+/** CR 609.7a (issue #5601) — may `viewerId` pick the stack object
+ *  `stackItemId` for `choice`? Only a `battlefield-or-stack` source pick
+ *  reaches the stack, only its chooser picks, and only an id on its
+ *  `candidateIds` allow-list (the server's own gate — never a re-derivation
+ *  of "is this a spell"). */
+export function isStackChoiceCandidate(
+    choice: PendingChoice | undefined,
+    viewerId: string,
+    stackItemId: string
+): boolean {
+    return (
+        !!choice &&
+        choice.playerId === viewerId &&
+        choice.zone === "battlefield-or-stack" &&
+        (choice.candidateIds?.includes(stackItemId) ?? false)
+    );
 }
 
 /** Issue #1813 (review fixup, #1823) — does resolving this choice require the

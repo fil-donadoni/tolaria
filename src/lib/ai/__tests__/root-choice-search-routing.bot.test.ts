@@ -356,6 +356,31 @@ const FIXTURES: Partial<Record<PendingChoiceKind, () => GameState>> = {
                 ],
             }
         ),
+    // CR 609.7a (issue #5601) — "a source of your choice" (Circle of
+    // Protection): two of the opponent's red creatures, either one a legal
+    // source, so the pick is a real decision the driver hands to the search.
+    "pick-source": () => {
+        const state = stateWithBotChoice({
+            kind: "pick-source",
+            zone: "battlefield-or-stack",
+            count: 1,
+            candidateIds: ["bf-ogre", "bf-raiders"],
+            prompt: "Choose a red source.",
+        });
+        state.players[0]!.battlefield.push(
+            makeInstance(getCardByName("Gray Ogre").id, {
+                id: "bf-ogre",
+                controllerId: HUMAN,
+                ownerId: HUMAN,
+            }),
+            makeInstance(getCardByName("Mons's Goblin Raiders").id, {
+                id: "bf-raiders",
+                controllerId: HUMAN,
+                ownerId: HUMAN,
+            })
+        );
+        return state;
+    },
     // CR 608.2d (issue #5559) — Balance's "choose N to keep, the rest go":
     // keep one of two creatures of clearly different worth.
     "keep-permanents": () =>

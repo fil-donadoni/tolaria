@@ -13,6 +13,7 @@ import type { CardInstanceState, GameState, PendingChoice } from "./state";
 import { getPlayer, matchesPermanentFilter } from "./state";
 import { computeHardSkipFilters } from "./phases";
 import { effectivePermanentView } from "./permanentView";
+import { damageSourceChoicePool } from "./damageSourceChoice";
 
 /** The cards the chooser may legally include in a zone-pick submission — the
  *  enumeration mirror of `applyPendingChoiceSubmit`'s per-id validation: zone
@@ -42,6 +43,11 @@ export function eligibleZonePickCards(
         case "graveyard":
             pool = zoneOwner.graveyard;
             break;
+        case "battlefield-or-stack":
+            // CR 609.7a (issue #5601) — the source pool; the raise's
+            // `candidateIds` (applied below) carries its filter.
+            pool = damageSourceChoicePool(state);
+            break;
         default:
             pool = [];
     }
@@ -56,6 +62,9 @@ export function eligibleZonePickCards(
     }
     if (head.candidateIds) {
         cards = cards.filter((c) => head.candidateIds!.includes(c.id));
+    } else if (head.zone === "battlefield-or-stack") {
+        // Mirrors the submit validator: no allow-list admits nothing.
+        cards = [];
     }
     if (head.kind === "untap-pick") {
         // CR 502.3 — only tapped permanents that are allowed to untap.

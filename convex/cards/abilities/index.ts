@@ -8,11 +8,10 @@ import type {
     CardBackFace,
     CardDefinition,
     Color,
+    EffectCardFilter,
     EffectOp,
     ManaCost,
     Rarity,
-    SpellContext,
-    TargetRequirement,
 } from "../types";
 import { cyclingAbility } from "./cycling";
 
@@ -435,25 +434,28 @@ export function makeTriome(args: {
 /** Builds a "Circle of Protection: <X>" enchantment (CR 615 prevention).
  *  `{1}: The next time a <X> source of your choice would deal damage to
  *  you this turn, prevent that damage.` Drives the LEA color cycle (White/
- *  Blue/Black/Green/Red), the Beta-original Circle of Protection: Black, and
- *  ATQ's Circle of Protection: Artifacts.
+ *  Blue/Black/Green/Red), the Beta-original Circle of Protection: Black,
+ *  ATQ's Circle of Protection: Artifacts and Greater Realm of Preservation.
  *
- *  The `source` filter selects what kind of damage source can be chosen:
- *   - `{ kind: "color"; color; word }` — the LEA cycle. `colorFilter`
- *     restricts targets to sources of `color`; players can't be chosen
- *     (a player isn't a colored source).
- *   - `{ kind: "color-any"; colors; word }` — a multi-color "source of your
- *     choice" (Greater Realm of Preservation: "a black or red source").
- *     `colorFilterAny` restricts targets to sources that are AT LEAST ONE of
- *     `colors` (CR 202.2 — OR semantics); players can't be chosen.
- *   - `{ kind: "artifact"; word }` — COP: Artifacts. The target filter
- *     restricts to permanents/spells of the Artifact card type.
+ *  The ability is the Effect Script the Oracle compiler reads the line into
+ *  (issue #5601), so gold compares the two: a `pick-source` choice, then a
+ *  `"next-from-source"` shield on the picked id.
  *
- *  The resolve schedules a one-shot end-of-turn damage prevention against the
- *  chosen source via `preventNextDamageFromSource` (CR 615.1, 615.6). The
- *  shield is keyed on the chosen source's instance id, so the color predicate
- *  only gates the choice — once a legal source is picked, that exact source is
- *  shielded regardless of any later color change (CR 615.6). */
+ *  CR 609.7a — the source is CHOSEN as the ability resolves, never targeted
+ *  (CR 115.1): any permanent or any spell on the stack (a Lightning Bolt
+ *  aimed at you), shroud, hexproof and protection notwithstanding, and the
+ *  ability has no target to lose. The `source` filter is the printed
+ *  qualifier on that choice:
+ *   - `{ kind: "color"; color; word }` — the LEA cycle: a source of `color`.
+ *   - `{ kind: "color-any"; colors; word }` — "a black or red source"
+ *     (Greater Realm of Preservation): a source of ANY of `colors`.
+ *   - `{ kind: "artifact"; word }` — COP: Artifacts: an artifact source.
+ *
+ *  CR 615.1a / 609.7b — the shield is keyed on the chosen source's instance
+ *  id and carries the same qualifier as its `match`, RECHECKED when that
+ *  source would deal damage: a red source turned green deals its damage and
+ *  the shield is not used up. If no source qualifies, nothing is chosen and
+ *  no shield is made. */
 type CopSourceFilter =
     | { kind: "color"; color: Color; word: string }
     | { kind: "color-any"; colors: ReadonlyArray<Color>; word: string }
@@ -491,38 +493,35 @@ export function makeCircleOfProtection(args: {
      *  factory keeps the field explicit for non-CoP reuse). */
     manaCost?: ManaCost;
     /** Activation cost of the prevention ability. Defaults to {1} (the CoP
-     *  cycle); Greater Realm of Preservation uses {1}{W}. */
+     *  colour cycle); Circle of Protection: Artifacts uses {2}, Greater Realm
+     *  of Preservation {1}{W}. */
     activationCost?: ManaCost;
 }): CardDefinition {
     const source: CopSourceFilter =
         args.source ??
         ({ kind: "color", color: args.color!, word: args.colorWord! } as const);
-    // Artifact sources are matched by the Artifact card type (permanent or
-    // spell); single-color sources by `colorFilter`; multi-color "X or Y
-    // source" by `colorFilterAny` (CR 202.2 — OR semantics).
-    const targetRequirement: TargetRequirement =
+    // The printed qualifier, as the `pick-source` choice's filter: an
+    // artifact source by card type, a coloured one by colour (an array is
+    // "any of them" — "a black or red source").
+    const filter: EffectCardFilter =
         source.kind === "artifact"
-            ? {
-                  type: ["Artifact", "spell"],
-                  count: 1,
-                  spellTypeFilter: "Artifact",
-              }
+            ? { type: "Artifact" }
             : source.kind === "color-any"
-              ? {
-                    type: ["any", "spell"],
-                    count: 1,
-                    colorFilterAny: source.colors,
-                }
-              : {
-                    type: ["any", "spell"],
-                    count: 1,
-                    colorFilter: source.color,
-                };
+              ? { color: [...source.colors] }
+              : { color: source.color };
+    // CR 609.7b — the same qualifier as the shield's recheck.
+    const match: { colors?: Color[]; cardType?: "Artifact" } =
+        source.kind === "artifact"
+            ? { cardType: "Artifact" }
+            : source.kind === "color-any"
+              ? { colors: [...source.colors] }
+              : { colors: [source.color] };
     const activationCost: ManaCost = args.activationCost ?? { X: 1 };
     // CR 107 — render the activation cost as mana symbols for the ability's
     // oracle text ({N} generic, then WUBRG). Keeps the LEA cycle's "{1}:" and
     // Greater Realm's "{1}{W}:" in sync with the actual cost field.
     const costPrefix = formatActivationCost(activationCost);
+    const word = source.word.toLowerCase();
     return {
         id: args.id,
         name: args.name,
@@ -533,29 +532,29 @@ export function makeCircleOfProtection(args: {
         activatedAbilities: [
             {
                 id: "cop-prevent",
-                oracleText: `${costPrefix}: The next time a ${source.word.toLowerCase()} source of your choice would deal damage to you this turn, prevent that damage.`,
+                oracleText: `${costPrefix}: The next time ${/^[aeiou]/.test(word) ? "an" : "a"} ${word} source of your choice would deal damage to you this turn, prevent that damage.`,
                 cost: { mana: activationCost },
                 useStack: true,
-                targetRequirement,
-                // AI shadow (issue #4142, never executed): a flat shield
-                // against the chosen source. The "next time, to you" scope has
-                // no Op (`all-from-source` also covers other recipients), so
-                // the sketch prices the protection, not its exact reach.
-                aiEffects: [
+                effects: [
+                    {
+                        op: "choice",
+                        kind: "pick-source",
+                        player: "controller",
+                        zone: "battlefield-or-stack",
+                        filter,
+                        count: 1,
+                        prompt: `Choose ${/^[aeiou]/.test(word) ? "an" : "a"} ${word} source.`,
+                        bind: "$chosen",
+                    },
                     {
                         op: "preventDamage",
-                        mode: "all-from-source",
-                        source: { target: 0 },
+                        mode: "next-from-source",
+                        source: { ref: "$chosen" },
+                        to: { player: "controller" },
+                        duration: { phase: "end-of-turn" },
+                        match,
                     },
                 ],
-                resolve: (ctx: SpellContext) => {
-                    const [target] = ctx.targets;
-                    if (!target) return;
-                    if (target.type === "player") return; // not a valid source
-                    ctx.preventNextDamageFromSource(target.id, ctx.controller, {
-                        phase: "end-of-turn",
-                    });
-                },
             },
         ],
     };

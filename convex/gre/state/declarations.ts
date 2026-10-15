@@ -53,6 +53,7 @@ import type {
     LookDistributeKeepTo,
     ManaRestriction,
     PendingChoiceKind,
+    PendingChoiceZone,
     Phase,
     PhaseReturnCondition,
     RandomKind,
@@ -1748,6 +1749,12 @@ export type PreventionEffect = {
     /** The player whose incoming damage is prevented. */
     playerId: string;
     duration: Duration;
+    /** CR 609.7b (issue #5601) — the printed qualifier of "a <colour|type>
+     *  source of your choice", RECHECKED when the source would deal damage:
+     *  a source that no longer has the property is not prevented, and the
+     *  shield is not used up. Colours are an OR-set (CR 202.2 — "a black or
+     *  red source"). Absent for "a source of your choice". */
+    match?: { colors?: Color[]; cardType?: CardType };
 };
 
 /** A damage-prevention shield on a specific target (CR 615.1). Absorbs up to
@@ -3161,8 +3168,11 @@ export type PendingChoice = {
      *  `graveyard` picks (Recall) always carry a `candidateIds` allow-list — a
      *  graveyard is a public zone, so the submit-validator gates eligibility on
      *  `candidateIds` rather than a hidden-zone snapshot. `exile` (issue
-     *  #1156 — Dauthi Voidwalker) is the same public-zone shape. */
-    zone?: "battlefield" | "hand" | "library" | "graveyard" | "exile";
+     *  #1156 — Dauthi Voidwalker) is the same public-zone shape.
+     *  `battlefield-or-stack` (CR 609.7a, issue #5601) is the `pick-source`
+     *  pool — permanents AND spells on the stack — and, like `graveyard`,
+     *  always carries `candidateIds` (never a `filter`). */
+    zone?: PendingChoiceZone;
     /** Optional battlefield filter (card types / subtypes / keywords). Ignored
      *  for hand choices. */
     filter?: PermanentFilter;
