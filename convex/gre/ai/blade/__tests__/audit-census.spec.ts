@@ -34,7 +34,7 @@ const BY_FIELD: CensusScenario[] = [
         label: "blink anchor",
         tier: "stretch",
         audit: { theme: BLINK },
-        beyondBudget: { cause: "search-depth", note: "issue #111 open" },
+        beyondBudget: { cause: "branching", note: "issue #111 open" },
     },
     {
         label: "blink half",
