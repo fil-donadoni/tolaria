@@ -28,3 +28,10 @@ issue #5575 review.
 should weigh as `gate: { undecidable: true }` does, as Mask of Intolerance's
 trigger already declares. The alternative is a declarative condition the lens
 can read per side.
+
+**Since issue #5574 landed.** `eachStepDifferentialValue` now takes the
+trigger's `interveningIf` as a per-side step gate (`stepGateOf`,
+`convex/gre/ai/cardScriptValue.ts`), so the condition is no longer ignored. It
+is still asked of the CURRENT board: "no creatures attacked this turn" holds in
+a precombat main phase, and the recurrence multiplies that snapshot. The
+residue is the snapshot reading, not a missing gate.
