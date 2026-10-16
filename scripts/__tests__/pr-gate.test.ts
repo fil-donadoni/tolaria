@@ -87,6 +87,36 @@ describe("trusted-author", () => {
         expect(s.description).toMatch(/owner merges it by hand/);
     });
 
+    it("is red for a PR touching Mergify's other config directory", () => {
+        expect(
+            trustedAuthorStatus(pr({ files: [".mergify/config.yml"] }), TRUSTED)
+                .state
+        ).toBe("failure");
+    });
+
+    it("is red when the file list is truncated — it proves nothing", () => {
+        const s = trustedAuthorStatus(
+            pr({ files: ["a.ts"], changedFiles: 3500 }),
+            TRUSTED
+        );
+        expect(s.state).toBe("failure");
+        expect(s.description).toMatch(/truncated \(1 of 3500\)/);
+        expect(
+            trustedAuthorStatus(
+                pr({ files: ["a.ts"], changedFiles: 1 }),
+                TRUSTED
+            ).state
+        ).toBe("success");
+    });
+
+    it("never echoes a control character from a path", () => {
+        const s = trustedAuthorStatus(
+            pr({ files: [".github/x\n::error::forged"] }),
+            TRUSTED
+        );
+        expect(s.description).not.toMatch(/[\n\r]/);
+    });
+
     it("is red for a PR touching .mergify.yml", () => {
         const s = trustedAuthorStatus(pr({ files: [".mergify.yml"] }), TRUSTED);
         expect(s.state).toBe("failure");
@@ -232,13 +262,13 @@ describe("base-health", () => {
         ).toBe("success");
     });
 
-    it("an unreadable store admits, as the land-runner does, and says so", () => {
+    it("an unreadable store holds the PR pending — never a green that outlives the outage", () => {
         const s = baseHealthStatus({
             lineage: { kind: "none", verdict: null, error: "HTTP 502" },
             prBody: "",
             repairIssues: [],
         });
-        expect(s.state).toBe("success");
+        expect(s.state).toBe("pending");
         expect(s.description).toMatch(/unreadable/);
     });
 

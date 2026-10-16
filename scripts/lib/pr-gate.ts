@@ -24,15 +24,18 @@ import {
 export const TRUSTED_AUTHOR_CONTEXT = "trusted-author";
 export const BASE_HEALTH_CONTEXT = "base-health";
 
-/** Paths a queued PR may never touch: the gates themselves. */
-const PROTECTED_DIR = ".github/";
+/** Paths a queued PR may never touch: the gates themselves — workflows and
+ *  both places Mergify reads its configuration from. */
+const PROTECTED_PREFIXES = [".github/", ".mergify/"];
 const PROTECTED_FILE = ".mergify.yml";
 
 /** The account Mergify opens its queue PRs as, and their branch prefix. */
 export const MERGIFY_LOGIN = "mergify[bot]";
 export const MERGIFY_QUEUE_BRANCH = "mergify/merge-queue/";
 
-export type GateState = "success" | "failure";
+/** `pending` holds the queue without blaming the PR: the gate could not
+ *  read what it decides on, and the next sweep decides again. */
+export type GateState = "success" | "failure" | "pending";
 
 /** One commit status, as `POST /repos/{repo}/statuses/{sha}` takes it. */
 export interface GateStatus {
@@ -53,6 +56,9 @@ export interface GatePr {
     baseRepo: string;
     /** Every path the PR touches — a rename contributes both its names. */
     files: readonly string[];
+    /** The PR's own count of changed files; `files` may be shorter (the
+     *  REST list stops at 3000) — then the list proves nothing. */
+    changedFiles?: number;
 }
 
 /** The REST `pull_request` fields the gate reads (event payload or
@@ -64,6 +70,7 @@ export interface RestPr {
     head: { sha: string; ref: string; repo: { full_name: string } | null };
     base: { repo: { full_name: string } };
     labels?: { name: string }[];
+    changed_files?: number;
 }
 
 export function gatePrOf(raw: RestPr, files: readonly string[]): GatePr {
@@ -76,6 +83,7 @@ export function gatePrOf(raw: RestPr, files: readonly string[]): GatePr {
         headRepo: raw.head.repo?.full_name ?? "",
         baseRepo: raw.base.repo.full_name,
         files,
+        changedFiles: raw.changed_files,
     };
 }
 
@@ -113,7 +121,9 @@ export function protectedPaths(files: readonly string[]): string[] {
     return [
         ...new Set(
             files.filter(
-                (f) => f.startsWith(PROTECTED_DIR) || f === PROTECTED_FILE
+                (f) =>
+                    PROTECTED_PREFIXES.some((p) => f.startsWith(p)) ||
+                    f === PROTECTED_FILE
             )
         ),
     ].sort();
@@ -145,12 +155,19 @@ export function trustedAuthorStatus(
             "failure",
             `@${pr.author} is not in TRUSTED_AUTHORS — the owner reviews and merges it`
         );
+    if (pr.changedFiles !== undefined && pr.changedFiles > pr.files.length)
+        return status(
+            "failure",
+            `file list truncated (${pr.files.length} of ${pr.changedFiles}) — cannot prove .github/ untouched; the owner merges it by hand`
+        );
     const touched = protectedPaths(pr.files);
     if (touched.length > 0) {
         const more = touched.length > 1 ? ` (+${touched.length - 1} more)` : "";
+        // A path may hold control characters (a forged workflow command).
+        const first = touched[0].replace(/[\x00-\x1f\x7f]/g, "?");
         return status(
             "failure",
-            `touches ${touched[0]}${more} — never queueable, the owner merges it by hand`
+            `touches ${first}${more} — never queueable, the owner merges it by hand`
         );
     }
     return status("success", `@${pr.author} is a trusted author`);
@@ -189,9 +206,10 @@ const short = (sha: string | undefined) => (sha ?? "?").slice(0, 8);
 
 /**
  * `base-health` for one PR. `lineage` is `readVerdictLineage`'s total
- * reading: an unreadable store reads as no RED — the land-runner's own
- * fail-open (a GitHub 502 must not hold the whole queue), said in the
- * description. `repairIssues` is only consulted under RED.
+ * reading. An unreadable store is `pending`, never a green: the land-runner
+ * re-reads every tick, but a status stands until the next event, so a green
+ * posted through a 502 would admit a PR onto a RED base for hours. The
+ * scheduled sweep decides again. `repairIssues` is only consulted under RED.
  */
 export function baseHealthStatus(input: {
     lineage: Lineage & { error?: string };
@@ -214,8 +232,8 @@ export function baseHealthStatus(input: {
     if (!red) {
         if (lineage.error)
             return status(
-                "success",
-                "health verdict unreadable — admitted as if no RED stands (the land-runner's rule)"
+                "pending",
+                "health verdict unreadable — held until a sweep reads it"
             );
         if (lineage.kind === "none")
             return status("success", "no health verdict on the base yet");

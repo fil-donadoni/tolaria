@@ -12,7 +12,9 @@
 # Re-gate: a `health` or `health-fix` commit status (a verdict, or a repair
 # issue recorded on the pivot) re-runs the gate over every open PR labelled
 # `ready-to-land` — a RED holds the queue, a GREEN or AMBER reopens it.
-# `workflow_dispatch` does the same by hand (input `pr`: one PR only).
+# A 15-minute schedule sweeps the same queue; `workflow_dispatch` does it by
+# hand (input `pr`: one PR only). GitHub cannot filter `status` by context:
+# every other status written with a personal token shows as a SKIPPED run.
 # docs/guides/github-pipeline.md § pr-gate.
 name: pr-gate
 
@@ -22,6 +24,10 @@ on:
         # RED is re-gated when it enters the queue.
         types: [opened, synchronize, reopened, edited, labeled]
     status:
+    # The sweep that heals what no event re-gates: a store read that failed
+    # (`pending`), a race between a PR's run and a re-gate.
+    schedule:
+        - cron: "*/15 * * * *"
     workflow_dispatch:
         inputs:
             pr:

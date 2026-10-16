@@ -9,16 +9,17 @@
  * Which PRs:
  *  - `pull_request_target` — the event's PR (`GITHUB_EVENT_PATH`);
  *  - any other event (`status` of a `health` / `health-fix` write,
- *    `workflow_dispatch`) — every open PR labelled `ready-to-land`, so a new
+ *    the scheduled sweep, `workflow_dispatch`) — every open PR labelled `ready-to-land`, so a new
  *    RED holds the queue and a GREEN reopens it;
  *  - `--pr <N>` — that PR, whatever the event (a hand-run re-gate).
  *
  * Env: `GITHUB_REPOSITORY` (else the origin remote), `TRUSTED_AUTHORS` (the
  * repository variable), `GH_TOKEN` (statuses: write), and the run's
  * `GITHUB_SERVER_URL` / `GITHUB_RUN_ID` for each status's link.
- * `--dry-run` prints the statuses and posts nothing. One PR that cannot be
- * read or written is reported and skipped (its statuses stay as they were —
- * a missing status is not green), and the run exits 1.
+ * `--dry-run` prints the statuses and posts nothing. Each status is decided
+ * and posted on its own: one that cannot be read or written is reported and
+ * skipped, and the run exits 1. An unreadable verdict store posts
+ * `base-health` `pending` and exits 1.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -142,23 +143,38 @@ function main(): number {
         `pr-gate: health lineage ${lineage.kind}${lineage.verdict ? ` @ ${lineage.verdict.sha.slice(0, 8)}` : ""}; ${trusted.length} trusted author(s); ${prs.length} PR(s)`
     );
 
-    let failed = 0;
+    // A store that cannot be read posts `pending` and reds the run, so the
+    // outage shows on the Actions tab; the scheduled sweep decides again.
+    let failed = lineage.error ? 1 : 0;
+    const show = (pr: number, sha: string, s: GateStatus) =>
+        console.log(
+            `PR #${pr} @ ${sha.slice(0, 8)}: ${s.context} ${s.state} — ${s.description}`
+        );
     for (const raw of prs) {
-        try {
-            const pr = gatePrOf(raw, prFiles(run, repo, raw.number));
-            const statuses = [
-                trustedAuthorStatus(pr, trusted),
-                baseHealthStatus({ lineage, prBody: pr.body, repairIssues }),
-            ];
-            for (const s of statuses) {
-                console.log(
-                    `PR #${pr.number} @ ${pr.headSha.slice(0, 8)}: ${s.context} ${s.state} — ${s.description}`
-                );
-                if (!dryRun) post(run, repo, pr.headSha, s, targetUrl);
+        // Each status on its own: `base-health` needs no file list, and a
+        // failed read of one must never leave the other's old green standing.
+        const decide: Array<() => GateStatus> = [
+            () =>
+                baseHealthStatus({
+                    lineage,
+                    prBody: raw.body ?? "",
+                    repairIssues,
+                }),
+            () =>
+                trustedAuthorStatus(
+                    gatePrOf(raw, prFiles(run, repo, raw.number)),
+                    trusted
+                ),
+        ];
+        for (const status of decide) {
+            try {
+                const s = status();
+                show(raw.number, raw.head.sha, s);
+                if (!dryRun) post(run, repo, raw.head.sha, s, targetUrl);
+            } catch (e) {
+                failed++;
+                console.error(`PR #${raw.number}: ${(e as Error).message}`);
             }
-        } catch (e) {
-            failed++;
-            console.error(`PR #${raw.number}: ${(e as Error).message}`);
         }
     }
     return failed === 0 ? 0 : 1;
