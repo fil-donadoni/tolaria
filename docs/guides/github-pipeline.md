@@ -225,7 +225,9 @@ By [runner labels](#g-label), never by a `concurrency` group: a group keeps
 ONE pending job and cancels the older pending one, which would silently drop
 a queue check or a health run. One [`lane`](#g-lane) runner per machine
 already runs one heavy job at a time. A hosted-only workflow may use a group
-with `cancel-in-progress` to drop a superseded run (`pr-check` does).
+with `cancel-in-progress` to drop a superseded run (`pr-check` does). The one
+self-hosted exception is the [dispatcher](#g-dispatcher), which MUST run one
+at a time ([§ afk-dispatch](#afk-dispatch)).
 
 ## Workflows
 
@@ -235,6 +237,7 @@ with `cancel-in-progress` to drop a superseded run (`pr-check` does).
 | [`pr-check`](#required-checks) `refusals` | same                                                 | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`         |
 | [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0) |
 | [`pr-refresh`](#pr-refresh)               | push to the base branch                              | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches         |
+| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch      | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                 |
 
 ### pr-check
 
@@ -360,6 +363,104 @@ git push origin --delete lane-timing/pr-<N>          # afterwards
 It exists for ADR 0156 §10's measurement (hosted vs local lane); it is also
 the reference shape of a self-hosted job.
 
+### afk-dispatch
+
+`.github/workflows/afk-dispatch.yml` runs `bun run afk:dispatch`
+(`scripts/afk-dispatch.ts`; every decision is a pure function in
+`scripts/lib/afk-dispatch.ts`). It is the one place an AFK
+[pass](#g-pass) starts from (ADR 0156 Amendment I): it picks as many issues
+as there are free `pass` slots, claims each (`in-progress`, re-read just
+before), and dispatches `afk-pass.yml` with inputs `issue`, `model` (the
+picker's tier), `resume` and `host`.
+
+**Triggers.** An issue labelled `ready-for-agent` (any other label skips the
+job), a 30-minute `schedule` sweep, and `workflow_dispatch` — which every
+`afk-pass` run sends at its end, so a freed runner is refilled at once.
+
+**One run at a time, across both machines.** The job declares
+`concurrency: { group: afk-dispatch, cancel-in-progress: false }`: a running
+dispatcher is never cancelled mid-claim, and a newer trigger displaces an
+older pending one — harmless, since every run re-reads every fact. It is the
+structure guard's one allowed group on a self-hosted job, and the guard
+requires it (`dispatcher-serialised`); at job level, so a skipped run (an
+`in-progress` label the dispatcher itself adds) never displaces a pending
+one. Behind it, a fresh claim is taken only if the issue, read again, is
+still queued and unclaimed.
+
+**Free slots.** Every online, idle `pass` runner, plus the dispatcher's own
+(it frees within seconds), minus the `afk-pass` runs still waiting for a
+runner.
+
+**What it picks** — through the picker (`scripts/lib/picker.ts`, the
+`queue:plan` order and admission, [trusted authors](#g-trusted-authors) only,
+HITL excluded):
+
+1. **Resume** a dead pass: a claim whose last `afk-pass` run ended, with its
+   branch pushed (or a PR the queue labelled `land-failed`). Pinned to the
+   host that ran it (`host` input) while that host has a `pass` runner
+   online — it waits there for a free slot; unpinned once the host is
+   offline, since the branch is pushed.
+2. **Release** an orphan: a claim whose last `afk-pass` run ended with
+   nothing pushed.
+3. **Fresh picks**, in the picker's order, one per remaining slot.
+
+A claim is never touched while an `afk-pass` run for it is queued or
+running, while its PR waits in the queue (open, not `land-failed`), or when
+no `afk-pass` run for it exists at all — that claim is a session outside the
+pipeline (an owner's `/next-ticket`), and the dispatcher has no evidence to
+act on it. A pass run names its issue in its run name: `afk-pass #<N>`.
+
+**Holds** — the run dispatches nothing, prints why in its log and job
+summary, and exits 0 ("nothing to do"); the next trigger re-checks. In order:
+
+| Hold               | Holds while                                                                                                                   | Lifts when                                                                      |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `no-pass-workflow` | `afk-pass.yml` is absent or disabled on the default branch (until issue #5650 lands, the dispatcher is inert)                 | `afk-pass.yml` is on the default branch and enabled                             |
+| `failure-streak`   | the last three completed `afk-pass` runs failed (`failure`, `timed_out`, `startup_failure`; a `cancelled` run is passed over) | the owner acknowledges: `gh workflow run afk-dispatch.yml -f ack_failures=true` |
+| `red`              | the base's health verdict is RED (the `health` commit status, ADR 0116)                                                       | health reads GREEN or AMBER                                                     |
+| `usage-limit`      | a pass's record names a usage-limit reset time still in the future                                                            | that time passes                                                                |
+| `no-budget`        | the repository variable `AFK_TOKEN_BUDGET` is unset or 0 — the dispatcher never runs unbudgeted (ADR 0109)                    | the owner sets it                                                               |
+| `budget`           | the [budget reading](#g-budget-reading) is at or past `AFK_BUDGET_MAX_PCT` of `AFK_TOKEN_BUDGET`                              | the window slides past the spend                                                |
+| (no free runner)   | every `pass` runner is busy or offline                                                                                        | a pass ends (it dispatches the dispatcher)                                      |
+
+The **failure streak** is the one hold that fails a run: the first
+dispatcher run that sees it exits 1, so GitHub sends ONE failure email; later
+runs see that failed run and hold quietly. Read the failed passes, then
+acknowledge — the `ack_failures` dispatch carries `failures acknowledged` in
+its run name, and only pass runs completed after it count. The **RED** hold
+never blocks the fixer: the fixer is `health-fix.yml`'s (issue #5646), not a
+dispatched pass.
+
+**Repository variables** (Actions → Variables; admin-only):
+
+| Variable             | Meaning                                                         | Default |
+| -------------------- | --------------------------------------------------------------- | ------- |
+| `AFK_TOKEN_BUDGET`   | weighted tokens (`usage:window`'s unit) per window — required   | none    |
+| `AFK_BUDGET_MAX_PCT` | percentage of the budget past which nothing new is dispatched   | 80      |
+| `AFK_BUDGET_HOURS`   | the trailing window, hours                                      | 5       |
+| `TRUSTED_AUTHORS`    | [trusted authors](#g-trusted-authors), commas or spaces between | owner   |
+
+**The pass record.** Each `afk-pass` run uploads an artifact
+`afk-pass-record` holding `record.json` (`PassRecord`, version 1, in
+`scripts/lib/afk-dispatch.ts`): issue, PR, outcome, host, start and end,
+duration, tokens per model, cost, and — when the pass hit the usage limit —
+`usageLimitResetAt`. Numbers only: no Claude output.
+
+**Kill switch.** Disable the workflow — Actions tab → afk-dispatch → "Disable
+workflow", from any browser, or:
+
+```bash
+gh workflow disable afk-dispatch.yml   # no new pass starts; running passes finish
+gh workflow enable afk-dispatch.yml    # resume; the next trigger dispatches
+```
+
+A pass already running is not touched; when it ends, the dispatch it sends
+finds the workflow disabled and nothing starts. Its claim stays, and the
+next enabled run resumes or releases it.
+
+A dry run prints the plan without claiming, releasing or dispatching, on a
+machine with the owner's `gh` login: `bun run afk:dispatch --dry-run`.
+
 ## The structure guard
 
 `scripts/__tests__/workflow-structure.test.ts` runs the pure check in
@@ -377,7 +478,8 @@ lane, issue #4963). Each line it prints names a rule:
 | `local-action-unscanned`       | a `uses: ./…` is not a `.github/actions/<name>/action.y[a]ml` the guard reads                                                                                                                                                   |
 | `no-timeout`                   | a job has no positive `timeout-minutes`                                                                                                                                                                                         |
 | `no-toolchain`                 | a `run:` step comes before `uses: ./.github/actions/job-setup`                                                                                                                                                                  |
-| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency`                                                                                                                                                            |
+| `concurrency-group`            | a self-hosted job, or a workflow holding one, declares `concurrency` — except the dispatcher's job-level group below                                                                                                            |
+| `dispatcher-serialised`        | a job of `afk-dispatch.yml` lacks a job-level `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice                                                                                |
 | `self-hosted-clone`            | a self-hosted job uses `actions/checkout`                                                                                                                                                                                       |
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                         |
 | `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                             |
@@ -409,6 +511,10 @@ in the repository's Settings; a slice that needs a new one adds its row here.
 - [ ] **Actions → Variables → Repository variable
       [`TRUSTED_AUTHORS`](#g-trusted-authors)**, seeded with the owner's login
       (who also authors the loop's PRs). Admin-only, out of any PR's reach.
+- [ ] **Actions → Variables → `AFK_TOKEN_BUDGET`** (and, optionally,
+      `AFK_BUDGET_MAX_PCT`, `AFK_BUDGET_HOURS`) before the
+      [dispatcher](#g-dispatcher) is meant to start passes
+      ([§ afk-dispatch](#afk-dispatch)); unset, it holds.
 - [ ] **No secret in a PR job.** Claude's and `gh`'s credentials stay on the
       machines, in the owner's user; a workflow never reads them from GitHub
       secrets.
@@ -527,6 +633,25 @@ first `run:` step — token mask, pinned node and bun, `worktree:init`.
 `scripts/__tests__/workflow-structure.test.ts`: the test that fails when a
 workflow file, the job setup or `.mergify.yml` breaks a security or
 correctness invariant ([§ The structure guard](#the-structure-guard)).
+
+### <a id="g-dispatcher"></a>Dispatcher
+
+`afk-dispatch.yml`: the one workflow that starts AFK [passes](#g-pass) —
+picks, claims, dispatches, or holds; one run at a time
+([§ afk-dispatch](#afk-dispatch)).
+
+### <a id="g-hold"></a>Hold
+
+A reason the [dispatcher](#g-dispatcher) starts no pass this time (RED,
+usage limit, budget, failure streak, no pass workflow, no free runner). A
+hold is a run that exits 0 with "nothing to do", never a waiting process.
+
+### <a id="g-budget-reading"></a>Budget reading
+
+This machine's token use over the window (`usage:window`'s weighted local
+transcripts — the owner's sessions and this machine's passes) plus the other
+machine's pass records that ended in it. The owner's sessions on the OTHER
+machine are not in it: set the budget with that headroom.
 
 ### <a id="g-trusted-authors"></a>`TRUSTED_AUTHORS`
 
