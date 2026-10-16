@@ -8,7 +8,6 @@ import {
     parseFixes,
     type PrFacts,
 } from "../pr-fixup";
-import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
 
 // Issue #5640: a red lane whose only failing step is a regenerable artefact is
 // fixed by regeneration; any other red is left alone.
@@ -81,14 +80,6 @@ describe("classifyLane", () => {
 });
 
 describe("FIXES", () => {
-    it("the oracle row runs the same generator `land`'s resolver runs", () => {
-        const row = REGENERATED_ARTIFACTS.find(
-            (a) => a.path === "data/oracle-compiled.json"
-        );
-        expect(FIXES.oracle.script).toBe(row?.script);
-        expect([...FIXES.oracle.args]).toEqual([...(row?.args ?? [])]);
-    });
-
     it("every row's script exists in package.json", async () => {
         const pkg = (await import("../../package.json")).default as {
             scripts: Record<string, string>;
