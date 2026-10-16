@@ -126,7 +126,7 @@ const SKILL_MANIFEST_CEILING_BYTES: Record<string, number> = {
     "new-op": 15_073,
     "create-ticket": 16_518,
     "new-set": 33_135,
-    "next-ticket": 11_000,
+    "next-ticket": 11_300, // +285 B: the `job.md` pointer and its one-line cue (issue #5641)
     prototype: 2_931,
     retro: 4_760,
     "to-prd": 6_076,

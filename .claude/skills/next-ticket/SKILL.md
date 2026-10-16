@@ -25,11 +25,9 @@ this file and nothing else.
   hand. Read it when: you are about to run `gh issue create`.
 - → `gap-holes.md` — each hole has an issue, parent, band. Read it when: a
   gap issue lands.
-- → `job.md` — how a pass differs inside an `afk-pass` GitHub Actions job
-  (`GITHUB_ACTIONS=true`): the issue is given, the claim is a label the
-  dispatcher set, the worktree is the job's, work is pushed early, a repair
-  reads `gh run view --log-failed`. Read it when: `GITHUB_ACTIONS` is `true`
-  in the environment (an attended terminal never needs it).
+- → `job.md` — a pass inside an `afk-pass` job: given issue, label claim,
+  job worktree, early push, repair from the failed run's log. Read it when:
+  `GITHUB_ACTIONS=true`.
 - → `hygiene.md` — why each context-hygiene habit below exists, and where
   its measurement lives. Read it when: a habit seems not to fit your case.
 
@@ -85,8 +83,8 @@ verdict — handed off, or a failure reported as a failure.
 
 ## 0. Pick
 
-**In an `afk-pass` job** (`GITHUB_ACTIONS=true`) the issue is given and
-§§ 1–2 differ: read `job.md` now and take its row, not this step's commands.
+**In an `afk-pass` job** (`GITHUB_ACTIONS=true`): `job.md` first; its rows
+replace §§ 0–2's commands.
 
 - `/next-ticket 1234` → that issue. Otherwise `bun run queue:plan --cap 1
 --pretty` picks the top unclaimed `ready-for-agent` issue (band → standalone
@@ -129,8 +127,6 @@ label = Sonnet), or the pass has stopped.
 
 ## 2. Claim + worktree
 
-**In a job: no `queue:claim`, no `wt:new`** — `job.md`.
-
 - `bun run queue:claim N` — one locked act. Refusal `claimed` → pick the
   next issue; `cap` → stop (`--no-cap` is an announced escape, never for a
   pass). Never hand-type `--add-label in-progress`.
@@ -168,7 +164,6 @@ The short path is keyed on the LANE, never on how simple the card reads.
 - Touching the Bot (`convex/gre/{search,evaluate,moves,applyMove,ai}`,
   `src/lib/ai/`, `convex/limited/botDrafter`) → `/bot-change` FIRST, find
   your row in its Seams table.
-- **In a job, push after every commit** (`job.md` § Push early).
 - **COMMIT BEFORE YOU BREAK ANYTHING.** Proof-of-failure = break → run →
   revert against a committed baseline; `git checkout <file>` on uncommitted
   work discards the implementation. **Assert the patch applied** (`grep -c`
