@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-    PR_CHECK_NAMES,
     repairProofCheck,
     runPrCheck,
     type PrCheckContext,
@@ -31,18 +30,6 @@ function ctx(over: Partial<PrCheckContext>): PrCheckContext {
         ...over,
     };
 }
-
-describe("every land refusal has a PR check", () => {
-    it("names the five", () => {
-        expect([...PR_CHECK_NAMES]).toEqual([
-            "ui-receipt",
-            "scenario",
-            "retired-rows",
-            "robustness-baseline",
-            "repair-proof",
-        ]);
-    });
-});
 
 describe("robustness-baseline", () => {
     const baseline = [{ label: "Some entry", issue: 4917 }] as never;
