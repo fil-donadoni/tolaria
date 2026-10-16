@@ -3,6 +3,11 @@
 # no ruleset requires it; `land` still pays the lane that gates the merge. It
 # runs on the merge ref — the PR merged into the current base, what would land.
 #
+# The `land` refusals run here too, one job per check (issue #5639): the
+# check:ui receipt, the preset scenario, the retired rows, the robustness
+# baseline and the repair proof — `scripts/pr-checks.ts`, the same pure
+# functions `land` calls. Also advisory until a ruleset names them.
+#
 # GitHub-hosted on purpose: a `pull_request` can come from a fork, and no job
 # an outsider can trigger ever reaches the owner's machines (the structure
 # guard, scripts/__tests__/workflow-structure.test.ts). No secret, read-only
@@ -34,3 +39,28 @@ jobs:
             - uses: ./.github/actions/job-setup
             - name: check:lane
               run: bun run check:lane
+
+    refusals:
+        name: ${{ matrix.check }}
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                check:
+                    - ui-receipt
+                    - scenario
+                    - retired-rows
+                    - robustness-baseline
+                    - repair-proof
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: pr:checks ${{ matrix.check }}
+              env:
+                  PR_BODY: ${{ github.event.pull_request.body }}
+                  GH_TOKEN: ${{ github.token }}
+              run: bun run pr:checks ${{ matrix.check }}

@@ -219,6 +219,14 @@ export function skinReceiptInvalidForDiff(
     return !hasNoWalkOwedLine(prBody);
 }
 
+/** The refusal text for `skinReceiptInvalid` — `land` and the `pr-checks`
+ *  receipt check (issue #5639) print the same words. */
+export const SKIN_RECEIPT_REFUSAL =
+    "landing diff reaches the DOM and its pasted check:ui receipt failed verification " +
+    "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
+    "`bun run verify:ui-receipt <PR#>` names the problem. A diff that owes no walk " +
+    "(`bun run check:ui -- --scope-only` says `not owed`) states `check:ui: no walk owed (<reason>)` instead";
+
 /**
  * A `src/**` diff made ONLY of test files cannot reach the DOM, so it owes
  * no `check:ui` receipt (ADR 0110 §4; `.claude/rules/chrome-debug.md`
@@ -530,12 +538,7 @@ export function refusalReason(facts: LandFacts): string | null {
     }
     if (mode === "housekeeping") return null;
     if (facts.skinReceiptInvalid) {
-        return (
-            "landing diff reaches the DOM and its pasted check:ui receipt failed verification " +
-            "— every verdict line must be PASS and the verdict block must match the one re-derived from the diff's scope; " +
-            "`bun run verify:ui-receipt <PR#>` names the problem. A diff that owes no walk " +
-            "(`bun run check:ui -- --scope-only` says `not owed`) states `check:ui: no walk owed (<reason>)` instead"
-        );
+        return SKIN_RECEIPT_REFUSAL;
     }
     if (facts.scenarioRefusal) {
         return facts.scenarioRefusal;
