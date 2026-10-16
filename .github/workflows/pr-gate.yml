@@ -1,0 +1,68 @@
+# pr-gate — the two commit statuses the merge queue requires (ADR 0156 §3 and
+# §8, issue #5637): `trusted-author` and `base-health`, posted on the PR's
+# head by scripts/pr-gate.ts (decisions: scripts/lib/pr-gate.ts).
+#
+# `pull_request_target` runs the BASE's workflow and code with a token that
+# can write statuses, so the job checks out the base only (the structure
+# guard refuses a `ref:` / `repository:` there) and reads the PR as data —
+# author, body, file list — through the API, never its tree. Nothing of the
+# PR is interpolated into a `run:` line. GitHub-hosted: no job here reaches
+# the owner's machines. No secret: the job's own token.
+#
+# Re-gate: a `health` or `health-fix` commit status (a verdict, or a repair
+# issue recorded on the pivot) re-runs the gate over every open PR labelled
+# `ready-to-land` — a RED holds the queue, a GREEN or AMBER reopens it.
+# A 15-minute schedule sweeps the same queue; `workflow_dispatch` does it by
+# hand (input `pr`: one PR only). GitHub cannot filter `status` by context:
+# every other status written with a personal token shows as a SKIPPED run.
+# docs/guides/github-pipeline.md § pr-gate.
+name: pr-gate
+
+on:
+    pull_request_target:
+        # `edited`: the body decides a repair; `labeled`: a PR gated before a
+        # RED is re-gated when it enters the queue.
+        types: [opened, synchronize, reopened, edited, labeled]
+    status:
+    # The sweep that heals what no event re-gates: a store read that failed
+    # (`pending`), a race between a PR's run and a re-gate.
+    schedule:
+        - cron: "*/15 * * * *"
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: "Re-gate one PR (number); empty = every ready-to-land PR"
+                required: false
+                default: ""
+
+permissions:
+    contents: read
+    pull-requests: read
+    statuses: write
+
+jobs:
+    gate:
+        name: trusted-author + base-health
+        if: >-
+            github.event_name != 'status' ||
+            github.event.context == 'health' ||
+            github.event.context == 'health-fix'
+        runs-on: ubuntu-24.04
+        # Hosted only: a newer event supersedes the older run of the same PR
+        # (or of the queue sweep). On the JOB, after its `if:`, so a status
+        # of another context (`health-run`, `ui-walk`) never cancels a sweep.
+        concurrency:
+            group: pr-gate-${{ github.event.pull_request.number || inputs.pr || 'queue' }}
+            cancel-in-progress: true
+        timeout-minutes: 15
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+              with:
+                  persist-credentials: false
+            - uses: ./.github/actions/job-setup
+            - name: Post the statuses
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
+                  PR_INPUT: ${{ inputs.pr }}
+              run: bun scripts/pr-gate.ts ${PR_INPUT:+--pr "$PR_INPUT"}
