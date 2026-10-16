@@ -1,0 +1,42 @@
+# pr-refresh — on every push to the base, rebase the queued PRs the push
+# conflicts with or touches, with the merge drivers and the generated-artefact
+# resolver GitHub and Mergify do not run (ADR 0156 Amendment I, issue #5638).
+# A conflict outside generated files labels the PR `land-failed` (a repair
+# pick). Pushes go out under the OWNER's credentials, never the workflow
+# token — a push made with GITHUB_TOKEN does not trigger the PR's checks.
+#
+# `branches:` names the base by literal because a workflow cannot read
+# tolaria.config.json: renaming the base (ADR 0116) means editing this line
+# (docs/guides/github-pipeline.md § pr-refresh). Only a push to that branch
+# fires it — nothing an outsider can trigger.
+name: pr-refresh
+
+on:
+    push:
+        branches: [staging]
+
+permissions:
+    contents: read
+
+jobs:
+    refresh:
+        name: refresh queued PRs
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 60
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: pr-refresh
+              env:
+                  BEFORE: ${{ github.event.before }}
+              run: bun run pr-refresh -- --before "$BEFORE" --after "$GITHUB_SHA"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

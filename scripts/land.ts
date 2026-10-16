@@ -142,8 +142,16 @@ import {
     type WalkOwed,
 } from "./lib/ui-scope.ts";
 import { changedRetiredRows, retirementRefusal } from "./lib/retirement-ack";
-import { REGENERATE_MARKER } from "./lib/generated-artifacts";
+import {
+    rebaseAndResolveSteps,
+    rebaseStep,
+    refreshGeneratedApiStep,
+    resolveGeneratedArtifactsStep,
+} from "./lib/rebase-resolve";
 import { robustnessBaselineRefusal } from "./lib/robustness-baseline-refusal";
+
+// The tests name the steps through `land`'s surface.
+export { rebaseStep, refreshGeneratedApiStep, resolveGeneratedArtifactsStep };
 import { ROBUSTNESS_BASELINE } from "../convex/gre/ai/blade/robustnessBaseline";
 import {
     closingIssueRefs,
@@ -364,8 +372,6 @@ const BOT_AUDIT_SUGGESTION_REL = "scripts/lib/bot-audit-suggestion.ts";
 /** `telemetryIngestStep`'s hard wall, seconds — its budget is 5 s. */
 const TELEMETRY_INGEST_WALL_S = 30;
 const SEED_SCENARIO = resolve(__dirname, "seed-scenario.ts");
-const RESOLVE_ARTIFACTS = resolve(__dirname, "resolve-generated-artifacts.ts");
-const REFRESH_GENERATED_API = resolve(__dirname, "refresh-generated-api.ts");
 
 // Computed the same way scripts/__tests__/gate.test.ts computes it (from a
 // FILE's own directory, not from `import.meta.dir`, which is bun-only and
@@ -553,64 +559,6 @@ export function refusalReason(facts: LandFacts): string | null {
         return facts.robustnessBaselineRefusal;
     }
     return null;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// The rebase step — isolated so it can be proven against a REAL conflict
-// without spinning up the gate lock or a remote.
-// ─────────────────────────────────────────────────────────────────────────
-
-/**
- * Rebase onto `origin/main`; on conflict, print the conflicting paths,
- * `--abort` (leaving the tree usable — never leave a `sh -c` pipeline
- * mid-rebase), and fail. Parenthesised as one unit so a `git fetch` failure
- * (not a conflict) short-circuits the whole `&&` chain instead of also
- * triggering the abort branch.
- */
-export function rebaseStep(): string {
-    return (
-        `git fetch origin ${BASE_BRANCH} && ` +
-        `(git rebase ${ORIGIN_BASE} || ` +
-        "{ git --no-pager diff --name-only --diff-filter=U; git rebase --abort; " +
-        // Clear the regenerate marker ONLY on the abort path. `--abort`
-        // restores the pre-rebase tree, so anything the merge driver marked
-        // during this attempt is moot. Clearing it BEFORE the rebase instead
-        // would erase a debt from a rebase or merge the developer ran BY HAND —
-        // the driver is registered in local config and fires there too, and
-        // that side-taken artifact would then land with nothing to catch it
-        // (review of issue #3069).
-        `rm -f "$(git rev-parse --git-path ${REGENERATE_MARKER})"; ` +
-        "exit 1; })"
-    );
-}
-
-/**
- * Re-derive any generated artifact the `merge=regenerated` driver took a side
- * of during the rebase, ONCE, at the rebased tip — the second half of "a
- * generated artifact is regenerated, not merged" (issue #3069).
- *
- * Sits between the rebase and `check:lane` because the whole point is that the
- * tree the LANE GATE sees is the tree a fresh regeneration produces; running it
- * after the gate would gate a tree nobody ships. A no-op (exit 0, no output) on
- * every landing where nothing conflicted, which is nearly all of them.
- */
-export function resolveGeneratedArtifactsStep(): string {
-    return `bun ${shQuote(RESOLVE_ARTIFACTS)}`;
-}
-
-/**
- * Bring the worktree's gitignored `convex/_generated/` in step with the
- * REBASED tree (issue #5077). It was copied (or regenerated) when the
- * worktree was cut; a landing that added Convex modules since then leaves it
- * without them, and `check:lane` would red `check:ts` on modules this branch
- * never touched. Silent and ~0.1 s when the module list already matches;
- * regenerates offline (no deployment, no backend) when it does not. Before
- * the lane for the same reason as the artefact step: the gate must see the
- * tree that lands. It writes only gitignored files, so the tip's sha is
- * unchanged.
- */
-export function refreshGeneratedApiStep(): string {
-    return `bun ${shQuote(REFRESH_GENERATED_API)}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1317,9 +1265,7 @@ export function buildLockedCommand(opts: LockedCommandOptions): string {
     const steps: string[] = [
         UNSET_GITHUB_TOKEN,
         CLEAR_REPAIR_PROVED,
-        rebaseStep(),
-        resolveGeneratedArtifactsStep(),
-        refreshGeneratedApiStep(),
+        ...rebaseAndResolveSteps(),
         laneStep(opts.gatedGreen, opts.laneRecordDir),
         ...(opts.repairProof ? [repairProofStep(opts.repairProof.tests)] : []),
         `git push --force-with-lease origin ${shQuote(opts.branch)}`,

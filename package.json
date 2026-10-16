@@ -74,6 +74,7 @@
         "land": "bun scripts/land.ts",
         "land:ready": "bun scripts/land-ready.ts",
         "pr:checks": "bun scripts/pr-checks.ts",
+        "pr-refresh": "bun scripts/pr-refresh.ts",
         "land:runner": "bun scripts/land-runner.ts",
         "housekeeping": "bun scripts/housekeeping.ts",
         "release": "bun scripts/release.ts",
