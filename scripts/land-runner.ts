@@ -151,7 +151,7 @@ function listQueued(): QueuedPr[] {
             // A merged shadow PR keeps `ready-to-land`; left in, they would
             // fill the 50 rows. `planTick` skips any that slip through.
             "--search",
-            `-label:${SHADOW_LABEL}`,
+            `-label:"${SHADOW_LABEL}"`,
             "--state",
             "all",
             "--limit",

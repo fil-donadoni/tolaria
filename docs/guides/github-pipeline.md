@@ -646,8 +646,10 @@ merger. What the land-runner does after a merge — closing the issue,
 releasing the claim, seeding the preset scenario — it does not do for a
 shadow PR; that moves with the cut-over.
 
-The [structure guard](#the-structure-guard) pins every row above but the
-merge method: `queue-entry`, `queue-merge`, `queue-shape`, `queue-dequeue`.
+The [structure guard](#the-structure-guard) pins the entry, merge,
+parallel-check, batch and dequeue rows (`queue-entry`, `queue-merge`,
+`queue-shape`, `queue-dequeue`); auto-queue, the merge method,
+`dequeued_label` and `status_comments` are not pinned.
 A PR touching `.mergify.yml` never enters the queue itself — the owner
 merges it by hand, as for `.github/` (ADR 0156 §8.4).
 

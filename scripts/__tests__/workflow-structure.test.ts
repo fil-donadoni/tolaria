@@ -542,6 +542,7 @@ describe("workflow structure guard", () => {
             ["add: [land-failed]", "add: [dequeued]"],
             ["remove: [ready-to-land]", "remove: []"],
             ["https://example.test/run", "see the queue"],
+            ["      - or:\n", "      - not:\n"],
         ] as const) {
             const mergify = edit(MERGIFY, from, to);
             expect(rules(fixture({ mergify })), from).toEqual([

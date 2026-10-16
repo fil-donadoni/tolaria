@@ -535,13 +535,14 @@ const strings = (v: unknown): string[] =>
         .filter((c): c is string => typeof c === "string")
         .map((c) => c.trim());
 
-/** Every condition string under `conds`, `or:`/`and:`/`not:` included. */
+/** Every condition string under `conds`, through `or:`/`and:` — never
+ *  `not:`, which would invert the very condition being looked for. */
 function flatConditions(conds: unknown): string[] {
     return asArray(conds).flatMap((c) =>
         typeof c === "string"
             ? [c.trim()]
             : isObj(c)
-              ? Object.values(c).flatMap(flatConditions)
+              ? [c.or, c.and].flatMap(flatConditions)
               : []
     );
 }
