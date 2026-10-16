@@ -76,6 +76,14 @@ describe("trusted-author", () => {
         );
         expect(s.state).toBe("failure");
         expect(s.description).toMatch(/\.github\/workflows\/pr-gate\.yml/);
+        expect(
+            trustedAuthorStatus(
+                pr({
+                    files: [".github/a.yml", ".github/b.yml", ".mergify.yml"],
+                }),
+                TRUSTED
+            ).description
+        ).toMatch(/\.github\/a\.yml \(\+2 more\)/);
         expect(s.description).toMatch(/owner merges it by hand/);
     });
 

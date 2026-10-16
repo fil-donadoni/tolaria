@@ -146,11 +146,13 @@ export function trustedAuthorStatus(
             `@${pr.author} is not in TRUSTED_AUTHORS — the owner reviews and merges it`
         );
     const touched = protectedPaths(pr.files);
-    if (touched.length > 0)
+    if (touched.length > 0) {
+        const more = touched.length > 1 ? ` (+${touched.length - 1} more)` : "";
         return status(
             "failure",
-            `touches ${touched.join(", ")} — never queueable, the owner merges it by hand`
+            `touches ${touched[0]}${more} — never queueable, the owner merges it by hand`
         );
+    }
     return status("success", `@${pr.author} is a trusted author`);
 }
 
