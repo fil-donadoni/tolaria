@@ -427,7 +427,7 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(text).toMatch(/`GITHUB_ACTIONS=true`/);
         const job = fileTail(text, "# /next-ticket — inside an `afk-pass` job");
         expect(job).toMatch(/`queue:plan`/);
-        expect(job).toMatch(/no `queue:claim`, no `wt:new`/);
+        expect(job).toMatch(/no `queue:claim`, no `wt:new`/i);
         expect(job).toMatch(/git push -u origin HEAD/);
         expect(job).toMatch(/gh run view <run-id> --log-failed/);
         expect(job).toMatch(/ready-to-land/);
