@@ -416,8 +416,9 @@ lock across rebase → gate → push → merge, so the tree that lands is the tr
 that was gated. A merge typed by hand takes no lock: \`main\` moves under whoever
 is mid-gate, and their verified tree is no longer the one landing.
 
-  bun run land:ready <PR#>  # a session hands its PR to the land-runner (§ 8),
-                            # which runs \`bun run land <PR#>\` on the PR's branch
+  bun run land:ready <PR#>  # a session labels its PR \`ready-to-land\` (§ 8); the
+                            # land-runner, until the merge queue replaces it
+                            # (ADR 0156), runs \`bun run land <PR#>\`
 
 If \`land\` already gated and pushed and only the MERGE failed, retry just the
 merge — it never re-runs the suite:
@@ -454,6 +455,56 @@ if seg_has '(^|[;&|[:space:]])git[[:space:]]+push([[:space:]]|$)' \
 No step in this workflow needs it, and it can destroy another session's merged
 work with no recovery. If a branch has diverged, rebase it and force-push the
 FEATURE branch (allowed) — never the base or release branch."
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2b. A session never pushes to the base or release branch (issue #5641).
+#
+# ADR 0156: a session's work reaches the base through a PR and the merge queue
+# — never through a push. The force-push rule above stops destruction; this one
+# stops the plain `git push origin main` that skips the queue's lane. The
+# scripts that legitimately move those branches (`gaps:sync`, `release`, the
+# queue itself) push from INSIDE a `bun` process, which this hook never sees,
+# so the rule costs them nothing. The one case it must still let through is a
+# human moving a branch by hand, who says so in the command itself:
+#
+#   TOLARIA_ALLOW_BASE_PUSH=1 git push origin <ref>
+#
+# Two shapes are denied, both read from the push invocation's own segment
+# (which must START with the push, so a commit message that merely mentions one
+# is not a push):
+#   * a refspec naming the base/release branch as source or destination
+#     (`origin main`, `HEAD:main`, `feat:main`, `+main`);
+#   * a push that names no refspec at all (`git push`, `git push origin`) from
+#     a checkout that has the base/release branch checked out.
+# ─────────────────────────────────────────────────────────────────────────────
+PUSH_SEG='^[[:space:]]*((env|command)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'
+if seg_has "$PUSH_SEG" && ! seg_has "$PUSH_SEG" 'TOLARIA_ALLOW_BASE_PUSH=1'; then
+    _push_denied=0
+    if seg_has "$PUSH_SEG" "([[:space:]:+])($base_branch|$release_branch)([[:space:]]|\$)"; then
+        _push_denied=1
+    elif seg_has "$PUSH_SEG" '[[:space:]]--(all|mirror)([[:space:]]|$)'; then
+        _push_denied=1
+    else
+        _head=$(git -C "$cwd" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+        if [ "$_head" = "$base_branch" ] || [ "$_head" = "$release_branch" ]; then
+            # Positional words after `push`: at most the remote means no refspec.
+            _positional=$(printf '%s\n' "$segments" | grep -E "$PUSH_SEG" |
+                sed -E 's/^.*[[:space:]]push([[:space:]]|$)//' |
+                tr -s '[:space:]' '\n' | grep -vE '^(-|$)' | wc -l | tr -d ' ')
+            [ "${_positional:-0}" -le 1 ] && _push_denied=1
+        fi
+    fi
+    if [ "$_push_denied" = 1 ]; then
+        deny "BLOCKED: a session does not push to \`$base_branch\` or \`$release_branch\` (issue #5641, ADR 0156).
+Work reaches the base through a PR and the merge queue, so a direct push skips
+the lane that gates it. Push the feature branch and hand the PR off:
+  git push -u origin <feature-branch> && bun run land:ready <PR#>
+
+Moving the base or release branch by hand on purpose (what \`gaps:sync\` and
+\`release\` do from inside their own scripts)? Say so in the command itself:
+  TOLARIA_ALLOW_BASE_PUSH=1 git push origin <ref>"
+    fi
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -890,7 +941,11 @@ The sweep on purpose, by explicit owner request:
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. A session never runs `land` — it hands its PR to the land-runner.
+# 8. A session never runs `land` — it hands its PR off `ready-to-land`.
+#
+# (Issue #5641, ADR 0156: the label is the whole hand-off; the land-runner reads
+# it today and the merge queue will, once the landing stack is deleted. Inside
+# an `afk-pass` job the session still ends at `land:ready`.)
 #
 # Landing is asynchronous (issue #5469, ADR 0154 topology B'): a session ends
 # at push + `bun run land:ready <PR#>` (label `ready-to-land`, claim
@@ -911,14 +966,14 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 LAND_INVOKE='(^|\|)[[:space:]]*\(?[[:space:]]*((env|nohup|time|command|exec)[[:space:]]+|[A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*(bun[[:space:]]+run([[:space:]]+-[^[:space:]]+)*[[:space:]]+(gate:run[[:space:]]+)?land|bun[[:space:]]+(run[[:space:]]+)?[^[:space:]]*scripts/land\.ts|[^[:space:]]*sh[[:space:]]+[^[:space:]]*gate-run\.sh[[:space:]]+land)([[:space:]]|\)|$)'
 if seg_has "$LAND_INVOKE" && ! seg_has 'TOLARIA_LAND_RUNNER=1' "$LAND_INVOKE"; then
-    deny "BLOCKED: a session does not run \`land\` — it hands the PR to the land-runner (issue #5469).
+    deny "BLOCKED: a session does not run \`land\` — it hands the PR off as \`ready-to-land\` (issue #5469).
 
   git push && bun run land:ready <PR#>
 
-labels the PR \`ready-to-land\` and moves the claim to \`pr-open\`; the one
-land-runner on the MacBook rebases, gates and merges it. A red landing comes
-back as \`land-failed\` + a comment, and \`queue:plan\` hands it to the next
-pass as a repair pick.
+labels the PR \`ready-to-land\` and moves the claim to \`pr-open\`; the landing
+side (the land-runner, then the merge queue) rebases, gates and merges it. A
+red landing comes back as \`land-failed\` + a comment, and the next pass picks
+it up as a repair.
 
 A landing by hand, on explicit request (the runner's own hatch):
   TOLARIA_LAND_RUNNER=1 bun run land <PR#>"
