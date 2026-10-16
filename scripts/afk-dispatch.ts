@@ -30,12 +30,12 @@ import { sanitizeHost } from "./lib/github-runner";
 import { releaseEditArgs, CLAIM_LABEL } from "./lib/claim-labels";
 import { pick, type IssueProvenance } from "./lib/picker";
 import type { PlanConfig } from "./lib/queue-plan";
+import { DEFAULTS, liveQueuePort, readReadyQueue } from "./queue-plan";
 import {
-    DEFAULTS,
-    liveQueuePort,
-    readHealthMarker,
-    readReadyQueue,
-} from "./queue-plan";
+    lineageBlocks,
+    readVerdictLineage,
+    verdictStore,
+} from "./lib/health-verdict-store";
 import { readUsageWindow, DEFAULT_PROJECTS_DIR } from "./usage-window";
 import {
     ACK_MARKER,
@@ -134,12 +134,12 @@ function workflowRuns(
     }));
 }
 
-/** `afk-pass.yml` exists on the default branch and is enabled. */
-function passWorkflowActive(slug: string): boolean {
+/** The workflow exists on the default branch and is enabled. */
+function workflowActive(slug: string, workflow: string): boolean {
     try {
         const state = gh([
             "api",
-            `repos/${slug}/actions/workflows/${PASS_WORKFLOW}`,
+            `repos/${slug}/actions/workflows/${workflow}`,
             "--jq",
             ".state",
         ]).trim();
@@ -149,19 +149,22 @@ function passWorkflowActive(slug: string): boolean {
     }
 }
 
-/** The records of the pass runs that ended inside the window. A run with no
- *  artifact (it died before writing one) or a torn one is skipped. */
+/** The records of the pass runs that ended inside the window. `missing`
+ *  counts runs that finished (success or failure) and so owe one, but whose
+ *  record could not be read — a fact the budget guard must not lose. */
 function passRecords(
     runs: readonly WorkflowRun[],
     sinceMs: number
-): PassRecord[] {
+): { records: PassRecord[]; missing: number } {
     const dir = mkdtempSync(join(tmpdir(), "afk-dispatch-"));
     try {
-        const out: PassRecord[] = [];
+        const records: PassRecord[] = [];
+        let missing = 0;
         for (const r of runs) {
             if (r.status !== "completed" || Date.parse(r.updatedAt) < sinceMs)
                 continue;
             const into = join(dir, String(r.id));
+            let rec: PassRecord | null = null;
             try {
                 execFileSync(
                     "gh",
@@ -176,18 +179,46 @@ function passRecords(
                     ],
                     { stdio: "ignore" }
                 );
-                const rec = parsePassRecord(
+                rec = parsePassRecord(
                     readFileSync(join(into, "record.json"), "utf8")
                 );
-                if (rec) out.push(rec);
             } catch {
-                // No artifact: nothing to add.
+                rec = null;
             }
+            if (rec) records.push(rec);
+            else if (r.conclusion === "success" || r.conclusion === "failure")
+                missing++;
         }
-        return out;
+        return { records, missing };
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
+}
+
+/** When each claim was taken: its newest `in-progress` label event. `null`
+ *  when unreadable — the claim is then held (`claimFacts`). */
+function claimTimes(
+    slug: string,
+    claimed: readonly number[]
+): Record<number, string | null> {
+    const out: Record<number, string | null> = {};
+    for (const n of claimed) {
+        try {
+            const times = gh([
+                "api",
+                "--paginate",
+                `repos/${slug}/issues/${n}/events`,
+                "--jq",
+                `.[] | select(.event == "labeled" and .label.name == "${CLAIM_LABEL}") | .created_at`,
+            ])
+                .split("\n")
+                .filter((l) => l.trim() !== "");
+            out[n] = times.length ? times[times.length - 1] : null;
+        } catch {
+            out[n] = null;
+        }
+    }
+    return out;
 }
 
 function runners(slug: string): RunnerRow[] {
@@ -290,7 +321,7 @@ function hostOfRun(slug: string, runId: number): string | null {
             "api",
             `repos/${slug}/actions/runs/${runId}/jobs`,
             "--jq",
-            ".jobs[0].runner_name // empty",
+            '[.jobs[] | select(.labels | index("pass")) | .runner_name][0] // empty',
         ]).trim();
         return name ? hostOfRunnerName(name) : null;
     } catch {
@@ -339,20 +370,29 @@ async function main(): Promise<void> {
         sanitizeHost(hostname());
 
     // ── holds: everything below is cheap next to a queue read ──
-    const active = passWorkflowActive(slug);
+    const dispatcherActive = workflowActive(slug, DISPATCH_WORKFLOW);
+    const active = workflowActive(slug, PASS_WORKFLOW);
     const passRuns = active ? workflowRuns(PASS_WORKFLOW, 200) : [];
     // Only two kinds of dispatcher run matter to the streak: the owner's acks
     // (always a dispatch) and the failed runs (the email already sent). Read
     // by filter, so a burst of skipped label-event runs never pushes either
     // out of the window.
     const dispatchRuns = [
-        ...workflowRuns(DISPATCH_WORKFLOW, 100, [
+        // Every pass-end trigger is a dispatch too: deep enough that the
+        // owner's last ack stays in view across a long run of passes.
+        ...workflowRuns(DISPATCH_WORKFLOW, 500, [
             "--event",
             "workflow_dispatch",
         ]),
         ...workflowRuns(DISPATCH_WORKFLOW, 20, ["--status", "failure"]),
     ];
-    const records = active ? passRecords(passRuns, sinceMs) : [];
+    const { records, missing } = active
+        ? passRecords(passRuns, sinceMs)
+        : { records: [], missing: 0 };
+    const lineage = readVerdictLineage(() => verdictStore(primaryCheckout()));
+    const red = lineageBlocks(lineage.kind)
+        ? { sha: lineage.verdict?.sha, failedStep: lineage.verdict?.step }
+        : null;
     const local = active
         ? (await readUsageWindow(DEFAULT_PROJECTS_DIR, sinceMs)).models
         : {};
@@ -364,9 +404,12 @@ async function main(): Promise<void> {
         budget.budget
     );
     const hold = holdFor({
+        dispatcherActive,
         passWorkflowActive: active,
+        healthError: lineage.error ?? null,
+        missingRecords: missing,
         streak: failureStreak(passRuns, dispatchRuns),
-        red: readHealthMarker(primaryCheckout()),
+        red,
         usageLimitResetAt: usageLimitResetAt(records, now),
         budget,
         reading,
@@ -419,7 +462,13 @@ async function main(): Promise<void> {
             issues.map((i) => i.number),
             trusted
         ),
-        claims: claimFacts(claimed, passRuns, pushedBranches(), openPrs()),
+        claims: claimFacts(
+            claimed,
+            passRuns,
+            pushedBranches(),
+            openPrs(),
+            claimTimes(slug, claimed)
+        ),
     });
     const plan = planDispatch(picked, slots, (issue) => {
         const last = lastPassRun(passRuns, issue);
@@ -427,9 +476,10 @@ async function main(): Promise<void> {
     });
 
     const lines = [
-        `free pass slots: ${slots.free.length} (${slots.free.join(", ")})`,
+        // Counts and issue numbers only: host names stay off a public log.
+        `free pass slots: ${slots.free.length}`,
         `release: ${plan.release.map((n) => `#${n}`).join(", ") || "none"}`,
-        `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${d.resume ? " resume" : ""}${d.host ? ` @${d.host}` : ""}`).join(", ") || "none"}`,
+        `dispatch: ${plan.dispatch.map((d) => `#${d.issue} ${d.model}${d.resume ? " resume" : ""}${d.host ? " (pinned)" : ""}`).join(", ") || "none"}`,
         `resume waiting for its host: ${plan.waiting.map((n) => `#${n}`).join(", ") || "none"}`,
         `untrusted, skipped: ${picked.untrusted.length}`,
         budgetLine,
@@ -440,44 +490,63 @@ async function main(): Promise<void> {
         return;
     }
 
-    // ── act ──
+    // ── act ── each act on its own: one failed `gh` call never skips the
+    // rest, and the run fails once, at the end, naming every failure.
     const done: string[] = [];
-    for (const n of plan.release) {
-        gh(releaseEditArgs(n));
-        done.push(`released #${n}`);
-    }
+    let failures = 0;
+    const attempt = (what: string, act: () => void): boolean => {
+        try {
+            act();
+            return true;
+        } catch (err) {
+            failures++;
+            done.push(
+                `${what} failed: ${(err as Error).message.split("\n")[0]}`
+            );
+            return false;
+        }
+    };
+    for (const n of plan.release)
+        if (attempt(`release #${n}`, () => gh(releaseEditArgs(n))))
+            done.push(`released #${n}`);
     for (const d of plan.dispatch) {
         if (!d.resume) {
-            if (!mayClaim(labelsOf(d.issue))) {
+            let free = false;
+            if (
+                !attempt(
+                    `read #${d.issue}`,
+                    () => (free = mayClaim(labelsOf(d.issue)))
+                )
+            )
+                continue;
+            if (!free) {
                 done.push(`#${d.issue} claimed meanwhile — skipped`);
                 continue;
             }
-            gh([
-                "issue",
-                "edit",
-                String(d.issue),
-                "--add-label",
-                CLAIM_LABEL,
-                "--add-assignee",
-                "@me",
-            ]);
+            const claimed = attempt(`claim #${d.issue}`, () =>
+                gh([
+                    "issue",
+                    "edit",
+                    String(d.issue),
+                    "--add-label",
+                    CLAIM_LABEL,
+                    "--add-assignee",
+                    "@me",
+                ])
+            );
+            if (!claimed) continue;
         }
-        try {
-            dispatchPass(d);
+        if (attempt(`dispatch #${d.issue}`, () => dispatchPass(d)))
             done.push(
                 `dispatched #${d.issue} (${d.model}${d.resume ? ", resume" : ""})`
             );
-        } catch (err) {
-            // A claim with no run behind it would read as an orphan next
-            // time anyway; undo it now rather than leave it a sweep long.
-            if (!d.resume) gh(releaseEditArgs(d.issue));
-            done.push(
-                `#${d.issue} dispatch failed: ${(err as Error).message.split("\n")[0]}`
-            );
-        }
+        // A fresh claim with no run behind it: undo it now.
+        else if (!d.resume)
+            attempt(`release #${d.issue}`, () => gh(releaseEditArgs(d.issue)));
     }
     for (const l of done) say(l);
     summary([...lines.map((l) => `- ${l}`), "", ...done.map((l) => `- ${l}`)]);
+    if (failures > 0) process.exit(1);
 }
 
 if (import.meta.main) {

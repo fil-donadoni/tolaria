@@ -84,11 +84,32 @@ function record(over: Partial<PassRecord> = {}): PassRecord {
     };
 }
 
+/** Claim facts with every claim taken well before the runs listed (a run
+ *  after the claim is the pipeline's evidence), unless `at` says otherwise. */
+function facts(
+    claimed: number[],
+    runs: WorkflowRun[],
+    branches: string[],
+    prs: Parameters<typeof claimFacts>[3],
+    at: Record<number, string | null> = {}
+) {
+    return claimFacts(
+        claimed,
+        runs,
+        branches,
+        prs,
+        Object.fromEntries(claimed.map((n) => [n, n in at ? at[n] : iso(500)]))
+    );
+}
+
 const NO_STREAK: FailureStreak = { runs: [], notify: false };
 
 function holdInput(over: Partial<HoldInput> = {}): HoldInput {
     return {
+        dispatcherActive: true,
         passWorkflowActive: true,
+        healthError: null,
+        missingRecords: 0,
         streak: NO_STREAK,
         red: null,
         usageLimitResetAt: null,
@@ -175,6 +196,26 @@ describe("afk-dispatch holds (issue #5649)", () => {
         expect(h?.message).toContain("abcdef12");
     });
 
+    it("the kill switch holds a run queued before it", () => {
+        expect(holdFor(holdInput({ dispatcherActive: false }))?.kind).toBe(
+            "disabled"
+        );
+    });
+
+    it("unknown facts hold: an unreadable verdict, a missing pass record, a zero window", () => {
+        expect(holdFor(holdInput({ healthError: "HTTP 502" }))?.kind).toBe(
+            "unknown-health"
+        );
+        expect(holdFor(holdInput({ missingRecords: 1 }))?.kind).toBe(
+            "records-unknown"
+        );
+        expect(
+            holdFor(
+                holdInput({ budget: { budget: 10_000, maxPct: 80, hours: 0 } })
+            )?.kind
+        ).toBe("no-budget");
+    });
+
     it("a missing pass workflow holds before anything else", () => {
         const h = holdFor(
             holdInput({
@@ -210,10 +251,29 @@ describe("afk-dispatch failure streak (issue #5649)", () => {
         const emailed = run(50, "afk-dispatch", {
             conclusion: "failure",
             createdAt: iso(5),
+            updatedAt: iso(4),
         });
         const s = failureStreak(runs, [emailed]);
         expect(s.runs).toHaveLength(3);
         expect(s.notify).toBe(false);
+    });
+
+    it("the dispatcher run the third failing pass sent counts as the email, though created before it completed", () => {
+        const runs = [failed(1, 30), failed(2, 20), failed(3, 10)];
+        // Created while pass 3 still ran (11 min ago), failed after it (8).
+        const emailed = run(51, "afk-dispatch", {
+            conclusion: "failure",
+            createdAt: iso(11),
+            updatedAt: iso(8),
+        });
+        expect(failureStreak(runs, [emailed]).notify).toBe(false);
+        // An older failure (before the streak) is not this streak's email.
+        const stale = run(52, "afk-dispatch", {
+            conclusion: "failure",
+            createdAt: iso(40),
+            updatedAt: iso(39),
+        });
+        expect(failureStreak(runs, [stale]).notify).toBe(true);
     });
 
     it("a success in between breaks the streak; a cancelled run is passed over", () => {
@@ -262,12 +322,29 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
     });
 
     it("a claim with no afk-pass run at all belongs to a session outside the pipeline: held", () => {
-        const [f] = claimFacts([7], [], [], []);
+        const [f] = facts([7], [], [], []);
         expect(f.liveRun).toBe(true);
     });
 
+    it("a claim newer than every run of its issue is held: a human's, or a dispatch not listed yet", () => {
+        const old = passRun(1, 7, {
+            conclusion: "failure",
+            createdAt: iso(300),
+        });
+        const [f] = facts([7], [old], ["feat/issue-7"], [], { 7: iso(5) });
+        expect(f.liveRun).toBe(true);
+        const [g] = facts([7], [old], [], [], { 7: iso(5) });
+        expect(g.liveRun).toBe(true);
+        // Unknown claim time: held.
+        const [h] = facts([7], [old], [], [], { 7: null });
+        expect(h.liveRun).toBe(true);
+        // The run the claim dispatched (created after it): the pipeline's.
+        const [k] = facts([7], [old], [], [], { 7: iso(400) });
+        expect(k.liveRun).toBe(false);
+    });
+
     it("a claim with a running pass is held", () => {
-        const [f] = claimFacts(
+        const [f] = facts(
             [7],
             [passRun(1, 7, { status: "in_progress", conclusion: null })],
             [],
@@ -278,7 +355,7 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
 
     it("a claim whose PR waits in the queue is held; a land-failed PR is a dead pass's work", () => {
         const runs = [passRun(1, 7), passRun(2, 8)];
-        const [queued, failed] = claimFacts(
+        const [queued, failed] = facts(
             [7, 8],
             runs,
             [],
@@ -295,7 +372,7 @@ describe("afk-dispatch claim facts (issue #5649)", () => {
 
     it("a dead pass with a pushed branch resumes; with none it is an orphan", () => {
         const runs = [passRun(1, 7, { conclusion: "failure" }), passRun(2, 8)];
-        const [pushed, orphan] = claimFacts(
+        const [pushed, orphan] = facts(
             [7, 8],
             runs,
             ["fix/issue-7", "main"],
@@ -423,7 +500,7 @@ describe("afk-dispatch plan (issue #5649)", () => {
                 port: port(labels),
                 trust: TRUST,
                 provenance: OWNED([1, 2, 3]),
-                claims: claimFacts([], [], [], []),
+                claims: facts([], [], [], []),
             }),
             slots,
             () => null
@@ -448,7 +525,7 @@ describe("afk-dispatch plan (issue #5649)", () => {
                 port: port(labels),
                 trust: TRUST,
                 provenance: OWNED([1, 2, 3]),
-                claims: claimFacts(claimed, runs, [], []),
+                claims: facts(claimed, runs, [], []),
             }),
             slots,
             () => null
@@ -470,7 +547,7 @@ describe("afk-dispatch plan (issue #5649)", () => {
             port: port(labels),
             trust: TRUST,
             provenance: OWNED([1, 2, 7]),
-            claims: claimFacts(
+            claims: facts(
                 [7],
                 [passRun(1, 7, { conclusion: "failure" })],
                 ["feat/issue-7"],
@@ -502,7 +579,7 @@ describe("afk-dispatch plan (issue #5649)", () => {
             port: port(labels),
             trust: TRUST,
             provenance: OWNED([7]),
-            claims: claimFacts(
+            claims: facts(
                 [7],
                 [passRun(1, 7, { conclusion: "failure" })],
                 ["feat/issue-7"],
@@ -535,7 +612,7 @@ describe("afk-dispatch plan (issue #5649)", () => {
                 port: port(labels),
                 trust: TRUST,
                 provenance: OWNED([7]),
-                claims: claimFacts([7], [passRun(1, 7)], [], []),
+                claims: facts([7], [passRun(1, 7)], [], []),
             }),
             { free: ["mbp"], online: ["mbp"] },
             () => null

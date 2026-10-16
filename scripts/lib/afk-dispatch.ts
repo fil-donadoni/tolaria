@@ -245,8 +245,9 @@ export interface FailureStreak {
  * The failure streak: completed pass runs, newest first, after the owner's
  * last acknowledgement (a dispatcher run whose name carries `ACK_MARKER`),
  * counted until the first that did not fail; a neutral conclusion is passed
- * over. `notify` holds until a dispatcher run has FAILED since the moment
- * the streak reached the limit — one email per streak, not one per sweep.
+ * over. `notify` holds until a dispatcher run has FAILED (completed) since
+ * the moment the streak reached the limit — one email per streak, not one
+ * per sweep.
  */
 export function failureStreak(
     passRuns: readonly WorkflowRun[],
@@ -267,14 +268,19 @@ export function failureStreak(
     }
     if (runs.length < FAILURE_STREAK_LIMIT) return { runs, notify: false };
     const reachedMs = ms(runs[runs.length - FAILURE_STREAK_LIMIT].updatedAt);
+    // By COMPLETION time: the dispatcher run a failing pass sends at its end
+    // is CREATED before that pass completes, yet it is the one that emails.
     const notified = dispatchRuns.some(
-        (r) => r.conclusion === "failure" && ms(r.createdAt) >= reachedMs
+        (r) => r.conclusion === "failure" && ms(r.updatedAt) >= reachedMs
     );
     return { runs, notify: !notified };
 }
 
 export type Hold =
+    | { kind: "disabled"; message: string }
     | { kind: "no-pass-workflow"; message: string }
+    | { kind: "unknown-health"; message: string }
+    | { kind: "records-unknown"; message: string }
     | { kind: "failure-streak"; message: string; notify: boolean }
     | { kind: "red"; message: string }
     | { kind: "usage-limit"; message: string; until: string }
@@ -282,6 +288,14 @@ export type Hold =
     | { kind: "budget"; message: string; reading: BudgetReading };
 
 export interface HoldInput {
+    /** `afk-dispatch.yml` itself is enabled: a run queued before the kill
+     *  switch still executes, and must start nothing. */
+    dispatcherActive: boolean;
+    /** The health verdict store could not be read: unattended, that holds. */
+    healthError: string | null;
+    /** Completed pass runs in the window whose record could not be read —
+     *  their tokens and usage-limit reset would be missing from the reading. */
+    missingRecords: number;
     /** `afk-pass.yml` exists and is enabled on the default branch. */
     passWorkflowActive: boolean;
     streak: FailureStreak;
@@ -292,13 +306,21 @@ export interface HoldInput {
 }
 
 /**
- * The first hold that applies, or `null`. Order: a missing pass workflow
- * (nothing to dispatch to), the failure streak (the owner must look), RED
+ * The first hold that applies, or `null`. Order: the kill switch (a run
+ * queued before it), a missing pass workflow (nothing to dispatch to), the
+ * failure streak (the owner must look), an unreadable health verdict, RED
  * (ADR 0116: no work on a broken tip; the fixer is `health-fix.yml`'s, never
- * dispatched here), the usage-limit reset, then the budget — which fails
- * CLOSED when unset (ADR 0109: never unbudgeted).
+ * dispatched here), unreadable pass records, the usage-limit reset, then the
+ * budget — which fails CLOSED when unset (ADR 0109: never unbudgeted).
+ * Every unknown fact holds: the dispatcher runs unattended.
  */
 export function holdFor(input: HoldInput): Hold | null {
+    if (!input.dispatcherActive)
+        return {
+            kind: "disabled",
+            message:
+                "afk-dispatch.yml is disabled (the kill switch) — nothing starts",
+        };
     if (!input.passWorkflowActive)
         return {
             kind: "no-pass-workflow",
@@ -316,6 +338,11 @@ export function holdFor(input: HoldInput): Hold | null {
                     .join(", ")}) — paused. ` +
                 `Read the runs, then \`gh workflow run afk-dispatch.yml -f ack_failures=true\` to resume`,
         };
+    if (input.healthError !== null)
+        return {
+            kind: "unknown-health",
+            message: `the health verdict could not be read (${input.healthError}) — no new pass on an unknown base`,
+        };
     if (input.red)
         return {
             kind: "red",
@@ -327,8 +354,13 @@ export function holdFor(input: HoldInput): Hold | null {
             until: input.usageLimitResetAt,
             message: `a pass hit the usage limit — held until ${input.usageLimitResetAt}`,
         };
+    if (input.missingRecords > 0)
+        return {
+            kind: "records-unknown",
+            message: `${input.missingRecords} pass record(s) in the window could not be read — the budget and usage-limit facts are incomplete`,
+        };
     const { budget, reading } = input;
-    if (!(budget.budget > 0))
+    if (!(budget.budget > 0) || !(budget.hours > 0))
         return {
             kind: "no-budget",
             message:
@@ -355,6 +387,9 @@ export interface OpenPr {
 
 export const ISSUE_BRANCH = /^(?:feat|fix)\/issue-(\d+)$/;
 
+/** Clock slack between a claim's label event and the run it dispatched. */
+export const CLAIM_RUN_SLACK_MS = 2 * 60_000;
+
 /**
  * Claim facts for the picker. A claim is ALIVE (`liveRun: true`) when:
  *
@@ -362,9 +397,13 @@ export const ISSUE_BRANCH = /^(?:feat|fix)\/issue-(\d+)$/;
  *   * it has an open PR not labelled `land-failed` (a rejected PR is a repair
  *     pick, its claim a dead pass's work) — the PR is in the queue,
  *     and the claim is released at merge;
- *   * NO `afk-pass` run for it appears in the lookback at all — the claim is
- *     a session outside the pipeline (an owner's `/next-ticket`), which the
- *     dispatcher has no evidence about and never touches (fail closed).
+ *   * no `afk-pass` run for it was created AFTER the claim was taken
+ *     (`claimedAt`, the newest `in-progress` label event, less a clock
+ *     slack) — the claim is a session outside the pipeline (an owner's
+ *     `/next-ticket`, the old loop), or the dispatcher's own claim whose run
+ *     is not listed yet; the dispatcher has no evidence and never touches
+ *     it. An older run of the same issue proves nothing about a newer
+ *     claim. An unknown claim time holds too (fail closed).
  *
  * Otherwise the pipeline's own pass died: a pushed branch is a resume pick,
  * no branch an orphan to release (`picker.claimFate`).
@@ -373,15 +412,24 @@ export function claimFacts(
     claimed: readonly number[],
     passRuns: readonly WorkflowRun[],
     pushedBranches: readonly string[],
-    openPrs: readonly OpenPr[]
+    openPrs: readonly OpenPr[],
+    claimedAt: Readonly<Record<number, string | null>>
 ): ClaimFacts[] {
+    const owned = (issue: number, r: WorkflowRun): boolean => {
+        const at = claimedAt[issue];
+        return (
+            typeof at === "string" &&
+            Number.isFinite(ms(at)) &&
+            ms(r.createdAt) >= ms(at) - CLAIM_RUN_SLACK_MS
+        );
+    };
     const known = new Set<number>();
     const active = new Set<number>();
     for (const r of passRuns) {
         const n = passRunIssue(r.title);
         if (n === null) continue;
-        known.add(n);
         if (isActive(r)) active.add(n);
+        if (owned(n, r)) known.add(n);
     }
     const pushed = new Set<number>();
     for (const b of pushedBranches) {

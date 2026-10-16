@@ -375,7 +375,9 @@ picker's tier), `resume` and `host`.
 
 **Triggers.** An issue labelled `ready-for-agent` (any other label skips the
 job), a 30-minute `schedule` sweep, and `workflow_dispatch` — which every
-`afk-pass` run sends at its end, so a freed runner is refilled at once.
+`afk-pass` run sends at its end. That dispatch is created while the pass
+still holds its runner: it refills the slot when it lands on that same
+runner (counted as its own), otherwise the next trigger or sweep does.
 
 **One run at a time, across both machines.** The job declares
 `concurrency: { group: afk-dispatch, cancel-in-progress: false }`: a running
@@ -389,7 +391,10 @@ still queued and unclaimed.
 
 **Free slots.** Every online, idle `pass` runner, plus the dispatcher's own
 (it frees within seconds), minus the `afk-pass` runs still waiting for a
-runner.
+runner. A pass dispatched moments ago and not yet listed is not subtracted:
+the worst case is one extra pass queued for a runner, never a double claim.
+The log and summary print counts and issue numbers only — no host names on a
+public log.
 
 **What it picks** — through the picker (`scripts/lib/picker.ts`, the
 `queue:plan` order and admission, [trusted authors](#g-trusted-authors) only,
@@ -406,22 +411,32 @@ HITL excluded):
 
 A claim is never touched while an `afk-pass` run for it is queued or
 running, while its PR waits in the queue (open, not `land-failed`), or when
-no `afk-pass` run for it exists at all — that claim is a session outside the
-pipeline (an owner's `/next-ticket`), and the dispatcher has no evidence to
-act on it. A pass run names its issue in its run name: `afk-pass #<N>`.
+no `afk-pass` run for it was created after the claim was taken (its newest
+`in-progress` label event, less two minutes of clock slack). Such a claim is
+a session outside the pipeline — an owner's `/next-ticket`, the old loop —
+or the dispatcher's own claim whose run is not listed yet; an older run of
+the same issue proves nothing about it, and an unreadable claim time holds
+too. A pass run names its issue in its run name: `afk-pass #<N>`.
+
+The claim itself is check-then-act (labels re-read, then `in-progress`
+added): one run at a time makes it race-free between dispatchers, but only
+best-effort against a human claiming the same issue in the same second.
 
 **Holds** — the run dispatches nothing, prints why in its log and job
 summary, and exits 0 ("nothing to do"); the next trigger re-checks. In order:
 
-| Hold               | Holds while                                                                                                                   | Lifts when                                                                      |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `no-pass-workflow` | `afk-pass.yml` is absent or disabled on the default branch (until issue #5650 lands, the dispatcher is inert)                 | `afk-pass.yml` is on the default branch and enabled                             |
-| `failure-streak`   | the last three completed `afk-pass` runs failed (`failure`, `timed_out`, `startup_failure`; a `cancelled` run is passed over) | the owner acknowledges: `gh workflow run afk-dispatch.yml -f ack_failures=true` |
-| `red`              | the base's health verdict is RED (the `health` commit status, ADR 0116)                                                       | health reads GREEN or AMBER                                                     |
-| `usage-limit`      | a pass's record names a usage-limit reset time still in the future                                                            | that time passes                                                                |
-| `no-budget`        | the repository variable `AFK_TOKEN_BUDGET` is unset or 0 — the dispatcher never runs unbudgeted (ADR 0109)                    | the owner sets it                                                               |
-| `budget`           | the [budget reading](#g-budget-reading) is at or past `AFK_BUDGET_MAX_PCT` of `AFK_TOKEN_BUDGET`                              | the window slides past the spend                                                |
-| (no free runner)   | every `pass` runner is busy or offline                                                                                        | a pass ends (it dispatches the dispatcher)                                      |
+| Hold               | Holds while                                                                                                                            | Lifts when                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `disabled`         | `afk-dispatch.yml` itself is disabled (a run queued before the kill switch)                                                            | the workflow is enabled again                                                   |
+| `no-pass-workflow` | `afk-pass.yml` is absent or disabled on the default branch (until issue #5650 lands, the dispatcher is inert)                          | `afk-pass.yml` is on the default branch and enabled                             |
+| `failure-streak`   | the last three completed `afk-pass` runs failed (`failure`, `timed_out`, `startup_failure`; a `cancelled` run is passed over)          | the owner acknowledges: `gh workflow run afk-dispatch.yml -f ack_failures=true` |
+| `unknown-health`   | the health verdict store cannot be read — unattended, an unknown base holds                                                            | the store answers again                                                         |
+| `red`              | the base's health verdict is RED (the `health` commit status, ADR 0116)                                                                | health reads GREEN or AMBER                                                     |
+| `records-unknown`  | a pass that finished (success or failure) in the window has no readable `afk-pass-record` — its tokens and reset time would be missing | the artifact reads, or the run leaves the window                                |
+| `usage-limit`      | a pass's record names a usage-limit reset time still in the future                                                                     | that time passes                                                                |
+| `no-budget`        | the repository variable `AFK_TOKEN_BUDGET` is unset or 0 — the dispatcher never runs unbudgeted (ADR 0109)                             | the owner sets it                                                               |
+| `budget`           | the [budget reading](#g-budget-reading) is at or past `AFK_BUDGET_MAX_PCT` of `AFK_TOKEN_BUDGET`                                       | the window slides past the spend                                                |
+| (no free runner)   | every `pass` runner is busy or offline                                                                                                 | a pass ends (it dispatches the dispatcher)                                      |
 
 The **failure streak** is the one hold that fails a run: the first
 dispatcher run that sees it exits 1, so GitHub sends ONE failure email; later
@@ -455,7 +470,11 @@ gh workflow enable afk-dispatch.yml    # resume; the next trigger dispatches
 ```
 
 A pass already running is not touched; when it ends, the dispatch it sends
-finds the workflow disabled and nothing starts. Its claim stays, and the
+is refused by GitHub (a disabled workflow cannot be dispatched) — so
+`afk-pass`'s final dispatch step must be `continue-on-error` (issue #5650),
+or every pass during a kill would count toward a failure streak. A
+dispatcher run already queued at the kill reads its own workflow's state and
+holds (`disabled`). Its claim stays, and the
 next enabled run resumes or releases it.
 
 A dry run prints the plan without claiming, releasing or dispatching, on a
