@@ -93,6 +93,21 @@
 # ─────────────────────────────────────────────────────────────────────────────
 set -eu
 
+# `set -m` (below) is what puts the run in its own process group, and dash —
+# Linux's /bin/sh — turns it OFF without a tty ("can't access tty; job
+# control turned off"): a cron, an ssh without -t, a hosted runner. The run
+# then shares the caller's group and dies with it (issue #5686). bash keeps
+# job control without a tty, so a shell that drops the flag re-runs this file
+# under bash, in POSIX mode — what /bin/sh is on macOS. Probed in THIS shell,
+# never a subshell: dash only drops the flag in its root shell.
+set -m 2>/dev/null || true
+case $- in
+    *m*) set +m ;;
+    *) if [ -z "${BASH_VERSION:-}" ] && command -v bash >/dev/null 2>&1; then
+        exec bash --posix "$0" "$@"
+    fi ;;
+esac
+
 MODE=run
 REPLACE=0
 case "${1:-}" in
@@ -603,7 +618,13 @@ if [ -f "$RC" ]; then
     esac
     # Report AND CLEAR: the verdict has now been read, so the next invocation
     # of the same command must gate the tree again rather than re-print it.
+    _lid=$(cat "$LEASE_F" 2>/dev/null || echo "")
     rm -f "$RC" "$PIDF" "$PIDSTART"
+    # …and the lease with it. The runner cleared it, but a re-attach's
+    # `renew` reads the lease, then writes it: one that read it just before
+    # the clear writes it back, and a lease outliving its run is left to the
+    # reaper (issue #5686). Idempotent — clearing a cleared lease is a no-op.
+    [ -z "$_lid" ] || lease clear "$_lid"
     echo "gate-run: \`bun run $*\` — exit=$rc after ${_elapsed}s (log: $LOG)"
     # `|| true` is not decoration: `tail` is the last command of this OR-list,
     # so under `set -e` an unreadable log would abort the script BEFORE

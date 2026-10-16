@@ -5,6 +5,7 @@ import * as net from "net";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
+import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
 import { INFRA_REMEDY, PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
 
 /**
@@ -82,7 +83,7 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
                 const child = spawn("bun", [HEALTH_MAIN, "--ui-all"], {
                     cwd: primary,
                     env: {
-                        ...process.env,
+                        ...withoutCorpusExclusion(),
                         VITE_CONVEX_URL: `http://127.0.0.1:${port}`,
                         TOLARIA_GATE_HELD: "",
                     },
@@ -124,7 +125,7 @@ describe("health-main — the Convex preflight (issue #4943)", () => {
             encoding: "utf8",
             timeout: 45_000,
             env: {
-                ...process.env,
+                ...withoutCorpusExclusion(),
                 VITE_CONVEX_URL: "http://127.0.0.1:1",
                 TOLARIA_GATE_HELD: "",
                 // A busy machine ends the run at its next preflight at once

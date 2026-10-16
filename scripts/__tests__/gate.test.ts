@@ -880,7 +880,9 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
         // Blocked on a FIFO, not polling for a file: a blocked read burns NO
         // CPU, where a `sleep` loop ticks `ps` over every couple of seconds
         // and would recover by itself. The open blocks until cleanup kills
-        // it; the spin after it ends by itself at 60 s (issue #4978).
+        // it; the spin after it ends by itself at 60 s (issue #4978). The
+        // spin is `bun`, not a `$SECONDS` loop: dash (Linux's `sh`) has no
+        // `$SECONDS`, so that loop ended at once and never burned (issue #5686).
         const go = join(lockRoot, "go");
         expect(spawnSync("mkfifo", [go]).status).toBe(0);
         const child = spawn(
@@ -888,7 +890,7 @@ describe("gate.ts — liveness wiring (issue #2999)", () => {
             [
                 GATE,
                 "heavy",
-                `read _ < ${go}; while [ $SECONDS -lt 60 ]; do :; done`,
+                `read _ < ${go}; exec bun -e "const end = Date.now() + 60000; while (Date.now() < end);"`,
             ],
             {
                 cwd: lockRoot,
