@@ -60,7 +60,7 @@ describe("mergedWorktree", () => {
         );
     });
     it("is null for a branch naming no issue", () => {
-        expect(mergedWorktree("/w/tolaria", "docs/some-slug")).toBeNull();
+        expect(mergedWorktree("/w/tolaria", "hand-made-branch")).toBeNull();
     });
 });
 
