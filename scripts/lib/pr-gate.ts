@@ -164,7 +164,9 @@ export function trustedAuthorStatus(
     if (touched.length > 0) {
         const more = touched.length > 1 ? ` (+${touched.length - 1} more)` : "";
         // A path may hold control characters (a forged workflow command).
-        const first = touched[0].replace(/[\x00-\x1f\x7f]/g, "?");
+        const first = [...touched[0]]
+            .map((c) => (c.charCodeAt(0) < 0x20 || c === "\x7f" ? "?" : c))
+            .join("");
         return status(
             "failure",
             `touches ${first}${more} — never queueable, the owner merges it by hand`
