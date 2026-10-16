@@ -159,6 +159,7 @@ import {
     redLandGate,
     type LandingKind,
 } from "./lib/health-cadence";
+import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 
 /**
  * The one DECISION `land` makes about a `check:ui` receipt (issue #2760),
@@ -1418,6 +1419,8 @@ export function repairProofOf(
 }
 
 async function main(): Promise<void> {
+    // A gating lane never skips the committed-corpus tests (issue #5675).
+    refuseCorpusExclusion("land");
     // The land's place in the mutex's order dates from here (`lockedEnv`).
     const issuedAt = Date.now();
     const cwd = process.cwd();

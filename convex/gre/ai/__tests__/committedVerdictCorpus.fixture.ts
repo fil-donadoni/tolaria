@@ -29,6 +29,7 @@ import {
     loadLockedVerdicts,
     verdictCacheDir,
 } from "../../../../scripts/lib/verdict-pack-cache";
+import { corpusExcluded } from "../../../../scripts/lib/corpus-exclusion";
 import { machineVerdictStoreReader } from "../../../../scripts/lib/verdict-store";
 import type { VerdictStoreReader } from "../../../verdictStore";
 import { BLADE_SCENARIOS } from "../blade/registry";
@@ -70,3 +71,8 @@ export async function committedVerdictCorpus(
         gaps: registry.gaps,
     };
 }
+
+/** The hosted advisory lane runs without the reader key (issue #5675): a
+ *  test that reads the LOCKED corpus through the machine store skips there,
+ *  by `describe.skipIf(CORPUS_EXCLUDED)`. Never set on a gating lane. */
+export const CORPUS_EXCLUDED = corpusExcluded();

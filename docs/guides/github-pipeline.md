@@ -246,14 +246,29 @@ it, and `land` still pays the lane that gates the merge (ADR 0136); a red
 the owner approves (see the checklist below); it gets no secret and a
 read-only token either way. A newer push cancels the older run.
 
-**Its limit (measured on PR #5674):** the bot tests that read the committed
-verdict corpus (`weightFit.bot.test.ts`, `verdicts.bot.test.ts`) need the
-Verdict Store reader key, which lives only on the owner's machines — the
-bucket is private and a PR job gets no secret. A lane that plans them is red
-on a hosted runner (`No Verdict Store read key at …`) whatever the PR does —
-and since `check:guards` runs the bot suite first and chains the app suites
-with `&&`, the app suites never run there (a deliberately broken tooling test
-on PR #5676 never executed). The decision is issue #5675.
+**The one recorded exclusion (issue #5675, the owner's option 4).** The bot
+tests that read the LOCKED verdict corpus (`weightFit.bot.test.ts` "the
+committed weights ARE the fit…", `verdicts.bot.test.ts` "the incumbent is
+defended on the ORDERING…") need the Verdict Store reader key, which lives
+only on the owner's machines: the bucket is private and a PR job gets no
+secret. Before the exclusion they were red on every hosted run (`No Verdict
+Store read key at …`), and since `check:guards` runs the bot suite first and
+chains the app suites with `&&`, the app suites never ran there (a
+deliberately broken tooling test on PR #5676 never executed). `pr-check`
+now sets `TOLARIA_HOSTED_NO_VERDICT_CORPUS=1` on its lane step and those two
+`describe` blocks skip (they show as skipped, never as passed). It is held
+off every gate four ways:
+
+- it takes effect only on a GitHub-hosted runner (`GITHUB_ACTIONS=true` and
+  `RUNNER_ENVIRONMENT=github-hosted`, set by the runner): on the owner's
+  machines — a self-hosted job, a shell profile — it does nothing;
+
+- `land`, `health` (a gating run; `--status` only reads) and `release`
+  refuse to start with the variable set to anything
+  (`scripts/lib/corpus-exclusion.ts`);
+- the [structure guard](#g-structure-guard) refuses it in any workflow
+  holding a self-hosted job and in a shared action (`corpus-exclusion-gating`);
+- `land`'s lane, on the owner's machine, holds the key and runs them.
 
 Measured on the same commit (PR #5674, full lane): **hosted `ubuntu-24.04`
 491 s** (red only on the two corpus tests above) vs **MacBook `lane` runner
@@ -367,6 +382,7 @@ lane, issue #4963). Each line it prints names a rule:
 | `job-worktree`                 | a self-hosted job does not create the [job worktree](#g-job-worktree) first and remove it last `if: always()`, both under `shell: bash`                                                                                         |
 | `claude-raw-output`            | a `run:` line calls `claude` (or `claude-code`) and is not one `scripts/ci/run-quiet.sh` call; a `claude-code` action is refused as `unpinned-uses`                                                                             |
 | `job-setup-contract`           | the [job setup](#g-job-setup) lost its token mask, `setup-node.sh`, `setup-bun.sh` or `worktree:init`, or nests an action                                                                                                       |
+| `corpus-exclusion-gating`      | `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the hosted lane's corpus exclusion) appears in a workflow holding a self-hosted job, or in a shared action                                                                                  |
 | `queue-entry`                  | a `.mergify.yml` queue rule's `queue_conditions` lack `label=ready-to-land`, `trusted-author` and `base-health` green, `-files~=^\.github/` or `-files=.mergify.yml` (Phase 1)                                                  |
 
 Every rule fails closed: only ONE spelled-out hosted image (`ubuntu-24.04`,
