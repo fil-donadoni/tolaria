@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { BASE_BRANCH } from "../lib/branches";
 import {
     cardSetsChanged,
+    cwdInside,
     mergedPrNumbers,
     mergedWorktree,
     pushRange,
@@ -60,6 +61,19 @@ describe("mergedWorktree", () => {
     });
     it("is null for a branch naming no issue", () => {
         expect(mergedWorktree("/w/tolaria", "docs/some-slug")).toBeNull();
+    });
+});
+
+describe("cwdInside", () => {
+    const out = "p1\nn/w/other\np2\nn/w/tolaria-issue-5/convex";
+    it("is true for a process working under the directory", () => {
+        expect(cwdInside(out, "/w/tolaria-issue-5")).toBe(true);
+    });
+    it("is false for a sibling sharing the prefix", () => {
+        expect(cwdInside(out, "/w/tolaria-issue-50")).toBe(false);
+        expect(cwdInside("n/w/tolaria-issue-5", "/w/tolaria-issue-50")).toBe(
+            false
+        );
     });
 });
 

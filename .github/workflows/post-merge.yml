@@ -23,6 +23,12 @@ on:
         - cron: "17 * * * *"
         - cron: "40 3 * * *"
     workflow_dispatch:
+        inputs:
+            job:
+                description: Job to run by hand
+                type: choice
+                options: [housekeeping, nightly]
+                default: housekeeping
 
 permissions:
     contents: read
@@ -57,12 +63,12 @@ jobs:
 
     seed:
         name: seed the preset scenario
-        # After the seed machine's fast-forward — the seed resolves card names
-        # against the primary checkout's disk (issue #3253). A red `sync` on the
-        # OTHER machine must not hold the seed, so the guard is not `success()`;
-        # the script fast-forwards again and refuses to seed a stale tree.
-        needs: sync
-        if: ${{ !cancelled() && github.event_name == 'push' }}
+        # No `needs: sync`: that waits for EVERY matrix leg, so a nightly holding
+        # the Huawei's lane runner would delay the MacBook's seed for hours. The
+        # script fast-forwards the seed machine's checkout itself (the seed
+        # resolves card names against its disk, issue #3253) and refuses to
+        # seed a stale tree.
+        if: ${{ github.event_name == 'push' }}
         runs-on: [self-hosted, seed]
         timeout-minutes: 30
         steps:
@@ -85,7 +91,7 @@ jobs:
 
     housekeeping:
         name: housekeeping
-        if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || inputs.job == 'housekeeping' }}
         runs-on: [self-hosted, lane, host:huawei]
         timeout-minutes: 50
         steps:
@@ -106,7 +112,7 @@ jobs:
 
     nightly:
         name: health:nightly
-        if: ${{ github.event.schedule == '40 3 * * *' || github.event_name == 'workflow_dispatch' }}
+        if: ${{ github.event.schedule == '40 3 * * *' || inputs.job == 'nightly' }}
         runs-on: [self-hosted, lane, host:huawei]
         timeout-minutes: 360
         steps:

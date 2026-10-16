@@ -26,6 +26,7 @@ import { BASE_BRANCH, ORIGIN_BASE } from "./lib/branches";
 import { gh } from "./lib/gh";
 import {
     mergedPrNumbers,
+    cwdInside,
     mergedWorktree,
     pushRange,
     seedPlan,
@@ -100,6 +101,15 @@ function removeMergedWorktree(primary: string, pr: number): boolean {
     if (wt === null) return true;
     if (!existsSync(wt)) {
         git(["worktree", "prune"], primary);
+        return true;
+    }
+    const cwds = spawnSync("lsof", ["-a", "-d", "cwd", "-Fn"], {
+        encoding: "utf8",
+    }).stdout;
+    if (cwdInside(cwds ?? "", wt)) {
+        console.log(
+            `post-merge: PR #${pr}: worktree ${wt} is in use (land?) — left to its owner`
+        );
         return true;
     }
     const removed = git(["worktree", "remove", "--force", wt], primary).ok;

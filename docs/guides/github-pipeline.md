@@ -429,7 +429,7 @@ resolver does.
 ### post-merge
 
 `.github/workflows/post-merge.yml`: what a merge to the base obliges, now that
-`land` no longer runs it (issue #5644). Four jobs:
+`land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Four jobs:
 
 | Job            | When                    | Runner                                    | Does                                                                                                                                                  |
 | -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -459,12 +459,21 @@ Orders that hold:
 - **Schedules fire from the default branch.** The hourly and nightly jobs
   start only once a release carries `post-merge.yml` to it. The hourly run is
   `housekeeping`'s retry for a PR whose steps failed (its state keeps them).
-- **Serialised by the runner.** One `lane` runner per machine: the Huawei's
-  `sync` and `housekeeping` queue behind each other, so no concurrency group.
+- **A worktree in use is left alone.** `land` still runs inside the PR's
+  worktree when the push fires; `sync` skips a worktree any process has as its
+  cwd (`lsof`) and `land`'s own teardown removes it.
+- **Schedules and dispatch run the release branch's scripts.** A schedule's
+  `GITHUB_SHA` is the default branch tip, so a fix to `housekeeping` landed on
+  the base is live only after the next release. `workflow_dispatch` takes a
+  `job` input (`housekeeping` or `nightly`).
+- **Serialised by the runner.** One `lane` runner per machine is an invariant
+  here (`concurrency` is refused on self-hosted jobs): a second lane runner
+  would let the Huawei's `sync` and `housekeeping` race on its primary checkout.
+  `seed` has no `needs: sync`, which would wait for the Huawei's leg behind a
+  nightly of up to 6 h.
 
 `branches: [staging]` names the base by literal, as in
-[`pr-refresh`](#pr-refresh). `workflow_dispatch` runs `housekeeping` and
-`nightly` once, by hand.
+[`pr-refresh`](#pr-refresh).
 
 ### lane-timing
 

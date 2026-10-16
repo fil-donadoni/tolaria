@@ -83,3 +83,20 @@ export function seedPlan(
     if (!fastForwarded) return { scenarios: [], presets: false };
     return { scenarios: [...prs], presets: cardSetsChanged(changedFiles) };
 }
+
+/**
+ * Is a process working inside `dir`? Reads `lsof -a -d cwd -Fn` output (one
+ * `n<path>` line per process). `land` still runs in the PR's worktree while
+ * the push it made fires `post-merge`, and its health detach must run before
+ * that worktree goes (`land.ts` § postMergeHousekeepingSteps), so a worktree
+ * with a live cwd is left to its owner.
+ */
+export function cwdInside(lsofOut: string, dir: string): boolean {
+    return lsofOut
+        .split("\n")
+        .some(
+            (l) =>
+                l.startsWith("n") &&
+                (l.slice(1) === dir || l.slice(1).startsWith(`${dir}/`))
+        );
+}
