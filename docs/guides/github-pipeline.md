@@ -257,7 +257,11 @@ chains the app suites with `&&`, the app suites never ran there (a
 deliberately broken tooling test on PR #5676 never executed). `pr-check`
 now sets `TOLARIA_HOSTED_NO_VERDICT_CORPUS=1` on its lane step and those two
 `describe` blocks skip (they show as skipped, never as passed). It is held
-off every gate three ways:
+off every gate four ways:
+
+- it takes effect only on a GitHub-hosted runner (`GITHUB_ACTIONS=true` and
+  `RUNNER_ENVIRONMENT=github-hosted`, set by the runner): on the owner's
+  machines — a self-hosted job, a shell profile — it does nothing;
 
 - `land`, `health` (a gating run; `--status` only reads) and `release`
   refuse to start with the variable set to anything
