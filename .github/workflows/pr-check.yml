@@ -19,6 +19,8 @@ on:
 
 permissions:
     contents: read
+    # repair-proof reads the health RED from commit statuses (issue #5639).
+    statuses: read
 
 # A newer push supersedes the lane of the older one (hosted only: a self-hosted
 # workflow is serialised by runner labels, never by a concurrency group).

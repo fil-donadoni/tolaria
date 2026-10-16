@@ -280,7 +280,7 @@ the same refusal. Those functions keep their tests; the wiring is pinned by
 backend needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`
 when the store cannot be read, or when every failing test the verdict names
 was moved or deleted by the repair — it cannot decide, and `land` stays the
-authority until the migration retires it. A PR that is not a declared repair
+authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
 (closing none of the ledger's `/health-fix` issues) owes nothing to it.
 
 Like `lane`, the checks are advisory until a ruleset names them; once it does,
