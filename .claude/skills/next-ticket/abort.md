@@ -29,6 +29,8 @@ it and aborts again (issue #4752, issue #5564).
    untouched for the rest of its run (`loop-drain.sh`, issue #5564), but only
    the relabel takes it out of the NEXT run's queue.
 
+**In an `afk-pass` job the release is the label** (`job.md` § Abort).
+
 **Release as ONE act: `bun run queue:release N`** — when the pass claimed
 it (`SKILL.md` § 2. Claim + worktree) — removes `in-progress` AND the `@me` assignee and writes the claim
 journal's `released` row. A hand-typed `--remove-label in-progress` leaves the
