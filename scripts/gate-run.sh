@@ -619,6 +619,12 @@ if [ -f "$RC" ]; then
     # Report AND CLEAR: the verdict has now been read, so the next invocation
     # of the same command must gate the tree again rather than re-print it.
     rm -f "$RC" "$PIDF" "$PIDSTART"
+    # …and the lease with it. The runner cleared it, but a re-attach's
+    # `renew` reads the lease, then writes it: one that read it just before
+    # the clear writes it back, and a lease outliving its run is left to the
+    # reaper (issue #5686). Idempotent — clearing a cleared lease is a no-op.
+    _lid=$(cat "$LEASE_F" 2>/dev/null || echo "")
+    [ -z "$_lid" ] || lease clear "$_lid"
     echo "gate-run: \`bun run $*\` — exit=$rc after ${_elapsed}s (log: $LOG)"
     # `|| true` is not decoration: `tail` is the last command of this OR-list,
     # so under `set -e` an unreadable log would abort the script BEFORE
