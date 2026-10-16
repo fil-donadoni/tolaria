@@ -33,20 +33,39 @@ jobs:
         name: check:lane (advisory)
         runs-on: ubuntu-24.04
         timeout-minutes: 60
+        # `actions: write` only to dispatch pr-fixup below (issue #5640).
+        permissions:
+            contents: read
+            actions: write
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
                   fetch-depth: 0
                   persist-credentials: false
             - uses: ./.github/actions/job-setup
-            - name: check:lane
+            - name: check:lane (one flaky re-run)
               # No Verdict Store read key here (ADR 0156 §8: no secret in a
               # PR job), so the committed-corpus tests skip — the one
               # recorded hosted exclusion (issue #5675); `land`'s lane runs
               # them, and refuses to start with this set.
               env:
                   TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
-              run: bun run check:lane
+              run: bun run check:lane --json --retry-flaky > "$RUNNER_TEMP/lane.json"
+            - name: Flakes in the job summary
+              if: always()
+              run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
+            # A red lane whose only failing step is a stale generated artefact
+            # (issue #5640): dispatch pr-fixup, which regenerates and pushes.
+            # Same-repository PRs only — a fork's token cannot dispatch, and
+            # pr-fixup refuses a fork anyway.
+            - name: Fixup (stale generated artefact)
+              if: failure() && github.event.pull_request.head.repo.full_name == github.repository
+              continue-on-error: true
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  BASE_REF: ${{ github.event.pull_request.base.ref }}
+              run: bun run pr:fixup classify --lane "$RUNNER_TEMP/lane.json" --pr "$PR" --ref "$BASE_REF"
 
     refusals:
         name: ${{ matrix.check }}

@@ -172,12 +172,12 @@ export function retryStep(
     policy: RetryPolicy
 ): RetryStep {
     if (attempts >= policy.maxAttempts) return { action: "give-up" };
-    const latest = loadSamples.at(-1);
+    const latest = loadSamples[loadSamples.length - 1];
     if (latest === undefined) return { action: "wait", ms: 0 };
     if (latest < policy.loadThreshold) return { action: "retry" };
     const waited = (loadSamples.length - 1) * policy.pollMs;
     if (waited >= policy.maxWaitMs) return { action: "retry" };
-    const previous = loadSamples.at(-2);
+    const previous = loadSamples[loadSamples.length - 2];
     const falling = previous === undefined || latest < previous;
     return falling
         ? { action: "wait", ms: policy.pollMs }

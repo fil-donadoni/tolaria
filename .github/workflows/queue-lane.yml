@@ -1,0 +1,44 @@
+# queue-lane — the check Mergify's queue runs: `check:lane` on the queue's
+# draft branch (the PR rebased onto the tip), on one of the owner's `lane`
+# runners (ADR 0156 Amendment I, issue #5640). A failed vitest command is
+# re-run ONCE on its failing files; a green re-run leaves the check green and
+# the flake in the job's JSON (`lane.json`, summarised in the job summary) —
+# the same single retry health gives its vitest projects (issue #5461).
+#
+# Triggered only by a push to `mergify/merge-queue/**`, a branch only an
+# account with write access can create: no outsider reaches the runner (the
+# structure guard, scripts/__tests__/workflow-structure.test.ts). The job's
+# name is the status context the queue rule requires.
+# docs/guides/github-pipeline.md § queue-lane.
+name: queue-lane
+
+on:
+    push:
+        branches: ["mergify/merge-queue/**"]
+
+permissions:
+    contents: read
+
+jobs:
+    queue-lane:
+        name: queue-lane
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 60
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: check:lane (one flaky re-run)
+              run: bun run check:lane --json --retry-flaky > "$RUNNER_TEMP/lane.json"
+            - name: Flakes in the job summary
+              if: always()
+              run: bun run pr:fixup flakes --lane "$RUNNER_TEMP/lane.json" >> "$GITHUB_STEP_SUMMARY"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

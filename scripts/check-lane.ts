@@ -49,6 +49,7 @@
  *   bun run check:lane --base=<ref>   # classify against another base
  *   bun run check:lane --json         # emit the plan + receipt as JSON
  *   bun run check:lane --plan         # print the classification, run NOTHING
+ *   bun run check:lane --retry-flaky  # re-run a failed vitest command once (queue lane, issue #5640)
  *
  * Exits 1 on a dirty working tree, so the HEAD SHA it prints describes
  * exactly what was classified — and exits 1 again if that tree MOVES under
@@ -81,6 +82,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ORIGIN_BASE } from "./lib/branches";
 import { DOC_GATE_TESTS } from "./lib/doc-gate-tests";
+import { failingFiles } from "./lib/health-evidence";
+import { laneFlakeOf, planLaneRetry, type LaneFlake } from "./lib/health-retry";
 import {
     reachIndex,
     relatedTests,
@@ -1008,10 +1011,24 @@ export function renderClassification(
 
 export type CheckStatus = "pass" | "fail" | "not-run";
 
+/** What running one planned command reports back. `flake` and `failedFiles`
+ *  exist only under `--retry-flaky` (issue #5640). */
+export interface ExecResult {
+    ok: boolean;
+    ms: number;
+    /** The command failed once and passed on its one re-run. */
+    flake?: LaneFlake;
+    /** The test files a failed vitest command named — what the fixup job
+     *  reads to tell a stale generated artefact from a real red. */
+    failedFiles?: string[];
+}
+
 export interface CheckOutcome {
     id: string;
     status: CheckStatus;
     ms: number;
+    flake?: LaneFlake;
+    failedFiles?: string[];
 }
 
 export interface RunResult {
@@ -1036,7 +1053,7 @@ export interface RunResult {
  */
 export function runPlan(
     plan: LanePlan,
-    exec: (command: string) => { ok: boolean; ms: number },
+    exec: (command: string) => ExecResult,
     assertQuiet: () => unknown
 ): RunResult {
     const outcomes: CheckOutcome[] = [];
@@ -1063,6 +1080,8 @@ export function runPlan(
             id: check.id,
             status: result.ok ? "pass" : "fail",
             ms: result.ms,
+            ...(result.flake ? { flake: result.flake } : {}),
+            ...(result.failedFiles ? { failedFiles: result.failedFiles } : {}),
         });
         if (!result.ok) ok = false;
     }
@@ -1321,17 +1340,68 @@ export function shellStdio(
  * "light" means is inherited automatically instead of drifting between two
  * copies of the same mechanism.
  */
-function shellRun(
-    command: string,
-    cwd: string,
-    json: boolean
-): { ok: boolean; ms: number } {
+function shellRun(command: string, cwd: string, json: boolean): ExecResult {
     const t0 = Date.now();
     const r = spawnSync("bun", [GATE, "light", command], {
         stdio: shellStdio(json),
         cwd,
     });
     return { ok: r.status === 0, ms: Date.now() - t0 };
+}
+
+/**
+ * `--retry-flaky` (issue #5640): the queue's lane re-runs a failed vitest
+ * command ONCE, on the failing files only, and records the flake. Output is
+ * captured to be read (`planLaneRetry` owns what is retryable) and replayed
+ * onto the same stream `shellStdio` would have used. A command that is not
+ * vitest runs exactly as `shellRun` runs it.
+ */
+export function shellRunRetrying(
+    command: string,
+    cwd: string,
+    json: boolean
+): ExecResult {
+    if (!/^bunx vitest run(\s|$)/.test(command)) {
+        return shellRun(command, cwd, json);
+    }
+    const t0 = Date.now();
+    const sink = json ? process.stderr : process.stdout;
+    const capture = (
+        cmd: string
+    ): { ok: boolean; out: string; signal: boolean } => {
+        const r = spawnSync("bun", [GATE, "light", cmd], {
+            stdio: ["inherit", "pipe", "pipe"],
+            cwd,
+            encoding: "utf8",
+            maxBuffer: 512 * 1024 * 1024,
+        });
+        const out = `${r.stdout ?? ""}${r.stderr ?? ""}`;
+        sink.write(out);
+        return { ok: r.status === 0, out, signal: r.signal !== null };
+    };
+    const first = capture(command);
+    if (first.ok) return { ok: true, ms: Date.now() - t0 };
+    const plan = first.signal ? null : planLaneRetry(command, first.out);
+    if (plan === null) {
+        // No files named: a red the retry could not cover (crash, untagged
+        // FAIL) is never one the fixup job may call regenerable.
+        return { ok: false, ms: Date.now() - t0 };
+    }
+    sink.write(
+        `check:lane: ${plan.projects.join(", ")} failed (${plan.cause}) — re-running ${plan.files.length} file(s) once (issue #5640)\n`
+    );
+    const second = capture(plan.command);
+    if (second.ok) {
+        sink.write(
+            `check:lane: flaky — green on the re-run: ${plan.files.join(", ")}\n`
+        );
+        return { ok: true, ms: Date.now() - t0, flake: laneFlakeOf(plan) };
+    }
+    return {
+        ok: false,
+        ms: Date.now() - t0,
+        failedFiles: failingFiles(second.out),
+    };
 }
 
 /**
@@ -1369,7 +1439,7 @@ export function executePlan(
     plan: LanePlan,
     head: string,
     json: boolean,
-    exec: (command: string) => { ok: boolean; ms: number },
+    exec: (command: string) => ExecResult,
     log: (line: string) => void,
     endHeadOf: () => string
 ): RunResult {
@@ -1401,30 +1471,42 @@ export function parseArgs(argv: string[]): {
     base: string;
     json: boolean;
     planOnly: boolean;
+    retryFlaky: boolean;
 } {
     const baseArg = argv.find((a) => a.startsWith("--base="));
     for (const a of argv) {
-        if (a === "--json" || a === "--plan" || a.startsWith("--base=")) {
+        if (
+            a === "--json" ||
+            a === "--plan" ||
+            a === "--retry-flaky" ||
+            a.startsWith("--base=")
+        ) {
             continue;
         }
-        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan]
+        fail(`unknown argument \`${a}\` — usage: bun run check:lane [--base=<ref>] [--json] [--plan] [--retry-flaky]
 
 The lane is derived from the diff and can never be declared by a flag (#2738):
 a flag is a hand-maintained list in disguise, and the first agent that passes
 \`--skin\` out of habit on a diff touching convex/ gets a lying green.
 \`--plan\` is not that flag: it prints the lane this diff classifies as and
-runs nothing, so it cannot make a wrong lane true.`);
+runs nothing, so it cannot make a wrong lane true.
+\`--retry-flaky\` (the queue's lane, issue #5640) re-runs a failed vitest
+command once on its failing files; it changes what a flake costs, never what
+the lane is.`);
     }
     return {
         base: baseArg ? baseArg.slice("--base=".length) : ORIGIN_BASE,
         json: argv.includes("--json"),
         planOnly: argv.includes("--plan"),
+        retryFlaky: argv.includes("--retry-flaky"),
     };
 }
 
 function main(): void {
     const cwd = process.cwd();
-    const { base, json, planOnly } = parseArgs(process.argv.slice(2));
+    const { base, json, planOnly, retryFlaky } = parseArgs(
+        process.argv.slice(2)
+    );
 
     const start = snapshotTree(cwd);
     if (start.status.trim() !== "") {
@@ -1477,7 +1559,8 @@ function main(): void {
         plan,
         head,
         json,
-        (command) => shellRun(command, cwd, json),
+        (command) =>
+            (retryFlaky ? shellRunRetrying : shellRun)(command, cwd, json),
         console.log,
         assertQuiet
     );
