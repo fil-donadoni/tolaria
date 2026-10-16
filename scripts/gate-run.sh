@@ -98,12 +98,15 @@ set -eu
 # control turned off"): a cron, an ssh without -t, a hosted runner. The run
 # then shares the caller's group and dies with it (issue #5686). bash keeps
 # job control without a tty, so a shell that drops the flag re-runs this file
-# under bash, in POSIX mode — what /bin/sh is on macOS.
-if [ -z "${BASH_VERSION:-}" ] &&
-    ! (set -m 2>/dev/null; case $- in *m*) ;; *) exit 1 ;; esac) &&
-    command -v bash >/dev/null 2>&1; then
-    exec bash --posix "$0" "$@"
-fi
+# under bash, in POSIX mode — what /bin/sh is on macOS. Probed in THIS shell,
+# never a subshell: dash only drops the flag in its root shell.
+set -m 2>/dev/null || true
+case $- in
+    *m*) set +m ;;
+    *) if [ -z "${BASH_VERSION:-}" ] && command -v bash >/dev/null 2>&1; then
+        exec bash --posix "$0" "$@"
+    fi ;;
+esac
 
 MODE=run
 REPLACE=0
