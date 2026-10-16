@@ -1,0 +1,70 @@
+# afk-dispatch — the one dispatcher of AFK passes (ADR 0156 Amendment I § The
+# pass is dispatched, not just triggered; issue #5649). It picks as many issues
+# as there are free `pass` runners, claims each by label and dispatches
+# `afk-pass.yml` with the issue and its model tier; it releases orphan claims
+# and resumes dead passes from their pushed branch. It HOLDS — exits 0,
+# "nothing to do" — while afk-pass.yml is absent or disabled, after three
+# consecutive failed passes (the first such run fails, once, for the email),
+# while the base is RED, until a usage-limit reset, and while the token budget
+# is spent. The decisions are `scripts/lib/afk-dispatch.ts`.
+#
+# ONE RUN AT A TIME, on both machines: the job-level concurrency group is the
+# structure guard's one allowed group on a self-hosted job (rule
+# `dispatcher-serialised`). A pending run displaced by a newer one loses
+# nothing — every run re-reads every fact.
+#
+# Kill switch: disable this workflow (Actions tab, or
+# `gh workflow disable afk-dispatch.yml`) — no new pass starts; running
+# passes finish. docs/guides/github-pipeline.md § afk-dispatch.
+#
+# Triggers an outsider cannot fire: a label (only a collaborator labels), the
+# schedule, a dispatch — `afk-pass` dispatches it at its end.
+name: afk-dispatch
+run-name: ${{ inputs.ack_failures && 'afk-dispatch (failures acknowledged)' || 'afk-dispatch' }}
+
+on:
+    issues:
+        types: [labeled]
+    schedule:
+        - cron: "*/30 * * * *"
+    workflow_dispatch:
+        inputs:
+            ack_failures:
+                description: Resume after a failure streak (the owner has read the failed passes)
+                type: boolean
+                default: false
+
+permissions:
+    contents: read
+
+jobs:
+    dispatch:
+        name: dispatch passes
+        # A label event wakes it only for `ready-for-agent`: the dispatcher's
+        # own `in-progress` claims would otherwise wake it again.
+        if: github.event_name != 'issues' || github.event.label.name == 'ready-for-agent'
+        runs-on: [self-hosted, pass]
+        timeout-minutes: 15
+        concurrency:
+            group: afk-dispatch
+            cancel-in-progress: false
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: afk:dispatch
+              env:
+                  TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
+                  AFK_TOKEN_BUDGET: ${{ vars.AFK_TOKEN_BUDGET }}
+                  AFK_BUDGET_MAX_PCT: ${{ vars.AFK_BUDGET_MAX_PCT }}
+                  AFK_BUDGET_HOURS: ${{ vars.AFK_BUDGET_HOURS }}
+              run: bun run afk:dispatch
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove

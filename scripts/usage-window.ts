@@ -44,6 +44,7 @@ import {
     pctOfBudget,
     DEFAULT_WEIGHTS,
     type UsageRecord,
+    type Categories,
     type CategoryWeights,
     type WeightClass,
 } from "./lib/usage-window";
@@ -86,7 +87,7 @@ function parseArgs(argv: string[]): Args {
     let hours = 5;
     const envBudget = Number(process.env.TOLARIA_LOOP_TOKEN_BUDGET ?? "");
     let budget = Number.isFinite(envBudget) ? envBudget : 0;
-    let projectsDir = path.join(os.homedir(), ".claude", "projects");
+    let projectsDir = DEFAULT_PROJECTS_DIR;
     let weightsFile: string | undefined;
     let pretty = false;
     let sinceMs: number | undefined;
@@ -272,6 +273,31 @@ async function collectFromFile(file: string): Promise<UsageRecord[]> {
     return out;
 }
 
+/**
+ * This machine's usage from `sinceMs` on — every transcript under
+ * `projectsDir`, or only the `sessions` named. Exported for the AFK
+ * dispatcher (issue #5649), whose budget guard is this reading plus the
+ * other machine's pass records.
+ */
+export async function readUsageWindow(
+    projectsDir: string,
+    sinceMs: number,
+    sessions?: ReadonlySet<string>
+): Promise<{ models: Record<string, Categories>; totals: Categories }> {
+    const records: UsageRecord[] = [];
+    for (const file of candidateFiles(projectsDir, sinceMs, sessions)) {
+        records.push(...(await collectFromFile(file)));
+    }
+    return sumWindow(records, sinceMs);
+}
+
+/** Where Claude Code keeps this user's transcripts. */
+export const DEFAULT_PROJECTS_DIR = path.join(
+    os.homedir(),
+    ".claude",
+    "projects"
+);
+
 async function main(): Promise<void> {
     const args = parseArgs(process.argv.slice(2));
     const sinceMs = args.sinceMs ?? Date.now() - args.hours * 60 * 60 * 1000;
@@ -291,13 +317,7 @@ async function main(): Promise<void> {
         sessions = sessionsOfRun(text, args.runId);
     }
 
-    const files = candidateFiles(args.projectsDir, sinceMs, sessions);
-    const records: UsageRecord[] = [];
-    for (const file of files) {
-        records.push(...(await collectFromFile(file)));
-    }
-
-    const sum = sumWindow(records, sinceMs);
+    const sum = await readUsageWindow(args.projectsDir, sinceMs, sessions);
     const weights = loadWeights(args.weightsFile);
     const weighted = weightedTokens(sum, weights);
     const pct = pctOfBudget(weighted, args.budget);
@@ -319,11 +339,13 @@ async function main(): Promise<void> {
     process.exit(0);
 }
 
-main().catch((e: unknown) => {
-    // A reporter should not throw an unattended loop into a stack trace it
-    // has to grep for a pct — but a genuinely broken invocation still needs
-    // to be visible, so print and exit 0 with an empty-shaped report rather
-    // than crash the caller.
-    console.error(`usage-window: ${(e as Error)?.stack ?? String(e)}`);
-    process.exit(0);
-});
+if (import.meta.main) {
+    main().catch((e: unknown) => {
+        // A reporter should not throw an unattended loop into a stack trace it
+        // has to grep for a pct — but a genuinely broken invocation still needs
+        // to be visible, so print and exit 0 with an empty-shaped report rather
+        // than crash the caller.
+        console.error(`usage-window: ${(e as Error)?.stack ?? String(e)}`);
+        process.exit(0);
+    });
+}

@@ -31,7 +31,15 @@
  *     shared job setup (`./.github/actions/job-setup`) first.
  *   - `concurrency-group` — a `concurrency` key on a self-hosted job or on a
  *     workflow holding one: a group keeps one pending job and CANCELS the
- *     older pending one; heavy work is serialised by runner labels.
+ *     older pending one; heavy work is serialised by runner labels. The one
+ *     exception is a `SERIALISED_DISPATCHERS` job (below).
+ *   - `dispatcher-serialised` — a job of a `SERIALISED_DISPATCHERS` workflow
+ *     without a JOB-level `concurrency: { group, cancel-in-progress: false }`.
+ *     The dispatcher claims issues: two runs at once could claim one issue
+ *     twice (issue #5649). A dropped pending dispatcher loses nothing — the
+ *     next run re-reads every fact — so the group's cancel is harmless there;
+ *     job level, so a run whose job is skipped (a label event that is not
+ *     `ready-for-agent`) never displaces a pending one.
  *   - `self-hosted-clone` — `actions/checkout` on a self-hosted job: a job on
  *     the owner's machines works in a worktree of the primary checkout.
  *   - `job-worktree` — a self-hosted job whose first step does not create the
@@ -82,6 +90,7 @@ export type RuleId =
     | "job-setup-contract"
     | "queue-entry"
     | "corpus-exclusion-gating"
+    | "dispatcher-serialised"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -94,6 +103,23 @@ export interface Violation {
 }
 
 export const JOB_SETUP = "./.github/actions/job-setup";
+
+/** Workflows whose job must run one at a time, cross-machine, by a job-level
+ *  concurrency group (rule `dispatcher-serialised`, issue #5649). */
+export const SERIALISED_DISPATCHERS: ReadonlySet<string> = new Set([
+    ".github/workflows/afk-dispatch.yml",
+]);
+
+/** `{ group: <non-empty>, cancel-in-progress: false }` — serialises without
+ *  ever cancelling a RUNNING job (a dispatcher mid-claim). */
+function isSerialisingGroup(c: unknown): boolean {
+    return (
+        isObj(c) &&
+        typeof c.group === "string" &&
+        c.group.trim() !== "" &&
+        c["cancel-in-progress"] === false
+    );
+}
 export const JOB_SETUP_FILE = ".github/actions/job-setup/action.yml";
 /** A GitHub-hosted runner image (`ubuntu-24.04`, `macos-15`, …). Anything
  *  else — `self-hosted`, a role label, but also `Linux`, `macOS`, `X64`,
@@ -203,6 +229,7 @@ function checkJob(
         outsiderTriggers: string[];
         prTarget: boolean;
         localActions: Set<string>;
+        dispatcher: boolean;
     },
     out: Violation[]
 ): boolean {
@@ -228,8 +255,14 @@ function checkJob(
     const timeout = job["timeout-minutes"];
     if (!(typeof timeout === "number" && timeout > 0))
         v("no-timeout", "no positive `timeout-minutes`");
-    if (selfHosted && job.concurrency !== undefined)
+    const serialised = wf.dispatcher && isSerialisingGroup(job.concurrency);
+    if (selfHosted && job.concurrency !== undefined && !serialised)
         v("concurrency-group", "self-hosted job declares `concurrency`");
+    if (wf.dispatcher && !serialised)
+        v(
+            "dispatcher-serialised",
+            "a dispatcher job must declare `concurrency: { group, cancel-in-progress: false }` — two runs at once could claim one issue twice"
+        );
 
     const steps = asArray(job.steps);
     // Only a self-hosted job's first and last steps (the job worktree) may
@@ -349,6 +382,7 @@ function checkWorkflow(
             .map(([n]) => n),
         prTarget: trig.has("pull_request_target"),
         localActions,
+        dispatcher: SERIALISED_DISPATCHERS.has(f.path),
     };
     let anySelfHosted = false;
     for (const [id, job] of Object.entries(doc.jobs))

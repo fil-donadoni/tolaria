@@ -742,23 +742,10 @@ function claimsHeldOnThisMachine(): number[] | null {
     return heldFromJournal(() => readFileSync(claimLedgerPath(root), "utf8"));
 }
 
-function main(): void {
-    // RED first, and before the first `gh` round-trip: it needs neither the
-    // queue nor the network, and a session on a broken base should not pay a
-    // queue read plus a detail fetch per candidate to be told it may not pick.
-    const health = redRefusal(readHealthMarker(primaryCheckout()));
-    if (!health.admitted) die(health.message);
-    const infra = readHealthInfra(primaryCheckout());
-    if (infra) console.error(`queue:plan: ${infraNotice(infra)}`);
-
-    // Parsed before the first round-trip too: a malformed `--lineage` is a
-    // typo, and paying a queue read and a board read to be told so is two
-    // `gh` budgets spent on nothing.
-    const lineage = lineageArg();
-
-    const limit = arg("limit", DEFAULTS.limit);
-
-    const issues = readWholeQueue(
+/** The whole open `ready-for-agent` queue, Stage-1 fields (`readWholeQueue`).
+ *  Exported for the AFK dispatcher (issue #5649): one read, two callers. */
+export function readReadyQueue(limit: number = DEFAULTS.limit): QueueIssue[] {
+    return readWholeQueue(
         (page) =>
             JSON.parse(
                 gh([
@@ -776,12 +763,17 @@ function main(): void {
             ) as QueueIssue[],
         limit
     );
+}
 
+/** The planner's live `QueuePort` over `gh` — cached detail and blocked-by
+ *  reads, the open-PR set, the board priority. Exported for the AFK
+ *  dispatcher (issue #5649), so both pick through the same door. */
+export function liveQueuePort(): QueuePort {
     const detailCache = new Map<number, IssueDetail>();
 
     const blockedByCache = new Map<number, number[]>();
 
-    const port: QueuePort = {
+    return {
         issuesWithOpenPr: issuesWithOpenPr(),
         priority: fetchBoardPriority(),
         // The native dependency graph, one issue at a time (issue #3794).
@@ -831,6 +823,26 @@ function main(): void {
             return detail;
         },
     };
+}
+
+function main(): void {
+    // RED first, and before the first `gh` round-trip: it needs neither the
+    // queue nor the network, and a session on a broken base should not pay a
+    // queue read plus a detail fetch per candidate to be told it may not pick.
+    const health = redRefusal(readHealthMarker(primaryCheckout()));
+    if (!health.admitted) die(health.message);
+    const infra = readHealthInfra(primaryCheckout());
+    if (infra) console.error(`queue:plan: ${infraNotice(infra)}`);
+
+    // Parsed before the first round-trip too: a malformed `--lineage` is a
+    // typo, and paying a queue read and a board read to be told so is two
+    // `gh` budgets spent on nothing.
+    const lineage = lineageArg();
+
+    const limit = arg("limit", DEFAULTS.limit);
+
+    const issues = readReadyQueue(limit);
+    const port = liveQueuePort();
 
     // The lineage restriction is decided BEFORE the plan, and it is fatal:
     // a `--lineage` whose target is wrong must never degrade into a plan over

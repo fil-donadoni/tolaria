@@ -363,6 +363,57 @@ describe("workflow structure guard", () => {
         expect(rules(fixture({ self: wf }))).toEqual(["concurrency-group"]);
     });
 
+    it("requires the dispatcher to run one at a time by a job-level group (issue #5649)", () => {
+        const group =
+            "    concurrency:\n      group: afk-dispatch\n      cancel-in-progress: false\n";
+        const serialised = edit(
+            SELF_HOSTED,
+            "    timeout-minutes: 30\n",
+            `    timeout-minutes: 30\n${group}`
+        );
+        const dispatcher = (text: string): StructureInput => ({
+            ...fixture(),
+            workflows: [
+                ...fixture().workflows,
+                { path: ".github/workflows/afk-dispatch.yml", text },
+            ],
+        });
+        expect(rules(dispatcher(serialised))).toEqual([]);
+        // The same group anywhere else is still refused.
+        expect(rules(fixture({ self: serialised }))).toEqual([
+            "concurrency-group",
+        ]);
+        // No group: two runs could claim one issue twice.
+        expect(rules(dispatcher(SELF_HOSTED))).toEqual([
+            "dispatcher-serialised",
+        ]);
+        // A group that cancels the RUNNING dispatcher mid-claim.
+        expect(
+            rules(
+                dispatcher(
+                    edit(
+                        serialised,
+                        "cancel-in-progress: false",
+                        "cancel-in-progress: true"
+                    )
+                )
+            )
+        ).toEqual(["concurrency-group", "dispatcher-serialised"]);
+        // At workflow level a skipped run (a non-ready label) would displace
+        // a pending one.
+        expect(
+            rules(
+                dispatcher(
+                    edit(
+                        SELF_HOSTED,
+                        "jobs:",
+                        "concurrency:\n  group: afk-dispatch\n  cancel-in-progress: false\njobs:"
+                    )
+                )
+            )
+        ).toEqual(["dispatcher-serialised", "concurrency-group"]);
+    });
+
     it("refuses actions/checkout on a self-hosted job", () => {
         const self = edit(
             SELF_HOSTED,
