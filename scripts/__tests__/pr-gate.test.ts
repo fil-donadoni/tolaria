@@ -154,7 +154,7 @@ describe("protectedPaths", () => {
         expect(
             protectedPaths([
                 ".github/actions/job-setup/action.yml",
-                "docs/.github/notes.md",
+                "src/.github/notes.ts",
                 ".mergify.yml",
                 "a/.mergify.yml",
                 ".github-like/x",
