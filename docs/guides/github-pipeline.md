@@ -12,7 +12,8 @@ checklist. Version 2 (issue #5636) adds the [jobs](#jobs): the
 [structure guard](#g-structure-guard) over the workflow files, and the first
 two workflows — the advisory [`pr-check`](#pr-check) and
 [`lane-timing`](#lane-timing). Version 3 (issue #5639) ports the refusals
-`land` applies into the [required checks](#required-checks).
+`land` applies into the [required checks](#required-checks). Version 4 (issue #5638) adds
+[`pr-refresh`](#pr-refresh), which keeps the queued PRs rebased.
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -233,6 +234,7 @@ with `cancel-in-progress` to drop a superseded run (`pr-check` does).
 | [`pr-check`](#pr-check)                   | `pull_request` (open, push)                          | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory           |
 | [`pr-check`](#required-checks) `refusals` | same                                                 | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`         |
 | [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0) |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch                              | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches         |
 
 ### pr-check
 
@@ -287,6 +289,47 @@ Like `lane`, the checks are advisory until a ruleset names them; once it does,
 this section is the list of required status contexts: `refusals (ui-receipt)`,
 `refusals (scenario)`, `refusals (retired-rows)`,
 `refusals (robustness-baseline)`, `refusals (repair-proof)`.
+
+### pr-refresh
+
+`.github/workflows/pr-refresh.yml`: GitHub and Mergify do not run our merge
+drivers, and 37 % of PRs touch a driven file, so a queued PR conflicts on a
+generated artefact the moment the base moves. On every push to the base, a
+[`lane`](#g-lane) runner runs `bun run pr-refresh -- --before <old tip> --after <new tip>`
+(`scripts/pr-refresh.ts`). It lists the open `ready-to-land` PRs of this
+repository (never a fork) and refreshes each one that GitHub reports
+`CONFLICTING`, or whose files the push touched (`git diff --name-only
+<before> <after>`). Per PR:
+
+1. rebase its head onto the base in a throwaway worktree of the
+   [primary checkout](#g-primary-checkout), with **the same step `land` runs**
+   (`scripts/lib/rebase-resolve.ts`: `rebaseStep` — the `regenerated` and
+   `cr-ledger` merge drivers fire here — then `resolve-generated-artifacts.ts`,
+   which re-derives every `REGENERATED_ARTIFACTS` path a driver took a side
+   of). A PR conflicting only on generated files is regenerated and pushed,
+   with no pass;
+2. push with `--force-with-lease` pinned to the head sha the PR was read at: a
+   push the land-runner or a session made meanwhile wins, and this one is
+   dropped (the PR stays queued, the log says why);
+3. a conflict in a file no driver owns aborts the rebase and labels the PR
+   `land-failed` with the conflicting paths as a comment — a repair pick for
+   `queue:plan` (`/next-ticket <issue> --resume`), re-queued by
+   `bun run land:ready <PR#>` after the fix.
+
+Nothing else labels or comments: a failed fetch, a moved head, a refused push
+or a resolver refusal (no Card Corpus cache on this machine) leaves the PR
+queued. `--dry-run` does everything but push and label; `--pr N` restricts it
+to one PR.
+
+**It pushes with the owner's identity.** The runner runs as the owner, so
+`git push` uses the owner's credentials and `GITHUB_TOKEN` is stripped from
+the script's children (as in `land`): a push made with the workflow token does
+not trigger other workflows, so the PR's checks would never re-run on the
+refreshed head. The workflow's `permissions` stay `contents: read`.
+
+`branches: [staging]` in the workflow names the base by literal — a workflow
+cannot read `tolaria.config.json`. Renaming the base (ADR 0116) means editing
+that line too.
 
 ### lane-timing
 
