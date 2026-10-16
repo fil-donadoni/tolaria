@@ -18,7 +18,9 @@ two workflows — the advisory [`pr-check`](#pr-check) and
 will require. Version 6 (issue #5641) describes [a pass inside a job](#a-pass-inside-a-job) and the
 `deny-guard` rule that keeps a session off the base branch. Version 7
 (issue #5640) adds the queue's lane with [one flaky re-run](#queue-lane) and
-the [`pr-fixup`](#pr-fixup) job for stale generated artefacts.
+the [`pr-fixup`](#pr-fixup) job for stale generated artefacts. Version 8
+(issue #5644) adds [`post-merge`](#post-merge): what a merge obliges on each
+machine, and the schedules that replaced the Huawei's two timers.
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -242,6 +244,7 @@ at a time ([§ afk-dispatch](#afk-dispatch)).
 | [`pr-check`](#required-checks) `refusals` | same                                                             | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                              |
 | [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch             | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                      |
 | [`pr-refresh`](#pr-refresh)               | push to the base branch                                          | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                              |
+| [`post-merge`](#post-merge)               | push to the base branch, two schedules, dispatch                 | `lane` per machine, `seed`            | fast-forward, worktree cleanup, seed, housekeeping, nightly                            |
 | [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                  | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                      |
 | [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses |
 | [`queue-lane`](#queue-lane)               | push of a `mergify/merge-queue/**` branch                        | `[self-hosted, lane]`                 | the lane on the queue's rebased draft, one flaky re-run                                |
@@ -422,6 +425,55 @@ base moved under it is `pr-refresh`'s (issue #5638). `oracle:compile` needs the
 gitignored Card Corpus cache, which the owner's machines hold; the job's
 worktree is cut from the primary checkout, so it finds it where `land`'s
 resolver does.
+
+### post-merge
+
+`.github/workflows/post-merge.yml`: what a merge to the base obliges, now that
+`land` is losing it (issue #5644; `land` is frozen and still runs its own copy of the fast-forward, seed, telemetry and teardown, all idempotent, until PRD #5620 retires it). Four jobs:
+
+| Job            | When                    | Runner                                    | Does                                                                                                                                                  |
+| -------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sync`         | every push to the base  | `[self-hosted, lane, host:<m>]`, a matrix | `bun run post-merge sync`: fast-forward the [primary checkout](#g-primary-checkout), remove the merged PR's worktree, telemetry ingest                |
+| `seed`         | after `sync`, on a push | `[self-hosted, seed]`                     | `bun run post-merge seed`: fast-forward, then each merged PR's `## Preset scenario`; `seed:preset --all` when the push changed `convex/cards/sets/**` |
+| `housekeeping` | a push; hourly at `:17` | `[self-hosted, lane, host:huawei]`        | `bun run housekeeping`: `gaps:sync` with its direct push, grammar residue, claim release, umbrella detach                                             |
+| `nightly`      | 03:40 UTC               | `[self-hosted, lane, host:huawei]`        | `bun run health:nightly`: Bot Findings refresh when the Bot moved, the weekly audits when due                                                         |
+
+The `host` matrix of `sync` lists the machines by their `host:<name>` label
+(`macbook`, `huawei`); a third machine is a third entry. On the MacBook the
+fast-forward is what makes `convex dev` serve the merged tree, since it
+serves the deployment from the primary checkout. The merged PRs are read off
+the pushed commits' subjects (a squash merge ends in ` (#N)`), the worktree
+from each PR's head branch by the rule `wt:new` created it with.
+
+Orders that hold:
+
+- **fast-forward before seed.** The seed resolves card names server-side
+  against the bundle pushed from the primary checkout's disk (issue #3253). The
+  `seed` job fast-forwards again itself and seeds nothing if that fails — so a
+  red `sync` on the Huawei does not hold the MacBook's seed, and a stale tree is
+  never seeded. A primary checkout on another branch than the base is left as
+  it was (the job goes red; pull it by hand).
+- **Every step runs, the job goes red if one failed.** `land` hid these
+  failures behind `; true` because a merge cannot be undone; a job can be
+  re-run (`Re-run failed jobs`), and every step is idempotent.
+- **Schedules fire from the default branch.** The hourly and nightly jobs
+  start only once a release carries `post-merge.yml` to it. The hourly run is
+  `housekeeping`'s retry for a PR whose steps failed (its state keeps them).
+- **A worktree in use is left alone.** `land` still runs inside the PR's
+  worktree when the push fires; `sync` skips a worktree any process has as its
+  cwd (`lsof`) and `land`'s own teardown removes it.
+- **Schedules and dispatch run the release branch's scripts.** A schedule's
+  `GITHUB_SHA` is the default branch tip, so a fix to `housekeeping` landed on
+  the base is live only after the next release. `workflow_dispatch` takes a
+  `job` input (`housekeeping` or `nightly`).
+- **Serialised by the runner.** One `lane` runner per machine is an invariant
+  here (`concurrency` is refused on self-hosted jobs): a second lane runner
+  would let the Huawei's `sync` and `housekeeping` race on its primary checkout.
+  `seed` has no `needs: sync`, which would wait for the Huawei's leg behind a
+  nightly of up to 6 h.
+
+`branches: [staging]` names the base by literal, as in
+[`pr-refresh`](#pr-refresh).
 
 ### lane-timing
 
