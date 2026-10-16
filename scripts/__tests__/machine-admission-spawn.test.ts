@@ -4,6 +4,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
+import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
 import { INFRA_REMEDY, PREFLIGHT_MACHINE_STEP } from "../lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "../lib/machine-admission";
 import { acquireUiLane, MachineSaturatedError } from "../lib/ui-admission";
@@ -363,7 +364,7 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
     /** A machine that never calms, a bound in milliseconds, no hold. */
     const busyEnv = (): NodeJS.ProcessEnv => {
         const env: NodeJS.ProcessEnv = {
-            ...process.env,
+            ...withoutCorpusExclusion(),
             TOLARIA_GATE_LOCK_ROOT: path.join(tmp, "locks"),
             TOLARIA_MACHINE_PROBE: BUSY,
             TOLARIA_MACHINE_WAIT_MAX_MS: "300",

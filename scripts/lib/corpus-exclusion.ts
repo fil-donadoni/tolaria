@@ -41,3 +41,14 @@ export function refuseCorpusExclusion(
             `${what} is a gating lane and ${CORPUS_EXCLUSION_ENV} is set: the committed-corpus tests would be skipped. Unset it — it belongs to the hosted pr-check only (issue #5675).`
         );
 }
+
+/** `env` without the exclusion — the environment a test hands a GATING lane
+ *  it spawns (health-main), which inherits the variable from the hosted lane
+ *  that runs the test and would refuse to start (issue #5686). */
+export function withoutCorpusExclusion(
+    env: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+    const rest = { ...env };
+    delete rest[CORPUS_EXCLUSION_ENV];
+    return rest;
+}

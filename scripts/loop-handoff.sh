@@ -489,12 +489,16 @@ launch_driver() {
     # Keep the machine awake for the run: `caffeinate` on macOS,
     # `systemd-inhibit` on Linux (issue #5305). Neither usable → unguarded.
     # `systemd-inhibit` present but with no logind to reach (SSH without a
-    # bus, a container) refuses to run the command at all, so it is probed.
+    # bus, a container) refuses to run the command at all, so it is probed —
+    # by TAKING the lock around `true`, never by `--list`: a logind that lets
+    # a user list locks may still deny taking one ("Failed to inhibit: Access
+    # denied", a GitHub-hosted runner — issue #5686).
     if [ "$NO_CAFFEINATE" -eq 0 ]; then
         if command -v caffeinate >/dev/null 2>&1; then
             set -- caffeinate -i -s "$@"
         elif command -v systemd-inhibit >/dev/null 2>&1 &&
-            systemd-inhibit --list >/dev/null 2>&1; then
+            systemd-inhibit --what=idle:sleep --who=tolaria-loop \
+                --why="probe" true >/dev/null 2>&1; then
             set -- systemd-inhibit --what=idle:sleep --who=tolaria-loop \
                 --why="unattended loop run" "$@"
         fi

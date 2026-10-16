@@ -5,6 +5,7 @@ import * as http from "http";
 import * as os from "os";
 import * as path from "path";
 import { BASE_BRANCH } from "../lib/branches";
+import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
 import { LANDINGS_PER_BATCH } from "../lib/health-cadence";
 import { PREFLIGHT_CONVEX_STEP } from "../lib/health-verdict";
 import { SKIPPED_REASON } from "../lib/health-walk-plan";
@@ -169,7 +170,7 @@ async function run(
     out: string;
 }> {
     const env: NodeJS.ProcessEnv = {
-        ...process.env,
+        ...withoutCorpusExclusion(),
         TOLARIA_GATE_LOCK_ROOT: lockRoot,
         VITE_CONVEX_URL: convexUrl,
         WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
@@ -320,7 +321,7 @@ describe("health-main --ui-all — the walk runs off the heavy mutex (issue #496
             encoding: "utf8",
             timeout: 60_000,
             env: {
-                ...process.env,
+                ...withoutCorpusExclusion(),
                 TOLARIA_GATE_LOCK_ROOT: lockRoot,
                 WHO_WALK: path.join(tmp, "who-walk.txt"),
             },
@@ -356,7 +357,7 @@ describe("health-main — a terminal verdict on the tip: the waiter skips it, a 
     };
     const healthMain = (args: string[], env: NodeJS.ProcessEnv = {}) => {
         const childEnv: NodeJS.ProcessEnv = {
-            ...process.env,
+            ...withoutCorpusExclusion(),
             TOLARIA_GATE_LOCK_ROOT: lockRoot,
             WHO_OFFLINE: path.join(tmp, "who-offline.txt"),
             ...env,
