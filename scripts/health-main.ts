@@ -964,6 +964,9 @@ async function walkPhase(root: string, dir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+    // A gating run never skips the committed-corpus tests (issue #5675) —
+    // refused before the lease; `--status` only reads.
+    if (!process.argv.includes("--status")) refuseCorpusExclusion("health");
     // Every step runs synchronously, which blocks the renewal timer for the
     // whole step: the lease lives by its anchor, the TTL only bounds a hang
     // (issue #5470).
@@ -993,9 +996,6 @@ async function main(): Promise<void> {
     const dir = join(root, HEALTH_DIR);
     mkdirSync(dir, { recursive: true });
 
-    // A gating run never skips the committed-corpus tests (issue #5675);
-    // `--status` above only reads.
-    refuseCorpusExclusion("health");
     const underLock = process.argv.includes("--under-lock");
     const phase = phaseOf(process.argv, underLock);
     if (phase === "walk") {

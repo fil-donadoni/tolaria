@@ -10,11 +10,28 @@ import {
     refuseCorpusExclusion,
 } from "../lib/corpus-exclusion";
 
-describe("corpusExcluded", () => {
-    it("is true only for the exact value 1", () => {
-        expect(corpusExcluded({ [CORPUS_EXCLUSION_ENV]: "1" })).toBe(true);
-        expect(corpusExcluded({})).toBe(false);
-        expect(corpusExcluded({ [CORPUS_EXCLUSION_ENV]: "true" })).toBe(false);
+const HOSTED = { GITHUB_ACTIONS: "true", RUNNER_ENVIRONMENT: "github-hosted" };
+
+describe("corpusExcluded — the hosted runner only", () => {
+    it("is true for the exact value 1 on a GitHub-hosted runner", () => {
+        expect(corpusExcluded({ ...HOSTED, [CORPUS_EXCLUSION_ENV]: "1" })).toBe(
+            true
+        );
+        expect(corpusExcluded(HOSTED)).toBe(false);
+        expect(
+            corpusExcluded({ ...HOSTED, [CORPUS_EXCLUSION_ENV]: "true" })
+        ).toBe(false);
+    });
+
+    it("does nothing off a hosted runner — a self-hosted job, a machine shell", () => {
+        expect(
+            corpusExcluded({
+                GITHUB_ACTIONS: "true",
+                RUNNER_ENVIRONMENT: "self-hosted",
+                [CORPUS_EXCLUSION_ENV]: "1",
+            })
+        ).toBe(false);
+        expect(corpusExcluded({ [CORPUS_EXCLUSION_ENV]: "1" })).toBe(false);
     });
 });
 

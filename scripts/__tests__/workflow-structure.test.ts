@@ -197,7 +197,11 @@ describe("workflow structure guard", () => {
             `      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane${env}\n`
         );
         expect(rules(fixture({ self }))).toEqual(["corpus-exclusion-gating"]);
-        const setup = `${JOB_SETUP}\n# TOLARIA_HOSTED_NO_VERDICT_CORPUS\n`;
+        const setup = edit(
+            JOB_SETUP,
+            "        - name: worktree:init\n",
+            '        - name: worktree:init\n          env:\n              TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"\n'
+        );
         expect(rules(fixture({ setup }))).toEqual(["corpus-exclusion-gating"]);
     });
 

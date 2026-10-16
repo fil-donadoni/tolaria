@@ -15,9 +15,16 @@
  */
 export const CORPUS_EXCLUSION_ENV = "TOLARIA_HOSTED_NO_VERDICT_CORPUS";
 
-/** Whether this process runs with the corpus tests excluded. */
+/** Whether this process runs with the corpus tests excluded: the variable
+ *  AND a GitHub-hosted Actions runner (`RUNNER_ENVIRONMENT`, set by the
+ *  runner itself). On the owner's machines — a self-hosted job, a shell
+ *  profile, a `.env` — the variable does nothing, whatever path set it. */
 export function corpusExcluded(env: NodeJS.ProcessEnv = process.env): boolean {
-    return env[CORPUS_EXCLUSION_ENV] === "1";
+    return (
+        env[CORPUS_EXCLUSION_ENV] === "1" &&
+        env.GITHUB_ACTIONS === "true" &&
+        env.RUNNER_ENVIRONMENT === "github-hosted"
+    );
 }
 
 /** Throws when a gating lane (`what`) would run with the corpus tests
