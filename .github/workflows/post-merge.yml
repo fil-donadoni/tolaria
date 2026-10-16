@@ -1,0 +1,132 @@
+# post-merge — what a merge to the base obliges on the owner's machines (ADR
+# 0156 Amendment I, issue #5644): on every machine, fast-forward the primary
+# checkout, remove the merged PR's worktree and ingest the telemetry; on the
+# `seed` machine, seed the PR's preset scenario (and every preset list when a
+# card set changed); on one machine, `housekeeping` (gaps:sync with its direct
+# push, grammar residue, claim release, umbrella detach). Two schedules cover
+# what no push triggers: housekeeping's hourly retry and `health:nightly`.
+# They replace the Huawei's tolaria-housekeeping and tolaria-nightly timers.
+#
+# `branches:` names the base by literal because a workflow cannot read
+# tolaria.config.json: renaming the base (ADR 0116) means editing this line
+# (docs/guides/github-pipeline.md § post-merge). A schedule fires from the
+# DEFAULT branch only, so the two schedule jobs start running once a release
+# carries this file there. The `host` matrix names the machines by their
+# `host:<name>` label (docs/guides/github-pipeline.md § The runners on a
+# machine): a third machine means a third entry.
+name: post-merge
+
+on:
+    push:
+        branches: [staging]
+    schedule:
+        - cron: "17 * * * *"
+        - cron: "40 3 * * *"
+    workflow_dispatch:
+        inputs:
+            job:
+                description: Job to run by hand
+                type: choice
+                options: [housekeeping, nightly]
+                default: housekeeping
+
+permissions:
+    contents: read
+
+jobs:
+    sync:
+        name: fast-forward, worktree cleanup, telemetry (${{ matrix.host }})
+        if: ${{ github.event_name == 'push' }}
+        runs-on: [self-hosted, lane, "host:${{ matrix.host }}"]
+        timeout-minutes: 30
+        strategy:
+            fail-fast: false
+            matrix:
+                host: [macbook, huawei]
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: post-merge sync
+              env:
+                  BEFORE: ${{ github.event.before }}
+              run: bun run post-merge sync --before "$BEFORE" --after "$GITHUB_SHA"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    seed:
+        name: seed the preset scenario
+        # No `needs: sync`: that waits for EVERY matrix leg, so a nightly holding
+        # the Huawei's lane runner would delay the MacBook's seed for hours. The
+        # script fast-forwards the seed machine's checkout itself (the seed
+        # resolves card names against its disk, issue #3253) and refuses to
+        # seed a stale tree.
+        if: ${{ github.event_name == 'push' }}
+        runs-on: [self-hosted, seed]
+        timeout-minutes: 30
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: post-merge seed
+              env:
+                  BEFORE: ${{ github.event.before }}
+              run: bun run post-merge seed --before "$BEFORE" --after "$GITHUB_SHA"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    housekeeping:
+        name: housekeeping
+        if: ${{ github.event_name == 'push' || github.event.schedule == '17 * * * *' || inputs.job == 'housekeeping' }}
+        runs-on: [self-hosted, lane, host:huawei]
+        timeout-minutes: 50
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: housekeeping
+              run: bun run housekeeping
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
+
+    nightly:
+        name: health:nightly
+        if: ${{ github.event.schedule == '40 3 * * *' || inputs.job == 'nightly' }}
+        runs-on: [self-hosted, lane, host:huawei]
+        timeout-minutes: 360
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: health:nightly
+              run: bun run health:nightly
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
