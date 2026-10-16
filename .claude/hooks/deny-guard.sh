@@ -478,10 +478,10 @@ fi
 #   * a push that names no refspec at all (`git push`, `git push origin`) from
 #     a checkout that has the base/release branch checked out.
 # ─────────────────────────────────────────────────────────────────────────────
-PUSH_SEG='^[[:space:]]*((env|command)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git([[:space:]]+-C[[:space:]]+[^[:space:]]+)?[[:space:]]+push([[:space:]]|$)'
+PUSH_SEG='^[[:space:]]*\(?[[:space:]]*((env|command)[[:space:]]+)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*git([[:space:]]+(-C|-c|--git-dir|--work-tree)[[:space:]]+[^[:space:]]+|[[:space:]]+--[a-z-]+(=[^[:space:]]*)?)*[[:space:]]+push([[:space:]]|$)'
 if seg_has "$PUSH_SEG" && ! seg_has "$PUSH_SEG" 'TOLARIA_ALLOW_BASE_PUSH=1'; then
     _push_denied=0
-    if seg_has "$PUSH_SEG" "([[:space:]:+])($base_branch|$release_branch)([[:space:]]|\$)"; then
+    if seg_has "$PUSH_SEG" "([[:space:]:+\"']|refs/heads/)($base_branch|$release_branch)([[:space:]\"')]|\$)"; then
         _push_denied=1
     elif seg_has "$PUSH_SEG" '[[:space:]]--(all|mirror)([[:space:]]|$)'; then
         _push_denied=1
@@ -491,7 +491,7 @@ if seg_has "$PUSH_SEG" && ! seg_has "$PUSH_SEG" 'TOLARIA_ALLOW_BASE_PUSH=1'; the
             # Positional words after `push`: at most the remote means no refspec.
             _positional=$(printf '%s\n' "$segments" | grep -E "$PUSH_SEG" |
                 sed -E 's/^.*[[:space:]]push([[:space:]]|$)//' |
-                tr -s '[:space:]' '\n' | grep -vE '^(-|$)' | wc -l | tr -d ' ')
+                tr -s '[:space:]' '\n' | grep -vE '^(-|[0-9]*[<>&]|$)' | wc -l | tr -d ' ')
             [ "${_positional:-0}" -le 1 ] && _push_denied=1
         fi
     fi

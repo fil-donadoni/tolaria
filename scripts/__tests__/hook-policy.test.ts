@@ -417,6 +417,14 @@ describe("deny-guard § 2b — a session never pushes to the base or release bra
             "git push origin main:main",
             "git -C /tmp/x push origin main",
             "GIT_TRACE=1 git push origin main",
+            "git push origin HEAD:refs/heads/main",
+            "git push origin refs/heads/main",
+            "git push origin +HEAD:refs/heads/main",
+            'git push origin "main"',
+            "git push origin 'main'",
+            "git -c k=v push origin main",
+            "git --no-pager push origin main",
+            "(cd /tmp/x && git push origin main)",
             "git push --all",
             "git push --mirror origin",
             "git fetch && git push origin main",
@@ -432,6 +440,7 @@ describe("deny-guard § 2b — a session never pushes to the base or release bra
             "git push",
             "git push origin",
             "git push -u origin",
+            "git push origin 2>&1",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
             expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
