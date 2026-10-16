@@ -15,7 +15,8 @@ two workflows — the advisory [`pr-check`](#pr-check) and
 `land` applies into the [required checks](#required-checks). Version 4 (issue #5638) adds
 [`pr-refresh`](#pr-refresh), which keeps the queued PRs rebased. Version 5
 (issue #5637) adds [`pr-gate`](#pr-gate), the two commit statuses the queue
-will require.
+will require. Version 6 (issue #5641) describes [a pass inside a job](#a-pass-inside-a-job) and the
+`deny-guard` rule that keeps a session off the base branch.
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -533,6 +534,69 @@ Nothing requires the two statuses yet: Phase 1's `.mergify.yml` makes them
 queue-entry conditions (the [structure guard](#g-structure-guard)'s
 `queue-entry` rule).
 
+## A pass inside a job
+
+An `afk-pass` job (workflow: issue #5650; dispatcher: issue #5649) runs
+`claude -p "/next-ticket N"` on a [`pass`](#g-pass) runner. The skill is the
+same file an attended terminal reads; it detects the job by
+`GITHUB_ACTIONS=true` and then reads `.claude/skills/next-ticket/job.md`,
+which lists the only five differences:
+
+| Step     | In a job                                                                                                                              |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Pick     | None. The dispatcher picked N and put it in the prompt; the pass never runs `queue:plan`.                                             |
+| Model    | None. The dispatcher launched the session on the issue's `model:*` tier.                                                              |
+| Claim    | None. The `in-progress` label is the claim, set by the dispatcher; the pass reads it back and never sets it (no `queue:claim`).       |
+| Worktree | The [job worktree](#g-job-worktree), a detached HEAD at the base tip. The pass cuts `feat/issue-N` (or `fix/`) and pushes it at once. |
+| Hand-off | `bun run land:ready <PR#>` while the landing stack stands; after it is deleted, `gh pr edit <PR#> --add-label ready-to-land`.         |
+
+**A pass's life**, in order:
+
+1. the dispatcher labels the issue `in-progress` and dispatches `afk-pass`;
+2. the job cuts its [job worktree](#g-job-worktree) and runs the
+   [job setup](#g-job-setup);
+3. the pass reads the issue, then `git switch -c feat/issue-N` and
+   `git push -u origin HEAD`;
+4. it implements, and **pushes after every commit** — the job has a
+   `timeout-minutes` and its disk dies with it, so an unpushed commit is a
+   lost one; a killed job is resumed from the pushed branch (a claim with no
+   live `afk-pass` run is re-dispatched, and the skill's `--resume` path
+   fetches the branch);
+5. one review round, then it opens the PR and labels it `ready-to-land`;
+6. it exits. The job's last step removes the worktree; the claim stands
+   (`land:ready` moves it to `pr-open`) until the merge releases it. Only an
+   abort has the pass remove the label itself.
+
+**A repair pick** is the same issue re-fired by the `land-failed` label. The
+failing run's log is on GitHub: the pass finds the failing check with
+`gh pr checks <PR#> --json name,state,link` and reads it with
+`gh run view <run-id> --log-failed` (to a file, then `grep`; see
+[Public logs](#public-logs)).
+
+**An abort** releases the claim with
+`gh issue edit N --remove-label in-progress --remove-assignee @me` — label and
+assignee together — after wiring the prerequisite or handing owner work back
+as `ready-for-human` (`abort.md`). `queue:release` writes a journal row the
+job flow does not read.
+
+### The session rule: no push to the base
+
+`.claude/hooks/deny-guard.sh` § 2b denies a Bash `git push` that names the
+base or release branch (`tolaria.config.json` → `branches`) as source or
+destination — `origin main`, `HEAD:main`, `feat:main`, `+main`, `--all`,
+`--mirror` — and a push with no refspec from a checkout that has one of them
+checked out. A session's work reaches the base through a PR and the merge
+queue, never through a push. `gaps:sync`, `release` and the queue push from
+inside a `bun` process or Mergify, which the hook never sees, so they need
+nothing. Moving a branch by hand on purpose says so in the command:
+
+```bash
+TOLARIA_ALLOW_BASE_PUSH=1 git push origin <ref>
+```
+
+The rule is pinned by `scripts/__tests__/hook-policy.test.ts` (§ 2b).
+Force-pushing the base stays denied by § 2 whatever the hatch says.
+
 ## The structure guard
 
 `scripts/__tests__/workflow-structure.test.ts` runs the pure check in
@@ -608,18 +672,19 @@ slices add: the queue's required checks and entry conditions (Phase 1).
 
 ## Troubleshooting
 
-| Symptom                                      | Look at                                                                                                                       |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `could not get a registration token`         | the `gh` login is not the repository's admin: `gh auth status`                                                                |
-| `node not resolvable on the rendered PATH`   | run `install` from a shell where `command -v node` resolves                                                                   |
-| a [runner](#g-runner) offline on GitHub      | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                          |
-| the [Convex agent](#g-convex-agent) restarts | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                          |
-| `TOLARIA_PRIMARY_CHECKOUT is unset`          | the runner predates issue #5636: `bun run runner install` on that machine                                                     |
-| `refusing workspace …`                       | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand               |
-| `pr-check` red, the lane green locally       | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)           |
-| `trusted-author` red on the owner's PR       | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                  |
-| `base-health` red with the base green        | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                     |
-| jobs fail when the MacBook lid closes        | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing |
+| Symptom                                       | Look at                                                                                                                                                 |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `could not get a registration token`          | the `gh` login is not the repository's admin: `gh auth status`                                                                                          |
+| `node not resolvable on the rendered PATH`    | run `install` from a shell where `command -v node` resolves                                                                                             |
+| a [runner](#g-runner) offline on GitHub       | `bun run runner status`; `paused` = expected; `STOPPED` = its log (MacBook) or `journalctl` (Huawei)                                                    |
+| the [Convex agent](#g-convex-agent) restarts  | `~/.cache/tolaria/convex/agent.log` — usually a second `convex dev` holding the port                                                                    |
+| `TOLARIA_PRIMARY_CHECKOUT is unset`           | the runner predates issue #5636: `bun run runner install` on that machine                                                                               |
+| `deny-guard` blocks a `git push` of a session | the push names the base/release branch, or is a bare push from a checkout on it: push the feature branch, or use `TOLARIA_ALLOW_BASE_PUSH=1` on purpose |
+| `refusing workspace …`                        | `job-worktree.sh` ran outside a runner's `_work/<repo>/<repo>` directory — never point it at a checkout by hand                                         |
+| `pr-check` red, the lane green locally        | the receipt in the run's log; a dirty-tree refusal there = `worktree:init` changed a tracked file (e.g. `bun.lock`)                                     |
+| `trusted-author` red on the owner's PR        | it touches `.github/` or `.mergify.yml` — merge it by hand; otherwise `TRUSTED_AUTHORS` is unset or misspelt                                            |
+| `base-health` red with the base green         | the re-gate did not run: Actions → pr-gate → Run workflow (or `--pr <N>`)                                                                               |
+| jobs fail when the MacBook lid closes         | [`caffeinate`](#g-caffeinate) cannot stop a clamshell sleep on battery: keep it on power, or [pause](#g-pause) before closing                           |
 
 ## Glossary
 

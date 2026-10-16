@@ -9,6 +9,9 @@ lane excerpt. The issue's claim still stands; `queue:claim N` takes it over.
 
 ## Read the failure first
 
+**In an `afk-pass` job** the log is on GitHub, not on the MacBook: `job.md`
+§ A repair pick (`gh run view --log-failed`).
+
 `gh pr view <PR#> --comments --json comments --jq '.comments[-1].body'` — the
 runner's comment: `land`'s exit code, its refusal line when it refused, and
 the last lines of the lane. The full log is on the MacBook, at the path the

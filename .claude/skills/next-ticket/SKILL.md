@@ -25,6 +25,9 @@ this file and nothing else.
   hand. Read it when: you are about to run `gh issue create`.
 - → `gap-holes.md` — each hole has an issue, parent, band. Read it when: a
   gap issue lands.
+- → `job.md` — a pass inside an `afk-pass` job: given issue, label claim,
+  job worktree, early push, repair from the failed run's log. Read it when:
+  `GITHUB_ACTIONS=true`.
 - → `hygiene.md` — why each context-hygiene habit below exists, and where
   its measurement lives. Read it when: a habit seems not to fit your case.
 
@@ -79,6 +82,9 @@ a foreground call with `timeout` up to 600000ms); the turn ends only on a
 verdict — handed off, or a failure reported as a failure.
 
 ## 0. Pick
+
+**In an `afk-pass` job** (`GITHUB_ACTIONS=true`): `job.md` first; its rows
+replace §§ 0–2's commands.
 
 - `/next-ticket 1234` → that issue. Otherwise `bun run queue:plan --cap 1
 --pretty` picks the top unclaimed `ready-for-agent` issue (band → standalone

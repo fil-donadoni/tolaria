@@ -419,6 +419,24 @@ describe("next-ticket consumes the planner (issue #2184, re-homed by ADR 0110)",
         expect(landSrc).toContain("lane: skipped");
     });
 
+    it("names the job-context differences: given issue, label claim, early push, failed-run log (issue #5641)", () => {
+        // ADR 0156: the same skill runs inside an `afk-pass` job. The job
+        // detects itself by `GITHUB_ACTIONS`, so the manifest must say which
+        // variable, and the job document must carry the five differences.
+        const text = body();
+        expect(text).toMatch(/`GITHUB_ACTIONS=true`/);
+        const job = fileTail(text, "# /next-ticket — inside an `afk-pass` job");
+        expect(job).toMatch(/`queue:plan`/);
+        expect(job).toMatch(/no `queue:claim`, no `wt:new`/i);
+        expect(job).toMatch(/git push -u origin HEAD/);
+        expect(job).toMatch(/gh run view <run-id> --log-failed/);
+        expect(job).toMatch(/ready-to-land/);
+        expect(job).toMatch(/--remove-label in-progress --remove-assignee @me/);
+        // The attended path is untouched: its commands are still in the manifest.
+        expect(text).toMatch(/bun run queue:claim N/);
+        expect(text).toMatch(/wt:new/);
+    });
+
     it("every file in the skill's directory is reachable from a pointer in the manifest (issue #5100)", () => {
         // Disclosure only works if the session can find what was disclosed.
         // A sibling file no pointer names is dead text — or, worse, the

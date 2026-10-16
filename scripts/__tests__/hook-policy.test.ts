@@ -400,11 +400,116 @@ describe("deny-guard — nothing force-pushes the base or release branch", () =>
             "git push --force-with-lease",
             "git push --force-with-lease origin feat/issue-42",
             "git push -u origin feat/issue-42",
-            "git push origin main",
         ]) {
             const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
             expect(r.code, `expected ALLOW for: ${cmd}`).toBe(0);
         }
+    });
+});
+
+describe("deny-guard § 2b — a session never pushes to the base or release branch (issue #5641)", () => {
+    it("denies a plain push naming the base branch, in every refspec shape", () => {
+        for (const cmd of [
+            "git push origin main",
+            "git push -u origin main",
+            "git push origin HEAD:main",
+            "git push origin feat/issue-42:main",
+            "git push origin main:main",
+            "git -C /tmp/x push origin main",
+            "GIT_TRACE=1 git push origin main",
+            "git push origin HEAD:refs/heads/main",
+            "git push origin refs/heads/main",
+            "git push origin +HEAD:refs/heads/main",
+            'git push origin "main"',
+            "git push origin 'main'",
+            "git -c k=v push origin main",
+            "git --no-pager push origin main",
+            "(cd /tmp/x && git push origin main)",
+            "git push --all",
+            "git push --mirror origin",
+            "git fetch && git push origin main",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+            expect(r.stderr).toContain("TOLARIA_ALLOW_BASE_PUSH=1");
+        }
+    });
+
+    it("denies a push with no refspec from a checkout that has the base branch checked out", () => {
+        for (const cmd of [
+            "git push",
+            "git push origin",
+            "git push -u origin",
+            "git push origin 2>&1",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+    });
+
+    it("allows the same bare push from a feature branch, and a named feature ref from the base checkout", () => {
+        for (const [cmd, cwd] of [
+            ["git push", issueWorktree],
+            ["git push origin", issueWorktree],
+            ["git push -u origin feat/issue-42", mainCheckout],
+            ["git push origin feat/main-menu", issueWorktree],
+            ["git push origin domain", issueWorktree],
+        ] as const) {
+            const r = runHook(DENY_GUARD, bash(cmd, cwd));
+            expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
+        }
+    });
+
+    it("lets the hatch through, in the command itself", () => {
+        for (const cmd of [
+            "TOLARIA_ALLOW_BASE_PUSH=1 git push origin main",
+            "TOLARIA_ALLOW_BASE_PUSH=1 git push",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+            expect(r.code, `expected ALLOW for: ${cmd}\n${r.stderr}`).toBe(0);
+        }
+    });
+
+    it("does not mistake prose that travels with a push for a push", () => {
+        const cmd = [
+            "git commit -m 'docs: a session must not git push origin main '",
+            "&& git push -u origin fix/issue-5641",
+        ].join(" ");
+        expect(runHook(DENY_GUARD, bash(cmd, issueWorktree)).code).toBe(0);
+    });
+
+    it("reads the branch names from tolaria.config.json, not from a literal", () => {
+        const projectDir = fs.mkdtempSync(
+            path.join(os.tmpdir(), "hook-push-branches-")
+        );
+        fs.writeFileSync(
+            path.join(projectDir, "tolaria.config.json"),
+            JSON.stringify({
+                branches: { base: "integration", release: "prod" },
+            })
+        );
+        const env = { CLAUDE_PROJECT_DIR: projectDir };
+        for (const cmd of [
+            "git push origin integration",
+            "git push origin HEAD:prod",
+        ]) {
+            const r = runHook(DENY_GUARD, bash(cmd, issueWorktree), env);
+            expect(denied(r), `expected DENY for: ${cmd}`).toBe(true);
+        }
+        const ok = runHook(
+            DENY_GUARD,
+            bash("git push origin main", issueWorktree),
+            env
+        );
+        expect(denied(ok), "main is a feature branch under this config").toBe(
+            false
+        );
+        fs.rmSync(projectDir, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
     });
 });
 
@@ -885,7 +990,9 @@ describe("deny-guard — the backslash-continuation joiner (awk, not sed)", () =
         // line is dangerous on its own: line 1 never names `main`/`master`,
         // line 2 is just the bareword `main`.
         const cmd = "git push --force origin\\\\\nmain";
-        const r = runHook(DENY_GUARD, bash(cmd, mainCheckout));
+        // From a feature branch: on the base checkout § 2b would (rightly)
+        // deny the refspec-less half on its own.
+        const r = runHook(DENY_GUARD, bash(cmd, issueWorktree));
         expect(r.code, `expected ALLOW for: ${JSON.stringify(cmd)}`).toBe(0);
     });
 
