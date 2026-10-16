@@ -1337,6 +1337,33 @@ describe("check-lane — execution (issue #2741)", () => {
         };
     }
 
+    it("carries an exec's flake and failed files into the outcome, only when set (issue #5640)", () => {
+        const plan = classifyLane(["convex/gre/engine.ts"]);
+        const flake = {
+            projects: ["bot-node"],
+            files: ["a.test.ts"],
+            cause: "timeout" as const,
+        };
+        const [first, second] = plan.run;
+        const { exec } = fakeExec({
+            [first.command]: { ok: true, ms: 1, flake },
+            [second.command]: { ok: false, ms: 1, failedFiles: ["b.test.ts"] },
+        });
+        const result = runPlan(plan, exec, noopAssert);
+        expect(result.outcomes[0]).toEqual({
+            id: first.id,
+            status: "pass",
+            ms: 1,
+            flake,
+        });
+        expect(result.outcomes[1]).toEqual({
+            id: second.id,
+            status: "fail",
+            ms: 1,
+            failedFiles: ["b.test.ts"],
+        });
+    });
+
     it("runs every planned check and reports pass when all pass", () => {
         const plan = classifyLane(["convex/gre/engine.ts"]);
         const { exec, calls } = fakeExec(
@@ -1574,13 +1601,21 @@ describe("check-lane — `--plan`: the classification without the gate (ADR 0136
             base: ORIGIN_BASE,
             json: false,
             planOnly: true,
+            retryFlaky: false,
         });
         expect(parseArgs(["--plan", "--json", "--base=origin/x"])).toEqual({
             base: "origin/x",
             json: true,
             planOnly: true,
+            retryFlaky: false,
         });
         expect(parseArgs([]).planOnly).toBe(false);
+    });
+
+    // CR n/a — issue #5640: the queue's lane re-runs a failed vitest command once.
+    it("accepts --retry-flaky and reports it", () => {
+        expect(parseArgs(["--retry-flaky"]).retryFlaky).toBe(true);
+        expect(parseArgs([]).retryFlaky).toBe(false);
     });
 
     it("still refuses an unknown argument — `--plan` is not a door for a lane flag (#2738)", () => {

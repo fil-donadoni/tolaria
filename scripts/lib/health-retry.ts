@@ -20,11 +20,22 @@
  * recorded as one, never dropped as an ordinary flake; the run's `headroom:`
  * line (`lib/test-headroom.ts`) names how close it ran.
  *
+ * The queue's lane re-runs a failed vitest command once too (issue #5640,
+ * `planLaneRetry`): same refusals (an untagged FAIL line, an unhandled error,
+ * a signal are never absorbed), but the re-run is narrowed to the failing
+ * FILES — a lane's command already names a scoped set, and the whole project
+ * would cost minutes for one flaky file.
+ *
  * Node builtins plus `lib/health-step.ts`, `lib/health-evidence.ts` and
  * `lib/machine-admission.ts` —
  * `health-main.ts` carries the same constraint.
  */
-import { ANY_FAIL_LINE, failLines, stripAnsi } from "./health-evidence";
+import {
+    ANY_FAIL_LINE,
+    failLines,
+    failingFiles,
+    stripAnsi,
+} from "./health-evidence";
 import type { HealthStep, StepResult } from "./health-step";
 import { timeoutOnlyFailure } from "./machine-admission";
 
@@ -164,4 +175,56 @@ export async function runStepWithRetry(
         retried: plan.projects,
         cause: retryCauseOf(first.output),
     };
+}
+
+// ── the queue lane's retry (issue #5640) ────────────────────────────────────
+
+/** The lane commands the retry covers: a vitest run, nothing else. `tsc`,
+ *  eslint and the guards are deterministic — a green second run of one would
+ *  hide a real red. */
+const LANE_VITEST = /^bunx vitest run(\s|$)/;
+
+export interface LaneRetryPlan {
+    projects: string[];
+    files: string[];
+    /** The narrowed command: the failed projects, the failing files only. */
+    command: string;
+    cause: RetryCause;
+}
+
+function shellWord(path: string): string {
+    return `'${path.replace(/'/g, `'\\''`)}'`;
+}
+
+/** What a failed lane `command` owes before it may be called red, or null
+ *  when it is red at once (not a vitest run, an untagged or unexplained
+ *  failure, an unhandled error). */
+export function planLaneRetry(
+    command: string,
+    output: string
+): LaneRetryPlan | null {
+    if (!LANE_VITEST.test(command)) return null;
+    const projects = failedVitestProjects(output);
+    if (projects === null) return null;
+    if (/Unhandled (Errors|Rejection)/i.test(plainOf(output))) return null;
+    const files = failingFiles(output);
+    if (files.length === 0) return null;
+    return {
+        projects,
+        files,
+        command: `bunx vitest run ${projects.map((p) => `--project ${p}`).join(" ")} ${files.map(shellWord).join(" ")}`,
+        cause: retryCauseOf(output),
+    };
+}
+
+/** What the lane's JSON records for a flake: it failed once, passed on the
+ *  re-run. Numbers and test file names only — a public log carries it. */
+export interface LaneFlake {
+    projects: string[];
+    files: string[];
+    cause: RetryCause;
+}
+
+export function laneFlakeOf(plan: LaneRetryPlan): LaneFlake {
+    return { projects: plan.projects, files: plan.files, cause: plan.cause };
 }

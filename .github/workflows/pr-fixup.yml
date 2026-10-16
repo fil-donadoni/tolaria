@@ -1,0 +1,53 @@
+# pr-fixup — regenerate a stale generated artefact and push it, so a red lane
+# whose only cause is `data/oracle-compiled.json`, the blade card index or
+# formatting costs no session (ADR 0156 Amendment I § Duties, issue #5640).
+#
+# Dispatched by `pr-check` (a red lane `scripts/pr-fixup.ts classify` calls
+# regenerable, on a same-repository PR) or by hand. `workflow_dispatch` only:
+# nothing an outsider can fire reaches the owner's runner. The dispatch input
+# `fixes` only SELECTS rows of the FIXES table in scripts/pr-fixup.ts — it
+# never carries a command — and the script refuses a PR whose author is not in
+# TRUSTED_AUTHORS, a fork's PR, one touching `.github/` or `.mergify.yml`, and
+# a head already ending in two fixup commits.
+# docs/guides/github-pipeline.md § pr-fixup.
+name: pr-fixup
+
+on:
+    workflow_dispatch:
+        inputs:
+            pr:
+                description: Number of the pull request to fix up
+                required: true
+                type: string
+            fixes:
+                description: "Comma list of fix keys: oracle, blade-index, format"
+                required: true
+                type: string
+
+permissions:
+    contents: read
+
+jobs:
+    fixup:
+        name: pr-fixup #${{ inputs.pr }}
+        runs-on: [self-hosted, lane]
+        timeout-minutes: 60
+        steps:
+            - name: Job worktree
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: |
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" fetch --no-tags --no-write-fetch-head --quiet origin "$GITHUB_SHA"
+                  git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- create
+            - uses: ./.github/actions/job-setup
+            - name: Regenerate and push
+              env:
+                  PR: ${{ inputs.pr }}
+                  FIXES: ${{ inputs.fixes }}
+                  TRUSTED_AUTHORS: ${{ vars.TRUSTED_AUTHORS }}
+              run: bun run pr:fixup run --pr "$PR" --fixes "$FIXES"
+            - name: Remove the job worktree
+              if: always()
+              shell: bash
+              working-directory: ${{ runner.temp }}
+              run: git -C "$TOLARIA_PRIMARY_CHECKOUT" show "$GITHUB_SHA:scripts/ci/job-worktree.sh" | bash -s -- remove
