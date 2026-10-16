@@ -11,9 +11,8 @@
  * `land-failed` with the lane excerpt as a comment, and `queue:plan` hands it
  * to the next pass as a REPAIR pick, ahead of new issues.
  */
-import { redLandGate } from "./health-cadence";
-
 import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+import { healthAdmission } from "./pr-gate";
 
 export { FAILED_LABEL, READY_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
@@ -47,8 +46,9 @@ export interface TickPlan {
 /**
  * The tick's plan: oldest `ready-to-land` PR first (creation time, then
  * number), stale ones unlabelled, and — under RED — only a declared repair
- * (a PR closing a recorded `/health-fix` issue, `redLandGate`'s own rule)
- * lands; the rest stay queued until the lineage reads AMBER or GREEN.
+ * (a PR closing a recorded `/health-fix` issue — `healthAdmission`, the rule
+ * `pr-gate`'s `base-health` posts too) lands; the rest stay queued until the
+ * lineage reads AMBER or GREEN.
  */
 export function planTick(
     prs: readonly QueuedPr[],
@@ -81,14 +81,12 @@ export function planTick(
             });
             continue;
         }
-        const gate = redLandGate({
+        const admission = healthAdmission({
             red: ctx.red,
             prBody: pr.body,
             repairIssues: ctx.repairIssues,
-            repairFlag: false,
-            redOkFlag: false,
         });
-        if (gate.kind !== "proceed") {
+        if (!admission.admit) {
             plan.held.push({
                 pr: pr.number,
                 reason: "health is RED and this PR closes no recorded repair issue — queued until AMBER/GREEN",
