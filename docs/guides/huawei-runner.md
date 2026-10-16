@@ -7,7 +7,7 @@ scripts they run, in [`scripts/runner-units/`](../../scripts/runner-units/).
 The Huawei's one-time setup for the batch gates is [its own section](#set-up-the-huawei-for-the-batch-gates);
 its Convex backend, a systemd unit, is [Convex on the Huawei](#convex-on-the-huawei).
 The [health runner](#g-health-runner), which gates batch health there, is
-[its own section](#the-health-runner); the hourly and nightly crons that
+[its own section](#the-health-runner); the hourly and nightly jobs that
 run beside it are [The crons](#the-crons).
 
 ## What it does
@@ -460,58 +460,34 @@ gh api "repos/{owner}/{repo}/commits/$(git rev-parse origin/staging)/statuses" -
 
 ## The crons
 
-Two more jobs left `land` and batch health for cron (ADR 0154 §5, §6) and, in
-topology B' (§9), **run on the Huawei** — never the MacBook. Each is a oneshot
-systemd user service started by a timer (issue #5592):
+The hourly housekeeping and the nightly Bot upkeep **no longer run from
+systemd timers** (issue #5644, ADR 0156 Amendment I). Both are jobs of
+`.github/workflows/post-merge.yml` on the Huawei's [`lane`](github-pipeline.md#g-lane)
+runner, so the units `tolaria-housekeeping.{service,timer}` and
+`tolaria-nightly.{service,timer}` were deleted from
+[`scripts/runner-units/`](../../scripts/runner-units/). What each does and when
+it fires: [post-merge](github-pipeline.md#post-merge).
 
-| Unit                   | Script                      | When                 | Does                                                                                                                                            |
-| ---------------------- | --------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tolaria-housekeeping` | `scripts/housekeeping.ts`   | hourly, at minute 17 | `gaps:sync`, grammar residue, release-claim label, umbrella detach for the PRs merged since its watermark (`bun run housekeeping`, issue #5457) |
-| `tolaria-nightly`      | `scripts/health-nightly.ts` | 03:40 nightly        | Bot Findings refresh when the Bot moved; the weekly robustness and pick-agreement audits when due (`bun run health:nightly`, issue #5458)       |
+The job runs as the owner in a worktree of this machine's primary checkout, so
+what the units needed still holds: `housekeeping` pushes `gaps:sync`'s
+allowlist to the base branch, so `gh auth status` must succeed and `git push`
+must work from the primary checkout (`GH_TOKEN` in
+`~/.config/tolaria/runner.env` if the keyring is not reachable from a user
+service); `health:nightly` needs `tolaria-convex` up, like the health runner.
 
-`housekeeping` fast-forwards the Huawei's **primary checkout** and pushes
-`gaps:sync`'s allowlist to the base branch, so that checkout needs push
-credentials: `gh auth status` must succeed and `git push` must work from it
-(put `GH_TOKEN` in `~/.config/tolaria/runner.env` if the keyring is not
-reachable from a user service). The nightly starts after `tolaria-convex`,
-like the health runner, and its CPU-bound steps queue behind `gate.ts`.
+### Retire the old timers
 
-### Install
-
-```bash
-REPO=$(git rev-parse --show-toplevel)   # the PRIMARY checkout
-mkdir -p ~/.config/systemd/user ~/.config/tolaria
-for f in tolaria-housekeeping.service tolaria-housekeeping.timer \
-         tolaria-nightly.service tolaria-nightly.timer; do
-    sed -e "s|__REPO__|$REPO|g" -e "s|__MISE__|$(command -v mise)|g" \
-        "scripts/runner-units/$f" > ~/.config/systemd/user/$f
-done
-systemctl --user daemon-reload
-systemctl --user enable --now tolaria-housekeeping.timer tolaria-nightly.timer
-```
-
-Each service carries its own `KillMode=control-group` and
-[unit tag](#g-unit) (`TOLARIA_OWNER=unit:…`), so the [reaper](#g-reaper) leaves
-its tree alone and no [`tolaria-unit.conf`](../../scripts/runner-units/tolaria-unit.conf)
-drop-in is needed.
-
-### Prove it
-
-```bash
-systemctl --user list-timers 'tolaria-housekeeping.timer' 'tolaria-nightly.timer'
-systemd-analyze verify --user ~/.config/systemd/user/tolaria-{housekeeping,nightly}.{service,timer}
-systemctl --user start tolaria-housekeeping.service     # one run now
-journalctl --user -u tolaria-housekeeping.service -n 20
-journalctl --user -u tolaria-nightly.service -n 20
-```
-
-### Remove
+On a Huawei that installed them before issue #5644, once, from the primary
+checkout:
 
 ```bash
 systemctl --user disable --now tolaria-housekeeping.timer tolaria-nightly.timer
-rm ~/.config/systemd/user/tolaria-{housekeeping,nightly}.{service,timer}
+rm -f ~/.config/systemd/user/tolaria-{housekeeping,nightly}.{service,timer}
 systemctl --user daemon-reload
 ```
+
+Left running they would run the same steps a second time (both are
+idempotent, so the cost is a wasted run, not a wrong one).
 
 ## Glossary
 
