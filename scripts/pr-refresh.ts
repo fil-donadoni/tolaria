@@ -128,7 +128,15 @@ export function refreshPr(
         }
         const rebased = run("sh", ["-c", rebaseStep()], dir);
         if (rebased.status !== 0) {
-            const paths = parseConflictPaths(rebased.stdout);
+            // Keep only lines naming a file of the PR head or of the base:
+            // `git rebase` prints more than the list this step ends on.
+            const paths = parseConflictPaths(rebased.stdout).filter((p) =>
+                [pr.headRefOid, `origin/${BASE_BRANCH}`].some(
+                    (ref) =>
+                        run("git", ["cat-file", "-e", `${ref}:${p}`], dir)
+                            .status === 0
+                )
+            );
             return paths.length > 0
                 ? { kind: "conflict", paths }
                 : {
@@ -275,18 +283,26 @@ function main(): number {
                     `PR #${pr.number} (${reason}): conflicts in ${outcome.paths.join(", ")} — ${dryRun ? "would label" : "labelling"} land-failed`
                 );
                 if (!dryRun) {
-                    gh(labelArgs.failed(pr.number));
-                    gh([
-                        "pr",
-                        "comment",
-                        String(pr.number),
-                        "--body",
-                        conflictComment({
-                            paths: outcome.paths,
-                            base: BASE_BRANCH,
-                            repairable: issueOfBranch(pr.headRefName) !== null,
-                        }),
-                    ]);
+                    try {
+                        gh(labelArgs.failed(pr.number));
+                        gh([
+                            "pr",
+                            "comment",
+                            String(pr.number),
+                            "--body",
+                            conflictComment({
+                                paths: outcome.paths,
+                                base: BASE_BRANCH,
+                                repairable:
+                                    issueOfBranch(pr.headRefName) !== null,
+                            }),
+                        ]);
+                    } catch (err) {
+                        // One PR's label/comment failure never stops the rest.
+                        log(
+                            `PR #${pr.number}: labelling failed — ${(err as Error).message.split("\n")[0]}`
+                        );
+                    }
                 }
                 break;
         }
