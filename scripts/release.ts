@@ -55,6 +55,7 @@ import {
     verdictPath,
     type FixVerdict,
 } from "./health-fix";
+import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const HEALTH_FIX = resolve(__dirname, "health-fix.ts");
@@ -374,6 +375,8 @@ function giveUp(attempts: string[], reason: string): never {
 }
 
 function main(): void {
+    // A gating lane never skips the committed-corpus tests (issue #5675).
+    refuseCorpusExclusion("release");
     const cwd = process.cwd();
     const dryRun = process.argv.includes("--dry-run");
     const fixEnabled = !process.argv.includes("--no-fix");

@@ -42,7 +42,10 @@ import {
 import { createMemoryVerdictStore } from "../../../verdictStoreMemory";
 import { packVerdicts } from "../../../../scripts/lib/verdict-pack-cache";
 import { runVerdictPromotionStep } from "../blade/verdictPromotion";
-import { committedVerdictCorpus } from "./committedVerdictCorpus.fixture";
+import {
+    committedVerdictCorpus,
+    CORPUS_EXCLUDED,
+} from "./committedVerdictCorpus.fixture";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { DEFAULT_EVAL_WEIGHTS, FIT_BASE_EVAL_WEIGHTS } from "../evalWeights";
 import {
@@ -295,30 +298,37 @@ describe("fitWeights — the contract (issue #3401)", () => {
     });
 });
 
-describe("the committed weights ARE the fit of the committed verdicts (issue #3401)", () => {
-    it("re-running the fit over the registry and the lock reproduces DEFAULT_EVAL_WEIGHTS", async () => {
-        const { errors, result } = guardFit(await committedVerdictCorpus());
-        // A verdict the engine can no longer rebuild yields no pairs and would
-        // shrink the corpus SILENTLY — the fit would still reproduce whatever
-        // the smaller corpus says. The lockfile has to pin the input too.
-        expect(
-            errors,
-            "a committed verdict no longer rebuilds — the corpus shrank"
-        ).toEqual([]);
-        expect(
-            result.weights,
-            "DEFAULT_EVAL_WEIGHTS is not the fit of the committed verdicts — " +
-                "run `bun run fit:weights` and paste the block it prints. " +
-                "A new blade `moves` entry is a new verdict and obliges a refit; " +
-                "a widened Verdict Lock moves the weights in the same change " +
-                "(`bun run verdicts:promote` writes both)."
-        ).toEqual(DEFAULT_EVAL_WEIGHTS);
-        // What a promotion writes for this fit IS the committed file, byte for
-        // byte — so the literal it rewrites is the literal this guard reads.
-        const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
-        expect(rewriteDefaultEvalWeights(source, result)).toBe(source);
-    });
-});
+/** Reads the LOCKED corpus through this machine's store key: skipped on
+ *  the hosted advisory lane only (issue #5675, `CORPUS_EXCLUDED`). */
+const describeLockedCorpus = describe.skipIf(CORPUS_EXCLUDED);
+
+describeLockedCorpus(
+    "the committed weights ARE the fit of the committed verdicts (issue #3401)",
+    () => {
+        it("re-running the fit over the registry and the lock reproduces DEFAULT_EVAL_WEIGHTS", async () => {
+            const { errors, result } = guardFit(await committedVerdictCorpus());
+            // A verdict the engine can no longer rebuild yields no pairs and would
+            // shrink the corpus SILENTLY — the fit would still reproduce whatever
+            // the smaller corpus says. The lockfile has to pin the input too.
+            expect(
+                errors,
+                "a committed verdict no longer rebuilds — the corpus shrank"
+            ).toEqual([]);
+            expect(
+                result.weights,
+                "DEFAULT_EVAL_WEIGHTS is not the fit of the committed verdicts — " +
+                    "run `bun run fit:weights` and paste the block it prints. " +
+                    "A new blade `moves` entry is a new verdict and obliges a refit; " +
+                    "a widened Verdict Lock moves the weights in the same change " +
+                    "(`bun run verdicts:promote` writes both)."
+            ).toEqual(DEFAULT_EVAL_WEIGHTS);
+            // What a promotion writes for this fit IS the committed file, byte for
+            // byte — so the literal it rewrites is the literal this guard reads.
+            const source = readFileSync(join(REPO, EVAL_WEIGHTS_PATH), "utf8");
+            expect(rewriteDefaultEvalWeights(source, result)).toBe(source);
+        });
+    }
+);
 
 describe("the guard's corpus is the registry, then the lock (issue #3583, ADR 0128 §2)", () => {
     it("carries every verdict a committed lock names, after the registry's", async () => {

@@ -181,6 +181,26 @@ describe("workflow structure guard", () => {
         }
     });
 
+    it("admits the corpus exclusion on a hosted lane only (issue #5675)", () => {
+        const env = `
+        env:
+          TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"`;
+        const hosted = edit(
+            HOSTED,
+            "      - run: bun run check:lane",
+            `      - run: bun run check:lane${env}`
+        );
+        expect(rules(fixture({ hosted }))).toEqual([]);
+        const self = edit(
+            SELF_HOSTED,
+            "      - uses: ./.github/actions/job-setup\n",
+            `      - uses: ./.github/actions/job-setup\n      - run: bun run check:lane${env}\n`
+        );
+        expect(rules(fixture({ self }))).toEqual(["corpus-exclusion-gating"]);
+        const setup = `${JOB_SETUP}\n# TOLARIA_HOSTED_NO_VERDICT_CORPUS\n`;
+        expect(rules(fixture({ setup }))).toEqual(["corpus-exclusion-gating"]);
+    });
+
     it("refuses a self-hosted workflow on a push any branch can fire", () => {
         for (const push of [
             "  push:\n",

@@ -183,6 +183,7 @@ import {
     readDurations,
     RUN_FILE,
 } from "./lib/test-headroom";
+import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
 
 const HEALTH_DIR = ".claude/telemetry/health";
 const STALE_RUNNING_MS = 90 * 60 * 1000;
@@ -963,6 +964,8 @@ async function walkPhase(root: string, dir: string): Promise<void> {
 }
 
 async function main(): Promise<void> {
+    // A gating lane never skips the committed-corpus tests (issue #5675).
+    refuseCorpusExclusion("health");
     // Every step runs synchronously, which blocks the renewal timer for the
     // whole step: the lease lives by its anchor, the TTL only bounds a hang
     // (issue #5470).

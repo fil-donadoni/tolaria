@@ -40,6 +40,12 @@ jobs:
                   persist-credentials: false
             - uses: ./.github/actions/job-setup
             - name: check:lane
+              # No Verdict Store read key here (ADR 0156 §8: no secret in a
+              # PR job), so the committed-corpus tests skip — the one
+              # recorded hosted exclusion (issue #5675); `land`'s lane runs
+              # them, and refuses to start with this set.
+              env:
+                  TOLARIA_HOSTED_NO_VERDICT_CORPUS: "1"
               run: bun run check:lane
 
     refusals:

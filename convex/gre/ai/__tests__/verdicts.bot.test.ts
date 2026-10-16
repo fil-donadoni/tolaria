@@ -8,7 +8,10 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { BLADE_SCENARIOS } from "../blade/registry";
 import { seatPlayerId } from "../blade/matcher";
 import { moveKey } from "../../search";
-import { committedVerdictCorpus } from "./committedVerdictCorpus.fixture";
+import {
+    committedVerdictCorpus,
+    CORPUS_EXCLUDED,
+} from "./committedVerdictCorpus.fixture";
 import {
     DEFAULT_EVAL_WEIGHTS,
     FIT_BASE_EVAL_WEIGHTS,
@@ -447,129 +450,141 @@ describe("the violation / contradiction report", () => {
     });
 });
 
-describe("the incumbent is defended on the ORDERING, not the loss (issue #3406)", () => {
-    /** The COMMITTED corpus — the registry's verdicts plus the Verdict
-     *  Lock's (issue #4761: since the first promotion the registry alone is
-     *  no longer what the vector was fitted from) — scored at two vectors.
-     *  `DEFAULT_EVAL_WEIGHTS` IS the fit of exactly these verdicts (the
-     *  lockfile guard in `weightFit.bot.test.ts`), so it has to beat the prior
-     *  it was fitted from — on the ordering a human reads, which is the point:
-     *  the fit's own loss carries a margin and will trade an ordered pair for
-     *  separation elsewhere. Derived ONCE: rebuilding every position is the
-     *  expensive part and only the first case reads the corpus rather than a
-     *  tuple off it. */
-    let committed: ReportScore;
-    let prior: ReportScore;
+/** Reads the LOCKED corpus through this machine's store key: skipped on
+ *  the hosted advisory lane only (issue #5675, `CORPUS_EXCLUDED`). */
+const describeLockedCorpus = describe.skipIf(CORPUS_EXCLUDED);
 
-    beforeAll(async () => {
-        const { verdicts, gaps } = await committedVerdictCorpus();
-        const at = (weights: EvalWeights) =>
-            scoreVerdictReport(
-                collectVerdictReport(verdicts, {
-                    testPositions: new Set(),
-                    gaps,
-                    weights,
-                })
+describeLockedCorpus(
+    "the incumbent is defended on the ORDERING, not the loss (issue #3406)",
+    () => {
+        /** The COMMITTED corpus — the registry's verdicts plus the Verdict
+         *  Lock's (issue #4761: since the first promotion the registry alone is
+         *  no longer what the vector was fitted from) — scored at two vectors.
+         *  `DEFAULT_EVAL_WEIGHTS` IS the fit of exactly these verdicts (the
+         *  lockfile guard in `weightFit.bot.test.ts`), so it has to beat the prior
+         *  it was fitted from — on the ordering a human reads, which is the point:
+         *  the fit's own loss carries a margin and will trade an ordered pair for
+         *  separation elsewhere. Derived ONCE: rebuilding every position is the
+         *  expensive part and only the first case reads the corpus rather than a
+         *  tuple off it. */
+        let committed: ReportScore;
+        let prior: ReportScore;
+
+        beforeAll(async () => {
+            const { verdicts, gaps } = await committedVerdictCorpus();
+            const at = (weights: EvalWeights) =>
+                scoreVerdictReport(
+                    collectVerdictReport(verdicts, {
+                        testPositions: new Set(),
+                        gaps,
+                        weights,
+                    })
+                );
+            committed = at(DEFAULT_EVAL_WEIGHTS);
+            prior = at(FIT_BASE_EVAL_WEIGHTS);
+            // The bot project's 60 s testTimeout, not vitest's 10 s hookTimeout
+            // default: this hook rebuilds every verdict position twice — a test's
+            // worth of work — and at 104 locked verdicts (issue #4761) it timed
+            // out inside the parallel bot lane under load (issue #4810's `land`).
+        }, 60_000);
+
+        it("prefers the vector that orders more verdicts of the same corpus", () => {
+            // Same corpus on both sides — otherwise the comparison is meaningless.
+            expect(committed.verdicts).toBe(prior.verdicts);
+            expect(committed.pairs).toBe(prior.pairs);
+            expect(committed.verdictsOk).toBeGreaterThan(prior.verdictsOk);
+            expect(improvesOnIncumbent(committed, prior)).toBe(true);
+            expect(improvesOnIncumbent(prior, committed)).toBe(false);
+        });
+
+        it("a TIE on both keys is not an improvement — churn is not progress", () => {
+            expect(improvesOnIncumbent(committed, committed)).toBe(false);
+        });
+
+        it("pairs satisfied only breaks a tie on verdicts ordered", () => {
+            const morePairs = {
+                ...committed,
+                satisfied: committed.satisfied + 1,
+            };
+            const fewerVerdicts = {
+                ...morePairs,
+                verdictsOk: committed.verdictsOk - 1,
+            };
+            expect(improvesOnIncumbent(morePairs, committed)).toBe(true);
+            // More pairs, fewer verdicts fully ordered: the first key wins.
+            expect(improvesOnIncumbent(fewerVerdicts, committed)).toBe(false);
+        });
+
+        it("a win on verdicts does NOT license a loss on pairs", () => {
+            // +1 verdict fully ordered bought with a collapse in satisfied pairs is
+            // a regression wearing the headline number.
+            const headlineOnly = {
+                ...committed,
+                verdictsOk: committed.verdictsOk + 1,
+                satisfied: committed.satisfied - 30,
+            };
+            expect(improvesOnIncumbent(headlineOnly, committed)).toBe(false);
+            // The same +1 verdict, holding the pairs, IS an improvement.
+            expect(
+                improvesOnIncumbent(
+                    { ...committed, verdictsOk: committed.verdictsOk + 1 },
+                    committed
+                )
+            ).toBe(true);
+        });
+
+        it("refuses to compare two vectors scored on DIFFERENT corpora", () => {
+            const wider = { ...committed, verdicts: committed.verdicts + 1 };
+            expect(() => improvesOnIncumbent(wider, committed)).toThrow(
+                /DIFFERENT corpora/
             );
-        committed = at(DEFAULT_EVAL_WEIGHTS);
-        prior = at(FIT_BASE_EVAL_WEIGHTS);
-        // The bot project's 60 s testTimeout, not vitest's 10 s hookTimeout
-        // default: this hook rebuilds every verdict position twice — a test's
-        // worth of work — and at 104 locked verdicts (issue #4761) it timed
-        // out inside the parallel bot lane under load (issue #4810's `land`).
-    }, 60_000);
+            expect(() =>
+                improvesOnIncumbent(
+                    { ...committed, pairs: committed.pairs + 1 },
+                    committed
+                )
+            ).toThrow(/DIFFERENT corpora/);
+        });
 
-    it("prefers the vector that orders more verdicts of the same corpus", () => {
-        // Same corpus on both sides — otherwise the comparison is meaningless.
-        expect(committed.verdicts).toBe(prior.verdicts);
-        expect(committed.pairs).toBe(prior.pairs);
-        expect(committed.verdictsOk).toBeGreaterThan(prior.verdictsOk);
-        expect(improvesOnIncumbent(committed, prior)).toBe(true);
-        expect(improvesOnIncumbent(prior, committed)).toBe(false);
-    });
+        it("tells the human what to do with the block, in three outcomes", () => {
+            expect(pasteInstruction(true, false)).toContain("up to date");
+            const stale = pasteInstruction(false, true);
+            expect(stale).toContain("STALE");
+            // The ordering is all this compares — a predicate blade entry yields no
+            // verdict, so an improvement here can still red the must tier.
+            expect(stale).toContain("bun run test:blade");
+            expect(pasteInstruction(false, false)).toContain("DO NOT PASTE");
+        });
 
-    it("a TIE on both keys is not an improvement — churn is not progress", () => {
-        expect(improvesOnIncumbent(committed, committed)).toBe(false);
-    });
+        it("renders one comparable row per vector, each value under its header", () => {
+            const text = formatScoreComparison([
+                { label: "prior (FIT_BASE)", score: prior },
+                { label: "committed (DEFAULT)", score: committed },
+            ]);
+            expect(text).toContain("2 vectors");
+            // Per LINE, not against the whole blob: a formatter that printed every
+            // row's numbers under the wrong labels passes a bare `toContain`.
+            const lineFor = (label: string) => {
+                const found = text
+                    .split("\n")
+                    .find((l) => l.trim().startsWith(label));
+                expect(found, `no row for ${label}`).toBeDefined();
+                return found!;
+            };
+            const row = lineFor("committed (DEFAULT)");
+            expect(row).toContain(
+                `${committed.verdictsOk}/${committed.verdicts}`
+            );
+            expect(row).toContain(`${committed.satisfied}/${committed.pairs}`);
+            expect(row).toContain(String(committed.contradictions));
+            expect(row).toContain(String(committed.blind));
+            expect(lineFor("prior (FIT_BASE)")).toContain(
+                `${prior.satisfied}/${prior.pairs}`
+            );
+        });
 
-    it("pairs satisfied only breaks a tie on verdicts ordered", () => {
-        const morePairs = { ...committed, satisfied: committed.satisfied + 1 };
-        const fewerVerdicts = {
-            ...morePairs,
-            verdictsOk: committed.verdictsOk - 1,
-        };
-        expect(improvesOnIncumbent(morePairs, committed)).toBe(true);
-        // More pairs, fewer verdicts fully ordered: the first key wins.
-        expect(improvesOnIncumbent(fewerVerdicts, committed)).toBe(false);
-    });
-
-    it("a win on verdicts does NOT license a loss on pairs", () => {
-        // +1 verdict fully ordered bought with a collapse in satisfied pairs is
-        // a regression wearing the headline number.
-        const headlineOnly = {
-            ...committed,
-            verdictsOk: committed.verdictsOk + 1,
-            satisfied: committed.satisfied - 30,
-        };
-        expect(improvesOnIncumbent(headlineOnly, committed)).toBe(false);
-        // The same +1 verdict, holding the pairs, IS an improvement.
-        expect(
-            improvesOnIncumbent(
-                { ...committed, verdictsOk: committed.verdictsOk + 1 },
-                committed
-            )
-        ).toBe(true);
-    });
-
-    it("refuses to compare two vectors scored on DIFFERENT corpora", () => {
-        const wider = { ...committed, verdicts: committed.verdicts + 1 };
-        expect(() => improvesOnIncumbent(wider, committed)).toThrow(
-            /DIFFERENT corpora/
-        );
-        expect(() =>
-            improvesOnIncumbent(
-                { ...committed, pairs: committed.pairs + 1 },
-                committed
-            )
-        ).toThrow(/DIFFERENT corpora/);
-    });
-
-    it("tells the human what to do with the block, in three outcomes", () => {
-        expect(pasteInstruction(true, false)).toContain("up to date");
-        const stale = pasteInstruction(false, true);
-        expect(stale).toContain("STALE");
-        // The ordering is all this compares — a predicate blade entry yields no
-        // verdict, so an improvement here can still red the must tier.
-        expect(stale).toContain("bun run test:blade");
-        expect(pasteInstruction(false, false)).toContain("DO NOT PASTE");
-    });
-
-    it("renders one comparable row per vector, each value under its header", () => {
-        const text = formatScoreComparison([
-            { label: "prior (FIT_BASE)", score: prior },
-            { label: "committed (DEFAULT)", score: committed },
-        ]);
-        expect(text).toContain("2 vectors");
-        // Per LINE, not against the whole blob: a formatter that printed every
-        // row's numbers under the wrong labels passes a bare `toContain`.
-        const lineFor = (label: string) => {
-            const found = text
-                .split("\n")
-                .find((l) => l.trim().startsWith(label));
-            expect(found, `no row for ${label}`).toBeDefined();
-            return found!;
-        };
-        const row = lineFor("committed (DEFAULT)");
-        expect(row).toContain(`${committed.verdictsOk}/${committed.verdicts}`);
-        expect(row).toContain(`${committed.satisfied}/${committed.pairs}`);
-        expect(row).toContain(String(committed.contradictions));
-        expect(row).toContain(String(committed.blind));
-        expect(lineFor("prior (FIT_BASE)")).toContain(
-            `${prior.satisfied}/${prior.pairs}`
-        );
-    });
-
-    it("says so rather than rendering a degenerate header on no rows", () => {
-        expect(formatScoreComparison([])).toBe("== no vector scored");
-    });
-});
+        it("says so rather than rendering a degenerate header on no rows", () => {
+            expect(formatScoreComparison([])).toBe("== no vector scored");
+        });
+    }
+);

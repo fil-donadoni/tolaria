@@ -44,11 +44,16 @@
  *   - `job-setup-contract` — the shared job setup lost its token mask or a
  *     pinned toolchain step, or nests an action (whose post step would run
  *     after the job worktree is removed).
+ *   - `corpus-exclusion-gating` — `TOLARIA_HOSTED_NO_VERDICT_CORPUS` (the
+ *     hosted advisory lane's one recorded test exclusion, issue #5675) named
+ *     in a workflow holding a self-hosted job, or in a shared action: a lane
+ *     on the owner's machines gates, and a gate never skips the corpus.
  *   - `queue-entry` — a `.mergify.yml` queue rule whose entry conditions do not
  *     require `ready-to-land`, `trusted-author`, `base-health` and the
  *     exclusion of `.github/` and `.mergify.yml` (ADR 0156 §8 barriers 3–4).
  */
 import { parse } from "yaml";
+import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
 
 export interface SourceFile {
     path: string;
@@ -76,6 +81,7 @@ export type RuleId =
     | "claude-raw-output"
     | "job-setup-contract"
     | "queue-entry"
+    | "corpus-exclusion-gating"
     | "local-action-unscanned"
     | "unparseable";
 
@@ -347,6 +353,13 @@ function checkWorkflow(
     let anySelfHosted = false;
     for (const [id, job] of Object.entries(doc.jobs))
         if (checkJob(f.path, id, job, wf, out)) anySelfHosted = true;
+    if (anySelfHosted && f.text.includes(CORPUS_EXCLUSION_ENV))
+        out.push({
+            file: f.path,
+            job: null,
+            rule: "corpus-exclusion-gating",
+            message: `${CORPUS_EXCLUSION_ENV} in a workflow with a self-hosted job — only a hosted advisory lane may skip the corpus tests`,
+        });
     if (anySelfHosted && doc.concurrency !== undefined)
         out.push({
             file: f.path,
@@ -369,6 +382,13 @@ function checkAction(f: SourceFile, out: Violation[]): void {
         });
         return;
     }
+    if (f.text.includes(CORPUS_EXCLUSION_ENV))
+        out.push({
+            file: f.path,
+            job: null,
+            rule: "corpus-exclusion-gating",
+            message: `${CORPUS_EXCLUSION_ENV} in a shared action — every job, gating ones included, would skip the corpus tests`,
+        });
     const steps = isObj(doc) && isObj(doc.runs) ? asArray(doc.runs.steps) : [];
     steps.forEach((step, i) => {
         const uses = stepUses(step);
