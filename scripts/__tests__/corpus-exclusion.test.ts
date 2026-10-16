@@ -32,6 +32,13 @@ describe("corpusExcluded — the hosted runner only", () => {
             })
         ).toBe(false);
         expect(corpusExcluded({ [CORPUS_EXCLUSION_ENV]: "1" })).toBe(false);
+        // Outside Actions, a stray RUNNER_ENVIRONMENT proves nothing.
+        expect(
+            corpusExcluded({
+                RUNNER_ENVIRONMENT: "github-hosted",
+                [CORPUS_EXCLUSION_ENV]: "1",
+            })
+        ).toBe(false);
     });
 });
 
