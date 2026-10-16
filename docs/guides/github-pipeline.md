@@ -233,14 +233,14 @@ at a time ([§ afk-dispatch](#afk-dispatch)).
 
 ## Workflows
 
-| Workflow                                  | Trigger                                              | Runner                                | What it proves                                                                         |
-| ----------------------------------------- | ---------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
-| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                          | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory                                |
-| [`pr-check`](#required-checks) `refusals` | same                                                 | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                              |
-| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                      |
-| [`pr-refresh`](#pr-refresh)               | push to the base branch                              | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                              |
-| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch      | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                      |
-| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, dispatch   | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses |
+| Workflow                                  | Trigger                                                          | Runner                                | What it proves                                                                         |
+| ----------------------------------------- | ---------------------------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------- |
+| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                                      | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory                                |
+| [`pr-check`](#required-checks) `refusals` | same                                                             | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`                              |
+| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch             | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0)                      |
+| [`pr-refresh`](#pr-refresh)               | push to the base branch                                          | `[self-hosted, lane]`                 | rebases the queued PRs the push conflicts with or touches                              |
+| [`afk-dispatch`](#afk-dispatch)           | `ready-for-agent` label, every 30 min, dispatch                  | `[self-hosted, pass]`, one at a time  | picks, claims and dispatches AFK passes, or holds                                      |
+| [`pr-gate`](#pr-gate)                     | `pull_request_target`, a `health` status, every 15 min, dispatch | GitHub-hosted `ubuntu-24.04`          | the [`trusted-author`](#g-trusted-author) and [`base-health`](#g-base-health) statuses |
 
 ### pr-check
 
@@ -493,17 +493,23 @@ the **base's** workflow and code that run, with a token that can write
 statuses: the job checks out the base only and reads the PR as data —
 author, body, file list — through the API, never its tree.
 
-| Status                                | Green when                                                                                                                                             | Red when                                                                                       |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
-| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always    | the author is not, or the PR touches `.github/` or `.mergify.yml` (a rename counts both names) |
-| [`base-health`](#g-base-health)       | no RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet), or the PR closes a repair issue declared on the pivot (`health-fix`) | a RED or second RED stands and the PR closes none of its declared repair issues                |
+| Status                                | Green when                                                                                                                                             | Red when                                                                                                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`trusted-author`](#g-trusted-author) | the author is in [`TRUSTED_AUTHORS`](#g-trusted-authors); Mergify's own queue PRs (`mergify[bot]`, `mergify/merge-queue/…`, same repository) always    | the author is not, or the PR touches `.github/`, `.mergify/` or `.mergify.yml` (a rename counts both names), or its file list is truncated (over 3000 files) |
+| [`base-health`](#g-base-health)       | no RED stands on the base's health lineage (GREEN, AMBER, INFRA, no verdict yet), or the PR closes a repair issue declared on the pivot (`health-fix`) | a RED or second RED stands and the PR closes none of its declared repair issues                                                                              |
 
 `base-health` is the land-runner's RED rule — `healthAdmission`, which
-`planTick` reads too, so the two cannot drift. Like the land-runner it reads
-an unreadable verdict store as no RED (a GitHub 502 must not hold the
-queue), and says so in the description. A PR touching `.github/` — this
-workflow's own PRs included — is never queueable: the owner merges it by
-hand.
+`planTick` reads too, so the two cannot drift. One difference: the
+land-runner reads an unreadable verdict store as no RED for one 60 s tick,
+but a commit status stands until something re-posts it — so `pr-gate`
+posts `base-health` **`pending`** instead (held, not blamed) and the run
+goes red; the next sweep decides again. Each status is decided on its own:
+a failed file-list read never leaves an old `base-health` standing. A PR
+touching `.github/` — this workflow's own PRs included — is never
+queueable: the owner merges it by hand. **Known gap:** the gate's own code
+outside `.github/` (`scripts/pr-gate.ts`, `scripts/lib/pr-gate.ts`, the
+health modules it imports, `tolaria.config.json`) is queueable today, as
+ADR 0156 §8 names only `.github/` and `.mergify.yml`.
 
 **Re-gate.** A `health` or `health-fix` commit status — a verdict written,
 or a repair issue recorded on the pivot — fires the workflow's `status`
@@ -512,7 +518,11 @@ trigger, which re-posts both statuses on every open PR labelled
 declared repair is admitted. Only a status written with a personal token
 fires it (the machines' `gh` login writes the verdicts; a status written
 with a job's `GITHUB_TOKEN` fires nothing — a future `health.yml` dispatches
-`pr-gate` explicitly). By hand: Actions → pr-gate → Run workflow (input
+`pr-gate` explicitly). GitHub cannot filter `status` by context, so every
+OTHER status written with a personal token (`health-run`, `ui-walk`) shows
+as a **skipped** `pr-gate` run — expected, not a failure. A 15-minute
+`schedule` sweeps the same queue: it heals a `pending` left by an outage and
+a race between a PR's own run and a re-gate. By hand: Actions → pr-gate → Run workflow (input
 `pr` = one PR, empty = the queue), or locally, posting nothing:
 
 ```bash
