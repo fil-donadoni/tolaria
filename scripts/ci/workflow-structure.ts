@@ -57,11 +57,22 @@
  *     in a workflow holding a self-hosted job, or in a shared action: a lane
  *     on the owner's machines gates, and a gate never skips the corpus.
  *   - `queue-entry` — a `.mergify.yml` queue rule whose entry conditions do not
- *     require `ready-to-land`, `trusted-author`, `base-health` and the
- *     exclusion of `.github/` and `.mergify.yml` (ADR 0156 §8 barriers 3–4).
+ *     require `ready-to-land`, `queue:shadow` (the shadow phase, issue #5642),
+ *     no `land-failed`, `trusted-author`, `base-health` and the exclusion of
+ *     `.github/` and `.mergify.yml` (ADR 0156 §8 barriers 3–4).
+ *   - `queue-merge` — a queue rule whose merge conditions are anything but
+ *     the queue lane alone (Amendment I: Mergify's draft PRs carry no
+ *     `trusted-author`; the entry gates were proven on the PR).
+ *   - `queue-shape` — `merge_queue.max_parallel_checks` other than 2, or a
+ *     queue rule with a `batch_size` other than 1 (ADR 0156 §3).
+ *   - `queue-dequeue` — no `pull_request_rules` entry relabelling a PR the
+ *     queue dequeued on `checks-failed`/`checks-timeout` from `ready-to-land`
+ *     to `land-failed` with a comment carrying a link: the label is the
+ *     repair pick's trigger, and `-label=land-failed` keeps the PR out.
  */
 import { parse } from "yaml";
 import { CORPUS_EXCLUSION_ENV } from "../lib/corpus-exclusion";
+import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "../lib/land-labels";
 
 export interface SourceFile {
     path: string;
@@ -89,6 +100,9 @@ export type RuleId =
     | "claude-raw-output"
     | "job-setup-contract"
     | "queue-entry"
+    | "queue-merge"
+    | "queue-shape"
+    | "queue-dequeue"
     | "corpus-exclusion-gating"
     | "dispatcher-serialised"
     | "local-action-unscanned"
@@ -477,9 +491,15 @@ function checkAction(f: SourceFile, out: Violation[]): void {
 }
 
 /** Mergify condition strings that must stand at the top level (AND) of
- *  every queue rule's entry conditions. */
+ *  every queue rule's entry conditions. The shadow label is Phase 1's (issue
+ *  #5642): cut-over removes it here and in `.mergify.yml` together. */
 const QUEUE_ENTRY: { what: string; re: RegExp }[] = [
-    { what: "label=ready-to-land", re: /^label\s*=\s*ready-to-land$/ },
+    { what: `label=${READY_LABEL}`, re: labelCondition(READY_LABEL) },
+    { what: `label=${SHADOW_LABEL}`, re: labelCondition(SHADOW_LABEL) },
+    {
+        what: `-label=${FAILED_LABEL} (a rejected PR re-enters only through a repair)`,
+        re: labelCondition(FAILED_LABEL, "-"),
+    },
     {
         what: "trusted-author green",
         re: /^(check|status)-success\s*=\s*trusted-author$/,
@@ -497,6 +517,54 @@ const QUEUE_ENTRY: { what: string; re: RegExp }[] = [
         re: /^-files\s*(=\s*\.mergify\.yml|~=\s*\^?\\?\.mergify\\?\.yml\$?)$/,
     },
 ];
+
+function labelCondition(label: string, sign = ""): RegExp {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\:-]/g, "\\$&");
+    return new RegExp(`^${sign === "-" ? "-" : ""}label\\s*=\\s*${escaped}$`);
+}
+
+/** The ONE merge condition: the queue's draft owes only the lane. */
+const QUEUE_MERGE = /^(check|status)-success\s*=\s*queue-lane$/;
+/** Two speculative checks, one per machine (ADR 0156 §3). */
+export const QUEUE_PARALLEL_CHECKS = 2;
+/** The dequeue reasons that make a PR a repair pick: its check went red. */
+const DEQUEUE_REASONS = ["checks-failed", "checks-timeout"];
+
+const strings = (v: unknown): string[] =>
+    asArray(v)
+        .filter((c): c is string => typeof c === "string")
+        .map((c) => c.trim());
+
+/** Every condition string under `conds`, `or:`/`and:`/`not:` included. */
+function flatConditions(conds: unknown): string[] {
+    return asArray(conds).flatMap((c) =>
+        typeof c === "string"
+            ? [c.trim()]
+            : isObj(c)
+              ? Object.values(c).flatMap(flatConditions)
+              : []
+    );
+}
+
+/** A `pull_request_rules` entry that turns a red dequeue into `land-failed`
+ *  (adds it, drops `ready-to-land`) with a comment. */
+function relabelsDequeue(rule: unknown): boolean {
+    if (!isObj(rule) || !isObj(rule.actions)) return false;
+    const conds = flatConditions(rule.conditions);
+    const label = isObj(rule.actions.label) ? rule.actions.label : {};
+    const comment = isObj(rule.actions.comment) ? rule.actions.comment : {};
+    return (
+        DEQUEUE_REASONS.every((r) =>
+            conds.some((c) =>
+                new RegExp(`^queue-dequeue-reason\\s*=\\s*${r}$`).test(c)
+            )
+        ) &&
+        strings(label.add).includes(FAILED_LABEL) &&
+        strings(label.remove).includes(READY_LABEL) &&
+        typeof comment.message === "string" &&
+        /https:\/\//.test(comment.message)
+    );
+}
 
 function checkMergify(f: SourceFile, out: Violation[]): void {
     let doc: unknown;
@@ -519,22 +587,46 @@ function checkMergify(f: SourceFile, out: Violation[]): void {
             rule: "queue-entry",
             message: "no `queue_rules`",
         });
+    const v = (rule: RuleId, message: string) =>
+        out.push({ file: f.path, job: null, rule, message });
     rules.forEach((rule, i) => {
         const name = isObj(rule) ? String(rule.name ?? i + 1) : String(i + 1);
-        const conds = isObj(rule)
-            ? asArray(rule.queue_conditions)
-                  .filter((c): c is string => typeof c === "string")
-                  .map((c) => c.trim())
-            : [];
+        const conds = isObj(rule) ? strings(rule.queue_conditions) : [];
         for (const need of QUEUE_ENTRY)
             if (!conds.some((c) => need.re.test(c)))
-                out.push({
-                    file: f.path,
-                    job: null,
-                    rule: "queue-entry",
-                    message: `queue rule \`${name}\`: queue_conditions lack ${need.what}`,
-                });
+                v(
+                    "queue-entry",
+                    `queue rule \`${name}\`: queue_conditions lack ${need.what}`
+                );
+        const merge = isObj(rule) ? asArray(rule.merge_conditions) : [];
+        if (
+            merge.length !== 1 ||
+            typeof merge[0] !== "string" ||
+            !QUEUE_MERGE.test(merge[0].trim())
+        )
+            v(
+                "queue-merge",
+                `queue rule \`${name}\`: merge_conditions must be exactly \`check-success=queue-lane\``
+            );
+        const batch = isObj(rule) ? rule.batch_size : undefined;
+        if (batch !== undefined && batch !== 1)
+            v(
+                "queue-shape",
+                `queue rule \`${name}\`: batch_size must be 1 (no batches)`
+            );
     });
+    const mq = isObj(doc) && isObj(doc.merge_queue) ? doc.merge_queue : {};
+    if (mq.max_parallel_checks !== QUEUE_PARALLEL_CHECKS)
+        v(
+            "queue-shape",
+            `merge_queue.max_parallel_checks must be ${QUEUE_PARALLEL_CHECKS} (one per machine)`
+        );
+    const prRules = isObj(doc) ? asArray(doc.pull_request_rules) : [];
+    if (!prRules.some(relabelsDequeue))
+        v(
+            "queue-dequeue",
+            `no pull_request_rule labels a PR dequeued on ${DEQUEUE_REASONS.join("/")} \`${FAILED_LABEL}\` (removing \`${READY_LABEL}\`) with a comment carrying a link`
+        );
 }
 
 export function checkStructure(input: StructureInput): Violation[] {

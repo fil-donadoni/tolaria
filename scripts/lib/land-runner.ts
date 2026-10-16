@@ -11,10 +11,10 @@
  * `land-failed` with the lane excerpt as a comment, and `queue:plan` hands it
  * to the next pass as a REPAIR pick, ahead of new issues.
  */
-import { FAILED_LABEL, READY_LABEL } from "./land-labels";
+import { FAILED_LABEL, READY_LABEL, SHADOW_LABEL } from "./land-labels";
 import { healthAdmission } from "./pr-gate";
 
-export { FAILED_LABEL, READY_LABEL };
+export { FAILED_LABEL, READY_LABEL, SHADOW_LABEL };
 /** Set on the `land` the runner spawns — the one hatch `deny-guard.sh` § 8
  *  admits for a `land` invocation. */
 export const RUNNER_ENV = "TOLARIA_LAND_RUNNER";
@@ -31,10 +31,13 @@ export interface QueuedPr {
     headRefName: string;
     createdAt: string;
     body: string;
+    labels: { name: string }[];
 }
 
 /** What one tick does with the queue. */
 export interface TickPlan {
+    /** Left alone — not landed, not unlabelled: Mergify's queue owns it. */
+    shadowed: { pr: number; reason: string }[];
     /** Unlabel and log: the PR is closed/merged or its branch is gone. */
     stale: { pr: number; reason: string }[];
     /** Left labelled for a later tick: a non-repair PR under RED. */
@@ -48,7 +51,9 @@ export interface TickPlan {
  * number), stale ones unlabelled, and — under RED — only a declared repair
  * (a PR closing a recorded `/health-fix` issue — `healthAdmission`, the rule
  * `pr-gate`'s `base-health` posts too) lands; the rest stay queued until the
- * lineage reads AMBER or GREEN.
+ * lineage reads AMBER or GREEN. A PR labelled `queue:shadow` is Mergify's
+ * (issue #5642, the shadow phase): the runner never lands, unlabels nor
+ * relabels it, merged or closed included — one merger per PR.
  */
 export function planTick(
     prs: readonly QueuedPr[],
@@ -60,13 +65,20 @@ export function planTick(
         repairIssues: readonly number[];
     }
 ): TickPlan {
-    const plan: TickPlan = { stale: [], held: [], next: null };
+    const plan: TickPlan = { shadowed: [], stale: [], held: [], next: null };
     const ordered = [...prs].sort(
         (a, b) =>
             Date.parse(a.createdAt) - Date.parse(b.createdAt) ||
             a.number - b.number
     );
     for (const pr of ordered) {
+        if (pr.labels.some((l) => l.name === SHADOW_LABEL)) {
+            plan.shadowed.push({
+                pr: pr.number,
+                reason: `labelled \`${SHADOW_LABEL}\` — the Mergify queue lands it`,
+            });
+            continue;
+        }
         if (pr.state !== "OPEN") {
             plan.stale.push({
                 pr: pr.number,

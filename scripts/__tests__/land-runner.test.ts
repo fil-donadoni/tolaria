@@ -22,6 +22,7 @@ import {
     READY_LABEL,
     runsHere,
     SATURATED_EXIT,
+    SHADOW_LABEL,
     worktreeOfBranch,
     type LandFailure,
     type QueuedPr,
@@ -37,6 +38,7 @@ const pr = (
     headRefName: `feat/issue-${number}`,
     createdAt,
     body: "",
+    labels: [{ name: READY_LABEL }],
     ...over,
 });
 
@@ -80,7 +82,7 @@ describe("planTick — the oldest ready-to-land PR lands first", () => {
                 red: false,
                 repairIssues: [],
             })
-        ).toEqual({ stale: [], held: [], next: null });
+        ).toEqual({ shadowed: [], stale: [], held: [], next: null });
     });
 });
 
@@ -116,6 +118,46 @@ describe("planTick — a stale ready-to-land PR is unlabelled, never landed", ()
             { pr: 1, reason: "branch feat/issue-1 is gone from origin" },
         ]);
         expect(plan.next?.number).toBe(2);
+    });
+});
+
+describe("planTick — a queue:shadow PR is Mergify's, never touched (issue #5642)", () => {
+    const shadow = { labels: [{ name: READY_LABEL }, { name: SHADOW_LABEL }] };
+
+    it("is never landed, even when it is the oldest", () => {
+        const prs = [
+            pr(1, "2026-10-12T08:00:00Z", shadow),
+            pr(2, "2026-10-12T09:00:00Z"),
+        ];
+        const plan = planTick(prs, {
+            remoteBranches: branchesOf(prs),
+            red: false,
+            repairIssues: [],
+        });
+        expect(plan.next?.number).toBe(2);
+        expect(plan.shadowed.map((s) => s.pr)).toEqual([1]);
+    });
+
+    it("is never unlabelled — merged by the queue, closed, or branch gone", () => {
+        const prs = [
+            pr(1, "2026-10-12T08:00:00Z", { ...shadow, state: "MERGED" }),
+            pr(2, "2026-10-12T08:30:00Z", { ...shadow, state: "CLOSED" }),
+            pr(3, "2026-10-12T09:00:00Z", shadow),
+        ];
+        const plan = planTick(prs, {
+            remoteBranches: new Set<string>(),
+            red: true,
+            repairIssues: [],
+        });
+        expect(plan).toEqual({
+            shadowed: [1, 2, 3].map((n) => ({
+                pr: n,
+                reason: `labelled \`${SHADOW_LABEL}\` — the Mergify queue lands it`,
+            })),
+            stale: [],
+            held: [],
+            next: null,
+        });
     });
 });
 
