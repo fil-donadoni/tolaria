@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ROBUSTNESS_BASELINE } from "../../convex/gre/ai/blade/robustnessBaseline";
 import {
     PR_CHECK_NAMES,
     repairProofCheck,
@@ -46,16 +45,19 @@ describe("every land refusal has a PR check", () => {
 });
 
 describe("robustness-baseline", () => {
+    const baseline = [{ label: "Some entry", issue: 4917 }] as never;
     it("refuses a PR closing a row's owner, passes one that does not", () => {
-        const row = ROBUSTNESS_BASELINE[0];
-        if (!row) return; // an emptied baseline owes nothing
-        const body = `Closes #${row.issue}`;
         expect(
-            runPrCheck("robustness-baseline", ctx({ prBody: body })).refusal
-        ).toContain(row.label);
+            runPrCheck(
+                "robustness-baseline",
+                ctx({ prBody: "Closes #4917", baseline })
+            ).refusal
+        ).toContain("Some entry");
         expect(
-            runPrCheck("robustness-baseline", ctx({ prBody: "no refs" }))
-                .refusal
+            runPrCheck(
+                "robustness-baseline",
+                ctx({ prBody: "Closes #1", baseline })
+            ).refusal
         ).toBeNull();
     });
 });

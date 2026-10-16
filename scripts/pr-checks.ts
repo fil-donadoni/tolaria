@@ -62,6 +62,7 @@ export type PrCheckName = (typeof PR_CHECK_NAMES)[number];
 export interface PrCheckContext {
     cwd: string;
     prBody: string;
+    baseline?: typeof ROBUSTNESS_BASELINE;
     lineage?: () => Lineage & { error?: string };
     repairIssues?: () => number[];
     runTests?: (tests: readonly string[], cwd: string) => number;
@@ -147,7 +148,7 @@ export function runPrCheck(
         case "robustness-baseline":
             return {
                 refusal: robustnessBaselineRefusal(
-                    ROBUSTNESS_BASELINE,
+                    ctx.baseline ?? ROBUSTNESS_BASELINE,
                     closingIssueRefs(ctx.prBody)
                 ),
             };
