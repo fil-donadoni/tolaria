@@ -1383,11 +1383,9 @@ export function shellRunRetrying(
     if (first.ok) return { ok: true, ms: Date.now() - t0 };
     const plan = first.signal ? null : planLaneRetry(command, first.out);
     if (plan === null) {
-        return {
-            ok: false,
-            ms: Date.now() - t0,
-            failedFiles: failingFiles(first.out),
-        };
+        // No files named: a red the retry could not cover (crash, untagged
+        // FAIL) is never one the fixup job may call regenerable.
+        return { ok: false, ms: Date.now() - t0 };
     }
     sink.write(
         `check:lane: ${plan.projects.join(", ")} failed (${plan.cause}) — re-running ${plan.files.length} file(s) once (issue #5640)\n`

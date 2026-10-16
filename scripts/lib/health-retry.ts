@@ -32,6 +32,7 @@
  */
 import {
     ANY_FAIL_LINE,
+    CRASH_LINE,
     failLines,
     failingFiles,
     stripAnsi,
@@ -207,6 +208,10 @@ export function planLaneRetry(
     const projects = failedVitestProjects(output);
     if (projects === null) return null;
     if (/Unhandled (Errors|Rejection)/i.test(plainOf(output))) return null;
+    // A narrowed re-run would green files that never ran: a crashed run (OOM,
+    // worker exit) or one with no summary is not a flake (review of #5640).
+    if (CRASH_LINE.test(plainOf(output))) return null;
+    if (!/^\s*Test Files\s/m.test(plainOf(output))) return null;
     const files = failingFiles(output);
     if (files.length === 0) return null;
     return {

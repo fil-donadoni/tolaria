@@ -273,7 +273,8 @@ describe("planLaneRetry — the queue lane's one re-run (issue #5640)", () => {
     const CMD = "bunx vitest run --project node-engine --project bot-node";
     const FAIL =
         " FAIL  |node-engine| convex/gre/__tests__/stack.test.ts > stack > pops\n" +
-        " FAIL  |bot-node| convex/gre/ai/x.bot.test.ts > x\n";
+        " FAIL  |bot-node| convex/gre/ai/x.bot.test.ts > x\n" +
+        "\n Test Files  2 failed | 3 passed (5)\n";
 
     it("narrows the re-run to the failed projects and the failing files", () => {
         const plan = planLaneRetry(CMD, FAIL);
@@ -289,7 +290,7 @@ describe("planLaneRetry — the queue lane's one re-run (issue #5640)", () => {
 
     it("names the cause of the first failure", () => {
         const timed =
-            " FAIL  |node-engine| a.test.ts > t\nError: Test timed out in 5000ms.\n\n Tests  1 failed | 3 passed\n";
+            " FAIL  |node-engine| a.test.ts > t\nError: Test timed out in 5000ms.\n\n Test Files  1 failed | 3 passed (4)\n Tests  1 failed | 3 passed\n";
         expect(planLaneRetry(CMD, timed)?.cause).toBe("timeout");
         expect(planLaneRetry(CMD, FAIL)?.cause).toBe("assertion");
     });
@@ -297,6 +298,25 @@ describe("planLaneRetry — the queue lane's one re-run (issue #5640)", () => {
     it("never retries a command that is not a vitest run", () => {
         expect(planLaneRetry("bun run check:ts", FAIL)).toBeNull();
         expect(planLaneRetry("bunx eslint src", FAIL)).toBeNull();
+    });
+
+    it("never re-runs a crashed or summary-less run: unrun files would go green", () => {
+        const one = " FAIL  |node-engine| a.test.ts > t\n";
+        expect(planLaneRetry(CMD, one)).toBeNull();
+        expect(
+            planLaneRetry(
+                CMD,
+                one +
+                    "FATAL ERROR: Reached heap limit - JavaScript heap out of memory\n Test Files  1 failed (1)\n"
+            )
+        ).toBeNull();
+        expect(
+            planLaneRetry(
+                CMD,
+                one +
+                    "Error: Worker exited unexpectedly\n Test Files  1 failed (1)\n"
+            )
+        ).toBeNull();
     });
 
     it("never absorbs a failure the FAIL lines do not explain", () => {

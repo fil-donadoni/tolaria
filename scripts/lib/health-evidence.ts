@@ -118,7 +118,7 @@ export function failingProjects(output: string): string[] {
 /** Lines that say the run died rather than a test failing. */
 /** Anchored to the forms vitest, node and the shell print — never a bare
  *  phrase, which a test NAME or a passing test's console output can carry. */
-const CRASH_LINE =
+export const CRASH_LINE =
     /^.*⎯{3,}\s*Unhandled Errors?\s*⎯{3,}.*$|^\s*Vitest caught \d+ unhandled errors?.*$|^\s*(?:Error: )?\[?vitest-pool\]?.*Worker exited unexpectedly.*$|^\s*Error: Worker exited unexpectedly.*$|^.*FATAL ERROR: .*JavaScript heap out of memory.*$|^\s*(?:Segmentation fault|Aborted \(core dumped\)|Killed)\b.*$/m;
 
 /** Every failed test timed out: vitest's per-test blocks, read whole. */
