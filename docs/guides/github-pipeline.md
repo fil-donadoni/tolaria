@@ -11,7 +11,8 @@ checklist. Version 2 (issue #5636) adds the [jobs](#jobs): the
 [job setup](#g-job-setup) every workflow copies, the
 [structure guard](#g-structure-guard) over the workflow files, and the first
 two workflows — the advisory [`pr-check`](#pr-check) and
-[`lane-timing`](#lane-timing).
+[`lane-timing`](#lane-timing). Version 3 (issue #5639) ports the refusals
+`land` applies into the [required checks](#required-checks).
 
 While the migration runs, the old stack (`land`, the land-runner, `loop:afk`,
 batch health) stays the authority on what runs today, and it is **frozen**: no
@@ -227,10 +228,11 @@ with `cancel-in-progress` to drop a superseded run (`pr-check` does).
 
 ## Workflows
 
-| Workflow                      | Trigger                                              | Runner                                | What it proves                                                    |
-| ----------------------------- | ---------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
-| [`pr-check`](#pr-check)       | `pull_request` (open, push)                          | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory           |
-| [`lane-timing`](#lane-timing) | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0) |
+| Workflow                                  | Trigger                                              | Runner                                | What it proves                                                    |
+| ----------------------------------------- | ---------------------------------------------------- | ------------------------------------- | ----------------------------------------------------------------- |
+| [`pr-check`](#pr-check)                   | `pull_request` (open, push)                          | GitHub-hosted `ubuntu-24.04`          | the PR's full `check:lane`, on the merge ref — advisory           |
+| [`pr-check`](#required-checks) `refusals` | same                                                 | same                                  | one job per `land` refusal (five), `scripts/pr-checks.ts`         |
+| [`lane-timing`](#lane-timing)             | dispatch (`host`), push of a `lane-timing/**` branch | `[self-hosted, lane, host:<machine>]` | the same lane on an owner's machine, to compare timings (phase 0) |
 
 ### pr-check
 
@@ -254,6 +256,37 @@ on PR #5676 never executed). The decision is issue #5675.
 Measured on the same commit (PR #5674, full lane): **hosted `ubuntu-24.04`
 491 s** (red only on the two corpus tests above) vs **MacBook `lane` runner
 794 s** (on a machine also carrying Claude sessions).
+
+### Required checks
+
+The same `pr-check` workflow also holds `refusals`, a matrix of five jobs —
+one per refusal `land` applies before a merge, each `bun run pr:checks <name>`
+(`scripts/pr-checks.ts`). A check calls the SAME pure function `land` calls,
+on the same facts (the PR body from `PR_BODY`, passed through `env:`; the diff
+`origin/<base>...HEAD`, which on the merge ref is what would land), and prints
+the same refusal. Those functions keep their tests; the wiring is pinned by
+`scripts/__tests__/pr-checks.test.ts`. Run one by hand with
+`bun run pr:checks <name|all> [--pr <N>]`.
+
+| Check                 | Refuses when                                                                                                    | Function reused                                        |
+| --------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `ui-receipt`          | the diff can reach the DOM and the body has no `check:ui` receipt matching the diff's scope (or a no-walk line) | `safeSkinReceiptInvalid` (`ui-gate/verify-receipt.ts`) |
+| `scenario`            | a `convex/{cards/sets,gre}/**` diff has no `## Preset scenario` block (ADR 0044)                                | `safeScenarioRefusal` (`lib/scenario-block.ts`)        |
+| `retired-rows`        | retired rows of `data/oracle-compiled.json` change and no `## Retired rows` line names them (ADR 0114 §1)       | `safeRetirementRefusal` (`lib/retirement-ack.ts`)      |
+| `robustness-baseline` | the body closes the owner issue of a `ROBUSTNESS_BASELINE` row the tree still lists                             | `robustnessBaselineRefusal`                            |
+| `repair-proof`        | the PR repairs the standing RED and the verdict's failing test files still fail on it                           | `repairProofOf`, as `land`'s `repairProofStep`         |
+
+`repair-proof` reads the health lineage through `verdictStore` (the `github`
+backend needs only the job's `GH_TOKEN`). It passes with a printed `NOTE`
+when the store cannot be read, or when every failing test the verdict names
+was moved or deleted by the repair — it cannot decide, and `land` stays the
+authority until the migration retires it. It reads commit statuses, so the workflow token carries `statuses: read`. A `land --repair` PR with no ledger issue gets no proof here (the flag is `land`'s), and the check never reproduces the RED refusal of a non-repair PR: both stay `land`'s. A PR that is not a declared repair
+(closing none of the ledger's `/health-fix` issues) owes nothing to it.
+
+Like `lane`, the checks are advisory until a ruleset names them; once it does,
+this section is the list of required status contexts: `refusals (ui-receipt)`,
+`refusals (scenario)`, `refusals (retired-rows)`,
+`refusals (robustness-baseline)`, `refusals (repair-proof)`.
 
 ### lane-timing
 
