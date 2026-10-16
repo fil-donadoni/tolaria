@@ -70,6 +70,9 @@ describe("cwdInside", () => {
         expect(cwdInside(out, "/w/tolaria-issue-5")).toBe(true);
     });
     it("is false for a sibling sharing the prefix", () => {
+        expect(cwdInside("n/w/tolaria-issue-50/x", "/w/tolaria-issue-5")).toBe(
+            false
+        );
         expect(cwdInside(out, "/w/tolaria-issue-50")).toBe(false);
         expect(cwdInside("n/w/tolaria-issue-5", "/w/tolaria-issue-50")).toBe(
             false
