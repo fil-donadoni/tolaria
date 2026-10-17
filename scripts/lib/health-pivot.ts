@@ -98,10 +98,7 @@ export function pivotRunInFlight(
         const settled = (
             opts.stored ??
             ((sha) =>
-                verdictStore(root, {
-                    backend: opts.backend,
-                    run: opts.run,
-                }).read(sha))
+                verdictStore(root, { run: opts.run }).read(sha))
         )(marker.sha);
         const settledAt = settled?.at ? Date.parse(settled.at) : NaN;
         if (
@@ -120,10 +117,7 @@ export function pivotRunInFlight(
 
 /** The standing RED's sha, or null when none stands or the store is down. */
 function standingRedSha(root: string, opts: PivotOpts): string | null {
-    const lineage = verdictStore(root, {
-        backend: opts.backend,
-        run: opts.run,
-    }).lineage();
+    const lineage = verdictStore(root, { run: opts.run }).lineage();
     return lineageBlocks(lineage.kind) ? (lineage.verdict?.sha ?? null) : null;
 }
 
@@ -137,7 +131,6 @@ export function recordPivotRepairIssue(
 ): string | null {
     try {
         const store = pivotStore(root, FIX_CONTEXT, opts);
-        if (store === null) return null;
         const sha = standingRedSha(root, opts);
         if (sha === null) return null;
         const issues = new Set(store.read(sha)?.issues ?? []);
@@ -163,7 +156,6 @@ export function pivotRepairIssues(
 ): number[] {
     try {
         const store = pivotStore(root, FIX_CONTEXT, opts);
-        if (store === null) return [];
         const sha = standingRedSha(root, opts);
         if (sha === null) return [];
         return store.read(sha)?.issues ?? [];
