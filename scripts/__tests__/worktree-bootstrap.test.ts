@@ -9,6 +9,7 @@ import {
     VITEST_CACHE_DIR,
     seedWorktreeCaches,
 } from "../lib/worktree-seed";
+import { copyFromPrimary } from "../lib/worktree-copies";
 
 /**
  * Guards for the "a fresh worktree is not runnable" failure class.
@@ -84,6 +85,10 @@ describe("worktree bootstrap wiring", () => {
         );
         expect([...seen]).toContain(
             path.join(REPO_ROOT, "scripts", "lib", "convex-entry-points.ts")
+        );
+        // And the copy table (issue #5786).
+        expect([...seen]).toContain(
+            path.join(REPO_ROOT, "scripts", "lib", "worktree-copies.ts")
         );
     });
 });
@@ -523,6 +528,79 @@ describe("light pre-PR gate", () => {
         // filter. (Issue #2429 appended `&& bun run cr:lint` as a third lane.)
         expect(scripts["check:guards"]).toMatch(
             /vitest run --project node-engine --project node-tooling --project dom(?:\s*&&|\s*"?$)/
+        );
+    });
+});
+
+describe("copies from the primary checkout (issue #5786)", () => {
+    // A GitHub-hosted runner's clone never has `.env.local` (gitignored), and
+    // `health-early` bootstraps a worktree from it: a required copy made every
+    // run a false RED at `worktree:init`. In CI the absence is a visible skip;
+    // on a developer machine it still fails, because there it means the
+    // deployment is not set up.
+    let tmp: string;
+    let primary: string;
+    let cwd: string;
+
+    beforeEach(() => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tolaria-copies-"));
+        primary = path.join(tmp, "tolaria");
+        cwd = path.join(tmp, "tolaria-issue-1");
+        fs.mkdirSync(path.join(primary, "convex", "_generated"), {
+            recursive: true,
+        });
+        fs.writeFileSync(
+            path.join(primary, "convex", "_generated", "api.d.ts"),
+            "api"
+        );
+        fs.mkdirSync(cwd);
+    });
+
+    afterAll(() => {
+        fs.rmSync(tmp, {
+            recursive: true,
+            force: true,
+            maxRetries: 10,
+            retryDelay: 100,
+        });
+    });
+
+    it("skips a missing `.env.local` in CI, naming it in the receipt", () => {
+        const r = copyFromPrimary({ primary, cwd, ci: true });
+
+        expect(r.failed).toEqual([]);
+        expect(r.skipped).toContain(
+            ".env.local (not in primary — CI, offline gate)"
+        );
+        expect(r.done).toContain("convex/_generated");
+    });
+
+    it("fails a missing `.env.local` outside CI", () => {
+        const r = copyFromPrimary({ primary, cwd, ci: false });
+
+        expect(r.failed).toEqual([
+            `.env.local — not in primary checkout (${path.join(primary, ".env.local")})`,
+        ]);
+    });
+
+    it("keeps `convex/_generated` required in CI", () => {
+        fs.rmSync(path.join(primary, "convex"), { recursive: true });
+
+        const r = copyFromPrimary({ primary, cwd, ci: true });
+
+        expect(r.failed).toEqual([
+            `convex/_generated — not in primary checkout (${path.join(primary, "convex/_generated")})`,
+        ]);
+    });
+
+    it("copies `.env.local` when the primary has one, CI or not", () => {
+        fs.writeFileSync(path.join(primary, ".env.local"), "URL=x");
+
+        const r = copyFromPrimary({ primary, cwd, ci: true });
+
+        expect(r.done).toContain(".env.local");
+        expect(fs.readFileSync(path.join(cwd, ".env.local"), "utf8")).toBe(
+            "URL=x"
         );
     });
 });
