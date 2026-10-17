@@ -1,9 +1,12 @@
 # /health-fix --headless — the unattended repair
 
 Read when `$2` is `--headless`: `bun run health:fix --headless` spawned you as
-`claude -p` for `loop:afk` (`loop-drain.sh` step 2b, issue #5589). The loop
-attempts ONE repair per RED tip, recorded on the pivot (`health-fix` commit
-status on the sha), and stops on your `stuck`.
+`claude -p` for `loop:afk` (`loop-drain.sh` step 2b, issue #5589), or
+`bun run health:fix ladder` did for the RED ladder (`health-fix.yml`, issue
+#5646). The loop attempts ONE repair per RED tip, the ladder at most two per
+RED episode, each recorded on the pivot (`health-fix-attempt` commit status
+on the sha); the loop stops on your `stuck`, the ladder tries again and then
+reverts the culprit.
 
 - **Nobody answers a question.** Wherever `SKILL.md` says **grill**, the
   headless answer is **`stuck`**: write the analysis in the repair issue (or,
