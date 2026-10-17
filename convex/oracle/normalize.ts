@@ -88,19 +88,107 @@ export function stripReminderText(text: string): NormalizeResult {
  * (PRD #2693). Matching is on whole-token boundaries so a name that is also a
  * common word cannot corrupt a neighbouring word.
  *
- * Known limitation, deliberate and fail-closed: the informal "short name" of a
- * legendary card ("Sidar Kondo" for "Sidar Kondo of Jamuraa") is NOT
- * substituted. The residue is a line containing a bare name, which no rule in
- * the grammar accepts — so such a card lands in `unparsed`, never in a wrong
- * reading.
+ * The full name only; the shortened name is `substituteShortName`'s, run
+ * after this so the full name is always tried first.
  */
 export function substituteSelf(text: string, name: string): string {
     if (name.length === 0) return text;
-    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return text.replace(
-        new RegExp(`(^|[^\\w'])${escaped}(?=$|[^\\w'])`, "g"),
-        `$1${SELF_MARKER}`
+    return text.replace(wholeTokenRe(name), `$1${SELF_MARKER}`);
+}
+
+function escapeRe(s: string): string {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** `name` on whole-token boundaries; group 1 is the left boundary. */
+function wholeTokenRe(name: string): RegExp {
+    return new RegExp(`(^|[^\\w'])${escapeRe(name)}(?=$|[^\\w'])`, "gm");
+}
+
+/** Short names that are also a word the grammar reads in rules text: an
+ *  occurrence cannot be told from the word, so the name is never shortened. */
+const SHORT_NAME_WORDS: ReadonlySet<string> = new Set([
+    "You",
+    "It",
+    "He",
+    "She",
+    "They",
+]);
+
+/**
+ * The shortened name a card's own text may use for it (CR 201.5c), or `null`.
+ *
+ * Only the comma form is derived: a LEGENDARY card whose name contains `, `
+ * is shortened to the part before the first comma ("Atraxa" for "Atraxa,
+ * Grand Unifier"). A comma-named non-legendary card is a title, not a name
+ * with an epithet ("Elemental, My Dear" is not "Elemental"), and a name with
+ * no comma ("Sidar Kondo of Jamuraa") has no shortening the text proves —
+ * both stay unshortened, so a bare short name in them fails closed.
+ */
+export function shortNameOf(name: string, typeLine: string): string | null {
+    if (!/\bLegendary\b/.test(typeLine) || name.includes(" // ")) return null;
+    const comma = name.indexOf(", ");
+    if (comma <= 0) return null;
+    const short = name.slice(0, comma);
+    return SHORT_NAME_WORDS.has(short) ? null : short;
+}
+
+/**
+ * An occurrence of the short name that is NOT the card itself, judged from
+ * its neighbours. Each shape is one the corpus prints:
+ *
+ * - a determiner or `non-` before it makes it a subtype ("a Lukka
+ *   planeswalker", "each Garruk you control", "non-Gideon creatures");
+ * - a type noun after it, likewise ("a green Lizard creature");
+ * - a capitalised word after it, or `, ` and one, makes it part of ANOTHER
+ *   name ("create Stangg Twin", "meld them into Mishra, Lost to Phyrexia");
+ * - an em dash after it makes it a flavour-word heading, not a reference
+ *   ("• Typhoid Mary — Draw a card.");
+ * - alone on its line, or opening one before a comma, it reads as a keyword.
+ */
+function isForeignOccurrence(before: string, after: string): boolean {
+    return (
+        /(?:^|\s)(?:a|an|another|each|target|other|all|any|no|non-)\s*$/i.test(
+            before
+        ) ||
+        /-$/.test(before) ||
+        /^-/.test(after) ||
+        /^ (?:creature|planeswalker|card|permanent|spell|token)s?\b/.test(
+            after
+        ) ||
+        /^ [A-Z]/.test(after) ||
+        /^, (?:the\b|[A-Z])/.test(after) ||
+        /^ —/.test(after) ||
+        (/(?:^|\n)$/.test(before) && /^(?:$|\n|,)/.test(after))
     );
+}
+
+/**
+ * Replace the card's shortened name with `SELF_MARKER` (CR 201.5c —
+ * "instances of a card's shortened name used in this manner are treated as
+ * though they used the card's full name").
+ *
+ * All or nothing per card: if ANY occurrence of the short name is foreign
+ * (`isForeignOccurrence`), none is substituted. A card that names a subtype
+ * or another legend sharing its prefix keeps every bare short name, which no
+ * grammar rule accepts — so it lands in `unparsed`, never in a reading that
+ * took another object for itself.
+ */
+export function substituteShortName(
+    text: string,
+    name: string,
+    typeLine: string
+): string {
+    const short = shortNameOf(name, typeLine);
+    if (short === null) return text;
+    const re = wholeTokenRe(short);
+    for (const m of text.matchAll(re)) {
+        const start = m.index + m[1]!.length;
+        const before = text.slice(0, start);
+        const after = text.slice(start + short.length);
+        if (isForeignOccurrence(before, after)) return text;
+    }
+    return text.replace(re, `$1${SELF_MARKER}`);
 }
 
 /**
@@ -115,7 +203,11 @@ export function normalizeOracleText(card: OracleCard): NormalizeResult {
     const typography = applyTypography(card.oracleText ?? "");
     const stripped = stripReminderText(typography);
     if (!stripped.ok) return stripped;
-    const withSelf = substituteSelf(stripped.text.lines[0]!, card.name);
+    const withSelf = substituteShortName(
+        substituteSelf(stripped.text.lines[0]!, card.name),
+        card.name,
+        card.typeLine
+    );
     const lines = withSelf
         .split("\n")
         .map((l) => l.replace(/\s+/g, " ").trim())

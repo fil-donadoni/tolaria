@@ -6,8 +6,10 @@ import { describe, expect, it } from "vitest";
 import {
     normalizeOracleText,
     SELF_MARKER,
+    shortNameOf,
     stripReminderText,
     substituteSelf,
+    substituteShortName,
 } from "../normalize";
 import { readManaCost, tokenizeManaSymbols } from "../manaCost";
 import { readTypeLine } from "../typeLine";
@@ -46,6 +48,82 @@ describe("self reference (CR 201.5)", () => {
     it("does not corrupt a longer word that merely contains the name", () => {
         expect(substituteSelf("Fearsome creatures attack.", "Fear")).toBe(
             "Fearsome creatures attack."
+        );
+    });
+
+    it("substitutes a legendary card's shortened name, full name first (CR 201.5c)", () => {
+        const r = normalizeOracleText(
+            oracleCard({
+                name: "Atraxa, Grand Unifier",
+                typeLine: "Legendary Creature — Phyrexian Angel",
+                oracleText:
+                    "When Atraxa enters, reveal the top ten cards of your library.\nSacrifice Atraxa, Grand Unifier: Draw a card.",
+            })
+        );
+        expect(r.ok).toBe(true);
+        if (r.ok)
+            expect(r.text.lines).toEqual([
+                `When ${SELF_MARKER} enters, reveal the top ten cards of your library.`,
+                `Sacrifice ${SELF_MARKER}: Draw a card.`,
+            ]);
+    });
+
+    it("never shortens a non-legendary comma name, nor a name with no comma", () => {
+        expect(
+            substituteShortName(
+                "Create an Elemental creature token.",
+                "Elemental, My Dear",
+                "Sorcery"
+            )
+        ).toBe("Create an Elemental creature token.");
+        expect(
+            shortNameOf("Sidar Kondo of Jamuraa", "Legendary Creature")
+        ).toBe(null);
+        expect(
+            shortNameOf("You, Iterative Playtester", "Legendary Creature")
+        ).toBe(null);
+    });
+
+    it.each([
+        // subtype: determiner, `non-`, type noun after
+        [
+            "Lukka, Coppercoat Outcast",
+            "Exile Lukka. Cast it if you control a Lukka planeswalker.",
+        ],
+        [
+            "Garruk, Cursed Huntsman",
+            "Put a counter on each Garruk you control. Garruk deals 1 damage.",
+        ],
+        [
+            "Gideon, the Oathsworn",
+            "Attack with non-Gideon creatures. Exile Gideon.",
+        ],
+        [
+            "Lizard, Connors's Curse",
+            "Lizard deals 1 damage. It becomes a green Lizard creature.",
+        ],
+        // another name sharing the prefix
+        [
+            "Stangg, Echo Warrior",
+            "Whenever Stangg attacks, create Stangg Twin.",
+        ],
+        [
+            "Mishra, Claimed by Gix",
+            "Exile Mishra, then meld them into Mishra, Lost to Phyrexia.",
+        ],
+        [
+            "Nicol Bolas, the Ravager",
+            "Exile Nicol Bolas, then return Nicol Bolas, the Arisen.",
+        ],
+        // flavour-word heading, keyword line
+        [
+            "Typhoid Mary, Fractured",
+            "Whenever Typhoid Mary attacks, choose one.\n• Typhoid Mary — Draw a card.",
+        ],
+        ["Storm, Test Case", "Storm\nWhen Storm enters, draw a card."],
+    ])("refuses every occurrence when one is foreign: %s", (name, text) => {
+        expect(substituteShortName(text, name, "Legendary Creature")).toBe(
+            text
         );
     });
 
