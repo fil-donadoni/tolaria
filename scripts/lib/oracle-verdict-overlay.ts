@@ -33,15 +33,19 @@ function verdictOf(row: CardRow | undefined): string {
 
 /**
  * OURS, with each theirs row whose Bot verdict differs from base's row for
- * the same card substituted in. `carried` counts the substituted rows.
+ * the same card substituted in. `carried` counts the substituted rows; an
+ * unreadable base (`null`) substitutes none.
  */
 export function overlayBranchVerdicts(
     base: Lockfile | null,
     ours: Lockfile,
     theirs: Lockfile
 ): { readonly lock: Lockfile; readonly carried: number } {
+    // No base, no way to tell what the commit CHANGED from what it merely
+    // inherited — an inherited stale verdict must not overwrite OURS.
+    if (base === null) return { lock: ours, carried: 0 };
     const baseRows = new Map(
-        (base?.cards ?? []).map((row) => [row.oracleId, row] as const)
+        base.cards.map((row) => [row.oracleId, row] as const)
     );
     const changed = new Map<string, CardRow>();
     for (const row of theirs.cards) {

@@ -3,7 +3,10 @@ import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { REGENERATED_ARTIFACTS } from "../lib/generated-artifacts";
+import {
+    REGENERATE_MARKER,
+    REGENERATED_ARTIFACTS,
+} from "../lib/generated-artifacts";
 import type { CardRow, Lockfile } from "../lib/oracle-lockfile";
 import {
     BOT_VERDICT_OVERLAY_PATH,
@@ -86,16 +89,12 @@ describe("overlayBranchVerdicts", () => {
         expect(out.cards[0]!.botGap).toBe("b");
     });
 
-    it("an unreadable base carries every verdict theirs holds", () => {
-        const ours = lock([row("x", "ignored", GAP)]);
-        const theirs = lock([row("x", "played"), row("y")]);
-        const { lock: out, carried } = overlayBranchVerdicts(
-            null,
-            ours,
-            theirs
-        );
-        expect(carried).toBe(1);
-        expect(out.cards).toEqual([row("x", "played")]);
+    it("an unreadable base carries nothing: inherited is not changed", () => {
+        const ours = lock([row("x", "played")]);
+        const theirs = lock([row("x", "ignored", GAP)]);
+        const result = overlayBranchVerdicts(null, ours, theirs);
+        expect(result.carried).toBe(0);
+        expect(result.lock).toBe(ours);
     });
 
     it("applies to the lockfile `land` regenerates with --carry-bot", () => {
@@ -117,7 +116,7 @@ describe("merge-driver-regenerated on the lockfile (real driver)", () => {
     });
     afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-    function runDriver(path: string): Lockfile {
+    function runDriver(path: string, theirsText?: string): Lockfile {
         // Pretty-printed so the stasis line and the bolt line are the ones
         // that collide: a real 3-way conflict, as on `land`'s rebase.
         const write = (name: string, l: Lockfile) =>
@@ -134,11 +133,20 @@ describe("merge-driver-regenerated on the lockfile (real driver)", () => {
             "theirs",
             lock([row("stasis", "played"), row("bolt", "frozen", GAP)])
         );
+        if (theirsText !== undefined)
+            writeFileSync(join(dir, "theirs"), theirsText);
         const r = spawnSync("bun", [DRIVER, "base", "ours", "theirs", path], {
             cwd: dir,
             encoding: "utf8",
         });
         expect(r.status, r.stderr).toBe(0);
+        // The side taken is always marked for the resolver's regeneration.
+        const marker = spawnSync(
+            "git",
+            ["rev-parse", "--git-path", REGENERATE_MARKER],
+            { cwd: dir, encoding: "utf8" }
+        ).stdout.trim();
+        expect(readFileSync(resolve(dir, marker), "utf8")).toContain(path);
         return JSON.parse(readFileSync(join(dir, "ours"), "utf8")) as Lockfile;
     }
 
@@ -153,6 +161,20 @@ describe("merge-driver-regenerated on the lockfile (real driver)", () => {
 
     it("takes OURS byte-for-byte on any other regenerated artifact", () => {
         const out = runDriver("data/oracle-legality.json");
+        expect(out.cards).toEqual([
+            row("stasis", "ignored", GAP),
+            row("bolt", "played"),
+        ]);
+    });
+
+    it("a side the overlay cannot read leaves OURS, still marked, exit 0", () => {
+        // Valid JSON, wrong shape: a card row that is not an object makes
+        // the overlay throw, which must not cost the marker.
+        const out = runDriver(
+            BOT_VERDICT_OVERLAY_PATH,
+            JSON.stringify({ cards: [null, 1] }, null, 2)
+        );
+        expect(out.generator).toBe("ours");
         expect(out.cards).toEqual([
             row("stasis", "ignored", GAP),
             row("bolt", "played"),

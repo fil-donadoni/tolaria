@@ -77,32 +77,41 @@ function done(code: number): never {
 /**
  * The compiler's lockfile only: keep the Bot-play verdicts THEIRS changed on
  * top of the side taken, so the resolver's `--carry-bot` carries them rather
- * than the base's (issue #5814, `lib/oracle-verdict-overlay.ts`). A side it
- * cannot parse leaves plain OURS — the regeneration still runs, the verdicts
- * are only as stale as before.
+ * than the base's (issue #5814, `lib/oracle-verdict-overlay.ts`). It never
+ * throws: any failure — a side that is not a lockfile, a write that dies
+ * midway — restores plain OURS, so the marker below is still appended and the
+ * driver still exits 0; the verdicts are then only as stale as before.
  */
 function overlayVerdicts(): void {
     if (path !== BOT_VERDICT_OVERLAY_PATH) return;
-    const parse = (file: string): Lockfile | null => {
-        try {
-            return JSON.parse(readFileSync(file, "utf8")) as Lockfile;
-        } catch {
-            return null;
-        }
-    };
-    const oursLock = parse(ours!);
-    const theirsLock = parse(theirs!);
-    if (oursLock === null || theirsLock === null) return;
-    const { lock, carried } = overlayBranchVerdicts(
-        parse(base!),
-        oursLock,
-        theirsLock
-    );
-    if (carried === 0) return;
-    writeFileSync(ours!, `${JSON.stringify(lock)}\n`);
-    writeStderrSync(
-        `merge-driver-regenerated: ${label} keeps ${carried} Bot-play verdict(s) the commit changed (issue #5814)\n`
-    );
+    try {
+        const parse = (file: string): Lockfile | null => {
+            try {
+                const lock = JSON.parse(readFileSync(file, "utf8")) as Lockfile;
+                return Array.isArray(lock?.cards) ? lock : null;
+            } catch {
+                return null;
+            }
+        };
+        const oursLock = parse(ours!);
+        const theirsLock = parse(theirs!);
+        if (oursLock === null || theirsLock === null) return;
+        const { lock, carried } = overlayBranchVerdicts(
+            parse(base!),
+            oursLock,
+            theirsLock
+        );
+        if (carried === 0) return;
+        writeFileSync(ours!, `${JSON.stringify(lock)}\n`);
+        writeStderrSync(
+            `merge-driver-regenerated: ${label} keeps ${carried} Bot-play verdict(s) the commit changed (issue #5814)\n`
+        );
+    } catch (error) {
+        copyFileSync(oursBackup, ours!);
+        writeStderrSync(
+            `merge-driver-regenerated: ${label} — verdict overlay skipped (${String(error)})\n`
+        );
+    }
 }
 
 copyFileSync(ours, oursBackup);
