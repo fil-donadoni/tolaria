@@ -16,7 +16,6 @@ import {
     decodeStatus,
     encodeDescription,
     failedTestFiles,
-    fileEvidenceStore,
     githubEvidenceStore,
     type GhRunner,
 } from "../lib/health-verdict-store";
@@ -257,14 +256,5 @@ describe("the evidence store — the pivot", () => {
             run: () => ({ status: 1, stdout: "", stderr: "HTTP 403" }),
         });
         expect(() => store.publish(SHA, "b")).toThrow(/403/);
-    });
-
-    it("file: writes beside the log and reads only a body for that sha", () => {
-        dir = mkdtempSync(join(tmpdir(), "evidence-"));
-        const store = fileEvidenceStore(dir);
-        const p = store.publish(SHA, `${evidenceMarker(SHA)}\nbody`);
-        expect(p).toMatch(/00aebfc400a3\.evidence\.md$/);
-        expect(store.read(SHA)).toBe(`${evidenceMarker(SHA)}\nbody`);
-        expect(store.read("ffffffffffff")).toBeNull();
     });
 });

@@ -92,10 +92,7 @@ describe("where the refresh runs", () => {
     });
 
     it("is no longer wired into the health batch (issue #5458)", () => {
-        for (const file of [
-            "scripts/health-main.ts",
-            "scripts/health-cadence.ts",
-        ]) {
+        for (const file of ["scripts/health-main.ts"]) {
             const src = read(file);
             expect(src, file).not.toContain("botRefreshSteps(");
             expect(src, file).not.toContain("batchTouchesBot(");

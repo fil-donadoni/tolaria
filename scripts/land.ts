@@ -1330,13 +1330,7 @@ export function repairProofOf(
     lineage: Lineage,
     landingKind: LandingKind | undefined
 ): RepairProof | undefined {
-    // A health run re-gating the tip leaves a `running` record; the RED it
-    // replaced, with its tests, is that record's `prior` (file backend).
-    const raw = lineage.verdict;
-    const v =
-        raw?.status === "running"
-            ? ((raw as { prior?: Verdict }).prior ?? null)
-            : raw;
+    const v = lineage.verdict;
     if (landingKind !== "repair" || !lineageBlocks(lineage.kind) || !v)
         return undefined;
     // `*.test.*` only: a blade `*.spec.ts` belongs to `vitest.blade.config.ts`

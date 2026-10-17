@@ -444,6 +444,10 @@ export function machineName(): string {
 }
 
 export function originRepo(root: string): string {
+    // `gh`'s own override (`OWNER/REPO`): a checkout whose origin is not the
+    // repository the store lives on — a fixture, a mirror — names it here.
+    const pinned = process.env.GH_REPO;
+    if (pinned && /^[^/\s]+\/[^/\s]+$/.test(pinned)) return pinned;
     const r = spawnSync("git", ["remote", "get-url", "origin"], {
         cwd: root,
         encoding: "utf8",

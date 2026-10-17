@@ -22,7 +22,6 @@ import {
 import { SURFACE_IDS } from "../ui-gate/surfaces";
 import { VIEWPORT_IDS } from "../ui-gate/viewports";
 import {
-    UI_WALK_FILE,
     parseUiWalkGating,
     uiWalkGating,
     writeWalkVerdict,
@@ -181,21 +180,10 @@ describe("the walk's verdict is written under ui-walk, never health", () => {
         const git = (...a: string[]) => spawnSync("git", a, { cwd: root });
         git("init");
         git("remote", "add", "origin", "git@github.com:o/r.git");
-        writeWalkVerdict(root, verdict, { backend: "github", run });
+        writeWalkVerdict(root, verdict, { run });
         const post = calls.find((c) => c.includes("POST"))!;
         expect(post).toContain(`context=${UI_WALK_CONTEXT}`);
         expect(post).not.toContain(`context=${HEALTH_CONTEXT}`);
         expect(post.some((a) => a.includes("huawei"))).toBe(true);
-    });
-
-    it("file backend: ui-walk.json only — no RED marker", () => {
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "walk-file-"));
-        writeWalkVerdict(root, verdict, { backend: "file" });
-        const dir = path.join(root, ".claude", "telemetry", "health");
-        expect(fs.readdirSync(dir)).toEqual([UI_WALK_FILE]);
-        expect(
-            JSON.parse(fs.readFileSync(path.join(dir, UI_WALK_FILE), "utf8"))
-                .machine
-        ).toBe("huawei");
     });
 });

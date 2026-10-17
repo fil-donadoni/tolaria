@@ -11,7 +11,7 @@ const subs = {
 const hasNode = (p: string) => p === "/h/.nvm/v24/bin/node";
 
 describe("launchd plist templates (issue #5598)", () => {
-    for (const name of ["land-runner", "reaper"]) {
+    for (const name of ["land-runner"]) {
         const tpl = readFileSync(
             `scripts/runner-units/com.tolaria.${name}.plist`,
             "utf8"

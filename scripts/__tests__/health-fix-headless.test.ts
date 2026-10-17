@@ -11,7 +11,6 @@ import {
 import {
     decodeFixStatus,
     encodeFixDescription,
-    fileFixAttemptStore,
     FIX_CONTEXT,
     githubFixAttemptStore,
     LANDED_WAIT_MAX_MS,
@@ -203,30 +202,5 @@ describe("the fix-attempt record — on the pivot", () => {
             outcome: "stuck",
             note: "no repro",
         });
-    });
-
-    it("file: one record per sha", () => {
-        dir = mkdtempSync(join(tmpdir(), "fix-attempts-"));
-        const store = fileFixAttemptStore(dir);
-        store.write({ sha: SHA, outcome: "attempting" });
-        store.write({ sha: "b".repeat(40), outcome: "stuck" });
-        store.write({ sha: SHA, outcome: "landed", pr: 1 });
-        expect(store.read(SHA)).toMatchObject({ outcome: "landed", pr: 1 });
-        expect(store.read("b".repeat(40))?.outcome).toBe("stuck");
-        expect(planLine(() => store, SHA, 0, NOW)).toMatch(/^wait: /);
-        expect(planLine(() => store, "c".repeat(40), 0, NOW)).toBe("attempt");
-    });
-
-    it("file: a corrupt record stops the loop — never read as no attempt", () => {
-        dir = mkdtempSync(join(tmpdir(), "fix-attempts-"));
-        const store = fileFixAttemptStore(dir);
-        store.write({ sha: SHA, outcome: "stuck" });
-        writeFileSync(join(dir, HEALTH_DIR_REL, "fix-attempts.json"), "{torn");
-        expect(planLine(() => store, "c".repeat(40), 0, NOW)).toMatch(
-            /^stop: /
-        );
-        expect(() =>
-            store.write({ sha: SHA, outcome: "attempting" })
-        ).toThrow();
     });
 });

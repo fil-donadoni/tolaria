@@ -10,7 +10,11 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { evidenceMarker } from "../lib/health-evidence";
-import { fileEvidenceStore, HEALTH_DIR_REL } from "../lib/health-verdict-store";
+import {
+    githubEvidenceStore,
+    HEALTH_DIR_REL,
+} from "../lib/health-verdict-store";
+import { fakeGh, type FakeGh } from "./fake-gh";
 
 /**
  * The class guard of issue #5589: the RED evidence `health:status` and
@@ -32,20 +36,40 @@ const SKILL = resolve(
     "health-fix",
     "SKILL.md"
 );
-const SHA = "c0ffee00".repeat(5);
+let SHA: string;
+let gh: FakeGh;
 
 let root: string;
 beforeEach(() => {
     root = mkdtempSync(join(tmpdir(), "evidence-pivot-"));
+    // A repository on the base branch, whose tip the fake GitHub holds a RED
+    // commit status for.
+    const git = (...a: string[]) =>
+        spawnSync("git", a, { cwd: root, encoding: "utf8" });
+    git("init", "-q", "-b", "staging");
+    git(
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@t",
+        "commit",
+        "-q",
+        "--allow-empty",
+        "-m",
+        "tip"
+    );
+    SHA = git("rev-parse", "HEAD").stdout.trim();
+    gh = fakeGh(join(root, "fake-gh"));
+    gh.seed(SHA, {
+        state: "failure",
+        context: "health",
+        description: "RED · test · other-machine",
+    });
     const dir = join(root, HEALTH_DIR_REL);
     mkdirSync(dir, { recursive: true });
     const log = join(dir, "c0ffee00c0ff.log");
     // A log that LOOKS like evidence: a reader of `log` would print it.
     writeFileSync(log, `${evidenceMarker(SHA)}\nREAD FROM THE LOG PATH\n`);
-    writeFileSync(
-        join(dir, "RED"),
-        `staging @ ${SHA} red at test — log: ${log}\n`
-    );
     writeFileSync(
         join(dir, "last.json"),
         JSON.stringify({ sha: SHA, status: "red", failedStep: "test", log })
@@ -66,9 +90,7 @@ const status = (...args: string[]) =>
         encoding: "utf8",
         env: {
             ...process.env,
-            TOLARIA_VERDICT_STORE: "file",
-            TOLARIA_LEASE_DIR: join(root, "leases"),
-            TOLARIA_OWNER: "",
+            ...gh.env,
         },
     });
 
@@ -82,7 +104,7 @@ describe("health:status reads the RED evidence from the store (issue #5589)", ()
     });
 
     it("prints what the store holds — whole with --evidence, a summary otherwise", () => {
-        fileEvidenceStore(root).publish(
+        githubEvidenceStore({ repo: "owner/name", run: gh.run }).publish(
             SHA,
             `${evidenceMarker(SHA)}\n## Health RED\n\n- **failure:** crash — killed by SIGKILL\n\n### Failures\n\nFROM THE STORE\n`
         );
@@ -93,7 +115,7 @@ describe("health:status reads the RED evidence from the store (issue #5589)", ()
         expect(summary).toMatch(/failure:\*\* crash/);
         expect(summary).not.toContain("FROM THE STORE");
         expect(summary).toMatch(
-            /full evidence: bun run health:status --evidence c0ffee00c0ff/
+            new RegExp(`full evidence: bun run health:status --evidence ${SHA.slice(0, 12)}`)
         );
     });
 });

@@ -24,14 +24,6 @@ type Read =
     { pin: MachinePin; readIn: string } | { mechanics: string };
 
 const PLATFORM_READS: Record<string, Read> = {
-    "scripts/health-cadence.ts": {
-        pin: "TOLARIA_HEALTH_RUNNER_PLATFORM",
-        readIn: "scripts/health-cadence.ts",
-    },
-    "scripts/health-runner.ts": {
-        pin: "TOLARIA_HEALTH_RUNNER_PLATFORM",
-        readIn: "scripts/health-cadence.ts",
-    },
     "scripts/land-runner.ts": {
         pin: "TOLARIA_LAND_RUNNER_PLATFORM",
         readIn: "scripts/lib/land-runner.ts",
@@ -40,7 +32,6 @@ const PLATFORM_READS: Record<string, Read> = {
         pin: "TOLARIA_UI_WALK_GATING",
         readIn: "scripts/lib/health-verdict-walk.ts",
     },
-    "scripts/reaper.ts": { mechanics: "process tags: /proc vs ps" },
     "scripts/convex-ensure.ts": {
         mechanics: "systemd units exist on Linux only",
     },
