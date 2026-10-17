@@ -127,11 +127,16 @@ describe("generateBooster (ADR 0055/0056)", () => {
         });
 
         it("a sheet with allowDuplicates: true still yields the same id twice in one pack", () => {
-            // Two distinct ids, three draws: pigeonhole forces a repeat.
-            const config = singleSheetConfig({ A: 1, B: 1 }, 3, true);
-            const pack = generateBooster(config, makeRng(3));
-            expect(pack).toHaveLength(3);
-            expect(new Set(pack.map((c) => c.scryfallId)).size).toBeLessThan(3);
+            // Two distinct ids, two draws: only a with-replacement draw can
+            // repeat one (the overflow fallback never kicks in here).
+            const config = singleSheetConfig({ A: 1, B: 1 }, 2, true);
+            const rng = makeRng(3);
+            let packsWithRepeat = 0;
+            for (let i = 0; i < 50; i++) {
+                const [first, second] = generateBooster(config, rng);
+                if (first.scryfallId === second.scryfallId) packsWithRepeat++;
+            }
+            expect(packsWithRepeat).toBeGreaterThan(0);
         });
 
         it("two different sheets sharing an id can both yield it in one pack", () => {
