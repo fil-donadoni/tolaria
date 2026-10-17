@@ -22,14 +22,20 @@
 // bytes under the same hashed name; the cut is memoised per input, so it is
 // paid once per process.
 //
-// NOT FOR VITEST: this module imports the encoder, which reaches
-// `convex/cards/**`; vitest uses the leaf `./vite-compiled-shard-urls`.
+// THE ENCODER RUNS IN A SUBPROCESS (`scripts/compiled-client-assets.ts`),
+// never in this module's import graph: it reaches `convex/cards/**`, and in
+// `vite.config.ts`'s static closure that made every engine module part of
+// "the build configuration" — `check:ui` scoped every engine diff to the full
+// walk (`scripts/lib/ui-scope.ts`, pinned by `ui-scope-shell.test.ts`) — and
+// in a vitest config it made Set installs ten times slower. The cut is cached
+// on disk by the hash of its inputs, so a build, its worker build and the dev
+// server pay it once per input.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import type { Plugin, ResolvedConfig } from "vite";
-import {
-    compiledClientAssets,
-    type CompiledClientAssets,
-} from "./compiled-shards";
+import type { CompiledClientAssets } from "./compiled-shards";
 import {
     COMPILED_SHARDS_MODULE,
     DEV_DICTIONARY_PATH,
@@ -51,17 +57,44 @@ import {
  *  build that runs the plugin in its main and worker graphs cuts once. */
 let memo: { key: string; assets: CompiledClientAssets } | null = null;
 
+/** The cut, from its on-disk cache under `node_modules/.cache` (keyed by the
+ *  inputs' hash), running the cutter first when the cache has none. */
 function assetsOf(root: string): CompiledClientAssets {
     const { packed, dictionary } = readCompiledInputs(root);
     const key = createHash("sha256")
         .update(packed)
         .update("\0")
         .update(dictionary)
-        .digest("hex");
-    if (memo === null || memo.key !== key) {
-        memo = { key, assets: compiledClientAssets(packed, dictionary) };
+        .digest("hex")
+        .slice(0, 16);
+    if (memo !== null && memo.key === key) return memo.assets;
+    const dir = path.join(
+        root,
+        "node_modules/.cache/tolaria-compiled-shards",
+        key
+    );
+    const keysFile = path.join(dir, "keys.json");
+    if (!existsSync(keysFile)) {
+        const cut = spawnSync(
+            "bun",
+            [path.join(root, "scripts/compiled-client-assets.ts"), dir],
+            { cwd: root, encoding: "utf8" }
+        );
+        if (cut.status !== 0) {
+            throw new Error(
+                `compiled shards: the cut failed (status ${cut.status}): ${cut.stderr}`
+            );
+        }
     }
-    return memo.assets;
+    const read = (file: string) => readFileSync(path.join(dir, file), "utf8");
+    const keys = JSON.parse(read("keys.json")) as string[];
+    const assets: CompiledClientAssets = {
+        dictionary: read("dictionary.json"),
+        index: read("index.json"),
+        shards: new Map(keys.map((k) => [k, read(`shard-${k}.json`)])),
+    };
+    memo = { key, assets };
+    return assets;
 }
 
 export function compiledShards(): Plugin {
