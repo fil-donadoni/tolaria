@@ -9,6 +9,13 @@ import type {
 import type { CardInstance } from "~/types/game";
 import { getCardImageDefId } from "~/lib/card-image-signature";
 import { faceDownRealCardId } from "~/lib/face-down";
+import { syncLayers2to5 } from "@convex/gre/layers2to5";
+import { plains } from "@convex/cards/sets/lea/colorless.cards";
+import {
+    makeInstance,
+    makePlayer as makeHelperPlayer,
+    makeState as makeHelperState,
+} from "@convex/cards/__tests__/setup.helper";
 import { groupBattlefield, type PermanentGroup } from "../battlefield-stacks";
 
 // ---------------------------------------------------------------------------
@@ -321,6 +328,68 @@ describe("groupBattlefield survives the wire projection", () => {
         expect(shape(groups)).toEqual([
             { key: "fd-morph", isStack: false, members: ["fd-morph"] },
             { key: "fu-djinn", isStack: false, members: ["fu-djinn"] },
+        ]);
+    });
+
+    // Issue #5494 — a land-type change (Dream Thrush: "target land becomes the
+    // basic land type of your choice until end of turn", CR 613.1d layer 4) is
+    // a registry entry; its derived `grantedSubtypes` row must reach the
+    // grouping through the real projection, and its end must re-stack.
+    it("a Plains that became a Forest leaves its Permanent Stack, and rejoins when the change ends", () => {
+        const a = makeInstance(plains().id, {
+            id: "plains-a",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const b = makeInstance(plains().id, {
+            id: "plains-b",
+            controllerId: "p1",
+            ownerId: "p1",
+        });
+        const state = makeHelperState({
+            players: [
+                makeHelperPlayer("p1", { battlefield: [a, b] }),
+                makeHelperPlayer("p2"),
+            ],
+        });
+        syncLayers2to5(state);
+        state.continuousEffects = [
+            {
+                id: "ce-forest",
+                layer: 4,
+                timestamp: 10,
+                expiry: { kind: "indefinite", controllerId: "p1" },
+                affected: { kind: "instances", instanceIds: ["plains-b"] },
+                payload: { kind: "subtype-change", set: ["Forest"] },
+                characteristicDefining: false,
+            },
+        ];
+        syncLayers2to5(state);
+
+        const groupProjected = () => {
+            const projected = projectPublicState(state, 1, "p1");
+            const slimBf = projected.players[0].battlefield as CardInstance[];
+            return { slimBf, groups: groupBattlefield(slimBf, new Map()) };
+        };
+
+        const changed = groupProjected();
+        expect(
+            changed.slimBf.find((c) => c.id === "plains-b")!.grantedSubtypes
+        ).toEqual([expect.objectContaining({ subtypes: ["Forest"] })]);
+        expect(shape(changed.groups)).toEqual([
+            { key: "plains-a", isStack: false, members: ["plains-a"] },
+            { key: "plains-b", isStack: false, members: ["plains-b"] },
+        ]);
+
+        // The change ends: the entry leaves the registry.
+        state.continuousEffects = [];
+        syncLayers2to5(state);
+        expect(shape(groupProjected().groups)).toEqual([
+            {
+                key: "plains-a",
+                isStack: true,
+                members: ["plains-a", "plains-b"],
+            },
         ]);
     });
 });

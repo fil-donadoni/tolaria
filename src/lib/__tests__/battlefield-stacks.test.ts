@@ -273,6 +273,65 @@ describe("groupBattlefield — altered predicate ejects to singleton", () => {
         expect(hostGroup.members).toHaveLength(1);
     });
 
+    // Issue #5494 — layer 3/4 characteristic changes (CR 613.1c, 613.1d) and
+    // keyword removal, one case per wire field.
+    const layer3or4Cases: [string, Partial<CardInstance>][] = [
+        [
+            "subtype set (becomes a Forest)",
+            { grantedSubtypes: [{ subtypes: ["Forest"], sourceId: "s" }] },
+        ],
+        [
+            "subtype add",
+            { grantedSubtypesAdd: [{ subtype: "Wall", auraId: "s" }] },
+        ],
+        [
+            "card type grant",
+            { grantedTypes: [{ type: "Creature", auraId: "s" }] },
+        ],
+        [
+            "card type suppression",
+            { suppressedTypes: [{ type: "Creature", sourceId: "s" }] },
+        ],
+        [
+            "supertype grant",
+            { grantedSupertypes: [{ supertype: "Snow", sourceId: "s" }] },
+        ],
+        [
+            "supertype removal",
+            { removedSupertypes: [{ supertype: "Legendary", sourceId: "s" }] },
+        ],
+        [
+            "text change",
+            {
+                textChanges: [
+                    { kind: "land-type", from: "Plains", to: "Forest" },
+                ],
+            },
+        ],
+        [
+            "keyword removal",
+            { removedKeywords: [{ keyword: "flying", sourceId: "s" }] },
+        ],
+    ];
+    it.each(layer3or4Cases)("%s ejects", (label, overrides) => {
+        assertEjects(makeCard({ id: "l34", ...overrides }), label);
+    });
+
+    it.each(layer3or4Cases)(
+        "%s ended (field empty) rejoins the clean stack",
+        (_label, overrides) => {
+            const ended = Object.fromEntries(
+                Object.keys(overrides).map((k) => [k, []])
+            ) as Partial<CardInstance>;
+            const groups = groupBattlefield(
+                [makeCard({ id: "a", ...ended }), makeCard({ id: "b" })],
+                noHosts
+            );
+            expect(groups).toHaveLength(1);
+            expect(groups[0].isStack).toBe(true);
+        }
+    );
+
     it("empty counters / zero damage / empty arrays do NOT eject", () => {
         const a = makeCard({
             id: "a",

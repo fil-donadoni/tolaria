@@ -6,6 +6,7 @@ import type { ManaCost, TargetSelection } from "@convex/cards/types";
 export type { AttackManaTaxPayment };
 import type { SacrificeSelection } from "@convex/gre/sacrificeChoice";
 import type { FaceDownProducer } from "@convex/gre/faceDown";
+import type { WireCharacteristics } from "@convex/gre/wireCharacteristics";
 import type { GrantedAbilityOrigin } from "@convex/gre/activatedAbilities";
 import type {
     PublicGrantedAbility,
@@ -426,6 +427,18 @@ export interface CardInstance {
      *  `grantedSupertypes` above; mirrors
      *  `CardInstanceState.removedSupertypes` in `convex/gre/state.ts`. */
     removedSupertypes?: { supertype: string; sourceId: string }[];
+    /** Layer 3/4 derived characteristics (CR 613.1c, 613.1d) the wire carries
+     *  (`WireCharacteristics`, `convex/gre/wireCharacteristics.ts`, the
+     *  source of truth for these shapes): text changes, card type grant /
+     *  suppression, subtype set / add, and layer-6 keyword removal. Read by
+     *  the battlefield's altered predicate (`src/lib/battlefield-stacks.ts`,
+     *  issue #5494) — a land turned into a Forest leaves its Permanent Stack. */
+    textChanges?: WireCharacteristics["textChanges"];
+    grantedTypes?: WireCharacteristics["grantedTypes"];
+    suppressedTypes?: WireCharacteristics["suppressedTypes"];
+    grantedSubtypes?: WireCharacteristics["grantedSubtypes"];
+    grantedSubtypesAdd?: WireCharacteristics["grantedSubtypesAdd"];
+    removedKeywords?: WireCharacteristics["removedKeywords"];
     /** Copy effect anchor (CR 707.2). When set, this permanent is a copy and
      *  `card.id` carries the copied object's def id; `copiedFrom` holds the
      *  printed identity restored when the copy leaves the battlefield. */

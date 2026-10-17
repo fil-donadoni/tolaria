@@ -133,6 +133,12 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     // card's overlay, so either makes the instance visually individual.
     if (card.colorOverride && card.colorOverride.length > 0) return true;
     if (card.grantedColors && card.grantedColors.length > 0) return true;
+    // Layer 3/4 characteristic changes (CR 613.1c, 613.1d) — a text change, a
+    // card type / subtype / supertype grant or removal, and its layer-6 mirror
+    // (keyword removal) make the instance non-interchangeable: a Plains turned
+    // into a Forest taps for {G} (issue #5494). Expiry empties the field and
+    // the permanent rejoins its clean siblings.
+    if (hasLayer3or4Change(card)) return true;
     // Copy effect anchor (CR 707.2) — a copy carries a printed identity.
     if (card.copiedFrom) return true;
     // Combat involvement makes the instance individually meaningful (CR 506).
@@ -144,6 +150,23 @@ function isAltered(card: CardInstance, hostIds: ReadonlySet<string>): boolean {
     // real card never does. See `identityKey`'s doc comment for the full
     // rationale; do not re-add a `card.faceDown` check here.
     return false;
+}
+
+/** The wire fields carrying a layer 3/4 change (plus keyword removal) — each
+ *  non-empty one makes the permanent altered. */
+const LAYER_3_4_FIELDS = [
+    "textChanges",
+    "grantedTypes",
+    "suppressedTypes",
+    "grantedSubtypes",
+    "grantedSubtypesAdd",
+    "grantedSupertypes",
+    "removedSupertypes",
+    "removedKeywords",
+] as const satisfies ReadonlyArray<keyof CardInstance>;
+
+function hasLayer3or4Change(card: CardInstance): boolean {
+    return LAYER_3_4_FIELDS.some((field) => (card[field]?.length ?? 0) > 0);
 }
 
 /** Member order inside a permanent stack: untapped first, then tapped, stable
