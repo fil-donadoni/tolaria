@@ -354,6 +354,11 @@ import {
     isSorceryTiming,
     wasCastOffSorceryTiming,
 } from "./gre/phases";
+import {
+    armPassUntilAction,
+    clearPassUntilAction,
+    queuePassUntilAction,
+} from "./gre/passUntilAction";
 // CR 606 (issue #2491) — the loyalty-ability rules live in pure engine code so
 // the bot's enumerator/search can consume the SAME predicate this module's
 // throwing wrapper does. `payLoyaltyCost` is re-exported below, unchanged, for
@@ -12883,6 +12888,32 @@ export const declareMulligan = mutation({
     },
 });
 
+/** The has-priority guards a standing pass intent (Pass Turn, Pass Until
+ *  Action) clears before the drain starts passing for the seat. */
+function prepareStandingPass(state: GameState, playerId: string): void {
+    assertNoPendingChoices(state);
+
+    // CR 508.1c/1g / 701.21a — a parked attack-declaration land tax
+    // (Flooded Woodlands) is a turn-based action mid-flight, not a priority
+    // window: a standing pass must NOT sail past it (it would auto-pass
+    // through the rest of the turn, silently abandoning the mandatory
+    // sacrifice and letting the attack proceed unpaid — the exact bug this
+    // guards). The attacking player must finish the pick via selectSacrifice
+    // first.
+    const attackSac = state.combat?.pendingAttackSacrifice;
+    if (attackSac && !isSacrificeSelectionComplete(attackSac)) {
+        throw new Error(
+            "Finish paying the attack cost (sacrifice a land) before ending the turn"
+        );
+    }
+
+    // Passing while a mana payment is still open abandons it (the exact bug
+    // this guards: pressing Enter with the PaymentBanner up must not leave a
+    // stale pendingCast that a later auto-tap commits on the opponent's
+    // turn). Roll back the taps before auto-passing.
+    abandonPendingPayment(state, playerId);
+}
+
 /** Set auto-pass: automatically pass priority for the rest of this turn.
  *  When the caller does NOT currently hold priority the request is recorded
  *  as a queued intent (`queuedEndTurn`) that fires via `drainAutoPasses` the
@@ -12924,26 +12955,7 @@ export const endTurn = mutation({
             return;
         }
 
-        assertNoPendingChoices(state);
-
-        // CR 508.1c/1g / 701.21a — a parked attack-declaration land tax
-        // (Flooded Woodlands) is a turn-based action mid-flight, not a priority
-        // window: endTurn must NOT sail past it (it would auto-pass through the
-        // rest of the turn, silently abandoning the mandatory sacrifice and
-        // letting the attack proceed unpaid — the exact bug this guards). The
-        // attacking player must finish the pick via selectSacrifice first.
-        const attackSac = state.combat?.pendingAttackSacrifice;
-        if (attackSac && !isSacrificeSelectionComplete(attackSac)) {
-            throw new Error(
-                "Finish paying the attack cost (sacrifice a land) before ending the turn"
-            );
-        }
-
-        // Ending the turn while a mana payment is still open abandons it
-        // (the exact bug this guards: pressing Enter with the PaymentBanner up
-        // must not leave a stale pendingCast that a later auto-tap commits on
-        // the opponent's turn). Roll back the taps before auto-passing.
-        abandonPendingPayment(state, args.playerId);
+        prepareStandingPass(state, args.playerId);
 
         // Add player to autoPass list
         const autoPassPlayers = state.autoPassPlayers ?? [];
@@ -12953,6 +12965,54 @@ export const endTurn = mutation({
         state.autoPassPlayers = autoPassPlayers;
 
         // Immediately pass priority (and keep resolving as long as auto-pass applies)
+        drainAutoPasses(state);
+
+        // Check SBA after auto-pass drain (may have resolved combat damage)
+        checkStateBasedActions(state);
+
+        const nextSeq = gameState.seq + 1;
+        await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+        await finalizeGameOver(ctx, args.gameId, nextSeq, state);
+    },
+});
+
+/** Pass Until Action (issue #5782): pass priority for the rest of this turn
+ *  like `endTurn`, but stop — handing the seat priority — the moment the
+ *  opponent puts a new spell or ability on the stack (`gre/passUntilAction.ts`).
+ *  Without priority the press is queued and promoted by `drainAutoPasses` when
+ *  priority next lands on the seat. */
+export const passUntilAction = mutation({
+    args: {
+        gameId: v.id("games"),
+        playerId: v.string(),
+    },
+    handler: async (ctx, args) => {
+        // SECURITY (issue #1645 review): seat-addressed mutation — the
+        // caller must own the handle they name. See `assertCallerOwnsSeat`.
+        await assertCallerOwnsSeat(ctx, args.playerId);
+        const gameState = await getLatestGameState(ctx, args.gameId);
+        if (!gameState) throw new Error("Game not found");
+
+        const state = structuredClone(gameState.state) as GameState;
+        assertGameNotOver(state);
+
+        if (state.phase === "MULLIGAN") {
+            throw new Error("Cannot pass during mulligan phase");
+        }
+
+        // Validate identity even on the queue path so a bad playerId is rejected.
+        getPlayer(state, args.playerId);
+
+        if (state.priorityPlayerId !== args.playerId) {
+            queuePassUntilAction(state, args.playerId);
+            const nextSeq = gameState.seq + 1;
+            await saveGameState(ctx, args.gameId, nextSeq, state, gameState);
+            return;
+        }
+
+        prepareStandingPass(state, args.playerId);
+        armPassUntilAction(state, args.playerId);
+
         drainAutoPasses(state);
 
         // Check SBA after auto-pass drain (may have resolved combat damage)
@@ -12990,7 +13050,10 @@ export const cancelAutoPass = mutation({
         const wasAutoPass = autoPassPlayers.includes(args.playerId);
         const wasSingleShot = state.singleShotAutoPass === args.playerId;
         const wasQueued = queuedEndTurn.includes(args.playerId);
-        if (!wasAutoPass && !wasSingleShot && !wasQueued) return;
+        // Pass Until Action (issue #5782), armed or queued — same cancel path.
+        const wasPassUntilAction = clearPassUntilAction(state, args.playerId);
+        if (!wasAutoPass && !wasSingleShot && !wasQueued && !wasPassUntilAction)
+            return;
 
         if (wasAutoPass) {
             const remaining = autoPassPlayers.filter(

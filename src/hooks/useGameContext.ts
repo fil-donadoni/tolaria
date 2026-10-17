@@ -7,6 +7,7 @@ import type {
     CardInstance,
     Combat,
     GameOver,
+    PassUntilActionIntent,
     PendingActivation,
     PendingCast,
     PendingChoice,
@@ -71,6 +72,9 @@ type GameContext = {
     pendingTriggerBatch?: StackItem[];
     autoPassPlayers?: string[];
     queuedEndTurn?: string[];
+    /** Pass Until Action intents (issue #5782), armed and queued. */
+    passUntilAction?: PassUntilActionIntent[];
+    queuedPassUntilAction?: PassUntilActionIntent[];
     combat?: Combat;
     /** Melee (#669) — the attacking (active) player declares blocks this
      *  combat. Flows from the projected GameState so block-declaration UI flips

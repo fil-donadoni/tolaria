@@ -1024,6 +1024,8 @@ export const IGNORED_STATE_KEYS = [
     "autoPassPlayers",
     "singleShotAutoPass",
     "queuedEndTurn",
+    "passUntilAction",
+    "queuedPassUntilAction",
     "expectedInput",
     "spellsCastThisTurn",
     "abilityResolutionCounts",

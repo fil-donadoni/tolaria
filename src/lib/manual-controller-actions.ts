@@ -176,6 +176,8 @@ export function makeManualControllerActions(
         actions,
         isAutoPass: false,
         isQueuedEndTurn: false,
+        isPassUntilAction: false,
+        isQueuedPassUntilAction: false,
         attackAllConfirm: {
             open: false,
             eligibleCount: 0,

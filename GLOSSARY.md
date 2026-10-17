@@ -1591,12 +1591,16 @@ _Avoid_: Heads-or-tails (unless a card overrides the face labels), toss
 A **Player**'s standing intent to yield the rest of the current turn. Permissive: it gives up response windows and turn-based decisions, so **Drain Auto-Pass** resolves the **Stack** and confirms attackers, blockers and damage on that **Player**'s behalf. Can be cancelled.
 _Avoid_: Auto-pass, fast-forward
 
+**Pass Until Action**:
+A **Player**'s standing intent to yield the rest of the current turn _until the opponent acts_. Permissive like **Pass Turn** while nothing new happens — **Drain Auto-Pass** passes through empty-**Stack** steps for that **Player** — but it stops the moment **Priority** reaches that **Player** with a new opponent-controlled spell or ability on the **Stack** (a trigger counts by its controller, not by who caused it), hands them a real response window and is consumed. Objects already on the **Stack** when it was armed never stop it. Queued when pressed without **Priority**, cleared at turn advance, cancellable through the same path as **Pass Turn**.
+_Avoid_: Soft pass, F4, yield
+
 **Phase Stop**:
 A per-**Phase**, per-side (own turn / opponent's turn) preference for where a **Player** wants to be handed **Priority**. Strict: a **Phase** with no stop is passed through only when nothing is awaited — never past a non-empty **Stack**, a pending choice or target, or a turn-based combat decision. Owned by the **Player**, not by the **Game**, and mirrored to the server so **Drain Auto-Pass** can honour it without a round-trip per **Phase**. The stored preference is the _complement_ of the stop the UI shows.
 _Avoid_: Auto-pass, auto-skip, phase skip
 
 **Drain Auto-Pass**:
-The engine-side loop that applies consecutive passes after a **Priority** change without round-trips to the client. Honours both **Pass Turn** and **Phase Stop**, each with its own semantics — the permissive one may resolve the **Stack**, the strict one never may.
+The engine-side loop that applies consecutive passes after a **Priority** change without round-trips to the client. Honours **Pass Turn**, **Pass Until Action** and **Phase Stop**, each with its own semantics — the permissive one may resolve the **Stack**, the strict one never may, and **Pass Until Action** stops on the opponent's next spell or ability.
 _Avoid_: Auto-pass chain, cascade
 
 **Yield**:

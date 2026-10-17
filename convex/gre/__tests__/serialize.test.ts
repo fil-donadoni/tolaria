@@ -2165,6 +2165,15 @@ describe("optional field round-trip smoke tests", () => {
         expect(roundTrip(state).queuedEndTurn).toEqual(["p1", "p2"]);
     });
 
+    it("passUntilAction / queuedPassUntilAction (issue #5782)", () => {
+        const state = freshState();
+        state.passUntilAction = [{ playerId: "p1", ignoredStackIds: ["s1"] }];
+        state.queuedPassUntilAction = [{ playerId: "p2", ignoredStackIds: [] }];
+        const back = roundTrip(state);
+        expect(back.passUntilAction).toEqual(state.passUntilAction);
+        expect(back.queuedPassUntilAction).toEqual(state.queuedPassUntilAction);
+    });
+
     it("combat", () => {
         const state = freshState();
         state.combat = {

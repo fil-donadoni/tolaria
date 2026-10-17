@@ -376,6 +376,7 @@ export type {
     RevealNotification,
     AttackManaTaxPayment,
     ExtraPhase,
+    PassUntilActionIntent,
     TimedCopyLayer,
     LastKnownCopiable,
     GameState,

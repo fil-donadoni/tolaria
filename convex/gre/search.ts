@@ -666,6 +666,8 @@ function autoPassDrainIsIdle(state: GameState): boolean {
     return (
         (state.autoPassPlayers?.length ?? 0) === 0 &&
         (state.queuedEndTurn?.length ?? 0) === 0 &&
+        (state.passUntilAction?.length ?? 0) === 0 &&
+        (state.queuedPassUntilAction?.length ?? 0) === 0 &&
         state.singleShotAutoPass === undefined
     );
 }
