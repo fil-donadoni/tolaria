@@ -592,12 +592,30 @@ export function dslRealizedAbilityValueById(
      *  the committed vector the same way the latent half did: a creature whose
      *  worth is mostly its ability script priced identically under every
      *  vector, so the fit's probe could not move it. */
-    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent
+    latent: LatentWeights = DEFAULT_EVAL_WEIGHTS.latent,
+    /** Issue #5576 (ADR 0151) — the board the permanent stands on, from its
+     *  controller's seat, asked for only when the card is an each-step engine
+     *  NOT PRINTED a creature (a Howling Mine animated by March of the
+     *  Machines): its creature face then reads the engine by the same
+     *  Differential Reading its non-creature board face takes
+     *  (`dslLatentPieces` → `engineLensOf`), so animating it never makes the
+     *  engine vanish. A printed creature's triggers take no lens (issue
+     *  #5151's scope). Lazy: building the lens is a board walk every other
+     *  creature at every leaf must not pay. */
+    board?: () => LatentLens | undefined
 ): number {
     const def = tryGetDefinition(cardId);
-    return def
-        ? dslRealizedAbilityScriptValue(def, contextFreeGrounding(latent), self)
-        : 0;
+    if (!def) return 0;
+    const lens =
+        board && !def.types.includes("Creature") && carriesEachStepEngine(def)
+            ? board()
+            : undefined;
+    return dslRealizedAbilityScriptValue(
+        def,
+        contextFreeGrounding(latent),
+        self,
+        lens && engineLensOf(lens, latent)
+    );
 }
 
 /** Issue #5155 — the standing-ability worth a LAND IN PLAY contributes to its

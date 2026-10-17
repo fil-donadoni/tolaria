@@ -685,8 +685,19 @@ function abilityScriptOpValue(
                   )
                 : undefined;
         if (eachStepEngine && !engine) continue;
+        // Issue #5576 — an engine is ONE number on every face (ADR 0151): the
+        // standing reader discounts its whole total by
+        // `ABILITY_SCRIPT_DISCOUNT`, so the realized reader — the creature
+        // face of an ANIMATED engine, un-discounted everywhere else — takes
+        // the same factor on the engine alone. Animating a Howling Mine adds
+        // its body and leaves its engine worth where it was.
         const raw = engine
-            ? engine
+            ? selection === "realized"
+                ? {
+                      points: engine.points * ABILITY_SCRIPT_DISCOUNT,
+                      tags: engine.tags,
+                  }
+                : engine
             : script
               ? valueEffectScript(script, abilityCtx)
               : bestModeCombinationOpValue(
@@ -753,9 +764,15 @@ function abilityScriptOpValue(
 export function dslRealizedAbilityScriptValue(
     def: CardDefinition,
     ctx: GroundingContext = contextFreeGrounding(),
-    self?: PermanentView
+    self?: PermanentView,
+    /** Issue #5576 — see `abilityScriptOpValue`: the board an ANIMATED
+     *  non-creature engine is read against on its creature face. */
+    engineLens?: LatentLens
 ): number {
-    return dslAbilityScriptOpValue(def, ctx, self)?.points ?? 0;
+    return (
+        abilityScriptOpValue(def, ctx, self, "realized", engineLens)?.points ??
+        0
+    );
 }
 
 /** The merged, DISCOUNTED `{ points, tags }` of a card's activated + triggered

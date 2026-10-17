@@ -109,7 +109,6 @@ import {
     manaSourceLockDiscount,
     restrictionSourceWorth,
     standingLockMargin,
-    type RestrictionShareWeights,
 } from "./ai/restrictionPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
@@ -252,8 +251,10 @@ export function evaluateCreature(
     /** Issue #5154 — the two restriction-share units this valuation prices a
      *  "can't attack" / "can't block" / "doesn't untap" at. Defaulted to the
      *  production vector like `latent`; `evaluate` and the combat deltas pass
-     *  their `weights` (an `EvalWeights` satisfies the pick). */
-    shares: RestrictionShareWeights = DEFAULT_EVAL_WEIGHTS
+     *  their `weights`. Issue #5576 — the whole vector, because an animated
+     *  each-step engine reads the board its non-creature face reads
+     *  (`standingEngineLens`), which is built under it. */
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     // Until-boundary P/T excluded: a combat trick's buff is not lasting
     // material (ADR 0020 §2).
@@ -273,7 +274,7 @@ export function evaluateCreature(
         // takes off this body — its attack share when it cannot attack, its
         // block share when it cannot block, both while it sits tapped under a
         // hard untap lock. Zero on every board with no restriction source.
-        creatureRestrictionDiscount(state, card, shares, pass) -
+        creatureRestrictionDiscount(state, card, weights, pass) -
         // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
         // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
         // for a printed characteristic and wrong for a duration-scoped
@@ -295,8 +296,16 @@ export function evaluateCreature(
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
         // script value is DECIDED for this permanent (was it evoked? dashed?)
-        // rather than charged/credited unconditionally.
-        dslRealizedAbilityValueById(String(card.card.id ?? ""), card, latent)
+        // rather than charged/credited unconditionally. Issue #5576 — an
+        // animated non-creature engine (a Howling Mine under March of the
+        // Machines) reads the board from its controller's seat, as its
+        // non-creature face does (`nonCreatureBodyValue`).
+        dslRealizedAbilityValueById(
+            String(card.card.id ?? ""),
+            card,
+            latent,
+            () => standingEngineLens(state, card, weights, pass)
+        )
     );
 }
 
