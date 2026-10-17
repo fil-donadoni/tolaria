@@ -2765,6 +2765,20 @@ export function manaTapOptionSpendsUnplannedResource(
     if (!ability.cost.exertThis && ability.cost.mana === undefined) {
         return false;
     }
+    // CR 605.1a / 601.2g (issue #5444) — a FILTER land's "{1}, {T}: Add {W}{U}"
+    // spends nothing but mana: its pure-generic leg is funded by an earlier tap
+    // of the SAME plan (`applyOption` refuses the option until the pool covers
+    // it, which orders the funder first), so it is no resource taken on the
+    // player's behalf. Without `{T}` the leg can repeat and nets zero or less
+    // (Farrelite Priest, Nomadic Elf), so those stay excluded.
+    if (
+        ability.cost.tap &&
+        !ability.cost.exertThis &&
+        ability.cost.mana &&
+        pureGenericManaSubCost(ability.cost.mana) !== null
+    ) {
+        return false;
+    }
     return !manaTapOptionRiderIsSought(ability, context);
 }
 
