@@ -109,7 +109,6 @@ import {
     manaSourceLockDiscount,
     restrictionSourceWorth,
     standingLockMargin,
-    type RestrictionShareWeights,
 } from "./ai/restrictionPricing";
 // Issue #2937 — the single authority on which granted keywords are PROTECTIVE
 // and on whether anything the opponent is doing can currently reach the
@@ -252,8 +251,10 @@ export function evaluateCreature(
     /** Issue #5154 — the two restriction-share units this valuation prices a
      *  "can't attack" / "can't block" / "doesn't untap" at. Defaulted to the
      *  production vector like `latent`; `evaluate` and the combat deltas pass
-     *  their `weights` (an `EvalWeights` satisfies the pick). */
-    shares: RestrictionShareWeights = DEFAULT_EVAL_WEIGHTS
+     *  their `weights`. Issue #5576 — the whole vector, because an animated
+     *  each-step engine reads the board its non-creature face reads
+     *  (`standingEngineLens`), which is built under it. */
+    weights: EvalWeights = DEFAULT_EVAL_WEIGHTS
 ): number {
     // Until-boundary P/T excluded: a combat trick's buff is not lasting
     // material (ADR 0020 §2).
@@ -273,7 +274,7 @@ export function evaluateCreature(
         // takes off this body — its attack share when it cannot attack, its
         // block share when it cannot block, both while it sits tapped under a
         // hard untap lock. Zero on every board with no restriction source.
-        creatureRestrictionDiscount(state, card, shares, pass) -
+        creatureRestrictionDiscount(state, card, weights, pass) -
         // Issue #2937 — `creatureValueRaw` prices EVERY occurrence in
         // `staticAbilities` off the flat `KEYWORD_BONUS` table, which is right
         // for a printed characteristic and wrong for a duration-scoped
@@ -295,8 +296,20 @@ export function evaluateCreature(
         // trigger system already treats a raw `CardInstanceState` as the
         // `PermanentView` a CR 603.4 condition reads, so a gated trigger's
         // script value is DECIDED for this permanent (was it evoked? dashed?)
-        // rather than charged/credited unconditionally.
-        dslRealizedAbilityValueById(String(card.card.id ?? ""), card, latent)
+        // rather than charged/credited unconditionally. Issue #5576 — an
+        // animated non-creature engine (a Howling Mine under March of the
+        // Machines) reads the board from its controller's seat, as its
+        // non-creature face does (`nonCreatureBodyValue`).
+        withEngineRead(card, (open) =>
+            dslRealizedAbilityValueById(
+                String(card.card.id ?? ""),
+                card,
+                latent,
+                open
+                    ? () => standingEngineLens(state, card, weights, pass)
+                    : undefined
+            )
+        )
     );
 }
 
@@ -1414,14 +1427,43 @@ function nonCreatureBodyValue(
     pass: Layer7Pass
 ): number {
     return (
-        cardValue(
-            state,
-            perm,
-            standingEngineLens(state, perm, weights, pass),
-            weights.latent,
-            pass
+        withEngineRead(perm, (open) =>
+            cardValue(
+                state,
+                perm,
+                open
+                    ? standingEngineLens(state, perm, weights, pass)
+                    : undefined,
+                weights.latent,
+                pass
+            )
         ) * loyaltyRealizationRatio(perm)
     );
+}
+
+/** Issue #5576 (review) — the permanents whose standing engine is being read
+ *  right now, on this synchronous call stack. */
+const ENGINE_READS_IN_FLIGHT = new Set<string>();
+
+/** Read `perm`'s worth with its engine lens `open`, unless that engine is
+ *  already being read further up the stack. An each-step edict prices every
+ *  permanent its sacrifice can take (`realisedLoss`), and when the engine's
+ *  own source is one of them (Keldon Twilight animated by Opalescence, a
+ *  creature its own "that player sacrifices a creature" can take,
+ *  CR 701.21a) that price is this same valuation: the inner read takes no
+ *  lens, so the source's own loss is priced without re-reading its engine
+ *  and the leaf terminates. Every other permanent is read once, lens open. */
+function withEngineRead<T>(
+    perm: CardInstanceState,
+    read: (open: boolean) => T
+): T {
+    if (ENGINE_READS_IN_FLIGHT.has(perm.id)) return read(false);
+    ENGINE_READS_IN_FLIGHT.add(perm.id);
+    try {
+        return read(true);
+    } finally {
+        ENGINE_READS_IN_FLIGHT.delete(perm.id);
+    }
 }
 
 /** Issue #5164 (ADR 0151) — the board a permanent carrying a standing

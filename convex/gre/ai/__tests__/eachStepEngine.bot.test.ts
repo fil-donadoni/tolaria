@@ -23,13 +23,20 @@ import {
 import {
     cardValue,
     evaluate,
+    evaluateCreature,
     handLatentLens,
     permanentRealisedValue,
 } from "../../evaluate";
 import { DEFAULT_EVAL_WEIGHTS } from "../evalWeights";
 import { cardValueById, MAX_LATENT_SCRIPT_VALUE } from "../../cardValue";
-import { nonCreatureBodyRaw } from "../../creatureBody";
+import { creatureValueRaw, nonCreatureBodyRaw } from "../../creatureBody";
+import { isCreature } from "../../constants";
+import { syncLayers2to5 } from "../../layers2to5";
+import { withTemporaryDefinition } from "../../../cards/registry";
 import { forest, howlingMine } from "../../../cards/sets/lea/colorless.cards";
+import { animateArtifact } from "../../../cards/sets/lea/blue.cards";
+import { keldonTwilight } from "../../../cards/sets/pls/multicolor.cards";
+import { opalescence } from "../../../cards/sets/uds/white.cards";
 import { grizzlyBears } from "../../../cards/sets/lea/green.cards";
 import { shivanDragon } from "../../../cards/sets/lea/red.cards";
 
@@ -195,5 +202,110 @@ describe("a standing engine is not a held one-shot (issue #5560)", () => {
         const read = (w: typeof full) =>
             cardValue(inHand, held, handLatentLens(inHand, "p1", held, w));
         expect(read(DEFAULT_EVAL_WEIGHTS)).toBeCloseTo(read(full), 9);
+    });
+});
+
+describe("an animated each-step engine keeps its Differential Reading (issue #5576)", () => {
+    /** `board`, with p1's Mine enchanted by an Animate Artifact: a 2/2
+     *  artifact creature that keeps its trigger (CR 613.1d / 613.4b). */
+    function animated(own: number, opp: number): GameState {
+        const state = board({ hand: own, mine: "board" }, { hand: opp });
+        const p1 = state.players[0];
+        const mine = p1.battlefield[0];
+        p1.battlefield.push(
+            makeInstance(animateArtifact().id, {
+                controllerId: "p1",
+                ownerId: "p1",
+                zone: "battlefield",
+                attachedTo: mine.id,
+            })
+        );
+        syncLayers2to5(state);
+        return state;
+    }
+
+    /** The engine half of the animated Mine's creature face: its realized
+     *  worth minus the vanilla 2/2 body it became. */
+    function engineHalf(state: GameState): number {
+        const mine = state.players[0].battlefield[0];
+        expect(isCreature(mine)).toBe(true);
+        return evaluateCreature(state, mine) - creatureValueRaw(2, 2, 2, []);
+    }
+
+    it("the creature face carries the engine the non-creature board face reads, whatever the sign", () => {
+        // ADR 0151 — one number on every face: animating the Mine adds its
+        // body and leaves its engine worth where it was, on the board that
+        // feeds its controller and on the one that feeds the opponent.
+        const feeds = engineHalf(animated(1, 7));
+        expect(feeds).toBeGreaterThan(0);
+        expect(feeds).toBeCloseTo(
+            mineWorth(board({ hand: 1, mine: "board" }, { hand: 7 })),
+            6
+        );
+        const starves = engineHalf(animated(7, 1));
+        expect(starves).toBeLessThan(0);
+        expect(starves).toBeCloseTo(
+            mineWorth(board({ hand: 7, mine: "board" }, { hand: 1 })),
+            6
+        );
+    });
+
+    it("a PRINTED creature's each-step trigger takes no lens: its board face is the body alone (issue #5151's scope)", () => {
+        // The same trigger on an artifact creature printed 2/2: the realized
+        // reader keeps weight 1 and no board, so the engine reads nothing
+        // (ADR 0151 §1) — unchanged by the animated face's lens.
+        const golem = {
+            ...howlingMine(),
+            types: ["Artifact", "Creature"],
+            power: 2,
+            toughness: 2,
+        } as ReturnType<typeof howlingMine>;
+        withTemporaryDefinition(golem, () => {
+            const state = board({ hand: 1, mine: "board" }, { hand: 7 });
+            const mine = state.players[0].battlefield[0];
+            expect(evaluateCreature(state, mine)).toBeCloseTo(
+                creatureValueRaw(2, 2, 2, []),
+                9
+            );
+        });
+    });
+
+    it("an animated engine whose edict can take ITSELF prices its own loss without re-reading itself", () => {
+        // Keldon Twilight under Opalescence is a creature its own each-step
+        // sacrifice can take (CR 701.21a): pricing that loss is valuing the
+        // Twilight, whose engine reads the same edict. The inner valuation
+        // takes no lens (the engine reads nothing there), so the leaf
+        // terminates instead of overflowing the stack.
+        const pid = (p: string) => ({
+            controllerId: p,
+            ownerId: p,
+            enteredOnTurn: 0,
+        });
+        const side = (p: string, own: boolean) =>
+            makePlayer(p, {
+                hand: [makeInstance(BEAR, { ...pid(p), zone: "hand" })],
+                library: zone(p, BEAR, 10, "library"),
+                battlefield: own
+                    ? [
+                          makeInstance(keldonTwilight().id, {
+                              ...pid(p),
+                              zone: "battlefield",
+                          }),
+                          makeInstance(opalescence().id, {
+                              ...pid(p),
+                              zone: "battlefield",
+                          }),
+                      ]
+                    : [makeInstance(BEAR, { ...pid(p), zone: "battlefield" })],
+            });
+        const state = makeState({
+            players: [side("p1", true), side("p2", false)],
+            turn: 3,
+        });
+        syncLayers2to5(state);
+        const twilight = state.players[0].battlefield[0];
+        expect(isCreature(twilight)).toBe(true);
+        expect(Number.isFinite(evaluateCreature(state, twilight))).toBe(true);
+        expect(Number.isFinite(evaluate(state, "p1"))).toBe(true);
     });
 });
