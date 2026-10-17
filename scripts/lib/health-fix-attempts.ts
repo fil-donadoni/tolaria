@@ -25,7 +25,6 @@ import {
 /** The commit-status context a fix attempt is recorded under. */
 export const FIX_CONTEXT = "health-fix-attempt";
 
-
 export type FixOutcome = "attempting" | "landed" | "stuck";
 
 /** Which rung of the RED ladder the record is about (issue #5646): the

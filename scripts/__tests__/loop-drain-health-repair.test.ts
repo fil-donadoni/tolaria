@@ -30,13 +30,9 @@ const healthDir = (): string =>
 
 let gh: FakeGh;
 
-/** The fake's env WITHOUT its PATH: the harness owns PATH (its own `gh`
- *  stub counts the queue), and its `health:status` branch puts the fake first
- *  for that one call (`FAKE_GH_BIN`). */
-const ghEnv = (): Record<string, string> => {
-    const { PATH: _path, ...rest } = gh.env;
-    return rest;
-};
+/** The harness owns PATH (its own `gh` stub counts the queue), and its
+ *  `health:status` branch puts the fake first for that one call. */
+const ghEnv = (): Record<string, string> => gh.envNoPath;
 
 const writeRed = (): void => {
     gh = fakeGh(path.join(tmp, "fake-gh"));

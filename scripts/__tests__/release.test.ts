@@ -14,8 +14,6 @@ import {
     type LoopInputs,
 } from "../release";
 import { issueWorktree } from "../lib/issue-worktree";
-import { mkdtempSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
 import {
     githubVerdictStore,
     type GhRunner,

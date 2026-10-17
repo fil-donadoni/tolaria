@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
     claudeArgs,
     extraClaudeArgs,
@@ -18,7 +15,7 @@ import {
     loopFixDecision,
     type FixAttempt,
 } from "../lib/health-fix-attempts";
-import { HEALTH_DIR_REL, type GhRunner } from "../lib/health-verdict-store";
+import { type GhRunner } from "../lib/health-verdict-store";
 import { DEFAULT_FIX_ATTEMPTS } from "../release";
 
 /**
@@ -139,12 +136,6 @@ describe("loopFixDecision — one attempt per tip, bounded", () => {
 });
 
 describe("the fix-attempt record — on the pivot", () => {
-    let dir: string | undefined;
-    afterEach(() => {
-        if (dir) rmSync(dir, { recursive: true, force: true });
-        dir = undefined;
-    });
-
     it("round-trips through a commit status description", () => {
         const a: FixAttempt = {
             sha: SHA,

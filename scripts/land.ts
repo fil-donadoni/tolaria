@@ -110,7 +110,6 @@ import {
     readVerdictLineage,
     verdictStore,
     type Lineage,
-    type Verdict,
     type VerdictStore,
 } from "./lib/health-verdict-store";
 import { pivotRepairIssues } from "./lib/health-pivot";

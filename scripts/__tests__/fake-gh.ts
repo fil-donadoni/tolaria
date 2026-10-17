@@ -46,7 +46,13 @@ export interface FakeGh {
      *  `FAKE_GH_BIN` is the directory alone, for a harness that owns PATH. */
     env: Record<string, string>;
     /** Put a status on `sha`, newest. `created_at` defaults to now. */
-    seed(sha: string, s: Omit<FakeStatus, "created_at"> & { created_at?: string }): void;
+    seed(
+        sha: string,
+        s: Omit<FakeStatus, "created_at"> & { created_at?: string }
+    ): void;
+    /** `env` without PATH, for a harness that owns PATH and reaches the fake
+     *  through `FAKE_GH_BIN`. */
+    envNoPath: Record<string, string>;
     /** Name the base history (newest first) when the cwd is no repository. */
     setHistory(shas: string[]): void;
     statuses(sha: string): FakeStatus[];
@@ -77,6 +83,9 @@ export function fakeGh(dir: string): FakeGh {
     };
     return {
         env,
+        envNoPath: Object.fromEntries(
+            Object.entries(env).filter(([k]) => k !== "PATH")
+        ),
         run(args) {
             const r = spawnSync(bin, args, {
                 encoding: "utf8",
@@ -97,7 +106,10 @@ export function fakeGh(dir: string): FakeGh {
             writeFileSync(state, JSON.stringify(st));
         },
         setHistory(shas) {
-            writeFileSync(state, JSON.stringify({ ...readState(state), commits: shas }));
+            writeFileSync(
+                state,
+                JSON.stringify({ ...readState(state), commits: shas })
+            );
         },
         statuses: (sha) => readState(state).statuses[sha] ?? [],
         comments: (sha) =>

@@ -259,7 +259,7 @@ export const planBranch = (number = 101, model = "sonnet"): string =>
         // The health verdict (issue #5462) is the REAL reader over the verdict
         // store: with no fake `gh` (`fake-gh.ts`, `FAKE_GH_BIN`) it reads as
         // unreadable, which the driver treats as no RED.
-        `if [ "$1" = "run" ] && [ "$3" = "health:status" ] && [ -x "${REAL_BUN}" ]; then shift 3; PATH="\${FAKE_GH_BIN:+\$FAKE_GH_BIN:}\$PATH" exec "${REAL_BUN}" "${HEALTH_MAIN}" --status "$@"; fi`,
+        `if [ "$1" = "run" ] && [ "$3" = "health:status" ] && [ -x "${REAL_BUN}" ]; then shift 3; PATH="\${FAKE_GH_BIN:+$FAKE_GH_BIN:}$PATH" exec "${REAL_BUN}" "${HEALTH_MAIN}" --status "$@"; fi`,
     ].join("\n");
 
 /** Body of the default `bun` stub: no-op the orphan-claim sweep, answer the

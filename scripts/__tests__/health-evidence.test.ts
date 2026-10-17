@@ -1,7 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
     buildEvidence,
     classifyFailure,
@@ -213,12 +210,6 @@ describe("the verdict's `failure:` field", () => {
 });
 
 describe("the evidence store — the pivot", () => {
-    let dir: string | undefined;
-    afterEach(() => {
-        if (dir) rmSync(dir, { recursive: true, force: true });
-        dir = undefined;
-    });
-
     it("github: publishes a commit comment on the sha and reads the newest back", () => {
         const calls: string[][] = [];
         const comments: { body: string }[] = [

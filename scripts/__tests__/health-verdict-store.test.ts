@@ -426,7 +426,6 @@ function withRoot(fn: (root: string, dir: string) => void): void {
     }
 }
 
-
 describe("the repository named by the origin remote", () => {
     it("reads owner/name from either origin URL form", () => {
         expect(repoFromRemote("git@github.com:fil-donadoni/tolaria.git")).toBe(

@@ -275,10 +275,7 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
     /** The fake's env WITHOUT its PATH: the harness owns PATH (its own `gh`
      *  stub counts the queue); its `health:status` branch puts the fake
      *  first for that one call (`FAKE_GH_BIN`). */
-    const ghEnv = (): Record<string, string> => {
-        const { PATH: _path, ...rest } = gh.env;
-        return rest;
-    };
+    const ghEnv = (): Record<string, string> => gh.envNoPath;
 
     /** A RED `health` status on the base tip, in the fake store (issue
      *  #5462: the loop reads the verdict through the store). */
@@ -321,7 +318,9 @@ describe("health RED — the green-main invariant (ADR 0110)", () => {
         // aborted on a broken main as a night that finished its work.
         stubGhCountingFrom(5);
         writeRed();
-        expect(run({ args: ["--claude-args", "x"], env: ghEnv() }).status).toBe(1);
+        expect(run({ args: ["--claude-args", "x"], env: ghEnv() }).status).toBe(
+            1
+        );
     });
 
     it("names the verdict on stderr, so the morning log says what to fix", () => {

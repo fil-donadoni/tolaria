@@ -7,7 +7,6 @@ import {
     existsSync,
     utimesSync,
     readFileSync,
-    readdirSync,
     writeFileSync,
 } from "node:fs";
 import { cpus, tmpdir } from "node:os";

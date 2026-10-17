@@ -97,8 +97,7 @@ export function pivotRunInFlight(
             return null;
         const settled = (
             opts.stored ??
-            ((sha) =>
-                verdictStore(root, { run: opts.run }).read(sha))
+            ((sha) => verdictStore(root, { run: opts.run }).read(sha))
         )(marker.sha);
         const settledAt = settled?.at ? Date.parse(settled.at) : NaN;
         if (

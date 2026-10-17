@@ -8,11 +8,7 @@ import { withoutCorpusExclusion } from "../lib/corpus-exclusion";
 import { INFRA_REMEDY, PREFLIGHT_MACHINE_STEP } from "../lib/health-verdict";
 import { MACHINE_SATURATED_EXIT } from "../lib/machine-admission";
 import { acquireUiLane, MachineSaturatedError } from "../lib/ui-admission";
-import {
-    EMPTY_CADENCE,
-    MAX_BATCH_AGE_MS,
-    serializeCadence,
-} from "../lib/health-cadence";
+import { fakeGh, type FakeGh } from "./fake-gh";
 
 /**
  * Machine admission, driven for real (issue #4966): the gate's bounded wait,
@@ -24,7 +20,6 @@ import {
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
 const GATE = path.join(REPO_ROOT, "scripts", "gate.ts");
 const HEALTH_MAIN = path.join(REPO_ROOT, "scripts", "health-main.ts");
-const HEALTH_CADENCE = path.join(REPO_ROOT, "scripts", "health-cadence.ts");
 
 const BUSY = JSON.stringify({
     load1: 14.5,
@@ -361,10 +356,22 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         return { primary, tip: git(["rev-parse", "HEAD"], primary) };
     };
 
+    let gh: FakeGh;
+    beforeEach(() => {
+        gh = fakeGh(path.join(tmp, "fake-gh"));
+    });
+
+    /** Whether the fake store holds a RED `health` status for `sha`. */
+    const redOn = (sha: string): boolean =>
+        gh
+            .statuses(sha)
+            .some((s) => s.context === "health" && s.state === "failure");
+
     /** A machine that never calms, a bound in milliseconds, no hold. */
     const busyEnv = (): NodeJS.ProcessEnv => {
         const env: NodeJS.ProcessEnv = {
             ...withoutCorpusExclusion(),
+            ...gh.env,
             TOLARIA_GATE_LOCK_ROOT: path.join(tmp, "locks"),
             TOLARIA_MACHINE_PROBE: BUSY,
             TOLARIA_MACHINE_WAIT_MAX_MS: "300",
@@ -379,49 +386,8 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
         return env;
     };
 
-    it("the batch gate's path: `gate.ts yield` never starts, and the cadence writes the infra record health-main could not", () => {
+    it("waits, then records infra / machine-saturated at preflight:machine — no RED verdict, no gate run", () => {
         const { primary, tip } = scratchPrimary();
-        const dir = path.join(primary, ".claude", "telemetry", "health");
-        fs.mkdirSync(dir, { recursive: true });
-        // One landing, un-healthed past MAX_BATCH_AGE_MS: past the batch's age bound,
-        // so `detach` fires.
-        fs.writeFileSync(
-            path.join(dir, "cadence.json"),
-            serializeCadence({
-                ...EMPTY_CADENCE,
-                landings: [
-                    {
-                        sha: tip,
-                        at: Date.now() - MAX_BATCH_AGE_MS - 3600 * 1000,
-                    },
-                ],
-            })
-        );
-        const r = spawnSync("bun", [HEALTH_CADENCE, "detach"], {
-            cwd: primary,
-            env: busyEnv(),
-            encoding: "utf8",
-            timeout: 45_000,
-        });
-        expect(r.stderr).toContain("[gate] machine busy — load 14.5");
-        const last = JSON.parse(
-            fs.readFileSync(path.join(dir, "last.json"), "utf8")
-        ) as Record<string, unknown>;
-        expect(last).toMatchObject({
-            sha: tip,
-            status: "infra",
-            failedStep: PREFLIGHT_MACHINE_STEP,
-            infraCause: "machine-saturated",
-            reason: INFRA_REMEDY["machine-saturated"],
-        });
-        expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
-        expect(fs.readdirSync(dir).filter((f) => f.endsWith(".log"))).toEqual(
-            []
-        );
-    }, 60_000);
-
-    it("waits, then records infra / machine-saturated at preflight:machine — no RED marker, no gate run", () => {
-        const { primary } = scratchPrimary();
         const env = busyEnv();
         const r = spawnSync("bun", [HEALTH_MAIN], {
             cwd: primary,
@@ -444,7 +410,7 @@ describe("health-main — a saturated machine is INFRA, never RED (issue #4966)"
             infraCause: "machine-saturated",
             reason: INFRA_REMEDY["machine-saturated"],
         });
-        expect(fs.existsSync(path.join(dir, "RED"))).toBe(false);
+        expect(redOn(tip)).toBe(false);
         expect(fs.readdirSync(dir).filter((f) => f.endsWith(".log"))).toEqual(
             []
         );

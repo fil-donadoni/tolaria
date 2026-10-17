@@ -302,40 +302,6 @@ export function recordInfra<R extends HealthRecordLike>(input: {
     return kept;
 }
 
-/**
- * The record of a health run whose GATE never started: the batch gate's
- * `gate.ts yield` waited out the bound and exited `MACHINE_SATURATED_EXIT`
- * before `health-main` ran, so `health-main` wrote nothing. `health-cadence`
- * writes this in its place — otherwise `health:status` keeps showing the
- * previous verdict for a tip nothing gated.
- */
-export function recordMachineSaturated(input: {
-    dir: string;
-    sha: string;
-    startedAt: string;
-    previous: HealthRecordLike | null;
-    redMarkerStanding: boolean;
-}): void {
-    // A variable, not a literal: `last.json` carries more than the two
-    // fields `HealthRecordLike` reasons about.
-    const infra = {
-        sha: input.sha,
-        status: "infra" as const,
-        startedAt: input.startedAt,
-        finishedAt: new Date().toISOString(),
-        failedStep: PREFLIGHT_MACHINE_STEP,
-        infraCause: "machine-saturated" satisfies InfraCause,
-        reason: INFRA_REMEDY["machine-saturated"],
-        ui: "not run",
-    };
-    recordInfra<HealthRecordLike>({
-        dir: input.dir,
-        infra,
-        previous: input.previous,
-        redMarkerStanding: input.redMarkerStanding,
-    });
-}
-
 /** The `last.json` fields an INFRA notice prints. */
 export interface InfraRecord {
     sha?: string;

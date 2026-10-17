@@ -115,7 +115,9 @@ describe("health:status reads the RED evidence from the store (issue #5589)", ()
         expect(summary).toMatch(/failure:\*\* crash/);
         expect(summary).not.toContain("FROM THE STORE");
         expect(summary).toMatch(
-            new RegExp(`full evidence: bun run health:status --evidence ${SHA.slice(0, 12)}`)
+            new RegExp(
+                `full evidence: bun run health:status --evidence ${SHA.slice(0, 12)}`
+            )
         );
     });
 });

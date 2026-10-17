@@ -176,7 +176,6 @@ import {
 import { gateSkipReason } from "./lib/health-gate-skip";
 import {
     appendFileSync,
-    existsSync,
     mkdirSync,
     readFileSync,
     rmSync,
