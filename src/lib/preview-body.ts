@@ -519,7 +519,7 @@ export function buildPreviewBody(
     const showOracleText =
         shouldShowOracleText(def, types, subtypes) &&
         !abilitiesStripped &&
-        !isSplitCard(def);
+        !isSplitCard(def ?? undefined);
     const oracleParagraphs = showOracleText
         ? resolveChosenName(
               resolveChosenMode(
