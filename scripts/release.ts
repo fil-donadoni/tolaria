@@ -28,12 +28,14 @@
 // Usage:
 //   bun run release                     # gate origin/<base>, fast-forward <release>
 //   bun run release --dry-run           # print the tips and what would happen
+//   bun run release --gate-only         # everything except the push (release.yml's dry run)
 //   bun run release --no-fix            # today's behaviour: refuse on RED, spawn nothing
 //   bun run release --max-fix-attempts=N  # move the bound (default 3, min 2)
 //
 // Runs from the primary checkout (health-main.ts insists on it: a linked
 // worktree's `.env.local` is absent and the health worktree is created
-// beside the primary). `git push` is a plain refspec `<sha>:refs/heads/<release>`,
+// beside the primary) — or from the job worktree of `release.yml` (issue
+// #5647), the one linked worktree health accepts. `git push` is a plain refspec `<sha>:refs/heads/<release>`,
 // so a release branch that somehow moved off the base's history is refused
 // by git itself as a non-fast-forward.
 
@@ -56,6 +58,7 @@ import {
     type FixVerdict,
 } from "./health-fix";
 import { refuseCorpusExclusion } from "./lib/corpus-exclusion";
+import { inJobWorktree } from "./lib/health-verdict-job";
 
 const HEALTH_MAIN = resolve(__dirname, "health-main.ts");
 const HEALTH_FIX = resolve(__dirname, "health-fix.ts");
@@ -194,6 +197,21 @@ export function publishVerdict(
             `release: the verdict store could not be written — ${(e as Error).message}`
         );
     }
+}
+
+/**
+ * The last word before the push (issue #5647): the release branch moves only
+ * to a sha whose settled record is GREEN and about THAT sha. `releaseDecision`
+ * already said so once; this re-asks of the record the push is about to act
+ * on, so a refactor of the loop cannot promote a tip health never proved.
+ * Null: push.
+ */
+export function pushRefusal(
+    sha: string,
+    record: HealthRecord | null
+): string | null {
+    const d = releaseDecision(sha, record);
+    return d.kind === "release" ? null : d.reason;
 }
 
 export type LoopDecision =
@@ -379,6 +397,8 @@ function main(): void {
     refuseCorpusExclusion("release");
     const cwd = process.cwd();
     const dryRun = process.argv.includes("--dry-run");
+    // `release.yml`'s dry run: the gate, the verdict, the decision — no push.
+    const gateOnly = process.argv.includes("--gate-only");
     const fixEnabled = !process.argv.includes("--no-fix");
     const bound = parseFixBound(process.argv);
     if ("error" in bound) {
@@ -387,9 +407,9 @@ function main(): void {
     }
     const maxAttempts = bound.max;
     const common = git(["rev-parse", "--git-common-dir"], cwd);
-    if (common !== ".git") {
+    if (common !== ".git" && !inJobWorktree(cwd, process.env)) {
         console.error(
-            "release: run from the primary checkout (the health gate creates its worktree beside it)"
+            "release: run from the primary checkout or a release job's worktree (the health gate creates its worktree beside the primary)"
         );
         process.exit(2);
     }
@@ -420,6 +440,7 @@ function main(): void {
     const attempts: string[] = [];
     let sha = tip;
     let promote: string | null = null;
+    let promoted: HealthRecord | null = null;
 
     const store = () => verdictStore(cwd);
     for (let attempt = 1; promote === null; attempt++) {
@@ -448,6 +469,7 @@ function main(): void {
 
         if (step.kind === "release") {
             promote = step.sha;
+            promoted = record;
             break;
         }
         if (step.kind !== "fix") {
@@ -483,6 +505,15 @@ function main(): void {
         // next round would gate the tree that was already red.
         git(["fetch", "origin", BASE_BRANCH, "-q"], cwd);
         sha = git(["rev-parse", ORIGIN_BASE], cwd);
+    }
+
+    const refusal = pushRefusal(promote, promoted);
+    if (refusal !== null) giveUp(attempts, refusal);
+    if (gateOnly) {
+        console.log(
+            `release: --gate-only — ${promote.slice(0, 8)} is GREEN; ${RELEASE_BRANCH} left where it is`
+        );
+        return;
     }
 
     // Plain refspec: git refuses a non-fast-forward on its own, and nothing
