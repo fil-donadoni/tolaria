@@ -20,11 +20,26 @@ import type { PackedBlocks } from "./packedCorpus";
  *  (`data/catalogue/shard-dictionary.json`) — never the server corpus's own
  *  dictionary, which is resampled from the rows on every regeneration and
  *  would re-point every shard's URL with it. */
-export interface CompiledShard extends CompiledDefinitionIndex, PackedBlocks {
+export interface CompiledShard
+    extends Omit<CompiledDefinitionIndex, "setCodes">, PackedBlocks {
     /** The Set code every row's `setCode` carries: the Manifest's shard key
-     *  (`DefinitionManifestEntry.setCode`). */
+     *  (`DefinitionManifestEntry.setCode`). The index's per-row `setCodes`
+     *  are not on the wire: every one is this key ({@link shardIndexOf}). */
     readonly key: string;
 }
+
+/** A shard's slice of the compiled Definition Index, its per-row Set codes
+ *  restored — ONE string for every row, not one per row as a parsed array
+ *  would hold (at 35k rows that is ~2 MiB of client heap, measured by
+ *  `bun run measure:client-heap`). */
+export const shardIndexOf = (
+    shard: CompiledShard
+): CompiledDefinitionIndex => ({
+    ids: shard.ids,
+    names: shard.names,
+    setCodes: new Array<string>(shard.ids.length).fill(shard.key),
+    lookups: shard.lookups,
+});
 
 /** The fields the decoder and the index read, present and consistent — a
  *  truncated or foreign body is refused by the loader, with its URL, rather
@@ -47,11 +62,22 @@ export function isCompiledDefinitionIndex(
     );
 }
 
-/** {@link isCompiledDefinitionIndex} plus the blocks, one first id per block
- *  and offsets that tile the block string. */
+/** A shard's index fields (no `setCodes`: {@link CompiledShard}), plus the
+ *  blocks, one first id per block and offsets that tile the block string. */
 export function isCompiledShard(value: unknown): value is CompiledShard {
-    if (!isCompiledDefinitionIndex(value)) return false;
-    const p = value as Partial<CompiledShard> & CompiledDefinitionIndex;
+    const p = value as Partial<CompiledShard> | null;
+    if (
+        typeof p !== "object" ||
+        p === null ||
+        !Array.isArray(p.ids) ||
+        !Array.isArray(p.names) ||
+        typeof p.lookups !== "object" ||
+        p.lookups === null ||
+        p.ids.length === 0 ||
+        p.ids.length !== p.names.length
+    ) {
+        return false;
+    }
     if (
         typeof p.key !== "string" ||
         typeof p.blocks !== "string" ||

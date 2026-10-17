@@ -82,11 +82,22 @@ export const LIGHT_SURFACES: Record<string, string[]> = {
     "match-setup": ["match-setup.route-"],
 };
 
-/** Hashed asset files of the compiled catalogue — the packed corpus the gate
- *  fetches (`src/lib/catalogueArtifact.ts`, `packed-corpus-<hash>.json` since
- *  issue #4861; `catalogue-<hex>.json` before it) and the full-catalogue gzip. */
+/** Hashed asset files of the compiled catalogue: since issue #5616 the
+ *  per-Set shards, the compiled names index and the shard dictionary
+ *  (`compiled-shard-<key>-<hash>.json`, `compiled-index-<hash>.json`,
+ *  `compiled-dictionary-<hash>.json`, `scripts/lib/vite-compiled-shards.ts`);
+ *  before it the whole packed corpus (`packed-corpus-<hash>.json`, issue
+ *  #4861) and `catalogue-<hex>.json`; and the full-catalogue gzip. */
 const CATALOGUE_ASSET =
-    /(?:^|["'/])(?:(?:full-)?catalogue-[0-9a-f]{8,}|packed-corpus-[\w-]{8,})[^"']*\.(?:json|gz)/;
+    /(?:^|["'/])(?:(?:full-)?catalogue-[0-9a-f]{8,}|packed-corpus-[\w-]{8,}|compiled-(?:shard-[a-z0-9]+|index|dictionary)-[0-9a-f]{12})[^"']*\.(?:json|gz)/;
+
+/** The emitted name of one compiled shard (issue #5616). */
+export const COMPILED_SHARD_ASSET =
+    /^compiled-shard-[a-z0-9]+-[0-9a-f]{12}\.json$/;
+
+/** The emitted name of the WHOLE compiled corpus — what no client build may
+ *  carry since issue #5616 (the server bundles it; a client gets shards). */
+export const WHOLE_CORPUS_ASSET = /^packed-corpus-[\w-]+\.json$/;
 
 export interface LightSurfaceViolation {
     surface: string;
@@ -256,4 +267,36 @@ export function chunksInStaticCycle(distDir: string, prefix: string): string[] {
             }
             return false;
         });
+}
+
+export interface CompiledAssetViolation {
+    asset: string;
+    reason: string;
+}
+
+/**
+ * Every way `distDir` breaks "a game downloads only its own compiled
+ * definitions" (issue #5616, PRD #5602): a whole-corpus asset emitted at all —
+ * nothing may fetch it, and its presence means some graph still imports it —
+ * or no compiled shard at all (vacuity: the shards were folded somewhere this
+ * check cannot see, or the build stopped cutting them).
+ */
+export function compiledAssetViolations(
+    distDir: string
+): CompiledAssetViolation[] {
+    const assets = readdirSync(join(distDir, "assets"));
+    const out: CompiledAssetViolation[] = [];
+    for (const asset of assets.filter((f) => WHOLE_CORPUS_ASSET.test(f))) {
+        out.push({
+            asset,
+            reason: "the whole compiled corpus is emitted to the client build — a client gets per-Set shards (issue #5616)",
+        });
+    }
+    if (!assets.some((f) => COMPILED_SHARD_ASSET.test(f))) {
+        out.push({
+            asset: "compiled-shard-*.json",
+            reason: "no compiled shard in dist/assets — the build no longer cuts the compiled corpus into shards",
+        });
+    }
+    return out;
 }

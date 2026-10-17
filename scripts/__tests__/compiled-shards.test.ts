@@ -93,7 +93,6 @@ describe("compiled shards — one shard per first-printing Set", () => {
             for (let i = 0; i < shard.ids.length; i++) {
                 expect(placed.has(shard.ids[i]!), shard.ids[i]).toBe(false);
                 placed.set(shard.ids[i]!, shard.key);
-                expect(shard.setCodes[i]).toBe(shard.key);
             }
         }
         expect(placed.size).toBe(PACKED.ids.length);

@@ -34,7 +34,7 @@ import definitionIndexJson from "../../data/catalogue/definition-index.json";
 // `./compiledPool`; the CLIENT through `registerCompiledShard` below, with the
 // shards it fetched (issue #5616).
 import { createBlockLookup, type PackedLookup } from "./packedCorpus";
-import type { CompiledShard } from "./compiledShard";
+import { shardIndexOf, type CompiledShard } from "./compiledShard";
 import { parentIdOfTwin } from "./twinId";
 // The packed corpus as a BUNDLED module. On the SERVER this is
 // `data/catalogue/packed-corpus.json`; in a CLIENT build `vite.config.ts`
@@ -291,27 +291,28 @@ function addName([key, id]: NameEntry): void {
     if (!nameIndex.has(key)) nameIndex.set(key, id);
 }
 
-/** The name keys a COMPILED definition holds, by the kind of name it holds
- *  them with: what {@link addCompiledName} needs to decide a collision
- *  whatever order the shards arrived in. A key absent here is free or
- *  hand-written. */
-const compiledNameKind = new Map<string, "printed" | "twin">();
-
 /** The id a definition's lookups are ordered by: a twin sorts at its
  *  parent, as the server's corpus (rows in id order, each row's twin keys
  *  right after its printed name) writes it. */
 const rowIdOf = (id: string): string => parentIdOfTwin(id) ?? id;
 
-function addCompiledName([key, id]: NameEntry, kind: "printed" | "twin"): void {
+/** A COMPILED name key joins the lookup, whatever order the shards arrive
+ *  in. Who holds a key is read off the holder's id — a twin's id is a twin
+ *  id, a hand-written card's row is in the hand-written index — rather than
+ *  kept in a map beside the lookup. */
+function addCompiledName([key, id]: NameEntry): void {
     const held = nameIndex.get(key);
-    const heldKind = compiledNameKind.get(key);
     if (held !== undefined) {
-        // Hand-written (ADR 0108), or a compiled printed name.
-        if (heldKind === undefined || heldKind === "printed") return;
-        if (kind === "twin" && rowIdOf(id) >= rowIdOf(held)) return;
+        const heldRow = rowIdOf(held);
+        // Hand-written, printed or twin (ADR 0108); or a compiled printed
+        // name, which only another printed name could claim — and compiled
+        // printed names are unique.
+        if (handWrittenIds.has(heldRow) || !isTwinDefinitionId(held)) return;
+        // A compiled twin holds it: a printed name takes it, a twin of a
+        // lower row does.
+        if (isTwinDefinitionId(id) && rowIdOf(id) >= heldRow) return;
     }
     nameIndex.set(key, id);
-    compiledNameKind.set(key, kind);
 }
 
 function addChooseable(id: string, names: readonly string[]): void {
@@ -363,8 +364,8 @@ function addCompiled(
         compiledIdsSorted = false;
     compiledIds.push(id);
     compiledAt.set(id, at);
-    addCompiledName([name.toLowerCase(), id], "printed");
-    for (const entry of twinNames) addCompiledName(entry, "twin");
+    addCompiledName([name.toLowerCase(), id]);
+    for (const entry of twinNames) addCompiledName(entry);
 }
 
 for (const [id, name, setCode] of handWrittenIndex.entries) {
@@ -459,7 +460,7 @@ export function registerCompiledShard(
     if (packedCorpusLookup !== null || installedShards.has(shard.key)) return 0;
     installedShards.add(shard.key);
     return installCompiledSection(
-        shard,
+        shardIndexOf(shard),
         createBlockLookup(shard, dictionaryOf)
     );
 }

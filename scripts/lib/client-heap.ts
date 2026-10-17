@@ -13,15 +13,20 @@
  *     `convex/formats.ts`'s `./cards` → the late-bound resolver,
  *     `@convex/cards` → `convex/cards/client.ts`, and every `?url` asset
  *     import → a placeholder URL;
- *   - the probe stubs `fetch` with the packed corpus — the committed one, or
- *     a SYNTHETIC one at the target scale, packed by the generator's own
- *     `packCorpus` from the committed rows cycled to N with fresh UUID ids and
- *     unique names (the tree is never edited);
+ *   - the probe stubs `fetch` with the client's compiled assets (issue
+ *     #5616: one shard per first-printing Set, the shard dictionary, the
+ *     names index) cut by the build's own encoder (`./compiled-shards`) from
+ *     the committed rows, or SYNTHETIC rows at the target scale — the
+ *     committed rows cycled to N with fresh UUID ids and unique names (the
+ *     tree is never edited) — and `virtual:compiled-shards` with their
+ *     paths;
  *   - in a fresh `node --expose-gc`, the heap after `gc()` is read after the
- *     import, after `hydrateCatalogue()` and the game's `getDefinition`s,
- *     and the CATALOGUE figure is the difference — what the corpus and the
- *     game's decoded cards hold, the code excluded. The minimum of several
- *     runs, since noise only ever adds.
+ *     import, after `hydrateCatalogue()` — the WHOLE mode, every shard: the
+ *     Brain worker's until its own slice, and the upper bound of a page's
+ *     game — and the game's `getDefinition`s, and the CATALOGUE figure is
+ *     the difference — what the shards and the game's decoded cards hold,
+ *     the code excluded. The minimum of several runs, since noise only ever
+ *     adds.
  *
  * The DECK BUILDER is measured the same way (issue #5125): it holds no
  * catalogue, but its search index (`src/lib/searchIndex.ts`) is resident for
@@ -42,11 +47,20 @@ import { join, resolve } from "node:path";
 import { buildDefine } from "./build-define";
 import {
     PACKED_CORPUS_PATH,
-    packCorpus,
-    serializePackedCorpus,
     unpackCorpus,
     type PackedCorpus,
 } from "./packed-corpus";
+import {
+    SHARD_DICTIONARY_PATH,
+    buildCompiledShards,
+    type ShardDictionaryFile,
+} from "./compiled-shards";
+import { compiledShardsModuleSource } from "./vite-compiled-shards";
+import {
+    buildIndexLookups,
+    type CompiledDefinitionIndex,
+} from "../../convex/cards/definitionIndex";
+import { decodeBase64 } from "../../convex/cards/packedCorpus";
 import type { SearchIndexWireRow } from "../../convex/cards/searchIndex";
 import type { CardDefinition } from "../../convex/cards/types";
 import { SEARCH_INDEX_PATH } from "./search-index";
@@ -125,8 +139,46 @@ export function committedRows(repoRoot: string): CardDefinition[] {
     );
 }
 
-/** The browser build's substitutions, as one esbuild plugin. */
-function browserGraph(repoRoot: string): esbuild.Plugin {
+/** The compiled assets of `rows` written to `dir` — one file per shard, the
+ *  dictionary, the names index — and `virtual:compiled-shards`'s source
+ *  naming their paths, which the probe's `fetch` reads. */
+function writeCompiledAssets(
+    repoRoot: string,
+    rows: readonly CardDefinition[],
+    dir: string
+): string {
+    const dictionaryText = readFileSync(
+        join(repoRoot, SHARD_DICTIONARY_PATH),
+        "utf8"
+    );
+    const dictionary = decodeBase64(
+        (JSON.parse(dictionaryText) as ShardDictionaryFile).dictionary
+    );
+    const dictionaryFile = join(dir, "compiled-dictionary.json");
+    writeFileSync(dictionaryFile, dictionaryText);
+    const index: CompiledDefinitionIndex = {
+        ids: rows.map((r) => r.id),
+        names: rows.map((r) => r.name),
+        setCodes: rows.map((r) => r.setCode ?? ""),
+        lookups: buildIndexLookups(rows),
+    };
+    const indexFile = join(dir, "compiled-index.json");
+    writeFileSync(indexFile, JSON.stringify(index));
+    const shards = buildCompiledShards(rows, dictionary).map((shard) => {
+        const file = join(dir, `compiled-shard-${shard.key}.json`);
+        writeFileSync(file, JSON.stringify(shard));
+        return [shard.key, JSON.stringify(file)] as const;
+    });
+    return compiledShardsModuleSource(
+        JSON.stringify(dictionaryFile),
+        JSON.stringify(indexFile),
+        shards
+    );
+}
+
+/** The browser build's substitutions, as one esbuild plugin. `compiled` is
+ *  `virtual:compiled-shards`'s source. */
+function browserGraph(repoRoot: string, compiled = ""): esbuild.Plugin {
     const src = join(repoRoot, "src");
     const convex = join(repoRoot, "convex");
     return {
@@ -140,6 +192,14 @@ function browserGraph(repoRoot: string): esbuild.Plugin {
                 contents: `export default ${JSON.stringify(`/assets/${args.path}`)};`,
                 loader: "js",
             }));
+            build.onResolve({ filter: /^virtual:compiled-shards$/ }, () => ({
+                path: "compiled-shards",
+                namespace: "compiled-shards",
+            }));
+            build.onLoad(
+                { filter: /.*/, namespace: "compiled-shards" },
+                () => ({ contents: compiled, loader: "js" })
+            );
             build.onResolve({ filter: /^\.\/compiledPool$/ }, () => ({
                 path: join(src, "lib/catalogue/compiled-pool.browser.ts"),
             }));
@@ -184,10 +244,11 @@ import { hydrateCatalogue } from ${JSON.stringify(artifact)};
 import { getDefinition } from ${JSON.stringify(join(repoRoot, "convex/cards/registry.ts"))};
 import { packedCorpusInflations } from ${JSON.stringify(join(repoRoot, "convex/cards/catalogue.ts"))};
 import { readFileSync } from "node:fs";
-export async function run(corpusFile) {
-    globalThis.fetch = async () => ({
+export async function run() {
+    // Every compiled asset URL is a file path (\`writeCompiledAssets\`).
+    globalThis.fetch = async (url) => ({
         ok: true,
-        json: async () => JSON.parse(readFileSync(corpusFile, "utf8")),
+        json: async () => JSON.parse(readFileSync(url, "utf8")),
     });
     gc();
     const before = process.memoryUsage().heapUsed;
@@ -238,17 +299,19 @@ export async function measureClientHeap(
     const game = gameIds(corpusRows);
     const dir = mkdtempSync(join(tmpdir(), "client-heap-"));
     try {
-        const corpus = join(dir, "packed-corpus.json");
-        writeFileSync(
-            corpus,
-            serializePackedCorpus(packCorpus(corpusRows, "synthetic"))
-        );
+        const compiled = writeCompiledAssets(root, corpusRows, dir);
+        const corpus = dir;
         const runner = join(dir, "runner.mjs");
         writeFileSync(runner, RUNNER);
         const report: ClientHeap[] = [];
         for (const context of contexts) {
             const bundle = join(dir, `${context}.mjs`);
-            await bundleProbe(root, probeSource(root, context, game), bundle);
+            await bundleProbe(
+                root,
+                probeSource(root, context, game),
+                bundle,
+                compiled
+            );
             let best: ClientHeap | null = null;
             for (let i = 0; i < runs; i++) {
                 const out = runProbe(runner, bundle, corpus, context) as {
@@ -362,7 +425,8 @@ export async function measureSearchIndexHeap(
 async function bundleProbe(
     root: string,
     contents: string,
-    outfile: string
+    outfile: string,
+    compiled = ""
 ): Promise<void> {
     await esbuild.build({
         stdin: { contents, resolveDir: root, loader: "js" },
@@ -378,7 +442,7 @@ async function bundleProbe(
                 MODE: "production",
             }),
         },
-        plugins: [browserGraph(root)],
+        plugins: [browserGraph(root, compiled)],
         logLevel: "silent",
     });
 }

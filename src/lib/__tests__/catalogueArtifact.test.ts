@@ -156,6 +156,13 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
         await expect(hydrateCatalogue()).rejects.toThrow(/HTTP 404/);
     });
 
+    // Before any test that loads the real dictionary: it is decoded once per
+    // graph, and kept.
+    it("refuses a dictionary body that holds no dictionary", async () => {
+        vi.stubGlobal("fetch", respondWith({ rows: [] }));
+        await expect(hydrateCatalogue()).rejects.toThrow(/holds no dictionary/);
+    });
+
     it("refuses a body that is not the shard it asked for", async () => {
         const real = serveCompiledAssets();
         const foreign = respondWith([{ id: "x", name: "Row" }]);
@@ -166,11 +173,6 @@ describe("hydrateCatalogue — failures reject, and are retried", () => {
             )
         );
         await expect(hydrateCatalogue()).rejects.toThrow(/is not the shard/);
-    });
-
-    it("refuses a dictionary body that holds no dictionary", async () => {
-        vi.stubGlobal("fetch", respondWith({ rows: [] }));
-        await expect(hydrateCatalogue()).rejects.toThrow(/holds no dictionary/);
     });
 
     it("bounds a stalled fetch, so the gate and the Worker see a rejection", async () => {

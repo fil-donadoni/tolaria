@@ -54,6 +54,7 @@ import {
     lightSurfaceViolations,
     reachableChunks,
     setChunkViolations,
+    compiledAssetViolations,
 } from "./lib/asset-graph";
 
 const ROOT = join(dirname(new URL(import.meta.url).pathname), "..");
@@ -195,6 +196,10 @@ function main(): void {
     // behind the loader's `import()`; none is in any chunk's static closure.
     for (const v of setChunkViolations(distDir)) {
         failures.push(`set chunks: ${v.chunk} — ${v.reason}`);
+    }
+    // Issue #5616: the compiled half — shards, never the whole corpus.
+    for (const v of compiledAssetViolations(distDir)) {
+        failures.push(`compiled assets: ${v.asset} — ${v.reason}`);
     }
 
     if (failures.length > 0) {

@@ -94,7 +94,6 @@ export function buildCompiledShards(
                 ...packBlocks(group, dictionary),
                 ids: group.map((r) => r.id),
                 names: group.map((r) => r.name),
-                setCodes: group.map((r) => r.setCode ?? ""),
                 lookups: buildIndexLookups(group),
             };
         });
