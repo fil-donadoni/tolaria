@@ -160,6 +160,13 @@ export type { StoredDeckCard } from "@convex/decks";
  */
 export type ZoneCard = DeckCard & {
     pinKey?: string;
+    /** The PRINTING this entry is shown with, when it differs from `cardId`
+     *  (issue #5473): a Limited Pool card keeps its canonical Card ID in
+     *  `cardId` — every registry lookup (column grouping, filters, stats)
+     *  keys on it — while `printId` is the opened booster printing the
+     *  surfaces render and the saved deck stores as its entry `cardId`
+     *  (ADR 0140 §5). Absent = render `cardId`'s own printing. */
+    printId?: string;
 };
 
 export interface CardInstance {

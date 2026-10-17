@@ -42,7 +42,7 @@ export default function DraftPackStatusBar({
     pulsing: boolean;
     timer: React.ReactNode;
     densityToggle: React.ReactNode;
-    selected: { cardId: string; cardName: string } | null;
+    selected: { cardId: string; printId?: string; cardName: string } | null;
     actions: readonly EditingSurfaceAction[];
     onOpenPack: () => void;
     style?: React.CSSProperties;
@@ -65,6 +65,7 @@ export default function DraftPackStatusBar({
             {selected ? (
                 <DraftSelectionActions
                     cardId={selected.cardId}
+                    printId={selected.printId}
                     cardName={selected.cardName}
                     actions={actions}
                     axis="row"

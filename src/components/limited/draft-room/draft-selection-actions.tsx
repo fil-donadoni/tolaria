@@ -33,12 +33,15 @@ import { cn } from "~/lib/utils";
  */
 export default function DraftSelectionActions({
     cardId,
+    printId,
     cardName,
     actions,
     axis,
     stopPropagation = false,
 }: {
     cardId: string;
+    /** The printing to show when it is not `cardId`'s own (issue #5473). */
+    printId?: string;
     cardName: string;
     actions: readonly EditingSurfaceAction[];
     /** `"row"` on a portrait strip (a wide, short band); `"column"` in a
@@ -47,8 +50,8 @@ export default function DraftSelectionActions({
     /** Keep the taps off an ancestor's "tap to go back to the pack" handler. */
     stopPropagation?: boolean;
 }) {
-    const printId = resolveCardImageId(cardId);
-    const thumb = printId ? getImageUrl(printId) : null;
+    const faceId = resolveCardImageId(printId ?? cardId);
+    const thumb = faceId ? getImageUrl(faceId) : null;
     return (
         <div
             data-slot="draft-selection-actions"

@@ -121,9 +121,22 @@ export const listMine = query({
                           seatIndex
                       )
                     : null;
+                // A `limited` entry's `cardId` is the opened PRINT (ADR 0140
+                // §5, issue #5473): the deck side of Pool membership resolves
+                // through the table rows, exactly as game start does
+                // (`createGame`'s `makeResolveCardFromRows`).
+                const resolve = makeResolveCardFromRows(
+                    await loadPrintRows(
+                        ctx,
+                        [...row.cards, ...(row.sideboard ?? [])].map(
+                            (c) => c.cardId
+                        )
+                    )
+                );
                 const { isLegal, reasons } = resolveLimitedDeckLegality(
                     row,
-                    seatPool
+                    seatPool,
+                    resolve
                 );
                 return { ...row, isLegal, reasons };
             })

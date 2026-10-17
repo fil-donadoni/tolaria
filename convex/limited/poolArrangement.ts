@@ -36,11 +36,36 @@ import type { LimitedPoolCard, PoolArrangementEntry } from "./eventTypes";
 export interface PlainPoolCard {
     cardId: string;
     cardName: string;
+    /** The printing the booster actually contained (issue #5473) — the Pool
+     *  entry's `scryfallId`, when it is a different id than the canonical
+     *  `cardId` (a reprint). Display + deck-entry identity only: rules code
+     *  never reads it (ADR 0140 §6). Absent when the Pool card has no
+     *  distinct printing (the registry could not resolve its `scryfallId`,
+     *  so the id is its own identity). */
+    printId?: string;
     /** WHICH physical Pool card this entry is (issue #1626) — the Pool's own
      *  index, and the only stable per-copy identity the surface has. Absent
      *  only for a card the Pool does not hold at all (a Basic added from the
      *  bar), which therefore can never carry a Card Pin. */
     poolIndex?: number;
+}
+
+/** The printing a Pool / pack card was opened as, or `undefined` when it is
+ *  its canonical Card ID's own (issue #5473). THE one place the
+ *  `scryfallId`-vs-`cardId` comparison is made: an entry whose `scryfallId`
+ *  the table could not resolve carries the id as BOTH fields
+ *  (`convex/limitedCardMeta.ts`) and so has no print to show beyond itself.
+ *  A Basic never has one: it keeps the drafted-set printing / art-picker
+ *  behaviour (`resolveBasicLandCardIds`). */
+export function openedPrintId(card: {
+    scryfallId: string;
+    cardId: string;
+}): string | undefined {
+    if (card.scryfallId === card.cardId) return undefined;
+    if (tryGetDefinition(card.cardId)?.supertypes?.includes("Basic")) {
+        return undefined;
+    }
+    return card.scryfallId;
 }
 
 /** A patch to fold into one seat's Pool Arrangement, keyed by `poolIndex`.
@@ -251,6 +276,7 @@ export function splitPoolByArrangement(
         target.push({
             cardId: placement.card.cardId,
             cardName: placement.card.cardName,
+            printId: openedPrintId(placement.card),
             poolIndex: placement.poolIndex,
         });
     }
@@ -413,11 +439,25 @@ export function assignPoolCopies(
     const take = (card: UnidentifiedCard): number | undefined =>
         available.get(poolMatchIdentity(card))?.shift();
     const identify = (list: readonly UnidentifiedCard[]): PlainPoolCard[] =>
-        list.map((card) => ({
-            cardId: card.cardId,
-            cardName: card.cardName,
-            poolIndex: take(card),
-        }));
+        list.map((card) => {
+            const poolIndex = take(card);
+            const copy = poolIndex === undefined ? undefined : pool[poolIndex];
+            const printId = copy ? openedPrintId(copy) : undefined;
+            // The face comes from the Pool COPY the entry re-attached to (its
+            // `scryfallId`), never from the saved `cardId`: a deck saved before
+            // issue #5473 stored the canonical id and heals on reopen. The
+            // working entry stays keyed by the CANONICAL id wherever the copy
+            // has a printing of its own: every registry lookup (columns,
+            // filters, stats) reads `cardId`.
+            return printId === undefined || !copy
+                ? { cardId: card.cardId, cardName: card.cardName, poolIndex }
+                : {
+                      cardId: copy.cardId,
+                      cardName: card.cardName,
+                      printId,
+                      poolIndex,
+                  };
+        });
     // Maindeck first — it is the zone whose Pins are rendered.
     const cards = identify(zones.cards);
     return { cards, sideboard: identify(zones.sideboard) };

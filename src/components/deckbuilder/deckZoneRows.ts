@@ -23,16 +23,18 @@ export interface DeckRowTile extends DeckPileTile {
 }
 
 /**
- * One tile per distinct `cardId`, in first-appearance order, each carrying the
- * number of copies it replaced.
+ * One tile per distinct face — `cardId` plus the printing it shows (issue
+ * #5473: two Bolts from different sets are different faces) — in
+ * first-appearance order, each carrying the number of copies it replaced.
  */
 export function collapseDuplicateTiles(
     tiles: readonly DeckPileTile[]
 ): DeckRowTile[] {
-    const byCardId = new Map<string, DeckRowTile>();
+    const byFace = new Map<string, DeckRowTile>();
     const order: string[] = [];
     for (const tile of tiles) {
-        const existing = byCardId.get(tile.cardId);
+        const face = `${tile.printId ?? ""}|${tile.cardId}`;
+        const existing = byFace.get(face);
         if (existing) {
             existing.count += 1;
             continue;
@@ -40,12 +42,12 @@ export function collapseDuplicateTiles(
         // `stackIndex` is dropped deliberately: a row lays its tiles out side
         // by side, so the staggered absolute `top` of a pile would push every
         // tile but the first out of the row's box.
-        byCardId.set(tile.cardId, {
+        byFace.set(face, {
             ...tile,
             stackIndex: undefined,
             count: 1,
         });
-        order.push(tile.cardId);
+        order.push(face);
     }
-    return order.map((cardId) => byCardId.get(cardId)!);
+    return order.map((face) => byFace.get(face)!);
 }

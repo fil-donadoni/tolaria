@@ -119,6 +119,7 @@ export default function DeckZonePeek({
             {selection && (
                 <PeekPanel
                     cardId={selection.cardId}
+                    imageId={selection.printId}
                     name={selection.cardName}
                     subtitle={subtitle}
                     actions={peekActions}

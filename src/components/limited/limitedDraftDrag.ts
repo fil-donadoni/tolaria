@@ -69,6 +69,9 @@ export interface BoosterDragData {
     pickId: string;
     cardId: string;
     cardName: string;
+    /** The printing the pack card shows (issue #5473) — the drag overlay
+     *  renders it. Absent when it is `cardId`'s own. */
+    printId?: string;
 }
 
 /** Everything draggable on the draft table: a Booster card, or an

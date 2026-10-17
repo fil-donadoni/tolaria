@@ -33,7 +33,13 @@ export default function DraftCardPile({
 }: {
     /** Bottom of the pile first. `highlight` rings a card that is parked in
      *  the Sideboard (ADR 0101 §6: the Sideboard is always countable). */
-    cards: readonly { key: string; cardId: string; highlight?: boolean }[];
+    cards: readonly {
+        key: string;
+        cardId: string;
+        /** The printing to show when it is not `cardId`'s own (issue #5473). */
+        printId?: string;
+        highlight?: boolean;
+    }[];
     emptyLabel: string;
     className?: string;
 }) {
@@ -60,13 +66,13 @@ export default function DraftCardPile({
             style={{ width: CARD_W_PX }}
         >
             {cards.map((card, index) => {
-                const printId = resolveCardImageId(card.cardId);
-                if (!printId) return null;
+                const faceId = resolveCardImageId(card.printId ?? card.cardId);
+                if (!faceId) return null;
                 return (
                     <img
                         data-card-face="printed"
                         key={card.key}
-                        src={getImageUrl(printId)}
+                        src={getImageUrl(faceId)}
                         alt=""
                         draggable={false}
                         className={cn(

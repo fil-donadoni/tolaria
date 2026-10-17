@@ -10,6 +10,7 @@ import { FORMAT_RULES, validateDeck } from "@convex/formats";
 import { poolFromLimitedPoolCards } from "@convex/limited/poolResolution";
 import {
     assignPoolCopies,
+    openedPrintId,
     pinsByPoolIndex,
     splitPoolByArrangement,
 } from "@convex/limited/poolArrangement";
@@ -108,6 +109,7 @@ function defaultWorkingDeck(
             pool.map((c, poolIndex) => ({
                 cardId: c.cardId,
                 cardName: c.cardName,
+                printId: openedPrintId(c),
                 poolIndex,
             }))
         ),
@@ -164,11 +166,21 @@ function applySplit(deck: WorkingDeck, split: SideboardSplit): WorkingDeck {
     return { ...deck, cards: split.cards, sideboard: split.sideboard };
 }
 
-/** One zone entry as the DECK ROW stores it — `{ cardId, cardName }` and
- *  nothing else. See the save sink below for why the per-copy `pinKey` must
- *  not travel. */
+/** One zone entry as the DECK ROW stores it — never the per-copy `pinKey`
+ *  (see the save sink below). A Pool card opened as a reprint is minted per
+ *  ADR 0140 §5 (issue #5473): `cardId` = the opened Print ID, `definitionId` =
+ *  the canonical Card ID, so Pool membership and rarity still resolve by
+ *  definition while the game board shows the opened printing. Every other
+ *  entry (a Basic, a card whose print the registry could not resolve) is
+ *  `{ cardId, cardName }` as before. */
 function strippedCard(card: ZoneCard): DeckCard {
-    return { cardId: card.cardId, cardName: card.cardName };
+    return card.printId === undefined
+        ? { cardId: card.cardId, cardName: card.cardName }
+        : {
+              cardId: card.printId,
+              cardName: card.cardName,
+              definitionId: card.cardId,
+          };
 }
 
 interface PoolDeckBuilderFormProps {

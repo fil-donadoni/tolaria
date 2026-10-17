@@ -13,6 +13,8 @@ import type { EditingSurfaceAction } from "./editing-surface-action";
 export interface PeekPanelProps {
     /** Registry card id of the selected card. */
     cardId: string;
+    /** The printing to show when it is not `cardId`'s own (issue #5473). */
+    imageId?: string;
     name: string;
     /** One line under the name — the surface's own summary (type line, "MV 3",
      *  "Maindeck ×2"). */
@@ -44,6 +46,7 @@ export interface PeekPanelProps {
  */
 export default function PeekPanel({
     cardId,
+    imageId,
     name,
     subtitle,
     actions,
@@ -54,7 +57,7 @@ export default function PeekPanel({
     // panel choosing an axis the surface did not reserve is exactly the
     // occlusion this shared hook exists to prevent (issue #2583 review).
     const resolved: PeekPanelLayout = usePeekPanelLayout(layout);
-    const printId = resolveCardImageId(cardId);
+    const printId = resolveCardImageId(imageId ?? cardId);
     const thumb = printId ? getImageUrl(printId) : null;
 
     // ESCAPE DISMISSES THE SELECTION (issue #2593). The panel is non-modal by

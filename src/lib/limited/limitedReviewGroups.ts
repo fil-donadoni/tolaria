@@ -17,8 +17,15 @@ export interface ReviewGroup {
 }
 
 interface ReviewSourceCard {
+    /** The face to render: a saved deck entry's `cardId` is the opened PRINT
+     *  (ADR 0140 §5, issue #5473), a Pool entry is given its opened print by
+     *  the caller. */
     cardId: string;
     cardName: string;
+    /** The Card Definition `cardId` prints, when `cardId` is a print — what
+     *  the registry classifies the card by (the registry no longer resolves a
+     *  Print ID, ADR 0140 §6). */
+    definitionId?: string;
 }
 
 /** Creatures / spells / lands, in that order (issue #5392) — the split the
@@ -36,7 +43,7 @@ export function groupDeckCards(
     let landTotal = 0;
 
     cards.forEach((card, i) => {
-        const def = tryGetDefinition(card.cardId);
+        const def = tryGetDefinition(card.definitionId ?? card.cardId);
         const face: ReviewCard = {
             key: `${card.cardId}-${i}`,
             cardId: card.cardId,

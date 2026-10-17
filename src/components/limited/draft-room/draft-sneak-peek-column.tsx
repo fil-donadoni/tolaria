@@ -30,7 +30,7 @@ export default function DraftSneakPeekColumn({
     picks: readonly DraftPileCard[];
     mainCount: number;
     sideCount: number;
-    selected: { cardId: string; cardName: string } | null;
+    selected: { cardId: string; printId?: string; cardName: string } | null;
     actions: readonly EditingSurfaceAction[];
     /** The pack's own state line, shown when no card is selected. */
     status: React.ReactNode;
@@ -79,6 +79,7 @@ export default function DraftSneakPeekColumn({
                 {selected ? (
                     <DraftSelectionActions
                         cardId={selected.cardId}
+                        printId={selected.printId}
                         cardName={selected.cardName}
                         actions={actions}
                         axis="column"
